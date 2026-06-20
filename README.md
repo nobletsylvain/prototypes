@@ -21,6 +21,7 @@ Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) chargé via C
 
 ### Jouer
 
+- **Caméra** : cadrage auto (portrait/paysage) + **pinch à deux doigts pour zoomer** (sauvegardé).
 - En ligne : **https://nobletsylvain.github.io/prototypes/**
 - En local : ouvrir `index.html` dans un navigateur (idéalement Safari iOS). Nécessite une connexion (Three.js est chargé depuis un CDN).
 
