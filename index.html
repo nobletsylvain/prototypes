@@ -395,6 +395,9 @@ function updateGuide(cutNeg, cutPos) {
    10) COUPER : detache la tranche [coupe .. bord droit] et la fait tomber.
    ------------------------------------------------------------------------- */
 function performCut(cutNeg, cutPos) {
+  // Si la coupe laisserait un talon trop fin a gauche, on l'inclut dans cette
+  // barrette (sinon il reste un bout non coupable au bord gauche).
+  if (cutNeg < 0.32 && cutPos < 0.32) { cutNeg = 0; cutPos = 0; }
   const thick = ((rightNeg - cutNeg) + (rightPos - cutPos)) / 2;
   if (thick < 0.06) { showToast("Trop pres du bord 🙃", "#ffd166"); return; }
 
@@ -446,8 +449,8 @@ function performCut(cutNeg, cutPos) {
   addShake(grade === "A" ? 0.22 : 0.16);
   playCut(grade);
 
-  // Fin de partie ?
-  if (Math.max(rightNeg, rightPos) < 0.25) {
+  // Fin de partie ? (uniquement quand il ne reste vraiment plus rien)
+  if (Math.max(rightNeg, rightPos) < 0.06) {
     over = true;
     showToast("Savonnette finie ! 🎉", "#9be37d");
     ui.hint.style.opacity = "1";
