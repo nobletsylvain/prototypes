@@ -87,6 +87,8 @@
     justify-content:flex-end; padding-bottom:17vh; gap:10px; pointer-events:none; }
   #doseui.show { display:flex; }
   #dosetext { color:#fff; font-weight:800; font-size:17px; text-shadow:0 2px 8px rgba(0,0,0,.6); }
+  #dosestack { min-height:22px; font-size:18px; letter-spacing:-2px; line-height:1; max-width:80%;
+    text-align:center; word-break:break-all; filter:drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
   #dosecombo { color:#ffd166; font-weight:900; font-size:24px; min-height:28px; text-shadow:0 2px 10px rgba(0,0,0,.6);
     transition:transform .08s; }
   #dosegauge { position:relative; width:74%; max-width:360px; height:24px; background:rgba(255,255,255,.12);
@@ -184,6 +186,7 @@
 </div>
 <div id="doseui">
   <div id="dosetext">Dosage</div>
+  <div id="dosestack"></div>
   <div id="dosecombo"></div>
   <div id="dosegauge"><div id="dsweet"></div><div id="dcursor"></div></div>
   <div id="dosescale"></div>
@@ -735,6 +738,24 @@ function makeBin(pos, col) {
 const sellBin  = makeBin(SELL_POS, 0x3a6b3a);
 const wasteBin = makeBin(WASTE_POS, 0x55504a);
 
+// Pile de barrettes dans le bac STOCK : se remplit/vide selon stock.g.
+const stockPile = new THREE.Group();
+sellBin.add(stockPile);
+const PILE_MAX = 24, PILE_PER = 10;                 // 1 barrette affichee = ~10 g
+const slabGeo = new THREE.BoxGeometry(0.2, 0.1, 0.4);
+for (let i = 0; i < PILE_MAX; i++) {
+  const m = new THREE.Mesh(slabGeo, matCrust);
+  const layer = Math.floor(i / 12), idx = i % 12, col = idx % 6, row = Math.floor(idx / 6);
+  m.position.set(-0.55 + col * 0.22, 0.11 + layer * 0.105, -0.21 + row * 0.42);
+  m.rotation.y = (Math.random() - 0.5) * 0.35;
+  m.castShadow = true; m.visible = false;
+  stockPile.add(m);
+}
+function updateStockPile() {
+  const n = Math.max(0, Math.min(PILE_MAX, Math.round(stock.g / PILE_PER)));
+  for (let i = 0; i < PILE_MAX; i++) stockPile.children[i].visible = i < n;
+}
+
 // Etiquettes flottantes des deux bacs (memes etiquettes HTML projetees).
 const sellLabel  = makeLabel("📦 À VENDRE", "#9be37d");
 const wasteLabel = makeLabel("🗑️ DÉCHETS", "#caa15f");
@@ -755,7 +776,7 @@ function stockGrade() {
   const a = stock.qsum / stock.g;
   return a >= 0.9 ? "A" : a >= 0.68 ? "B" : "C";
 }
-function updateStockLabel() { sellLabel.textContent = "📦 STOCK " + Math.round(stock.g) + " g"; }
+function updateStockLabel() { sellLabel.textContent = "📦 STOCK " + Math.round(stock.g) + " g"; updateStockPile(); }
 function addToStock(g, grade) { stock.g += g; stock.qsum += g * gradeVal(grade); updateStockLabel(); }
 function takeFromStock(g) {
   if (stock.g <= 0) return;
@@ -826,6 +847,7 @@ const ui = {
   shopcash: document.getElementById("shopcash"),
   doseui:   document.getElementById("doseui"),
   dosetext: document.getElementById("dosetext"),
+  dosestack:document.getElementById("dosestack"),
   dosecombo:document.getElementById("dosecombo"),
   dosegauge:document.getElementById("dosegauge"),
   dsweet:   document.getElementById("dsweet"),
@@ -1113,6 +1135,7 @@ function refreshDoseUI() {
     ui.dsweet.style.width = (DOSE_SWEET * 200) + "%";
   }
   ui.dosecombo.textContent = dose.combo > 1 ? ("COMBO ×" + dose.combo) : "";
+  ui.dosestack.textContent = "📦".repeat(Math.min(dose.made, 24));   // les doses produites s'empilent
 }
 function bump() { ui.dosecombo.style.transform = "scale(1.25)"; setTimeout(() => { ui.dosecombo.style.transform = ""; }, 80); }
 
