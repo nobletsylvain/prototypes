@@ -47,6 +47,14 @@
     font-weight:700; font-size:13px; padding:4px 11px; border-radius:10px; }
   #waste:active { background:rgba(202,161,95,.35); }
 
+  /* --- Niveau + barre d'XP (sous le bac dechets, centre) --- */
+  #xpwrap { position:fixed; top:calc(max(14px,env(safe-area-inset-top)) + 54px); left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:6px; pointer-events:none; z-index:4; }
+  #level { background:rgba(155,227,125,.18); border:1px solid rgba(155,227,125,.55); color:#bdf0a3;
+    font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  #xpbar { width:128px; height:7px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
+  #xpfill { height:100%; width:0%; background:linear-gradient(90deg,#7ad17a,#bdf0a3); border-radius:999px; transition:width .25s; }
+
   /* --- Overlay d'emballage cellophane --- */
   #wrapui { position:fixed; inset:0; display:none; flex-direction:column; align-items:center;
     justify-content:flex-end; padding-bottom:16vh; gap:14px; pointer-events:none; }
@@ -92,6 +100,7 @@
 <div class="hud" id="count">Barrettes : 0</div>
 <div id="cash">💶 0 €</div>
 <button id="waste">🗑️ 0 g</button>
+<div id="xpwrap"><span id="level">Niv. 1</span><div id="xpbar"><div id="xpfill"></div></div></div>
 <div class="hud" id="title">SAVONNETTE 250g</div>
 <button id="reset">🔄 Nouvelle</button>
 <div class="hud" id="hint">Glisse pour couper · tape une barrette pour l'emballer · pince pour zoomer</div>
@@ -305,6 +314,8 @@ let over = false;    // plus de savonnette ?
 let mode = "cut";    // "cut" (coupe) | "wrap" (emballage)
 let cash = +(localStorage.getItem("hash_cash") || 0);     // € sauvegardes
 let wasteGrams = +(localStorage.getItem("hash_waste") || 0); // dechets accumules (g)
+let level = Math.max(1, +(localStorage.getItem("hash_level") || 1)); // niveau joueur
+let xp    = Math.max(0, +(localStorage.getItem("hash_xp") || 0));    // XP dans le niveau courant
 const wrap = { slice:null, film:null, pct:0, shownPct:0, phase:"", t0:0, tSell:0,
                spin:0, spinTarget:0, filmScale:1.32, focus:new THREE.Vector3() };
 
@@ -621,6 +632,8 @@ const ui = {
   count:    document.getElementById("count"),
   cash:     document.getElementById("cash"),
   waste:    document.getElementById("waste"),
+  level:    document.getElementById("level"),
+  xpfill:   document.getElementById("xpfill"),
   hint:     document.getElementById("hint"),
   toast:    document.getElementById("toast"),
   wrapui:   document.getElementById("wrapui"),
@@ -645,11 +658,35 @@ function setWaste(v) {
 }
 function addWaste(g) { setWaste(wasteGrams + g); }
 
+// --- Niveaux / XP : on gagne de l'XP a chaque vente, chaque niveau donne +4% de revenus. ---
+function xpNeed(lvl) { return Math.round(80 * Math.pow(1.3, lvl - 1)); }  // XP requise pour passer ce niveau
+function levelMult() { return 1 + (level - 1) * 0.04; }                   // bonus de revenus cumule
+function updateXpUI() {
+  const need = xpNeed(level);
+  ui.level.textContent = "Niv. " + level + " · +" + Math.round((levelMult() - 1) * 100) + "%";
+  ui.xpfill.style.width = Math.min(100, (xp / need) * 100) + "%";
+}
+function addXP(n) {
+  xp += n;
+  let leveled = false;
+  while (xp >= xpNeed(level)) { xp -= xpNeed(level); level++; leveled = true; }
+  if (leveled) {
+    showToast("Niveau " + level + " ! +" + Math.round((levelMult() - 1) * 100) + "% revenus", "#bdf0a3");
+    addShake(0.18);
+    const ac = ensureAudio();
+    if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(880, t + 0.08, 0.1, 0.2); beep(1180, t + 0.16, 0.16, 0.22); }
+  }
+  localStorage.setItem("hash_level", String(level));
+  localStorage.setItem("hash_xp", String(Math.round(xp)));
+  updateXpUI();
+}
+
 // Vendre les dechets aux schlags (bas prix). Vide le bac.
 function sellWaste() {
   if (wasteGrams < 1) { showToast("Bac déchets vide", "#caa15f"); return; }
-  const earn = wasteGrams * SCHLAG_RATE;
+  const earn = wasteGrams * SCHLAG_RATE * levelMult();
   setCash(cash + earn);
+  addXP(Math.max(1, Math.round(wasteGrams * 0.05)));
   setWaste(0);
   for (const c of crumbs) scene.remove(c.mesh); crumbs.length = 0;   // on vide le bac
   const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(440, t, 0.13, 0.22); beep(660, t + 0.09, 0.16, 0.20); }
@@ -801,8 +838,9 @@ function sealWrap() {
   const secs  = (wrap.tSell - wrap.t0) / 1000;
   const tight = secs < 3 ? 1.3 : secs < 6 ? 1.1 : 0.9;
   const gmult = wrap.slice.grade === "A" ? 1.5 : wrap.slice.grade === "B" ? 1.0 : 0.6;
-  const price = wrap.slice.grams * 2 * gmult * tight;
+  const price = wrap.slice.grams * 2 * gmult * tight * levelMult();
   setCash(cash + price);
+  addXP(Math.max(1, Math.round(wrap.slice.grams)));
   showToast("+ " + Math.round(price) + " €", "#9be37d");
   ui.wraptext.textContent = "Vendu ! 💶";
 }
@@ -912,7 +950,8 @@ function updateMachine(dt) {
     j.sl.mesh.rotation.y += dt * 7;
     j.sl.mesh.scale.setScalar(Math.max(0.001, 1 - k));
     if (k >= 1) {                         // emballee -> vendue (serrage fixe 1.0)
-      setCash(cash + j.sl.grams * 2 * gradeMult(j.sl.grade));
+      setCash(cash + j.sl.grams * 2 * gradeMult(j.sl.grade) * levelMult());
+      addXP(Math.max(1, Math.round(j.sl.grams)));
       removeSlice(j.sl); machineJob = null;
       const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(760, t, 0.09, 0.16); }
     }
@@ -1011,6 +1050,7 @@ resize();
 resetGame();
 setCash(cash);
 setWaste(wasteGrams);
+updateXpUI();
 requestAnimationFrame(loop);
 </script>
 </body>
