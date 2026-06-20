@@ -1142,8 +1142,7 @@ function doseTap() {
     addWaste(dose.cal);
     if (ac) { const t = ac.currentTime; beep(150, t, 0.12, 0.2); }
   }
-  dose.cursor = 0; dose.dir = 1;                    // relance le balayage
-  updateStockLabel();
+  updateStockLabel();                               // le curseur continue son va-et-vient
   refreshDoseUI();
 }
 
