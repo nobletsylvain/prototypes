@@ -27,6 +27,12 @@
   #toast.show { opacity:1; transform:translateY(0); }
   #title { top:max(46px,calc(env(safe-area-inset-top) + 30px)); left:16px; font-size:12px;
     color:rgba(255,255,255,.45); font-weight:600; letter-spacing:.5px; }
+
+  /* --- Etiquettes poids/grade qui suivent chaque barrette --- */
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
+  .blabel { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
+    font-weight:800; font-size:13px; padding:2px 7px; border-radius:8px;
+    background:rgba(0,0,0,.55); text-shadow:0 1px 3px rgba(0,0,0,.6); }
 </style>
 
 <!-- Three.js charge en module depuis un CDN (import map). Supporte par Safari iOS 16.4+ -->
@@ -41,6 +47,7 @@
 <button id="reset">🔄 Nouvelle</button>
 <div class="hud" id="hint">Glisse ton doigt en travers pour couper une barrette</div>
 <div class="hud" id="toast"></div>
+<div id="labels"></div>
 
 <script type="module">
 "use strict";
@@ -66,6 +73,10 @@ import * as THREE from "three";
 const L = 5.2;   // longueur totale (axe X), du talon (x=0) au bout libre (x=L)
 const W = 2.3;   // largeur (axe Z)
 const H = 0.85;  // epaisseur (axe Y), base a y=0 -> savonnette plate
+
+// Densite "de jeu" : calibree pour que la savonnette entiere pese ~250 g.
+// poids(barrette) = volume(unites^3) * DENS  (g).
+const DENS = 250 / (L * W * H);
 
 /* -------------------------------------------------------------------------
    1) SCENE, CAMERA, RENDU
@@ -219,7 +230,7 @@ let count = 0;       // nombre de tranches coupees
 let over = false;    // plus de cake ?
 
 function resetGame() {
-  for (const sl of slices) { scene.remove(sl.mesh); sl.mesh.geometry.dispose(); }
+  for (const sl of slices) { scene.remove(sl.mesh); sl.mesh.geometry.dispose(); sl.label.remove(); }
   slices = [];
   rightNeg = L; rightPos = L;
   count = 0; over = false;
@@ -317,8 +328,13 @@ function performCut(cutNeg, cutPos) {
   mesh.position.copy(c);
   scene.add(mesh);
 
+  // Stats de la barrette : poids (g) deduit du volume, et grade de coupe.
+  const grams = thick * W * H * DENS;
+  const grade = gradeFor(thick, skew);
+  const label = makeLabel(grams.toFixed(1) + " g · " + grade, GRADE_COL[grade]);
+
   slices.push({
-    mesh,
+    mesh, label, grams, grade,
     vx: 0.7 + Math.random() * 0.6,
     vy: 1.8 + Math.random() * 1.0,
     vz: 1.0 + Math.random() * 0.9,
@@ -335,7 +351,7 @@ function performCut(cutNeg, cutPos) {
   count++;
   ui.count.textContent = "Barrettes : " + count;
   ui.hint.style.opacity = "0";
-  rateSlice(thick, skew);
+  showToast(grams.toFixed(1) + " g · " + grade, GRADE_COL[grade]);
 
   // Fin de partie ?
   if (Math.max(rightNeg, rightPos) < 0.25) {
@@ -346,14 +362,23 @@ function performCut(cutNeg, cutPos) {
   }
 }
 
-function rateSlice(thick, skew) {
-  let msg, col;
-  if (skew > 0.6)            { msg = "Coupe bancale 😅";    col = "#ff9f6b"; }
-  else if (thick > 1.2)      { msg = "Grosse barrette 😏"; col = "#ffd166"; }
-  else if (thick < 0.28)     { msg = "Barrette fine 🔪";   col = "#9be3ff"; }
-  else if (skew < 0.18)      { msg = "Barrette nickel ✨"; col = "#9be37d"; }
-  else                       { msg = "Bonne barrette 👌";  col = "#cdb8ff"; }
-  showToast(msg, col);
+// Grade de coupe A/B/C selon la proprete (biais) et l'epaisseur.
+const labelsEl = document.getElementById("labels");
+const GRADE_COL = { A: "#9be37d", B: "#ffd166", C: "#ff9f6b" };
+function gradeFor(thick, skew) {
+  if (skew < 0.18 && thick >= 0.28 && thick <= 1.2) return "A";
+  if (skew < 0.45) return "B";
+  return "C";
+}
+
+// Cree une petite etiquette HTML qui suivra la barrette en 3D (poids + grade).
+function makeLabel(text, color) {
+  const d = document.createElement("div");
+  d.className = "blabel";
+  d.textContent = text;
+  d.style.color = color;
+  labelsEl.appendChild(d);
+  return d;
 }
 
 /* -------------------------------------------------------------------------
@@ -432,13 +457,31 @@ function showToast(msg, color) {
 }
 
 /* -------------------------------------------------------------------------
-   14) BOUCLE PRINCIPALE
+   14) ETIQUETTES 3D : on projette la position de chaque barrette a l'ecran
+   pour y poser son etiquette poids/grade (suit la barrette qui tombe).
+   ------------------------------------------------------------------------- */
+const _lv = new THREE.Vector3();
+function updateLabels() {
+  const w = window.innerWidth, h = window.innerHeight;
+  for (const sl of slices) {
+    _lv.copy(sl.mesh.position); _lv.y += 0.7;   // un peu au-dessus de la barrette
+    _lv.project(camera);
+    if (_lv.z > 1) { sl.label.style.display = "none"; continue; } // derriere la camera
+    sl.label.style.display = "block";
+    sl.label.style.left = ((_lv.x * 0.5 + 0.5) * w) + "px";
+    sl.label.style.top  = ((-_lv.y * 0.5 + 0.5) * h) + "px";
+  }
+}
+
+/* -------------------------------------------------------------------------
+   15) BOUCLE PRINCIPALE
    ------------------------------------------------------------------------- */
 let last = 0;
 function loop(t) {
   const dt = Math.min((t - last) / 1000 || 0, 0.05);
   last = t;
   updateSlices(dt);
+  updateLabels();
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
