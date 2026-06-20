@@ -59,6 +59,27 @@
     font-weight:800; font-size:16px; padding:12px 24px; border-radius:14px; box-shadow:0 4px 14px rgba(255,122,60,.4); }
   #seal.show { display:block; }
   #seal:active { background:#ff5e1a; }
+
+  /* --- Boutique --- */
+  #shopbtn { position:fixed; right:14px; top:calc(max(10px,env(safe-area-inset-top)) + 46px); pointer-events:auto;
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff; font-size:18px;
+    width:46px; height:42px; border-radius:12px; }
+  #shopbtn:active { background:rgba(255,255,255,.25); }
+  #shop { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); z-index:6; }
+  #shop.show { display:flex; }
+  #shopinner { width:88%; max-width:380px; max-height:74vh; overflow:auto; background:#1d1430;
+    border:1px solid rgba(255,255,255,.15); border-radius:16px; padding:16px; color:#fff; }
+  #shophead { font-weight:800; font-size:18px; margin-bottom:12px; display:flex; justify-content:space-between; }
+  #shopcash { color:#9be37d; }
+  .shopitem { display:flex; align-items:center; gap:10px; padding:10px; margin-bottom:10px;
+    border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.04); }
+  .shopitem .ic { font-size:26px; }
+  .shopitem .info { flex:1; }
+  .shopitem .nm { font-weight:700; }
+  .shopitem .ds { font-size:12px; color:rgba(255,255,255,.6); }
+  .shopitem button { background:#3a6b3a; border:none; color:#fff; font-weight:700; padding:9px 12px; border-radius:10px; min-width:64px; }
+  .shopitem button:disabled { background:rgba(255,255,255,.12); color:rgba(255,255,255,.4); }
+  #shopclose { width:100%; background:rgba(255,255,255,.12); border:none; color:#fff; font-weight:700; padding:11px; border-radius:12px; }
 </style>
 
 <!-- Three.js charge en module depuis un CDN (import map). Supporte par Safari iOS 16.4+ -->
@@ -80,6 +101,14 @@
   <div id="wraptext">Enroule</div>
   <div id="wrapbarwrap"><div id="wrapbar"></div></div>
   <button id="seal">🔥 Sceller</button>
+</div>
+<button id="shopbtn">🛒</button>
+<div id="shop">
+  <div id="shopinner">
+    <div id="shophead"><span>🛒 Boutique</span><span id="shopcash"></span></div>
+    <div id="shopitems"></div>
+    <button id="shopclose">Fermer</button>
+  </div>
 </div>
 
 <script type="module">
@@ -277,6 +306,7 @@ function resetGame() {
   wrap.slice = null; wrap.phase = ""; mode = "cut";
   ui.wrapui.classList.remove("show");
 
+  machineJob = null; machineTimer = 0;   // annule un traitement machine en cours
   for (const sl of slices) { scene.remove(sl.mesh); sl.mesh.geometry.dispose(); sl.label.remove(); }
   slices = [];
   for (const c of crumbs) scene.remove(c.mesh);
@@ -586,12 +616,16 @@ const ui = {
   wrapbar:  document.getElementById("wrapbar"),
   wraptext: document.getElementById("wraptext"),
   seal:     document.getElementById("seal"),
+  shop:     document.getElementById("shop"),
+  shopitems:document.getElementById("shopitems"),
+  shopcash: document.getElementById("shopcash"),
 };
 
 function setCash(v) {
   cash = v;
   localStorage.setItem("hash_cash", String(Math.round(cash)));
   ui.cash.textContent = "💶 " + Math.round(cash) + " €";
+  if (ui.shop.classList.contains("show")) renderShop(); // garde la boutique a jour
 }
 function setWaste(v) {
   wasteGrams = Math.max(0, v);
@@ -636,7 +670,7 @@ function pickSlice(cx, cy) {
   ndc.y = -((cy - r.top) / r.height) * 2 + 1;
   raycaster.setFromCamera(ndc, camera);
   const meshes = [];
-  for (const s of slices) if (s.settled && s !== wrap.slice) meshes.push(s.mesh);
+  for (const s of slices) if (s.settled && s !== wrap.slice && !s.machine) meshes.push(s.mesh);
   const hit = raycaster.intersectObjects(meshes, false)[0];
   return hit ? slices.find(s => s.mesh === hit.object) : null;
 }
@@ -698,6 +732,9 @@ el.addEventListener("pointercancel", onUp, { passive:false });
 document.getElementById("reset").addEventListener("click", resetGame);
 ui.seal.addEventListener("click", () => { if (mode === "wrap" && wrap.phase === "seal") sealWrap(); });
 ui.waste.addEventListener("click", sellWaste);   // raccourci HUD pour vendre les dechets
+document.getElementById("shopbtn").addEventListener("click", () => { renderShop(); ui.shop.classList.add("show"); });
+document.getElementById("shopclose").addEventListener("click", () => ui.shop.classList.remove("show"));
+ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.classList.remove("show"); }); // clic backdrop
 
 /* -------------------------------------------------------------------------
    12b) EMBALLAGE CELLOPHANE
@@ -759,12 +796,16 @@ function sealWrap() {
   ui.wraptext.textContent = "Vendu ! 💶";
 }
 
-function exitWrap() {
-  const sl = wrap.slice;
+// Retire une barrette de la scene (vendue / consommee).
+function removeSlice(sl) {
   scene.remove(sl.mesh); sl.mesh.geometry.dispose();
-  if (wrap.film) { wrap.film.geometry.dispose(); wrap.film.material.dispose(); }
   sl.label.remove();
   slices = slices.filter(s => s !== sl);
+}
+
+function exitWrap() {
+  if (wrap.film) { wrap.film.geometry.dispose(); wrap.film.material.dispose(); }
+  removeSlice(wrap.slice);
   wrap.slice = null; wrap.film = null; wrap.phase = ""; mode = "cut";
   ui.wrapui.classList.remove("show");
 }
@@ -823,6 +864,95 @@ function showToast(msg, color) {
 }
 
 /* -------------------------------------------------------------------------
+   13b) MACHINE (auto-emballeuse) + BOUTIQUE
+   1ere machine semi-auto : prend une barrette posee toutes les N secondes,
+   l'emballe/vend automatiquement (serrage fixe 1.0, donc un peu moins
+   rentable que l'emballage manuel soigne). Amelioration "Cadence +".
+   ------------------------------------------------------------------------- */
+const owned = JSON.parse(localStorage.getItem("hash_shop") || "{}");
+owned.autowrap = owned.autowrap || 0;
+owned.cadence  = owned.cadence  || 0;
+function saveShop() { localStorage.setItem("hash_shop", JSON.stringify(owned)); }
+function gradeMult(g) { return g === "A" ? 1.5 : g === "B" ? 1.0 : 0.6; }
+function mInterval() { return 3.2 * Math.pow(0.82, owned.cadence); } // s entre deux barrettes
+
+// Petite machine posee pres du bac "a vendre" (visible une fois achetee).
+const machineMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(1.3, 0.75, 0.95),
+  new THREE.MeshStandardMaterial({ color: 0x556070, metalness: 0.45, roughness: 0.5 })
+);
+machineMesh.position.set(SELL_POS.x, 0.38, SELL_POS.z - 1.0);
+machineMesh.castShadow = true;
+scene.add(machineMesh);
+
+let machineJob = null, machineTimer = 0;
+function nextSettled() {
+  for (const s of slices) if (s.settled && s !== wrap.slice && !s.machine) return s;
+  return null;
+}
+function updateMachine(dt) {
+  machineMesh.visible = !!owned.autowrap;
+  if (!owned.autowrap) return;
+  if (machineJob) {                       // une barrette est en cours de traitement
+    const j = machineJob; j.t += dt;
+    const k = Math.min(1, j.t / 0.8);
+    _tmp.set(SELL_POS.x, 0.55, SELL_POS.z);
+    j.sl.mesh.position.lerp(_tmp, Math.min(1, dt * 6));
+    j.sl.mesh.rotation.y += dt * 7;
+    j.sl.mesh.scale.setScalar(Math.max(0.001, 1 - k));
+    if (k >= 1) {                         // emballee -> vendue (serrage fixe 1.0)
+      setCash(cash + j.sl.grams * 2 * gradeMult(j.sl.grade));
+      removeSlice(j.sl); machineJob = null;
+      const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(760, t, 0.09, 0.16); }
+    }
+    return;
+  }
+  machineTimer += dt;
+  if (machineTimer >= mInterval()) {
+    machineTimer = 0;
+    const sl = nextSettled();
+    if (sl) { sl.machine = true; sl.label.style.display = "none"; machineJob = { sl, t: 0 }; }
+  }
+}
+
+// Boutique (data-driven : facile d'ajouter des machines plus tard).
+const SHOP = [
+  { id: "autowrap", icon: "📦", name: "Auto-emballeuse",
+    desc: () => "Emballe et vend une barrette toute seule.",
+    cost: () => 150, can: () => owned.autowrap < 1, maxed: () => owned.autowrap >= 1,
+    buy: () => { owned.autowrap = 1; } },
+  { id: "cadence", icon: "⚙️", name: "Cadence +",
+    desc: () => "Accélère la machine (" + mInterval().toFixed(1) + " s/barrette).",
+    cost: () => Math.round(120 * Math.pow(1.6, owned.cadence)),
+    can: () => owned.autowrap >= 1 && owned.cadence < 8, maxed: () => owned.cadence >= 8,
+    buy: () => { owned.cadence++; } },
+];
+function renderShop() {
+  ui.shopcash.textContent = "💶 " + Math.round(cash) + " €";
+  ui.shopitems.innerHTML = "";
+  for (const it of SHOP) {
+    const cost = it.cost(), maxed = it.maxed(), can = !maxed && it.can() && cash >= cost;
+    const row = document.createElement("div"); row.className = "shopitem";
+    row.innerHTML = '<div class="ic">' + it.icon + '</div><div class="info"><div class="nm">' +
+      it.name + '</div><div class="ds">' + it.desc() + '</div></div>';
+    const b = document.createElement("button");
+    b.textContent = maxed ? "✓" : (cost + " €");
+    b.disabled = !can;
+    b.addEventListener("click", () => buy(it));
+    row.appendChild(b);
+    ui.shopitems.appendChild(row);
+  }
+}
+function buy(it) {
+  const cost = it.cost();
+  if (it.maxed() || !it.can() || cash < cost) return;
+  setCash(cash - cost); it.buy(); saveShop();
+  machineMesh.visible = !!owned.autowrap;
+  const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(990, t + 0.07, 0.14, 0.2); }
+  renderShop();
+}
+
+/* -------------------------------------------------------------------------
    14) ETIQUETTES 3D : on projette la position de chaque barrette a l'ecran
    pour y poser son etiquette poids/grade (suit la barrette qui tombe).
    ------------------------------------------------------------------------- */
@@ -849,6 +979,7 @@ function loop(t) {
   last = t;
   updateSlices(dt);
   updateWrap(dt);
+  updateMachine(dt);
   updateCrumbs(dt);
   // Secousse de camera (oscille autour de la position de repos, puis s'amortit).
   if (shake > 0) { shake *= Math.pow(0.0008, dt); if (shake < 0.002) shake = 0; }

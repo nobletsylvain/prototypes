@@ -13,7 +13,8 @@ Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) chargé via C
 - Chaque barrette est **pesée** (poids en g, calibré pour ~250 g la savonnette entière) et **notée** A/B/C selon la propreté de coupe ; une étiquette suit la barrette en 3D.
 - **Emballage + vente** : tape une barrette posée → elle se met en avant (rotation fluide), un film cellophane apparaît ; **glisse pour l'enrouler** (jauge de serrage qui se remplit en douceur, le film se resserre), puis **🔥 Sceller** au briquet → la barrette emballée file dans le **bac à vendre**. **Prix = poids × grade × serrage**.
 - **Tri & déchets** : les miettes de coupe tombent dans le **bac déchets** (compteur en g) ; tape le bac (ou la pastille 🗑️) pour les **vendre aux schlags** à bas prix (≈0,5 €/g contre 2 €/g pour de l'emballé). Rien ne se perd.
-- Le **cash (€)** est affiché et **sauvegardé** (localStorage) — socle de la future progression (machines / automatisation).
+- Le **cash (€)** est affiché et **sauvegardé** (localStorage).
+- **Boutique 🛒 + progression** : achète l'**Auto-emballeuse** (1ʳᵉ machine semi-auto) qui emballe/vend les barrettes toute seule (serrage fixe, un peu moins rentable que l'emballage manuel soigné), puis **Cadence +** pour l'accélérer. Achats sauvegardés, prix croissants.
 - **Feedback juteux** à chaque coupe : son synthétisé (WebAudio, zéro fichier), miettes de résine projetées, secousse de caméra, pop des étiquettes ; *cha-ching* + *fwoosh* de briquet à la vente.
 - On **enchaîne les barrettes** jusqu'à épuiser la savonnette. Bouton **🔄 Nouvelle** pour recommencer.
 
