@@ -33,6 +33,23 @@
   .blabel { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
     font-weight:800; font-size:13px; padding:2px 7px; border-radius:8px;
     background:rgba(0,0,0,.55); text-shadow:0 1px 3px rgba(0,0,0,.6); }
+
+  /* --- Cash --- */
+  #cash { position:fixed; top:max(14px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+    font-weight:800; font-size:18px; color:#9be37d; text-shadow:0 2px 8px rgba(0,0,0,.5); pointer-events:none; }
+
+  /* --- Overlay d'emballage cellophane --- */
+  #wrapui { position:fixed; inset:0; display:none; flex-direction:column; align-items:center;
+    justify-content:flex-end; padding-bottom:16vh; gap:14px; pointer-events:none; }
+  #wrapui.show { display:flex; }
+  #wraptext { color:#fff; font-weight:800; font-size:17px; text-shadow:0 2px 8px rgba(0,0,0,.6); }
+  #wrapbarwrap { width:62%; max-width:320px; height:14px; background:rgba(255,255,255,.15);
+    border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.4); }
+  #wrapbar { height:100%; width:0%; background:linear-gradient(90deg,#7df9ff,#9be37d); transition:width .07s; }
+  #seal { display:none; pointer-events:auto; background:#ff7a3c; border:none; color:#fff;
+    font-weight:800; font-size:16px; padding:12px 24px; border-radius:14px; box-shadow:0 4px 14px rgba(255,122,60,.4); }
+  #seal.show { display:block; }
+  #seal:active { background:#ff5e1a; }
 </style>
 
 <!-- Three.js charge en module depuis un CDN (import map). Supporte par Safari iOS 16.4+ -->
@@ -43,11 +60,17 @@
 <body>
 <div id="app"></div>
 <div class="hud" id="count">Barrettes : 0</div>
+<div id="cash">💶 0 €</div>
 <div class="hud" id="title">SAVONNETTE 250g</div>
 <button id="reset">🔄 Nouvelle</button>
-<div class="hud" id="hint">Glisse ton doigt en travers pour couper une barrette</div>
+<div class="hud" id="hint">Glisse pour couper · tape une barrette pour l'emballer</div>
 <div class="hud" id="toast"></div>
 <div id="labels"></div>
+<div id="wrapui">
+  <div id="wraptext">Enroule</div>
+  <div id="wrapbarwrap"><div id="wrapbar"></div></div>
+  <button id="seal">🔥 Sceller</button>
+</div>
 
 <script type="module">
 "use strict";
@@ -225,11 +248,19 @@ function rebuildCake() {
 /* -------------------------------------------------------------------------
    7) ETAT DE PARTIE
    ------------------------------------------------------------------------- */
-let slices = [];     // tranches detachees (avec physique)
-let count = 0;       // nombre de tranches coupees
-let over = false;    // plus de cake ?
+let slices = [];     // barrettes detachees (avec physique)
+let count = 0;       // nombre de barrettes coupees
+let over = false;    // plus de savonnette ?
+let mode = "cut";    // "cut" (coupe) | "wrap" (emballage)
+let cash = +(localStorage.getItem("hash_cash") || 0);     // € sauvegardes
+const wrap = { slice:null, film:null, pct:0, phase:"", t0:0, tSell:0, focus:new THREE.Vector3() };
 
 function resetGame() {
+  // Nettoyage d'un emballage en cours, le cas echeant.
+  if (wrap.film) { wrap.film.geometry.dispose(); wrap.film.material.dispose(); wrap.film = null; }
+  wrap.slice = null; wrap.phase = ""; mode = "cut";
+  ui.wrapui.classList.remove("show");
+
   for (const sl of slices) { scene.remove(sl.mesh); sl.mesh.geometry.dispose(); sl.label.remove(); }
   slices = [];
   rightNeg = L; rightPos = L;
@@ -237,7 +268,7 @@ function resetGame() {
   rebuildCake();
   ui.count.textContent = "Barrettes : 0";
   ui.hint.style.opacity = "1";
-  ui.hint.textContent = "Glisse ton doigt en travers pour couper une barrette";
+  ui.hint.textContent = "Glisse pour couper · tape une barrette pour l'emballer";
 }
 
 /* -------------------------------------------------------------------------
@@ -404,25 +435,53 @@ function updateSlices(dt) {
 }
 
 /* -------------------------------------------------------------------------
-   12) HUD + GESTION DU GESTE (pointer events : tactile + souris)
+   12) HUD + ENTREES (coupe + emballage)
    ------------------------------------------------------------------------- */
 const ui = {
-  count: document.getElementById("count"),
-  hint:  document.getElementById("hint"),
-  toast: document.getElementById("toast"),
+  count:    document.getElementById("count"),
+  cash:     document.getElementById("cash"),
+  hint:     document.getElementById("hint"),
+  toast:    document.getElementById("toast"),
+  wrapui:   document.getElementById("wrapui"),
+  wrapbar:  document.getElementById("wrapbar"),
+  wraptext: document.getElementById("wraptext"),
+  seal:     document.getElementById("seal"),
 };
-let dragging = false, startPt = null, lastCut = null;
 
+function setCash(v) {
+  cash = v;
+  localStorage.setItem("hash_cash", String(Math.round(cash)));
+  ui.cash.textContent = "💶 " + Math.round(cash) + " €";
+}
+
+let dragging = false, startPt = null, lastCut = null;
 const el = renderer.domElement;
+
+// Quelle barrette POSEE est sous le doigt ? (pour l'emballer)
+function pickSlice(cx, cy) {
+  const r = el.getBoundingClientRect();
+  ndc.x = ((cx - r.left) / r.width) * 2 - 1;
+  ndc.y = -((cy - r.top) / r.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  const meshes = [];
+  for (const s of slices) if (s.settled && s !== wrap.slice) meshes.push(s.mesh);
+  const hit = raycaster.intersectObjects(meshes, false)[0];
+  return hit ? slices.find(s => s.mesh === hit.object) : null;
+}
+
 el.addEventListener("pointerdown", (e) => {
-  if (over) return;
   e.preventDefault();
+  if (mode === "wrap") { wrapDown(e); return; }
+  const sl = pickSlice(e.clientX, e.clientY);
+  if (sl) { enterWrap(sl); return; }       // tape une barrette posee -> emballage
+  if (over) return;                        // plus de savonnette a couper
   const p = pointOnTop(e.clientX, e.clientY);
   if (!p) return;
   dragging = true; startPt = p; lastCut = null;
 }, { passive:false });
 
 el.addEventListener("pointermove", (e) => {
+  if (mode === "wrap") { wrapMove(e); return; }
   if (!dragging) return;
   e.preventDefault();
   const p = pointOnTop(e.clientX, e.clientY);
@@ -432,6 +491,7 @@ el.addEventListener("pointermove", (e) => {
 }, { passive:false });
 
 function endDrag(e) {
+  if (mode === "wrap") { wrapLast = null; return; }
   if (!dragging) return;
   if (e) e.preventDefault();
   dragging = false;
@@ -443,6 +503,106 @@ el.addEventListener("pointerup", endDrag, { passive:false });
 el.addEventListener("pointercancel", endDrag, { passive:false });
 
 document.getElementById("reset").addEventListener("click", resetGame);
+ui.seal.addEventListener("click", () => { if (mode === "wrap" && wrap.phase === "seal") sealWrap(); });
+
+/* -------------------------------------------------------------------------
+   12b) EMBALLAGE CELLOPHANE
+   On tape une barrette -> elle se met en avant, un film translucide apparait.
+   On GLISSE pour l'enrouler (jauge de serrage + la barrette roule + le film
+   se resserre). A 100%, bouton "Sceller" (briquet) -> vente -> €.
+   ------------------------------------------------------------------------- */
+let wrapLast = null;
+const _wrapScale = new THREE.Vector3();
+
+function enterWrap(sl) {
+  mode = "wrap"; wrap.slice = sl; wrap.pct = 0; wrap.phase = "enroule"; wrap.t0 = performance.now();
+  sl.label.style.display = "none";
+  // Film translucide autour de la barrette (enfant -> suit position/rotation).
+  sl.mesh.geometry.computeBoundingBox();
+  const size = new THREE.Vector3(); sl.mesh.geometry.boundingBox.getSize(size);
+  const film = new THREE.Mesh(
+    new THREE.BoxGeometry(size.x, size.y, size.z),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, roughness: 0.15, side: THREE.DoubleSide })
+  );
+  film.scale.setScalar(1.3);
+  sl.mesh.add(film); wrap.film = film;
+  wrap.focus.set(L * 0.5, 1.55, 0.6);      // pose de presentation, au-dessus de la planche
+  ui.wrapui.classList.add("show");
+  ui.seal.classList.remove("show");
+  ui.wraptext.textContent = "Enroule : glisse pour emballer";
+  ui.wrapbar.style.width = "0%";
+  ui.hint.style.opacity = "0";
+}
+
+function wrapDown(e) { e.preventDefault(); wrapLast = { x: e.clientX, y: e.clientY }; }
+function wrapMove(e) {
+  e.preventDefault();
+  if (!wrapLast || wrap.phase !== "enroule") return;
+  const dx = e.clientX - wrapLast.x, dy = e.clientY - wrapLast.y;
+  const d = Math.hypot(dx, dy); wrapLast = { x: e.clientX, y: e.clientY };
+  wrap.pct = Math.min(100, wrap.pct + d * 0.18);
+  ui.wrapbar.style.width = wrap.pct.toFixed(0) + "%";
+  if (wrap.slice) wrap.slice.mesh.rotation.x += d * 0.012;   // on "roule" la barrette
+  if (wrap.pct >= 100) {
+    wrap.phase = "seal";
+    ui.seal.classList.add("show");
+    ui.wraptext.textContent = "Bien serre ! Scelle au briquet";
+  }
+}
+
+function sealWrap() {
+  wrap.phase = "done"; wrap.tSell = performance.now();
+  ui.seal.classList.remove("show");
+  if (wrap.film) { wrap.film.scale.setScalar(1.0); wrap.film.material.opacity = 0.38; wrap.film.material.roughness = 0.05; }
+  flame();
+  // Prix = €/g * bonus de grade * bonus de serrage (plus on a emballe vite, plus c'est serre).
+  const secs  = (wrap.tSell - wrap.t0) / 1000;
+  const tight = secs < 3 ? 1.3 : secs < 6 ? 1.1 : 0.9;
+  const gmult = wrap.slice.grade === "A" ? 1.5 : wrap.slice.grade === "B" ? 1.0 : 0.6;
+  const price = wrap.slice.grams * 2 * gmult * tight;
+  setCash(cash + price);
+  showToast("+ " + Math.round(price) + " €", "#9be37d");
+  ui.wraptext.textContent = "Vendu ! 💶";
+}
+
+function exitWrap() {
+  const sl = wrap.slice;
+  scene.remove(sl.mesh); sl.mesh.geometry.dispose();
+  if (wrap.film) { wrap.film.geometry.dispose(); wrap.film.material.dispose(); }
+  sl.label.remove();
+  slices = slices.filter(s => s !== sl);
+  wrap.slice = null; wrap.film = null; wrap.phase = ""; mode = "cut";
+  ui.wrapui.classList.remove("show");
+}
+
+// Petite flammeche du briquet (effet HTML ephemere).
+function flame() {
+  const f = document.createElement("div");
+  f.textContent = "🔥";
+  f.style.cssText = "position:fixed;left:50%;top:46%;transform:translate(-50%,-50%);font-size:64px;pointer-events:none;z-index:5;transition:opacity .5s ease,transform .5s ease;";
+  document.body.appendChild(f);
+  requestAnimationFrame(() => { f.style.opacity = "0"; f.style.transform = "translate(-50%,-95%) scale(1.6)"; });
+  setTimeout(() => f.remove(), 520);
+}
+
+// Animation d'emballage (appelee chaque frame).
+function updateWrap(dt) {
+  if (mode !== "wrap" || !wrap.slice) return;
+  const m = wrap.slice.mesh;
+  if (wrap.phase === "done") {
+    const k = Math.min(1, (performance.now() - wrap.tSell) / 600);
+    m.position.y = wrap.focus.y + k * 2.4;
+    m.rotation.z += dt * 5;
+    const sc = 1.5 * (1 - k);
+    m.scale.setScalar(Math.max(0.001, sc));
+    if (k >= 1) exitWrap();
+    return;
+  }
+  // Amene la barrette en pose de presentation + agrandit + resserre le film.
+  m.position.lerp(wrap.focus, Math.min(1, dt * 6));
+  m.scale.lerp(_wrapScale.set(1.5, 1.5, 1.5), Math.min(1, dt * 6));
+  if (wrap.film) wrap.film.scale.setScalar(1.3 - 0.28 * (wrap.pct / 100));
+}
 
 /* -------------------------------------------------------------------------
    13) TOAST (feedback qualite ephemere)
@@ -464,6 +624,7 @@ const _lv = new THREE.Vector3();
 function updateLabels() {
   const w = window.innerWidth, h = window.innerHeight;
   for (const sl of slices) {
+    if (sl === wrap.slice) { sl.label.style.display = "none"; continue; } // masquee en emballage
     _lv.copy(sl.mesh.position); _lv.y += 0.7;   // un peu au-dessus de la barrette
     _lv.project(camera);
     if (_lv.z > 1) { sl.label.style.display = "none"; continue; } // derriere la camera
@@ -481,6 +642,7 @@ function loop(t) {
   const dt = Math.min((t - last) / 1000 || 0, 0.05);
   last = t;
   updateSlices(dt);
+  updateWrap(dt);
   updateLabels();
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
@@ -488,6 +650,7 @@ function loop(t) {
 
 resize();
 resetGame();
+setCash(cash);
 requestAnimationFrame(loop);
 </script>
 </body>
