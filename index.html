@@ -70,6 +70,27 @@
     pointer-events:none; display:none; }
   #gaugelbl.show { display:block; }
 
+  /* --- Sélecteur de calibre de dose (toujours visible) --- */
+  #dosebar { position:fixed; left:14px; bottom:max(20px,calc(env(safe-area-inset-bottom) + 14px));
+    display:flex; align-items:center; gap:6px; pointer-events:auto; z-index:4; }
+  #dosebar .lbl { color:rgba(255,255,255,.6); font-size:11px; font-weight:700; margin-right:2px; }
+  .calbtn { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
+    font-weight:800; font-size:13px; padding:7px 10px; border-radius:10px; }
+  .calbtn.on { background:#caa15f; color:#1a1020; border-color:#caa15f; }
+
+  /* --- Overlay du mini-jeu de dosage (Hachoir rythmé) --- */
+  #doseui { position:fixed; inset:0; display:none; flex-direction:column; align-items:center;
+    justify-content:flex-end; padding-bottom:17vh; gap:10px; pointer-events:none; }
+  #doseui.show { display:flex; }
+  #dosetext { color:#fff; font-weight:800; font-size:17px; text-shadow:0 2px 8px rgba(0,0,0,.6); }
+  #dosecombo { color:#ffd166; font-weight:900; font-size:24px; min-height:28px; text-shadow:0 2px 10px rgba(0,0,0,.6);
+    transition:transform .08s; }
+  #dosegauge { position:relative; width:74%; max-width:360px; height:24px; background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.18); border-radius:999px; overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,.4); }
+  #dsweet { position:absolute; top:0; bottom:0; background:linear-gradient(90deg,rgba(255,209,102,.25),rgba(255,209,102,.65),rgba(255,209,102,.25)); }
+  #dcursor { position:absolute; top:-2px; bottom:-2px; width:5px; margin-left:-2.5px; background:#fff;
+    border-radius:3px; box-shadow:0 0 8px rgba(255,255,255,.9); }
+
   /* --- Overlay d'emballage cellophane --- */
   #wrapui { position:fixed; inset:0; display:none; flex-direction:column; align-items:center;
     justify-content:flex-end; padding-bottom:16vh; gap:14px; pointer-events:none; }
@@ -129,6 +150,17 @@
   <div id="wrapbarwrap"><div id="wrapbar"></div></div>
   <button id="seal">🔥 Sceller</button>
 </div>
+<div id="dosebar">
+  <span class="lbl">Dose</span>
+  <button class="calbtn" data-cal="1">1g</button>
+  <button class="calbtn" data-cal="2">2g</button>
+  <button class="calbtn on" data-cal="5">5g</button>
+</div>
+<div id="doseui">
+  <div id="dosetext">Dosage</div>
+  <div id="dosecombo"></div>
+  <div id="dosegauge"><div id="dsweet"></div><div id="dcursor"></div></div>
+</div>
 <button id="shopbtn">🛒</button>
 <div id="shop">
   <div id="shopinner">
@@ -177,6 +209,9 @@ const PRICE = { A: 12, B: 9, C: 6 };              // €/g par grade de barrette
 
 // Achat de matiere premiere en gros (le gramme baisse avec le volume).
 const SAV_PRICES = { 100: 550, 250: 1200 };       // €  (~5.5 / ~4.8 €/g)
+
+// Vente au detail par dose : plus la dose est petite, plus le €/g est eleve.
+const DOSE_PRICE = { 1: 15, 2: 13, 5: 11 };       // €/g par calibre de dose
 
 /* -------------------------------------------------------------------------
    1) SCENE, CAMERA, RENDU
@@ -356,6 +391,8 @@ let wasteGrams = +(localStorage.getItem("hash_waste") || 0); // dechets accumule
 let level = Math.max(1, +(localStorage.getItem("hash_level") || 1)); // niveau joueur
 let xp    = Math.max(0, +(localStorage.getItem("hash_xp") || 0));    // XP dans le niveau courant
 let savSize = +(localStorage.getItem("hash_savsize") || 250);       // taille savonnette courante (g)
+let caliber = +(localStorage.getItem("hash_caliber") || 5);         // calibre de dose choisi (g)
+const stock = { g: 0, qsum: 0 };   // barrettes coupees en attente de dosage (g + qualite ponderee)
 const wrap = { slice:null, film:null, pct:0, shownPct:0, phase:"", t0:0, tSell:0,
                spin:0, spinTarget:0, filmScale:1.32, focus:new THREE.Vector3() };
 const game = { cursor:0, dir:1, flash:0 };   // mini-jeu de coupe : curseur 0..1 qui balaie
@@ -384,7 +421,7 @@ function loadLoaf(sizeG) {
   ui.count.textContent = "Barrettes : 0";
   if (ui.title) ui.title.textContent = "SAVONNETTE " + sizeG + "g";
   ui.hint.style.opacity = "1";
-  ui.hint.textContent = "Tape dans le vert pour couper 10 g · tape une barrette pour l'emballer";
+  ui.hint.textContent = "Tape dans le vert pour couper · tape le bac STOCK 📦 pour doser & vendre";
   updateRemain();
 }
 function resetGame() { loadLoaf(savSize); }   // recharge la taille courante (gratuit) — init
@@ -672,13 +709,44 @@ function placeLabel(div, pos) {
 }
 function updateBinLabels() { placeLabel(sellLabel, SELL_POS); placeLabel(wasteLabel, WASTE_POS); }
 
+// --- STOCK de barrettes (alimente par la coupe, consomme par le dosage) ---
+const SELL_TARGET = new THREE.Vector3(SELL_POS.x, 0.4, SELL_POS.z);
+function gradeVal(gr) { return gr === "A" ? 1 : gr === "B" ? 0.75 : 0.55; }
+function stockGrade() {
+  if (stock.g <= 0) return "B";
+  const a = stock.qsum / stock.g;
+  return a >= 0.9 ? "A" : a >= 0.68 ? "B" : "C";
+}
+function updateStockLabel() { sellLabel.textContent = "📦 STOCK " + Math.round(stock.g) + " g"; }
+function addToStock(g, grade) { stock.g += g; stock.qsum += g * gradeVal(grade); updateStockLabel(); }
+function takeFromStock(g) {
+  if (stock.g <= 0) return;
+  const r = Math.min(1, g / stock.g);
+  stock.qsum *= (1 - r);
+  stock.g = Math.max(0, stock.g - g);
+}
+
 /* -------------------------------------------------------------------------
    11) PETITE PHYSIQUE DES TRANCHES (chute + repos sur la planche)
    ------------------------------------------------------------------------- */
 function updateSlices(dt) {
   const g = 11;
   for (const sl of slices) {
-    if (sl.settled) continue;
+    if (sl.collect) {                              // la barrette file vers le bac STOCK
+      sl.mesh.position.lerp(SELL_TARGET, Math.min(1, dt * 5));
+      sl.mesh.rotation.y += dt * 9;
+      sl.mesh.scale.multiplyScalar(1 - Math.min(0.85, dt * 3.2));
+      if (sl.mesh.scale.x < 0.16) {
+        addToStock(sl.grams, sl.grade);
+        removeSlice(sl);
+      }
+      continue;
+    }
+    if (sl.settled) {                              // petit temps de repos puis collecte auto
+      sl.restT = (sl.restT || 0) + dt;
+      if (sl.restT > 0.25) sl.collect = true;
+      continue;
+    }
     sl.vy -= g * dt;
     sl.mesh.position.x += sl.vx * dt;
     sl.mesh.position.y += sl.vy * dt;
@@ -718,6 +786,11 @@ const ui = {
   shop:     document.getElementById("shop"),
   shopitems:document.getElementById("shopitems"),
   shopcash: document.getElementById("shopcash"),
+  doseui:   document.getElementById("doseui"),
+  dosetext: document.getElementById("dosetext"),
+  dosecombo:document.getElementById("dosecombo"),
+  dsweet:   document.getElementById("dsweet"),
+  dcursor:  document.getElementById("dcursor"),
 };
 
 function setCash(v) {
@@ -807,15 +880,23 @@ function pickWasteBin(cx, cy) {
   return raycaster.intersectObjects(wasteBin.children, false).length > 0;
 }
 
+// Le doigt est-il sur le BAC STOCK ? (pour lancer le dosage)
+function pickSellBin(cx, cy) {
+  const r = el.getBoundingClientRect();
+  ndc.x = ((cx - r.left) / r.width) * 2 - 1;
+  ndc.y = -((cy - r.top) / r.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  return raycaster.intersectObjects(sellBin.children, false).length > 0;
+}
+
 el.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size >= 2) { startPinch(); return; }   // 2e doigt -> on bascule en zoom
   ensureAudio();                            // debloque le son (requis sur iOS)
-  if (mode === "wrap") { wrapDown(e); return; }
-  const sl = pickSlice(e.clientX, e.clientY);
-  if (sl) { enterWrap(sl); return; }       // tape une barrette posee -> emballage
-  if (pickWasteBin(e.clientX, e.clientY)) { sellWaste(); return; } // tape le bac dechets -> vente schlag
+  if (mode === "dose") { doseTap(); return; }          // tap pendant le mini-jeu de dosage
+  if (pickSellBin(e.clientX, e.clientY))  { startDosing(); return; } // tape le bac STOCK -> dosage
+  if (pickWasteBin(e.clientX, e.clientY)) { sellWaste(); return; }   // tape le bac dechets -> vente schlag
   if (over) return;                        // plus de savonnette a couper
   tapDown = { x: e.clientX, y: e.clientY }; tapMoved = false;   // candidat coupe (valide au relacher)
 }, { passive:false });
@@ -845,6 +926,7 @@ ui.waste.addEventListener("click", sellWaste);   // raccourci HUD pour vendre le
 document.getElementById("shopbtn").addEventListener("click", () => { renderShop(); ui.shop.classList.add("show"); });
 document.getElementById("shopclose").addEventListener("click", () => ui.shop.classList.remove("show"));
 ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.classList.remove("show"); }); // clic backdrop
+for (const b of document.querySelectorAll(".calbtn")) b.addEventListener("click", () => setCaliber(+b.dataset.cal));
 
 /* -------------------------------------------------------------------------
    12b) EMBALLAGE CELLOPHANE
@@ -918,6 +1000,89 @@ function exitWrap() {
   removeSlice(wrap.slice);
   wrap.slice = null; wrap.film = null; wrap.phase = ""; mode = "cut";
   ui.wrapui.classList.remove("show");
+}
+
+/* -------------------------------------------------------------------------
+   12c) DOSAGE + ENSACHAGE (mini-jeu "Hachoir rythme")
+   On prend un lot du STOCK (~10 g), on le debite en doses du calibre choisi.
+   Curseur qui balaie -> tap dans le jaune = dose nette (combo qui monte le
+   prix), rate = miettes + combo perdu. Petite dose = €/g plus eleve.
+   ------------------------------------------------------------------------- */
+const DOSE_SWEEP = 1.25;          // vitesse du curseur
+const DOSE_SWEET = 0.12;          // demi-largeur de la zone (sera ameliorable plus tard)
+const dose = { active:false, cursor:0, dir:1, cal:5, made:0, target:0, grade:"B", combo:0, earn:0, leftover:0 };
+
+function setCaliber(c) {
+  caliber = c; localStorage.setItem("hash_caliber", String(c));
+  for (const b of document.querySelectorAll(".calbtn")) b.classList.toggle("on", +b.dataset.cal === c);
+}
+
+function startDosing() {
+  if (dose.active) return;
+  if (stock.g < caliber) { showToast("Stock insuffisant (" + caliber + " g) — coupe des barrettes", "#caa15f"); return; }
+  const batch = Math.min(10, stock.g);
+  dose.grade = stockGrade();
+  takeFromStock(batch);
+  dose.cal = caliber;
+  dose.target = Math.max(1, Math.floor(batch / caliber));
+  dose.leftover = batch - dose.target * caliber;   // reste non divisible -> miettes en fin
+  dose.made = 0; dose.combo = 0; dose.earn = 0; dose.cursor = 0; dose.dir = 1;
+  dose.active = true; mode = "dose";
+  ui.doseui.classList.add("show");
+  ui.hint.style.opacity = "0";
+  updateStockLabel();
+  refreshDoseUI();
+}
+
+function refreshDoseUI() {
+  ui.dosetext.textContent = "Doser en " + dose.cal + " g  ·  " + dose.made + "/" + dose.target;
+  ui.dosecombo.textContent = dose.combo > 1 ? ("COMBO ×" + dose.combo) : "";
+  ui.dsweet.style.left  = (50 - DOSE_SWEET * 100) + "%";
+  ui.dsweet.style.width = (DOSE_SWEET * 200) + "%";
+}
+
+function doseTap() {
+  if (!dose.active) return;
+  const err = Math.abs(dose.cursor - 0.5);
+  const ac = ensureAudio();
+  if (err <= DOSE_SWEET) {                          // dose nette
+    dose.combo++;
+    const bonus = 1 + Math.min(dose.combo - 1, 12) * 0.06;   // le combo monte le prix
+    const price = dose.cal * DOSE_PRICE[dose.cal] * gradeVal(dose.grade) * bonus * levelMult();
+    dose.earn += price;
+    ui.dosecombo.style.transform = "scale(1.25)";
+    if (ac) { const t = ac.currentTime; beep(620 + Math.min(dose.combo, 14) * 70, t, 0.07, 0.16); }
+  } else {                                          // rate -> dose perdue en miettes
+    dose.combo = 0;
+    addWaste(dose.cal * 0.7);
+    if (ac) { const t = ac.currentTime; beep(150, t, 0.12, 0.2); }
+  }
+  dose.made++;
+  dose.cursor = 0; dose.dir = 1;                    // relance le balayage pour la dose suivante
+  refreshDoseUI();
+  setTimeout(() => { ui.dosecombo.style.transform = ""; }, 80);
+  if (dose.made >= dose.target) endDosing();
+}
+
+function endDosing() {
+  dose.active = false; mode = "cut";
+  ui.doseui.classList.remove("show");
+  if (dose.leftover > 0.05) addWaste(dose.leftover);   // reste non divisible
+  if (dose.earn > 0) {
+    setCash(cash + dose.earn);
+    addXP(Math.max(1, Math.round(dose.earn * 0.08)));
+    showToast("+ " + Math.round(dose.earn) + " €  (" + dose.target + "× " + dose.cal + "g)", "#9be37d");
+    playSale(); addShake(0.12);
+  }
+  ui.hint.style.opacity = "1";
+}
+
+function updateDose(dt) {
+  if (!dose.active) return;
+  dose.cursor += dose.dir * DOSE_SWEEP * dt;
+  if (dose.cursor >= 1) { dose.cursor = 1; dose.dir = -1; }
+  if (dose.cursor <= 0) { dose.cursor = 0; dose.dir =  1; }
+  ui.dcursor.style.left = (dose.cursor * 100) + "%";
 }
 
 // Petite flammeche du briquet (effet HTML ephemere).
@@ -1043,33 +1208,20 @@ function updateCutter(dt) {
 }
 
 let machineJob = null, machineTimer = 0;
-function nextSettled() {
-  for (const s of slices) if (s.settled && s !== wrap.slice && !s.machine) return s;
-  return null;
-}
+// Machine = auto-doseuse/ensacheuse : prend une dose du STOCK toutes les N s et la vend.
 function updateMachine(dt) {
   machineMesh.visible = !!owned.autowrap;
   if (!owned.autowrap) return;
-  if (machineJob) {                       // une barrette est en cours de traitement
-    const j = machineJob; j.t += dt;
-    const k = Math.min(1, j.t / 0.8);
-    _tmp.set(SELL_POS.x, 0.55, SELL_POS.z);
-    j.sl.mesh.position.lerp(_tmp, Math.min(1, dt * 6));
-    j.sl.mesh.rotation.y += dt * 7;
-    j.sl.mesh.scale.setScalar(Math.max(0.001, 1 - k));
-    if (k >= 1) {                         // emballee -> vendue (serrage fixe 1.0)
-      setCash(cash + j.sl.grams * PRICE[j.sl.grade] * 0.9 * levelMult());  // machine : serrage moyen
-      addXP(Math.max(1, Math.round(j.sl.grams)));
-      removeSlice(j.sl); machineJob = null;
-      const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(760, t, 0.09, 0.16); }
-    }
-    return;
-  }
   machineTimer += dt;
-  if (machineTimer >= mInterval()) {
+  if (machineTimer >= mInterval() && stock.g >= caliber) {
     machineTimer = 0;
-    const sl = nextSettled();
-    if (sl) { sl.machine = true; sl.label.style.display = "none"; machineJob = { sl, t: 0 }; }
+    const gr = stockGrade();
+    takeFromStock(caliber);
+    const price = caliber * DOSE_PRICE[caliber] * gradeVal(gr) * 0.9 * levelMult();  // machine : pas de combo
+    setCash(cash + price);
+    addXP(Math.max(1, Math.round(price * 0.06)));
+    updateStockLabel();
+    const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(720, t, 0.08, 0.14); }
   }
 }
 
@@ -1088,12 +1240,12 @@ const SHOP = [
     cost: () => Math.round(250 * Math.pow(1.7, owned.guide)),
     can: () => owned.guide < 6, maxed: () => owned.guide >= 6,
     buy: () => { owned.guide++; } },
-  { id: "autowrap", icon: "📦", name: "Auto-emballeuse",
-    desc: () => "Emballe et vend une barrette toute seule.",
+  { id: "autowrap", icon: "📦", name: "Auto-doseuse",
+    desc: () => "Dose et vend une dose du stock toute seule.",
     cost: () => 800, can: () => owned.autowrap < 1, maxed: () => owned.autowrap >= 1,
     buy: () => { owned.autowrap = 1; } },
   { id: "cadence", icon: "⚙️", name: "Cadence +",
-    desc: () => "Accélère la machine (" + mInterval().toFixed(1) + " s/barrette).",
+    desc: () => "Accélère la machine (" + mInterval().toFixed(1) + " s/dose).",
     cost: () => Math.round(600 * Math.pow(1.6, owned.cadence)),
     can: () => owned.autowrap >= 1 && owned.cadence < 8, maxed: () => owned.cadence >= 8,
     buy: () => { owned.cadence++; } },
@@ -1140,7 +1292,7 @@ const _lv = new THREE.Vector3();
 function updateLabels() {
   const w = window.innerWidth, h = window.innerHeight;
   for (const sl of slices) {
-    if (sl === wrap.slice) { sl.label.style.display = "none"; continue; } // masquee en emballage
+    if (sl === wrap.slice || sl.collect) { sl.label.style.display = "none"; continue; } // masquee (emballage/collecte)
     _lv.copy(sl.mesh.position); _lv.y += 0.7;   // un peu au-dessus de la barrette
     _lv.project(camera);
     if (_lv.z > 1) { sl.label.style.display = "none"; continue; } // derriere la camera
@@ -1159,6 +1311,7 @@ function loop(t) {
   last = t;
   updateSlices(dt);
   updateWrap(dt);
+  updateDose(dt);
   updateGauge(dt);
   updateCutter(dt);
   updateMachine(dt);
@@ -1183,6 +1336,8 @@ resetGame();
 setCash(cash);
 setWaste(wasteGrams);
 updateXpUI();
+setCaliber(caliber);
+updateStockLabel();
 requestAnimationFrame(loop);
 </script>
 </body>
