@@ -3,624 +3,432 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Cake Slicer — prototype</title>
+<title>Cake Slicer 3D — quatre-quarts</title>
 <style>
-  /* --- Mise en page plein ecran, pensee mobile (pas de scroll, pas de zoom) --- */
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1024; touch-action: none; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
-  #game { display: block; width: 100%; height: 100%; touch-action: none; }
+  /* --- Plein ecran, pense mobile (pas de scroll, pas de zoom) --- */
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+  html, body { width:100%; height:100%; overflow:hidden; touch-action:none;
+    font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(120% 120% at 50% 0%, #2c1c44 0%, #160d22 60%, #0d0815 100%); }
+  #app { position:fixed; inset:0; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+
+  /* --- HUD (overlay HTML par dessus la scene 3D) --- */
+  .hud { position:fixed; left:0; right:0; pointer-events:none; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.5); }
+  #count { top:max(14px,env(safe-area-inset-top)); left:16px; font-weight:800; font-size:18px; }
+  #reset { position:fixed; top:max(10px,env(safe-area-inset-top)); right:14px; pointer-events:auto;
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
+    padding:9px 14px; border-radius:12px; font-size:14px; font-weight:700; backdrop-filter:blur(6px); }
+  #reset:active { background:rgba(255,255,255,.25); }
+  #hint { bottom:max(22px,env(safe-area-inset-bottom)); text-align:center; font-size:14px;
+    color:rgba(255,255,255,.7); padding:0 24px; transition:opacity .4s; }
+  #toast { top:38%; text-align:center; font-size:26px; font-weight:800; opacity:0;
+    transition:opacity .25s, transform .25s; transform:translateY(8px); }
+  #toast.show { opacity:1; transform:translateY(0); }
+  #title { top:max(46px,calc(env(safe-area-inset-top) + 30px)); left:16px; font-size:12px;
+    color:rgba(255,255,255,.45); font-weight:600; letter-spacing:.5px; }
 </style>
+
+<!-- Three.js charge en module depuis un CDN (import map). Supporte par Safari iOS 16.4+ -->
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
 </head>
 <body>
-<canvas id="game"></canvas>
+<div id="app"></div>
+<div class="hud" id="count">Tranches : 0</div>
+<div class="hud" id="title">QUATRE-QUARTS</div>
+<button id="reset">🔄 Nouveau cake</button>
+<div class="hud" id="hint">Glisse ton doigt en travers du cake pour couper une tranche</div>
+<div class="hud" id="toast"></div>
 
-<script>
+<script type="module">
 "use strict";
+import * as THREE from "three";
+
 /* =========================================================================
-   CAKE SLICER — prototype de gameplay physique sur mobile
+   CAKE SLICER 3D — quatre-quarts long, coupe multiple
    -------------------------------------------------------------------------
-   But du jeu : le joueur pose son doigt sur le gateau et SUIT les pointilles
-   pour couper une tranche. La precision n'est pas critique, mais :
-     - la VITESSE max de coupe depend du COUTEAU choisi (plus le couteau est
-       bon, plus on peut descendre vite sans abimer le gateau) ;
-     - si le joueur coupe MAL (loin du trait, ou trop vite) trop LONGTEMPS,
-       le "stress" du gateau monte et la tranche FINIT PAR SE BRISER (physique).
+   - Le cake est un PAIN long (quatre-quarts) pose sur une planche.
+   - Le joueur GLISSE le doigt en travers du cake : le trace definit un plan
+     de coupe vertical. Au relachement, la TRANCHE situee cote "bout libre"
+     (cote droit) se detache et tombe sur la planche (petite physique).
+   - Chaque coupe REUSSIT toujours, meme imprecise : l'epaisseur et le biais
+     varient -> on affiche juste un petit feedback de qualite.
+   - On peut enchainer les tranches jusqu'a ce qu'il ne reste plus de cake.
    Tout est commente en francais, brique par brique.
    ========================================================================= */
 
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+/* -------------------------------------------------------------------------
+   0) DIMENSIONS DU CAKE (unites monde)
+   Un quatre-quarts long : allonge sur X, assez haut, pas trop large.
+   ------------------------------------------------------------------------- */
+const L = 6.0;   // longueur totale (axe X), du talon (x=0) au bout libre (x=L)
+const W = 1.7;   // largeur (axe Z)
+const H = 1.4;   // hauteur (axe Y), base a y=0
 
-// --- Dimensions logiques mises a jour a chaque resize (gestion du DPR retina) ---
-let W = 0, H = 0, DPR = 1;
+/* -------------------------------------------------------------------------
+   1) SCENE, CAMERA, RENDU
+   ------------------------------------------------------------------------- */
+const app = document.getElementById("app");
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(3.2, 5.3, 8.2);
+camera.lookAt(2.8, 0.3, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+renderer.setClearColor(0x000000, 0);           // fond transparent -> on voit le degrade CSS
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
 function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 2);
-  W = window.innerWidth;
-  H = window.innerHeight;
-  canvas.width = Math.floor(W * DPR);
-  canvas.height = Math.floor(H * DPR);
-  canvas.style.width = W + "px";
-  canvas.style.height = H + "px";
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  layout();
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
 }
 window.addEventListener("resize", resize);
 
 /* -------------------------------------------------------------------------
-   1) LES COUTEAUX
-   Chaque couteau definit la "vitesse de coupe" (px/seconde qu'on peut
-   descendre sans stress) et une "tolerance" laterale (a quel point on peut
-   s'eloigner du trait avant que ce soit considere comme une mauvaise coupe).
-   Un meilleur couteau = on coupe plus vite ET plus large sans casser.
+   2) LUMIERES
    ------------------------------------------------------------------------- */
-const KNIVES = [
-  { id: "beurre", nom: "Couteau a beurre", emoji: "🧈", color: "#c9c9d4",
-    maxSpeed: 130, tolerance: 22, bladeLen: 64, desc: "Lent. Faut etre precis." },
-  { id: "chef",   nom: "Couteau de chef",  emoji: "🔪", color: "#e8e8f0",
-    maxSpeed: 260, tolerance: 34, bladeLen: 92, desc: "Equilibre." },
-  { id: "katana", nom: "Katana laser",     emoji: "⚡", color: "#7df9ff",
-    maxSpeed: 460, tolerance: 48, bladeLen: 120, desc: "Rapide et indulgent." },
-];
-let knife = KNIVES[1]; // couteau par defaut
+scene.add(new THREE.HemisphereLight(0xfff3e0, 0x402c4d, 0.75));
+const sun = new THREE.DirectionalLight(0xfff0dc, 1.0);
+sun.position.set(6, 11, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+const s = sun.shadow.camera;
+s.left = -8; s.right = 8; s.top = 8; s.bottom = -8; s.near = 1; s.far = 30;
+scene.add(sun);
 
 /* -------------------------------------------------------------------------
-   2) GEOMETRIE DU GATEAU
-   Vue de cote : une dalle de gateau posee sur une assiette. On coupe une
-   tranche verticale du cote droit. Le trait pointille indique ou couper.
-   layout() recalcule tout selon la taille de l'ecran (responsive).
+   3) PLANCHE A DECOUPER (recoit les ombres + les tranches)
    ------------------------------------------------------------------------- */
-const cake = {};
-function layout() {
-  const cw = Math.min(W * 0.82, 460);   // largeur du gateau
-  const ch = Math.min(H * 0.30, 240);   // hauteur du gateau
-  cake.w = cw;
-  cake.h = ch;
-  cake.x = (W - cw) / 2;                // bord gauche
-  cake.y = H * 0.40;                    // haut du gateau (sous la frosting)
-  cake.frosting = Math.min(36, ch * 0.22); // epaisseur du glacage
-  cake.top = cake.y - cake.frosting;    // sommet (glacage compris)
-  cake.bottom = cake.y + cake.h;        // base
-  // Le trait de coupe : a ~30% du bord droit -> on detache une tranche.
-  cake.cutX = cake.x + cw * 0.70;
-  cake.sliceW = cake.x + cw - cake.cutX; // largeur de la tranche detachee
-}
+const board = new THREE.Mesh(
+  new THREE.BoxGeometry(L + 3.5, 0.3, W + 2.6),
+  new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 0.85 })
+);
+board.position.set(L / 2 - 0.3, -0.15, 0);
+board.receiveShadow = true;
+scene.add(board);
 
 /* -------------------------------------------------------------------------
-   3) ETAT DE LA PARTIE
+   4) MATERIAUX DU CAKE
+   crust  = croute doree (dessus + cotes longs)
+   pale   = dessous, plus clair
+   sponge = mie (faces fraichement coupees) -> jaune pale
    ------------------------------------------------------------------------- */
-let state;            // "menu" | "cutting" | "broken" | "success"
-let stress;           // 0..100, monte quand on coupe mal -> 100 = casse
-let progress;         // 0..1, profondeur de coupe le long du trait (haut->bas)
-let cutPoints;        // trace du doigt (pour dessiner l'entaille)
-let pointer;          // position courante du doigt {x,y, active}
-let lastPointer;      // position precedente (pour calculer la vitesse)
-let knifeAngle;       // inclinaison visuelle de la lame
-let fragments;        // morceaux physiques (quand ca casse)
-let slice;            // la tranche detachee (quand succes -> elle tombe)
-let badStreak;        // temps cumule (s) de coupe consideree "mauvaise"
-let lastTime;         // horodatage frame precedente
-let shakeMag;         // intensite du tremblement d'ecran (feedback "ca craque")
-
-function reset(toMenu) {
-  state = toMenu ? "menu" : "cutting";
-  stress = 0;
-  progress = 0;
-  cutPoints = [];
-  pointer = { x: 0, y: 0, active: false };
-  lastPointer = null;
-  knifeAngle = 0;
-  fragments = [];
-  slice = null;
-  badStreak = 0;
-  shakeMag = 0;
-}
-reset(true);
+const matCrust  = new THREE.MeshStandardMaterial({ color: 0xb9772e, roughness: 0.8, side: THREE.DoubleSide });
+const matPale   = new THREE.MeshStandardMaterial({ color: 0xe6c485, roughness: 0.9, side: THREE.DoubleSide });
+const matSponge = new THREE.MeshStandardMaterial({ color: 0xf4dca6, roughness: 0.95, side: THREE.DoubleSide });
+const cakeMats  = [matCrust, matPale, matSponge];
 
 /* -------------------------------------------------------------------------
-   4) ENTREES TACTILES / SOURIS
-   On veut un seul "doigt" actif. Pointer Events couvre tactile + souris.
+   5) GEOMETRIE D'UN MORCEAU (prisme)
+   Un morceau est defini par DEUX faces verticales :
+     - face gauche a x = aNeg (cote z-) et x = aPos (cote z+)
+     - face droite a x = bNeg (cote z-) et x = bPos (cote z+)
+   Si aNeg != aPos (ou bNeg != bPos), la coupe est BIAISEE -> tranche en coin.
+   On construit 6 quads (non indexes) avec des groupes pour les materiaux.
    ------------------------------------------------------------------------- */
-function pointFromEvent(e) {
-  const r = canvas.getBoundingClientRect();
-  const t = (e.touches && e.touches[0]) || e;
-  return { x: t.clientX - r.left, y: t.clientY - r.top };
-}
+function makePrism(aNeg, aPos, bNeg, bPos) {
+  const zN = -W / 2, zP = W / 2;
+  // 8 coins : L=face gauche (a), R=face droite (b)
+  const L0=[aNeg,0,zN], L1=[aPos,0,zP], L2=[aPos,H,zP], L3=[aNeg,H,zN];
+  const R0=[bNeg,0,zN], R1=[bPos,0,zP], R2=[bPos,H,zP], R3=[bNeg,H,zN];
 
-canvas.addEventListener("pointerdown", (e) => {
-  e.preventDefault();
-  const p = pointFromEvent(e);
-
-  if (state === "menu") {
-    // Clic sur un des 3 couteaux du menu ?
-    const k = knifeButtonHit(p);
-    if (k) { knife = k; reset(false); }
-    return;
-  }
-  if (state === "broken" || state === "success") {
-    // N'importe quel tap relance une partie (retour menu).
-    reset(true);
-    return;
-  }
-  // En coupe : on "saisit" le gateau si on commence pres du haut du trait.
-  pointer = { x: p.x, y: p.y, active: true };
-  lastPointer = { x: p.x, y: p.y };
-  cutPoints.push({ x: p.x, y: p.y });
-}, { passive: false });
-
-canvas.addEventListener("pointermove", (e) => {
-  e.preventDefault();
-  if (state !== "cutting" || !pointer.active) return;
-  const p = pointFromEvent(e);
-  pointer.x = p.x;
-  pointer.y = p.y;
-}, { passive: false });
-
-function endPointer(e) {
-  if (e) e.preventDefault();
-  pointer.active = false;
-  lastPointer = null;
-}
-canvas.addEventListener("pointerup", endPointer, { passive: false });
-canvas.addEventListener("pointercancel", endPointer, { passive: false });
-
-/* -------------------------------------------------------------------------
-   5) ZONES CLIQUABLES DU MENU (choix du couteau)
-   ------------------------------------------------------------------------- */
-function knifeButtonRects() {
-  const n = KNIVES.length;
-  const bw = Math.min(W * 0.8, 360);
-  const bh = 74;
-  const gap = 14;
-  const totalH = n * bh + (n - 1) * gap;
-  const startY = H * 0.42;
-  return KNIVES.map((k, i) => ({
-    k, x: (W - bw) / 2, y: startY + i * (bh + gap), w: bw, h: bh,
-  }));
-}
-function knifeButtonHit(p) {
-  for (const r of knifeButtonRects()) {
-    if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) return r.k;
-  }
-  return null;
-}
-
-/* -------------------------------------------------------------------------
-   6) MISE A JOUR DE LA LOGIQUE (appelee chaque frame)
-   ------------------------------------------------------------------------- */
-function update(dt) {
-  // Amortir le tremblement d'ecran a chaque frame.
-  shakeMag *= 0.86;
-  if (shakeMag < 0.2) shakeMag = 0;
-
-  if (state === "cutting") updateCutting(dt);
-  if (state === "broken")  updateFragments(dt);
-  if (state === "success") updateSlice(dt);
-}
-
-function updateCutting(dt) {
-  if (!pointer.active || !lastPointer) { lastPointer = pointer.active ? { x: pointer.x, y: pointer.y } : null; return; }
-
-  // --- Vitesse du doigt (px/s) depuis la frame precedente ---
-  const dx = pointer.x - lastPointer.x;
-  const dy = pointer.y - lastPointer.y;
-  const dist = Math.hypot(dx, dy);
-  const speed = dist / Math.max(dt, 0.001);
-
-  // --- Progression de la coupe : on n'avance que vers le BAS, et seulement
-  //     a la vitesse autorisee par le couteau. Descendre plus vite que
-  //     maxSpeed n'avance PAS plus la coupe (la lame "force") -> ca stresse. ---
-  const allowedDown = knife.maxSpeed * dt;          // descente max autorisee cette frame
-  const downMove = Math.max(0, dy);                  // on ne progresse qu'en descendant
-  const effectiveDown = Math.min(downMove, allowedDown);
-  const totalCutLen = cake.bottom - cake.top;
-  progress = Math.min(1, progress + effectiveDown / totalCutLen);
-
-  // --- Ecart lateral au trait pointille (mauvaise coupe = loin du trait) ---
-  const dev = Math.abs(pointer.x - cake.cutX);
-  const offLine = Math.max(0, dev - knife.tolerance);   // 0 si dans la tolerance
-  const tooFast = Math.max(0, downMove - allowedDown);  // px de "forcage" au-dela du couteau
-
-  // --- Le gateau est-il "mal coupe" cette frame ? ---
-  // Deux causes : on est loin du trait, OU on force trop vite la lame.
-  const bad = (offLine > 0) || (tooFast > 0);
-
-  if (bad) {
-    // Le stress monte proportionnellement a la gravite de l'erreur.
-    const fromOff  = offLine * 0.16;     // s'eloigner du trait
-    const fromFast = tooFast * 0.05;     // forcer la vitesse
-    stress += (fromOff + fromFast + 14) * dt;  // +14/s de base tant que c'est mauvais
-    badStreak += dt;
-    if (stress > 30) shakeMag = Math.min(8, stress * 0.12); // ca commence a trembler
-  } else {
-    // Bonne coupe : le gateau "se detend", le stress redescend doucement.
-    stress -= 26 * dt;
-    badStreak = Math.max(0, badStreak - dt * 1.5);
-  }
-  stress = Math.max(0, Math.min(100, stress));
-
-  // --- Inclinaison visuelle de la lame selon le mouvement horizontal ---
-  knifeAngle += ((dx * 0.02) - knifeAngle) * 0.2;
-
-  // --- Trace de l'entaille (juste pour le rendu) ---
-  const last = cutPoints[cutPoints.length - 1];
-  if (!last || Math.hypot(pointer.x - last.x, pointer.y - last.y) > 4) {
-    cutPoints.push({ x: pointer.x, y: pointer.y, bad });
-    if (cutPoints.length > 400) cutPoints.shift();
-  }
-
-  // --- Conditions de fin ---
-  if (stress >= 100) {
-    breakSlice();                 // la tranche se brise (physique)
-  } else if (progress >= 1) {
-    detachSlice();                // coupe terminee proprement -> la tranche tombe
-  }
-
-  lastPointer = { x: pointer.x, y: pointer.y };
-}
-
-/* -------------------------------------------------------------------------
-   7) LA TRANCHE SE BRISE -> on genere des fragments physiques.
-   Chaque fragment a une position, une vitesse, une rotation. Gravite + sol.
-   ------------------------------------------------------------------------- */
-function breakSlice() {
-  state = "broken";
-  shakeMag = 14;
-  const cols = 4, rows = 5;
-  const x0 = cake.cutX, y0 = cake.top;
-  const fw = cake.sliceW / cols;
-  const fh = (cake.bottom - cake.top) / rows;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const isFrost = (r === 0); // la rangee du haut = glacage
-      fragments.push({
-        x: x0 + c * fw + fw / 2,
-        y: y0 + r * fh + fh / 2,
-        w: fw * (0.7 + Math.random() * 0.25),
-        h: fh * (0.7 + Math.random() * 0.25),
-        vx: (Math.random() - 0.3) * 220,         // ejecte plutot vers la droite
-        vy: -120 - Math.random() * 220,          // saut vers le haut
-        rot: (Math.random() - 0.5) * 0.6,
-        vrot: (Math.random() - 0.5) * 8,
-        color: isFrost ? "#fff0f6" : "#f4c98a",
-        crumb: isFrost ? "#ffd9e6" : "#caa15f",
-      });
-    }
-  }
-}
-
-function updateFragments(dt) {
-  const g = 1500;            // gravite
-  const floor = cake.bottom + 40;
-  for (const f of fragments) {
-    f.vy += g * dt;
-    f.x += f.vx * dt;
-    f.y += f.vy * dt;
-    f.rot += f.vrot * dt;
-    if (f.y > floor) {       // rebond amorti sur l'assiette
-      f.y = floor;
-      f.vy *= -0.35;
-      f.vx *= 0.7;
-      f.vrot *= 0.7;
-      if (Math.abs(f.vy) < 30) f.vy = 0;
-    }
-  }
-}
-
-/* -------------------------------------------------------------------------
-   8) COUPE REUSSIE -> la tranche se detache et bascule/tombe proprement.
-   ------------------------------------------------------------------------- */
-function detachSlice() {
-  state = "success";
-  slice = {
-    x: cake.cutX, y: cake.top,
-    w: cake.sliceW, h: cake.bottom - cake.top,
-    vx: 60, vy: -40, rot: 0, vrot: 1.4,
+  const pos = [];
+  const quad = (p0,p1,p2,p3) => { // 2 triangles
+    pos.push(...p0,...p1,...p2,  ...p0,...p2,...p3);
   };
-}
-function updateSlice(dt) {
-  const g = 1400;
-  slice.vy += g * dt;
-  slice.x += slice.vx * dt;
-  slice.y += slice.vy * dt;
-  slice.rot += slice.vrot * dt;
-  const floor = cake.bottom - slice.h; // se pose a plat a cote
-  if (slice.y > floor && slice.rot > 1.3) { slice.vy *= -0.2; slice.vrot *= 0.4; }
-}
+  quad(L0,R0,R1,L1); // 0 dessous     -> pale (1)
+  quad(L3,L2,R2,R3); // 1 dessus      -> crust (0)
+  quad(L0,L3,R3,R0); // 2 cote z-     -> crust (0)
+  quad(L1,R1,R2,L2); // 3 cote z+     -> crust (0)
+  quad(L0,L1,L2,L3); // 4 bout gauche -> sponge (2)
+  quad(R0,R1,R2,R3); // 5 bout droit  -> sponge (2)
 
-/* -------------------------------------------------------------------------
-   9) RENDU
-   ------------------------------------------------------------------------- */
-function draw() {
-  // Tremblement d'ecran (feedback quand ca craque).
-  const sx = (Math.random() - 0.5) * shakeMag;
-  const sy = (Math.random() - 0.5) * shakeMag;
-  ctx.save();
-  ctx.translate(sx, sy);
-
-  drawBackground();
-  drawPlate();
-
-  if (state === "menu") {
-    drawCake(cake.x, cake.top, cake.w, cake.frosting, cake.h, false);
-    drawMenu();
-    ctx.restore();
-    return;
-  }
-
-  if (state === "cutting") {
-    drawCake(cake.x, cake.top, cake.w, cake.frosting, cake.h, true);
-    drawGuideLine();
-    drawCutTrace();
-    drawKnife();
-    drawHUD();
-  }
-
-  if (state === "success") {
-    // Le gateau restant (sans la tranche) + la tranche qui tombe.
-    drawCake(cake.x, cake.top, cake.cutX - cake.x, cake.frosting, cake.h, false);
-    drawFallingSlice();
-    drawBanner("Tranche parfaite ! 🍰", "#9be37d", "Tap pour rejouer");
-  }
-
-  if (state === "broken") {
-    drawCake(cake.x, cake.top, cake.cutX - cake.x, cake.frosting, cake.h, false);
-    drawFragments();
-    drawBanner("La tranche s'est brisee ! 💥", "#ff6b6b", "Tap pour rejouer");
-  }
-
-  ctx.restore();
-}
-
-function drawBackground() {
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, "#241634");
-  g.addColorStop(1, "#150d20");
-  ctx.fillStyle = g;
-  ctx.fillRect(-20, -20, W + 40, H + 40);
-}
-
-function drawPlate() {
-  // Assiette : une ellipse sous le gateau.
-  const cx = cake.x + cake.w / 2;
-  const cy = cake.bottom + 18;
-  ctx.fillStyle = "rgba(255,255,255,0.10)";
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, cake.w * 0.72, 30, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "rgba(255,255,255,0.05)";
-  ctx.beginPath();
-  ctx.ellipse(cx, cy - 6, cake.w * 0.62, 24, 0, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-// Dessine un bloc de gateau (genoise + glacage). withCherry = cerise sur le dessus.
-function drawCake(x, top, w, frost, bodyH, withCherry) {
-  const bodyTop = top + frost;
-  const bottom = top + frost + bodyH;
-  // Genoise
-  const g = ctx.createLinearGradient(0, bodyTop, 0, bottom);
-  g.addColorStop(0, "#f4c98a");
-  g.addColorStop(0.5, "#e6b06a");
-  g.addColorStop(1, "#d49b54");
-  ctx.fillStyle = g;
-  roundRect(x, bodyTop, w, bottom - bodyTop, 8);
-  ctx.fill();
-  // Couche de confiture au milieu
-  ctx.fillStyle = "#c0405a";
-  ctx.fillRect(x, bodyTop + (bottom - bodyTop) * 0.45, w, 7);
-  // Glacage du dessus (degouline un peu)
-  ctx.fillStyle = "#fff0f6";
-  roundRect(x - 2, top, w + 4, frost + 8, 10);
-  ctx.fill();
-  ctx.fillStyle = "#ffe0ec";
-  for (let i = 0; i < w; i += 26) {
-    ctx.beginPath();
-    ctx.ellipse(x + i + 13, top + frost + 6, 11, 8, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  // Cerise
-  if (withCherry) {
-    ctx.fillStyle = "#e0384f";
-    ctx.beginPath();
-    ctx.arc(x + w * 0.5, top + frost * 0.3, 11, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#5fa14b"; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(x + w * 0.5, top + frost * 0.3 - 8);
-    ctx.quadraticCurveTo(x + w * 0.5 + 14, top - 6, x + w * 0.5 + 6, top + 2); ctx.stroke();
-  }
-}
-
-// Le trait pointille a suivre, qui se "remplit" selon la progression.
-function drawGuideLine() {
-  const x = cake.cutX;
-  const top = cake.top, bottom = cake.bottom;
-  // Pointilles a couper (partie restante)
-  ctx.save();
-  ctx.setLineDash([10, 9]);
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = "rgba(255,255,255,0.85)";
-  ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
-  // Partie deja coupee (trait plein, colore selon le stress)
-  const cutY = top + (bottom - top) * progress;
-  ctx.setLineDash([]);
-  ctx.lineWidth = 6;
-  ctx.strokeStyle = stress > 60 ? "#ff6b6b" : (stress > 30 ? "#ffd166" : "#9be37d");
-  ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, cutY); ctx.stroke();
-  // Petite fleche "depart" en haut
-  ctx.fillStyle = "rgba(255,255,255,0.9)";
-  ctx.beginPath();
-  ctx.moveTo(x, top - 14); ctx.lineTo(x - 7, top - 26); ctx.lineTo(x + 7, top - 26);
-  ctx.closePath(); ctx.fill();
-  ctx.restore();
-}
-
-// Trace laissee par le doigt dans la genoise (vert = bon, rouge = mauvais).
-function drawCutTrace() {
-  if (cutPoints.length < 2) return;
-  ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.lineJoin = "round";
-  for (let i = 1; i < cutPoints.length; i++) {
-    const a = cutPoints[i - 1], b = cutPoints[i];
-    ctx.strokeStyle = b.bad ? "rgba(255,90,90,0.7)" : "rgba(120,230,140,0.55)";
-    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-  }
-}
-
-// La lame, qui suit le doigt.
-function drawKnife() {
-  if (!pointer.active) return;
-  ctx.save();
-  ctx.translate(pointer.x, pointer.y);
-  ctx.rotate(knifeAngle);
-  // Lame (pointe en bas, vers la coupe)
-  const L = knife.bladeLen;
-  const grad = ctx.createLinearGradient(-6, -L, 6, 0);
-  grad.addColorStop(0, knife.color);
-  grad.addColorStop(1, "#9aa0b5");
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.moveTo(0, 6);                 // pointe (au niveau du doigt)
-  ctx.lineTo(-7, -L + 18);
-  ctx.lineTo(-7, -L);
-  ctx.lineTo(7, -L);
-  ctx.lineTo(7, -L + 18);
-  ctx.closePath();
-  ctx.fill();
-  // Manche
-  ctx.fillStyle = "#3a2c20";
-  roundRect(-9, -L - 30, 18, 32, 5); ctx.fill();
-  // Reflet laser pour le katana
-  if (knife.id === "katana") {
-    ctx.strokeStyle = "rgba(125,249,255,0.8)"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(0, 4); ctx.lineTo(0, -L + 12); ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function drawFallingSlice() {
-  ctx.save();
-  ctx.translate(slice.x + slice.w / 2, slice.y + slice.h / 2);
-  ctx.rotate(slice.rot);
-  drawCake(-slice.w / 2, -slice.h / 2, slice.w, cake.frosting, slice.h - cake.frosting, true);
-  ctx.restore();
-}
-
-function drawFragments() {
-  for (const f of fragments) {
-    ctx.save();
-    ctx.translate(f.x, f.y);
-    ctx.rotate(f.rot);
-    ctx.fillStyle = f.color;
-    roundRect(-f.w / 2, -f.h / 2, f.w, f.h, 3); ctx.fill();
-    ctx.fillStyle = f.crumb;
-    ctx.fillRect(-f.w / 2, -f.h / 2, f.w, 3);
-    ctx.restore();
-  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.addGroup(0,  6, 1);
+  g.addGroup(6,  6, 0);
+  g.addGroup(12, 6, 0);
+  g.addGroup(18, 6, 0);
+  g.addGroup(24, 6, 2);
+  g.addGroup(30, 6, 2);
+  g.computeVertexNormals();
+  return g;
 }
 
 /* -------------------------------------------------------------------------
-   10) INTERFACE (HUD pendant la coupe + ecrans menu / fin)
+   6) LE CAKE RESTANT
+   On suit le bord droit (la "frontiere") par deux x : rightNeg (cote z-) et
+   rightPos (cote z+). Le talon gauche reste fixe a x=0.
    ------------------------------------------------------------------------- */
-function drawHUD() {
-  // Barre de stress en haut.
-  const bw = Math.min(W * 0.8, 360), bh = 16;
-  const bx = (W - bw) / 2, by = 40;
-  ctx.fillStyle = "rgba(255,255,255,0.12)";
-  roundRect(bx, by, bw, bh, 8); ctx.fill();
-  const col = stress > 60 ? "#ff6b6b" : (stress > 30 ? "#ffd166" : "#9be37d");
-  ctx.fillStyle = col;
-  roundRect(bx, by, bw * (stress / 100), bh, 8); ctx.fill();
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.font = "600 13px -apple-system, sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText("Integrite de la tranche", bx, by - 8);
-  ctx.textAlign = "right";
-  ctx.fillText(Math.round(100 - stress) + "%", bx + bw, by - 8);
+let rightNeg, rightPos;             // position du bord droit aux deux cotes
+const cakeMesh = new THREE.Mesh(makePrism(0,0,0,0), cakeMats);
+cakeMesh.castShadow = true; cakeMesh.receiveShadow = true;
+scene.add(cakeMesh);
 
-  // Couteau utilise + consigne.
-  ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(255,255,255,0.9)";
-  ctx.font = "600 15px -apple-system, sans-serif";
-  ctx.fillText(knife.emoji + "  " + knife.nom, W / 2, by + bh + 26);
-  ctx.fillStyle = "rgba(255,255,255,0.55)";
-  ctx.font = "13px -apple-system, sans-serif";
-  ctx.fillText("Suis les pointilles avec ton doigt — pas trop vite !", W / 2, by + bh + 46);
-}
+// La craquelure typique du quatre-quarts sur le dessus.
+const crack = new THREE.Mesh(
+  new THREE.BoxGeometry(1, 0.06, 0.22),
+  new THREE.MeshStandardMaterial({ color: 0x7a4a1e, roughness: 0.9 })
+);
+crack.position.y = H + 0.005;
+scene.add(crack);
 
-function drawMenu() {
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#fff";
-  ctx.font = "800 34px -apple-system, sans-serif";
-  ctx.fillText("Cake Slicer", W / 2, H * 0.16);
-  ctx.fillStyle = "rgba(255,255,255,0.6)";
-  ctx.font = "15px -apple-system, sans-serif";
-  ctx.fillText("Choisis ton couteau, puis coupe la tranche", W / 2, H * 0.16 + 28);
-
-  for (const r of knifeButtonRects()) {
-    const sel = r.k.id === knife.id;
-    ctx.fillStyle = sel ? "rgba(125,249,255,0.18)" : "rgba(255,255,255,0.07)";
-    ctx.strokeStyle = sel ? "#7df9ff" : "rgba(255,255,255,0.18)";
-    ctx.lineWidth = 2;
-    roundRect(r.x, r.y, r.w, r.h, 14); ctx.fill(); ctx.stroke();
-
-    ctx.textAlign = "left";
-    ctx.font = "30px -apple-system, sans-serif";
-    ctx.fillStyle = "#fff";
-    ctx.fillText(r.k.emoji, r.x + 18, r.y + r.h / 2 + 10);
-    ctx.font = "700 17px -apple-system, sans-serif";
-    ctx.fillText(r.k.nom, r.x + 64, r.y + 30);
-    ctx.font = "13px -apple-system, sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
-    ctx.fillText(r.k.desc, r.x + 64, r.y + 50);
-    // Petites jauges de vitesse.
-    ctx.fillStyle = "rgba(255,255,255,0.5)";
-    ctx.textAlign = "right";
-    ctx.font = "600 12px -apple-system, sans-serif";
-    ctx.fillText("Vitesse " + Math.round(r.k.maxSpeed / 100 * 2) + "/10", r.x + r.w - 16, r.y + 28);
-    ctx.fillText("Marge " + Math.round(r.k.tolerance) + "px", r.x + r.w - 16, r.y + 48);
+function rebuildCake() {
+  cakeMesh.geometry.dispose();
+  cakeMesh.geometry = makePrism(0, 0, rightNeg, rightPos);
+  const maxB = Math.max(rightNeg, rightPos);
+  if (maxB > 0.6) {
+    crack.visible = true;
+    crack.scale.x = maxB - 0.5;
+    crack.position.x = maxB / 2;
+  } else {
+    crack.visible = false;
   }
-  ctx.textAlign = "center";
-}
-
-function drawBanner(title, color, sub) {
-  ctx.fillStyle = "rgba(0,0,0,0.45)";
-  ctx.fillRect(0, H * 0.30, W, 130);
-  ctx.textAlign = "center";
-  ctx.fillStyle = color;
-  ctx.font = "800 28px -apple-system, sans-serif";
-  ctx.fillText(title, W / 2, H * 0.30 + 56);
-  ctx.fillStyle = "rgba(255,255,255,0.8)";
-  ctx.font = "16px -apple-system, sans-serif";
-  ctx.fillText(sub, W / 2, H * 0.30 + 92);
+  cakeMesh.visible = maxB > 0.05;
 }
 
 /* -------------------------------------------------------------------------
-   Helpers de dessin
+   7) ETAT DE PARTIE
    ------------------------------------------------------------------------- */
-function roundRect(x, y, w, h, r) {
-  r = Math.min(r, w / 2, h / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
+let slices = [];     // tranches detachees (avec physique)
+let count = 0;       // nombre de tranches coupees
+let over = false;    // plus de cake ?
+
+function resetGame() {
+  for (const sl of slices) { scene.remove(sl.mesh); sl.mesh.geometry.dispose(); }
+  slices = [];
+  rightNeg = L; rightPos = L;
+  count = 0; over = false;
+  rebuildCake();
+  ui.count.textContent = "Tranches : 0";
+  ui.hint.style.opacity = "1";
+  ui.hint.textContent = "Glisse ton doigt en travers du cake pour couper une tranche";
 }
 
 /* -------------------------------------------------------------------------
-   11) BOUCLE PRINCIPALE (requestAnimationFrame)
+   8) ENTREES : on projette le doigt sur le plan du DESSUS du cake (y=H)
+   pour connaitre la position (x,z) visee. Un swipe = 2 points -> un plan.
    ------------------------------------------------------------------------- */
+const raycaster = new THREE.Raycaster();
+const topPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -H); // plan y = H
+const ndc = new THREE.Vector2();
+
+function pointOnTop(clientX, clientY) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.x = ((clientX - r.left) / r.width) * 2 - 1;
+  ndc.y = -((clientY - r.top) / r.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  const out = new THREE.Vector3();
+  return raycaster.ray.intersectPlane(topPlane, out) ? out : null;
+}
+
+// A partir de deux points du swipe, calcule la ligne de coupe (cutNeg,cutPos)
+// = position en x de la coupe sur chaque cote (z- et z+).
+function cutLineFrom(p0, p1) {
+  const dz = p1.z - p0.z;
+  let cutNeg, cutPos;
+  if (Math.abs(dz) < 0.18) {
+    // Swipe quasi parallele au cake -> coupe droite a la position moyenne.
+    const xm = (p0.x + p1.x) / 2;
+    cutNeg = xm; cutPos = xm;
+  } else {
+    const slope = (p1.x - p0.x) / dz;            // dx par unite de z
+    const xAt = (z) => p0.x + slope * (z - p0.z);
+    cutNeg = xAt(-W / 2);
+    cutPos = xAt(W / 2);
+  }
+  // On ne coupe que DANS le cake restant, et jamais au-dela du talon.
+  cutNeg = Math.max(0, Math.min(cutNeg, rightNeg));
+  cutPos = Math.max(0, Math.min(cutPos, rightPos));
+  return { cutNeg, cutPos };
+}
+
+/* -------------------------------------------------------------------------
+   9) LE GUIDE DE COUPE (ruban brillant montre pendant le glissement)
+   ------------------------------------------------------------------------- */
+const guideGeo = new THREE.BufferGeometry();
+guideGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(18), 3));
+const guide = new THREE.Mesh(guideGeo, new THREE.MeshBasicMaterial({
+  color: 0x7df9ff, transparent: true, opacity: 0.85, side: THREE.DoubleSide
+}));
+guide.visible = false;
+scene.add(guide);
+
+function updateGuide(cutNeg, cutPos) {
+  const y = H + 0.03;
+  // direction de la ligne dans le plan xz, puis perpendiculaire pour l'epaisseur
+  const dx = cutPos - cutNeg, dz = W;
+  const len = Math.hypot(dx, dz) || 1;
+  const px = (dz / len) * 0.05, pz = (-dx / len) * 0.05; // perpendiculaire * demi-epaisseur
+  const A = [cutNeg, y, -W/2 - 0.12], B = [cutPos, y, W/2 + 0.12];
+  const c0=[A[0]+px,y,A[2]+pz], c1=[A[0]-px,y,A[2]-pz], c2=[B[0]-px,y,B[2]-pz], c3=[B[0]+px,y,B[2]+pz];
+  const arr = guideGeo.attributes.position.array;
+  const set = (i,p)=>{ arr[i*3]=p[0]; arr[i*3+1]=p[1]; arr[i*3+2]=p[2]; };
+  set(0,c0); set(1,c1); set(2,c2);  set(3,c0); set(4,c2); set(5,c3);
+  guideGeo.attributes.position.needsUpdate = true;
+  guide.visible = true;
+}
+
+/* -------------------------------------------------------------------------
+   10) COUPER : detache la tranche [coupe .. bord droit] et la fait tomber.
+   ------------------------------------------------------------------------- */
+function performCut(cutNeg, cutPos) {
+  const thick = ((rightNeg - cutNeg) + (rightPos - cutPos)) / 2;
+  if (thick < 0.06) { showToast("Trop pres du bord 🙃", "#ffd166"); return; }
+
+  // Biais de la coupe : difference de largeur entre les deux cotes de la tranche.
+  const skew = Math.abs((rightNeg - cutNeg) - (rightPos - cutPos));
+
+  // Geometrie de la tranche : de la coupe (gauche) au bord droit actuel.
+  const geo = makePrism(cutNeg, cutPos, rightNeg, rightPos);
+  // On recentre la geometrie sur son centre pour pouvoir la faire tourner.
+  geo.computeBoundingBox();
+  const c = new THREE.Vector3();
+  geo.boundingBox.getCenter(c);
+  geo.translate(-c.x, -c.y, -c.z);
+  geo.computeBoundingSphere();
+
+  const mesh = new THREE.Mesh(geo, cakeMats);
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  mesh.position.copy(c);
+  scene.add(mesh);
+
+  slices.push({
+    mesh,
+    vx: 0.7 + Math.random() * 0.6,
+    vy: 1.8 + Math.random() * 1.0,
+    vz: 1.0 + Math.random() * 0.9,
+    vrx: 2.0 + Math.random() * 2.0,
+    vrz: (Math.random() - 0.5) * 3.0,
+    rest: 0.20 + geo.boundingSphere.radius * 0.18,
+    settled: false,
+  });
+
+  // Le cake restant s'arrete maintenant a la coupe.
+  rightNeg = cutNeg; rightPos = cutPos;
+  rebuildCake();
+
+  count++;
+  ui.count.textContent = "Tranches : " + count;
+  ui.hint.style.opacity = "0";
+  rateSlice(thick, skew);
+
+  // Fin de partie ?
+  if (Math.max(rightNeg, rightPos) < 0.25) {
+    over = true;
+    showToast("Cake termine ! 🎉", "#9be37d");
+    ui.hint.style.opacity = "1";
+    ui.hint.textContent = "Tape 🔄 pour un nouveau cake";
+  }
+}
+
+function rateSlice(thick, skew) {
+  let msg, col;
+  if (skew > 0.6)            { msg = "Tranche bancale 😅";  col = "#ff9f6b"; }
+  else if (thick > 1.2)      { msg = "Grosse part ! 😋";    col = "#ffd166"; }
+  else if (thick < 0.28)     { msg = "Tranche fine 🔪";     col = "#9be3ff"; }
+  else if (skew < 0.18)      { msg = "Tranche parfaite ✨"; col = "#9be37d"; }
+  else                       { msg = "Bonne tranche 🍰";    col = "#cdb8ff"; }
+  showToast(msg, col);
+}
+
+/* -------------------------------------------------------------------------
+   11) PETITE PHYSIQUE DES TRANCHES (chute + repos sur la planche)
+   ------------------------------------------------------------------------- */
+function updateSlices(dt) {
+  const g = 11;
+  for (const sl of slices) {
+    if (sl.settled) continue;
+    sl.vy -= g * dt;
+    sl.mesh.position.x += sl.vx * dt;
+    sl.mesh.position.y += sl.vy * dt;
+    sl.mesh.position.z += sl.vz * dt;
+    sl.mesh.rotation.x += sl.vrx * dt;
+    sl.mesh.rotation.z += sl.vrz * dt;
+    if (sl.mesh.position.y < sl.rest) {           // contact planche
+      sl.mesh.position.y = sl.rest;
+      sl.vy *= -0.32; sl.vx *= 0.6; sl.vz *= 0.6;
+      sl.vrx *= 0.4;  sl.vrz *= 0.4;
+      if (Math.abs(sl.vy) < 0.5) { sl.vy = 0; sl.settled = true; }
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------
+   12) HUD + GESTION DU GESTE (pointer events : tactile + souris)
+   ------------------------------------------------------------------------- */
+const ui = {
+  count: document.getElementById("count"),
+  hint:  document.getElementById("hint"),
+  toast: document.getElementById("toast"),
+};
+let dragging = false, startPt = null, lastCut = null;
+
+const el = renderer.domElement;
+el.addEventListener("pointerdown", (e) => {
+  if (over) return;
+  e.preventDefault();
+  const p = pointOnTop(e.clientX, e.clientY);
+  if (!p) return;
+  dragging = true; startPt = p; lastCut = null;
+}, { passive:false });
+
+el.addEventListener("pointermove", (e) => {
+  if (!dragging) return;
+  e.preventDefault();
+  const p = pointOnTop(e.clientX, e.clientY);
+  if (!p) return;
+  lastCut = cutLineFrom(startPt, p);
+  updateGuide(lastCut.cutNeg, lastCut.cutPos);
+}, { passive:false });
+
+function endDrag(e) {
+  if (!dragging) return;
+  if (e) e.preventDefault();
+  dragging = false;
+  guide.visible = false;
+  if (lastCut) performCut(lastCut.cutNeg, lastCut.cutPos);
+  lastCut = null;
+}
+el.addEventListener("pointerup", endDrag, { passive:false });
+el.addEventListener("pointercancel", endDrag, { passive:false });
+
+document.getElementById("reset").addEventListener("click", resetGame);
+
+/* -------------------------------------------------------------------------
+   13) TOAST (feedback qualite ephemere)
+   ------------------------------------------------------------------------- */
+let toastTimer = 0;
+function showToast(msg, color) {
+  ui.toast.textContent = msg;
+  ui.toast.style.color = color;
+  ui.toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => ui.toast.classList.remove("show"), 900);
+}
+
+/* -------------------------------------------------------------------------
+   14) BOUCLE PRINCIPALE
+   ------------------------------------------------------------------------- */
+let last = 0;
 function loop(t) {
-  if (!lastTime) lastTime = t;
-  let dt = (t - lastTime) / 1000;
-  lastTime = t;
-  if (dt > 0.05) dt = 0.05;   // clamp si l'onglet a laggue
-  update(dt);
-  draw();
+  const dt = Math.min((t - last) / 1000 || 0, 0.05);
+  last = t;
+  updateSlices(dt);
+  renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
 
 resize();
+resetGame();
 requestAnimationFrame(loop);
 </script>
 </body>
