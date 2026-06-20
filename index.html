@@ -20,7 +20,7 @@
     background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
     padding:9px 14px; border-radius:12px; font-size:14px; font-weight:700; backdrop-filter:blur(6px); }
   #reset:active { background:rgba(255,255,255,.25); }
-  #hint { bottom:max(22px,env(safe-area-inset-bottom)); text-align:center; font-size:14px;
+  #hint { bottom:max(100px,calc(env(safe-area-inset-bottom) + 94px)); text-align:center; font-size:13px;
     color:rgba(255,255,255,.7); padding:0 24px; transition:opacity .4s; }
   #toast { top:38%; text-align:center; font-size:26px; font-weight:800; opacity:0;
     transition:opacity .25s, transform .25s; transform:translateY(8px); }
@@ -58,20 +58,20 @@
   #xpfill { height:100%; width:0%; background:linear-gradient(90deg,#7ad17a,#bdf0a3); border-radius:999px; transition:width .25s; }
 
   /* --- Mini-jeu de coupe : jauge + curseur, tap au bon moment --- */
-  #gauge { position:fixed; bottom:max(64px,calc(env(safe-area-inset-bottom) + 56px)); left:50%; transform:translateX(-50%);
+  #gauge { position:fixed; bottom:max(50px,calc(env(safe-area-inset-bottom) + 44px)); left:50%; transform:translateX(-50%);
     width:74%; max-width:360px; height:22px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18);
     border-radius:999px; overflow:hidden; pointer-events:none; display:none; box-shadow:0 4px 14px rgba(0,0,0,.4); }
   #gauge.show { display:block; }
   #gsweet { position:absolute; top:0; bottom:0; background:linear-gradient(90deg,rgba(155,227,125,.25),rgba(155,227,125,.6),rgba(155,227,125,.25)); }
   #gcursor { position:absolute; top:-2px; bottom:-2px; width:5px; margin-left:-2.5px;
     background:#fff; border-radius:3px; box-shadow:0 0 8px rgba(255,255,255,.9); }
-  #gaugelbl { position:fixed; bottom:max(90px,calc(env(safe-area-inset-bottom) + 82px)); left:50%; transform:translateX(-50%);
+  #gaugelbl { position:fixed; bottom:max(76px,calc(env(safe-area-inset-bottom) + 70px)); left:50%; transform:translateX(-50%);
     font-size:13px; font-weight:700; color:rgba(255,255,255,.85); text-shadow:0 2px 8px rgba(0,0,0,.6);
     pointer-events:none; display:none; }
   #gaugelbl.show { display:block; }
 
   /* --- Sélecteur de calibre de dose (toujours visible) --- */
-  #dosebar { position:fixed; left:14px; bottom:max(20px,calc(env(safe-area-inset-bottom) + 14px));
+  #dosebar { position:fixed; left:14px; bottom:max(12px,calc(env(safe-area-inset-bottom) + 8px));
     display:flex; align-items:center; gap:6px; pointer-events:auto; z-index:4; }
   #dosebar .lbl { color:rgba(255,255,255,.6); font-size:11px; font-weight:700; margin-right:2px; }
   .calbtn { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
@@ -264,8 +264,8 @@ app.appendChild(renderer.domElement);
 // du cake rentre dans le champ de vision le plus etroit (horizontal en
 // portrait). La camera garde un joli angle 3/4 vue de dessus.
 const VIEW_DIR = new THREE.Vector3(0.04, 0.66, 0.75).normalize(); // 3/4 plongeant (un peu plus de profondeur)
-const VIEW_TARGET = new THREE.Vector3(L / 2, 0.35, 0.6);         // centre entre savonnette et rangee avant
-const VIEW_RADIUS = Math.hypot(L / 2 + 0.7, 0.9, 1.9);          // englobe la savonnette + les bacs/machine
+const VIEW_TARGET = new THREE.Vector3(L / 2, 0.30, 0.7);         // centre entre savonnette et rangee avant
+const VIEW_RADIUS = Math.hypot(L / 2 + 0.4, 0.85, 1.7);        // englobe la savonnette + les bacs/machine
 const baseCamPos = new THREE.Vector3();                          // position "au repos" (la secousse oscille autour)
 let zoom = +(localStorage.getItem("hash_zoom")) || 1;           // facteur de zoom (pinch a 2 doigts)
 zoom = Math.max(0.6, Math.min(2.6, zoom));
@@ -274,7 +274,7 @@ function fitView() {
   const vFov = camera.fov * Math.PI / 180;
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
   const fov = Math.min(vFov, hFov);                 // le plus contraignant
-  const dist = (VIEW_RADIUS / Math.sin(fov / 2)) * 1.08 / zoom; // marge + zoom (zoom>1 = plus pres)
+  const dist = (VIEW_RADIUS / Math.sin(fov / 2)) * 1.03 / zoom; // marge + zoom (zoom>1 = plus pres)
   baseCamPos.copy(VIEW_TARGET).addScaledVector(VIEW_DIR, dist);
   camera.position.copy(baseCamPos);
   camera.lookAt(VIEW_TARGET);
@@ -293,23 +293,28 @@ window.addEventListener("resize", resize);
 /* -------------------------------------------------------------------------
    2) LUMIERES
    ------------------------------------------------------------------------- */
-scene.add(new THREE.HemisphereLight(0xfff3e0, 0x402c4d, 0.75));
-const sun = new THREE.DirectionalLight(0xfff0dc, 1.0);
+scene.add(new THREE.HemisphereLight(0xfff3e0, 0x2a1c33, 0.55));
+const sun = new THREE.DirectionalLight(0xfff0dc, 1.45);
 sun.position.set(6, 11, 5);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.bias = -0.0004;
 const s = sun.shadow.camera;
 s.left = -8; s.right = 8; s.top = 8; s.bottom = -8; s.near = 1; s.far = 30;
 scene.add(sun);
+// Lumiere d'appoint froide cote camera -> donne du relief sans deboucher a plat.
+const fill = new THREE.DirectionalLight(0xbcd0ff, 0.35);
+fill.position.set(-4, 3, 6);
+scene.add(fill);
 
 /* -------------------------------------------------------------------------
    3) PLANCHE A DECOUPER (recoit les ombres + les tranches)
    ------------------------------------------------------------------------- */
 const board = new THREE.Mesh(
-  new THREE.BoxGeometry(L + 3.5, 0.3, 5.2),
+  new THREE.BoxGeometry(L + 1.4, 0.3, 4.6),
   new THREE.MeshStandardMaterial({ color: 0x8c9095, roughness: 0.5, metalness: 0.35 })
 );
-board.position.set(L / 2, -0.15, 0.55);
+board.position.set(L / 2, -0.15, 0.65);
 board.receiveShadow = true;
 scene.add(board);
 
@@ -341,7 +346,7 @@ function grainTex(r, g, b, contrast, spots) {
   return t;
 }
 // crust = peau pressee brun tres fonce et lustree ; sponge = mie blonde mate (faces coupees).
-const matCrust  = new THREE.MeshStandardMaterial({ map: grainTex(40, 28, 17, 26, 170), roughness: 0.42, metalness: 0.28, side: THREE.DoubleSide });
+const matCrust  = new THREE.MeshStandardMaterial({ map: grainTex(46, 31, 18, 40, 230), roughness: 0.4, metalness: 0.3, side: THREE.DoubleSide });
 const matPale   = new THREE.MeshStandardMaterial({ map: grainTex(96, 74, 46, 30, 120), roughness: 0.8, side: THREE.DoubleSide });
 const matSponge = new THREE.MeshStandardMaterial({ map: grainTex(190, 162, 110, 40, 90), roughness: 0.96, side: THREE.DoubleSide });
 const cakeMats  = [matCrust, matPale, matSponge];
@@ -454,7 +459,7 @@ function loadLoaf(sizeG) {
   ui.count.textContent = "Barrettes : 0";
   if (ui.title) ui.title.textContent = "SAVONNETTE " + sizeG + "g";
   ui.hint.style.opacity = "1";
-  ui.hint.textContent = "Tape dans le vert pour couper · tape le bac STOCK 📦 pour doser & vendre";
+  ui.hint.textContent = "Bac STOCK 📦 = doser & vendre · pince pour zoomer";
   updateRemain();
 }
 function resetGame() { loadLoaf(savSize); }   // recharge la taille courante (gratuit) — init
@@ -1302,12 +1307,21 @@ scene.add(machineMesh);
 const CUT_T = TARGET_THICK;                                  // ~10 g par coupe
 function cInterval() { return 2.6 * Math.pow(0.82, owned.affut); } // s entre deux coupes auto
 
-// Lame du massicot : hover au-dessus du bord droit, petit "chop" a chaque coupe.
-const bladeMesh = new THREE.Mesh(
-  new THREE.BoxGeometry(0.07, 0.7, W + 0.3),
-  new THREE.MeshStandardMaterial({ color: 0xc9d2dc, metalness: 0.8, roughness: 0.25 })
+// Couteau du massicot : lame acier biseautee + dos epais + manche sombre.
+// (groupe pose comme une lame qui hover au-dessus du bord droit, "chop" a la coupe)
+const bladeMesh = new THREE.Group();
+const bladeLen = W + 0.4;
+const steel = new THREE.MeshStandardMaterial({ color: 0xd7dee6, metalness: 0.9, roughness: 0.18 });
+const blade = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.55, bladeLen), steel);
+blade.position.y = 0.30;                                 // lame
+const spine = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.12, bladeLen), steel);
+spine.position.y = 0.60;                                 // dos epais
+const handle = new THREE.Mesh(
+  new THREE.BoxGeometry(0.16, 0.20, bladeLen * 0.42),
+  new THREE.MeshStandardMaterial({ color: 0x1d1410, roughness: 0.6, metalness: 0.1 })
 );
-bladeMesh.castShadow = true;
+handle.position.set(0, 0.74, 0);                         // manche au-dessus
+for (const m of [blade, spine, handle]) { m.castShadow = true; bladeMesh.add(m); }
 bladeMesh.visible = false;
 scene.add(bladeMesh);
 
