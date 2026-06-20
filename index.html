@@ -96,10 +96,14 @@
     border-radius:3px; box-shadow:0 0 8px rgba(255,255,255,.9); }
   #dosescale { display:none; font-weight:900; font-size:26px; color:#fff; text-shadow:0 2px 10px rgba(0,0,0,.6); }
   #dosescale.show { display:block; }
+  #doserow { display:flex; gap:10px; align-items:center; pointer-events:none; }
   #dosebag { display:none; pointer-events:auto; background:#7aa0ff; border:none; color:#10162a;
     font-weight:900; font-size:16px; padding:11px 22px; border-radius:14px; box-shadow:0 4px 14px rgba(122,160,255,.4); }
   #dosebag.show { display:block; }
   #dosebag:active { background:#5d86f5; }
+  #doseclose { pointer-events:auto; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25);
+    color:#fff; font-weight:800; font-size:15px; padding:11px 20px; border-radius:14px; }
+  #doseclose:active { background:rgba(255,255,255,.28); }
 
   /* --- Overlay d'emballage cellophane --- */
   #wrapui { position:fixed; inset:0; display:none; flex-direction:column; align-items:center;
@@ -174,7 +178,10 @@
   <div id="dosecombo"></div>
   <div id="dosegauge"><div id="dsweet"></div><div id="dcursor"></div></div>
   <div id="dosescale"></div>
-  <button id="dosebag">✓ Ensacher</button>
+  <div id="doserow">
+    <button id="dosebag">✓ Ensacher</button>
+    <button id="doseclose">Terminer</button>
+  </div>
 </div>
 <button id="shopbtn">🛒</button>
 <div id="shop">
@@ -810,6 +817,7 @@ const ui = {
   dcursor:  document.getElementById("dcursor"),
   dosescale:document.getElementById("dosescale"),
   dosebag:  document.getElementById("dosebag"),
+  doseclose:document.getElementById("doseclose"),
 };
 
 function setCash(v) {
@@ -948,6 +956,7 @@ ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.cla
 for (const b of document.querySelectorAll(".calbtn")) b.addEventListener("click", () => setCaliber(+b.dataset.cal));
 for (const b of document.querySelectorAll(".methbtn")) b.addEventListener("click", () => setMethod(b.dataset.meth));
 ui.dosebag.addEventListener("click", doseBag);
+ui.doseclose.addEventListener("click", endDosing);
 
 /* -------------------------------------------------------------------------
    12b) EMBALLAGE CELLOPHANE
@@ -1032,9 +1041,10 @@ function exitWrap() {
    ------------------------------------------------------------------------- */
 const DOSE_SWEEP = 1.25;          // vitesse du curseur (hachoir)
 const DOSE_SWEET = 0.12;          // demi-largeur de la zone (hachoir)
+// Dosage CONTINU : on puise directement dans le STOCK, dose apres dose, jusqu'a
+// ce que le joueur tape "Terminer" (le stock peut se remplir pendant ce temps).
 const dose = { active:false, method:"hachoir", cursor:0, dir:1, cal:5, grade:"B",
-               made:0, target:0, leftover:0, combo:0, earn:0,
-               lot:0, cur:0 };    // lot/cur : pour la balance
+               made:0, combo:0, earn:0, cur:0 };
 
 function setCaliber(c) {
   caliber = c; localStorage.setItem("hash_caliber", String(c));
@@ -1047,74 +1057,73 @@ function setMethod(m) {
 
 function startDosing() {
   if (dose.active) return;
-  if (stock.g < caliber) { showToast("Stock insuffisant (" + caliber + " g) — coupe des barrettes", "#caa15f"); return; }
-  const batch = Math.min(10, stock.g);
-  dose.grade = stockGrade();
-  takeFromStock(batch);
-  dose.cal = caliber; dose.method = doseMethod;
+  if (stock.g < 0.5) { showToast("Stock vide — coupe des barrettes", "#caa15f"); return; }
+  dose.method = doseMethod; dose.cal = caliber;
   dose.made = 0; dose.combo = 0; dose.earn = 0;
-  dose.cursor = 0; dose.dir = 1; dose.cur = 0; dose.lot = batch;
-  dose.target = Math.max(1, Math.floor(batch / caliber));
-  dose.leftover = batch - dose.target * caliber;        // (hachoir) reste non divisible
+  dose.cursor = 0; dose.dir = 1; dose.cur = 0;
+  dose.grade = stockGrade();
   dose.active = true; mode = "dose";
   ui.doseui.classList.add("show");
   ui.hint.style.opacity = "0";
-  // Affiche les bons widgets selon la methode.
   const bal = dose.method === "balance";
   ui.dosegauge.style.display = bal ? "none" : "block";
   ui.dosescale.classList.toggle("show", bal);
   ui.dosebag.classList.toggle("show", bal);
-  updateStockLabel();
   refreshDoseUI();
 }
 
 function refreshDoseUI() {
   if (dose.method === "balance") {
-    ui.dosetext.textContent = "Pèse PILE " + dose.cal + " g, puis Ensacher  ·  lot " + dose.lot.toFixed(1) + " g";
+    ui.dosetext.textContent = "Pèse ~" + dose.cal + " g puis Ensacher  ·  Stock " + Math.round(stock.g) + " g";
     ui.dosescale.textContent = dose.cur.toFixed(1) + " / " + dose.cal + " g";
     ui.dosescale.style.color = Math.abs(dose.cur - dose.cal) <= dose.cal * 0.08 ? "#9be37d"
                               : dose.cur > dose.cal ? "#ff6b6b" : "#fff";
   } else {
-    ui.dosetext.textContent = "Doser en " + dose.cal + " g  ·  " + dose.made + "/" + dose.target;
+    ui.dosetext.textContent = "Calibre " + dose.cal + " g  ·  Stock " + Math.round(stock.g) + " g";
     ui.dsweet.style.left  = (50 - DOSE_SWEET * 100) + "%";
     ui.dsweet.style.width = (DOSE_SWEET * 200) + "%";
   }
   ui.dosecombo.textContent = dose.combo > 1 ? ("COMBO ×" + dose.combo) : "";
 }
+function bump() { ui.dosecombo.style.transform = "scale(1.25)"; setTimeout(() => { ui.dosecombo.style.transform = ""; }, 80); }
 
-// Tap pendant le dosage : hachoir -> chop ; balance -> ajoute un eclat.
+// Tap pendant le dosage : hachoir -> chop une dose ; balance -> ajoute un eclat.
 function doseTap() {
   if (!dose.active) return;
   const ac = ensureAudio();
   if (dose.method === "balance") {
-    if (dose.lot <= 0.01) return;
-    const sliver = Math.min(dose.lot, 0.3 + Math.random() * 0.6);
-    dose.cur += sliver; dose.lot -= sliver;
+    if (stock.g < 0.05) { showToast("Stock vide", "#caa15f"); return; }
+    if (dose.cur < 0.01) dose.grade = stockGrade();   // qualite figee au debut de la dose
+    const sliver = Math.min(stock.g, 0.3 + Math.random() * 0.6);
+    takeFromStock(sliver); dose.cur += sliver;
+    updateStockLabel();
     if (ac) { const t = ac.currentTime; beep(300 + Math.min(1.4, dose.cur / dose.cal) * 500, t, 0.05, 0.12); }
     refreshDoseUI();
     return;
   }
-  // --- hachoir ---
+  // --- hachoir : chaque tap = une dose prelevee dans le stock ---
+  if (stock.g < dose.cal) { showToast("Stock vide", "#caa15f"); if (ac) beep(150, ac.currentTime, 0.12, 0.2); return; }
+  dose.grade = stockGrade();
+  takeFromStock(dose.cal);
   const err = Math.abs(dose.cursor - 0.5);
-  if (err <= DOSE_SWEET) {                          // dose nette
+  if (err <= DOSE_SWEET) {                          // dose nette -> vendue au detail
     dose.combo++;
-    const bonus = 1 + Math.min(dose.combo - 1, 12) * 0.06;   // le combo monte le prix
-    dose.earn += dose.cal * DOSE_PRICE[dose.cal] * gradeVal(dose.grade) * bonus * levelMult();
-    ui.dosecombo.style.transform = "scale(1.25)";
+    const bonus = 1 + Math.min(dose.combo - 1, 12) * 0.06;
+    const price = dose.cal * DOSE_PRICE[dose.cal] * gradeVal(dose.grade) * bonus * levelMult();
+    setCash(cash + price); dose.earn += price; dose.made++;
+    bump();
     if (ac) { const t = ac.currentTime; beep(620 + Math.min(dose.combo, 14) * 70, t, 0.07, 0.16); }
-  } else {                                          // rate -> dose perdue en miettes
+  } else {                                          // rate -> la dose part aux dechets (schlag)
     dose.combo = 0;
-    addWaste(dose.cal * 0.7);
+    addWaste(dose.cal);
     if (ac) { const t = ac.currentTime; beep(150, t, 0.12, 0.2); }
   }
-  dose.made++;
-  dose.cursor = 0; dose.dir = 1;                    // relance le balayage pour la dose suivante
+  dose.cursor = 0; dose.dir = 1;                    // relance le balayage
+  updateStockLabel();
   refreshDoseUI();
-  setTimeout(() => { ui.dosecombo.style.transform = ""; }, 80);
-  if (dose.made >= dose.target) endDosing();
 }
 
-// Bouton "Ensacher" (balance) : finalise la dose courante.
+// Bouton "Ensacher" (balance) : finalise la dose courante et la vend.
 function doseBag() {
   if (!dose.active || dose.method !== "balance") return;
   const cal = dose.cal, w = dose.cur, ac = ensureAudio();
@@ -1124,27 +1133,23 @@ function doseBag() {
   const billG = Math.min(w, cal);
   if (w > cal) addWaste(w - cal);                  // surplus gaspille
   const bonus = (perfect ? 1.2 : 1.0) + Math.min(dose.combo, 10) * 0.04;
-  dose.earn += billG * DOSE_PRICE[cal] * gradeVal(dose.grade) * bonus * levelMult();
-  dose.made++;
-  ui.dosecombo.style.transform = "scale(1.25)";
-  setTimeout(() => { ui.dosecombo.style.transform = ""; }, 80);
+  const price = billG * DOSE_PRICE[cal] * gradeVal(dose.grade) * bonus * levelMult();
+  setCash(cash + price); dose.earn += price; dose.made++;
+  bump();
   if (ac) { const t = ac.currentTime; if (perfect) { beep(880, t, 0.08, 0.18); beep(1320, t + 0.07, 0.1, 0.2); } else beep(500, t, 0.08, 0.14); }
   dose.cur = 0;
-  if (dose.lot < 0.4) { dose.leftover = dose.lot; endDosing(); }
-  else refreshDoseUI();
+  refreshDoseUI();
 }
 
+// "Terminer" : sort du dosage (le cash est deja encaisse dose par dose).
 function endDosing() {
-  dose.active = false; mode = "cut";
+  if (!dose.active) return;
+  if (dose.method === "balance" && dose.cur > 0.05) addWaste(dose.cur);   // dose en cours abandonnee
+  dose.active = false; mode = "cut"; dose.cur = 0;
   ui.doseui.classList.remove("show");
-  if (dose.leftover > 0.05) addWaste(dose.leftover);
-  if (dose.earn > 0) {
-    setCash(cash + dose.earn);
-    addXP(Math.max(1, Math.round(dose.earn * 0.08)));
-    showToast("+ " + Math.round(dose.earn) + " €  (" + dose.made + " doses)", "#9be37d");
-    playSale(); addShake(0.12);
-  }
   ui.hint.style.opacity = "1";
+  if (dose.earn > 0) { addXP(Math.max(1, Math.round(dose.earn * 0.06))); showToast("Session : +" + Math.round(dose.earn) + " €  (" + dose.made + " doses)", "#9be37d"); playSale(); }
+  updateStockLabel();
 }
 
 function updateDose(dt) {
