@@ -55,6 +55,19 @@
   #xpbar { width:128px; height:7px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
   #xpfill { height:100%; width:0%; background:linear-gradient(90deg,#7ad17a,#bdf0a3); border-radius:999px; transition:width .25s; }
 
+  /* --- Mini-jeu de coupe : jauge + curseur, tap au bon moment --- */
+  #gauge { position:fixed; bottom:max(64px,calc(env(safe-area-inset-bottom) + 56px)); left:50%; transform:translateX(-50%);
+    width:74%; max-width:360px; height:22px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18);
+    border-radius:999px; overflow:hidden; pointer-events:none; display:none; box-shadow:0 4px 14px rgba(0,0,0,.4); }
+  #gauge.show { display:block; }
+  #gsweet { position:absolute; top:0; bottom:0; background:linear-gradient(90deg,rgba(155,227,125,.25),rgba(155,227,125,.6),rgba(155,227,125,.25)); }
+  #gcursor { position:absolute; top:-2px; bottom:-2px; width:5px; margin-left:-2.5px;
+    background:#fff; border-radius:3px; box-shadow:0 0 8px rgba(255,255,255,.9); }
+  #gaugelbl { position:fixed; bottom:max(90px,calc(env(safe-area-inset-bottom) + 82px)); left:50%; transform:translateX(-50%);
+    font-size:13px; font-weight:700; color:rgba(255,255,255,.85); text-shadow:0 2px 8px rgba(0,0,0,.6);
+    pointer-events:none; display:none; }
+  #gaugelbl.show { display:block; }
+
   /* --- Overlay d'emballage cellophane --- */
   #wrapui { position:fixed; inset:0; display:none; flex-direction:column; align-items:center;
     justify-content:flex-end; padding-bottom:16vh; gap:14px; pointer-events:none; }
@@ -101,9 +114,11 @@
 <div id="cash">💶 0 €</div>
 <button id="waste">🗑️ 0 g</button>
 <div id="xpwrap"><span id="level">Niv. 1</span><div id="xpbar"><div id="xpfill"></div></div></div>
+<div id="gaugelbl">Tape dans le vert pour couper 10 g</div>
+<div id="gauge"><div id="gsweet"></div><div id="gcursor"></div></div>
 <div class="hud" id="title">SAVONNETTE 250g</div>
 <button id="reset">🔄 Nouvelle</button>
-<div class="hud" id="hint">Glisse pour couper · tape une barrette pour l'emballer · pince pour zoomer</div>
+<div class="hud" id="hint">Tape quand le curseur est dans le vert pour couper 10 g · tape une barrette pour l'emballer · pince pour zoomer</div>
 <div class="hud" id="toast"></div>
 <div id="labels"></div>
 <div id="wrapui">
@@ -148,6 +163,14 @@ const H = 0.85;  // epaisseur (axe Y), base a y=0 -> savonnette plate
 // Densite "de jeu" : calibree pour que la savonnette entiere pese ~250 g.
 // poids(barrette) = volume(unites^3) * DENS  (g).
 const DENS = 250 / (L * W * H);
+
+// Objectif de coupe : barrettes de ~10 g (epaisseur correspondante en unites).
+const TARGET_G     = 10;
+const TARGET_THICK = TARGET_G / (W * H * DENS);   // ~0.208
+
+// Prix de vente realistes (resine). Retail barrette ~8-12 €/g selon qualite,
+// boulettes/dechets bradees aux schlags ~3 €/g, gros volume ~5 €/g.
+const PRICE = { A: 12, B: 9, C: 6 };              // €/g par grade de barrette
 
 /* -------------------------------------------------------------------------
    1) SCENE, CAMERA, RENDU
@@ -318,6 +341,7 @@ let level = Math.max(1, +(localStorage.getItem("hash_level") || 1)); // niveau j
 let xp    = Math.max(0, +(localStorage.getItem("hash_xp") || 0));    // XP dans le niveau courant
 const wrap = { slice:null, film:null, pct:0, shownPct:0, phase:"", t0:0, tSell:0,
                spin:0, spinTarget:0, filmScale:1.32, focus:new THREE.Vector3() };
+const game = { cursor:0, dir:1, flash:0 };   // mini-jeu de coupe : curseur 0..1 qui balaie
 
 function resetGame() {
   // Nettoyage d'un emballage en cours, le cas echeant.
@@ -355,69 +379,16 @@ function pointOnTop(clientX, clientY) {
   return raycaster.ray.intersectPlane(topPlane, out) ? out : null;
 }
 
-// A partir de deux points du swipe, calcule la ligne de coupe (cutNeg,cutPos)
-// = position en x de la coupe sur chaque cote (z- et z+).
-function cutLineFrom(p0, p1) {
-  const dz = p1.z - p0.z;
-  let cutNeg, cutPos;
-  if (Math.abs(dz) < 0.18) {
-    // Swipe quasi parallele au cake -> coupe droite a la position moyenne.
-    const xm = (p0.x + p1.x) / 2;
-    cutNeg = xm; cutPos = xm;
-  } else {
-    const slope = (p1.x - p0.x) / dz;            // dx par unite de z
-    const xAt = (z) => p0.x + slope * (z - p0.z);
-    cutNeg = xAt(-W / 2);
-    cutPos = xAt(W / 2);
-  }
-  // On ne coupe que DANS le cake restant, et jamais au-dela du talon.
-  cutNeg = Math.max(0, Math.min(cutNeg, rightNeg));
-  cutPos = Math.max(0, Math.min(cutPos, rightPos));
-  return { cutNeg, cutPos };
-}
+// (La coupe se fait desormais au timing via le mini-jeu de jauge : voir manualChop.)
 
 /* -------------------------------------------------------------------------
-   9) LE GUIDE DE COUPE (ruban brillant montre pendant le glissement)
+   10) COUPER : detache une barrette [coupe .. bord droit] et la fait tomber.
+   - spawnBarrette : cree la tranche + consomme le cake (commun manuel/auto)
+   - performCut    : coupe AUTO du massicot (grade deduit de la geometrie)
+   - manualChop    : coupe MANUELLE = mini-jeu de jauge (vise ~10 g)
    ------------------------------------------------------------------------- */
-const guideGeo = new THREE.BufferGeometry();
-guideGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(18), 3));
-const guide = new THREE.Mesh(guideGeo, new THREE.MeshBasicMaterial({
-  color: 0x7df9ff, transparent: true, opacity: 0.85, side: THREE.DoubleSide
-}));
-guide.visible = false;
-scene.add(guide);
-
-function updateGuide(cutNeg, cutPos) {
-  const y = H + 0.03;
-  // direction de la ligne dans le plan xz, puis perpendiculaire pour l'epaisseur
-  const dx = cutPos - cutNeg, dz = W;
-  const len = Math.hypot(dx, dz) || 1;
-  const px = (dz / len) * 0.05, pz = (-dx / len) * 0.05; // perpendiculaire * demi-epaisseur
-  const A = [cutNeg, y, -W/2 - 0.12], B = [cutPos, y, W/2 + 0.12];
-  const c0=[A[0]+px,y,A[2]+pz], c1=[A[0]-px,y,A[2]-pz], c2=[B[0]-px,y,B[2]-pz], c3=[B[0]+px,y,B[2]+pz];
-  const arr = guideGeo.attributes.position.array;
-  const set = (i,p)=>{ arr[i*3]=p[0]; arr[i*3+1]=p[1]; arr[i*3+2]=p[2]; };
-  set(0,c0); set(1,c1); set(2,c2);  set(3,c0); set(4,c2); set(5,c3);
-  guideGeo.attributes.position.needsUpdate = true;
-  guide.visible = true;
-}
-
-/* -------------------------------------------------------------------------
-   10) COUPER : detache la tranche [coupe .. bord droit] et la fait tomber.
-   ------------------------------------------------------------------------- */
-function performCut(cutNeg, cutPos) {
-  // Si la coupe laisserait un talon trop fin a gauche, on l'inclut dans cette
-  // barrette (sinon il reste un bout non coupable au bord gauche).
-  if (cutNeg < 0.32 && cutPos < 0.32) { cutNeg = 0; cutPos = 0; }
-  const thick = ((rightNeg - cutNeg) + (rightPos - cutPos)) / 2;
-  if (thick < 0.06) { showToast("Trop pres du bord 🙃", "#ffd166"); return; }
-
-  // Biais de la coupe : difference de largeur entre les deux cotes de la tranche.
-  const skew = Math.abs((rightNeg - cutNeg) - (rightPos - cutPos));
-
-  // Geometrie de la tranche : de la coupe (gauche) au bord droit actuel.
+function spawnBarrette(cutNeg, cutPos, grams, grade, keep = 1) {
   const geo = makePrism(cutNeg, cutPos, rightNeg, rightPos);
-  // On recentre la geometrie sur son centre pour pouvoir la faire tourner.
   geo.computeBoundingBox();
   const c = new THREE.Vector3();
   geo.boundingBox.getCenter(c);
@@ -427,13 +398,10 @@ function performCut(cutNeg, cutPos) {
   const mesh = new THREE.Mesh(geo, cakeMats);
   mesh.castShadow = true; mesh.receiveShadow = true;
   mesh.position.copy(c);
+  mesh.scale.x = keep;                       // on garde moins de matiere si la coupe est ratee
   scene.add(mesh);
 
-  // Stats de la barrette : poids (g) deduit du volume, et grade de coupe.
-  const grams = thick * W * H * DENS;
-  const grade = gradeFor(thick, skew);
-  const label = makeLabel(grams.toFixed(1) + " g · " + grade, GRADE_COL[grade]);
-
+  const label = makeLabel(grams.toFixed(1) + " g · " + grade, GRADE_COL[grade] || "#fff");
   slices.push({
     mesh, label, grams, grade,
     vx: 0.7 + Math.random() * 0.6,
@@ -445,23 +413,14 @@ function performCut(cutNeg, cutPos) {
     settled: false,
   });
 
-  // Le cake restant s'arrete maintenant a la coupe.
-  rightNeg = cutNeg; rightPos = cutPos;
+  rightNeg = cutNeg; rightPos = cutPos;     // le cake restant s'arrete a la coupe
   rebuildCake();
 
   count++;
   ui.count.textContent = "Barrettes : " + count;
   ui.hint.style.opacity = "0";
-  showToast(grams.toFixed(1) + " g · " + grade, GRADE_COL[grade]);
 
-  // --- Feedback (dopamine) : miettes a la coupe + secousse + son ---
-  burstCrumbs((cutNeg + cutPos) / 2, H * 0.6, 0, 12);
-  addWaste(grams * 0.10);            // ~10% part en miettes -> bac dechets
-  addShake(grade === "A" ? 0.22 : 0.16);
-  playCut(grade);
-
-  // Fin de partie ? (uniquement quand il ne reste vraiment plus rien)
-  if (Math.max(rightNeg, rightPos) < 0.06) {
+  if (Math.max(rightNeg, rightPos) < 0.06) {  // fin de partie ?
     over = true;
     showToast("Savonnette finie ! 🎉", "#9be37d");
     ui.hint.style.opacity = "1";
@@ -469,11 +428,84 @@ function performCut(cutNeg, cutPos) {
   }
 }
 
+// Coupe automatique (massicot) : tranche propre a la position demandee.
+function performCut(cutNeg, cutPos) {
+  if (cutNeg < 0.32 && cutPos < 0.32) { cutNeg = 0; cutPos = 0; }   // talon -> on l'inclut
+  const thick = ((rightNeg - cutNeg) + (rightPos - cutPos)) / 2;
+  if (thick < 0.06) return;
+  const skew  = Math.abs((rightNeg - cutNeg) - (rightPos - cutPos));
+  const grams = thick * W * H * DENS;
+  const grade = gradeFor(thick, skew);
+  spawnBarrette(cutNeg, cutPos, grams, grade, 1);
+  burstCrumbs((cutNeg + cutPos) / 2, H * 0.6, 0, 8);
+  addWaste(grams * 0.05);            // machine propre : peu de perte
+  addShake(0.16);
+  playCut(grade);
+}
+
+// Coupe manuelle = mini-jeu : on vise ~10 g, le timing decide grade + perte.
+function manualChop() {
+  if (over) return;
+  const err   = Math.abs(game.cursor - 0.5);   // 0 = pile au centre du vert
+  const sweet = sweetHalf();
+  let f, grade, msg, col;
+  if      (err <= sweet)        { f = 0.97; grade = "A"; msg = "PARFAIT ✦"; col = GRADE_COL.A; }
+  else if (err <= sweet * 2.4)  { f = 0.82; grade = "B"; msg = "Bien";      col = GRADE_COL.B; }
+  else if (err <= sweet * 4.5)  { f = 0.60; grade = "C"; msg = "Bof";       col = GRADE_COL.C; }
+  else                          { f = 0.32; grade = "C"; msg = "Raté !";    col = "#ff6b6b"; }
+
+  // Epaisseur consommee = ~10 g (avec inclusion du talon en fin de savonnette).
+  let cn = rightNeg - TARGET_THICK, cp = rightPos - TARGET_THICK;
+  if (cn < 0.32 && cp < 0.32) { cn = 0; cp = 0; }
+  cn = Math.max(0, cn); cp = Math.max(0, cp);
+  const consumed = ((rightNeg - cn) + (rightPos - cp)) / 2;
+  const totalG = consumed * W * H * DENS;       // ~10 g (moins pour le dernier morceau)
+  const keptG  = totalG * f;
+  const lostG  = totalG * (1 - f);
+
+  game.flash = 0.18;                            // mini flash de la jauge
+  bladeChop = 1;                                // la lame chope a la ligne de coupe
+  spawnBarrette(cn, cp, keptG, grade, f);
+  addWaste(lostG);                              // la perte part dans le bac a boulettes
+  burstCrumbs((cn + cp) / 2, H * 0.6, 0, Math.round(6 + (1 - f) * 30));
+  addShake(grade === "A" ? 0.22 : 0.16);
+  playCut(grade);
+  showToast(msg + "  " + keptG.toFixed(1) + " g · " + grade, col);
+}
+
+// Demi-largeur de la zone verte : s'elargit avec le "Gabarit" (plus facile a viser).
+function sweetHalf() { return Math.min(0.34, 0.085 + (owned.guide || 0) * 0.03); }
+
+// Anime la jauge du mini-jeu (curseur qui balaie, zone verte, affichage on/off).
+const GAUGE_SPEED = 1.05;                        // aller-retour du curseur (unites/s)
+function updateGauge(dt) {
+  const showG = (mode === "cut") && !over;
+  ui.gauge.classList.toggle("show", showG);
+  ui.gaugelbl.classList.toggle("show", showG);
+  if (!showG) return;
+
+  game.cursor += game.dir * GAUGE_SPEED * dt;     // balayage avec rebond aux bords
+  if (game.cursor >= 1) { game.cursor = 1; game.dir = -1; }
+  if (game.cursor <= 0) { game.cursor = 0; game.dir =  1; }
+
+  const half = sweetHalf();
+  ui.gsweet.style.left  = (50 - half * 100) + "%";
+  ui.gsweet.style.width = (half * 200) + "%";
+  ui.gcursor.style.left = (game.cursor * 100) + "%";
+
+  if (game.flash > 0) {
+    game.flash = Math.max(0, game.flash - dt);
+    ui.gauge.style.boxShadow = "0 0 16px rgba(255,255,255," + (game.flash / 0.18 * 0.8) + ")";
+  } else {
+    ui.gauge.style.boxShadow = "";
+  }
+}
+
 // Grade de coupe A/B/C selon la proprete (biais) et l'epaisseur.
 const labelsEl = document.getElementById("labels");
 const GRADE_COL = { A: "#9be37d", B: "#ffd166", C: "#ff9f6b" };
 function gradeFor(thick, skew) {
-  if (skew < 0.18 && thick >= 0.28 && thick <= 1.2) return "A";
+  if (skew < 0.18 && thick >= 0.16 && thick <= 1.2) return "A";   // coupe nette ~10 g -> A
   if (skew < 0.45) return "B";
   return "C";
 }
@@ -575,7 +607,7 @@ function addShake(a) { shake = Math.min(0.6, shake + a); }
    ------------------------------------------------------------------------- */
 const SELL_POS  = new THREE.Vector3(L * 0.26, 0, 2.25);  // bac des barrettes emballees (rangee avant)
 const WASTE_POS = new THREE.Vector3(L * 0.74, 0, 2.25);  // bac des miettes / dechets (rangee avant)
-const SCHLAG_RATE = 0.5;                                  // €/g des dechets (vs 2 €/g emballe)
+const SCHLAG_RATE = 3;                                    // €/g des boulettes bradees aux schlags (vs ~12 €/g retail)
 const _tmp = new THREE.Vector3();
 
 function makeBin(pos, col) {
@@ -634,6 +666,10 @@ const ui = {
   waste:    document.getElementById("waste"),
   level:    document.getElementById("level"),
   xpfill:   document.getElementById("xpfill"),
+  gauge:    document.getElementById("gauge"),
+  gsweet:   document.getElementById("gsweet"),
+  gcursor:  document.getElementById("gcursor"),
+  gaugelbl: document.getElementById("gaugelbl"),
   hint:     document.getElementById("hint"),
   toast:    document.getElementById("toast"),
   wrapui:   document.getElementById("wrapui"),
@@ -694,7 +730,7 @@ function sellWaste() {
   showToast("+ " + Math.round(earn) + " € (schlag)", "#caa15f");
 }
 
-let dragging = false, startPt = null, lastCut = null;
+let tapDown = null, tapMoved = false;   // candidat "tap pour couper" (mini-jeu)
 const el = renderer.domElement;
 
 // --- Pinch a deux doigts (zoom) ---
@@ -702,7 +738,7 @@ const pointers = new Map();
 let pinching = false, pinchStartDist = 0, pinchStartZoom = 1;
 function pinchDist() { const a = [...pointers.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
 function startPinch() {
-  pinching = true; dragging = false; guide.visible = false; lastCut = null; wrapLast = null;
+  pinching = true; tapDown = null; wrapLast = null;
   pinchStartDist = pinchDist() || 1; pinchStartZoom = zoom;
 }
 function updatePinch() {
@@ -742,37 +778,24 @@ el.addEventListener("pointerdown", (e) => {
   if (sl) { enterWrap(sl); return; }       // tape une barrette posee -> emballage
   if (pickWasteBin(e.clientX, e.clientY)) { sellWaste(); return; } // tape le bac dechets -> vente schlag
   if (over) return;                        // plus de savonnette a couper
-  const p = pointOnTop(e.clientX, e.clientY);
-  if (!p) return;
-  dragging = true; startPt = p; lastCut = null;
+  tapDown = { x: e.clientX, y: e.clientY }; tapMoved = false;   // candidat coupe (valide au relacher)
 }, { passive:false });
 
 el.addEventListener("pointermove", (e) => {
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pinching && pointers.size >= 2) { e.preventDefault(); updatePinch(); return; }
   if (mode === "wrap") { wrapMove(e); return; }
-  if (!dragging) return;
-  e.preventDefault();
-  const p = pointOnTop(e.clientX, e.clientY);
-  if (!p) return;
-  lastCut = cutLineFrom(startPt, p);
-  updateGuide(lastCut.cutNeg, lastCut.cutPos);
+  if (tapDown && Math.hypot(e.clientX - tapDown.x, e.clientY - tapDown.y) > 16) tapMoved = true;
 }, { passive:false });
 
-function endDrag(e) {
-  if (mode === "wrap") { wrapLast = null; return; }
-  if (!dragging) return;
-  if (e) e.preventDefault();
-  dragging = false;
-  guide.visible = false;
-  if (lastCut) performCut(lastCut.cutNeg, lastCut.cutPos);
-  lastCut = null;
-}
 function onUp(e) {
   if (e) e.preventDefault();
   pointers.delete(e.pointerId);
-  if (pinching) { if (pointers.size < 2) pinching = false; return; } // sortie de pinch : pas de coupe parasite
-  endDrag(e);
+  if (pinching) { if (pointers.size < 2) pinching = false; tapDown = null; return; }
+  if (mode === "wrap") { wrapLast = null; return; }
+  // Tap franc (sans glisser) sur la savonnette -> coupe au timing du mini-jeu.
+  if (tapDown && !tapMoved && !over) manualChop();
+  tapDown = null;
 }
 el.addEventListener("pointerup", onUp, { passive:false });
 el.addEventListener("pointercancel", onUp, { passive:false });
@@ -836,9 +859,8 @@ function sealWrap() {
   flame(); playSeal(); playSale(); addShake(0.12);
   // Prix = €/g * bonus de grade * bonus de serrage (plus on a emballe vite, plus c'est serre).
   const secs  = (wrap.tSell - wrap.t0) / 1000;
-  const tight = secs < 3 ? 1.3 : secs < 6 ? 1.1 : 0.9;
-  const gmult = wrap.slice.grade === "A" ? 1.5 : wrap.slice.grade === "B" ? 1.0 : 0.6;
-  const price = wrap.slice.grams * 2 * gmult * tight * levelMult();
+  const tight = secs < 3 ? 1.15 : secs < 6 ? 1.0 : 0.9;        // serrage = petit bonus retail
+  const price = wrap.slice.grams * PRICE[wrap.slice.grade] * tight * levelMult();
   setCash(cash + price);
   addXP(Math.max(1, Math.round(wrap.slice.grams)));
   showToast("+ " + Math.round(price) + " €", "#9be37d");
@@ -923,6 +945,7 @@ owned.autowrap = owned.autowrap || 0;
 owned.cadence  = owned.cadence  || 0;
 owned.autocut  = owned.autocut  || 0;   // massicot automatique (decoupe passive)
 owned.affut    = owned.affut    || 0;   // affutage : cadence du massicot
+owned.guide    = owned.guide    || 0;   // gabarit : elargit la zone verte du mini-jeu
 function saveShop() { localStorage.setItem("hash_shop", JSON.stringify(owned)); }
 function gradeMult(g) { return g === "A" ? 1.5 : g === "B" ? 1.0 : 0.6; }
 function mInterval() { return 3.2 * Math.pow(0.82, owned.cadence); } // s entre deux barrettes
@@ -936,9 +959,9 @@ machineMesh.position.set(L * 0.5, 0.38, 2.45);
 machineMesh.castShadow = true;
 scene.add(machineMesh);
 
-/* --- Massicot automatique : decoupe une barrette propre toutes les N secondes.
+/* --- Massicot automatique : decoupe une barrette de ~10 g toutes les N secondes.
    1ere brique de l'automatisation (deviendra un "employe" plus tard). --- */
-const CUT_T = 0.5;                                           // epaisseur visee (grade A)
+const CUT_T = TARGET_THICK;                                  // ~10 g par coupe
 function cInterval() { return 2.6 * Math.pow(0.82, owned.affut); } // s entre deux coupes auto
 
 // Lame du massicot : hover au-dessus du bord droit, petit "chop" a chaque coupe.
@@ -952,10 +975,10 @@ scene.add(bladeMesh);
 
 let cutTimer = 0, bladeChop = 0;   // bladeChop : avancement de l'anim de coupe (0 = au repos)
 function updateCutter(dt) {
-  bladeMesh.visible = !!owned.autocut;
-  if (!owned.autocut) return;
+  // La lame sert d'outil de coupe manuel (mode cut) ET du massicot auto.
+  bladeMesh.visible = !!owned.autocut || (mode === "cut" && !over);
 
-  // La lame se positionne au-dessus de la prochaine ligne de coupe.
+  // Elle se positionne au-dessus de la prochaine ligne de coupe (~10 g du bord).
   const right = (rightNeg + rightPos) / 2;
   const cutX  = Math.max(0, right - CUT_T);
   if (bladeChop <= 0) bladeMesh.position.set(cutX, H + 0.55, 0);
@@ -964,11 +987,12 @@ function updateCutter(dt) {
   if (bladeChop > 0) {
     bladeChop = Math.max(0, bladeChop - dt * 4.5);
     const k = 1 - bladeChop;                 // 0 -> 1
-    const dip = Math.sin(Math.min(1, k * 1.0) * Math.PI); // descend puis remonte
-    bladeMesh.position.y = H + 0.55 - dip * 0.7;
+    const dip = Math.sin(Math.min(1, k) * Math.PI); // descend puis remonte
+    bladeMesh.position.set(cutX, H + 0.55 - dip * 0.7, 0);
   }
 
-  if (over) return;
+  // Coupe automatique du massicot (si achete).
+  if (!owned.autocut || over) return;
   cutTimer += dt;
   if (cutTimer >= cInterval()) {
     cutTimer = 0;
@@ -995,7 +1019,7 @@ function updateMachine(dt) {
     j.sl.mesh.rotation.y += dt * 7;
     j.sl.mesh.scale.setScalar(Math.max(0.001, 1 - k));
     if (k >= 1) {                         // emballee -> vendue (serrage fixe 1.0)
-      setCash(cash + j.sl.grams * 2 * gradeMult(j.sl.grade) * levelMult());
+      setCash(cash + j.sl.grams * PRICE[j.sl.grade] * 0.9 * levelMult());  // machine : serrage moyen
       addXP(Math.max(1, Math.round(j.sl.grams)));
       removeSlice(j.sl); machineJob = null;
       const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(760, t, 0.09, 0.16); }
@@ -1012,22 +1036,27 @@ function updateMachine(dt) {
 
 // Boutique (data-driven : facile d'ajouter des machines plus tard).
 const SHOP = [
+  { id: "guide", icon: "🎯", name: "Gabarit de coupe",
+    desc: () => "Élargit la zone verte : coupes plus régulières.",
+    cost: () => Math.round(250 * Math.pow(1.7, owned.guide)),
+    can: () => owned.guide < 6, maxed: () => owned.guide >= 6,
+    buy: () => { owned.guide++; } },
   { id: "autowrap", icon: "📦", name: "Auto-emballeuse",
     desc: () => "Emballe et vend une barrette toute seule.",
-    cost: () => 150, can: () => owned.autowrap < 1, maxed: () => owned.autowrap >= 1,
+    cost: () => 800, can: () => owned.autowrap < 1, maxed: () => owned.autowrap >= 1,
     buy: () => { owned.autowrap = 1; } },
   { id: "cadence", icon: "⚙️", name: "Cadence +",
     desc: () => "Accélère la machine (" + mInterval().toFixed(1) + " s/barrette).",
-    cost: () => Math.round(120 * Math.pow(1.6, owned.cadence)),
+    cost: () => Math.round(600 * Math.pow(1.6, owned.cadence)),
     can: () => owned.autowrap >= 1 && owned.cadence < 8, maxed: () => owned.cadence >= 8,
     buy: () => { owned.cadence++; } },
   { id: "autocut", icon: "🔪", name: "Massicot auto",
     desc: () => "Découpe une barrette tout seul (" + cInterval().toFixed(1) + " s).",
-    cost: () => 400, can: () => owned.autocut < 1, maxed: () => owned.autocut >= 1,
+    cost: () => 2500, can: () => owned.autocut < 1, maxed: () => owned.autocut >= 1,
     buy: () => { owned.autocut = 1; } },
   { id: "affut", icon: "🪓", name: "Affûtage",
     desc: () => "Accélère le massicot (" + cInterval().toFixed(1) + " s/coupe).",
-    cost: () => Math.round(220 * Math.pow(1.6, owned.affut)),
+    cost: () => Math.round(1300 * Math.pow(1.6, owned.affut)),
     can: () => owned.autocut >= 1 && owned.affut < 8, maxed: () => owned.affut >= 8,
     buy: () => { owned.affut++; } },
 ];
@@ -1083,6 +1112,7 @@ function loop(t) {
   last = t;
   updateSlices(dt);
   updateWrap(dt);
+  updateGauge(dt);
   updateCutter(dt);
   updateMachine(dt);
   updateCrumbs(dt);
