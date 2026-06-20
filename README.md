@@ -10,6 +10,7 @@ Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) chargé via C
 - Tu **glisses ton doigt en travers** : le tracé définit un plan de coupe.
 - Au relâchement, la **barrette se détache** (côté bout libre) et **tombe sur la planche** (petite physique : chute + rebond).
 - **Chaque coupe réussit toujours**, même imprécise : l'épaisseur et le biais varient et donnent un petit feedback (*Barrette nickel ✨*, *Grosse barrette 😏*, *Coupe bancale 😅*…).
+- Chaque barrette est **pesée** (poids en g, calibré pour ~250 g la savonnette entière) et **notée** A/B/C selon la propreté de coupe ; une étiquette suit la barrette en 3D.
 - On **enchaîne les barrettes** jusqu'à épuiser la savonnette. Bouton **🔄 Nouvelle** pour recommencer.
 
 > Prototype de jeu, habillage purement visuel/humoristique.
