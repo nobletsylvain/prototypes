@@ -32,7 +32,12 @@
   #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
   .blabel { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
     font-weight:800; font-size:13px; padding:2px 7px; border-radius:8px;
-    background:rgba(0,0,0,.55); text-shadow:0 1px 3px rgba(0,0,0,.6); }
+    background:rgba(0,0,0,.55); text-shadow:0 1px 3px rgba(0,0,0,.6);
+    animation:pop .22s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes pop {
+    from { transform:translate(-50%,-50%) scale(.4); opacity:0; }
+    to   { transform:translate(-50%,-50%) scale(1);  opacity:1; }
+  }
 
   /* --- Cash --- */
   #cash { position:fixed; top:max(14px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
@@ -122,13 +127,15 @@ app.appendChild(renderer.domElement);
 const VIEW_DIR = new THREE.Vector3(0.04, 0.74, 0.67).normalize(); // direction camera->cible (plus plongeante)
 const VIEW_TARGET = new THREE.Vector3(L / 2, 0.35, 0);           // centre de la savonnette
 const VIEW_RADIUS = Math.hypot(L / 2 + 0.6, 0.8, W);             // rayon englobant
+const baseCamPos = new THREE.Vector3();                          // position "au repos" (la secousse oscille autour)
 
 function fitView() {
   const vFov = camera.fov * Math.PI / 180;
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
   const fov = Math.min(vFov, hFov);                 // le plus contraignant
   const dist = (VIEW_RADIUS / Math.sin(fov / 2)) * 1.12; // +marge
-  camera.position.copy(VIEW_TARGET).addScaledVector(VIEW_DIR, dist);
+  baseCamPos.copy(VIEW_TARGET).addScaledVector(VIEW_DIR, dist);
+  camera.position.copy(baseCamPos);
   camera.lookAt(VIEW_TARGET);
 }
 
@@ -263,6 +270,8 @@ function resetGame() {
 
   for (const sl of slices) { scene.remove(sl.mesh); sl.mesh.geometry.dispose(); sl.label.remove(); }
   slices = [];
+  for (const c of crumbs) scene.remove(c.mesh);
+  crumbs.length = 0;
   rightNeg = L; rightPos = L;
   count = 0; over = false;
   rebuildCake();
@@ -384,6 +393,11 @@ function performCut(cutNeg, cutPos) {
   ui.hint.style.opacity = "0";
   showToast(grams.toFixed(1) + " g · " + grade, GRADE_COL[grade]);
 
+  // --- Feedback (dopamine) : miettes a la coupe + secousse + son ---
+  burstCrumbs((cutNeg + cutPos) / 2, H * 0.6, 0, 12);
+  addShake(grade === "A" ? 0.22 : 0.16);
+  playCut(grade);
+
   // Fin de partie ?
   if (Math.max(rightNeg, rightPos) < 0.25) {
     over = true;
@@ -411,6 +425,82 @@ function makeLabel(text, color) {
   labelsEl.appendChild(d);
   return d;
 }
+
+/* -------------------------------------------------------------------------
+   10b) JUICE : son (WebAudio), miettes, secousse de camera
+   Tout est synthetise -> aucun fichier audio. L'AudioContext est cree/repris
+   au premier appui (obligatoire sur iOS).
+   ------------------------------------------------------------------------- */
+let actx = null;
+function ensureAudio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (actx && actx.state === "suspended") actx.resume();
+  return actx;
+}
+// Bruit filtre avec balayage de frequence (sert au "schnk" de coupe et au briquet).
+function noiseBurst(dur, f0, f1, vol, type, q) {
+  const ac = ensureAudio(); if (!ac) return;
+  const t = ac.currentTime;
+  const len = Math.max(1, Math.floor(ac.sampleRate * dur));
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
+  const ch = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.5);
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const filt = ac.createBiquadFilter(); filt.type = type || "bandpass"; filt.Q.value = q || 0.8;
+  filt.frequency.setValueAtTime(f0, t);
+  filt.frequency.exponentialRampToValueAtTime(Math.max(60, f1), t + dur);
+  const g = ac.createGain(); g.gain.value = vol;
+  src.connect(filt); filt.connect(g); g.connect(ac.destination);
+  src.start(t); src.stop(t + dur);
+}
+function beep(freq, t0, dur, vol) {
+  const ac = ensureAudio(); if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = "square"; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t0); o.stop(t0 + dur);
+}
+function playCut(grade) {           // "schnk" plus aigu si belle coupe
+  const k = grade === "A" ? 1.0 : grade === "B" ? 0.9 : 0.8;
+  noiseBurst(0.11, 2600 * k, 700, 0.34, "bandpass", 0.9);
+}
+function playSeal() { noiseBurst(0.22, 500, 1700, 0.25, "lowpass", 0.6); } // briquet "fwoosh"
+function playSale() {                // petit "cha-ching" ascendant
+  const ac = ensureAudio(); if (!ac) return; const t = ac.currentTime;
+  beep(880, t, 0.13, 0.25); beep(1320, t + 0.09, 0.18, 0.22);
+}
+
+// Miettes de resine projetees a la coupe (petits cubes, courte duree de vie).
+const crumbs = [];
+const crumbGeo = new THREE.BoxGeometry(0.07, 0.07, 0.07);
+const crumbMat = new THREE.MeshStandardMaterial({ color: 0x6e562f, roughness: 1 });
+function burstCrumbs(x, y, z, n) {
+  for (let i = 0; i < n; i++) {
+    const m = new THREE.Mesh(crumbGeo, crumbMat);
+    m.position.set(x + (Math.random() - 0.5) * W * 0.8, y, z + (Math.random() - 0.5) * W * 0.8);
+    scene.add(m);
+    crumbs.push({ mesh: m,
+      vx: (Math.random() - 0.5) * 2.4, vy: 1.5 + Math.random() * 2.2, vz: (Math.random() - 0.5) * 2.4,
+      life: 0.7 + Math.random() * 0.5 });
+  }
+}
+function updateCrumbs(dt) {
+  for (let i = crumbs.length - 1; i >= 0; i--) {
+    const c = crumbs[i];
+    c.vy -= 11 * dt;
+    c.mesh.position.x += c.vx * dt; c.mesh.position.y += c.vy * dt; c.mesh.position.z += c.vz * dt;
+    c.mesh.rotation.x += dt * 7; c.mesh.rotation.y += dt * 5;
+    c.life -= dt;
+    if (c.life <= 0 || c.mesh.position.y < 0.05) { scene.remove(c.mesh); crumbs.splice(i, 1); }
+  }
+}
+
+// Secousse de camera (amortie dans la boucle principale).
+let shake = 0;
+function addShake(a) { shake = Math.min(0.6, shake + a); }
 
 /* -------------------------------------------------------------------------
    11) PETITE PHYSIQUE DES TRANCHES (chute + repos sur la planche)
@@ -471,6 +561,7 @@ function pickSlice(cx, cy) {
 
 el.addEventListener("pointerdown", (e) => {
   e.preventDefault();
+  ensureAudio();                            // debloque le son (requis sur iOS)
   if (mode === "wrap") { wrapDown(e); return; }
   const sl = pickSlice(e.clientX, e.clientY);
   if (sl) { enterWrap(sl); return; }       // tape une barrette posee -> emballage
@@ -554,7 +645,7 @@ function sealWrap() {
   wrap.phase = "done"; wrap.tSell = performance.now();
   ui.seal.classList.remove("show");
   if (wrap.film) { wrap.film.scale.setScalar(1.0); wrap.film.material.opacity = 0.38; wrap.film.material.roughness = 0.05; }
-  flame();
+  flame(); playSeal(); playSale(); addShake(0.12);
   // Prix = €/g * bonus de grade * bonus de serrage (plus on a emballe vite, plus c'est serre).
   const secs  = (wrap.tSell - wrap.t0) / 1000;
   const tight = secs < 3 ? 1.3 : secs < 6 ? 1.1 : 0.9;
@@ -643,6 +734,16 @@ function loop(t) {
   last = t;
   updateSlices(dt);
   updateWrap(dt);
+  updateCrumbs(dt);
+  // Secousse de camera (oscille autour de la position de repos, puis s'amortit).
+  if (shake > 0) { shake *= Math.pow(0.0008, dt); if (shake < 0.002) shake = 0; }
+  camera.position.copy(baseCamPos);
+  if (shake > 0) {
+    camera.position.x += (Math.random() - 0.5) * shake;
+    camera.position.y += (Math.random() - 0.5) * shake;
+    camera.position.z += (Math.random() - 0.5) * shake;
+  }
+  camera.lookAt(VIEW_TARGET);
   updateLabels();
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
