@@ -27,6 +27,8 @@
   #toast.show { opacity:1; transform:translateY(0); }
   #title { top:max(46px,calc(env(safe-area-inset-top) + 30px)); left:16px; font-size:12px;
     color:rgba(255,255,255,.45); font-weight:600; letter-spacing:.5px; }
+  #remain { top:max(62px,calc(env(safe-area-inset-top) + 46px)); left:16px; font-size:12px;
+    color:rgba(155,227,125,.8); font-weight:700; letter-spacing:.3px; }
 
   /* --- Etiquettes poids/grade qui suivent chaque barrette --- */
   #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
@@ -117,6 +119,7 @@
 <div id="gaugelbl">Tape dans le vert pour couper 10 g</div>
 <div id="gauge"><div id="gsweet"></div><div id="gcursor"></div></div>
 <div class="hud" id="title">SAVONNETTE 250g</div>
+<div class="hud" id="remain">Restant : 250 g</div>
 <button id="reset">🔄 Nouvelle</button>
 <div class="hud" id="hint">Tape quand le curseur est dans le vert pour couper 10 g · tape une barrette pour l'emballer · pince pour zoomer</div>
 <div class="hud" id="toast"></div>
@@ -171,6 +174,9 @@ const TARGET_THICK = TARGET_G / (W * H * DENS);   // ~0.208
 // Prix de vente realistes (resine). Retail barrette ~8-12 €/g selon qualite,
 // boulettes/dechets bradees aux schlags ~3 €/g, gros volume ~5 €/g.
 const PRICE = { A: 12, B: 9, C: 6 };              // €/g par grade de barrette
+
+// Achat de matiere premiere en gros (le gramme baisse avec le volume).
+const SAV_PRICES = { 100: 550, 250: 1200 };       // €  (~5.5 / ~4.8 €/g)
 
 /* -------------------------------------------------------------------------
    1) SCENE, CAMERA, RENDU
@@ -326,6 +332,7 @@ function rebuildCake() {
   cakeMesh.geometry.dispose();
   cakeMesh.geometry = makePrism(0, 0, rightNeg, rightPos);
   cakeMesh.visible = Math.max(rightNeg, rightPos) > 0.05;
+  if (typeof updateRemain === "function") updateRemain();
 }
 
 /* -------------------------------------------------------------------------
@@ -348,12 +355,17 @@ let cash = +(localStorage.getItem("hash_cash") || 0);     // € sauvegardes
 let wasteGrams = +(localStorage.getItem("hash_waste") || 0); // dechets accumules (g)
 let level = Math.max(1, +(localStorage.getItem("hash_level") || 1)); // niveau joueur
 let xp    = Math.max(0, +(localStorage.getItem("hash_xp") || 0));    // XP dans le niveau courant
+let savSize = +(localStorage.getItem("hash_savsize") || 250);       // taille savonnette courante (g)
 const wrap = { slice:null, film:null, pct:0, shownPct:0, phase:"", t0:0, tSell:0,
                spin:0, spinTarget:0, filmScale:1.32, focus:new THREE.Vector3() };
 const game = { cursor:0, dir:1, flash:0 };   // mini-jeu de coupe : curseur 0..1 qui balaie
 
-function resetGame() {
-  // Nettoyage d'un emballage en cours, le cas echeant.
+const PER_LEN = W * H * DENS;            // grammes par unite de longueur (x)
+function gramsLeft() { return Math.max(0, ((rightNeg + rightPos) / 2) * PER_LEN); }
+function updateRemain() { if (ui.remain) ui.remain.textContent = "Restant : " + Math.round(gramsLeft()) + " g"; }
+
+// Charge une savonnette neuve de taille sizeG (sans facturer : init / bootstrap).
+function loadLoaf(sizeG) {
   if (wrap.film) { wrap.film.geometry.dispose(); wrap.film.material.dispose(); wrap.film = null; }
   wrap.slice = null; wrap.phase = ""; mode = "cut";
   ui.wrapui.classList.remove("show");
@@ -363,12 +375,28 @@ function resetGame() {
   slices = [];
   for (const c of crumbs) scene.remove(c.mesh);
   crumbs.length = 0;
-  rightNeg = L; rightPos = L;
+
+  savSize = sizeG; localStorage.setItem("hash_savsize", String(sizeG));
+  const r = Math.min(L, sizeG / PER_LEN);
+  rightNeg = r; rightPos = r;
   count = 0; over = false;
   rebuildCake();
   ui.count.textContent = "Barrettes : 0";
+  if (ui.title) ui.title.textContent = "SAVONNETTE " + sizeG + "g";
   ui.hint.style.opacity = "1";
-  ui.hint.textContent = "Glisse pour couper · tape une barrette pour l'emballer · pince pour zoomer";
+  ui.hint.textContent = "Tape dans le vert pour couper 10 g · tape une barrette pour l'emballer";
+  updateRemain();
+}
+function resetGame() { loadLoaf(savSize); }   // recharge la taille courante (gratuit) — init
+
+// Achete une savonnette (matiere premiere) et la charge.
+function buySavonnette(sizeG) {
+  const cost = SAV_PRICES[sizeG];
+  if (cash < cost) { showToast("Pas assez : " + cost + " €", "#ff6b6b"); return; }
+  setCash(cash - cost);
+  loadLoaf(sizeG);
+  showToast("Savonnette " + sizeG + "g  −" + cost + " €", "#caa15f");
+  const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(520, t, 0.1, 0.2); beep(780, t + 0.07, 0.12, 0.2); }
 }
 
 /* -------------------------------------------------------------------------
@@ -433,7 +461,7 @@ function spawnBarrette(cutNeg, cutPos, grams, grade, keep = 1) {
     over = true;
     showToast("Savonnette finie ! 🎉", "#9be37d");
     ui.hint.style.opacity = "1";
-    ui.hint.textContent = "Tape 🔄 pour une nouvelle savonnette";
+    ui.hint.textContent = "Savonnette finie — rachète-en une (🔄 ou 🛒)";
   }
 }
 
@@ -458,8 +486,8 @@ function manualChop() {
   const err   = Math.abs(game.cursor - 0.5);   // 0 = pile au centre du vert
   const sweet = sweetHalf();
   let f, grade, msg, col;
-  if      (err <= sweet)        { f = 0.97; grade = "A"; msg = "PARFAIT ✦"; col = GRADE_COL.A; }
-  else if (err <= sweet * 2.4)  { f = 0.82; grade = "B"; msg = "Bien";      col = GRADE_COL.B; }
+  if      (err <= sweet)        { f = 1.00; grade = "A"; msg = "PARFAIT ✦"; col = GRADE_COL.A; }  // 10 g pile, aucune perte
+  else if (err <= sweet * 2.4)  { f = 0.85; grade = "B"; msg = "Bien";      col = GRADE_COL.B; }
   else if (err <= sweet * 4.5)  { f = 0.60; grade = "C"; msg = "Bof";       col = GRADE_COL.C; }
   else                          { f = 0.32; grade = "C"; msg = "Raté !";    col = "#ff6b6b"; }
 
@@ -673,6 +701,8 @@ const ui = {
   count:    document.getElementById("count"),
   cash:     document.getElementById("cash"),
   waste:    document.getElementById("waste"),
+  title:    document.getElementById("title"),
+  remain:   document.getElementById("remain"),
   level:    document.getElementById("level"),
   xpfill:   document.getElementById("xpfill"),
   gauge:    document.getElementById("gauge"),
@@ -809,7 +839,7 @@ function onUp(e) {
 el.addEventListener("pointerup", onUp, { passive:false });
 el.addEventListener("pointercancel", onUp, { passive:false });
 
-document.getElementById("reset").addEventListener("click", resetGame);
+document.getElementById("reset").addEventListener("click", () => buySavonnette(savSize));
 ui.seal.addEventListener("click", () => { if (mode === "wrap" && wrap.phase === "seal") sealWrap(); });
 ui.waste.addEventListener("click", sellWaste);   // raccourci HUD pour vendre les dechets
 document.getElementById("shopbtn").addEventListener("click", () => { renderShop(); ui.shop.classList.add("show"); });
@@ -1045,6 +1075,14 @@ function updateMachine(dt) {
 
 // Boutique (data-driven : facile d'ajouter des machines plus tard).
 const SHOP = [
+  { id: "sav100", icon: "🟫", name: "Savonnette 100 g",
+    desc: () => "Matière première (gros). Charge une savonnette neuve.",
+    cost: () => SAV_PRICES[100], can: () => true, maxed: () => false,
+    buy: () => { loadLoaf(100); } },
+  { id: "sav250", icon: "🧱", name: "Savonnette 250 g",
+    desc: () => "Matière première (gros, moins cher au gramme).",
+    cost: () => SAV_PRICES[250], can: () => true, maxed: () => false,
+    buy: () => { loadLoaf(250); } },
   { id: "guide", icon: "🎯", name: "Gabarit de coupe",
     desc: () => "Élargit la zone verte : coupes plus régulières.",
     cost: () => Math.round(250 * Math.pow(1.7, owned.guide)),
