@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Cake Slicer 3D — quatre-quarts</title>
+<title>Hash Slicer 3D — savonnette</title>
 <style>
   /* --- Plein ecran, pense mobile (pas de scroll, pas de zoom) --- */
   * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
@@ -36,10 +36,10 @@
 </head>
 <body>
 <div id="app"></div>
-<div class="hud" id="count">Tranches : 0</div>
-<div class="hud" id="title">QUATRE-QUARTS</div>
-<button id="reset">🔄 Nouveau cake</button>
-<div class="hud" id="hint">Glisse ton doigt en travers du cake pour couper une tranche</div>
+<div class="hud" id="count">Barrettes : 0</div>
+<div class="hud" id="title">SAVONNETTE 250g</div>
+<button id="reset">🔄 Nouvelle</button>
+<div class="hud" id="hint">Glisse ton doigt en travers pour couper une barrette</div>
 <div class="hud" id="toast"></div>
 
 <script type="module">
@@ -63,9 +63,9 @@ import * as THREE from "three";
    0) DIMENSIONS DU CAKE (unites monde)
    Un quatre-quarts long : allonge sur X, assez haut, pas trop large.
    ------------------------------------------------------------------------- */
-const L = 6.0;   // longueur totale (axe X), du talon (x=0) au bout libre (x=L)
-const W = 1.7;   // largeur (axe Z)
-const H = 1.4;   // hauteur (axe Y), base a y=0
+const L = 5.2;   // longueur totale (axe X), du talon (x=0) au bout libre (x=L)
+const W = 2.3;   // largeur (axe Z)
+const H = 0.85;  // epaisseur (axe Y), base a y=0 -> savonnette plate
 
 /* -------------------------------------------------------------------------
    1) SCENE, CAMERA, RENDU
@@ -86,7 +86,7 @@ app.appendChild(renderer.domElement);
 // du cake rentre dans le champ de vision le plus etroit (horizontal en
 // portrait). La camera garde un joli angle 3/4 vue de dessus.
 const VIEW_DIR = new THREE.Vector3(0.05, 0.52, 0.85).normalize(); // direction camera->cible
-const VIEW_TARGET = new THREE.Vector3(L / 2, 0.5, 0);             // centre du cake
+const VIEW_TARGET = new THREE.Vector3(L / 2, 0.35, 0);           // centre de la savonnette
 const VIEW_RADIUS = Math.hypot(L / 2 + 0.6, 0.8, W);             // rayon englobant
 
 function fitView() {
@@ -132,14 +132,14 @@ board.receiveShadow = true;
 scene.add(board);
 
 /* -------------------------------------------------------------------------
-   4) MATERIAUX DU CAKE
-   crust  = croute doree (dessus + cotes longs)
-   pale   = dessous, plus clair
-   sponge = mie (faces fraichement coupees) -> jaune pale
+   4) MATERIAUX DE LA SAVONNETTE
+   crust  = peau pressee exterieure (dessus + cotes), brun tres fonce, leger lustre
+   pale   = dessous, brun fonce
+   sponge = interieur revele aux coupes -> brun plus clair / olive
    ------------------------------------------------------------------------- */
-const matCrust  = new THREE.MeshStandardMaterial({ color: 0xb9772e, roughness: 0.8, side: THREE.DoubleSide });
-const matPale   = new THREE.MeshStandardMaterial({ color: 0xe6c485, roughness: 0.9, side: THREE.DoubleSide });
-const matSponge = new THREE.MeshStandardMaterial({ color: 0xf4dca6, roughness: 0.95, side: THREE.DoubleSide });
+const matCrust  = new THREE.MeshStandardMaterial({ color: 0x322318, roughness: 0.5,  metalness: 0.2, side: THREE.DoubleSide });
+const matPale   = new THREE.MeshStandardMaterial({ color: 0x4a3a26, roughness: 0.8,  side: THREE.DoubleSide });
+const matSponge = new THREE.MeshStandardMaterial({ color: 0x705730, roughness: 0.85, side: THREE.DoubleSide });
 const cakeMats  = [matCrust, matPale, matSponge];
 
 /* -------------------------------------------------------------------------
@@ -189,12 +189,12 @@ const cakeMesh = new THREE.Mesh(makePrism(0,0,0,0), cakeMats);
 cakeMesh.castShadow = true; cakeMesh.receiveShadow = true;
 scene.add(cakeMesh);
 
-// La craquelure typique du quatre-quarts sur le dessus.
+// La rainure pressee sur le dessus de la savonnette (marque du moule).
 const crack = new THREE.Mesh(
-  new THREE.BoxGeometry(1, 0.06, 0.22),
-  new THREE.MeshStandardMaterial({ color: 0x7a4a1e, roughness: 0.9 })
+  new THREE.BoxGeometry(1, 0.05, 0.14),
+  new THREE.MeshStandardMaterial({ color: 0x1a120b, roughness: 0.9 })
 );
-crack.position.y = H + 0.005;
+crack.position.y = H - 0.01;
 scene.add(crack);
 
 function rebuildCake() {
@@ -224,9 +224,9 @@ function resetGame() {
   rightNeg = L; rightPos = L;
   count = 0; over = false;
   rebuildCake();
-  ui.count.textContent = "Tranches : 0";
+  ui.count.textContent = "Barrettes : 0";
   ui.hint.style.opacity = "1";
-  ui.hint.textContent = "Glisse ton doigt en travers du cake pour couper une tranche";
+  ui.hint.textContent = "Glisse ton doigt en travers pour couper une barrette";
 }
 
 /* -------------------------------------------------------------------------
@@ -333,26 +333,26 @@ function performCut(cutNeg, cutPos) {
   rebuildCake();
 
   count++;
-  ui.count.textContent = "Tranches : " + count;
+  ui.count.textContent = "Barrettes : " + count;
   ui.hint.style.opacity = "0";
   rateSlice(thick, skew);
 
   // Fin de partie ?
   if (Math.max(rightNeg, rightPos) < 0.25) {
     over = true;
-    showToast("Cake termine ! 🎉", "#9be37d");
+    showToast("Savonnette finie ! 🎉", "#9be37d");
     ui.hint.style.opacity = "1";
-    ui.hint.textContent = "Tape 🔄 pour un nouveau cake";
+    ui.hint.textContent = "Tape 🔄 pour une nouvelle savonnette";
   }
 }
 
 function rateSlice(thick, skew) {
   let msg, col;
-  if (skew > 0.6)            { msg = "Tranche bancale 😅";  col = "#ff9f6b"; }
-  else if (thick > 1.2)      { msg = "Grosse part ! 😋";    col = "#ffd166"; }
-  else if (thick < 0.28)     { msg = "Tranche fine 🔪";     col = "#9be3ff"; }
-  else if (skew < 0.18)      { msg = "Tranche parfaite ✨"; col = "#9be37d"; }
-  else                       { msg = "Bonne tranche 🍰";    col = "#cdb8ff"; }
+  if (skew > 0.6)            { msg = "Coupe bancale 😅";    col = "#ff9f6b"; }
+  else if (thick > 1.2)      { msg = "Grosse barrette 😏"; col = "#ffd166"; }
+  else if (thick < 0.28)     { msg = "Barrette fine 🔪";   col = "#9be3ff"; }
+  else if (skew < 0.18)      { msg = "Barrette nickel ✨"; col = "#9be37d"; }
+  else                       { msg = "Bonne barrette 👌";  col = "#cdb8ff"; }
   showToast(msg, col);
 }
 
