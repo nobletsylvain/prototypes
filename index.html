@@ -335,6 +335,15 @@ let slices = [];     // barrettes detachees (avec physique)
 let count = 0;       // nombre de barrettes coupees
 let over = false;    // plus de savonnette ?
 let mode = "cut";    // "cut" (coupe) | "wrap" (emballage)
+
+// --- Version de sauvegarde : on bump apres un gros rééquilibrage pour repartir
+// de zero. Si la version stockee differe, on efface la progression (une fois). ---
+const SAVE_VERSION = "2";
+if (localStorage.getItem("hash_ver") !== SAVE_VERSION) {
+  ["hash_cash", "hash_waste", "hash_level", "hash_xp", "hash_shop"].forEach(k => localStorage.removeItem(k));
+  localStorage.setItem("hash_ver", SAVE_VERSION);
+}
+
 let cash = +(localStorage.getItem("hash_cash") || 0);     // € sauvegardes
 let wasteGrams = +(localStorage.getItem("hash_waste") || 0); // dechets accumules (g)
 let level = Math.max(1, +(localStorage.getItem("hash_level") || 1)); // niveau joueur
