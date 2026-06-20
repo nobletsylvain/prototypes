@@ -1,0 +1,12 @@
+{
+  "name": "prototypes-tools",
+  "private": true,
+  "type": "module",
+  "description": "Outils de dev pour le prototype (captures d'ecran headless).",
+  "scripts": {
+    "shots": "node screenshots.mjs"
+  },
+  "dependencies": {
+    "puppeteer": "^23"
+  }
+}
