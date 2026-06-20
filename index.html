@@ -96,6 +96,14 @@
     border-radius:3px; box-shadow:0 0 8px rgba(255,255,255,.9); }
   #dosescale { display:none; font-weight:900; font-size:26px; color:#fff; text-shadow:0 2px 10px rgba(0,0,0,.6); }
   #dosescale.show { display:block; }
+  #dosetrace { display:none; position:relative; width:74%; max-width:360px; height:96px;
+    background:linear-gradient(180deg,#3a2a1a,#241910); border:2px solid rgba(255,255,255,.2);
+    border-radius:14px; box-shadow:0 4px 14px rgba(0,0,0,.4); transition:border-color .12s; }
+  #dosetrace.show { display:block; }
+  #dosetrace::before { content:""; position:absolute; left:50%; top:7px; bottom:7px;
+    border-left:3px dashed rgba(255,255,255,.7); }
+  #dosetrace::after { content:"↓ swipe droit"; position:absolute; left:0; right:0; top:50%;
+    transform:translateY(-50%); text-align:center; color:rgba(255,255,255,.55); font-size:12px; font-weight:700; }
   #doserow { display:flex; gap:10px; align-items:center; pointer-events:none; }
   #dosebag { display:none; pointer-events:auto; background:#7aa0ff; border:none; color:#10162a;
     font-weight:900; font-size:16px; padding:11px 22px; border-radius:14px; box-shadow:0 4px 14px rgba(122,160,255,.4); }
@@ -172,12 +180,14 @@
   <span class="sep"></span>
   <button class="methbtn on" data-meth="hachoir" title="Hachoir rythmé">🪓</button>
   <button class="methbtn" data-meth="balance" title="Balance">⚖️</button>
+  <button class="methbtn" data-meth="trace" title="Coupe tracée">✂️</button>
 </div>
 <div id="doseui">
   <div id="dosetext">Dosage</div>
   <div id="dosecombo"></div>
   <div id="dosegauge"><div id="dsweet"></div><div id="dcursor"></div></div>
   <div id="dosescale"></div>
+  <div id="dosetrace"></div>
   <div id="doserow">
     <button id="dosebag">✓ Ensacher</button>
     <button id="doseclose">Terminer</button>
@@ -816,6 +826,7 @@ const ui = {
   dsweet:   document.getElementById("dsweet"),
   dcursor:  document.getElementById("dcursor"),
   dosescale:document.getElementById("dosescale"),
+  dosetrace:document.getElementById("dosetrace"),
   dosebag:  document.getElementById("dosebag"),
   doseclose:document.getElementById("doseclose"),
 };
@@ -870,6 +881,7 @@ function sellWaste() {
 }
 
 let tapDown = null, tapMoved = false;   // candidat "tap pour couper" (mini-jeu)
+let traceStart = null, traceDev = 0;    // swipe de la "coupe tracee"
 const el = renderer.domElement;
 
 // --- Pinch a deux doigts (zoom) ---
@@ -921,7 +933,11 @@ el.addEventListener("pointerdown", (e) => {
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size >= 2) { startPinch(); return; }   // 2e doigt -> on bascule en zoom
   ensureAudio();                            // debloque le son (requis sur iOS)
-  if (mode === "dose") { doseTap(); return; }          // tap pendant le mini-jeu de dosage
+  if (mode === "dose") {                               // pendant le mini-jeu de dosage
+    if (dose.method === "trace") { traceStart = { x: e.clientX, y: e.clientY }; traceDev = 0; }
+    else doseTap();
+    return;
+  }
   if (pickSellBin(e.clientX, e.clientY))  { startDosing(); return; } // tape le bac STOCK -> dosage
   if (pickWasteBin(e.clientX, e.clientY)) { sellWaste(); return; }   // tape le bac dechets -> vente schlag
   if (over) return;                        // plus de savonnette a couper
@@ -932,14 +948,19 @@ el.addEventListener("pointermove", (e) => {
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pinching && pointers.size >= 2) { e.preventDefault(); updatePinch(); return; }
   if (mode === "wrap") { wrapMove(e); return; }
+  if (mode === "dose") { if (traceStart) traceDev = Math.max(traceDev, Math.abs(e.clientX - traceStart.x)); return; }
   if (tapDown && Math.hypot(e.clientX - tapDown.x, e.clientY - tapDown.y) > 16) tapMoved = true;
 }, { passive:false });
 
 function onUp(e) {
   if (e) e.preventDefault();
   pointers.delete(e.pointerId);
-  if (pinching) { if (pointers.size < 2) pinching = false; tapDown = null; return; }
+  if (pinching) { if (pointers.size < 2) pinching = false; tapDown = null; traceStart = null; return; }
   if (mode === "wrap") { wrapLast = null; return; }
+  if (mode === "dose") {                              // fin d'un swipe de coupe tracee
+    if (dose.method === "trace" && traceStart) doseTrace(Math.abs(e.clientY - traceStart.y), traceDev);
+    traceStart = null; return;
+  }
   // Tap franc (sans glisser) sur la savonnette -> coupe au timing du mini-jeu.
   if (tapDown && !tapMoved && !over) manualChop();
   tapDown = null;
@@ -1065,10 +1086,11 @@ function startDosing() {
   dose.active = true; mode = "dose";
   ui.doseui.classList.add("show");
   ui.hint.style.opacity = "0";
-  const bal = dose.method === "balance";
-  ui.dosegauge.style.display = bal ? "none" : "block";
+  const bal = dose.method === "balance", tr = dose.method === "trace";
+  ui.dosegauge.style.display = (bal || tr) ? "none" : "block";
   ui.dosescale.classList.toggle("show", bal);
   ui.dosebag.classList.toggle("show", bal);
+  ui.dosetrace.classList.toggle("show", tr);
   refreshDoseUI();
 }
 
@@ -1078,6 +1100,8 @@ function refreshDoseUI() {
     ui.dosescale.textContent = dose.cur.toFixed(1) + " / " + dose.cal + " g";
     ui.dosescale.style.color = Math.abs(dose.cur - dose.cal) <= dose.cal * 0.08 ? "#9be37d"
                               : dose.cur > dose.cal ? "#ff6b6b" : "#fff";
+  } else if (dose.method === "trace") {
+    ui.dosetext.textContent = "Swipe droit le long de la ligne  ·  Calibre " + dose.cal + " g · Stock " + Math.round(stock.g) + " g";
   } else {
     ui.dosetext.textContent = "Calibre " + dose.cal + " g  ·  Stock " + Math.round(stock.g) + " g";
     ui.dsweet.style.left  = (50 - DOSE_SWEET * 100) + "%";
@@ -1138,6 +1162,42 @@ function doseBag() {
   bump();
   if (ac) { const t = ac.currentTime; if (perfect) { beep(880, t, 0.08, 0.18); beep(1320, t + 0.07, 0.1, 0.2); } else beep(500, t, 0.08, 0.14); }
   dose.cur = 0;
+  refreshDoseUI();
+}
+
+function flashTrace(col) {
+  ui.dosetrace.style.borderColor = col;
+  setTimeout(() => { ui.dosetrace.style.borderColor = "rgba(255,255,255,.2)"; }, 130);
+}
+
+// Coupe tracee : on evalue la rectitude du swipe (deviation horizontale / hauteur).
+function doseTrace(dy, dev) {
+  if (!dose.active || dy < 50) return;              // swipe trop court -> ignore
+  const ac = ensureAudio();
+  if (stock.g < dose.cal) { showToast("Stock vide", "#caa15f"); return; }
+  dose.grade = stockGrade();
+  takeFromStock(dose.cal);
+  const ratio = dev / dy;                           // 0 = parfaitement droit
+  if (ratio < 0.16) {                               // coupe nette
+    dose.combo++;
+    const bonus = 1 + Math.min(dose.combo - 1, 12) * 0.06;
+    const price = dose.cal * DOSE_PRICE[dose.cal] * gradeVal(dose.grade) * bonus * levelMult();
+    setCash(cash + price); dose.earn += price; dose.made++;
+    bump(); flashTrace("#9be37d");
+    if (ac) { const t = ac.currentTime; beep(700 + Math.min(dose.combo, 14) * 60, t, 0.07, 0.16); }
+  } else if (ratio < 0.34) {                        // de travers -> dose moins chere, combo perdu
+    dose.combo = 0;
+    const price = dose.cal * DOSE_PRICE[dose.cal] * 0.7 * gradeVal(dose.grade) * levelMult();
+    setCash(cash + price); dose.earn += price; dose.made++;
+    flashTrace("#ffd166");
+    if (ac) beep(420, ac.currentTime, 0.08, 0.14);
+  } else {                                          // rate -> aux dechets
+    dose.combo = 0;
+    addWaste(dose.cal);
+    flashTrace("#ff6b6b");
+    if (ac) beep(150, ac.currentTime, 0.12, 0.2);
+  }
+  updateStockLabel();
   refreshDoseUI();
 }
 
