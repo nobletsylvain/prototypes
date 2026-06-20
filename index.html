@@ -77,6 +77,10 @@
   .calbtn { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
     font-weight:800; font-size:13px; padding:7px 10px; border-radius:10px; }
   .calbtn.on { background:#caa15f; color:#1a1020; border-color:#caa15f; }
+  #dosebar .sep { width:1px; height:20px; background:rgba(255,255,255,.25); margin:0 2px; }
+  .methbtn { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
+    font-size:15px; padding:6px 9px; border-radius:10px; }
+  .methbtn.on { background:#7aa0ff; border-color:#7aa0ff; }
 
   /* --- Overlay du mini-jeu de dosage (Hachoir rythmé) --- */
   #doseui { position:fixed; inset:0; display:none; flex-direction:column; align-items:center;
@@ -90,6 +94,12 @@
   #dsweet { position:absolute; top:0; bottom:0; background:linear-gradient(90deg,rgba(255,209,102,.25),rgba(255,209,102,.65),rgba(255,209,102,.25)); }
   #dcursor { position:absolute; top:-2px; bottom:-2px; width:5px; margin-left:-2.5px; background:#fff;
     border-radius:3px; box-shadow:0 0 8px rgba(255,255,255,.9); }
+  #dosescale { display:none; font-weight:900; font-size:26px; color:#fff; text-shadow:0 2px 10px rgba(0,0,0,.6); }
+  #dosescale.show { display:block; }
+  #dosebag { display:none; pointer-events:auto; background:#7aa0ff; border:none; color:#10162a;
+    font-weight:900; font-size:16px; padding:11px 22px; border-radius:14px; box-shadow:0 4px 14px rgba(122,160,255,.4); }
+  #dosebag.show { display:block; }
+  #dosebag:active { background:#5d86f5; }
 
   /* --- Overlay d'emballage cellophane --- */
   #wrapui { position:fixed; inset:0; display:none; flex-direction:column; align-items:center;
@@ -155,11 +165,16 @@
   <button class="calbtn" data-cal="1">1g</button>
   <button class="calbtn" data-cal="2">2g</button>
   <button class="calbtn on" data-cal="5">5g</button>
+  <span class="sep"></span>
+  <button class="methbtn on" data-meth="hachoir" title="Hachoir rythmé">🪓</button>
+  <button class="methbtn" data-meth="balance" title="Balance">⚖️</button>
 </div>
 <div id="doseui">
   <div id="dosetext">Dosage</div>
   <div id="dosecombo"></div>
   <div id="dosegauge"><div id="dsweet"></div><div id="dcursor"></div></div>
+  <div id="dosescale"></div>
+  <button id="dosebag">✓ Ensacher</button>
 </div>
 <button id="shopbtn">🛒</button>
 <div id="shop">
@@ -392,6 +407,7 @@ let level = Math.max(1, +(localStorage.getItem("hash_level") || 1)); // niveau j
 let xp    = Math.max(0, +(localStorage.getItem("hash_xp") || 0));    // XP dans le niveau courant
 let savSize = +(localStorage.getItem("hash_savsize") || 250);       // taille savonnette courante (g)
 let caliber = +(localStorage.getItem("hash_caliber") || 5);         // calibre de dose choisi (g)
+let doseMethod = localStorage.getItem("hash_dosemethod") || "hachoir"; // methode de dosage
 const stock = { g: 0, qsum: 0 };   // barrettes coupees en attente de dosage (g + qualite ponderee)
 const wrap = { slice:null, film:null, pct:0, shownPct:0, phase:"", t0:0, tSell:0,
                spin:0, spinTarget:0, filmScale:1.32, focus:new THREE.Vector3() };
@@ -789,8 +805,11 @@ const ui = {
   doseui:   document.getElementById("doseui"),
   dosetext: document.getElementById("dosetext"),
   dosecombo:document.getElementById("dosecombo"),
+  dosegauge:document.getElementById("dosegauge"),
   dsweet:   document.getElementById("dsweet"),
   dcursor:  document.getElementById("dcursor"),
+  dosescale:document.getElementById("dosescale"),
+  dosebag:  document.getElementById("dosebag"),
 };
 
 function setCash(v) {
@@ -927,6 +946,8 @@ document.getElementById("shopbtn").addEventListener("click", () => { renderShop(
 document.getElementById("shopclose").addEventListener("click", () => ui.shop.classList.remove("show"));
 ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.classList.remove("show"); }); // clic backdrop
 for (const b of document.querySelectorAll(".calbtn")) b.addEventListener("click", () => setCaliber(+b.dataset.cal));
+for (const b of document.querySelectorAll(".methbtn")) b.addEventListener("click", () => setMethod(b.dataset.meth));
+ui.dosebag.addEventListener("click", doseBag);
 
 /* -------------------------------------------------------------------------
    12b) EMBALLAGE CELLOPHANE
@@ -1003,18 +1024,25 @@ function exitWrap() {
 }
 
 /* -------------------------------------------------------------------------
-   12c) DOSAGE + ENSACHAGE (mini-jeu "Hachoir rythme")
-   On prend un lot du STOCK (~10 g), on le debite en doses du calibre choisi.
-   Curseur qui balaie -> tap dans le jaune = dose nette (combo qui monte le
-   prix), rate = miettes + combo perdu. Petite dose = €/g plus eleve.
+   12c) DOSAGE + ENSACHAGE (methodes selectionnables)
+   On prend un lot du STOCK (~10 g) et on le debite en doses du calibre choisi.
+   - "hachoir" : curseur qui balaie -> tap dans le jaune = dose nette + COMBO
+   - "balance" : tap pour ajouter des eclats, viser PILE le calibre, puis ensacher
+   Petite dose = €/g plus eleve. Les ratees / surplus partent en miettes.
    ------------------------------------------------------------------------- */
-const DOSE_SWEEP = 1.25;          // vitesse du curseur
-const DOSE_SWEET = 0.12;          // demi-largeur de la zone (sera ameliorable plus tard)
-const dose = { active:false, cursor:0, dir:1, cal:5, made:0, target:0, grade:"B", combo:0, earn:0, leftover:0 };
+const DOSE_SWEEP = 1.25;          // vitesse du curseur (hachoir)
+const DOSE_SWEET = 0.12;          // demi-largeur de la zone (hachoir)
+const dose = { active:false, method:"hachoir", cursor:0, dir:1, cal:5, grade:"B",
+               made:0, target:0, leftover:0, combo:0, earn:0,
+               lot:0, cur:0 };    // lot/cur : pour la balance
 
 function setCaliber(c) {
   caliber = c; localStorage.setItem("hash_caliber", String(c));
   for (const b of document.querySelectorAll(".calbtn")) b.classList.toggle("on", +b.dataset.cal === c);
+}
+function setMethod(m) {
+  doseMethod = m; localStorage.setItem("hash_dosemethod", m);
+  for (const b of document.querySelectorAll(".methbtn")) b.classList.toggle("on", b.dataset.meth === m);
 }
 
 function startDosing() {
@@ -1023,33 +1051,55 @@ function startDosing() {
   const batch = Math.min(10, stock.g);
   dose.grade = stockGrade();
   takeFromStock(batch);
-  dose.cal = caliber;
+  dose.cal = caliber; dose.method = doseMethod;
+  dose.made = 0; dose.combo = 0; dose.earn = 0;
+  dose.cursor = 0; dose.dir = 1; dose.cur = 0; dose.lot = batch;
   dose.target = Math.max(1, Math.floor(batch / caliber));
-  dose.leftover = batch - dose.target * caliber;   // reste non divisible -> miettes en fin
-  dose.made = 0; dose.combo = 0; dose.earn = 0; dose.cursor = 0; dose.dir = 1;
+  dose.leftover = batch - dose.target * caliber;        // (hachoir) reste non divisible
   dose.active = true; mode = "dose";
   ui.doseui.classList.add("show");
   ui.hint.style.opacity = "0";
+  // Affiche les bons widgets selon la methode.
+  const bal = dose.method === "balance";
+  ui.dosegauge.style.display = bal ? "none" : "block";
+  ui.dosescale.classList.toggle("show", bal);
+  ui.dosebag.classList.toggle("show", bal);
   updateStockLabel();
   refreshDoseUI();
 }
 
 function refreshDoseUI() {
-  ui.dosetext.textContent = "Doser en " + dose.cal + " g  ·  " + dose.made + "/" + dose.target;
+  if (dose.method === "balance") {
+    ui.dosetext.textContent = "Pèse PILE " + dose.cal + " g, puis Ensacher  ·  lot " + dose.lot.toFixed(1) + " g";
+    ui.dosescale.textContent = dose.cur.toFixed(1) + " / " + dose.cal + " g";
+    ui.dosescale.style.color = Math.abs(dose.cur - dose.cal) <= dose.cal * 0.08 ? "#9be37d"
+                              : dose.cur > dose.cal ? "#ff6b6b" : "#fff";
+  } else {
+    ui.dosetext.textContent = "Doser en " + dose.cal + " g  ·  " + dose.made + "/" + dose.target;
+    ui.dsweet.style.left  = (50 - DOSE_SWEET * 100) + "%";
+    ui.dsweet.style.width = (DOSE_SWEET * 200) + "%";
+  }
   ui.dosecombo.textContent = dose.combo > 1 ? ("COMBO ×" + dose.combo) : "";
-  ui.dsweet.style.left  = (50 - DOSE_SWEET * 100) + "%";
-  ui.dsweet.style.width = (DOSE_SWEET * 200) + "%";
 }
 
+// Tap pendant le dosage : hachoir -> chop ; balance -> ajoute un eclat.
 function doseTap() {
   if (!dose.active) return;
-  const err = Math.abs(dose.cursor - 0.5);
   const ac = ensureAudio();
+  if (dose.method === "balance") {
+    if (dose.lot <= 0.01) return;
+    const sliver = Math.min(dose.lot, 0.3 + Math.random() * 0.6);
+    dose.cur += sliver; dose.lot -= sliver;
+    if (ac) { const t = ac.currentTime; beep(300 + Math.min(1.4, dose.cur / dose.cal) * 500, t, 0.05, 0.12); }
+    refreshDoseUI();
+    return;
+  }
+  // --- hachoir ---
+  const err = Math.abs(dose.cursor - 0.5);
   if (err <= DOSE_SWEET) {                          // dose nette
     dose.combo++;
     const bonus = 1 + Math.min(dose.combo - 1, 12) * 0.06;   // le combo monte le prix
-    const price = dose.cal * DOSE_PRICE[dose.cal] * gradeVal(dose.grade) * bonus * levelMult();
-    dose.earn += price;
+    dose.earn += dose.cal * DOSE_PRICE[dose.cal] * gradeVal(dose.grade) * bonus * levelMult();
     ui.dosecombo.style.transform = "scale(1.25)";
     if (ac) { const t = ac.currentTime; beep(620 + Math.min(dose.combo, 14) * 70, t, 0.07, 0.16); }
   } else {                                          // rate -> dose perdue en miettes
@@ -1064,21 +1114,41 @@ function doseTap() {
   if (dose.made >= dose.target) endDosing();
 }
 
+// Bouton "Ensacher" (balance) : finalise la dose courante.
+function doseBag() {
+  if (!dose.active || dose.method !== "balance") return;
+  const cal = dose.cal, w = dose.cur, ac = ensureAudio();
+  if (w < 0.05) return;
+  const perfect = Math.abs(w - cal) <= cal * 0.08;
+  if (perfect) dose.combo++; else dose.combo = 0;
+  const billG = Math.min(w, cal);
+  if (w > cal) addWaste(w - cal);                  // surplus gaspille
+  const bonus = (perfect ? 1.2 : 1.0) + Math.min(dose.combo, 10) * 0.04;
+  dose.earn += billG * DOSE_PRICE[cal] * gradeVal(dose.grade) * bonus * levelMult();
+  dose.made++;
+  ui.dosecombo.style.transform = "scale(1.25)";
+  setTimeout(() => { ui.dosecombo.style.transform = ""; }, 80);
+  if (ac) { const t = ac.currentTime; if (perfect) { beep(880, t, 0.08, 0.18); beep(1320, t + 0.07, 0.1, 0.2); } else beep(500, t, 0.08, 0.14); }
+  dose.cur = 0;
+  if (dose.lot < 0.4) { dose.leftover = dose.lot; endDosing(); }
+  else refreshDoseUI();
+}
+
 function endDosing() {
   dose.active = false; mode = "cut";
   ui.doseui.classList.remove("show");
-  if (dose.leftover > 0.05) addWaste(dose.leftover);   // reste non divisible
+  if (dose.leftover > 0.05) addWaste(dose.leftover);
   if (dose.earn > 0) {
     setCash(cash + dose.earn);
     addXP(Math.max(1, Math.round(dose.earn * 0.08)));
-    showToast("+ " + Math.round(dose.earn) + " €  (" + dose.target + "× " + dose.cal + "g)", "#9be37d");
+    showToast("+ " + Math.round(dose.earn) + " €  (" + dose.made + " doses)", "#9be37d");
     playSale(); addShake(0.12);
   }
   ui.hint.style.opacity = "1";
 }
 
 function updateDose(dt) {
-  if (!dose.active) return;
+  if (!dose.active || dose.method !== "hachoir") return;
   dose.cursor += dose.dir * DOSE_SWEEP * dt;
   if (dose.cursor >= 1) { dose.cursor = 1; dose.dir = -1; }
   if (dose.cursor <= 0) { dose.cursor = 0; dose.dir =  1; }
@@ -1337,6 +1407,7 @@ setCash(cash);
 setWaste(wasteGrams);
 updateXpUI();
 setCaliber(caliber);
+setMethod(doseMethod);
 updateStockLabel();
 requestAnimationFrame(loop);
 </script>
