@@ -39,9 +39,13 @@
     to   { transform:translate(-50%,-50%) scale(1);  opacity:1; }
   }
 
-  /* --- Cash --- */
+  /* --- Cash + bouton dechets --- */
   #cash { position:fixed; top:max(14px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
     font-weight:800; font-size:18px; color:#9be37d; text-shadow:0 2px 8px rgba(0,0,0,.5); pointer-events:none; }
+  #waste { position:fixed; top:calc(max(14px,env(safe-area-inset-top)) + 27px); left:50%; transform:translateX(-50%);
+    pointer-events:auto; background:rgba(202,161,95,.18); border:1px solid rgba(202,161,95,.5); color:#e6c896;
+    font-weight:700; font-size:13px; padding:4px 11px; border-radius:10px; }
+  #waste:active { background:rgba(202,161,95,.35); }
 
   /* --- Overlay d'emballage cellophane --- */
   #wrapui { position:fixed; inset:0; display:none; flex-direction:column; align-items:center;
@@ -66,6 +70,7 @@
 <div id="app"></div>
 <div class="hud" id="count">Barrettes : 0</div>
 <div id="cash">💶 0 €</div>
+<button id="waste">🗑️ 0 g</button>
 <div class="hud" id="title">SAVONNETTE 250g</div>
 <button id="reset">🔄 Nouvelle</button>
 <div class="hud" id="hint">Glisse pour couper · tape une barrette pour l'emballer</div>
@@ -260,7 +265,9 @@ let count = 0;       // nombre de barrettes coupees
 let over = false;    // plus de savonnette ?
 let mode = "cut";    // "cut" (coupe) | "wrap" (emballage)
 let cash = +(localStorage.getItem("hash_cash") || 0);     // € sauvegardes
-const wrap = { slice:null, film:null, pct:0, phase:"", t0:0, tSell:0, focus:new THREE.Vector3() };
+let wasteGrams = +(localStorage.getItem("hash_waste") || 0); // dechets accumules (g)
+const wrap = { slice:null, film:null, pct:0, shownPct:0, phase:"", t0:0, tSell:0,
+               spin:0, spinTarget:0, filmScale:1.32, focus:new THREE.Vector3() };
 
 function resetGame() {
   // Nettoyage d'un emballage en cours, le cas echeant.
@@ -395,6 +402,7 @@ function performCut(cutNeg, cutPos) {
 
   // --- Feedback (dopamine) : miettes a la coupe + secousse + son ---
   burstCrumbs((cutNeg + cutPos) / 2, H * 0.6, 0, 12);
+  addWaste(grams * 0.10);            // ~10% part en miettes -> bac dechets
   addShake(grade === "A" ? 0.22 : 0.16);
   playCut(grade);
 
@@ -480,27 +488,66 @@ const crumbMat = new THREE.MeshStandardMaterial({ color: 0x6e562f, roughness: 1 
 function burstCrumbs(x, y, z, n) {
   for (let i = 0; i < n; i++) {
     const m = new THREE.Mesh(crumbGeo, crumbMat);
-    m.position.set(x + (Math.random() - 0.5) * W * 0.8, y, z + (Math.random() - 0.5) * W * 0.8);
+    m.position.set(x + (Math.random() - 0.5) * W * 0.6, y, z + (Math.random() - 0.5) * W * 0.6);
     scene.add(m);
+    // Vitesse orientee vers le BAC DECHETS -> les miettes y atterrissent.
     crumbs.push({ mesh: m,
-      vx: (Math.random() - 0.5) * 2.4, vy: 1.5 + Math.random() * 2.2, vz: (Math.random() - 0.5) * 2.4,
-      life: 0.7 + Math.random() * 0.5 });
+      vx: (WASTE_POS.x - x) * 1.4 + (Math.random() - 0.5) * 0.8,
+      vy: 2.2 + Math.random() * 1.4,
+      vz: (WASTE_POS.z - z) * 1.4 + (Math.random() - 0.5) * 0.8,
+      settled: false });
   }
+  while (crumbs.length > 60) { const c = crumbs.shift(); scene.remove(c.mesh); } // plafond memoire
 }
 function updateCrumbs(dt) {
-  for (let i = crumbs.length - 1; i >= 0; i--) {
-    const c = crumbs[i];
+  for (const c of crumbs) {
+    if (c.settled) continue;
     c.vy -= 11 * dt;
     c.mesh.position.x += c.vx * dt; c.mesh.position.y += c.vy * dt; c.mesh.position.z += c.vz * dt;
     c.mesh.rotation.x += dt * 7; c.mesh.rotation.y += dt * 5;
-    c.life -= dt;
-    if (c.life <= 0 || c.mesh.position.y < 0.05) { scene.remove(c.mesh); crumbs.splice(i, 1); }
+    if (c.mesh.position.y <= 0.12) { c.mesh.position.y = 0.12; c.settled = true; } // se pose dans le bac
   }
 }
 
 // Secousse de camera (amortie dans la boucle principale).
 let shake = 0;
 function addShake(a) { shake = Math.min(0.6, shake + a); }
+
+/* -------------------------------------------------------------------------
+   10c) BACS DE TRI + DECHETS (vente aux schlags)
+   Deux bacs poses devant la savonnette : les barrettes emballees filent dans
+   le bac "a vendre", les miettes tombent dans le bac "dechets" (vendu a bas
+   prix aux schlags). Le bac dechets se tape pour encaisser.
+   ------------------------------------------------------------------------- */
+const SELL_POS  = new THREE.Vector3(L * 0.30, 0, 1.7);   // bac des barrettes emballees
+const WASTE_POS = new THREE.Vector3(L * 0.72, 0, 1.7);   // bac des miettes / dechets
+const SCHLAG_RATE = 0.5;                                  // €/g des dechets (vs 2 €/g emballe)
+const _tmp = new THREE.Vector3();
+
+function makeBin(pos, col) {
+  const grp = new THREE.Group(); grp.position.copy(pos);
+  const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, metalness: 0.1, side: THREE.DoubleSide });
+  const w = 1.6, d = 1.15, h = 0.42, th = 0.07;
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(w, th, d), mat); floor.position.y = th / 2; floor.receiveShadow = true; grp.add(floor);
+  const wLR = (x) => { const m = new THREE.Mesh(new THREE.BoxGeometry(th, h, d), mat); m.position.set(x, h / 2, 0); grp.add(m); };
+  const wFB = (z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, th), mat); m.position.set(0, h / 2, z); grp.add(m); };
+  wLR(-w / 2); wLR(w / 2); wFB(-d / 2); wFB(d / 2);
+  scene.add(grp); return grp;
+}
+const sellBin  = makeBin(SELL_POS, 0x3a6b3a);
+const wasteBin = makeBin(WASTE_POS, 0x55504a);
+
+// Etiquettes flottantes des deux bacs (memes etiquettes HTML projetees).
+const sellLabel  = makeLabel("📦 À VENDRE", "#9be37d");
+const wasteLabel = makeLabel("🗑️ DÉCHETS", "#caa15f");
+function placeLabel(div, pos) {
+  _lv.set(pos.x, 0.6, pos.z).project(camera);
+  if (_lv.z > 1) { div.style.display = "none"; return; }
+  div.style.display = "block";
+  div.style.left = ((_lv.x * 0.5 + 0.5) * window.innerWidth) + "px";
+  div.style.top  = ((-_lv.y * 0.5 + 0.5) * window.innerHeight) + "px";
+}
+function updateBinLabels() { placeLabel(sellLabel, SELL_POS); placeLabel(wasteLabel, WASTE_POS); }
 
 /* -------------------------------------------------------------------------
    11) PETITE PHYSIQUE DES TRANCHES (chute + repos sur la planche)
@@ -530,6 +577,7 @@ function updateSlices(dt) {
 const ui = {
   count:    document.getElementById("count"),
   cash:     document.getElementById("cash"),
+  waste:    document.getElementById("waste"),
   hint:     document.getElementById("hint"),
   toast:    document.getElementById("toast"),
   wrapui:   document.getElementById("wrapui"),
@@ -542,6 +590,24 @@ function setCash(v) {
   cash = v;
   localStorage.setItem("hash_cash", String(Math.round(cash)));
   ui.cash.textContent = "💶 " + Math.round(cash) + " €";
+}
+function setWaste(v) {
+  wasteGrams = Math.max(0, v);
+  localStorage.setItem("hash_waste", String(Math.round(wasteGrams)));
+  ui.waste.textContent = "🗑️ " + Math.round(wasteGrams) + " g";
+}
+function addWaste(g) { setWaste(wasteGrams + g); }
+
+// Vendre les dechets aux schlags (bas prix). Vide le bac.
+function sellWaste() {
+  if (wasteGrams < 1) { showToast("Bac déchets vide", "#caa15f"); return; }
+  const earn = wasteGrams * SCHLAG_RATE;
+  setCash(cash + earn);
+  setWaste(0);
+  for (const c of crumbs) scene.remove(c.mesh); crumbs.length = 0;   // on vide le bac
+  const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(440, t, 0.13, 0.22); beep(660, t + 0.09, 0.16, 0.20); }
+  addShake(0.1);
+  showToast("+ " + Math.round(earn) + " € (schlag)", "#caa15f");
 }
 
 let dragging = false, startPt = null, lastCut = null;
@@ -559,12 +625,22 @@ function pickSlice(cx, cy) {
   return hit ? slices.find(s => s.mesh === hit.object) : null;
 }
 
+// Le doigt est-il sur le BAC DECHETS ? (pour le vendre)
+function pickWasteBin(cx, cy) {
+  const r = el.getBoundingClientRect();
+  ndc.x = ((cx - r.left) / r.width) * 2 - 1;
+  ndc.y = -((cy - r.top) / r.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  return raycaster.intersectObjects(wasteBin.children, false).length > 0;
+}
+
 el.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   ensureAudio();                            // debloque le son (requis sur iOS)
   if (mode === "wrap") { wrapDown(e); return; }
   const sl = pickSlice(e.clientX, e.clientY);
   if (sl) { enterWrap(sl); return; }       // tape une barrette posee -> emballage
+  if (pickWasteBin(e.clientX, e.clientY)) { sellWaste(); return; } // tape le bac dechets -> vente schlag
   if (over) return;                        // plus de savonnette a couper
   const p = pointOnTop(e.clientX, e.clientY);
   if (!p) return;
@@ -595,6 +671,7 @@ el.addEventListener("pointercancel", endDrag, { passive:false });
 
 document.getElementById("reset").addEventListener("click", resetGame);
 ui.seal.addEventListener("click", () => { if (mode === "wrap" && wrap.phase === "seal") sealWrap(); });
+ui.waste.addEventListener("click", sellWaste);   // raccourci HUD pour vendre les dechets
 
 /* -------------------------------------------------------------------------
    12b) EMBALLAGE CELLOPHANE
@@ -606,18 +683,19 @@ let wrapLast = null;
 const _wrapScale = new THREE.Vector3();
 
 function enterWrap(sl) {
-  mode = "wrap"; wrap.slice = sl; wrap.pct = 0; wrap.phase = "enroule"; wrap.t0 = performance.now();
+  mode = "wrap"; wrap.slice = sl; wrap.pct = 0; wrap.shownPct = 0; wrap.phase = "enroule";
+  wrap.t0 = performance.now(); wrap.spin = 0; wrap.spinTarget = 0; wrap.filmScale = 1.32;
   sl.label.style.display = "none";
-  // Film translucide autour de la barrette (enfant -> suit position/rotation).
+  // Film translucide facon cellophane (enfant -> suit position/rotation).
   sl.mesh.geometry.computeBoundingBox();
   const size = new THREE.Vector3(); sl.mesh.geometry.boundingBox.getSize(size);
   const film = new THREE.Mesh(
     new THREE.BoxGeometry(size.x, size.y, size.z),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, roughness: 0.15, side: THREE.DoubleSide })
+    new THREE.MeshStandardMaterial({ color: 0xdff3ff, transparent: true, opacity: 0.28, roughness: 0.08, metalness: 0.3, side: THREE.DoubleSide })
   );
-  film.scale.setScalar(1.3);
+  film.scale.setScalar(wrap.filmScale);
   sl.mesh.add(film); wrap.film = film;
-  wrap.focus.set(L * 0.5, 1.55, 0.6);      // pose de presentation, au-dessus de la planche
+  wrap.focus.set(L * 0.5, 2.0, 2.4);        // pose de presentation, bien au-dessus du tas + vers la camera
   ui.wrapui.classList.add("show");
   ui.seal.classList.remove("show");
   ui.wraptext.textContent = "Enroule : glisse pour emballer";
@@ -631,9 +709,8 @@ function wrapMove(e) {
   if (!wrapLast || wrap.phase !== "enroule") return;
   const dx = e.clientX - wrapLast.x, dy = e.clientY - wrapLast.y;
   const d = Math.hypot(dx, dy); wrapLast = { x: e.clientX, y: e.clientY };
-  wrap.pct = Math.min(100, wrap.pct + d * 0.18);
-  ui.wrapbar.style.width = wrap.pct.toFixed(0) + "%";
-  if (wrap.slice) wrap.slice.mesh.rotation.x += d * 0.012;   // on "roule" la barrette
+  wrap.pct = Math.min(100, wrap.pct + d * 0.16);
+  wrap.spinTarget = Math.min(9, wrap.spinTarget + d * 0.05);  // coup de pouce de rotation (lisse dans updateWrap)
   if (wrap.pct >= 100) {
     wrap.phase = "seal";
     ui.seal.classList.add("show");
@@ -676,23 +753,35 @@ function flame() {
   setTimeout(() => f.remove(), 520);
 }
 
-// Animation d'emballage (appelee chaque frame).
+// Animation d'emballage (appelee chaque frame) -> tout est lisse pour la fluidite.
 function updateWrap(dt) {
   if (mode !== "wrap" || !wrap.slice) return;
   const m = wrap.slice.mesh;
   if (wrap.phase === "done") {
+    // La barrette emballee file dans le bac "a vendre" en retrecissant.
     const k = Math.min(1, (performance.now() - wrap.tSell) / 600);
-    m.position.y = wrap.focus.y + k * 2.4;
+    _tmp.set(SELL_POS.x, 0.55, SELL_POS.z);
+    m.position.lerp(_tmp, Math.min(1, dt * 6));
     m.rotation.z += dt * 5;
-    const sc = 1.5 * (1 - k);
-    m.scale.setScalar(Math.max(0.001, sc));
+    m.scale.setScalar(Math.max(0.001, 1.5 * (1 - k)));
     if (k >= 1) exitWrap();
     return;
   }
-  // Amene la barrette en pose de presentation + agrandit + resserre le film.
-  m.position.lerp(wrap.focus, Math.min(1, dt * 6));
-  m.scale.lerp(_wrapScale.set(1.5, 1.5, 1.5), Math.min(1, dt * 6));
-  if (wrap.film) wrap.film.scale.setScalar(1.3 - 0.28 * (wrap.pct / 100));
+  // Mise en avant fluide + agrandissement.
+  const e1 = Math.min(1, dt * 6);
+  m.position.lerp(wrap.focus, e1);
+  m.scale.lerp(_wrapScale.set(1.6, 1.6, 1.6), e1);
+  // Rotation continue lissee (la barrette "roule"), boostee par les gestes.
+  wrap.spin += (wrap.spinTarget - wrap.spin) * Math.min(1, dt * 4);
+  m.rotation.x += (0.7 + wrap.spin) * dt;
+  wrap.spinTarget *= Math.pow(0.03, dt);
+  // Film qui se resserre en douceur.
+  const ftar = 1.32 - 0.30 * (wrap.shownPct / 100);
+  wrap.filmScale += (ftar - wrap.filmScale) * Math.min(1, dt * 6);
+  if (wrap.film) wrap.film.scale.setScalar(wrap.filmScale);
+  // Jauge qui se remplit progressivement.
+  wrap.shownPct += (wrap.pct - wrap.shownPct) * Math.min(1, dt * 8);
+  ui.wrapbar.style.width = wrap.shownPct.toFixed(1) + "%";
 }
 
 /* -------------------------------------------------------------------------
@@ -745,6 +834,7 @@ function loop(t) {
   }
   camera.lookAt(VIEW_TARGET);
   updateLabels();
+  updateBinLabels();
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
@@ -752,6 +842,7 @@ function loop(t) {
 resize();
 resetGame();
 setCash(cash);
+setWaste(wasteGrams);
 requestAnimationFrame(loop);
 </script>
 </body>
