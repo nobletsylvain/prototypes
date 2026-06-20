@@ -73,7 +73,7 @@
 <button id="waste">🗑️ 0 g</button>
 <div class="hud" id="title">SAVONNETTE 250g</div>
 <button id="reset">🔄 Nouvelle</button>
-<div class="hud" id="hint">Glisse pour couper · tape une barrette pour l'emballer</div>
+<div class="hud" id="hint">Glisse pour couper · tape une barrette pour l'emballer · pince pour zoomer</div>
 <div class="hud" id="toast"></div>
 <div id="labels"></div>
 <div id="wrapui">
@@ -133,12 +133,14 @@ const VIEW_DIR = new THREE.Vector3(0.04, 0.74, 0.67).normalize(); // direction c
 const VIEW_TARGET = new THREE.Vector3(L / 2, 0.35, 0);           // centre de la savonnette
 const VIEW_RADIUS = Math.hypot(L / 2 + 0.6, 0.8, W);             // rayon englobant
 const baseCamPos = new THREE.Vector3();                          // position "au repos" (la secousse oscille autour)
+let zoom = +(localStorage.getItem("hash_zoom")) || 1;           // facteur de zoom (pinch a 2 doigts)
+zoom = Math.max(0.6, Math.min(2.6, zoom));
 
 function fitView() {
   const vFov = camera.fov * Math.PI / 180;
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
   const fov = Math.min(vFov, hFov);                 // le plus contraignant
-  const dist = (VIEW_RADIUS / Math.sin(fov / 2)) * 1.12; // +marge
+  const dist = (VIEW_RADIUS / Math.sin(fov / 2)) * 1.08 / zoom; // marge + zoom (zoom>1 = plus pres)
   baseCamPos.copy(VIEW_TARGET).addScaledVector(VIEW_DIR, dist);
   camera.position.copy(baseCamPos);
   camera.lookAt(VIEW_TARGET);
@@ -284,7 +286,7 @@ function resetGame() {
   rebuildCake();
   ui.count.textContent = "Barrettes : 0";
   ui.hint.style.opacity = "1";
-  ui.hint.textContent = "Glisse pour couper · tape une barrette pour l'emballer";
+  ui.hint.textContent = "Glisse pour couper · tape une barrette pour l'emballer · pince pour zoomer";
 }
 
 /* -------------------------------------------------------------------------
@@ -613,6 +615,20 @@ function sellWaste() {
 let dragging = false, startPt = null, lastCut = null;
 const el = renderer.domElement;
 
+// --- Pinch a deux doigts (zoom) ---
+const pointers = new Map();
+let pinching = false, pinchStartDist = 0, pinchStartZoom = 1;
+function pinchDist() { const a = [...pointers.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
+function startPinch() {
+  pinching = true; dragging = false; guide.visible = false; lastCut = null; wrapLast = null;
+  pinchStartDist = pinchDist() || 1; pinchStartZoom = zoom;
+}
+function updatePinch() {
+  zoom = Math.max(0.6, Math.min(2.6, pinchStartZoom * (pinchDist() / pinchStartDist)));
+  localStorage.setItem("hash_zoom", zoom.toFixed(3));
+  fitView();
+}
+
 // Quelle barrette POSEE est sous le doigt ? (pour l'emballer)
 function pickSlice(cx, cy) {
   const r = el.getBoundingClientRect();
@@ -636,6 +652,8 @@ function pickWasteBin(cx, cy) {
 
 el.addEventListener("pointerdown", (e) => {
   e.preventDefault();
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size >= 2) { startPinch(); return; }   // 2e doigt -> on bascule en zoom
   ensureAudio();                            // debloque le son (requis sur iOS)
   if (mode === "wrap") { wrapDown(e); return; }
   const sl = pickSlice(e.clientX, e.clientY);
@@ -648,6 +666,8 @@ el.addEventListener("pointerdown", (e) => {
 }, { passive:false });
 
 el.addEventListener("pointermove", (e) => {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinching && pointers.size >= 2) { e.preventDefault(); updatePinch(); return; }
   if (mode === "wrap") { wrapMove(e); return; }
   if (!dragging) return;
   e.preventDefault();
@@ -666,8 +686,14 @@ function endDrag(e) {
   if (lastCut) performCut(lastCut.cutNeg, lastCut.cutPos);
   lastCut = null;
 }
-el.addEventListener("pointerup", endDrag, { passive:false });
-el.addEventListener("pointercancel", endDrag, { passive:false });
+function onUp(e) {
+  if (e) e.preventDefault();
+  pointers.delete(e.pointerId);
+  if (pinching) { if (pointers.size < 2) pinching = false; return; } // sortie de pinch : pas de coupe parasite
+  endDrag(e);
+}
+el.addEventListener("pointerup", onUp, { passive:false });
+el.addEventListener("pointercancel", onUp, { passive:false });
 
 document.getElementById("reset").addEventListener("click", resetGame);
 ui.seal.addEventListener("click", () => { if (mode === "wrap" && wrap.phase === "seal") sealWrap(); });
