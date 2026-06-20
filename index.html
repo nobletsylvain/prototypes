@@ -921,6 +921,8 @@ function showToast(msg, color) {
 const owned = JSON.parse(localStorage.getItem("hash_shop") || "{}");
 owned.autowrap = owned.autowrap || 0;
 owned.cadence  = owned.cadence  || 0;
+owned.autocut  = owned.autocut  || 0;   // massicot automatique (decoupe passive)
+owned.affut    = owned.affut    || 0;   // affutage : cadence du massicot
 function saveShop() { localStorage.setItem("hash_shop", JSON.stringify(owned)); }
 function gradeMult(g) { return g === "A" ? 1.5 : g === "B" ? 1.0 : 0.6; }
 function mInterval() { return 3.2 * Math.pow(0.82, owned.cadence); } // s entre deux barrettes
@@ -933,6 +935,49 @@ const machineMesh = new THREE.Mesh(
 machineMesh.position.set(L * 0.5, 0.38, 2.45);
 machineMesh.castShadow = true;
 scene.add(machineMesh);
+
+/* --- Massicot automatique : decoupe une barrette propre toutes les N secondes.
+   1ere brique de l'automatisation (deviendra un "employe" plus tard). --- */
+const CUT_T = 0.5;                                           // epaisseur visee (grade A)
+function cInterval() { return 2.6 * Math.pow(0.82, owned.affut); } // s entre deux coupes auto
+
+// Lame du massicot : hover au-dessus du bord droit, petit "chop" a chaque coupe.
+const bladeMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(0.07, 0.7, W + 0.3),
+  new THREE.MeshStandardMaterial({ color: 0xc9d2dc, metalness: 0.8, roughness: 0.25 })
+);
+bladeMesh.castShadow = true;
+bladeMesh.visible = false;
+scene.add(bladeMesh);
+
+let cutTimer = 0, bladeChop = 0;   // bladeChop : avancement de l'anim de coupe (0 = au repos)
+function updateCutter(dt) {
+  bladeMesh.visible = !!owned.autocut;
+  if (!owned.autocut) return;
+
+  // La lame se positionne au-dessus de la prochaine ligne de coupe.
+  const right = (rightNeg + rightPos) / 2;
+  const cutX  = Math.max(0, right - CUT_T);
+  if (bladeChop <= 0) bladeMesh.position.set(cutX, H + 0.55, 0);
+
+  // Animation de chop en cours (descente puis remontee).
+  if (bladeChop > 0) {
+    bladeChop = Math.max(0, bladeChop - dt * 4.5);
+    const k = 1 - bladeChop;                 // 0 -> 1
+    const dip = Math.sin(Math.min(1, k * 1.0) * Math.PI); // descend puis remonte
+    bladeMesh.position.y = H + 0.55 - dip * 0.7;
+  }
+
+  if (over) return;
+  cutTimer += dt;
+  if (cutTimer >= cInterval()) {
+    cutTimer = 0;
+    bladeChop = 1;                            // declenche l'anim
+    const cn = Math.max(0, rightNeg - CUT_T);
+    const cp = Math.max(0, rightPos - CUT_T);
+    performCut(cn, cp);
+  }
+}
 
 let machineJob = null, machineTimer = 0;
 function nextSettled() {
@@ -976,6 +1021,15 @@ const SHOP = [
     cost: () => Math.round(120 * Math.pow(1.6, owned.cadence)),
     can: () => owned.autowrap >= 1 && owned.cadence < 8, maxed: () => owned.cadence >= 8,
     buy: () => { owned.cadence++; } },
+  { id: "autocut", icon: "🔪", name: "Massicot auto",
+    desc: () => "Découpe une barrette tout seul (" + cInterval().toFixed(1) + " s).",
+    cost: () => 400, can: () => owned.autocut < 1, maxed: () => owned.autocut >= 1,
+    buy: () => { owned.autocut = 1; } },
+  { id: "affut", icon: "🪓", name: "Affûtage",
+    desc: () => "Accélère le massicot (" + cInterval().toFixed(1) + " s/coupe).",
+    cost: () => Math.round(220 * Math.pow(1.6, owned.affut)),
+    can: () => owned.autocut >= 1 && owned.affut < 8, maxed: () => owned.affut >= 8,
+    buy: () => { owned.affut++; } },
 ];
 function renderShop() {
   ui.shopcash.textContent = "💶 " + Math.round(cash) + " €";
@@ -1029,6 +1083,7 @@ function loop(t) {
   last = t;
   updateSlices(dt);
   updateWrap(dt);
+  updateCutter(dt);
   updateMachine(dt);
   updateCrumbs(dt);
   // Secousse de camera (oscille autour de la position de repos, puis s'amortit).
