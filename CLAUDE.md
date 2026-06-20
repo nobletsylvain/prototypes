@@ -1,6 +1,6 @@
 # CLAUDE.md — repère pour les sessions
 
-Prototype de jeu mobile **Hash Slicer 3D** : un seul fichier `index.html`
+Prototype de jeu mobile **Barrettes Shit** (core loop) : un seul fichier `index.html`
 (HTML + CSS + un module JS) utilisant **Three.js** (WebGL) chargé depuis un CDN
 via import-map. Déployé sur **GitHub Pages**
 (https://nobletsylvain.github.io/prototypes/).
