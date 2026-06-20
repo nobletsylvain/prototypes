@@ -13,6 +13,7 @@ Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) chargé via C
 - Chaque barrette est **pesée** (poids en g, calibré pour ~250 g la savonnette entière) et **notée** A/B/C selon la propreté de coupe ; une étiquette suit la barrette en 3D.
 - **Emballage + vente** : tape une barrette posée → elle se met en avant, un film cellophane apparaît ; **glisse pour l'enrouler** (jauge de serrage, la barrette roule), puis **🔥 Sceller** au briquet → vente. **Prix = poids × grade × serrage** (plus tu emballes vite, plus c'est serré = plus de €).
 - Le **cash (€)** est affiché et **sauvegardé** (localStorage) — socle de la future progression (machines / automatisation).
+- **Feedback juteux** à chaque coupe : son synthétisé (WebAudio, zéro fichier), miettes de résine projetées, secousse de caméra, pop des étiquettes ; *cha-ching* + *fwoosh* de briquet à la vente.
 - On **enchaîne les barrettes** jusqu'à épuiser la savonnette. Bouton **🔄 Nouvelle** pour recommencer.
 
 > Prototype de jeu, habillage purement visuel/humoristique.
