@@ -73,9 +73,7 @@ const H = 1.4;   // hauteur (axe Y), base a y=0
 const app = document.getElementById("app");
 const scene = new THREE.Scene();
 
-const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-camera.position.set(3.2, 5.3, 8.2);
-camera.lookAt(2.8, 0.3, 0);
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
 
 const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
 renderer.setClearColor(0x000000, 0);           // fond transparent -> on voit le degrade CSS
@@ -83,12 +81,30 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 app.appendChild(renderer.domElement);
 
+// On cadre le cake pour qu'il tienne TOUJOURS a l'ecran (portrait comme
+// paysage). On calcule la distance de camera pour que la sphere englobante
+// du cake rentre dans le champ de vision le plus etroit (horizontal en
+// portrait). La camera garde un joli angle 3/4 vue de dessus.
+const VIEW_DIR = new THREE.Vector3(0.05, 0.52, 0.85).normalize(); // direction camera->cible
+const VIEW_TARGET = new THREE.Vector3(L / 2, 0.5, 0);             // centre du cake
+const VIEW_RADIUS = Math.hypot(L / 2 + 0.6, 0.8, W);             // rayon englobant
+
+function fitView() {
+  const vFov = camera.fov * Math.PI / 180;
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  const fov = Math.min(vFov, hFov);                 // le plus contraignant
+  const dist = (VIEW_RADIUS / Math.sin(fov / 2)) * 1.12; // +marge
+  camera.position.copy(VIEW_TARGET).addScaledVector(VIEW_DIR, dist);
+  camera.lookAt(VIEW_TARGET);
+}
+
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  fitView();
 }
 window.addEventListener("resize", resize);
 
