@@ -8,11 +8,11 @@
 //
 // Usage :
 //   cd tools && npm install                 # installe puppeteer (telecharge Chromium)
-//   node screenshots.mjs                     # cible barrettes-shit/ par defaut
+//   node screenshots.mjs                     # cible hash-slicer/ par defaut
 //   node screenshots.mjs <chemin/index.html> # cible un autre core loop
 //
 // Les images sont ecrites dans tools/shots/<proto>/ (ignore par git).
-// NB : les interactions (coupe, boutique, dosage) sont propres a "barrettes-shit".
+// NB : les interactions (coupe, boutique, dosage) sont propres a "hash-slicer".
 
 import { readFileSync, mkdirSync } from "fs";
 import { fileURLToPath } from "url";
@@ -23,7 +23,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const THREE_JS = readFileSync(path.join(__dirname, "vendor", "three.module.js"), "utf8");
 
-const target = process.argv[2] || "barrettes-shit/index.html";   // relatif a la racine du repo
+const target = process.argv[2] || "hash-slicer/index.html";   // relatif a la racine du repo
 const PAGE = "file://" + path.join(ROOT, target);
 const protoName = path.basename(path.dirname(target)) || "root";
 const OUT = path.join(__dirname, "shots", protoName);

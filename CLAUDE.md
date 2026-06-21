@@ -5,7 +5,7 @@ plusieurs boucles de jeu, **une par dossier**, listées par un hub à la racine 
 
 ```
 /index.html              ← hub (liste/links des core loops)
-/barrettes-shit/index.html  ← core loop "Barrettes Shit" (le plus abouti)
+/hash-slicer/index.html  ← core loop "Hash Slicer" (le plus abouti)
 /tools/                  ← captures d'écran headless (cible paramétrable)
 ```
 
@@ -13,7 +13,7 @@ Déployé sur **GitHub Pages** (https://nobletsylvain.github.io/prototypes/ →
 hub ; chaque proto à `…/prototypes/<dossier>/`). Chaque core loop est un seul
 fichier `index.html` (HTML + CSS + un module JS), Three.js chargé via import-map.
 
-## Barrettes Shit — boucle de jeu (résumé)
+## Hash Slicer — boucle de jeu (résumé)
 
 1. **Acheter** une savonnette (matière première, 100/250 g, prix de gros).
 2. **Couper** la savonnette en **barrettes ~10 g** (mini-jeu de timing à la
@@ -34,9 +34,9 @@ fichier `index.html` (HTML + CSS + un module JS), Three.js chargé via import-ma
   # extraire le module et le passer à node --check (voir l'historique des PRs)
   node --check <module-extrait>.mjs
   ```
-- Barrettes Shit : persistance via `localStorage` (`hash_*`). La clé `hash_ver`
+- Hash Slicer : persistance via `localStorage` (`hash_*`). La clé `hash_ver`
   force un reset propre : **bumper `SAVE_VERSION`** dans
-  `barrettes-shit/index.html` après un gros rééquilibrage.
+  `hash-slicer/index.html` après un gros rééquilibrage.
 
 ## Ajouter un nouveau core loop (checklist)
 
@@ -44,7 +44,7 @@ fichier `index.html` (HTML + CSS + un module JS), Three.js chargé via import-ma
 
 1. **Dossier + page** : créer `<slug>/index.html` (slug en kebab-case, ex.
    `mon-idee/`). Partir d'un proto existant comme base si utile
-   (`barrettes-shit/index.html`).
+   (`hash-slicer/index.html`).
 2. **Hub** : ajouter une carte dans le `/index.html` racine, qui pointe vers le
    nouveau dossier :
    ```html
@@ -55,7 +55,7 @@ fichier `index.html` (HTML + CSS + un module JS), Three.js chargé via import-ma
    </a>
    ```
 3. **localStorage** : utiliser un **préfixe unique** par proto (ex. `<slug>_…`)
-   pour éviter les collisions de sauvegarde entre boucles (Barrettes Shit
+   pour éviter les collisions de sauvegarde entre boucles (Hash Slicer
    utilise `hash_*`). Prévoir une clé de version (`<slug>_ver`) + une constante
    `SAVE_VERSION` pour forcer un reset propre après un gros rééquilibrage.
 4. **Three.js** : charger via import-map comme les autres, JS en module :
@@ -69,7 +69,7 @@ fichier `index.html` (HTML + CSS + un module JS), Three.js chargé via import-ma
 5. **Vérifier la syntaxe** : extraire le module et `node --check` (voir ci-dessous).
 6. **Captures** : `cd tools && npm install && node screenshots.mjs <slug>/index.html`.
    ⚠️ Les *interactions* du script (coupe/boutique/dosage) sont propres à
-   Barrettes Shit ; pour un autre proto, au minimum la capture de base marche,
+   Hash Slicer ; pour un autre proto, au minimum la capture de base marche,
    adapter les clics si besoin.
 7. **Commit/PR** sur la branche de la session, puis merge dans `main`.
 
@@ -79,7 +79,7 @@ Le rendu WebGL peut être capturé sans appareil — outil dans **`tools/`** :
 
 ```bash
 cd tools && npm install
-node screenshots.mjs                       # cible barrettes-shit/ -> tools/shots/barrettes-shit/
+node screenshots.mjs                       # cible hash-slicer/ -> tools/shots/hash-slicer/
 node screenshots.mjs <dossier>/index.html  # cible un autre core loop
 ```
 
