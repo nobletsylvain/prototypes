@@ -324,10 +324,32 @@ function grainTex(r, g, b, contrast, spots) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 2);
   return t;
 }
-// Resine pressee : peau brun fonce lustree ; tranche blonde mate.
-const matCrust  = new THREE.MeshStandardMaterial({ map: grainTex(48, 33, 20, 40, 220), roughness: 0.42, metalness: 0.28 });
-const matSponge = new THREE.MeshStandardMaterial({ map: grainTex(188, 158, 108, 40, 80), roughness: 0.95 });
-const matFiller = new THREE.MeshStandardMaterial({ map: grainTex(150, 120, 70, 30, 50), roughness: 0.98 });
+// Résine pressée (look Hash Slicer) : peau brun très foncé lustrée + face coupée
+// blonde mate. Le filler low-grade reste plus terne/olive.
+const matCrust  = new THREE.MeshStandardMaterial({ map: grainTex(46, 31, 18, 40, 230), roughness: 0.4, metalness: 0.3 });
+const matSponge = new THREE.MeshStandardMaterial({ map: grainTex(190, 162, 110, 40, 90), roughness: 0.92 });
+const matFiller = new THREE.MeshStandardMaterial({ map: grainTex(120, 102, 64, 28, 50), roughness: 0.98 });
+
+// --- Barrette à coins arrondis (résine pressée) : rectangle arrondi extrudé +
+// léger biseau. 2 groupes de matériaux -> [face coupée (blonde), flancs (croûte)]. ---
+function roundedRect(w, h, r) {
+  const s = new THREE.Shape(); const x = -w / 2, y = -h / 2;
+  s.moveTo(x + r, y);
+  s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
+  s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r);
+  s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y);
+  return s;
+}
+function roundedBar(length, w, h, r, alongX) {
+  const b = r * 0.7;
+  const geo = new THREE.ExtrudeGeometry(roundedRect(w, h, r),
+    { depth: Math.max(0.02, length - 2 * b), bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelSegments: 2, steps: 1 });
+  geo.translate(0, 0, -(length - 2 * b) / 2 - b);   // centre sur l'axe d'extrusion
+  if (alongX) geo.rotateY(Math.PI / 2);             // longueur Z -> X (bouts = faces coupées)
+  geo.computeVertexNormals();
+  return geo;
+}
 
 /* -------------------------------------------------------------------------
    4) PLAN DE TRAVAIL (recoit ombres)
@@ -358,9 +380,9 @@ function makeBin(pos, col) {
 const stockBin = makeBin(STOCK_POS, 0x3a3050);
 const stockPile = new THREE.Group(); stockBin.add(stockPile);
 const PILE_MAX = 24, PILE_PER = 10;                  // 1 dalle affichee ~ 10 g
-const slabGeo = new THREE.BoxGeometry(0.2, 0.1, 0.4);
+const slabGeo = roundedBar(0.44, 0.12, 0.1, 0.028, false);   // barrette = bâton fin à coins arrondis
 for (let i = 0; i < PILE_MAX; i++) {
-  const m = new THREE.Mesh(slabGeo, matCrust);
+  const m = new THREE.Mesh(slabGeo, [matSponge, matCrust]);   // bouts = mie blonde, flancs = croûte
   const layer = Math.floor(i / 12), idx = i % 12, col = idx % 6, row = Math.floor(idx / 6);
   m.position.set(-0.52 + col * 0.21, 0.11 + layer * 0.105, -0.2 + row * 0.4);
   m.rotation.y = (Math.random() - 0.5) * 0.35;
@@ -418,8 +440,8 @@ fret.add(hitBar);
 
 // La PLAQUE (jauge de matiere) posee a gauche du manche : longueur = grammes.
 const PLAQUE_W = 1.3, PLAQUE_H = 0.55, PLAQUE_MAXLEN = 2.6;
-const plaqueMesh = new THREE.Mesh(new THREE.BoxGeometry(1, PLAQUE_H, PLAQUE_W),
-  [matCrust, matCrust, matCrust, matCrust, matSponge, matSponge]);
+const plaqueMesh = new THREE.Mesh(roundedBar(1, PLAQUE_W, PLAQUE_H, 0.08, true),
+  [matSponge, matCrust]);   // savonnette à coins arrondis (bouts coupés blonds, peau brune)
 plaqueMesh.castShadow = true; plaqueMesh.receiveShadow = true;
 plaqueMesh.position.set(-2.2, PLAQUE_H / 2, 0.5);
 fret.add(plaqueMesh);
@@ -484,33 +506,45 @@ const pourGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
 const wrapStage = new THREE.Group();
 wrapStage.position.set(0, 0, 0.4);
 scene.add(wrapStage);
-// La barrette a emballer (slab) + 4 RABATS de cellophane qui se replient.
-const packSlab = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.34, 0.7), matCrust);
+// La BARRETTE à emballer : un bâton fin de résine pressée (format retail).
+const packSlab = new THREE.Mesh(roundedBar(1.5, 0.34, 0.26, 0.05, true), [matSponge, matCrust]);
 packSlab.castShadow = true; packSlab.position.y = 0.5;
 wrapStage.add(packSlab);
-// Film cellophane translucide, bien plaque autour de la barrette.
-const filmMat = new THREE.MeshStandardMaterial({ color: 0xdff3ff, transparent: true, opacity: 0.3,
-  roughness: 0.08, metalness: 0.3, side: THREE.DoubleSide });
-const film = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.42, 0.82), filmMat);
+// Froisse légèrement une géométrie (effet "cling film" chiffonné).
+function crinkle(geo, amp) {
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++)
+    p.setXYZ(i, p.getX(i) + (Math.random() - 0.5) * amp, p.getY(i) + (Math.random() - 0.5) * amp, p.getZ(i) + (Math.random() - 0.5) * amp);
+  geo.computeVertexNormals(); return geo;
+}
+// Film cellophane : box translucide un peu plus grande, vertices jittés (froissé)
+// + matériau brillant qui accroche la lumière comme du vrai film étirable.
+const filmMat = new THREE.MeshStandardMaterial({ color: 0xeaf6ff, transparent: true, opacity: 0.34,
+  roughness: 0.05, metalness: 0.6, side: THREE.DoubleSide });
+const film = new THREE.Mesh(crinkle(new THREE.BoxGeometry(1.56, 0.34, 0.42, 12, 3, 4), 0.03), filmMat);
 packSlab.add(film);
-// 3 BOUTS de cellophane qui depassent : on les melt-scelle au briquet, l'un
-// apres l'autre. Chaque bout a son propre materiau (pour le faire rougir/fondre).
+// 2 BOUTS de cellophane torsadés qui dépassent (gauche/droite, comme un papillote) :
+// on les melt-scelle au briquet l'un après l'autre. Chacun son matériau (rougir/fondre).
 const ends = [];
 function makeEnd(pos, rot) {
-  const m = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.42, 10),
-    new THREE.MeshStandardMaterial({ color: 0xdff3ff, transparent: true, opacity: 0.55,
-      roughness: 0.1, metalness: 0.2, emissive: 0xff5a14, emissiveIntensity: 0, side: THREE.DoubleSide }));
+  const m = new THREE.Mesh(crinkle(new THREE.ConeGeometry(0.15, 0.4, 8, 2), 0.02),
+    new THREE.MeshStandardMaterial({ color: 0xeaf6ff, transparent: true, opacity: 0.6,
+      roughness: 0.08, metalness: 0.4, emissive: 0xff5a14, emissiveIntensity: 0, side: THREE.DoubleSide }));
   m.position.copy(pos); m.rotation.copy(rot); m.castShadow = true;
   packSlab.add(m);
   ends.push({ mesh: m, sealing: false, sealT: 0 });
   return m;
 }
-makeEnd(new THREE.Vector3(-0.85, 0.04, 0), new THREE.Euler(0, 0,  Math.PI / 2));  // bout gauche -> pointe -x
-makeEnd(new THREE.Vector3( 0.85, 0.04, 0), new THREE.Euler(0, 0, -Math.PI / 2));  // bout droit  -> pointe +x
-makeEnd(new THREE.Vector3(0, 0.04, 0.52),  new THREE.Euler(Math.PI / 2, 0, 0));   // bout avant  -> pointe +z
+makeEnd(new THREE.Vector3(-0.86, 0, 0), new THREE.Euler(0, 0,  Math.PI / 2));   // bout gauche -> pointe -x
+makeEnd(new THREE.Vector3( 0.86, 0, 0), new THREE.Euler(0, 0, -Math.PI / 2));   // bout droit  -> pointe +x
 // La flamme du briquet (cone emissif) qui apparait sur le bout en cours de fonte.
-const briquetFlame = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.36, 8),
-  new THREE.MeshBasicMaterial({ color: 0xffb43c, transparent: true, opacity: 0.95 }));
+const briquetFlame = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.55, 8),
+  new THREE.MeshBasicMaterial({ color: 0xffc24a, transparent: true, opacity: 0.96, depthTest: false }));
+briquetFlame.renderOrder = 999;                       // toujours par-dessus la cellophane
+// petit coeur de flamme plus clair (comme la pointe d'un briquet).
+briquetFlame.add(new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.3, 8),
+  new THREE.MeshBasicMaterial({ color: 0xfff0c0, transparent: true, opacity: 0.95, depthTest: false })));
+briquetFlame.children[0].renderOrder = 1000;
 briquetFlame.visible = false; wrapStage.add(briquetFlame);
 
 /* -------------------------------------------------------------------------
@@ -598,7 +632,7 @@ function updateCrumbs(dt) {
 // Barrettes qui volent vers le bac STOCK a la coupe reussie.
 const flyers = [];
 function flyBarrette(fromX, fromZ, grams, q) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.16, 0.24), matCrust);
+  const m = new THREE.Mesh(slabGeo, [matSponge, matCrust]);   // même bâton arrondi que le stock
   m.position.set(fromX, 0.4, fromZ); m.castShadow = true;
   scene.add(m);
   flyers.push({ mesh: m, grams, q, t: 0 });
@@ -1022,7 +1056,7 @@ function commitDilute(skip) {
    scellé propre ; trop tenu = cramé (pochon un peu moins cher). 3 bouts -> vente.
    Pas de flics : la seule tension reste macro (la chaleur de dilution rogne le prix).
    ------------------------------------------------------------------------- */
-const ENDS = 3;
+const ENDS = 2;
 const wrapS = { i: 0, melt: 0, holding: false, sealed: false, seals: [], sizzleT: 0 };
 function gotoWrap() {
   setPhase("wrap");
@@ -1125,10 +1159,11 @@ function updateWrap(dt) {
       const meltT = 0.55 * Math.pow(0.85, owned.scelle);         // briquet turbo = fond plus vite
       wrapS.melt = Math.min(1.4, wrapS.melt + dt / meltT);
       e.mesh.getWorldPosition(_ft);                              // flamme posée sur le bout, qui vacille
+      wrapStage.worldToLocal(_ft);                               // -> coords locales (flamme enfant de wrapStage)
       briquetFlame.visible = true;
       briquetFlame.position.copy(_ft); briquetFlame.position.y += 0.14;
       briquetFlame.scale.setScalar(0.8 + Math.sin(performance.now() * 0.04) * 0.22 + wrapS.melt * 0.3);
-      e.mesh.material.emissiveIntensity = Math.min(1.4, wrapS.melt);    // le bout rougit
+      e.mesh.material.emissiveIntensity = Math.min(2.4, wrapS.melt * 2.2);  // le bout rougit fort
       e.mesh.scale.y = 1 - Math.min(0.45, Math.max(0, wrapS.melt - 0.3) * 0.45);
       wrapS.sizzleT += dt; if (wrapS.sizzleT > 0.08) { wrapS.sizzleT = 0; playSizzle(); }
       if (wrapS.melt >= 1.4) lockEnd();                          // trop tenu -> auto-cramé
