@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CrimWorld — Sandbox 24h</title>
+<title>CrimWorld — Sandbox</title>
 <style>
   /* =========================================================================
-     CrimWorld — Sandbox 24h. REPREND LA LANGUE VISUELLE du proto « La Bascule »
-     (mêmes tokens sodium/néon, coque téléphone, rapport diégétique .bilan).
-     Logique de jeu = crimworld-sandbox/sim.mjs (importé, NON modifié).
+     CrimWorld — Sandbox v2. Langue visuelle du proto « La Bascule »
+     (tokens sodium/néon, coque téléphone). Logique = sim.mjs (importé).
+     Boucle : RÉASSORT (darkweb) → LABO → INVENTAIRE → VENTE. Pas de heat.
      ========================================================================= */
   :root{
     --bg:#0E0D0C; --surface:#1A1714; --surface2:#221E1A; --border:#352E28;
     --text:#E4DED5; --muted:#8C837B; --faint:#615951;
     --sodium:#E8A33D; --neon:#3E7CC2; --rust:#C8442F; --green:#7FA37F;
-    --snap:#FFFC00; --story1:#F44; --story2:#FB5; --story3:#9B5;
+    --snap:#FFFC00; --tor:#7E57C2;
     --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
     --sans:-apple-system,"Segoe UI","Roboto","Helvetica Neue",sans-serif;
   }
@@ -23,10 +23,8 @@
   html,body{height:100%}
   body{background:radial-gradient(1200px 700px at 30% -10%,#1b1714 0,var(--bg) 60%);
        font-family:var(--sans);color:var(--text);min-height:100vh;
-       display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;
-       padding:18px 12px}
+       display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;padding:18px 12px}
 
-  /* ---- coque téléphone ---- */
   .phone{position:relative;width:min(390px,96vw);height:min(800px,92vh);border-radius:38px;
        background:var(--bg);border:1px solid var(--border);overflow:hidden;
        box-shadow:0 30px 80px -20px #000,0 0 0 8px #0a0908;display:flex;flex-direction:column}
@@ -37,382 +35,384 @@
   .statusbar #clock{font:700 12px var(--mono);color:var(--text)}
   .statusbar b{color:var(--sodium)}
 
-  /* ---- enjeu : segments lisibles (caisse · loyer) ---- */
-  .stake{flex:none;display:flex;gap:7px;padding:7px 11px;
-       border-bottom:1px solid var(--border);background:#120f0c}
+  /* enjeu */
+  .stake{flex:none;display:flex;gap:7px;padding:7px 11px;border-bottom:1px solid var(--border);background:#120f0c}
   .stake .seg{flex:1;display:flex;flex-direction:column;gap:1px;padding:5px 9px;min-width:0;
        border-radius:9px;background:#1a1511;border:1px solid #241d17}
   .stake .seg .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);
        text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .stake .seg b{font:800 15px var(--mono);line-height:1.1}
-  .stake .cash b{color:var(--green)}
-  .stake .loyer b{color:var(--rust)}
-  .stake .doses b{color:var(--sodium)}
+  .stake .cash b{color:var(--green)} .stake .loyer b{color:var(--rust)} .stake .vente b{color:var(--sodium)}
 
-  /* ---- bandeau corner + jauges opaques ---- */
-  .corner{flex:none;margin:9px 11px 4px;border-radius:11px;padding:9px 13px;
-       border:1px solid var(--border);background:var(--surface);
-       display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .corner .cl{font:700 12px var(--sans);display:flex;align-items:center;gap:7px}
-  .corner .cs{font:800 12px var(--mono);color:var(--green);letter-spacing:.04em}
-  .corner.conteste{border-color:var(--rust);background:rgba(200,68,47,.1);animation:throb 1.6s infinite}
-  .corner.conteste .cs{color:var(--rust)}
-  @keyframes throb{0%,100%{box-shadow:0 0 0 0 rgba(200,68,47,.0)}50%{box-shadow:0 0 0 4px rgba(200,68,47,.12)}}
-  .gauges{flex:none;display:flex;gap:7px;padding:0 11px 4px}
-  .gauge{flex:1;border-radius:9px;border:1px solid var(--border);background:var(--surface);padding:7px 11px}
-  .gauge .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase}
-  .gauge .v{font:700 13px var(--mono);margin-top:2px;letter-spacing:.05em}
+  /* réput + inventaire (toujours visibles) */
+  .reputbar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;
+       margin:9px 11px 2px;border-radius:11px;padding:8px 13px;border:1px solid var(--border);background:var(--surface)}
+  .reputbar .k{font:700 11px var(--sans);color:var(--text)}
+  .reputbar .v{font:800 13px var(--mono);color:var(--sodium);letter-spacing:.05em}
+  .inv{flex:none;display:flex;gap:7px;padding:2px 11px 4px}
+  .invc{flex:1;border-radius:9px;border:1px solid var(--border);background:var(--surface);padding:6px 9px;min-width:0}
+  .invc.lock{opacity:.45}
+  .invc .nm{font:700 11px var(--sans);display:flex;align-items:center;gap:5px}
+  .invc .g{font:600 10px var(--mono);color:var(--muted);margin-top:2px}
+  .invc .g b{color:var(--text)}
 
-  /* ---- corps : le corner (placeholder) + journal ---- */
-  .body{flex:1;overflow-y:auto;display:flex;flex-direction:column}
-  .scene{margin:8px 11px;flex:none;height:118px;border-radius:14px;border:1px dashed var(--border);
+  /* corps + écrans */
+  .body{flex:1;overflow-y:auto;position:relative}
+  .view{display:none;flex-direction:column;padding:10px 12px 14px;gap:10px}
+  .view.show{display:flex}
+  .vtitle{font:800 14px var(--sans);display:flex;align-items:center;gap:7px;color:var(--text)}
+  .vsub{font:500 11px var(--sans);color:var(--muted);margin-top:-4px;line-height:1.4}
+
+  .scene{height:108px;border-radius:14px;border:1px dashed var(--border);
        background:repeating-linear-gradient(45deg,#17130f 0 14px,#120f0c 14px 28px);
-       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;position:relative}
+       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;position:relative}
   .scene .badge{position:absolute;top:8px;left:8px;font:700 9px var(--mono);color:#0a0908;
-       background:var(--snap);padding:2px 6px;border-radius:4px;letter-spacing:.03em}
-  .scene .ico{font-size:40px;opacity:.6}
-  .scene .txt{font:600 11px var(--mono);color:var(--faint);letter-spacing:.04em;text-align:center}
+       background:var(--snap);padding:2px 6px;border-radius:4px}
+  .scene .ico{font-size:36px;opacity:.6}
+  .scene .txt{font:600 11px var(--mono);color:var(--faint);text-align:center;padding:0 16px}
 
-  /* journal du jour (fil léger des actions, ton Snapshit) */
-  .log{flex:1;display:flex;flex-direction:column;gap:7px;padding:4px 14px 10px}
-  .logsep{align-self:center;font:600 10px var(--sans);color:var(--faint);letter-spacing:.08em;
-       text-transform:uppercase;margin:2px 0}
-  .li{align-self:flex-start;max-width:88%;background:var(--surface);border:1px solid var(--border);
-       border-bottom-left-radius:5px;border-radius:16px;padding:8px 12px;font:400 13px/1.4 var(--sans);
-       animation:pop .2s ease}
-  @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-
-  /* ---- panneau d'actions ---- */
-  .actions{flex:none;border-top:1px solid var(--border);background:var(--bg);padding:10px 12px 12px;
-       display:flex;flex-direction:column;gap:8px}
-  .arow{display:flex;gap:8px}
-  .abtn{flex:1;border-radius:13px;padding:11px 10px;border:1px solid var(--border);
-       background:var(--surface2);color:var(--text);cursor:pointer;font:700 13px var(--sans);
-       display:flex;flex-direction:column;align-items:center;gap:2px;transition:transform .05s,border-color .15s}
-  .abtn:active{transform:scale(.98)}
-  .abtn .es{font:500 10px var(--mono);color:var(--muted)}
-  .abtn.clean{border-color:var(--green);color:#cfe3cf}
-  .abtn.dirty{border-color:var(--sodium);color:#f0d3a3}
-  .abtn.snap{border-color:var(--snap);color:var(--snap)}
-  .abtn.ghost{flex:none;background:none;border-style:dashed;color:var(--muted);font:600 12px var(--sans)}
-  /* stepper de doses */
+  /* carte produit (vente / labo) */
+  .card{border-radius:13px;border:1px solid var(--border);background:var(--surface);padding:11px 13px;display:flex;flex-direction:column;gap:9px}
+  .card.lock{opacity:.5}
+  .card .hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .card .nm{font:800 14px var(--sans);display:flex;align-items:center;gap:7px}
+  .card .meta{font:600 11px var(--mono);color:var(--muted);text-align:right;line-height:1.4}
+  .card .meta b{color:var(--text)}
+  .row{display:flex;gap:8px;align-items:center}
   .stepper{display:flex;align-items:center;gap:8px;flex:1;justify-content:center;
-       background:var(--surface2);border:1px solid var(--border);border-radius:13px;padding:6px 10px}
-  .stepper button{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);
+       background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:5px 9px}
+  .stepper button{width:28px;height:28px;border-radius:7px;border:1px solid var(--border);
        background:var(--surface);color:var(--text);font:800 16px var(--sans);cursor:pointer}
-  .stepper .n{flex:1;text-align:center;font:800 15px var(--mono);color:var(--sodium)}
+  .stepper .n{flex:1;text-align:center;font:800 14px var(--mono);color:var(--sodium)}
   .stepper .u{font:500 10px var(--mono);color:var(--faint)}
-  .sell{border-color:var(--neon);color:#bcd6f0}
-  /* sous-panneau coupe */
-  .subcut{display:none;gap:8px}
-  .subcut.show{display:flex}
+  .btn{border-radius:11px;padding:10px 12px;border:1px solid var(--border);background:var(--surface2);
+       color:var(--text);cursor:pointer;font:700 13px var(--sans);display:flex;flex-direction:column;align-items:center;gap:1px;transition:transform .05s}
+  .btn:active{transform:scale(.98)}
+  .btn .es{font:500 10px var(--mono);color:var(--muted)}
+  .btn.sell{border-color:var(--neon);color:#bcd6f0} .btn.go{border-color:var(--green);color:#cfe3cf}
+  .btn.clean{border-color:var(--green);color:#cfe3cf} .btn.dirty{border-color:var(--sodium);color:#f0d3a3}
+  .btn.buy{border-color:var(--tor);color:#cdbce8} .btn:disabled{opacity:.4;cursor:default}
 
-  /* vitesse (dans la statusbar) */
-  .spd{color:var(--sodium);cursor:pointer;font:700 12px var(--mono)}
+  /* darkweb */
+  .torhead{border-radius:12px;border:1px solid var(--tor);background:rgba(126,87,194,.1);padding:10px 13px}
+  .torhead .t{font:800 13px var(--sans);color:#cdbce8;display:flex;align-items:center;gap:7px}
+  .torhead .s{font:500 10px var(--mono);color:var(--muted);margin-top:3px}
+  .offer{border-radius:12px;border:1px solid var(--border);background:var(--surface);padding:10px 12px;display:flex;align-items:center;gap:10px}
+  .offer .av{width:34px;height:34px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;
+       font-size:17px;background:linear-gradient(135deg,#2a2540,#161320);border:1px solid var(--tor)}
+  .offer .col{flex:1;min-width:0}
+  .offer .nm{font:700 12px var(--sans)} .offer .ds{font:500 10px var(--mono);color:var(--muted);margin-top:2px}
+  .offer .px{font:800 13px var(--mono);color:var(--sodium)}
 
-  /* ---- toast / coach ---- */
-  .toast{position:absolute;left:50%;bottom:150px;transform:translateX(-50%) translateY(10px);
+  /* metrics */
+  .mday{border-radius:12px;border:1px solid var(--border);background:var(--surface);padding:11px 13px}
+  .mday .hd{display:flex;align-items:center;justify-content:space-between;font:800 13px var(--sans)}
+  .mday .net{font:800 13px var(--mono)} .net.pos{color:var(--green)} .net.neg{color:var(--rust)}
+  .mday .nums{font:600 10px var(--mono);color:var(--muted);margin-top:5px;line-height:1.5}
+  .mline{font:500 11px var(--sans);color:var(--muted);margin-top:6px;padding-left:4px;border-left:2px solid var(--border)}
+  .mline .ca{display:block;font:600 10px var(--mono);color:var(--faint);margin-top:1px}
+  .empty{font:500 12px var(--sans);color:var(--faint);font-style:italic;text-align:center;padding:24px 0}
+
+  /* nav */
+  .nav{flex:none;display:flex;border-top:1px solid var(--border);background:#0a0908}
+  .navbtn{flex:1;padding:9px 4px 11px;background:none;border:none;color:var(--muted);cursor:pointer;
+       display:flex;flex-direction:column;align-items:center;gap:3px;font:700 9.5px var(--sans);letter-spacing:.03em}
+  .navbtn .ic{font-size:19px;filter:grayscale(.4);opacity:.7}
+  .navbtn.on{color:var(--snap)} .navbtn.on .ic{filter:none;opacity:1}
+  .navbtn .dot{position:absolute;margin:-4px 0 0 16px;width:7px;height:7px;border-radius:50%;background:var(--rust)}
+
+  /* toast */
+  .toast{position:absolute;left:50%;bottom:74px;transform:translateX(-50%) translateY(10px);
        background:#0a0908;border:1px solid var(--sodium);color:var(--sodium);font:600 12px var(--sans);
        padding:9px 14px;border-radius:12px;max-width:80%;text-align:center;opacity:0;pointer-events:none;
        transition:opacity .25s,transform .25s;z-index:58}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-
-  /* ---- RAPPORT de fin de jour — bilan diégétique (pièce maîtresse) ---- */
-  .endscreen{position:absolute;inset:0;background:radial-gradient(700px 500px at 50% 0%,#1b1714,#0a0908);
-       display:none;flex-direction:column;z-index:70;padding:30px 22px;overflow-y:auto}
-  .endscreen.show{display:flex}
-  .endscreen h2{font:800 22px var(--sans);color:var(--text);margin-bottom:4px}
-  .endscreen .verdict{font:600 13px var(--sans);color:var(--sodium);margin-bottom:18px;line-height:1.5}
-  .bilan{display:flex;flex-direction:column;gap:10px}
-  .bline{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
-  .bline .bt{font:700 13px var(--sans);display:flex;align-items:center;gap:7px;justify-content:space-between}
-  .bline .bt .lbl{display:flex;align-items:center;gap:7px;min-width:0}
-  .bline .bt .m{font:800 13px var(--mono);flex:none}
-  .bline .bc{font:500 12px var(--sans);color:var(--muted);margin-top:4px;line-height:1.45}
-  .bline .trace{font:600 11px var(--mono);color:var(--neon);margin-top:6px}
-  .bline.good{border-color:rgba(127,163,127,.5)}
-  .bline.bad{border-color:rgba(200,68,47,.5)}
-  .bline.tracebox{border-color:rgba(62,124,194,.5);background:rgba(62,124,194,.07)}
-  .m.pos{color:var(--green)} .m.neg{color:var(--rust)}
-  .rsum{margin-top:16px;display:flex;gap:7px}
-  .rsum .seg{flex:1;border-radius:10px;border:1px solid var(--border);background:var(--surface);padding:9px 11px}
-  .rsum .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase}
-  .rsum b{font:800 15px var(--mono);display:block;margin-top:2px}
-  .rstate{margin-top:14px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;
-       padding:12px 14px;font:600 12px var(--sans);color:var(--text);line-height:1.6}
-  .rstate .o{font:700 11px var(--mono);color:var(--muted)}
-  .rstate.conteste{border-color:var(--rust)}
-  .cont{margin-top:20px;align-self:stretch;background:var(--snap);color:#0a0908;border:none;border-radius:24px;
-       padding:14px;font:800 15px var(--sans);cursor:pointer}
 
   .devnote{font:500 11px var(--mono);color:var(--faint);text-align:center;max-width:390px;line-height:1.5}
 </style>
 </head>
 <body>
 
-<div class="phone" id="phone">
+<div class="phone">
   <div class="notch"></div>
-  <div class="statusbar"><span id="clock">08:00</span><span>JOUR <b id="jour">1</b> · <span id="speed" class="spd">▶ ×1</span></span></div>
+  <div class="statusbar"><span id="clock">08:00</span><span>JOUR <b id="jour">1</b></span></div>
 
-  <!-- enjeu : caisse · loyer · doses du jour -->
   <div class="stake">
     <span class="seg cash"><span class="k">💵 Caisse</span><b id="cash">0€</b></span>
-    <span class="seg loyer"><span class="k">🏚️ Loyer dû</span><b id="loyer">0€</b></span>
-    <span class="seg doses"><span class="k">📦 Doses/j</span><b id="doses">0</b></span>
+    <span class="seg loyer"><span class="k">💸 Frais dûs</span><b id="loyer">0€</b></span>
+    <span class="seg vente"><span class="k">📈 Ventes/j</span><b id="ventesj">0€</b></span>
   </div>
 
-  <!-- corner (la tension) -->
-  <div class="corner" id="corner">
-    <span class="cl">⚔️ Ton corner — block C</span>
-    <span class="cs" id="corner-state">tenu</span>
+  <div class="reputbar">
+    <span class="k">🔥 Réput conso <span style="color:var(--faint);font-weight:500">(la demande)</span></span>
+    <span class="v" id="reput">🔥 •••</span>
   </div>
+  <div class="inv" id="inv"></div>
 
-  <!-- jauges opaques -->
-  <div class="gauges">
-    <div class="gauge"><div class="k">Réput conso</div><div class="v" id="reput">🔥 •••</div></div>
-    <div class="gauge"><div class="k">Pression</div><div class="v" id="pression">•</div></div>
-  </div>
-
-  <!-- corps : scène + journal -->
   <div class="body">
-    <div class="scene">
-      <span class="badge">TON SPOT</span>
-      <span class="ico">🏙️</span>
-      <span class="txt">le corner du block C — il est à toi (pour l'instant)</span>
-    </div>
-    <div class="log" id="log">
-      <div class="logsep">Jour 1 · à toi de jouer</div>
-    </div>
+    <div class="view show" id="view-vente"></div>
+    <div class="view" id="view-dark"></div>
+    <div class="view" id="view-labo"></div>
+    <div class="view" id="view-metrics"></div>
   </div>
 
-  <!-- actions -->
-  <div class="actions">
-    <div class="arow subcut" id="subcut">
-      <button class="abtn clean" data-grade="A">✂️ Couper propre<span class="es">qualité haute</span></button>
-      <button class="abtn dirty" data-grade="C">🪓 À l'arrache<span class="es">vite, mais sale</span></button>
-    </div>
-    <div class="arow">
-      <button class="abtn" id="btn-couper">🔪 Couper<span class="es">la qualité = ton levier</span></button>
-      <button class="abtn snap" id="btn-vitrine">⚡ Vitrine<span class="es">exposition</span></button>
-    </div>
-    <div class="arow">
-      <div class="stepper">
-        <button id="dose-moins">−</button>
-        <div class="n"><span id="dose-n">5</span> <span class="u">doses</span></div>
-        <button id="dose-plus">+</button>
-      </div>
-      <button class="abtn sell" id="btn-vendre">🤝 Vendre<span class="es" id="prix-hint">au détail</span></button>
-    </div>
+  <div class="nav" id="nav">
+    <button class="navbtn on" data-v="vente"><span class="ic">⚡</span>Snap</button>
+    <button class="navbtn" data-v="dark"><span class="ic">🧅</span>Darkweb</button>
+    <button class="navbtn" data-v="labo"><span class="ic">⚗️</span>Labo</button>
+    <button class="navbtn" data-v="metrics"><span class="ic">📊</span>Metrics</button>
   </div>
 
-  <!-- toast -->
   <div class="toast" id="toast"></div>
-
-  <!-- RAPPORT de fin de jour -->
-  <div class="endscreen" id="endscreen"></div>
 </div>
 
-<div class="devnote">Sandbox 24h — boucle ouverte, horloge temps réel. Le rapport remonte chaque conséquence à sa cause.</div>
+<div class="devnote">Sandbox v2 — réassort → labo → inventaire → vente. Horloge temps réel, pas de bilan popup (voir Metrics).</div>
 
 <script type="module">
 import { createSim, C, jaugeOpaque } from './sim.mjs';
 
-/* reset de save propre au changement de version (scaffolding ; persistance
-   complète du sim hors scope de cette UI minimale) */
-const SAVE_VERSION = '2';
-const SBX_VER = 'sbx_ver';
-if (localStorage.getItem(SBX_VER) !== SAVE_VERSION){
+/* reset propre au changement de version (modèle v2) */
+const SAVE_VERSION = '3';
+if (localStorage.getItem('sbx_ver') !== SAVE_VERSION){
   for (const k of Object.keys(localStorage)) if (k.startsWith('sbx_')) localStorage.removeItem(k);
-  localStorage.setItem(SBX_VER, SAVE_VERSION);
+  localStorage.setItem('sbx_ver', SAVE_VERSION);
 }
 
 const sim = createSim();
 const $ = id => document.getElementById(id);
 
-/* ---- état UI local ---- */
-let paused = false, lastJour = 0, doseN = 5, speed = 1, subOpen = false;  // lastJour=0 → le rapport du JOUR 1 s'affiche
-let _reputLast = null, _reputNoise = '';      // brouillage réput STABLE (re-tiré au changement)
+/* ---- présentation des produits (jamais de logique ici) ---- */
+const META = {
+  hash:  { nm:'Hash',  ic:'🟫' },
+  weed:  { nm:'Weed',  ic:'🌿' },
+  neige: { nm:'Neige', ic:'❄️' },
+};
+/* catalogue de réassort (semi-grossistes, darkweb) — placeholders */
+const REASSORT = {
+  hash:  [ { av:'🐍', nm:'ParraLi', g:100, px:250, ds:'savonnette 100g' },
+           { av:'🦂', nm:'Vex_02',  g:250, px:560, ds:'plaque 250g (gros)' } ],
+  weed:  [ { av:'🌒', nm:'Niko_tn', g:100, px:300, ds:'beuh 100g' } ],
+  neige: [ { av:'❄️', nm:'Saff99',  g:50,  px:1800, ds:'coke 50g' } ],
+};
+/* labo provisoire (les vrais mini-jeux arrivent en P3) — rendement dans sim C */
+let doseN = { hash:5, weed:5, neige:5 };       // stepper de vente par produit
+let view = 'vente';
+let lastJour = sim.state.jour;
+let _reputLast = null, _reputNoise = '';
 
-/* ---- journal du jour (présentation) ---- */
-function logLine(txt){
-  const el = document.createElement('div'); el.className = 'li'; el.textContent = txt;
-  $('log').appendChild(el);
-  const log = $('log'); log.scrollTop = log.scrollHeight;
-  while (log.children.length > 24) log.removeChild(log.children[1]); // garde le séparateur [0]
-}
-function toast(t){ const e=$('toast'); e.textContent=t; e.classList.add('show');
-  clearTimeout(toast._t); toast._t=setTimeout(()=>e.classList.remove('show'),1900); }
+/* ---- helpers DOM (textContent partout : pas d'injection) ---- */
+function el(tag, cls, txt){ const e=document.createElement(tag); if(cls)e.className=cls; if(txt!=null)e.textContent=txt; return e; }
+function toast(t){ const e=$('toast'); e.textContent=t; e.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>e.classList.remove('show'),1800); }
+function heureStr(h){ const hh=Math.floor(h)%24, mm=Math.floor((h-Math.floor(h))*60); return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0'); }
 
-/* ---- horloge ---- */
-function heureStr(h){
-  const hh = Math.floor(h)%24, mm = Math.floor((h-Math.floor(h))*60);
-  return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
-}
-
-/* ---- HUD ---- */
+/* ---- HUD permanent ---- */
 function updateHUD(){
   const s = sim.state;
   $('clock').textContent  = heureStr(s.heure);
   $('jour').textContent   = s.jour;
   $('cash').textContent   = s.cash + '€';
   $('loyer').textContent  = s.loyerDu + '€';
-  $('doses').textContent  = s.jourEnCours.doses;
-
-  // réput OPAQUE : brouillage de PRÉSENTATION (autorisé par la DNA) ; ne touche
-  // jamais l'état, re-tiré seulement quand la réput change (sinon ça clignote).
+  $('ventesj').textContent= sim.metricsDuJour().ventesEUR + '€';
+  // réput OPAQUE : brouillage de présentation (autorisé), stable entre changements
   if (s.reput !== _reputLast){
     _reputLast = s.reput;
     _reputNoise = jaugeOpaque(Math.max(0,Math.min(100, s.reput + (Math.random()<.5?0:(Math.random()<.5?5:-5)))), 100);
   }
-  $('reput').textContent    = _reputNoise;
-  $('pression').textContent = jaugeOpaque(s.pression, C.SEUIL_CONTESTE, '•', '⚔️');
-
-  const cornerEl = $('corner');
-  if (s.corner === 'contesté'){
-    cornerEl.classList.add('conteste');
-    $('corner-state').textContent = 'CONTESTÉ';
-  } else {
-    cornerEl.classList.remove('conteste');
-    $('corner-state').textContent = 'tenu';
+  $('reput').textContent = _reputNoise;
+  renderInv();
+}
+function renderInv(){
+  const box = $('inv'); box.replaceChildren();
+  for (const p of C.PRODUITS){
+    const c = el('div', 'invc' + (sim.state.debloques[p] ? '' : ' lock'));
+    c.appendChild(el('div','nm', META[p].ic + ' ' + META[p].nm));
+    const g = el('div','g');
+    g.append('brut '); const b1=el('b',null, sim.state.matiere[p]+'g'); g.appendChild(b1);
+    g.append(' · prêt '); const b2=el('b',null, sim.state.stock[p]+'g'); g.appendChild(b2);
+    c.appendChild(g);
+    box.appendChild(c);
   }
 }
 
-/* ---- actions joueur (tout passe par l'API du sim) ---- */
-$('btn-couper').addEventListener('click', () => {
-  subOpen = !subOpen; $('subcut').classList.toggle('show', subOpen);
-});
-$('subcut').addEventListener('click', e => {
-  const b = e.target.closest('[data-grade]'); if (!b) return;
-  const g = b.dataset.grade;
-  sim.couper(g);
-  subOpen = false; $('subcut').classList.remove('show');
-  toast(g === 'A' ? 'Coupe propre 👌' : 'Coupe à l’arrache 🪓');
-  logLine(g === 'A' ? '✂️ Tu coupes propre — la came est nette.' : '🪓 Tu coupes à l’arrache — vite fait, mal fait.');
-  updateHUD();
-});
-$('btn-vitrine').addEventListener('click', () => {
-  sim.posterVitrine();
-  toast('Vitrine postée ⚡'); logLine('⚡ Tu postes ta vitrine sur Snapshit — ça s’expose.');
-  updateHUD();
-});
-$('dose-moins').addEventListener('click', () => { doseN = Math.max(1, doseN-1); $('dose-n').textContent = doseN; });
-$('dose-plus').addEventListener('click',  () => { doseN = Math.min(50, doseN+1); $('dose-n').textContent = doseN; });
-$('btn-vendre').addEventListener('click', () => {
-  sim.vendre(doseN);
-  toast('+' + (doseN*C.PRIX_DOSE) + '€'); logLine('🤝 Tu écoules ' + doseN + ' doses (+' + (doseN*C.PRIX_DOSE) + '€).');
-  updateHUD();
-});
-$('prix-hint').textContent = C.PRIX_DOSE + '€/dose';
+/* ===================== ÉCRAN : SNAP / VENTE DIRECTE ===================== */
+function renderVente(){
+  const v = $('view-vente'); v.replaceChildren();
+  v.appendChild(el('div','vtitle','⚡ Snap — vente directe'));
+  const scene = el('div','scene');
+  scene.appendChild(el('span','badge','TA VITRINE'));
+  scene.appendChild(el('span','ico','📱'));
+  scene.appendChild(el('span','txt','ta vitrine Snapshit — les clients te DM, tu écoules toi-même en petites quantités (la demande suit ta réput)'));
+  v.appendChild(scene);
 
-/* ---- vitesse (présentation) ---- */
-$('speed').addEventListener('click', () => {
-  speed = speed === 1 ? 4 : 1;
-  $('speed').textContent = (speed === 1 ? '▶ ×1' : '▶▶ ×4');
+  const actifs = C.PRODUITS.filter(p => sim.state.debloques[p]);
+  for (const p of actifs){
+    const dem = sim.demandeJour(p);
+    const card = el('div','card');
+    const hd = el('div','hd');
+    hd.appendChild(el('div','nm', META[p].ic + ' ' + META[p].nm));
+    const meta = el('div','meta');
+    const m1 = el('div'); m1.append('stock '); m1.appendChild(el('b',null, sim.state.stock[p]+'g')); meta.appendChild(m1);
+    meta.appendChild(el('div', null, 'demande ~'+dem+'g/j'));
+    hd.appendChild(meta); card.appendChild(hd);
+
+    const row = el('div','row');
+    const stp = el('div','stepper');
+    const minus = el('button',null,'−'); const plus = el('button',null,'+');
+    const n = el('div','n'); const nn = el('span',null, doseN[p]); const uu = el('span','u',' g');
+    n.appendChild(nn); n.appendChild(uu);
+    minus.addEventListener('click', ()=>{ doseN[p]=Math.max(1,doseN[p]-1); nn.textContent=doseN[p]; });
+    plus.addEventListener('click',  ()=>{ doseN[p]=Math.min(50,doseN[p]+1); nn.textContent=doseN[p]; });
+    stp.append(minus,n,plus);
+    const sell = el('button','btn sell'); sell.appendChild(el('span',null,'Vendre')); sell.appendChild(el('span','es', C.PRIX_GRAMME[p]+'€/g'));
+    sell.addEventListener('click', ()=>{
+      const gain = sim.vendre(p, doseN[p]);
+      toast(gain>0 ? ('+'+gain+'€') : (sim.state.stock[p]<=0 ? 'rupture de stock' : 'demande du jour épuisée'));
+      refresh();
+    });
+    row.append(stp, sell); card.appendChild(row);
+    v.appendChild(card);
+  }
+  const locked = C.PRODUITS.filter(p => !sim.state.debloques[p]);
+  if (locked.length){
+    const c = el('div','card lock');
+    c.appendChild(el('div','nm', locked.map(p=>META[p].ic+' '+META[p].nm).join('  ')));
+    c.appendChild(el('div','vsub','verrouillés — débloqués avec leur labo (P3)'));
+    v.appendChild(c);
+  }
+}
+
+/* ===================== ÉCRAN : DARKWEB / RÉASSORT ===================== */
+function renderDark(){
+  const v = $('view-dark'); v.replaceChildren();
+  v.appendChild(el('div','vtitle','🧅 Réassort — réseau oignon'));
+  const head = el('div','torhead');
+  head.appendChild(el('div','t','🧅 SilkRoad — semi-grossistes'));
+  head.appendChild(el('div','s','matière première · livraison discrète · paiement crypto'));
+  v.appendChild(head);
+
+  for (const p of C.PRODUITS){
+    const unlocked = sim.state.debloques[p];
+    for (const o of (REASSORT[p]||[])){
+      const off = el('div','offer' + (unlocked?'':' lock'));
+      if (!unlocked) off.style.opacity = '.5';
+      off.appendChild(el('div','av', o.av));
+      const col = el('div','col');
+      col.appendChild(el('div','nm', META[p].ic + ' ' + o.nm + ' — ' + META[p].nm));
+      col.appendChild(el('div','ds', o.ds + ' · ' + o.g + 'g'));
+      off.appendChild(col);
+      if (unlocked){
+        const buy = el('button','btn buy'); buy.appendChild(el('span',null, o.px+'€')); buy.appendChild(el('span','es','acheter'));
+        buy.addEventListener('click', ()=>{
+          sim.acheterMatiere(p, o.g, o.px, 'acheté à '+o.nm+' (darkweb)');
+          toast('+'+o.g+'g '+META[p].nm+' (−'+o.px+'€)'); refresh();
+        });
+        off.appendChild(buy);
+      } else {
+        off.appendChild(el('div','px','🔒'));
+      }
+      v.appendChild(off);
+    }
+  }
+  v.appendChild(el('div','vsub','Weed / Neige : leurs vendeurs ouvriront avec leur labo (P3).'));
+}
+
+/* ===================== ÉCRAN : LABO (placeholder P3) ===================== */
+function renderLabo(){
+  const v = $('view-labo'); v.replaceChildren();
+  v.appendChild(el('div','vtitle','⚗️ Le labo'));
+  v.appendChild(el('div','vsub','Provisoire — les vrais mini-jeux (hash-slicer, green-front, neige) seront intégrés ici en iframe (P3). Pour l’instant : transforme la matière en batch fini.'));
+
+  for (const p of C.PRODUITS){
+    if (!sim.state.debloques[p]) continue;
+    const raw = sim.state.matiere[p];
+    const card = el('div','card');
+    const hd = el('div','hd');
+    hd.appendChild(el('div','nm', META[p].ic + ' ' + META[p].nm));
+    const meta = el('div','meta'); const m=el('div'); m.append('matière '); m.appendChild(el('b',null, raw+'g')); meta.appendChild(m);
+    hd.appendChild(meta); card.appendChild(hd);
+    const use = Math.min(C.LAB_RAW, raw);
+    card.appendChild(el('div','vsub', use>0 ? ('traite '+use+'g → '+Math.round(use*C.LAB_YIELD.A)+'g propre ou '+Math.round(use*C.LAB_YIELD.C)+'g arrache') : 'pas de matière — passe par le Darkweb'));
+    const row = el('div','row');
+    const clean = el('button','btn clean'); clean.appendChild(el('span',null,'✂️ Propre')); clean.appendChild(el('span','es','qualité +'));
+    const dirty = el('button','btn dirty'); dirty.appendChild(el('span',null,'🪓 Arrache')); dirty.appendChild(el('span','es','volume +, réput −'));
+    const make = (q)=>()=>{
+      const rawNow = sim.state.matiere[p]; const u = Math.min(C.LAB_RAW, rawNow);
+      if (u<=0){ toast('pas de matière'); return; }
+      sim.produireBatch({ produit:p, grammesRaw:u, grammesFinis:Math.round(u*C.LAB_YIELD[q]), qualite:q });
+      toast('Batch '+META[p].nm+' prêt'); refresh();
+    };
+    clean.addEventListener('click', make('A')); dirty.addEventListener('click', make('C'));
+    if (use<=0){ clean.disabled=true; dirty.disabled=true; }
+    row.append(clean, dirty); card.appendChild(row);
+    v.appendChild(card);
+  }
+}
+
+/* ===================== ÉCRAN : METRICS (remplace le popup) ===================== */
+function mkLigne(l){
+  const d = el('div','mline');
+  const m = l.montant ? (l.montant>0?' +'+l.montant+'€':' '+l.montant+'€') : '';
+  d.textContent = (l.ic?l.ic+' ':'') + l.label + m;
+  if (l.cause) d.appendChild(el('span','ca','↳ '+l.cause));
+  return d;
+}
+function mkDay(s, label){
+  const d = el('div','mday');
+  const hd = el('div','hd');
+  hd.appendChild(el('span',null, label || ('Jour '+s.jour)));
+  hd.appendChild(el('span','net '+(s.net>=0?'pos':'neg'), (s.net>=0?'+':'')+s.net+'€'));
+  d.appendChild(hd);
+  const nums = el('div','nums');
+  nums.textContent = 'achats '+s.achatsEUR+'€ · ventes '+s.ventesEUR+'€ · caisse '+s.cash+'€'
+    + ' · stock h'+s.stock.hash+'/w'+s.stock.weed+'/n'+s.stock.neige+'g · réput '+s.reputOpaque;
+  d.appendChild(nums);
+  for (const l of s.lignes) d.appendChild(mkLigne(l));
+  return d;
+}
+function renderMetrics(){
+  const v = $('view-metrics'); v.replaceChildren();
+  v.appendChild(el('div','vtitle','📊 Metrics — jour par jour'));
+  v.appendChild(el('div','vsub','Pas de bilan qui interrompt : les données de chaque jour s’empilent ici.'));
+  v.appendChild(mkDay(sim.metricsDuJour(), 'Jour '+sim.state.jour+' (en cours)'));
+  const past = sim.state.metrics.slice().reverse();
+  if (!past.length){ v.appendChild(el('div','empty','Aucun jour clos pour l’instant.')); }
+  for (const s of past) v.appendChild(mkDay(s));
+}
+
+/* ---- routeur d'écran ---- */
+function renderActive(){
+  if (view==='vente') renderVente();
+  else if (view==='dark') renderDark();
+  else if (view==='labo') renderLabo();
+  else renderMetrics();
+}
+function refresh(){ updateHUD(); renderActive(); }
+
+$('nav').addEventListener('click', e=>{
+  const b = e.target.closest('[data-v]'); if(!b) return;
+  view = b.dataset.v;
+  for (const btn of $('nav').children) btn.classList.toggle('on', btn===b);
+  for (const id of ['vente','dark','labo','metrics']) $('view-'+id).classList.toggle('show', id===view);
+  refresh();
 });
 
-/* ---- boucle TEMPS RÉEL ---- */
+/* ---- boucle TEMPS RÉEL (vitesse unique, pas de popup) ---- */
 let lastTs = null;
 function loop(ts){
-  if (lastTs === null) lastTs = ts;
-  const dtReel = Math.min(ts - lastTs, 100);   // clamp anti-saut (retour d'onglet)
-  lastTs = ts;
-  if (!paused){
-    sim.tick(dtReel * speed);
-    if (sim.state.dernierRapport && sim.state.dernierRapport.jour !== lastJour){
-      lastJour = sim.state.dernierRapport.jour;
-      ouvrirRapport(sim.state.dernierRapport);
-    }
-    updateHUD();
+  if (lastTs===null) lastTs = ts;
+  const dt = Math.min(ts-lastTs, 100); lastTs = ts;
+  sim.tick(dt);                                  // 1 vitesse
+  if (sim.state.jour !== lastJour){              // nouveau jour : pas de popup
+    lastJour = sim.state.jour;
+    toast('Jour '+sim.state.jour+' — bilan dans 📊 Metrics');
+    renderActive();
   }
+  updateHUD();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
-/* ---- RAPPORT (pièce maîtresse) : rend la CAUSE verbatim, jamais inventée ---- */
-function mkBline(l){
-  const d = document.createElement('div');
-  d.className = 'bline ' + (l.montant > 0 ? 'good' : (l.montant < 0 ? 'bad' : ''));
-  const bt = document.createElement('div'); bt.className = 'bt';
-  const lbl = document.createElement('span'); lbl.className = 'lbl';
-  lbl.textContent = (l.ic ? l.ic + ' ' : '') + l.label;
-  bt.appendChild(lbl);
-  if (l.montant){
-    const m = document.createElement('span');
-    m.className = 'm ' + (l.montant > 0 ? 'pos' : 'neg');
-    m.textContent = (l.montant > 0 ? '+' : '') + l.montant + '€';
-    bt.appendChild(m);
-  }
-  d.appendChild(bt);
-  if (l.cause){ const c = document.createElement('div'); c.className = 'bc'; c.textContent = l.cause; d.appendChild(c); }
-  return d;
-}
-
-function ouvrirRapport(r){
-  paused = true;
-  const e = $('endscreen');
-  e.replaceChildren();
-
-  const h = document.createElement('h2'); h.textContent = 'Rapport — Jour ' + r.jour; e.appendChild(h);
-  const v = document.createElement('div'); v.className = 'verdict';
-  v.textContent = r.corner === 'contesté'
-    ? 'Ton corner est contesté. Le succès attire les rivaux.'
-    : 'Tu tiens le corner. Pour l’instant.';
-  e.appendChild(v);
-
-  const bilan = document.createElement('div'); bilan.className = 'bilan';
-  if (!r.lignes.length){
-    const p = document.createElement('div'); p.className = 'bline';
-    p.textContent = 'Journée calme — rien à signaler.'; bilan.appendChild(p);
-  } else {
-    for (const l of r.lignes) bilan.appendChild(mkBline(l));
-  }
-  // TRACE inter-jours — le cœur du concept : problème d'aujourd'hui ↩ décision passée
-  for (const t of (r.trace || [])){
-    const d = document.createElement('div'); d.className = 'bline tracebox';
-    const bt = document.createElement('div'); bt.className = 'bt';
-    const lbl = document.createElement('span'); lbl.className = 'lbl';
-    lbl.textContent = (t.ic ? t.ic + ' ' : '') + t.label; bt.appendChild(lbl);
-    d.appendChild(bt);
-    const tr = document.createElement('div'); tr.className = 'trace'; tr.textContent = '↩ ' + t.cause;
-    d.appendChild(tr);
-    bilan.appendChild(d);
-  }
-  e.appendChild(bilan);
-
-  // sommaire chiffré
-  const sum = document.createElement('div'); sum.className = 'rsum';
-  const mkSeg = (k, val, cls) => {
-    const s = document.createElement('div'); s.className = 'seg';
-    const kk = document.createElement('div'); kk.className = 'k'; kk.textContent = k;
-    const b = document.createElement('b'); if (cls) b.style.color = cls; b.textContent = val;
-    s.appendChild(kk); s.appendChild(b); return s;
-  };
-  sum.appendChild(mkSeg('Total jour', (r.total>=0?'+':'') + r.total + '€', r.total>=0?'var(--green)':'var(--rust)'));
-  sum.appendChild(mkSeg('Caisse', r.cash + '€', 'var(--green)'));
-  sum.appendChild(mkSeg('Loyer dû', r.loyerDu + '€', 'var(--rust)'));
-  e.appendChild(sum);
-
-  // état opaque + corner
-  const st = document.createElement('div'); st.className = 'rstate' + (r.corner==='contesté'?' conteste':'');
-  const line1 = document.createElement('div');
-  line1.textContent = (r.corner === 'contesté' ? '⚔️ Corner CONTESTÉ' : '🟢 Corner tenu');
-  const line2 = document.createElement('div'); line2.className = 'o';
-  line2.textContent = 'réput ' + r.reputOpaque + '   ·   pression ' + r.pressionOpaque;
-  st.appendChild(line1); st.appendChild(line2);
-  e.appendChild(st);
-
-  const cont = document.createElement('button'); cont.className = 'cont'; cont.textContent = 'Continuer →';
-  cont.addEventListener('click', () => {
-    e.classList.remove('show'); paused = false;
-    $('log').replaceChildren();
-    const sep = document.createElement('div'); sep.className = 'logsep';
-    sep.textContent = 'Jour ' + sim.state.jour + ' · nouvelle journée'; $('log').appendChild(sep);
-  });
-  e.appendChild(cont);
-
-  e.classList.add('show');
-}
-
+renderActive();
 updateHUD();
 </script>
 </body>

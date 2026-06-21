@@ -13,14 +13,16 @@
 
 // ---- Constantes nommées (PLACEHOLDERS — non réglées) -------------------
 export const C = {
-  HOUR_MS: 10000,            // 5× plus lent (1 h de jeu = 10 s ; journée ≈ 4 min)
+  HOUR_MS: 60000,            // 1 min de jeu = 1 s réelle (1 h = 60 s ; journée ≈ 24 min)
   DAY_HOURS: 24,
-  LOYER_JOUR: 40,            // compteur de fond (on tient le corner) — tunable
+  LOYER_JOUR: 40,            // frais de base du block (compteur de fond) — tunable
   PRODUITS: ['hash', 'weed', 'neige'],
   PRIX_GRAMME:  { hash: 10, weed: 8,  neige: 60 },  // € / g au détail
   DEMANDE_BASE: { hash: 60, weed: 80, neige: 20 },  // g/jour absorbés à réput 100
   REPUT_PROPRE: 6,           // une coupe propre fait monter la demande
   REPUT_ARRACHE: -25,        // une coupe à l'arrache la fait fuir
+  LAB_RAW: 100,              // labo : g de matière consommés par batch (provisoire, P3)
+  LAB_YIELD: { A: 0.8, C: 1.2 },  // rendement propre / arrache (provisoire, P3)
 };
 
 // ---- Affichage OPAQUE (présentation déterministe) ----------------------
@@ -114,8 +116,8 @@ export function createSim(){
   // ---- clôture du jour : loyer, snapshot dans metrics, rollover ----------
   function cloreJour(){
     state.loyerDu += C.LOYER_JOUR;
-    ligne({ ic: '🏚️', label: 'Loyer du corner', montant: -C.LOYER_JOUR,
-      cause: 'tu paies pour exister sur le block' });
+    ligne({ ic: '💸', label: 'Frais du block', montant: -C.LOYER_JOUR,
+      cause: 'faut graisser pour bosser sur le block' });
     const snap = snapshot();
     state.metrics.push(snap);
     state.dernierMetrics = snap;
@@ -161,7 +163,7 @@ export function demo(){
   const sim = createSim();
   const JOUR = C.HOUR_MS * C.DAY_HOURS;
   console.log('CrimWorld Sandbox v2 — démo cœur de sim');
-  console.log('Boucle : réassort → labo → inventaire → vente. Horloge 5× plus lente. Pas de heat.');
+  console.log('Boucle : réassort → labo → inventaire → vente. Horloge : 1 min jeu = 1 s. Pas de heat.');
   console.log('Demande hash à réput 50 :', sim.demandeJour('hash'), 'g/jour');
 
   // JOUR 1 — réassort, labo PROPRE, on écoule (plafonné par la demande).

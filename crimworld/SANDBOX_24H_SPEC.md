@@ -13,7 +13,7 @@ Changements actés :
   levier — l'équilibre vit dans UNE courbe `demande ∝ réput`.
 - **Pas de bilan popup** en fin de jour → une **page Metrics** consultable
   (données de chaque jour). L'horloge ne s'arrête plus à minuit.
-- **Horloge 5× plus lente** (1 h = 10 s ; journée ≈ 4 min), à affiner.
+- **Horloge** : 1 min de jeu = 1 s réelle (1 h = 60 s ; journée ≈ 24 min), à affiner.
 - **Vitesse unique** (plus de toggle).
 - **Nouvelle boucle** : RÉASSORT (darkweb, semi-grossistes) → **LABO** (un proto
   produit un BATCH) → **INVENTAIRE** → **VENTE en petites quantités**.
