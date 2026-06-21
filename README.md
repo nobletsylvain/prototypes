@@ -70,11 +70,11 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). « Gu
 **Boucle de jeu (3 stations) :**
 1. **Découpe Précise** *(rythme + swipe)* — des **lignes de coupe** descendent un **manche** façon Guitar Hero vers une **barre de strum**. **Tape / swipe PILE** quand la ligne passe la barre : `PARFAIT` (barrette nette, premium) → `BIEN` → `JUSTE`. Le **combo** réduit la perte et monte la qualité ; **raté** = miettes + combo remis à zéro. Les barrettes filent dans le bac **STOCK**. Format **5 g / 10 g**.
 2. **Dilution / Stretch** *(balance physique)* — **maintiens « Verser »** pour gonfler le poids au **filler**. Le **fléau penche** avec inertie et la jauge de **« visibilité »** monte : reste **sous le repère** (zone sûre), sinon la came perd en grade et la **chaleur** 🚔 grimpe. `Emballer ▸` transforme STOCK → **blend**.
-3. **Emballage Cellophane** *(pliage tactile, façon Unpacking)* — **tape pour replier** chacun des **4 rabats** de cellophane, puis **maintiens ✋ Presser** pour sceller. Calme et propre, sans punition. Vente par **format** (5 / 10 / 50 / 100 g — petit = €/g plus élevé).
+3. **Emballage Cellophane** *(scellage au briquet)* — la barrette est sous film, **3 bouts** de cellophane dépassent. **Maintiens le 🔥 briquet** sur chaque bout (il rougit, fond, grésille) et **lâche dans le vert** = bout scellé **propre** ; trop tenu = **cramé** (un peu moins cher). 3 bouts → **pochon vendu** par **format** (5 / 10 / 50 / 100 g — petit = €/g plus élevé).
 
 **Économie :** on achète une **plaque** (gros), on la transforme, on vend. La **chaleur** (0–100) monte quand la dilution est **trop visible**, redescend avec le temps, et **rogne le prix de vente** des pochons (came « chaude » = se vend moins cher) — la seule tension est macro, pas dans le geste.
 
-**Progression :** Boutique — **Métronome auto** (auto-coupe parfaite au rythme), **Calibreur** (élargit la zone sûre de dilution), **Réseau de revente** (+6 %/niv sur les pochons), **Presse pro** (scelle plus vite), plaques — et **niveaux (XP)**, +3 % de revenus par niveau. Persistance `localStorage` préfixée `gs_` (distincte de `hash_` / `gf_`).
+**Progression :** Boutique — **Métronome auto** (auto-coupe parfaite au rythme), **Calibreur** (élargit la zone sûre de dilution), **Réseau de revente** (+6 %/niv sur les pochons), **Briquet turbo** (les bouts fondent plus vite), plaques — et **niveaux (XP)**, +3 % de revenus par niveau. Persistance `localStorage` préfixée `gs_` (distincte de `hash_` / `gf_`).
 
 **Feedback juteux** : notes de guitare synthétisées (WebAudio, hauteur qui monte avec le combo), miettes, secousse de caméra, combo géant + jugement à l'écran.
 
