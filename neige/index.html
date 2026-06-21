@@ -240,22 +240,33 @@ slab.position.copy(SLAB_POS).setY(0.06); slab.receiveShadow = true; scene.add(sl
 // PILE DE COKE (briques pressées empilées, façon DDS) au fond-gauche.
 const COKE_POS = new THREE.Vector3(-1.6, 0, -0.6);
 const coke = new THREE.Group(); coke.position.copy(COKE_POS);
-const mylar = new THREE.MeshStandardMaterial({ color: 0xe8ecf1, roughness: 0.3, metalness: 0.35 });
-const tapeMat = new THREE.MeshStandardMaterial({ color: 0x9aa6b2, roughness: 0.5 });
-const brandMat = new THREE.MeshStandardMaterial({ color: 0x2f7fd6, roughness: 0.5 });
+// Brique = bloc de poudre pressée (mat) emballé dans un film CELLOPHANE brillant
+// (couche translucide un poil plus grande, faible rugosité -> reflets plastique).
+const powderBlockMat = new THREE.MeshStandardMaterial({ color: 0xf4f6f9, roughness: 0.85 });
+const wrapMat = new THREE.MeshStandardMaterial({ color: 0xe9f2f8, transparent: true, opacity: 0.32, roughness: 0.05, metalness: 0.25, side: THREE.DoubleSide });
 const cokePick = [];
+const cokeBricks = [];
 function pressedBrick(x, y, z, ry) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry;
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 0.82), mylar);
-  body.castShadow = true; body.receiveShadow = true; g.add(body); cokePick.push(body);
-  const t1 = new THREE.Mesh(new THREE.BoxGeometry(1.22, 0.04, 0.12), tapeMat); t1.position.y = 0.16; g.add(t1);
-  const t2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.84), tapeMat); t2.position.y = 0.16; g.add(t2);
-  const brand = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.02, 0.18), brandMat); brand.position.set(0.36, 0.16, 0.22); g.add(brand);
-  coke.add(g); return g;
+  const inner = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.32, 0.72), powderBlockMat);
+  inner.castShadow = true; inner.receiveShadow = true; g.add(inner); cokePick.push(inner);
+  const film = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.4, 0.82), wrapMat);
+  film.castShadow = true; g.add(film); cokePick.push(film);
+  cokeBricks.push(g); coke.add(g); return g;
 }
-pressedBrick(0.05, 0.15, 0.05, 0.05);              // brique du dessous
-pressedBrick(-0.05, 0.46, -0.04, -0.12);           // brique du dessus, décalée -> pile
+pressedBrick(0.05, 0.2, 0.05, 0.05);               // brique du dessous
+pressedBrick(-0.05, 0.6, -0.04, -0.12);            // 2e brique (visible si gros stock)
+// petit tas de poudre renversé devant (comme une brique entamée, façon la réf)
+const cokeSpill = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.12, 16), powderBlockMat);
+cokeSpill.position.set(0.28, 0.04, 0.62); cokeSpill.scale.set(1, 0.5, 0.7); cokeSpill.rotation.y = 0.6; cokeSpill.castShadow = true;
+coke.add(cokeSpill);
 scene.add(coke);
+// La coke n'est physiquement présente que si le joueur en a en stock.
+function updateCokeBricks() {
+  cokeBricks[0].visible = bulkG > 0.5;
+  cokeBricks[1].visible = bulkG > 55;
+  cokeSpill.visible = bulkG > 0.5;
+}
 
 // POTS DE DILUANT (cylindres étiquetés, façon DDS) au fond-droit. Un seul pot
 // "actif" visible, teinté selon le palier choisi.
@@ -383,7 +394,7 @@ function updateCount()      { ui.count.textContent = "Produit : " + Math.round(p
 function updateResources()  {
   ui.title.textContent  = "COKE " + Math.round(bulkG) + " g · " + Math.round(bulkPurity * 100) + "%";
   ui.remain.textContent = "COUPE " + curDef().name + " : " + Math.round(dilStock[curDil]) + " g";
-  updateDilBar();
+  updateDilBar(); updateCokeBricks();
 }
 function updateProdLabel()  { prodLabel.textContent = "📦 PRODUIT " + Math.round(prod.g) + " g"; setHeap(prodHeap, prod.g, 260); updateCount(); }
 function updateTrayHeap()   { setHeap(trayHeap, trayG(), 160); }
@@ -542,8 +553,8 @@ function placeLabel(div, x, y, z) {
 }
 function updateLabels() {
   placeLabel(prodLabel, PROD_POS.x, 0.55, PROD_POS.z);
-  cokeLabel.textContent = bulkG > 0.3 ? ("🧱 COKE " + Math.round(bulkG) + " g") : "🧱 (vide)";
-  placeLabel(cokeLabel, COKE_POS.x, 0.95, COKE_POS.z);
+  if (bulkG > 0.3) { cokeLabel.textContent = "🧱 COKE " + Math.round(bulkG) + " g"; placeLabel(cokeLabel, COKE_POS.x, 0.95, COKE_POS.z); }
+  else cokeLabel.style.display = "none";
   dilLabel.textContent = dilStock[curDil] > 0.3 ? ("🧪 " + curDef().name + " " + Math.round(dilStock[curDil]) + " g") : "🧪 (pot vide)";
   placeLabel(dilLabel, DIL_POS.x, 0.95, DIL_POS.z);
   if (trayG() > 0.3) slabLabel.textContent = "🪟 " + Math.round(tray.coke) + "g coke +" + Math.round(tray.dil) + "g coupe" + (homog > 0.02 ? " · " + Math.round(homog*100) + "%" : "");
@@ -629,7 +640,7 @@ function receiveCoke(size) {
   const purity = 0.74 + Math.random() * 0.18;
   const tot = bulkG + size;
   bulkPurity = tot > 0 ? (bulkG * bulkPurity + size * purity) / tot : purity;
-  bulkG = tot; coke.visible = true; updateResources();
+  bulkG = tot; updateResources();
   burstPuffs(COKE_POS, 8); sSale();
   showToast("Coke +" + size + " g · " + Math.round(purity * 100) + "%", "#bfe9ff");
 }
@@ -877,7 +888,7 @@ function restock() {
   if (cash >= BRICK_PRICES[50]) { renderShop(); ui.shop.classList.add("show"); return; }
   const tot = bulkG + STARTER.coke;
   bulkPurity = tot > 0 ? (bulkG * bulkPurity + STARTER.coke * STARTER.purity) / tot : STARTER.purity;
-  bulkG = tot; dilStock.lacto += STARTER.dil; coke.visible = true;
+  bulkG = tot; dilStock.lacto += STARTER.dil;
   if (dilStock[curDil] <= 0.5) setDil("lacto"); else updateResources();
   burstPuffs(COKE_POS, 6); burstPuffs(DIL_POS, 6, null, puffMatDil);
   showToast("Lot de dépannage : +" + STARTER.coke + " g coke, +" + STARTER.dil + " g lactose", "#7df9ff");
@@ -917,7 +928,6 @@ setCash(cash); setRep(rep); updateXpUI();
 setFmt(fmt); refreshFmtButtons();
 updateProdLabel(); updateTrayHeap();
 bulkG = STARTER.coke; bulkPurity = STARTER.purity; dilStock.lacto = STARTER.dil;
-coke.visible = true;
 setDil(curDil);           // applique la teinte du pot + la barre, puis met à jour le HUD
 if (dilStock[curDil] <= 0.5) setDil("lacto");
 requestAnimationFrame(loop);
