@@ -189,9 +189,9 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 app.appendChild(renderer.domElement);
 
-const VIEW_DIR    = new THREE.Vector3(0.0, 0.66, 0.75).normalize();
-const VIEW_TARGET = new THREE.Vector3(0, 0.25, 0.8);
-const VIEW_RADIUS = Math.hypot(2.5, 0.9, 2.3);
+const VIEW_DIR    = new THREE.Vector3(0.0, 0.76, 0.65).normalize();  // un peu plus plongeant
+const VIEW_TARGET = new THREE.Vector3(0.25, 0.12, 0.95);
+const VIEW_RADIUS = Math.hypot(1.95, 0.7, 1.6);   // cadre plus serré sur la zone de jeu
 const baseCamPos  = new THREE.Vector3();
 let zoom = +(localStorage.getItem("neige_zoom")) || 1;
 zoom = Math.max(0.6, Math.min(2.6, zoom));
@@ -230,10 +230,10 @@ const fill = new THREE.DirectionalLight(0x9fc0ff, 0.4); fill.position.set(-4, 3,
    3) PLAN DE TRAVAIL
    ------------------------------------------------------------------------- */
 const board = new THREE.Mesh(
-  new THREE.BoxGeometry(5.2, 0.3, 5.2),
+  new THREE.BoxGeometry(9, 0.3, 8),                 // grande table : les bords sortent du cadre
   new THREE.MeshStandardMaterial({ color: 0x2a3340, roughness: 0.7, metalness: 0.25 })
 );
-board.position.set(0, -0.15, 0.6); board.receiveShadow = true; scene.add(board);
+board.position.set(0.3, -0.15, 0.6); board.receiveShadow = true; scene.add(board);
 
 const SLAB_POS = new THREE.Vector3(0, 0, 0.2);
 const slab = new THREE.Mesh(
@@ -520,7 +520,7 @@ function makePochon() {
 // COL_H, puis une nouvelle se forme DERRIÈRE — on ne repart de zéro qu'une fois
 // les COLS colonnes pleines (lot « expédié »).
 const PILES = {};
-[ { f:1, x:1.25 }, { f:5, x:1.78 }, { f:25, x:2.3 } ].forEach(cfg => {
+[ { f:1, x:1.2 }, { f:5, x:1.65 }, { f:25, x:2.1 } ].forEach(cfg => {
   const size = POCHON_SIZE[cfg.f], thick = 0.05 * size + 0.02;
   const pile = { idx:0, size, items:[] };
   for (let i = 0; i < COL_H * COLS; i++) {
