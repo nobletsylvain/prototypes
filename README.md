@@ -104,15 +104,17 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). « Gu
 
 Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) via CDN, un seul `index.html`). Reskin stylisé d'une chaîne **« bulk → retail »** : on transforme du gros en unités de détail sur un plan de travail vu en 3/4 plongeant (brique, dalle en verre, balance, bacs). Même base technique que Hash Slicer.
 
-**Boucle de jeu (4 mini-jeux) :**
-1. **Réception** 🛒 — on reçoit une **brique 50 / 100 g** (gros). Mini-jeu d'**inspection** (spot-the-difference) : repère l'échantillon douteux → fixe la **pureté du lot**. La 1ʳᵉ est offerte (lot de dépannage).
-2. **Pesée — « main sûre »** — tape la **🧱 BRIQUE** : l'aiguille **vibre**, tape pour la **recentrer** et garder le remplissage **dans le vert**. Temps hors-vert = poudre perdue (**déchets**). La portion atterrit sur la **🪟 DALLE**.
-3. **Cut / Mélange** — tape la **DALLE** : matching « **casse les grumeaux** » (sans sur-travailler les zones déjà fines). Un mix homogène = **stretch propre** → la portion devient du **PRODUIT** (volume gonflé selon l'agent de coupe, pureté diluée). **Homogénéité × pureté = qualité.**
-4. **Ensachage — rythme** — tape le bac **📦 PRODUIT** : tap **dans le vert** pour sceller et **vendre** un sachet du **format** choisi (**1 / 5 / 25 g**, petit = €/g plus élevé). **Combo** qui monte le prix ; raté = aux déchets.
+**Boucle de jeu — gestes directs (feeling > skill, rien à « viser ») :**
+1. **Réception** 🛒 — on reçoit une **brique 50 / 100 g** (gros) avec sa **pureté**. La 1ʳᵉ est offerte (🔄 Lot de dépannage).
+2. **Verser** — **maintiens le doigt sur le 🧱 BLOC** → un flux de poudre coule sur la **🪟 DALLE**. On verse autant qu'on veut, aucune perte.
+3. **Mélanger** — **tourne le doigt sur la DALLE** → le **volume gonfle** (stretch) et la poudre s'homogénéise (teinte qui vire) ; progresse au drag **et** au temps, donc même un geste grossier marche. À 100 % le lot devient du **PRODUIT** (**qualité = pureté diluée par le stretch**).
+4. **Ensacher** — **tape (ou maintiens) le bac 📦 PRODUIT** → chaque geste remplit un sachet du **format** choisi (**1 / 5 / 25 g**) qui se scelle, s'envole et **se vend**. Pas de timing, pas de raté (petit = €/g plus élevé).
 
-**Économie & progression :** **réputation** (la qualité moyenne des ventes module le prix), **niveaux (XP)** +2,5 %/niv, **déchets** bradés aux schlags. Boutique : **agent de coupe** (stretch +), **balance de précision**, **tamis**, **presse à briquettes** (débloque le 25 g), **auto-ensacheuse** + cadence. Persistance `localStorage` préfixée **`neige_`** (isolée de `hash_` / `gf_` / `gs_`).
+Un **halo lumineux** pulse sous la station active et un **bandeau de consigne** suit l'étape : la boucle bloc → poudre → mix → sachet est guidée.
 
-**Feedback juteux** : sons synthétisés (WebAudio — poudre versée, raclage, zip, cha-ching), puffs de poudre, secousse de caméra, combos.
+**Économie & progression :** **réputation** (la qualité moyenne des ventes module le prix), **niveaux (XP)** +2,5 %/niv, **déchets** bradés aux schlags. Boutique : **agent de coupe** (stretch +), **presse à briquettes** (débloque le 25 g), **auto-ensacheuse** + cadence. Persistance `localStorage` préfixée **`neige_`** (isolée de `hash_` / `gf_` / `gs_`).
+
+**Feedback juteux** : sons synthétisés (WebAudio — flux de poudre, raclage du mix, zip, cha-ching), puffs de poudre, sachets qui s'envolent, secousse de caméra.
 
 > Prototype de jeu, habillage purement visuel/stylisé.
 
