@@ -301,6 +301,10 @@
       <div class="ring mine" id="ring-mine"><div class="inner"><span class="ph">+ TOI</span></div></div>
       <div class="cap">Ta vitrine</div>
     </div>
+    <div class="story" id="story-momo" style="display:none">
+      <div class="ring" id="ring-momo"><div class="inner">💀</div></div>
+      <div class="cap">Momo</div>
+    </div>
     <div class="story"><div class="ring seen"><div class="inner">🏪</div></div><div class="cap">Le Comptoir</div></div>
     <div class="story"><div class="ring seen"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
     <div class="story"><div class="ring"><div class="inner">🌃</div></div><div class="cap"><span class="live">● ARRIVAGE</span></div></div>
@@ -423,6 +427,7 @@ const els = {
   vhdrBadge:$("vhdr-badge"), vclipTxt:$("vclip-txt"),
   toast:$("toast"), endscreen:$("endscreen"),
   sDette:$("s-dette"), sClock:$("s-clock"), sCash:$("s-cash"), ringMine:$("ring-mine"), storyMine:$("story-mine"),
+  ringMomo:$("ring-momo"), storyMomo:$("story-momo"),
 };
 
 function refreshStake(){
@@ -578,9 +583,10 @@ function exec(cmd, next){
       break;
     }
 
-    case "momostory": {              // arme la gate story de Momo
+    case "momostory": {              // arme la gate story de Momo (carte inline OU pastille du tray)
       pendingMomoStoryData = cmd;
       pendingMomoStory = next;
+      if (cmd.tray){ els.storyMomo.style.display = ""; els.ringMomo.classList.remove("seen"); }
       coach(cmd.coach || "Momo a posté une story 👀 — tape la carte pour voir");
       break;
     }
@@ -836,20 +842,32 @@ els.viewer.addEventListener("click", () => {
   const cb = pendingStory; pendingStory = null; cb();
 });
 
+/* Pastille de Momo dans le tray (gate « va voir Snap ») → ouvre sa story. */
+els.ringMomo.addEventListener("click", () => { if (pendingMomoStory) openMomoStory(); });
+
 function openMomoStory() {
   if (!pendingMomoStory) return;
   const d = pendingMomoStoryData;
-  setViewerStory({ av: d.av, nm: d.nm, tm: d.tm, badge: d.badge, clip: d.clip, cap: d.cap, views: d.views });
-  els.viewer.classList.add("show");
   els.toast.classList.remove("show");
-  const onTap = (e) => {
-    e.stopPropagation();
-    els.viewer.removeEventListener("click", onTap);
-    els.viewer.classList.remove("show");
+  if (d.tray){ els.ringMomo.classList.add("seen"); }
+  setViewerStory({ av: d.av, nm: d.nm, tm: d.tm, badge: d.badge, clip: d.clip, cap: d.cap, views: d.views });
+  const finish = () => {
     resetViewerStory();
+    if (d.tray){ els.storyMomo.style.display = "none"; }
     const cb = pendingMomoStory; pendingMomoStory = null; cb();
   };
-  els.viewer.addEventListener("click", onTap);
+  if (d.comments && d.comments.length){
+    showStoryComments(d, finish);   // la story de Momo AVEC les commentaires qui tombent dessus
+  } else {
+    els.viewer.classList.add("show");
+    const onTap = (e) => {
+      e.stopPropagation();
+      els.viewer.removeEventListener("click", onTap);
+      els.viewer.classList.remove("show");
+      finish();
+    };
+    els.viewer.addEventListener("click", onTap);
+  }
 }
 
 /* Tap global = accelerer la frappe en cours. */
@@ -1228,20 +1246,34 @@ function* chapitre2(){
     yield { t:"choice", options:[ { k:"🎯", cls:"go", label:"Payer le contrat ("+PRIX_CONTRAT+"€)", echo:"tiens. fais-le. 🤫" } ] };
     yield { t:"set", fn:()=>{ state.cash -= PRIX_CONTRAT; state.contratPaid = true;
             CONV.momo.st = "hors ligne"; CONV.momo.stcol = "var(--faint)"; } };
+    // TEMPS 1 — c'est posté, et on attend. Le Pote ne narre PAS la disparition :
+    // un vrai blanc, et il te renvoie sur Snap pour que tu découvres par toi-même.
     yield { t:"recv", text:"c'est posté. 🤫 maintenant on attend." };
-    yield { t:"wait", ms:900 };
-    yield { t:"recv", text:"disparaît dans 9 s", ephem:true };
-    yield { t:"recv", text:"…c'est fait. Momo a disparu. 💀 le block respire." };
+    yield { t:"recv", text:"va voir Snap tout à l'heure. tu comprendras. 👀" };
+    yield { t:"wait", ms:1400 };
+    yield { t:"home" };
+    yield { t:"toast", text:"Plus tard ce soir-là…", ms:1700 };
+    // TEMPS 2 — tu vas sur Snap et tu DÉCOUVRES par le feed : la dernière story de
+    // Momo (le corner vide) avec les commentaires du block qui tombent dessus.
+    yield { t:"momostory", tray:true, av:"💀", nm:"Momo", tm:"story · il y a 2 h",
+            clip:"STORY 9:16 — le corner du block C au petit matin. vide. la dernière de Momo.",
+            badge:"STORY · éphémère",
+            cap:"le block réagit ⚡", sub:"— Momo a disparu du C",
+            coach:"Une story de Momo 👀 — ouvre-la (en haut)",
+            comments:[
+              "Momo plus là ?? 👀",
+              "le block est calme d'un coup…",
+              "RIP Momo 💀 personne va le pleurer",
+              "c'est qui le patron du C maintenant ?",
+              "ta vitrine tourne fort frérot 🔥",
+              "tranquille le quartier ce soir 🌙",
+            ] };
+    // ENSUITE seulement — le Pote réagit, une fois que tu as vu par toi-même.
+    yield { t:"unread", thread:"pote", preview:"t'as vu ?…" };
+    yield { t:"home" };
+    yield { t:"open", thread:"pote", coach:"Le Pote te recontacte 👆" };
+    yield { t:"recv", text:"…t'as vu ? c'est fait. Momo a disparu. 💀 le block respire." };
     yield { t:"recv", text:"mais frère… un truc pareil, ça fait du bruit. la foudre va tomber. ⚡" };
-    yield { t:"wait", ms:500 };
-    yield { t:"storycomments", cap:"le block réagit ⚡", sub:"— Momo a disparu du C", comments:[
-      "Momo plus là ?? 👀",
-      "le block est calme d'un coup…",
-      "RIP Momo 💀 personne va le pleurer",
-      "c'est qui le patron du C maintenant ?",
-      "ta vitrine tourne fort frérot 🔥",
-      "tranquille le quartier ce soir 🌙",
-    ]};
   } else {
     yield { t:"recv", text:"…t'as pas la thune ?! 😤 il manque "+(PRIX_CONTRAT - state.cash)+"€." };
     yield { t:"recv", text:"Momo va te serrer avant qu'on l'ait. on est morts, frère." };
