@@ -7,6 +7,7 @@ Petits prototypes de **core loops** jouables/testables dans le navigateur (mobil
 /index.html              ← hub (liste des core loops)
 /hash-slicer/         ← core loop "Hash Slicer"
 /green-front/         ← core loop "Green Front"
+/guitar-shito/        ← core loop "GuitarShito"
 /tools/                  ← captures d'écran headless (voir tools/README.md)
 ```
 
@@ -61,3 +62,25 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). Chaî
 
 - En ligne : **https://nobletsylvain.github.io/prototypes/green-front/** (depuis le hub).
 - En local : ouvrir `green-front/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
+
+## 🎸 GuitarShito (core loop)
+
+Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). « Guitar Hero du hasch » : trois stations chaînées (suivies par un *stepper* en haut), chacune avec son **mini-jeu d'adresse**.
+
+**Boucle de jeu (3 stations) :**
+1. **Découpe Précise** *(rythme + swipe)* — des **lignes de coupe** descendent un **manche** façon Guitar Hero vers une **barre de strum**. **Tape / swipe PILE** quand la ligne passe la barre : `PARFAIT` (barrette nette, premium) → `BIEN` → `JUSTE`. Le **combo** réduit la perte et monte la qualité ; **raté** = miettes + combo remis à zéro. Les barrettes filent dans le bac **STOCK**. Format **5 g / 10 g**.
+2. **Dilution / Stretch** *(balance physique)* — **maintiens « Verser »** pour gonfler le poids au **filler**. Le **fléau penche** avec inertie et la jauge de **« visibilité »** monte : reste **sous le repère** (zone sûre), sinon la came perd en grade et la **chaleur** 🚔 grimpe. `Emballer ▸` transforme STOCK → **blend**.
+3. **Emballage Cellophane** *(stealth drag + tap)* — **glisse pour enrouler** serré, mais des **flics passent en fond** : bouger pendant qu'**🔴 ça mate** fait monter la **suspicion** → **contrôle** (saisie + chaleur). À 100 %, **🔥 Sceller** vite quand c'est calme (emballage rapide = bonus). Vente par **format** (5 / 10 / 50 / 100 g — petit = €/g plus élevé).
+
+**Économie :** on achète une **plaque** (gros), on la transforme, on vend. La **chaleur policière** (0–100) monte avec les coupes trop visibles et les contrôles, redescend avec le temps, et augmente le **risque de descente** à la vente.
+
+**Progression :** Boutique — **Métronome auto** (auto-coupe parfaite au rythme), **Calibreur** (élargit la zone sûre de dilution), **Guetteur** (raccourcit les fenêtres de surveillance), **Scelleuse pro** (enroulage plus rapide), plaques — et **niveaux (XP)**, +3 % de revenus par niveau. Persistance `localStorage` préfixée `gs_` (distincte de `hash_` / `gf_`).
+
+**Feedback juteux** : notes de guitare synthétisées (WebAudio, hauteur qui monte avec le combo), miettes, secousse de caméra, combo géant + jugement à l'écran.
+
+> Prototype de jeu, habillage purement visuel/humoristique.
+
+### Jouer
+
+- En ligne : **https://nobletsylvain.github.io/prototypes/guitar-shito/** (depuis le hub).
+- En local : ouvrir `guitar-shito/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
