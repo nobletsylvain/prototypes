@@ -156,7 +156,7 @@
 <script type="module">
 import { createSim, C, jaugeOpaque } from './sim.mjs';
 
-const SAVE_VERSION = '4';
+const SAVE_VERSION = '5';
 if (localStorage.getItem('sbx_ver') !== SAVE_VERSION){
   for (const k of Object.keys(localStorage)) if (k.startsWith('sbx_')) localStorage.removeItem(k);
   localStorage.setItem('sbx_ver', SAVE_VERSION);
