@@ -83,15 +83,6 @@
     font-weight:700; font-size:13px; padding:8px 12px; border-radius:11px; }
   .toggle.on { background:#7aa0ff; border-color:#7aa0ff; color:#0c142a; }
 
-  /* --- Dilution : jauge de "visibilité" (risque) --- */
-  #viswrap { width:74%; max-width:340px; height:11px; background:rgba(255,255,255,.14); border-radius:999px;
-    overflow:hidden; position:relative; }
-  #vissafe { position:absolute; top:0; bottom:0; left:0; width:55%;
-    background:linear-gradient(90deg,rgba(122,209,122,.5),rgba(122,209,122,.2)); }
-  #visfill { height:100%; width:0%; background:#7ad17a; transition:width .08s, background .08s; }
-  #vismark { position:absolute; top:-3px; bottom:-3px; width:3px; margin-left:-1.5px; background:#fff;
-    box-shadow:0 0 6px rgba(255,255,255,.9); left:55%; }
-
   /* --- Emballage : statut de pliage + jauge de presse (scellage) --- */
   #sealstatus { pointer-events:none; font-weight:800; font-size:14px; padding:5px 12px; border-radius:999px;
     border:1px solid rgba(255,255,255,.2); background:rgba(255,138,60,.16); color:#ffc89a; }
@@ -142,12 +133,10 @@
 
 <!-- HUD haut -->
 <div class="hud" id="cash">💶 0 €</div>
-<div class="hud" id="heatwrap"><span id="heatlbl">🚔 Chaleur 0</span><div id="heatbar"><div id="heatfill"></div></div></div>
 <div class="hud" id="xpwrap"><span id="level">Niv. 1</span><div id="xpbar"><div id="xpfill"></div></div></div>
 <div class="hud" id="stepper">
   <span class="step" data-step="cut">1·Découpe</span>
-  <span class="step" data-step="dilute">2·Dilution</span>
-  <span class="step" data-step="wrap">3·Emballage</span>
+  <span class="step" data-step="wrap">2·Emballage</span>
 </div>
 <button id="shopbtn">🛒</button>
 
@@ -164,22 +153,11 @@
     <span class="lbl">Barrette</span>
     <button class="toggle" data-fmt="5">5 g</button>
     <button class="toggle on" data-fmt="10">10 g</button>
-    <button class="btn go" id="cutNext">Dilution ▸</button>
+    <button class="btn go" id="cutNext">Emballer ▸</button>
   </div>
 </div>
 
-<!-- Phase 2 : Dilution / Stretch (balance physique) -->
-<div class="panel" id="dilui">
-  <div class="card" id="dilcard"></div>
-  <div id="viswrap"><div id="vissafe"></div><div id="visfill"></div><div id="vismark"></div></div>
-  <div class="row">
-    <button class="btn" id="pourbtn">🫗 Verser (maintenir)</button>
-    <button class="btn go" id="dilNext">Emballer ▸</button>
-    <button class="btn alt" id="dilSkip">Passer (pur) ▸</button>
-  </div>
-</div>
-
-<!-- Phase 3 : Emballage Cellophane scellée au briquet -->
+<!-- Phase 2 : Emballage Cellophane scellée au briquet -->
 <div class="panel" id="wrapui">
   <div class="card" id="wrapcard"></div>
   <div id="sealstatus">🔥 Maintiens le briquet</div>
@@ -207,20 +185,17 @@ import * as THREE from "three";
 /* =========================================================================
    GUITARSHITO — core loop "Guitar Hero du hasch" (proto mobile 3D)
    -------------------------------------------------------------------------
-   Trois stations chainees, dans l'esprit rythme/precision :
+   Deux stations chainees, dans l'esprit rythme/precision :
      1) DECOUPE PRECISE (rythme + swipe) : des lignes de coupe defilent sur
         un manche facon Guitar Hero. Swipe/tap PILE quand la ligne passe la
         barre -> barrette nette + COMBO. Raté -> miettes (perte de quantite).
-     2) DILUTION / STRETCH (balance physique) : on verse du filler pour gonfler
-        le poids. La balance penche ; reste sous le seuil "trop visible" sinon
-        la came perd en grade et la chaleur (police) monte.
-     3) EMBALLAGE CELLOPHANE (scellage au briquet) : la barrette est sous film ;
-        on MAINTIENT le briquet sur chacun des 3 bouts qui dépassent et on lâche
-        DANS LE VERT (bout fondu juste ce qu'il faut) -> scellé propre ; trop
-        tenu -> cramé (un peu moins cher). Vente par format.
+        Les barrettes filent dans le bac STOCK.
+     2) EMBALLAGE CELLOPHANE (scellage au briquet) : une barrette du STOCK est
+        sous film, 2 bouts torsadés dépassent. On MAINTIENT le briquet sur
+        chaque bout et on lâche DANS LE VERT (fondu juste ce qu'il faut) ->
+        scellé propre ; trop tenu -> cramé (un peu moins cher). Vente par format.
    Formats : barrettes 5 g / 10 g (re-decoupables), + semi-gros 50/100 g.
-   Economie : on achete une PLAQUE (gros), on la transforme, on vend. XP/niv ;
-   la chaleur (dilution trop visible) rogne le prix de vente, puis retombe.
+   Economie : on achete une PLAQUE (gros), on coupe, on emballe, on vend. XP/niv.
    Persistance localStorage "gs_".
    Tout est commente en francais, brique par brique.
    ========================================================================= */
@@ -242,7 +217,6 @@ const PACK_FORMATS = [
   { id: "b100", g: 100, eur: 5.5, name: "100 g", emoji: "📦" },
 ];
 
-const FILLER_Q   = 0.12;   // qualite du filler (henne/low-grade) : tire la moyenne vers le bas
 const SCHLAG_RATE = 2.5;   // revente bas de gamme (miettes) — reserve
 
 /* -------------------------------------------------------------------------
@@ -325,10 +299,9 @@ function grainTex(r, g, b, contrast, spots) {
   return t;
 }
 // Résine pressée (look Hash Slicer) : peau brun très foncé lustrée + face coupée
-// blonde mate. Le filler low-grade reste plus terne/olive.
+// blonde mate (mie).
 const matCrust  = new THREE.MeshStandardMaterial({ map: grainTex(46, 31, 18, 40, 230), roughness: 0.4, metalness: 0.3 });
 const matSponge = new THREE.MeshStandardMaterial({ map: grainTex(190, 162, 110, 40, 90), roughness: 0.92 });
-const matFiller = new THREE.MeshStandardMaterial({ map: grainTex(120, 102, 64, 28, 50), roughness: 0.98 });
 
 // --- Barrette à coins arrondis (résine pressée) : rectangle arrondi extrudé +
 // léger biseau. 2 groupes de matériaux -> [face coupée (blonde), flancs (croûte)]. ---
@@ -364,7 +337,7 @@ scene.add(board);
 
 /* -------------------------------------------------------------------------
    5) BAC STOCK (commun a toutes les phases) + pile + label flottant
-   Les barrettes coupees y atterrissent ; la dilution/emballage y puise.
+   Les barrettes coupees y atterrissent ; l'emballage y puise.
    ------------------------------------------------------------------------- */
 const STOCK_POS = new THREE.Vector3(2.45, 0, 1.7);
 function makeBin(pos, col) {
@@ -467,41 +440,7 @@ function getNoteMesh() {
 }
 
 /* -------------------------------------------------------------------------
-   7) PHASE 2 — BALANCE PHYSIQUE (dilution)
-   Un fleau pivote au sommet d'un pied ; plateau gauche = came, plateau droit =
-   filler. Le fleau penche selon (filler - point d'equilibre).
-   ------------------------------------------------------------------------- */
-const balance = new THREE.Group();
-balance.position.set(0, 0, 0.1);
-scene.add(balance);
-const steelMat = new THREE.MeshStandardMaterial({ color: 0xb9c0c8, metalness: 0.7, roughness: 0.3 });
-const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 1.5, 16), steelMat);
-post.position.y = 0.75; post.castShadow = true; balance.add(post);
-const beam = new THREE.Group(); beam.position.y = 1.5; balance.add(beam);
-const beamBar = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.08, 0.1), steelMat);
-beamBar.castShadow = true; beam.add(beamBar);
-// Deux plateaux suspendus.
-function makePan(side, fillMat) {
-  const g = new THREE.Group(); g.position.set(side * 1.15, -0.02, 0);
-  const string1 = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 6), steelMat);
-  string1.position.set(-0.18, -0.27, 0); g.add(string1);
-  const string2 = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 6), steelMat);
-  string2.position.set(0.18, -0.27, 0); g.add(string2);
-  const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.3, 0.12, 20), steelMat);
-  dish.position.y = -0.55; dish.castShadow = true; g.add(dish);
-  const fill = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.26, 0.12, 20), fillMat);
-  fill.position.y = -0.53; fill.scale.y = 0.2; g.add(fill);
-  g.userData.fill = fill;
-  beam.add(g); return g;
-}
-const panL = makePan(-1, matSponge);   // came (produit)
-const panR = makePan(1, matFiller);    // filler
-// Filet de filler qui tombe quand on verse (petits cubes).
-const pourStream = [];
-const pourGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
-
-/* -------------------------------------------------------------------------
-   8) PHASE 3 — TABLE D'EMBALLAGE + CELLOPHANE SCELLÉE AU BRIQUET
+   7) PHASE 2 — TABLE D'EMBALLAGE + CELLOPHANE SCELLÉE AU BRIQUET
    ------------------------------------------------------------------------- */
 const wrapStage = new THREE.Group();
 wrapStage.position.set(0, 0, 0.4);
@@ -599,7 +538,6 @@ function playNote(combo, good) {
   o.start(t); o.stop(t + 0.22);
 }
 function playMiss()  { noiseBurst(0.14, 320, 90, 0.22, "lowpass", 0.7); }
-function playPour()  { noiseBurst(0.05, 1200, 600, 0.05, "bandpass", 0.6); }
 function playSeal()  { noiseBurst(0.22, 600, 1700, 0.22, "lowpass", 0.6); }
 function playSizzle(){ noiseBurst(0.05, 1600, 3200, 0.05, "highpass", 0.7); }    // grésillement du briquet
 function playTss()   { noiseBurst(0.13, 3200, 500, 0.18, "bandpass", 0.8); }      // "tss" : bout qui se scelle
@@ -657,14 +595,13 @@ function updateFlyers(dt) {
 /* -------------------------------------------------------------------------
    10) ETAT DE PARTIE + PERSISTANCE (prefixe "gs_")
    ------------------------------------------------------------------------- */
-const SAVE_VERSION = "1";
+const SAVE_VERSION = "2";   // bump : retrait dilution/blend/chaleur -> reset propre
 if (localStorage.getItem("gs_ver") !== SAVE_VERSION) {
   ["gs_cash","gs_heat","gs_level","gs_xp","gs_shop","gs_plaque","gs_stock","gs_blend","gs_fmt","gs_packfmt"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("gs_ver", SAVE_VERSION);
 }
 
 let cash  = +(localStorage.getItem("gs_cash")  || 0);
-let heat  = Math.max(0, +(localStorage.getItem("gs_heat") || 0));   // chaleur police 0..100
 let level = Math.max(1, +(localStorage.getItem("gs_level") || 1));
 let xp    = Math.max(0, +(localStorage.getItem("gs_xp")    || 0));
 let cutFmt   = +(localStorage.getItem("gs_fmt") || 10);             // format barrette (5/10 g)
@@ -673,20 +610,16 @@ let phase = "cut";
 
 // Plaque en cours (matiere restante a decouper).
 const plaque = Object.assign({ g: 250, size: 250 }, JSON.parse(localStorage.getItem("gs_plaque") || "null") || {});
-// Stock de barrettes coupees (g + somme de qualite ponderee).
+// Stock de barrettes coupees (g + somme de qualite ponderee) -> emballé directement.
 const stock = Object.assign({ g: 0, qsum: 0 }, JSON.parse(localStorage.getItem("gs_stock") || "null") || {});
-// Blend dilue pret a emballer (g + qualite).
-const blend = Object.assign({ g: 0, qsum: 0 }, JSON.parse(localStorage.getItem("gs_blend") || "null") || {});
 
 const owned = JSON.parse(localStorage.getItem("gs_shop") || "{}");
 owned.metro   = owned.metro   || 0;   // metronome auto (auto-strum parfait)
-owned.calibre = owned.calibre || 0;   // calibreur : elargit la zone sûre de dilution
-owned.guet    = owned.guet    || 0;   // guetteur : reduit la chaleur / fenetres de surveillance
-owned.scelle  = owned.scelle  || 0;   // scelleuse pro : enroulage plus rapide
+owned.guet    = owned.guet    || 0;   // reseau de revente (+% sur les pochons)
+owned.scelle  = owned.scelle  || 0;   // briquet turbo : scelle plus vite
 
 function savePlaque() { localStorage.setItem("gs_plaque", JSON.stringify(plaque)); }
 function saveStock()  { localStorage.setItem("gs_stock",  JSON.stringify(stock)); }
-function saveBlend()  { localStorage.setItem("gs_blend",  JSON.stringify(blend)); }
 function saveShop()   { localStorage.setItem("gs_shop",   JSON.stringify(owned)); }
 
 /* -------------------------------------------------------------------------
@@ -694,8 +627,6 @@ function saveShop()   { localStorage.setItem("gs_shop",   JSON.stringify(owned))
    ------------------------------------------------------------------------- */
 const ui = {
   cash:    document.getElementById("cash"),
-  heatfill:document.getElementById("heatfill"),
-  heatlbl: document.getElementById("heatlbl"),
   level:   document.getElementById("level"),
   xpfill:  document.getElementById("xpfill"),
   hint:    document.getElementById("hint"),
@@ -704,11 +635,6 @@ const ui = {
   judge:   document.getElementById("judge"),
   cutui:   document.getElementById("cutui"),
   cutcard: document.getElementById("cutcard"),
-  dilui:   document.getElementById("dilui"),
-  dilcard: document.getElementById("dilcard"),
-  visfill: document.getElementById("visfill"),
-  vissafe: document.getElementById("vissafe"),
-  vismark: document.getElementById("vismark"),
   wrapui:  document.getElementById("wrapui"),
   wrapcard:document.getElementById("wrapcard"),
   sealstatus:document.getElementById("sealstatus"),
@@ -726,13 +652,6 @@ function setCash(v) {
   ui.cash.textContent = "💶 " + Math.round(cash) + " €";
   if (ui.shop.classList.contains("show")) renderShop();
 }
-function setHeat(v) {
-  heat = Math.max(0, Math.min(100, v));
-  localStorage.setItem("gs_heat", String(Math.round(heat)));
-  ui.heatlbl.textContent = "🚔 Chaleur " + Math.round(heat);
-  ui.heatfill.style.width = heat + "%";
-}
-
 function xpNeed(lvl) { return Math.round(130 * Math.pow(1.35, lvl - 1)); }
 function levelMult() { return 1 + (level - 1) * 0.03; }
 function updateXpUI() {
@@ -765,7 +684,6 @@ function setHint(t) { ui.hint.textContent = t; ui.hint.style.opacity = "1"; }
 function gradeWord(a) { return a >= 0.85 ? "A" : a >= 0.6 ? "B" : "C"; }
 function qualMult(a)  { return Math.max(0.7, Math.min(1.45, 0.7 + a * 0.78)); }
 function stockAvg() { return stock.g > 0.01 ? stock.qsum / stock.g : 0.8; }
-function blendAvg() { return blend.g > 0.01 ? blend.qsum / blend.g : 0.8; }
 function addToStock(g, q) { stock.g += g; stock.qsum += g * q; saveStock(); updateStockPile(); refreshCutCard(); }
 function takeFromStock(g) {
   if (stock.g <= 0) return;
@@ -776,7 +694,7 @@ function takeFromStock(g) {
 /* -------------------------------------------------------------------------
    12) STEPPER + bascule de phase (montre la bonne station + overlay)
    ------------------------------------------------------------------------- */
-const ORDER = ["cut", "dilute", "wrap"];
+const ORDER = ["cut", "wrap"];
 function updateStepper() {
   const idx = ORDER.indexOf(phase);
   document.querySelectorAll(".step").forEach(s => {
@@ -788,10 +706,8 @@ function updateStepper() {
 function setPhase(p) {
   phase = p;
   ui.cutui.classList.toggle("show",  p === "cut");
-  ui.dilui.classList.toggle("show",  p === "dilute");
   ui.wrapui.classList.toggle("show", p === "wrap");
   fret.visible      = (p === "cut");
-  balance.visible   = (p === "dilute");
   wrapStage.visible = (p === "wrap");
   ui.combo.classList.remove("show");
   updateStepper();
@@ -883,7 +799,7 @@ function strum(swipeRight) {
   hitBar.material.opacity = 1; hitBar.scale.set(1.18, 1, 1.5);
   addShake(bd <= 0.16 ? 0.16 : 0.08);
   refreshCutCard();
-  if (plaque.g < cutFmt) setHint("Plaque épuisée. Passe à la dilution ▸ ou rachète une plaque (🛒).");
+  if (plaque.g < cutFmt) setHint("Plaque épuisée. Passe à l'emballage ▸ ou rachète une plaque (🛒).");
 }
 
 function missNote(n) {
@@ -941,120 +857,11 @@ function setFmt(f) {
 }
 
 /* -------------------------------------------------------------------------
-   14) PHASE 2 — DILUTION / STRETCH (balance physique)
-   On verse du filler (maintien) -> gonfle le poids, fait pencher la balance,
-   monte la "visibilite". Au-dela du seuil sûr, la came est grillee (grade -,
-   chaleur +). On commit : stock -> blend (avec le filler).
-   ------------------------------------------------------------------------- */
-const dil = { filler: 0, momentum: 0, pouring: false, tilt: 0 };
-function safeShare() { return 0.26 + owned.calibre * 0.05; }   // part de filler "invisible"
-function maxShare()  { return 0.6; }                            // au-dela, comique-ment visible
-
-function gotoDilute() {
-  setPhase("dilute");
-  dil.filler = 0; dil.momentum = 0; dil.pouring = false; dil.tilt = 0;
-  // Position des plateaux selon le stock (gauche) — purement visuel.
-  refreshDilCard();
-  // Zone sûre affichee sur la jauge de visibilite.
-  ui.vissafe.style.width = (safeShare() / maxShare() * 100) + "%";
-  ui.vismark.style.left  = (safeShare() / maxShare() * 100) + "%";
-  setHint("Maintiens « Verser » pour gonfler au filler. Reste sous le repère : au-delà, c'est trop visible.");
-}
-function dilShare() {
-  const tot = stock.g + dil.filler;
-  return tot > 0.01 ? dil.filler / tot : 0;
-}
-function dilVisibility() { return Math.min(1, dilShare() / maxShare()); }
-function refreshDilCard() {
-  const share = dilShare();
-  const outG = stock.g + dil.filler;
-  const outQ = outG > 0.01 ? (stock.qsum + dil.filler * FILLER_Q) / outG : stockAvg();
-  const visible = share > safeShare();
-  ui.dilcard.innerHTML =
-    "⚗️ Came <b>" + Math.round(stock.g) + " g</b> + filler <b>" + Math.round(dil.filler) + " g</b><br>" +
-    "Blend ➜ <span class=\"g\">" + Math.round(outG) + " g</span> · grade <b>" + gradeWord(outQ) + "</b> · coupe " +
-    Math.round(share * 100) + " %" + (visible ? " <span class=\"q\">⚠ trop visible</span>" : "");
-}
-function updateDilute(dt) {
-  if (phase !== "dilute") return;
-  // Versement avec inertie : le debit monte tant qu'on maintient, et un filet
-  // continue brievement au relacher (le geste "balance physique").
-  if (dil.pouring && stock.g + dil.filler < stock.g * 3 + 200) {
-    dil.momentum = Math.min(1, dil.momentum + dt * 1.4);
-  } else {
-    dil.momentum = Math.max(0, dil.momentum - dt * 1.8);
-  }
-  const rate = dil.momentum * 26;                 // g/s
-  if (rate > 0.01) {
-    dil.filler += rate * dt;
-    if (Math.random() < dt * 18) spawnPour();
-    if (Math.random() < dt * 10) playPour();
-    refreshDilCard();
-  }
-  // Jauge de visibilite (rouge au-dela de la zone sûre).
-  const v = dilVisibility();
-  ui.visfill.style.width = (v * 100) + "%";
-  ui.visfill.style.background = dilShare() > safeShare() ? "#ff5e5e" : "#7ad17a";
-
-  // Penche la balance : filler a droite -> le fleau tombe a droite, avec ressort.
-  const target = -Math.min(0.42, dilShare() * 0.9);   // angle cible (rad), negatif = droite plus bas
-  dil.tilt += (target - dil.tilt) * Math.min(1, dt * 4) + (Math.random() - 0.5) * dil.momentum * 0.01;
-  beam.rotation.z = dil.tilt;
-  // Remplissage visuel des plateaux.
-  const fillR = Math.min(1, dil.filler / 120);
-  panR.userData.fill.scale.y = 0.2 + fillR * 2.2;
-  panR.userData.fill.position.y = -0.53 + (fillR * 2.2) * 0.06;
-  const fillL = Math.min(1, stock.g / 200);
-  panL.userData.fill.scale.y = 0.2 + fillL * 2.2;
-  panL.userData.fill.position.y = -0.53 + (fillL * 2.2) * 0.06;
-
-  updatePourStream(dt);
-}
-function spawnPour() {
-  const m = new THREE.Mesh(pourGeo, matFiller);
-  m.position.set(1.15 + (Math.random() - 0.5) * 0.2, 1.35, 0.1);
-  beam.add(m);
-  pourStream.push({ mesh: m, vy: -0.2, life: 0 });
-  while (pourStream.length > 40) { const p = pourStream.shift(); p.mesh.parent && p.mesh.parent.remove(p.mesh); }
-}
-function updatePourStream(dt) {
-  for (let i = pourStream.length - 1; i >= 0; i--) {
-    const p = pourStream[i];
-    p.vy -= 6 * dt; p.life += dt;
-    p.mesh.position.y += p.vy * dt;
-    if (p.mesh.position.y < -0.5 || p.life > 1.2) { p.mesh.parent && p.mesh.parent.remove(p.mesh); pourStream.splice(i, 1); }
-  }
-}
-// Commit : transforme stock(+filler) en blend cumulable, applique le risque.
-function commitDilute(skip) {
-  if (stock.g < 1) { showToast("Stock vide — découpe d'abord", "#ffd166"); return; }
-  const filler = skip ? 0 : dil.filler;
-  const share = (stock.g + filler) > 0.01 ? filler / (stock.g + filler) : 0;
-  const outG = stock.g + filler;
-  blend.g += outG;
-  blend.qsum += stock.qsum + filler * FILLER_Q;
-  // Risque : si on depasse la zone sûre, la chaleur monte (came trop coupee = plaintes/balances).
-  if (share > safeShare()) {
-    const over = share - safeShare();
-    setHeat(heat + over * 50);
-    showToast("Coupe trop visible 😬 +chaleur", "#ff5e5e");
-    addShake(0.2);
-  } else if (filler > 0) {
-    showToast("Stretch propre +" + Math.round(filler) + " g", "#bdf0a3");
-  }
-  // Vide le stock consomme.
-  stock.g = 0; stock.qsum = 0; saveStock(); saveBlend(); updateStockPile();
-  dil.filler = 0; dil.momentum = 0;
-  const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(440, t, 0.1, 0.18); beep(620, t + 0.08, 0.12, 0.18); }
-  gotoWrap();
-}
-
-/* -------------------------------------------------------------------------
-   15) PHASE 3 — EMBALLAGE CELLOPHANE SCELLÉE AU BRIQUET
-   La barrette est sous film, 3 bouts dépassent. On MAINTIENT le briquet sur le
-   bout courant (il rougit/fond, grésille) et on LÂCHE dans la zone verte = bout
-   scellé propre ; trop tenu = cramé (pochon un peu moins cher). 3 bouts -> vente.
-   Pas de flics : la seule tension reste macro (la chaleur de dilution rogne le prix).
+   14) PHASE 2 — EMBALLAGE CELLOPHANE SCELLÉE AU BRIQUET
+   La barrette (puisée dans le STOCK) est sous film, 2 bouts torsadés dépassent.
+   On MAINTIENT le briquet sur le bout courant (il rougit/fond, grésille) et on
+   LÂCHE dans la zone verte = bout scellé propre ; trop tenu = cramé (un peu moins
+   cher). 2 bouts -> pochon vendu au format.
    ------------------------------------------------------------------------- */
 const ENDS = 2;
 const wrapS = { i: 0, melt: 0, holding: false, sealed: false, seals: [], sizzleT: 0 };
@@ -1080,31 +887,29 @@ function setSealStatus() {
     " — lâche dans le vert";
 }
 function refreshWrapCard() {
-  const a = blendAvg();
-  const hot = heat > 25 ? " · <span class=\"q\">⚠ chaleur " + Math.round(heat) + " (prix ↓)</span>" : "";
+  const a = stockAvg();
   ui.wrapcard.innerHTML =
-    "📦 Blend <b>" + Math.round(blend.g) + " g</b> · grade <b>" + gradeWord(a) + "</b><br>" +
-    "Format <b>" + (PACK_FORMATS.find(f => f.id === packFmt) || {}).name + "</b>" + hot;
+    "📦 Stock <b>" + Math.round(stock.g) + " g</b> · grade <b>" + gradeWord(a) + "</b><br>" +
+    "Format <b>" + (PACK_FORMATS.find(f => f.id === packFmt) || {}).name + "</b>";
 }
 function setPackButtons() {
   document.querySelectorAll(".fmt").forEach(b => b.classList.toggle("on", b.dataset.fmt === packFmt));
 }
-function packHeatMult() { return 1 - Math.min(0.35, heat / 100 * 0.35); }   // came "chaude" = se vend moins cher
 function renderPackGrid() {
   ui.packgrid.innerHTML = "";
   for (const f of PACK_FORMATS) {
-    const unit = Math.round(f.g * f.eur * qualMult(blendAvg()) * packHeatMult() * (1 + owned.guet * 0.06) * levelMult());
+    const unit = Math.round(f.g * f.eur * qualMult(stockAvg()) * (1 + owned.guet * 0.06) * levelMult());
     const b = document.createElement("button");
     b.className = "fmt" + (f.id === packFmt ? " on" : "");
     b.dataset.fmt = f.id;
-    b.disabled = blend.g < f.g;
+    b.disabled = stock.g < f.g;
     b.innerHTML = '<div class="fn">' + f.emoji + " " + f.name + '</div><div class="fp">~' + unit + " €</div>";
     b.addEventListener("click", () => { packFmt = f.id; localStorage.setItem("gs_packfmt", f.id); setPackButtons(); refreshWrapCard(); });
     ui.packgrid.appendChild(b);
   }
 }
-// Relacher le briquet : verrouille le bout courant selon la fonte atteinte.
-// melt < 0.7 = pas encore scellé (on garde le bout) ; 0.7-1.0 = propre ; > 1.0 = cramé.
+// Relâcher le briquet : verrouille le bout selon la fonte atteinte.
+// < 0.2 = rien (on reprend) ; 0.2-0.55 = bâclé ; 0.55-1.0 = propre ; > 1.0 = cramé.
 function lockEnd() {
   if (phase !== "wrap" || wrapS.sealed || wrapS.i >= ENDS) return;
   if (wrapS.melt < 0.2) { wrapS.melt = 0; return; }   // simple effleurement -> rien (on reprend)
@@ -1120,17 +925,16 @@ function lockEnd() {
   wrapS.i++; wrapS.melt = 0;
   if (wrapS.i >= ENDS) finishSeal(); else setSealStatus();
 }
-// Les 3 bouts scellés -> pochon fini, vendu au format choisi.
+// Les 2 bouts scellés -> pochon fini, puisé dans le STOCK et vendu au format.
 function finishSeal() {
   const f = PACK_FORMATS.find(x => x.id === packFmt);
   wrapS.sealed = true; wrapS.holding = false;
   ui.seal.style.display = "none"; ui.meltgaugewrap.style.display = "none"; briquetFlame.visible = false;
-  if (!f || blend.g < f.g) { showToast("Pas assez de blend", "#ffd166"); setSealStatus(); return; }
-  const a = blendAvg();
-  const frac = f.g / blend.g;
-  blend.qsum *= (1 - frac); blend.g -= f.g; saveBlend();
+  if (!f || stock.g < f.g) { showToast("Pas assez de stock", "#ffd166"); setSealStatus(); return; }
+  const a = stockAvg();
+  takeFromStock(f.g); updateStockPile();             // consomme le pochon dans le stock
   const sealAvg = wrapS.seals.reduce((s, v) => s + v, 0) / Math.max(1, wrapS.seals.length);  // 0.82..1.12
-  const price = f.g * f.eur * qualMult(a) * sealAvg * packHeatMult() * (1 + owned.guet * 0.06) * levelMult();
+  const price = f.g * f.eur * qualMult(a) * sealAvg * (1 + owned.guet * 0.06) * levelMult();
   setCash(cash + price);
   addXP(Math.max(1, Math.round(price * 0.05)));
   playSeal(); playSale(); flame(); addShake(0.16);
@@ -1139,8 +943,8 @@ function finishSeal() {
   setSealStatus();
   setTimeout(() => {
     refreshWrapCard(); renderPackGrid();
-    if (blend.g >= f.g) gotoWrap();                  // enchaine un autre pochon
-    else ui.sealstatus.textContent = "Blend écoulé — retourne à la découpe ▸";
+    if (stock.g >= f.g) gotoWrap();                  // enchaine un autre pochon
+    else ui.sealstatus.textContent = "Stock écoulé — retourne à la découpe ▸";
   }, 800);
 }
 function updateWrap(dt) {
@@ -1210,10 +1014,6 @@ const SHOP = [
     desc: () => owned.metro ? "Auto-coupe parfaite, cadence " + (1.1 * Math.pow(0.82, owned.metro)).toFixed(2) + " s." : "Coupe au rythme tout seul (parfait).",
     cost: () => Math.round(2200 * Math.pow(1.7, owned.metro)),
     can: () => owned.metro < 6, maxed: () => owned.metro >= 6, buy: () => { owned.metro++; } },
-  { id: "calibre", icon: "🎯", name: "Calibreur",
-    desc: () => "Élargit la zone sûre de dilution (+5 % filler invisible). Actuel " + Math.round(safeShare() * 100) + " %.",
-    cost: () => Math.round(900 * Math.pow(1.6, owned.calibre)),
-    can: () => owned.calibre < 5, maxed: () => owned.calibre >= 5, buy: () => { owned.calibre++; } },
   { id: "guet", icon: "🤝", name: "Réseau de revente",
     desc: () => "Meilleurs débouchés : +" + (owned.guet * 6) + " % sur les pochons (+6 %/niv).",
     cost: () => Math.round(1200 * Math.pow(1.6, owned.guet)),
@@ -1246,7 +1046,7 @@ function buy(it) {
   it.buy(); saveShop();
   const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(990, t + 0.07, 0.14, 0.2); }
   renderShop();
-  if (phase === "dilute") gotoDilute();
+  if (phase === "wrap") { refreshWrapCard(); renderPackGrid(); }   // garde la grille à jour (plaque/format)
 }
 
 /* -------------------------------------------------------------------------
@@ -1293,26 +1093,17 @@ el.addEventListener("pointercancel", onUp, { passive: false });
 
 // Boutons des panneaux + boutique.
 document.querySelectorAll(".toggle[data-fmt]").forEach(b => b.addEventListener("click", () => setFmt(+b.dataset.fmt)));
-document.getElementById("cutNext").addEventListener("click", () => { if (stock.g < 1) showToast("Coupe d'abord des barrettes", "#ffd166"); else gotoDilute(); });
-document.getElementById("dilNext").addEventListener("click", () => commitDilute(false));
-document.getElementById("dilSkip").addEventListener("click", () => commitDilute(true));
+document.getElementById("cutNext").addEventListener("click", () => { if (stock.g < 1) showToast("Coupe d'abord des barrettes", "#ffd166"); else gotoWrap(); });
 document.getElementById("wrapNext").addEventListener("click", () => gotoCut());
 // Bouton "Briquet" (maintien) : chauffe le bout courant ; relâcher dans le vert = scellé propre.
 ui.seal.addEventListener("pointerdown", (e) => { e.preventDefault(); wrapS.holding = true; ensureAudio(); });
 ui.seal.addEventListener("pointerup", (e) => { e.preventDefault(); wrapS.holding = false; lockEnd(); });
 ui.seal.addEventListener("pointerleave", () => { wrapS.holding = false; lockEnd(); });
 ui.seal.addEventListener("pointercancel", () => { wrapS.holding = false; lockEnd(); });
-// Bouton "Verser" (maintien).
-const pourbtn = document.getElementById("pourbtn");
-pourbtn.addEventListener("pointerdown", (e) => { e.preventDefault(); dil.pouring = true; ensureAudio(); });
-pourbtn.addEventListener("pointerup", (e) => { e.preventDefault(); dil.pouring = false; });
-pourbtn.addEventListener("pointerleave", () => { dil.pouring = false; });
-pourbtn.addEventListener("pointercancel", () => { dil.pouring = false; });
 // Stepper cliquable (navigation libre, pratique pour le proto).
 document.querySelectorAll(".step").forEach(s => s.addEventListener("click", () => {
   const p = s.dataset.step;
   if (p === "cut") gotoCut();
-  else if (p === "dilute") gotoDilute();
   else if (p === "wrap") gotoWrap();
 }));
 document.getElementById("shopbtn").addEventListener("click", () => { renderShop(); ui.shop.classList.add("show"); });
@@ -1341,18 +1132,14 @@ function updateLabels() {
 /* -------------------------------------------------------------------------
    19) BOUCLE PRINCIPALE
    ------------------------------------------------------------------------- */
-let heatDecay = 0, last = 0;
+let last = 0;
 function loop(t) {
   const dt = Math.min((t - last) / 1000 || 0, 0.05);
   last = t;
   updateCut(dt);
-  updateDilute(dt);
   updateWrap(dt);
   updateCrumbs(dt);
   updateFlyers(dt);
-  // La chaleur redescend lentement avec le temps.
-  heatDecay += dt;
-  if (heatDecay >= 0.7 && heat > 0) { heatDecay = 0; setHeat(heat - 1); }
   // Secousse de camera (amortie).
   if (shake > 0) { shake *= Math.pow(0.0008, dt); if (shake < 0.002) shake = 0; }
   camera.position.copy(baseCamPos);
@@ -1372,7 +1159,6 @@ function loop(t) {
    ------------------------------------------------------------------------- */
 resize();
 setCash(cash);
-setHeat(heat);
 updateXpUI();
 updateStockPile();
 refreshPlaque();
