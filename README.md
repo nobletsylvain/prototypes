@@ -8,6 +8,7 @@ Petits prototypes de **core loops** jouables/testables dans le navigateur (mobil
 /hash-slicer/         ← core loop "Hash Slicer"
 /green-front/         ← core loop "Green Front"
 /guitar-shito/        ← core loop "GuitarShito"
+/neige/                  ← core loop "Neige"
 /tools/                  ← captures d'écran headless (voir tools/README.md)
 ```
 
@@ -98,3 +99,24 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). « Gu
 
 - En ligne : **https://nobletsylvain.github.io/prototypes/guitar-shito/** (depuis le hub).
 - En local : ouvrir `guitar-shito/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
+
+## ❄️ Neige (core loop)
+
+Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) via CDN, un seul `index.html`). Reskin stylisé d'une chaîne **« bulk → retail »** : on transforme du gros en unités de détail sur un plan de travail vu en 3/4 plongeant (brique, dalle en verre, balance, bacs). Même base technique que Hash Slicer.
+
+**Boucle de jeu (4 mini-jeux) :**
+1. **Réception** 🛒 — on reçoit une **brique 50 / 100 g** (gros). Mini-jeu d'**inspection** (spot-the-difference) : repère l'échantillon douteux → fixe la **pureté du lot**. La 1ʳᵉ est offerte (lot de dépannage).
+2. **Pesée — « main sûre »** — tape la **🧱 BRIQUE** : l'aiguille **vibre**, tape pour la **recentrer** et garder le remplissage **dans le vert**. Temps hors-vert = poudre perdue (**déchets**). La portion atterrit sur la **🪟 DALLE**.
+3. **Cut / Mélange** — tape la **DALLE** : matching « **casse les grumeaux** » (sans sur-travailler les zones déjà fines). Un mix homogène = **stretch propre** → la portion devient du **PRODUIT** (volume gonflé selon l'agent de coupe, pureté diluée). **Homogénéité × pureté = qualité.**
+4. **Ensachage — rythme** — tape le bac **📦 PRODUIT** : tap **dans le vert** pour sceller et **vendre** un sachet du **format** choisi (**1 / 5 / 25 g**, petit = €/g plus élevé). **Combo** qui monte le prix ; raté = aux déchets.
+
+**Économie & progression :** **réputation** (la qualité moyenne des ventes module le prix), **niveaux (XP)** +2,5 %/niv, **déchets** bradés aux schlags. Boutique : **agent de coupe** (stretch +), **balance de précision**, **tamis**, **presse à briquettes** (débloque le 25 g), **auto-ensacheuse** + cadence. Persistance `localStorage` préfixée **`neige_`** (isolée de `hash_` / `gf_` / `gs_`).
+
+**Feedback juteux** : sons synthétisés (WebAudio — poudre versée, raclage, zip, cha-ching), puffs de poudre, secousse de caméra, combos.
+
+> Prototype de jeu, habillage purement visuel/stylisé.
+
+### Jouer
+
+- En ligne : **https://nobletsylvain.github.io/prototypes/neige/** (depuis le hub).
+- En local : ouvrir `neige/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
