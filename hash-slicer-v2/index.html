@@ -156,6 +156,7 @@
 </head>
 <body>
 <div id="app"></div>
+<label id="hap" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0;pointer-events:none"><input type="checkbox" switch></label>
 <div class="hud" id="count">Barrettes : 0</div>
 <div id="cash">💶 0 €</div>
 <button id="waste">🗑️ 0 g</button>
@@ -563,9 +564,11 @@ function pressCut() {
   const grams = ((rightNeg - cn) + (rightPos - cp)) / 2 * PER_LEN;
   bladeChop = 1;                                // rebond de la lame
   spawnBarrette(cn, cp, grams, "A", 1);         // coupe nette -> grade A
+  addWaste(grams * 0.05);                        // un peu de poussiere -> bac dechets (vendable)
   burstCrumbs((cn + cp) / 2, H * 0.6, 0, 6);
   addShake(0.3);                                // crack
   playCut("A");
+  haptic(45);                                   // vibration du "crack" (best-effort)
   const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(180, t, 0.09, 0.2); } // "pop" de relache
 }
 
@@ -619,6 +622,13 @@ function makeLabel(text, color) {
    Tout est synthetise -> aucun fichier audio. L'AudioContext est cree/repris
    au premier appui (obligatoire sur iOS).
    ------------------------------------------------------------------------- */
+// Retour haptique (best-effort) : Vibration API (Android) + hack switch iOS 17.4+.
+const _hapEl = document.getElementById("hap");
+function haptic(p) {
+  try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {}
+  try { if (_hapEl) _hapEl.firstElementChild.click(); } catch (e) {}
+}
+
 let actx = null;
 function ensureAudio() {
   if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
@@ -930,7 +940,7 @@ el.addEventListener("pointerdown", (e) => {
   if (pickSellBin(e.clientX, e.clientY))  { sellStock(); return; }   // tape le bac STOCK -> vente
   if (pickWasteBin(e.clientX, e.clientY)) { sellWaste(); return; }   // tape le bac dechets -> schlag
   if (over) return;                        // plus de plaque a couper
-  if (pointOnTop(e.clientX, e.clientY)) { pressing = true; pressT = 0; }   // appui sur la plaque -> on presse
+  if (pointOnTop(e.clientX, e.clientY)) { pressing = true; pressT = 0; haptic(8); }  // appui sur la plaque -> contact lame
 }, { passive:false });
 
 el.addEventListener("pointermove", (e) => {
