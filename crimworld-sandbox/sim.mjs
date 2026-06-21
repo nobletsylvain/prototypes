@@ -22,6 +22,7 @@ export const C = {
   CLIENTS_BASE: 12,          // nb de clients/jour à réput 100 (si la story est postée)
   PREMIER_DM_H: 0.4,         // 1er DM ~0,4 h après la story (≈ 2,4 s) — feedback quasi immédiat
   MARGE_FIN_H: 2,            // dernier DM ~2 h avant minuit → le temps de le servir (peu de temps mort)
+  CADENCE_JITTER: [0, 0.7, -0.45, 1.0, -0.6, 0.4, -0.3, 0.8],  // décalage déterministe (h) → cadence irrégulière (rafales/creux), pas métronomique
   PANIER: [10, 5, 15, 5, 10, 20, 5, 10],  // g demandés par client (cyclique, déterministe)
   REPUT_PROPRE: 6,           // une coupe propre fait monter la demande
   REPUT_ARRACHE: -25,        // une coupe à l'arrache la fait fuir
@@ -98,11 +99,13 @@ export function createSim(){
       const first = debut + C.PREMIER_DM_H;
       const last  = Math.max(first, C.DAY_HOURS - C.MARGE_FIN_H);
       for (let i = 0; i < n; i++){
+        const base = n > 1 ? first + (last - first) * i / (n - 1) : first;  // étalement uniforme
+        const j = C.CADENCE_JITTER[i % C.CADENCE_JITTER.length];            // décalage déterministe
         state.clientsJour.push({
           id: ++state.clientSeq,
           produit: 'hash',                               // produit actif (généralisé plus tard)
           grammes: C.PANIER[i % C.PANIER.length],
-          heureArrivee: n > 1 ? first + (last - first) * i / (n - 1) : first,
+          heureArrivee: Math.max(first, Math.min(last, base + j)),          // cadence irrégulière (rafales/creux)
           arrive: false, servi: false,
         });
       }
