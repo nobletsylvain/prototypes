@@ -24,36 +24,32 @@
     transition:opacity .25s, transform .25s; transform:translateY(8px); }
   #toast.show { opacity:1; transform:translateY(0); }
   #title { top:max(46px,calc(env(safe-area-inset-top) + 30px)); left:16px; font-size:12px;
-    color:rgba(255,255,255,.45); font-weight:600; letter-spacing:.5px; }
+    color:rgba(255,255,255,.55); font-weight:700; letter-spacing:.3px; }
   #remain { top:max(62px,calc(env(safe-area-inset-top) + 46px)); left:16px; font-size:12px;
-    color:rgba(125,200,255,.85); font-weight:700; letter-spacing:.3px; }
+    color:rgba(220,210,180,.85); font-weight:700; letter-spacing:.3px; }
 
-  /* --- Cash + bac dechets + reputation --- */
+  /* --- Cash + reputation --- */
   #cash { position:fixed; top:max(14px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
     font-weight:800; font-size:18px; color:#9be37d; text-shadow:0 2px 8px rgba(0,0,0,.5); pointer-events:none; }
-  #waste { position:fixed; top:calc(max(14px,env(safe-area-inset-top)) + 27px); left:50%; transform:translateX(-50%);
-    pointer-events:auto; background:rgba(202,161,95,.18); border:1px solid rgba(202,161,95,.5); color:#e6c896;
-    font-weight:700; font-size:13px; padding:4px 11px; border-radius:10px; }
-  #waste:active { background:rgba(202,161,95,.35); }
   #rep { position:fixed; top:max(14px,env(safe-area-inset-top)); right:70px; pointer-events:none;
     background:rgba(122,160,255,.16); border:1px solid rgba(122,160,255,.5); color:#bcd0ff;
     font-weight:700; font-size:12px; padding:4px 9px; border-radius:999px; }
 
   /* --- Niveau + barre d'XP --- */
-  #xpwrap { position:fixed; top:calc(max(14px,env(safe-area-inset-top)) + 54px); left:50%; transform:translateX(-50%);
+  #xpwrap { position:fixed; top:calc(max(14px,env(safe-area-inset-top)) + 27px); left:50%; transform:translateX(-50%);
     display:flex; align-items:center; gap:6px; pointer-events:none; z-index:4; }
   #level { background:rgba(155,227,125,.18); border:1px solid rgba(155,227,125,.55); color:#bdf0a3;
     font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; white-space:nowrap; }
   #xpbar { width:120px; height:7px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
   #xpfill { height:100%; width:0%; background:linear-gradient(90deg,#7ad17a,#bdf0a3); border-radius:999px; transition:width .25s; }
 
-  /* --- Etiquettes flottantes (bacs / brique / dalle) --- */
+  /* --- Etiquettes flottantes --- */
   #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
   .blabel { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
     font-weight:800; font-size:13px; padding:2px 7px; border-radius:8px;
     background:rgba(0,0,0,.5); text-shadow:0 1px 3px rgba(0,0,0,.6); }
 
-  /* --- Bandeau de consigne (guidage) : toujours visible, indique le geste courant --- */
+  /* --- Bandeau de consigne (guidage) --- */
   #prompt { bottom:max(60px,calc(env(safe-area-inset-bottom) + 54px)); text-align:center; pointer-events:none; }
   #prompt span { display:inline-block; background:rgba(8,16,26,.6); border:1px solid rgba(125,200,255,.35);
     color:#eaf6ff; font-size:14px; font-weight:700; padding:8px 16px; border-radius:999px;
@@ -101,14 +97,13 @@
 <div id="app"></div>
 <div class="hud" id="count">Produit : 0 g</div>
 <div id="cash">💶 0 €</div>
-<button id="waste">🗑️ 0 g</button>
 <div id="rep">Réput 100%</div>
 <div id="xpwrap"><span id="level">Niv. 1</span><div id="xpbar"><div id="xpfill"></div></div></div>
-<div class="hud" id="title">BRIQUE</div>
-<div class="hud" id="remain">Bulk : 0 g</div>
+<div class="hud" id="title">COKE</div>
+<div class="hud" id="remain">Diluant</div>
 <button id="reset">🔄 Lot</button>
 <button id="shopbtn">🛒</button>
-<div class="hud" id="prompt"><span>Reçois une brique…</span></div>
+<div class="hud" id="prompt"><span>Reçois de la coke…</span></div>
 <div class="hud" id="toast"></div>
 <div id="labels"></div>
 
@@ -136,39 +131,36 @@ import * as THREE from "three";
 /* =========================================================================
    NEIGE — core loop "bulk -> retail" (proto mobile WebGL)
    -------------------------------------------------------------------------
-   Refonte "feeling > skill" : plus de mini-jeux d'adresse / de jauges à viser.
-   On manipule DIRECTEMENT la matière au doigt, sur la scène 3D. Aucun geste
-   n'est pénalisé s'il est grossier — il produit toujours quelque chose, et la
-   satisfaction vient du retour (flux de poudre, volume qui gonfle, sachets qui
-   partent, son, secousse). Un guidage (halo sous la station active + bandeau
-   de consigne) rend la boucle bloc -> poudre -> mix -> sachet évidente.
+   "Feeling > skill" : on manipule DIRECTEMENT la matière au doigt, jamais de
+   geste raté. La coupe est PHYSIQUE — on ajoute soi-même du diluant avant de
+   mélanger, et la quantité de diluant fait le stretch (volume + / pureté -).
 
-     1) RECEPTION : on achète une brique (gros). Elle arrive avec sa pureté.
-     2) VERSER     : on MAINTIENT le doigt sur le 🧱 BLOC -> un flux de poudre
-                     coule sur la 🪟 DALLE (on verse autant qu'on veut).
-     3) MELANGER   : on TOURNE le doigt sur la DALLE -> le volume gonfle
-                     (stretch) et la poudre s'homogénéise. Se termine juste en
-                     s'y prenant (même brouillon), jamais raté.
+     1) RECEPTION : on achète de la coke (brique) ET du diluant (recharge),
+                    de la même façon, à la boutique.
+     2) VERSER     : on MAINTIENT le doigt sur le 🧱 BLOC DE COKE -> un flux de
+                     poudre coule sur la 🪟 DALLE. Idem sur le 🧂 DILUANT.
+     3) MELANGER   : une fois coke + diluant sur la dalle, on TOURNE le doigt
+                     dessus -> ça se coupe/homogénéise et part en PRODUIT
+                     (grammes = coke + diluant ; pureté diluée d'autant).
      4) ENSACHER   : on TAPE / MAINTIENT le bac 📦 PRODUIT -> chaque geste
-                     remplit un sachet (1/5/25 g) qui se scelle, s'envole et se
+                     remplit un sachet (1/5/25 g) qui se scelle, s'envole, se
                      vend. Pas de timing, pas de raté.
 
-   Boutique : agents de coupe (stretch+), presse à briquettes, auto-ensacheuse,
-   etc. + niveaux (XP) + réputation (qualité moyenne des ventes). Persistance
-   localStorage sous le préfixe `neige_*`.
+   Boutique : coke, diluant, agent premium (qualité de coupe), presse à
+   briquettes, auto-ensacheuse + cadence. Niveaux (XP) + réputation (qualité
+   moyenne des ventes). Persistance localStorage sous le préfixe `neige_*`.
    ========================================================================= */
 
 /* -------------------------------------------------------------------------
    0) ECONOMIE
    ------------------------------------------------------------------------- */
-const BRICK_PRICES = { 50: 2200, 100: 4000 };     // achat gros (~44 / 40 €/g de bulk)
-const FMT_PRICE    = { 1: 80, 5: 62, 25: 48 };    // €/g au détail selon le format (petit = +cher)
-const FMT_LABEL    = { 1: "rue 1 g", 5: "semi 5 g", 25: "briquette 25 g" };
-const SCHLAG_RATE  = 12;                            // €/g des déchets bradés
-const STARTER      = { g: 30, purity: 0.78 };       // lot de dépannage gratuit (anti soft-lock)
-const POUR_RATE    = 26;                             // g/s versés en maintenant sur le bloc
-const MIX_DRAG_K   = 1 / 650;                        // homogénéité gagnée par pixel de swirl
-const MIX_TIME_K   = 0.55;                           // homogénéité gagnée par seconde d'engagement
+const BRICK_PRICES = { 50: 2200, 100: 4000 };      // coke (gros) ~44 / 40 €/g
+const DIL_REFILL   = { g: 200, cost: 320 };         // diluant (lactose/mannitol) ~1.6 €/g
+const FMT_PRICE    = { 1: 80, 5: 62, 25: 48 };      // €/g au détail selon le format
+const STARTER      = { coke: 30, purity: 0.8, dil: 40 }; // lot de dépannage gratuit
+const POUR_RATE    = 26;                             // g/s versés en maintenant
+const MIX_DRAG_K   = 1 / 650;                        // homogénéité par pixel de swirl
+const MIX_TIME_K   = 0.55;                           // homogénéité par seconde d'engagement
 const BAG_HOLD_RATE= 0.26;                           // s entre deux sachets quand on maintient
 
 /* -------------------------------------------------------------------------
@@ -227,7 +219,7 @@ fill.position.set(-4, 3, 6);
 scene.add(fill);
 
 /* -------------------------------------------------------------------------
-   3) PLAN DE TRAVAIL : table + dalle + brique + balance + bacs
+   3) PLAN DE TRAVAIL : table + dalle + bloc de coke + tub de diluant + bac
    ------------------------------------------------------------------------- */
 const board = new THREE.Mesh(
   new THREE.BoxGeometry(5.2, 0.3, 4.8),
@@ -246,30 +238,31 @@ slab.position.copy(SLAB_POS).setY(0.06);
 slab.receiveShadow = true;
 scene.add(slab);
 
-const BRICK_POS = new THREE.Vector3(-1.65, 0, -0.5);
-const brick = new THREE.Group();
-brick.position.copy(BRICK_POS);
+// BLOC DE COKE (mylar) au fond-gauche -> source de poudre "coke".
+const COKE_POS = new THREE.Vector3(-1.55, 0, -0.5);
+const coke = new THREE.Group();
+coke.position.copy(COKE_POS);
 const mylar = new THREE.MeshStandardMaterial({ color: 0xdfe6ee, roughness: 0.32, metalness: 0.4 });
-const brickBody = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.5, 0.8), mylar);
-brickBody.position.y = 0.25; brickBody.castShadow = true; brick.add(brickBody);
-const tape = new THREE.Mesh(new THREE.BoxGeometry(1.17, 0.16, 0.12),
+const cokeBody = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.5, 0.78), mylar);
+cokeBody.position.y = 0.25; cokeBody.castShadow = true; coke.add(cokeBody);
+const cokeTape = new THREE.Mesh(new THREE.BoxGeometry(1.07, 0.16, 0.12),
   new THREE.MeshStandardMaterial({ color: 0x9aa6b2, roughness: 0.5 }));
-tape.position.set(0, 0.25, 0); brick.add(tape);
-scene.add(brick);
+cokeTape.position.set(0, 0.25, 0); coke.add(cokeTape);
+scene.add(coke);
 
-const scaleGrp = new THREE.Group();
-scaleGrp.position.set(1.7, 0, -0.35);
-const scaleBase = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.16, 0.8),
-  new THREE.MeshStandardMaterial({ color: 0x20262e, roughness: 0.5, metalness: 0.4 }));
-scaleBase.position.y = 0.08; scaleBase.castShadow = true; scaleBase.receiveShadow = true; scaleGrp.add(scaleBase);
-const scalePan = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.04, 0.6),
-  new THREE.MeshStandardMaterial({ color: 0xc8d2dc, roughness: 0.25, metalness: 0.7 }));
-scalePan.position.set(0, 0.18, -0.02); scaleGrp.add(scalePan);
-const scaleRead = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.04),
-  new THREE.MeshStandardMaterial({ color: 0x0a1a12, emissive: 0x123d22, roughness: 0.4 }));
-scaleRead.position.set(0, 0.2, 0.3); scaleGrp.add(scaleRead);
-scene.add(scaleGrp);
+// TUB DE DILUANT (bidon) au fond-droit -> source de poudre "diluant".
+const DIL_POS = new THREE.Vector3(1.55, 0, -0.5);
+const dilTub = new THREE.Group();
+dilTub.position.copy(DIL_POS);
+const dilBody = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.62, 22),
+  new THREE.MeshStandardMaterial({ color: 0xc3d2df, roughness: 0.4, metalness: 0.15 }));
+dilBody.position.y = 0.31; dilBody.castShadow = true; dilTub.add(dilBody);
+const dilLid = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.1, 22),
+  new THREE.MeshStandardMaterial({ color: 0x8197a8, roughness: 0.5 }));
+dilLid.position.y = 0.64; dilTub.add(dilLid);
+scene.add(dilTub);
 
+// Bac PRODUIT (coupé, à ensacher) au centre-avant.
 function makeBin(pos, col) {
   const grp = new THREE.Group(); grp.position.copy(pos);
   const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, metalness: 0.1, side: THREE.DoubleSide });
@@ -280,20 +273,18 @@ function makeBin(pos, col) {
   wLR(-w / 2); wLR(w / 2); wFB(-d / 2); wFB(d / 2);
   scene.add(grp); return grp;
 }
-const PROD_POS  = new THREE.Vector3(-1.1, 0, 2.0);
-const WASTE_POS = new THREE.Vector3(1.1, 0, 2.0);
-const prodBin   = makeBin(PROD_POS, 0x2f5d8a);
-const wasteBin  = makeBin(WASTE_POS, 0x55504a);
+const PROD_POS = new THREE.Vector3(0, 0, 2.05);
+const prodBin  = makeBin(PROD_POS, 0x2f5d8a);
 
-// Halo de guidage : un disque lumineux pulsant sous la station "à utiliser".
+// Halo de guidage pulsant sous la station active.
 const glow = new THREE.Mesh(
-  new THREE.CircleGeometry(1.05, 28),
+  new THREE.CircleGeometry(1.0, 28),
   new THREE.MeshBasicMaterial({ color: 0x7df9ff, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false })
 );
 glow.rotation.x = -Math.PI / 2; glow.position.y = 0.04; scene.add(glow);
 
 /* -------------------------------------------------------------------------
-   4) TAS DE POUDRE (heaps) : un cône blanc dont l'échelle suit les grammes.
+   4) TAS DE POUDRE (heaps)
    ------------------------------------------------------------------------- */
 function powderTex(base) {
   const c = document.createElement("canvas"); c.width = c.height = 64;
@@ -314,15 +305,12 @@ function makeHeap(base) {
 }
 const trayHeap  = makeHeap(238); trayHeap.position.set(SLAB_POS.x, 0.12, SLAB_POS.z);
 const prodHeap  = makeHeap(228); prodHeap.position.set(PROD_POS.x, 0.06, PROD_POS.z);
-const wasteHeap = makeHeap(150); wasteHeap.position.set(WASTE_POS.x, 0.06, WASTE_POS.z);
 function setHeap(mesh, g, maxG) {
   const k = Math.min(1, g / maxG);
   const s = 0.18 + 0.95 * Math.cbrt(k);
   mesh.visible = g > 0.3;
   mesh.scale.set(s, 0.55 + 0.6 * k, s);
 }
-// Teinte du tas sur la dalle : du blanc pur (poudre fraîche) vers une teinte
-// "coupée" crème au fur et à mesure du mélange.
 const COL_FRESH = new THREE.Color(0xffffff);
 const COL_CUT   = new THREE.Color(0xefe6cf);
 function setTrayTint(h) { trayHeap.material.color.lerpColors(COL_FRESH, COL_CUT, Math.min(1, h)); }
@@ -330,27 +318,27 @@ function setTrayTint(h) { trayHeap.material.color.lerpColors(COL_FRESH, COL_CUT,
 /* -------------------------------------------------------------------------
    5) ETAT DE PARTIE + PERSISTANCE
    ------------------------------------------------------------------------- */
-const SAVE_VERSION = "2";
+const SAVE_VERSION = "3";
 if (localStorage.getItem("neige_ver") !== SAVE_VERSION) {
-  ["neige_cash", "neige_waste", "neige_level", "neige_xp", "neige_shop", "neige_rep"].forEach(k => localStorage.removeItem(k));
+  ["neige_cash", "neige_level", "neige_xp", "neige_shop", "neige_rep", "neige_waste"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("neige_ver", SAVE_VERSION);
 }
-let cash       = +(localStorage.getItem("neige_cash") || 0);
-let wasteGrams = +(localStorage.getItem("neige_waste") || 0);
-let level      = Math.max(1, +(localStorage.getItem("neige_level") || 1));
-let xp         = Math.max(0, +(localStorage.getItem("neige_xp") || 0));
-let rep        = Math.min(1.2, Math.max(0.7, +(localStorage.getItem("neige_rep") || 1)));
-let fmt        = +(localStorage.getItem("neige_fmt") || 1);
+let cash  = +(localStorage.getItem("neige_cash") || 0);
+let level = Math.max(1, +(localStorage.getItem("neige_level") || 1));
+let xp    = Math.max(0, +(localStorage.getItem("neige_xp") || 0));
+let rep   = Math.min(1.2, Math.max(0.7, +(localStorage.getItem("neige_rep") || 1)));
+let fmt   = +(localStorage.getItem("neige_fmt") || 1);
 
-let bulkG = 0, bulkPurity = STARTER.purity;        // brique de bulk en cours
-const tray = { g: 0, psum: 0 };                     // portion versée sur la dalle (avant cut)
+let bulkG = 0, bulkPurity = STARTER.purity;        // stock de coke
+let dilG  = 0;                                      // stock de diluant
+const tray = { coke: 0, dil: 0, cokePure: 0 };      // sur la dalle : coke, diluant, "grammes purs" de coke
 const prod = { g: 0, qsum: 0 };                     // produit coupé : g + qualité pondérée
 let homog = 0;                                       // homogénéité du mélange courant (0..1)
 
-function trayPurity() { return tray.g > 0 ? tray.psum / tray.g : bulkPurity; }
+function trayG()      { return tray.coke + tray.dil; }
+function trayPurity() { return trayG() > 0 ? tray.cokePure / trayG() : bulkPurity; }
 function prodQual()   { return prod.g > 0 ? prod.qsum / prod.g : 0.6; }
-function addTray(g, p)   { tray.g += g; tray.psum += g * p; }
-function addProd(g, q)   { prod.g += g; prod.qsum += g * q; updateProdLabel(); }
+function addProd(g, q){ prod.g += g; prod.qsum += g * q; updateProdLabel(); }
 function takeProd(g) {
   if (prod.g <= 0) return;
   const r = Math.min(1, g / prod.g);
@@ -362,8 +350,7 @@ function takeProd(g) {
    6) UI (références + setters)
    ------------------------------------------------------------------------- */
 const ui = {
-  count:document.getElementById("count"), cash:document.getElementById("cash"),
-  waste:document.getElementById("waste"), rep:document.getElementById("rep"),
+  count:document.getElementById("count"), cash:document.getElementById("cash"), rep:document.getElementById("rep"),
   level:document.getElementById("level"), xpfill:document.getElementById("xpfill"),
   title:document.getElementById("title"), remain:document.getElementById("remain"),
   prompt:document.getElementById("prompt").firstElementChild, toast:document.getElementById("toast"),
@@ -375,21 +362,17 @@ function setCash(v) {
   ui.cash.textContent = "💶 " + Math.round(cash) + " €";
   if (ui.shop.classList.contains("show")) renderShop();
 }
-function setWaste(v) {
-  wasteGrams = Math.max(0, v); localStorage.setItem("neige_waste", String(Math.round(wasteGrams)));
-  ui.waste.textContent = "🗑️ " + Math.round(wasteGrams) + " g";
-  setHeap(wasteHeap, wasteGrams, 120);
-}
-function addWaste(g) { setWaste(wasteGrams + g); }
 function setRep(v) {
   rep = Math.min(1.2, Math.max(0.7, v)); localStorage.setItem("neige_rep", rep.toFixed(3));
   ui.rep.textContent = "Réput " + Math.round(rep * 100) + "%";
 }
 function updateCount()      { ui.count.textContent = "Produit : " + Math.round(prod.g) + " g"; }
-function updateRemain()     { ui.remain.textContent = "Bulk : " + Math.round(bulkG) + " g · " + Math.round(bulkPurity * 100) + "%"; }
-function updateTitle()      { ui.title.textContent = "BRIQUE " + Math.round(bulkG) + " g"; }
+function updateResources()  {
+  ui.title.textContent  = "COKE " + Math.round(bulkG) + " g · " + Math.round(bulkPurity * 100) + "%";
+  ui.remain.textContent = "DILUANT " + Math.round(dilG) + " g";
+}
 function updateProdLabel()  { prodLabel.textContent = "📦 PRODUIT " + Math.round(prod.g) + " g"; setHeap(prodHeap, prod.g, 260); updateCount(); }
-function updateTrayHeap()   { setHeap(trayHeap, tray.g, 120); }
+function updateTrayHeap()   { setHeap(trayHeap, trayG(), 160); }
 
 /* -------------------------------------------------------------------------
    7) NIVEAUX / XP
@@ -415,7 +398,7 @@ function addXP(n) {
 }
 
 /* -------------------------------------------------------------------------
-   8) AUDIO (synthétisé, débloqué au 1er tap)
+   8) AUDIO (synthétisé)
    ------------------------------------------------------------------------- */
 let actx = null;
 function ensureAudio() {
@@ -446,29 +429,30 @@ function beep(freq, t0, dur, vol) {
   o.connect(g); g.connect(ac.destination);
   o.start(t0); o.stop(t0 + dur);
 }
-const sScrape= () => noiseBurst(0.09, 2200, 800, 0.25, "bandpass", 0.9);   // swirl du mélange
-const sZip   = () => noiseBurst(0.13, 1100, 2600, 0.22, "bandpass", 1.3);  // zip sachet
+const sScrape= () => noiseBurst(0.09, 2200, 800, 0.25, "bandpass", 0.9);
+const sZip   = () => noiseBurst(0.13, 1100, 2600, 0.22, "bandpass", 1.3);
 const sErr   = () => { const ac = ensureAudio(); if (ac) beep(150, ac.currentTime, 0.12, 0.2); };
 function sSale() { const ac = ensureAudio(); if (!ac) return; const t = ac.currentTime; beep(880, t, 0.12, 0.24); beep(1320, t + 0.08, 0.16, 0.22); }
 
 /* -------------------------------------------------------------------------
-   9) PUFFS de poudre (juice) + secousse
+   9) PUFFS de poudre (coke = blanc, diluant = crème) + secousse
    ------------------------------------------------------------------------- */
 const puffs = [];
 const puffGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
-const puffMat = new THREE.MeshStandardMaterial({ color: 0xf2f6fb, roughness: 1 });
-function spawnPuff(pos, vx, vy, vz) {
-  const m = new THREE.Mesh(puffGeo, puffMat);
+const puffMat    = new THREE.MeshStandardMaterial({ color: 0xf2f6fb, roughness: 1 });
+const puffMatDil = new THREE.MeshStandardMaterial({ color: 0xe7ddc6, roughness: 1 });
+function spawnPuff(pos, vx, vy, vz, mat) {
+  const m = new THREE.Mesh(puffGeo, mat || puffMat);
   m.position.copy(pos); scene.add(m);
   puffs.push({ mesh: m, vx, vy, vz, settled: false });
   while (puffs.length > 90) { const p = puffs.shift(); scene.remove(p.mesh); }
 }
-function burstPuffs(pos, n, toward) {
+function burstPuffs(pos, n, toward, mat) {
   for (let i = 0; i < n; i++) {
     const tx = toward ? (toward.x - pos.x) * 1.2 : (Math.random() - 0.5) * 1.6;
     const tz = toward ? (toward.z - pos.z) * 1.2 : (Math.random() - 0.5) * 1.6;
     spawnPuff(new THREE.Vector3(pos.x + (Math.random()-0.5)*0.5, pos.y + 0.2, pos.z + (Math.random()-0.5)*0.5),
-      tx + (Math.random()-0.5)*0.6, 1.6 + Math.random()*1.0, tz + (Math.random()-0.5)*0.6);
+      tx + (Math.random()-0.5)*0.6, 1.6 + Math.random()*1.0, tz + (Math.random()-0.5)*0.6, mat);
   }
 }
 function updatePuffs(dt) {
@@ -494,14 +478,14 @@ function spawnBagFly() {
   const m = new THREE.Mesh(bagGeo, bagMat);
   m.position.set(PROD_POS.x, 0.4, PROD_POS.z); m.castShadow = true; scene.add(m);
   bags.push({ mesh: m, t: 0, from: m.position.clone(),
-    to: new THREE.Vector3(PROD_POS.x + 1.0 + Math.random()*0.4, 1.7, PROD_POS.z - 0.6) });
+    to: new THREE.Vector3(PROD_POS.x + 1.2 + Math.random()*0.5, 1.7, PROD_POS.z - 0.5) });
   while (bags.length > 24) { const b = bags.shift(); scene.remove(b.mesh); }
 }
 function updateBags(dt) {
   for (let i = bags.length - 1; i >= 0; i--) {
     const b = bags[i]; b.t += dt * 1.7; const k = Math.min(1, b.t);
     b.mesh.position.lerpVectors(b.from, b.to, k);
-    b.mesh.position.y += Math.sin(k * Math.PI) * 0.4;       // petit arc
+    b.mesh.position.y += Math.sin(k * Math.PI) * 0.4;
     b.mesh.rotation.y += dt * 5; b.mesh.scale.setScalar(1 - 0.55 * k);
     if (k >= 1) { scene.remove(b.mesh); bags.splice(i, 1); }
   }
@@ -515,10 +499,10 @@ function makeLabel(text, color) {
   const d = document.createElement("div"); d.className = "blabel"; d.textContent = text; d.style.color = color;
   labelsEl.appendChild(d); return d;
 }
-const prodLabel  = makeLabel("📦 PRODUIT 0 g", "#bfe9ff");
-const wasteLabel = makeLabel("🗑️ DÉCHETS", "#e6c896");
-const brickLabel = makeLabel("🧱 BLOC", "#dfe6ee");
-const slabLabel  = makeLabel("🪟 DALLE", "#bfe9ff");
+const prodLabel = makeLabel("📦 PRODUIT 0 g", "#bfe9ff");
+const cokeLabel = makeLabel("🧱 COKE", "#dfe6ee");
+const dilLabel  = makeLabel("🧂 DILUANT", "#e7ddc6");
+const slabLabel = makeLabel("🪟 DALLE", "#bfe9ff");
 const _lv = new THREE.Vector3();
 function placeLabel(div, x, y, z) {
   _lv.set(x, y, z).project(camera);
@@ -529,11 +513,13 @@ function placeLabel(div, x, y, z) {
 }
 function updateLabels() {
   placeLabel(prodLabel, PROD_POS.x, 0.55, PROD_POS.z);
-  placeLabel(wasteLabel, WASTE_POS.x, 0.55, WASTE_POS.z);
-  brickLabel.textContent = bulkG > 0.3 ? ("🧱 BLOC " + Math.round(bulkG) + " g") : "🧱 (vide)";
-  placeLabel(brickLabel, BRICK_POS.x, 0.7, BRICK_POS.z);
-  slabLabel.textContent = tray.g > 0.3 ? ("🪟 " + Math.round(tray.g) + " g · mix " + Math.round(homog * 100) + "%") : "🪟 DALLE";
-  placeLabel(slabLabel, SLAB_POS.x, 0.55, SLAB_POS.z);
+  cokeLabel.textContent = bulkG > 0.3 ? ("🧱 COKE " + Math.round(bulkG) + " g") : "🧱 (vide)";
+  placeLabel(cokeLabel, COKE_POS.x, 0.75, COKE_POS.z);
+  dilLabel.textContent = dilG > 0.3 ? ("🧂 DILUANT " + Math.round(dilG) + " g") : "🧂 (vide)";
+  placeLabel(dilLabel, DIL_POS.x, 0.85, DIL_POS.z);
+  if (trayG() > 0.3) slabLabel.textContent = "🪟 " + Math.round(tray.coke) + "g coke +" + Math.round(tray.dil) + "g dil" + (homog > 0.02 ? " · " + Math.round(homog*100) + "%" : "");
+  else slabLabel.textContent = "🪟 DALLE";
+  placeLabel(slabLabel, SLAB_POS.x, 0.5, SLAB_POS.z);
 }
 
 /* -------------------------------------------------------------------------
@@ -551,24 +537,28 @@ function showToast(msg, color) {
    13) BOUTIQUE & UPGRADES
    ------------------------------------------------------------------------- */
 const owned = JSON.parse(localStorage.getItem("neige_shop") || "{}");
-owned.agent   = owned.agent   || 0;   // agents de coupe : stretch +
-owned.press   = owned.press   || 0;   // presse à briquettes : débloque le format 25 g
-owned.autobag = owned.autobag || 0;   // auto-ensacheuse : vend du produit toute seule
+owned.agent   = owned.agent   || 0;   // agent premium : coupe moins détectable (qualité +)
+owned.press   = owned.press   || 0;   // presse à briquettes : débloque le 25 g
+owned.autobag = owned.autobag || 0;   // auto-ensacheuse
 owned.cadence = owned.cadence || 0;   // cadence de l'auto-ensacheuse
 function saveShop() { localStorage.setItem("neige_shop", JSON.stringify(owned)); }
-function stretchFactor() { return 1.3 + owned.agent * 0.1; }                    // 1.3 .. ~1.9
-function bagInterval()   { return 3.0 * Math.pow(0.82, owned.cadence); }        // s/sachet (auto)
+function bagInterval() { return 3.0 * Math.pow(0.82, owned.cadence); }
+// Qualité du produit selon sa pureté (après coupe) + bonus d'agent premium.
+function cutQuality(purity) { return Math.max(0.2, Math.min(1, 0.3 + 0.7 * purity + owned.agent * 0.035)); }
 
 const SHOP = [
-  { id:"brick50", icon:"🧱", name:"Brique 50 g",
-    desc:()=>"Bulk (gros). Arrive sur le plan de travail.",
-    cost:()=>BRICK_PRICES[50], can:()=>true, maxed:()=>false, buy:()=>receiveBrick(50) },
-  { id:"brick100", icon:"📦", name:"Brique 100 g",
-    desc:()=>"Bulk (gros, moins cher au gramme).",
-    cost:()=>BRICK_PRICES[100], can:()=>true, maxed:()=>false, buy:()=>receiveBrick(100) },
-  { id:"agent", icon:"🧂", name:"Agent de coupe +",
-    desc:()=>"Meilleur agent : stretch ×" + stretchFactor().toFixed(2) + " (plus de volume).",
-    cost:()=>Math.round(700 * Math.pow(1.6, owned.agent)),
+  { id:"brick50", icon:"🧱", name:"Coke 50 g",
+    desc:()=>"Matière première (gros). Recharge le bloc.",
+    cost:()=>BRICK_PRICES[50], can:()=>true, maxed:()=>false, buy:()=>receiveCoke(50) },
+  { id:"brick100", icon:"📦", name:"Coke 100 g",
+    desc:()=>"Matière première (gros, moins cher au gramme).",
+    cost:()=>BRICK_PRICES[100], can:()=>true, maxed:()=>false, buy:()=>receiveCoke(100) },
+  { id:"dil", icon:"🧂", name:"Diluant " + DIL_REFILL.g + " g",
+    desc:()=>"Agent de coupe (lactose/mannitol). Recharge le tub.",
+    cost:()=>DIL_REFILL.cost, can:()=>true, maxed:()=>false, buy:()=>receiveDiluant() },
+  { id:"agent", icon:"✨", name:"Agent premium",
+    desc:()=>"Coupe moins détectable : qualité +" + Math.round((owned.agent+1)*3.5) + "% à pureté égale.",
+    cost:()=>Math.round(800 * Math.pow(1.6, owned.agent)),
     can:()=>owned.agent < 6, maxed:()=>owned.agent >= 6, buy:()=>{ owned.agent++; } },
   { id:"press", icon:"🗜️", name:"Presse à briquettes",
     desc:()=>"Débloque le format 25 g (semi-gros).",
@@ -604,85 +594,88 @@ function buy(it) {
 }
 
 /* -------------------------------------------------------------------------
-   14) RECEPTION : acheter une brique -> arrive avec sa pureté (sans skill)
+   14) RECEPTION : coke & diluant (achetés de la même façon)
    ------------------------------------------------------------------------- */
-function receiveBrick(size) {
+function receiveCoke(size) {
   const cost = BRICK_PRICES[size];
   if (cash < cost) { showToast("Pas assez : " + cost + " €", "#ff6b6b"); return; }
-  setCash(cash - cost);
-  ui.shop.classList.remove("show");
-  const purity = 0.74 + Math.random() * 0.18;     // pureté du lot (74..92 %)
-  loadBrick(size, purity);
-  burstPuffs(BRICK_POS, 8); sSale();
-  showToast("Lot reçu : " + size + " g · " + Math.round(purity * 100) + "%", "#bfe9ff");
-}
-function loadBrick(size, purity) {
+  setCash(cash - cost); ui.shop.classList.remove("show");
+  const purity = 0.74 + Math.random() * 0.18;
   const tot = bulkG + size;
   bulkPurity = tot > 0 ? (bulkG * bulkPurity + size * purity) / tot : purity;
-  bulkG = tot;
-  brick.visible = true; updateTitle(); updateRemain();
+  bulkG = tot; coke.visible = true; updateResources();
+  burstPuffs(COKE_POS, 8); sSale();
+  showToast("Coke +" + size + " g · " + Math.round(purity * 100) + "%", "#bfe9ff");
+}
+function receiveDiluant() {
+  const cost = DIL_REFILL.cost;
+  if (cash < cost) { showToast("Pas assez : " + cost + " €", "#ff6b6b"); return; }
+  setCash(cash - cost); ui.shop.classList.remove("show");
+  dilG += DIL_REFILL.g; updateResources();
+  burstPuffs(DIL_POS, 8, null, puffMatDil); sSale();
+  showToast("Diluant +" + DIL_REFILL.g + " g", "#e7ddc6");
 }
 
 /* -------------------------------------------------------------------------
-   15) GESTE 1 — VERSER : maintenir sur le BLOC fait couler la poudre.
-   Aucun objectif, aucune perte : on verse autant qu'on veut sur la dalle.
+   15) GESTE 1 — VERSER : maintenir sur le BLOC (coke) ou le TUB (diluant).
+   pouring vaut null | "coke" | "dil". Aucune perte, on verse autant qu'on veut.
    ------------------------------------------------------------------------- */
-let pouring = false, pourSndT = 0;
+let pouring = null, pourSndT = 0;
 function updatePour(dt) {
   if (!pouring) return;
-  if (bulkG <= 0.05) { pouring = false; showToast("Bloc fini", "#e6c896"); return; }
-  const g = Math.min(bulkG, POUR_RATE * dt);
-  bulkG -= g; addTray(g, bulkPurity);
-  homog = 0; setTrayTint(0);                       // poudre fraîche -> à re-mélanger
-  updateTrayHeap(); updateRemain(); updateTitle();
-  // Flux de particules du bloc vers la dalle.
-  const from = new THREE.Vector3(BRICK_POS.x + 0.3, 0.55, BRICK_POS.z + 0.2);
-  spawnPuff(from.clone(), (SLAB_POS.x - from.x) * 1.1 + (Math.random()-0.5)*0.3,
-            0.3 + Math.random()*0.3, (SLAB_POS.z - from.z) * 1.1 + (Math.random()-0.5)*0.3);
-  // Son de versement (hiss qui monte avec la quantité), retriggé périodiquement.
+  const isCoke = pouring === "coke";
+  const stock = isCoke ? bulkG : dilG;
+  if (stock <= 0.05) { pouring = null; showToast(isCoke ? "Bloc fini" : "Diluant fini", "#e6c896"); return; }
+  const g = Math.min(stock, POUR_RATE * dt);
+  if (isCoke) { bulkG -= g; tray.coke += g; tray.cokePure += g * bulkPurity; }
+  else        { dilG  -= g; tray.dil  += g; }
+  homog = 0; setTrayTint(0);                        // composition modifiée -> à (re)mélanger
+  updateTrayHeap(); updateResources();
+  const src = isCoke ? COKE_POS : DIL_POS;
+  spawnPuff(new THREE.Vector3(src.x + (isCoke?0.3:-0.3), 0.6, src.z + 0.2),
+    (SLAB_POS.x - src.x) * 1.1 + (Math.random()-0.5)*0.3, 0.3 + Math.random()*0.3,
+    (SLAB_POS.z - src.z) * 1.1 + (Math.random()-0.5)*0.3, isCoke ? puffMat : puffMatDil);
   pourSndT += dt;
-  if (pourSndT >= 0.09) { pourSndT = 0; noiseBurst(0.1, 900 + Math.min(1, tray.g/100)*1400, 400, 0.14, "lowpass", 0.7); }
+  if (pourSndT >= 0.09) { pourSndT = 0; noiseBurst(0.1, (isCoke?900:700) + Math.min(1, trayG()/140)*1300, 380, 0.14, "lowpass", 0.7); }
 }
 
 /* -------------------------------------------------------------------------
-   16) GESTE 2 — MELANGER : tourner le doigt sur la dalle gonfle le volume
-   (stretch) et homogénéise. Progresse au drag ET au temps -> même un geste
-   grossier marche. À 100 %, le lot devient du PRODUIT (jamais pénalisé).
+   16) GESTE 2 — MELANGER : tourner le doigt sur la dalle. Exige coke + diluant.
+   Coupe physique : produit = coke + diluant ; pureté = coke_pur / total.
    ------------------------------------------------------------------------- */
 let mixing = false;
-function mixAddDrag(px) {                            // appelé au pointermove
-  if (!mixing || tray.g <= 0) return;
+function mixAddDrag(px) {
+  if (!mixing || trayG() <= 0) return;
   homog = Math.min(1, homog + px * MIX_DRAG_K);
   setTrayTint(homog);
 }
 function updateMix(dt) {
-  if (!mixing || tray.g <= 0.3) return;
-  homog = Math.min(1, homog + dt * MIX_TIME_K);     // composante "temps" : tenir suffit
+  if (!mixing || tray.coke <= 0 || tray.dil <= 0) return;
+  homog = Math.min(1, homog + dt * MIX_TIME_K);
   setTrayTint(homog);
-  if (Math.random() < dt * 14) {                    // petits puffs de swirl
+  if (Math.random() < dt * 14) {
     spawnPuff(new THREE.Vector3(SLAB_POS.x + (Math.random()-0.5)*1.0, 0.3, SLAB_POS.z + (Math.random()-0.5)*0.6),
-      (Math.random()-0.5)*0.6, 0.6 + Math.random()*0.4, (Math.random()-0.5)*0.6);
+      (Math.random()-0.5)*0.6, 0.6 + Math.random()*0.4, (Math.random()-0.5)*0.6, puffMatDil);
     sScrape();
   }
   if (homog >= 1) commitMix();
 }
 function commitMix() {
   mixing = false;
-  const stretch = stretchFactor();
-  const resultP = trayPurity() / stretch;           // pureté diluée par le stretch
-  const qual = Math.max(0.2, Math.min(1, 0.45 + 0.55 * resultP)); // qualité = pureté (pas de skill)
-  const added = tray.g * stretch;                    // volume vendable gonflé
-  addProd(added, qual);
+  const total = trayG();
+  const purity = total > 0 ? tray.cokePure / total : 0;
+  const qual = cutQuality(purity);
+  addProd(total, qual);
   setRep(rep + (qual - 0.6) * 0.05);
-  tray.g = 0; tray.psum = 0; homog = 0; setTrayTint(0); updateTrayHeap();
+  const stretch = tray.coke > 0 ? total / tray.coke : 1;
+  tray.coke = 0; tray.dil = 0; tray.cokePure = 0; homog = 0; setTrayTint(0); updateTrayHeap();
   burstPuffs(SLAB_POS, 12, PROD_POS); addShake(0.16); sSale();
-  addXP(Math.max(1, Math.round(added * 0.3)));
-  showToast("Mélangé ! +" + Math.round(added) + " g produit (qual " + Math.round(qual * 100) + "%)", "#bfe9ff");
+  addXP(Math.max(1, Math.round(total * 0.3)));
+  showToast("Coupé ×" + stretch.toFixed(2) + " → +" + Math.round(total) + " g (pureté " + Math.round(purity*100) + "%, qual " + Math.round(qual*100) + "%)", "#bfe9ff");
 }
 
 /* -------------------------------------------------------------------------
-   17) GESTE 3 — ENSACHER : taper/maintenir le bac PRODUIT remplit un sachet
-   qui se scelle, s'envole et se vend. Pas de timing, pas de raté.
+   17) GESTE 3 — ENSACHER : taper/maintenir le bac PRODUIT.
    ------------------------------------------------------------------------- */
 let bagging = false, bagHoldT = 0;
 function bagOnce() {
@@ -697,25 +690,11 @@ function bagOnce() {
 function updateBagging(dt) {
   if (!bagging) return;
   bagHoldT += dt;
-  if (bagHoldT >= BAG_HOLD_RATE) {
-    bagHoldT = 0;
-    if (!bagOnce()) bagging = false;                 // plus de produit -> on arrête
-  }
+  if (bagHoldT >= BAG_HOLD_RATE) { bagHoldT = 0; if (!bagOnce()) bagging = false; }
 }
 
 /* -------------------------------------------------------------------------
-   18) DECHETS : bradés aux schlags
-   ------------------------------------------------------------------------- */
-function sellWaste() {
-  if (wasteGrams < 1) { showToast("Bac déchets vide", "#e6c896"); return; }
-  const earn = wasteGrams * SCHLAG_RATE * levelMult();
-  setCash(cash + earn); addXP(Math.max(1, Math.round(wasteGrams * 0.04)));
-  setWaste(0); addShake(0.1); sSale();
-  showToast("+ " + Math.round(earn) + " € (schlag)", "#e6c896");
-}
-
-/* -------------------------------------------------------------------------
-   19) AUTO-ENSACHEUSE (passive)
+   18) AUTO-ENSACHEUSE (passive)
    ------------------------------------------------------------------------- */
 let autoTimer = 0;
 function updateAuto(dt) {
@@ -732,21 +711,23 @@ function updateAuto(dt) {
 }
 
 /* -------------------------------------------------------------------------
-   20) GUIDAGE : consigne + halo pulsant sous la station "à utiliser".
+   19) GUIDAGE : consigne + halo sous la station "à utiliser".
    ------------------------------------------------------------------------- */
 function currentStep() {
-  if (tray.g > 0.3)               return "mix";       // de la poudre à mélanger
-  if (prod.g >= fmt)              return "bag";       // du produit à ensacher
-  if (bulkG > 0.3)               return "pour";      // du bulk à verser
+  if (tray.coke > 0.3 && tray.dil > 0.3) return "mix";       // coke + diluant prêts -> mélanger
+  if (tray.coke > 0.3)                   return "pourDil";   // coke versée -> ajouter diluant
+  if (prod.g >= fmt)                     return "bag";       // du produit à vendre
+  if (bulkG > 0.3)                       return "pourCoke";  // verser de la coke
   return "receive";
 }
 const PROMPTS = {
-  pour:    "🧱 Maintiens sur le BLOC pour verser la poudre sur la dalle",
-  mix:     "🪟 Tourne le doigt sur la DALLE pour mélanger — le volume gonfle",
-  bag:     "📦 Tape (ou maintiens) le bac PRODUIT pour ensacher & vendre",
-  receive: "🛒 Reçois une brique (ou 🔄 Lot gratuit) pour démarrer",
+  pourCoke: "🧱 Maintiens sur le BLOC DE COKE pour en verser sur la dalle",
+  pourDil:  "🧂 Maintiens sur le DILUANT (à droite) pour couper — ajoute-en sur la dalle",
+  mix:      "🪟 Tourne le doigt sur la DALLE pour mélanger la coupe",
+  bag:      "📦 Tape (ou maintiens) le bac PRODUIT pour ensacher & vendre",
+  receive:  "🛒 Reçois de la coke et du diluant (ou 🔄 Lot gratuit)",
 };
-const STEP_POS = { pour: BRICK_POS, mix: SLAB_POS, bag: PROD_POS };
+const STEP_POS = { pourCoke: COKE_POS, pourDil: DIL_POS, mix: SLAB_POS, bag: PROD_POS };
 let glowPhase = 0;
 function updateGuide(dt) {
   const step = currentStep();
@@ -764,8 +745,7 @@ function updateGuide(dt) {
 }
 
 /* -------------------------------------------------------------------------
-   21) ENTREES : gestes directs sur la scène 3D (+ pinch zoom)
-   Le geste est déterminé par l'objet touché au pointerdown puis "verrouillé".
+   20) ENTREES : gestes directs sur la scène 3D (+ pinch zoom)
    ------------------------------------------------------------------------- */
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
@@ -780,10 +760,10 @@ function rayHit(cx, cy, objs, recursive) {
 
 const pointers = new Map();
 let pinching = false, pinchStartDist = 0, pinchStartZoom = 1;
-let gesture = null, lastX = 0, lastY = 0;             // geste actif + dernier point (pour le swirl)
+let gesture = null, lastX = 0, lastY = 0;
 function pinchDist() { const a = [...pointers.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
 function startPinch() {
-  pinching = true; gesture = null; pouring = false; mixing = false; bagging = false;
+  pinching = true; gesture = null; pouring = null; mixing = false; bagging = false;
   pinchStartDist = pinchDist() || 1; pinchStartZoom = zoom;
 }
 function updatePinch() {
@@ -797,21 +777,29 @@ el.addEventListener("pointerdown", (e) => {
   if (pointers.size >= 2) { startPinch(); return; }
   ensureAudio();
   lastX = e.clientX; lastY = e.clientY;
-  // Priorité des cibles : déchets, produit (ensacher), bloc (verser), dalle (mélanger).
-  if (rayHit(e.clientX, e.clientY, wasteBin.children)) { sellWaste(); return; }
+  // Bac PRODUIT -> ensacher.
   if (rayHit(e.clientX, e.clientY, prodBin.children) || (prod.g >= fmt && rayHit(e.clientX, e.clientY, [prodHeap]))) {
     if (prod.g >= fmt) { gesture = "bag"; bagging = true; bagHoldT = 0; bagOnce(); }
-    else showToast("Mélange d'abord du produit", "#e6c896");
+    else showToast("Mélange du produit d'abord", "#e6c896");
     return;
   }
-  if (rayHit(e.clientX, e.clientY, [brickBody, tape])) {
-    if (bulkG > 0.05) { gesture = "pour"; pouring = true; }
-    else showToast("Bloc vide — reçois une brique 🛒", "#e6c896");
+  // Bloc de coke -> verser de la coke.
+  if (rayHit(e.clientX, e.clientY, [cokeBody, cokeTape])) {
+    if (bulkG > 0.05) { gesture = "pour"; pouring = "coke"; }
+    else showToast("Bloc vide — achète de la coke 🛒", "#e6c896");
     return;
   }
+  // Tub de diluant -> verser du diluant.
+  if (rayHit(e.clientX, e.clientY, [dilBody, dilLid])) {
+    if (dilG > 0.05) { gesture = "pour"; pouring = "dil"; }
+    else showToast("Diluant vide — achète-en 🛒", "#e6c896");
+    return;
+  }
+  // Dalle -> mélanger (exige coke + diluant).
   if (rayHit(e.clientX, e.clientY, [slab, trayHeap])) {
-    if (tray.g > 0.3) { gesture = "mix"; mixing = true; }
-    else showToast("Verse d'abord de la poudre sur la dalle", "#e6c896");
+    if (tray.coke <= 0.3) showToast("Verse d'abord de la coke sur la dalle", "#e6c896");
+    else if (tray.dil <= 0.3) showToast("Ajoute du diluant avant de mélanger 🧂", "#e6c896");
+    else { gesture = "mix"; mixing = true; }
     return;
   }
 }, { passive:false });
@@ -819,10 +807,7 @@ el.addEventListener("pointerdown", (e) => {
 el.addEventListener("pointermove", (e) => {
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pinching && pointers.size >= 2) { e.preventDefault(); updatePinch(); return; }
-  if (gesture === "mix") {
-    const d = Math.hypot(e.clientX - lastX, e.clientY - lastY);
-    mixAddDrag(d);
-  }
+  if (gesture === "mix") mixAddDrag(Math.hypot(e.clientX - lastX, e.clientY - lastY));
   lastX = e.clientX; lastY = e.clientY;
 }, { passive:false });
 
@@ -830,9 +815,9 @@ function onUp(e) {
   if (e) e.preventDefault();
   pointers.delete(e.pointerId);
   if (pinching && pointers.size < 2) pinching = false;
-  if (pointers.size === 0) {                          // fin de tout geste
+  if (pointers.size === 0) {
     if (pouring) burstPuffs(SLAB_POS, 4);
-    pouring = false; mixing = false; bagging = false; gesture = null;
+    pouring = null; mixing = false; bagging = false; gesture = null;
   }
 }
 el.addEventListener("pointerup", onUp, { passive:false });
@@ -843,7 +828,6 @@ document.getElementById("reset").addEventListener("click", restock);
 ui.shopbtn.addEventListener("click", () => { renderShop(); ui.shop.classList.add("show"); });
 document.getElementById("shopclose").addEventListener("click", () => ui.shop.classList.remove("show"));
 ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.classList.remove("show"); });
-ui.waste.addEventListener("click", sellWaste);
 for (const b of document.querySelectorAll(".fmtbtn")) b.addEventListener("click", () => setFmt(+b.dataset.fmt));
 
 function setFmt(f) {
@@ -855,16 +839,18 @@ function refreshFmtButtons() {
   for (const b of document.querySelectorAll(".fmtbtn"))
     b.disabled = (+b.dataset.fmt === 25 && !owned.press);
 }
-// "🔄 Lot" : filet anti soft-lock. Pas de quoi acheter une brique -> petit lot gratuit.
+// "🔄 Lot" : filet anti soft-lock -> coke + diluant gratuits si on est à sec.
 function restock() {
   if (cash >= BRICK_PRICES[50]) { renderShop(); ui.shop.classList.add("show"); return; }
-  loadBrick(STARTER.g, STARTER.purity);
-  burstPuffs(BRICK_POS, 6);
-  showToast("Lot de dépannage +" + STARTER.g + " g (gratuit)", "#7df9ff");
+  const tot = bulkG + STARTER.coke;
+  bulkPurity = tot > 0 ? (bulkG * bulkPurity + STARTER.coke * STARTER.purity) / tot : STARTER.purity;
+  bulkG = tot; dilG += STARTER.dil; coke.visible = true; updateResources();
+  burstPuffs(COKE_POS, 6); burstPuffs(DIL_POS, 6, null, puffMatDil);
+  showToast("Lot de dépannage : +" + STARTER.coke + " g coke, +" + STARTER.dil + " g diluant", "#7df9ff");
 }
 
 /* -------------------------------------------------------------------------
-   22) BOUCLE PRINCIPALE
+   21) BOUCLE PRINCIPALE
    ------------------------------------------------------------------------- */
 let last = 0;
 function loop(t) {
@@ -890,13 +876,15 @@ function loop(t) {
 }
 
 /* -------------------------------------------------------------------------
-   23) BOOTSTRAP
+   22) BOOTSTRAP
    ------------------------------------------------------------------------- */
 resize();
-setCash(cash); setWaste(wasteGrams); setRep(rep); updateXpUI();
+setCash(cash); setRep(rep); updateXpUI();
 setFmt(fmt); refreshFmtButtons();
 updateProdLabel(); updateTrayHeap();
-loadBrick(STARTER.g, STARTER.purity);   // lot de départ gratuit pour amorcer la boucle
+// Lot de départ gratuit (coke + diluant) pour amorcer la boucle.
+bulkG = STARTER.coke; bulkPurity = STARTER.purity; dilG = STARTER.dil;
+coke.visible = true; updateResources();
 requestAnimationFrame(loop);
 </script>
 </body>
