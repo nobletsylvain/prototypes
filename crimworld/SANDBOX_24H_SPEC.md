@@ -3,6 +3,51 @@
 > Statut : **validé (2026-06-21) — décisions §8 tranchées**. Le lot 1 (cœur de
 > sim, JS pur, inspectable en console) peut démarrer ; on STOPpe AVANT l'UI
 > (checkpoint 2 de la DNA CrimWorld).
+
+## v2 — nouvelle approche (pivot 2026-06-21)
+
+On teste une approche **production/réassort** plutôt que la tension concurrence.
+Changements actés :
+- **Heat/concurrence DÉSACTIVÉ** comme métrique (plus de pression ni de « corner
+  contesté »). La tension §2 est mise en pause ; la **réput (demande)** reste le
+  levier — l'équilibre vit dans UNE courbe `demande ∝ réput`.
+- **Pas de bilan popup** en fin de jour → une **page Metrics** consultable
+  (données de chaque jour). L'horloge ne s'arrête plus à minuit.
+- **Horloge** : 1 min de jeu = 1 s réelle (1 h = 60 s ; journée ≈ 24 min), à affiner.
+- **Vitesse unique** (plus de toggle).
+- **Nouvelle boucle** : RÉASSORT (darkweb, semi-grossistes) → **LABO** (un proto
+  produit un BATCH) → **INVENTAIRE** → **VENTE en petites quantités**.
+- **Le labo** = les protos existants intégrés en **iframe « mode embed »**
+  (comme l'établi → coupe.html) : hash-slicer-v2 (sans la vente auto), green-front-v3
+  (sans la Réception : tri→coupe→pack), neige — chacun renvoie son batch via
+  `postMessage` → inventaire. Mécanisme commun aux 3 : batch → inventaire → doses.
+- **Priorité de build** : l'app **darkweb TOR/Silk Road** (réassort) en premier.
+
+### Chaîne d'approvisionnement (2 paliers)
+**Palier 1 — solo (en cours).** `semi-grossiste (Darkweb) → Labo (toi) → Snap
+(vente directe, petites quantités)`. La vente passe par TA vitrine ; tu écoules
+toi-même. C'est le périmètre actuel.
+
+**Palier 2 — patron / scaling (vision, plus tard).** `Grossiste (gros volumes)
+→ Vbeur → nourrice → fours + corners`.
+- **corner** : spot simple, un dealer y bosse pour toi (dispatch).
+- **four** : point de vente STRUCTURÉ et hiérarchisé (hall/appart/cave/rue),
+  staffé — **guetteurs / vendeurs / gérants** — gros volume. **Deux usages au
+  choix** (levier marge vs volume/expo) :
+  - *détail au four* : tu fournis du produit FINI, le four l'écoule au détail
+    pour toi → marge détail, délégué.
+  - *semi-gros au four* : tu envoies du produit en gros, ILS le transforment sur
+    place et l'écoulent → marge de gros, volume, moins d'expo. ⇒ tu deviens
+    toi-même semi-grossiste : l'inversion de la chaîne.
+- **nourrice** : planque/entrepôt où dort le gros stock.
+- **Vbeur** : l'app de dispatch/logistique (Ubeur, rôle inversé, §3c) — suit les
+  livraisons des grosses quantités : Grossiste → nourrice → fours/corners.
+- ⚠️ **Périmètre** : les guetteurs (anti-police) réintroduisent le **heat
+  autorités**, HORS périmètre de la DNA d'origine. À acter consciemment avant de
+  coder le palier 2 ; non codé pour l'instant.
+
+Cœur de sim v2 : `crimworld-sandbox/sim.mjs` (acheterMatiere / produireBatch /
+vendre / tick / metrics). Le reste du document décrit la vision d'origine (v1).
 > Suite logique de la slice scriptée « La Bascule » (FTUE sur rails) : la
 > sandbox laisse le joueur **rejouer la boucle SANS script**.
 

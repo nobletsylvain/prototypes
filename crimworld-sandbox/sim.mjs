@@ -1,187 +1,143 @@
 /* =======================================================================
-   CrimWorld — Sandbox 24h · CŒUR DE SIMULATION (LOT 1)
-   JS pur, sans dépendance, sans DOM. Inspectable en console (node OU
-   navigateur). Suite de la slice « La Bascule » : la boucle SANS rails.
+   CrimWorld — Sandbox · CŒUR DE SIMULATION v2 (nouvelle approche)
 
-   INVARIANTS (cf. crimworld/SANDBOX_24H_SPEC.md & CLAUDE.md) :
-   - AUCUN Math.random ne pilote l'ÉTAT ou une CONSÉQUENCE. Tout est
-     déterministe et trace à une décision. (L'aléatoire de PRÉSENTATION —
-     pseudo, avatar du rival… — vivra dans l'UI, jamais ici.)
-   - QUALITÉ = levier UNIQUE. Réput conso (la demande) et pression concurrence
-     sont des CO-EFFETS PARALLÈLES de la qualité/visibilité, JAMAIS une chaîne.
-   - Chaque conséquence porte un champ `cause` lisible (contrat de données) ;
-     l'UI le RENDRA tel quel, n'inventera aucune cause.
-   - Horloge TEMPS RÉEL pilotée par tick(dtMs) → en jeu : boucle d'animation ;
-     en test : dt contrôlé, donc reproductible.
+   Boucle : RÉASSORT (darkweb, semi-grossistes) → LABO (un proto produit un
+   BATCH) → INVENTAIRE → VENTE en petites quantités. Horloge temps réel 5× plus
+   lente. PAS de heat/concurrence (désactivé). La réput (demande) reste le levier.
 
-   Périmètre lot 1 : horloge + cycle de jour + rapport récurrent + squelette
-   du moteur de tension (pression → corner contesté). Acheteurs générés (lot 2),
-   moteur complet (lot 3), darkweb/Ubeur + dispatch (lot 4) viennent ensuite.
+   JS pur, sans dépendance, sans DOM. Inspectable console (node/navigateur).
+   INVARIANTS : aucun Math.random ne pilote l'ÉTAT ou une CONSÉQUENCE ; chaque
+   conséquence porte une `cause` lisible (contrat de données) ; réput affichée
+   OPAQUE ; l'équilibre vit dans UNE courbe (demande ∝ réput), réglée plus tard.
    ======================================================================= */
 
-// ---- Constantes nommées (PLACEHOLDERS — NON réglées ; réglage humain plus tard)
+// ---- Constantes nommées (PLACEHOLDERS — non réglées) -------------------
 export const C = {
-  HOUR_MS: 2000,          // 1 heure de jeu = 2 s réelles (horloge temps réel)
+  HOUR_MS: 60000,            // 1 min de jeu = 1 s réelle (1 h = 60 s ; journée ≈ 24 min)
   DAY_HOURS: 24,
-  LOYER_JOUR: 40,         // loyer du corner / jour (compteur de FOND, pas l'antagoniste)
-  PRIX_DOSE: 10,          // € / dose (placeholder)
-  // --- pression concurrence : CO-EFFETS PARALLÈLES de la qualité/visibilité ---
-  PRESS_EXPO: 8,          // par post de vitrine (exposition)
-  PRESS_VOLUME: 1.5,      // par dose écoulée (volume visible)
-  PRESS_ARRACHE: 12,      // surcoût d'une coupe à l'arrache (qualité basse)
-  PRESS_DECAY: 20,        // retombée passive en fin de jour SI on lève le pied
-  SEUIL_CONTESTE: 100,    // au-delà : un rival vient disputer le corner
-  // --- réputation conso (la demande) — affichée OPAQUE ---
-  REPUT_PROPRE: 6,        // gain réput d'une coupe propre
-  REPUT_ARRACHE: -25,     // perte réput d'une coupe à l'arrache
+  LOYER_JOUR: 40,            // frais de base du block (compteur de fond) — tunable
+  PRODUITS: ['hash', 'weed', 'neige'],
+  PRIX_GRAMME:  { hash: 10, weed: 8,  neige: 60 },  // € / g au détail
+  DEMANDE_BASE: { hash: 60, weed: 80, neige: 20 },  // g/jour absorbés à réput 100
+  REPUT_PROPRE: 6,           // une coupe propre fait monter la demande
+  REPUT_ARRACHE: -25,        // une coupe à l'arrache la fait fuir
+  LAB_RAW: 100,              // labo : g de matière consommés par batch (provisoire, P3)
+  LAB_YIELD: { A: 0.8, C: 1.2 },  // rendement propre / arrache (provisoire, P3)
 };
 
-// ---- Affichage OPAQUE (présentation déterministe : pas de chiffre brut) ----
-export function jaugeOpaque(v, max, sym = "•", plein = "🔥"){
+// ---- Affichage OPAQUE (présentation déterministe) ----------------------
+export function jaugeOpaque(v, max, sym = '•', plein = '🔥'){
   const n = Math.max(0, Math.min(5, Math.round((v / max) * 5)));
-  return plein.repeat(Math.max(1, Math.ceil(n / 2))) + " " + sym.repeat(n);
+  return plein.repeat(Math.max(1, Math.ceil(n / 2))) + ' ' + sym.repeat(n);
 }
 
 // ---- Fabrique de simulation -------------------------------------------
 export function createSim(){
+  const z = () => ({ hash: 0, weed: 0, neige: 0 });
   const state = {
-    jour: 1,
-    heure: 0,                 // heures écoulées dans le jour courant (0..24)
-    cash: 0,
-    loyerDu: 0,               // loyer cumulé à régler (compteur de fond)
-    pression: 0,              // concurrence pour le corner
-    reput: 50,                // réput conso (interne ; rendue opaque côté UI)
-    corner: "tenu",           // "tenu" | "contesté"
-    jourEnCours: nouveauJour(),
-    historique: [],           // un résumé par jour clos → trace inter-jours
-    dernierRapport: null,
+    jour: 1, heure: 0, cash: 0, loyerDu: 0,
+    reput: 50,                     // demande (opaque)
+    matiere: z(),                  // g de matière première (réassort darkweb)
+    stock: z(),                    // g finis, prêts à vendre
+    batches: [],                   // traçabilité des batches produits au labo
+    debloques: { hash: true, weed: false, neige: false },  // produits dispo
+    metricsJour: newJour(),        // accumulateur du jour courant
+    metrics: [],                   // un enregistrement par jour clos (page Metrics)
+    dernierMetrics: null,
   };
 
-  function nouveauJour(){
-    return { doses: 0, ventes: 0, posts: 0, grade: null, lignes: [], pressLog: [] };
-  }
+  function newJour(){ return { achatsEUR: 0, ventesEUR: 0, gProduits: z(), vendu: z(), lignes: [] }; }
+  function ligne(o){ state.metricsJour.lignes.push(o); }
+  const clamp = v => Math.max(0, Math.min(100, v));
 
-  // -- enregistre une contribution à la pression AVEC sa cause (traçable) --
-  function addPression(montant, cause){
-    state.pression += montant;
-    state.jourEnCours.pressLog.push({ montant, cause });
-    verifierContest();
-  }
+  // demande du jour pour un produit : déterministe, ∝ réput (la courbe UNIQUE)
+  function demandeJour(produit){ return Math.round(C.DEMANDE_BASE[produit] * state.reput / 100); }
 
-  // -- conséquence DÉTERMINISTE : pression ≥ seuil → un rival conteste le
-  //    corner. La cause = les 2 plus grosses contributions du jour (traçable).
-  function verifierContest(){
-    if (state.corner === "contesté" || state.pression < C.SEUIL_CONTESTE) return;
-    state.corner = "contesté";
-    const top = [...state.jourEnCours.pressLog]
-      .sort((a, b) => b.montant - a.montant).slice(0, 2)
-      .map(p => p.cause).join(" + ");
-    state.jourEnCours.lignes.push({
-      ic: "⚔️", label: "Un rival conteste ton corner", montant: 0,
-      cause: "ton succès est visible : " + (top || "exposition + volume"),
-    });
-  }
-
-  // ---- Décisions du joueur (chacune feed cash/réput/pression + cause) ----
   const api = {
     state,
+    demandeJour,
 
-    couper(grade){            // 'A' = propre · 'C' = arrache (qualité = levier UNIQUE)
-      state.jourEnCours.grade = grade;
-      if (grade === "C"){
-        state.reput += C.REPUT_ARRACHE;
-        addPression(C.PRESS_ARRACHE, "coupe à l'arrache (jour " + state.jour + ")");
-      } else {
-        state.reput += C.REPUT_PROPRE;
+    debloquer(produit){ state.debloques[produit] = true; return api; },
+
+    // RÉASSORT (darkweb) : matière première achetée chez un semi-grossiste
+    acheterMatiere(produit, grammes, prixTotal, cause){
+      if (!state.debloques[produit]) return api;
+      state.cash -= prixTotal;
+      state.matiere[produit] += grammes;
+      state.metricsJour.achatsEUR += prixTotal;
+      ligne({ ic: '📦', label: `Réassort : +${grammes}g ${produit}`, montant: -prixTotal,
+        cause: cause || 'acheté au semi-grossiste (darkweb)' });
+      return api;
+    },
+
+    // LABO : un proto (iframe) renvoie un BATCH fini. On consomme la matière,
+    // on range le batch dans l'inventaire. qualite 'A' (propre) | 'C' (arrache).
+    produireBatch({ produit, grammesRaw, grammesFinis, qualite }){
+      if (!state.debloques[produit]) return api;
+      state.matiere[produit] = Math.max(0, state.matiere[produit] - grammesRaw);
+      state.stock[produit] += grammesFinis;
+      state.batches.push({ produit, grammes: grammesFinis, qualite, jour: state.jour });
+      state.reput = clamp(state.reput + (qualite === 'A' ? C.REPUT_PROPRE : C.REPUT_ARRACHE));
+      state.metricsJour.gProduits[produit] += grammesFinis;
+      ligne({ ic: '⚗️', label: `Batch ${produit} : ${grammesFinis}g (${qualite === 'A' ? 'propre' : 'arrache'})`,
+        cause: qualite === 'A' ? 'sorti propre du labo' : 'coupé à l’arrache au labo' });
+      return api;
+    },
+
+    // VENTE en petites quantités, plafonnée par la DEMANDE du jour (réput × qualité).
+    vendre(produit, grammes){
+      const cap = demandeJour(produit) - state.metricsJour.vendu[produit];
+      const g = Math.min(grammes | 0, state.stock[produit], Math.max(0, cap));
+      if (g <= 0){
+        ligne({ ic: '🚫', label: `Vente ${produit} impossible`,
+          cause: state.stock[produit] <= 0 ? 'rupture de stock' : 'demande du jour épuisée' });
+        return 0;
       }
-      state.reput = Math.max(0, Math.min(100, state.reput));
-      return api;
-    },
-
-    posterVitrine(){          // exposition → co-effet pression (pas une chaîne via les ventes)
-      state.jourEnCours.posts++;
-      addPression(C.PRESS_EXPO, "vitrine postée (exposition)");
-      return api;
-    },
-
-    vendre(doses){            // volume écoulé → cash + co-effet pression EN PARALLÈLE
-      const d = Math.max(0, doses | 0);
-      const montant = d * C.PRIX_DOSE;
-      state.jourEnCours.doses += d;
-      state.jourEnCours.ventes += montant;
+      state.stock[produit] -= g;
+      const montant = g * C.PRIX_GRAMME[produit];
       state.cash += montant;
-      addPression(d * C.PRESS_VOLUME, d + " doses écoulées (volume visible)");
-      // `cause` reste du TEXTE PUR (pas de symbole de présentation) : l'UI
-      // rend le label tel quel et affiche la réput opaque via reputOpaque.
-      state.jourEnCours.lignes.push({
-        ic: "🤝", label: d + " doses vendues", montant,
-        cause: "demande du jour (réput conso)",
-      });
-      return api;
+      state.metricsJour.vendu[produit] += g;
+      state.metricsJour.ventesEUR += montant;
+      ligne({ ic: '🤝', label: `${g}g ${produit} vendus`, montant,
+        cause: 'demande du jour (réput conso)' });
+      return montant;
     },
 
-    // ---- Horloge TEMPS RÉEL : avance de dtMs ; clôt le jour à 24 h ----
+    // HORLOGE temps réel : avance de dtMs ; clôt le jour à 24 h (sans popup).
     tick(dtMs){
-      // `heure` est flottant : en temps réel continu (dt ~16 ms) une dérive
-      // IEEE-754 lente est possible — tolérable au lot 1, à revoir au lot 3
-      // (événements horodatés). Le `while` évite tout jour sauté.
       state.heure += dtMs / C.HOUR_MS;
-      while (state.heure >= C.DAY_HOURS){
-        state.heure -= C.DAY_HOURS;
-        cloreJour();
-      }
+      while (state.heure >= C.DAY_HOURS){ state.heure -= C.DAY_HOURS; cloreJour(); }
       return api;
     },
 
-    rapport(){ return construireRapport(); },   // bilan à la volée (jour en cours)
+    metricsDuJour(){ return snapshot(); },   // bilan du jour EN COURS (page Metrics, live)
   };
 
-  // ---- Fin de jour : loyer, retombée pression, rapport, rollover --------
+  // ---- clôture du jour : loyer, snapshot dans metrics, rollover ----------
   function cloreJour(){
     state.loyerDu += C.LOYER_JOUR;
-    state.jourEnCours.lignes.push({
-      ic: "🏚️", label: "Loyer du corner", montant: -C.LOYER_JOUR,
-      cause: "tu paies pour EXISTER sur le block (pas pour la came)",
-    });
-    // la pression retombe SI le corner n'est pas (déjà) contesté — lever le pied paie
-    if (state.corner === "tenu"){
-      state.pression = Math.max(0, state.pression - C.PRESS_DECAY);
-    }
-    const rap = construireRapport();
-    // historique poussé APRÈS construireRapport (intentionnel) : la trace
-    // inter-jours ne doit référencer que des jours PASSÉS, pas celui qui clôt.
-    state.historique.push({
-      jour: state.jour, grade: state.jourEnCours.grade,
-      ventes: state.jourEnCours.ventes, corner: state.corner,
-    });
-    state.dernierRapport = rap;
+    ligne({ ic: '💸', label: 'Frais du block', montant: -C.LOYER_JOUR,
+      cause: 'faut graisser pour bosser sur le block' });
+    const snap = snapshot();
+    state.metrics.push(snap);
+    state.dernierMetrics = snap;
     state.jour++;
-    state.jourEnCours = nouveauJour();
-    return rap;
+    state.metricsJour = newJour();
   }
 
-  // ---- Construit l'objet rapport (l'UI le RENDRA, n'inventera rien) -----
-  function construireRapport(){
-    const j = state.jourEnCours;
-    // trace INTER-JOURS : un problème d'aujourd'hui ↩ une décision passée
-    const trace = [];
-    const arracheAvant = state.historique.find(h => h.grade === "C");
-    if (state.reput < 40 && arracheAvant){
-      trace.push({
-        ic: "↩", label: "Réput basse → demande en berne",
-        cause: "coupe à l'arrache du jour " + arracheAvant.jour,
-      });
-    }
+  // ---- snapshot d'un jour (ce que la page Metrics affichera) -------------
+  function snapshot(){
+    const m = state.metricsJour;
     return {
       jour: state.jour,
-      lignes: j.lignes.slice(),
-      total: j.lignes.reduce((s, l) => s + (l.montant || 0), 0),
-      cash: state.cash,
-      loyerDu: state.loyerDu,
+      achatsEUR: m.achatsEUR,
+      ventesEUR: m.ventesEUR,
+      net: m.lignes.reduce((s, l) => s + (l.montant || 0), 0),   // somme réelle des lignes
+      gProduits: { ...m.gProduits }, gVendus: { ...m.vendu },
+      cash: state.cash, loyerDu: state.loyerDu,
+      stock: { ...state.stock }, matiere: { ...state.matiere },
       reputOpaque: jaugeOpaque(state.reput, 100),
-      pressionOpaque: jaugeOpaque(state.pression, C.SEUIL_CONTESTE, "•", "⚔️"),
-      corner: state.corner,
-      trace,
+      lignes: m.lignes.slice(),
     };
   }
 
@@ -189,44 +145,49 @@ export function createSim(){
 }
 
 /* =======================================================================
-   DÉMO CONSOLE — 3 jours déterministes, on imprime les rapports.
-   Lancer :  node crimworld-sandbox/sim.mjs
+   DÉMO CONSOLE — la nouvelle boucle sur 3 jours déterministes.
+   Lancer : node crimworld-sandbox/sim.mjs
    ======================================================================= */
-function imprimerRapport(r){
-  console.log(`\n=== RAPPORT — JOUR ${r.jour} ===`);
-  for (const l of r.lignes){
-    const m = l.montant ? (l.montant > 0 ? ` +${l.montant}€` : ` ${l.montant}€`) : "";
+function printJour(s){
+  console.log(`\n=== METRICS — JOUR ${s.jour} ===`);
+  for (const l of s.lignes){
+    const m = l.montant ? (l.montant > 0 ? ` +${l.montant}€` : ` ${l.montant}€`) : '';
     console.log(`  ${l.ic} ${l.label}${m}`);
     console.log(`       ↳ ${l.cause}`);
   }
-  console.log(`  — total jour : ${r.total >= 0 ? "+" : ""}${r.total}€ · caisse ${r.cash}€ · loyer dû ${r.loyerDu}€`);
-  console.log(`  — réput ${r.reputOpaque} · pression ${r.pressionOpaque} · corner : ${r.corner}`);
-  for (const t of r.trace) console.log(`  ${t.ic} ${t.label}\n       ↳ ${t.cause}`);
+  console.log(`  — net ${s.net >= 0 ? '+' : ''}${s.net}€ · caisse ${s.cash}€ · loyer dû ${s.loyerDu}€`);
+  console.log(`  — stock g : hash ${s.stock.hash} · weed ${s.stock.weed} · neige ${s.stock.neige} · réput ${s.reputOpaque}`);
 }
 
 export function demo(){
   const sim = createSim();
   const JOUR = C.HOUR_MS * C.DAY_HOURS;
-  console.log("CrimWorld Sandbox — démo cœur de sim (lot 1)");
-  console.log("Horloge temps réel (tick dt) · déterministe · aucune conséquence aléatoire.");
+  console.log('CrimWorld Sandbox v2 — démo cœur de sim');
+  console.log('Boucle : réassort → labo → inventaire → vente. Horloge : 1 min jeu = 1 s. Pas de heat.');
+  console.log('Demande hash à réput 50 :', sim.demandeJour('hash'), 'g/jour');
 
-  // JOUR 1 — prudent : coupe propre, peu d'exposition.
-  sim.couper("A").posterVitrine().vendre(12);
+  // JOUR 1 — réassort, labo PROPRE, on écoule (plafonné par la demande).
+  sim.acheterMatiere('hash', 100, 250);                                   // 100g de savonnette, 250€
+  sim.produireBatch({ produit: 'hash', grammesRaw: 100, grammesFinis: 80, qualite: 'A' });
+  sim.vendre('hash', 100);                                                // tente 100g → limité par la demande
   sim.tick(JOUR);
-  imprimerRapport(sim.state.dernierRapport);
+  printJour(sim.state.dernierMetrics);
 
-  // JOUR 2 — cupide : arrache + spam vitrine + gros volume → corner contesté.
-  sim.couper("C").posterVitrine().posterVitrine().posterVitrine().vendre(40);
+  // JOUR 2 — labo À L'ARRACHE : la réput chute → la demande se tarit, stock invendu.
+  sim.acheterMatiere('hash', 100, 250);
+  sim.produireBatch({ produit: 'hash', grammesRaw: 100, grammesFinis: 90, qualite: 'C' });
+  sim.vendre('hash', 100);
   sim.tick(JOUR);
-  imprimerRapport(sim.state.dernierRapport);
+  printJour(sim.state.dernierMetrics);
 
-  // JOUR 3 — la note arrive : réput basse, demande en berne ↩ arrache jour 2.
-  sim.couper("A").vendre(6);
+  // JOUR 3 — on revend du stock : la demande basse (héritée de l'arrache) plafonne.
+  sim.vendre('hash', 100);
   sim.tick(JOUR);
-  imprimerRapport(sim.state.dernierRapport);
+  printJour(sim.state.dernierMetrics);
+  console.log(`\nStock hash final : ${sim.state.stock.hash}g invendus · réput ${jaugeOpaque(sim.state.reput,100)} · demande hash ${sim.demandeJour('hash')}g/j`);
 }
 
-// auto-run quand exécuté directement par node (sans casser l'import navigateur)
-if (typeof process !== "undefined" && process.argv && process.argv[1] && process.argv[1].includes("sim.mjs")){
+// auto-run sous node (sans casser l'import navigateur)
+if (typeof process !== 'undefined' && process.argv && process.argv[1] && process.argv[1].includes('sim.mjs')){
   demo();
 }
