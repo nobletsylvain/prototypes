@@ -313,29 +313,42 @@ scene.add(board);
    ------------------------------------------------------------------------- */
 // Grain procedural (CanvasTexture) -> aspect resine pressee / mie fibreuse.
 function grainTex(r, g, b, contrast, spots) {
-  const c = document.createElement("canvas"); c.width = c.height = 128;
-  const x = c.getContext("2d");
-  const img = x.createImageData(128, 128);
+  const S = 256, c = document.createElement("canvas"); c.width = c.height = S;
+  const x = c.getContext("2d"); const cl = (v) => Math.max(0, Math.min(255, v));
+  const img = x.createImageData(S, S);
   for (let i = 0; i < img.data.length; i += 4) {
     const n = (Math.random() - 0.5) * contrast;
-    img.data[i]   = Math.max(0, Math.min(255, r + n));
-    img.data[i+1] = Math.max(0, Math.min(255, g + n));
-    img.data[i+2] = Math.max(0, Math.min(255, b + n));
-    img.data[i+3] = 255;
+    img.data[i] = cl(r + n); img.data[i+1] = cl(g + n); img.data[i+2] = cl(b + n); img.data[i+3] = 255;
   }
   x.putImageData(img, 0, 0);
-  for (let k = 0; k < spots; k++) {            // petites taches sombres
-    x.fillStyle = "rgba(0,0,0," + (Math.random() * 0.18) + ")";
-    x.fillRect(Math.random() * 128, Math.random() * 128, Math.random() * 3 + 1, Math.random() * 3 + 1);
+  for (let k = 0; k < spots; k++) {                       // taches sombres (impuretes)
+    x.fillStyle = "rgba(0,0,0," + (Math.random() * 0.2) + ")";
+    x.fillRect(Math.random() * S, Math.random() * S, Math.random() * 4 + 1, Math.random() * 4 + 1);
+  }
+  for (let k = 0; k < spots * 0.4; k++) {                 // reflets clairs (resine)
+    x.fillStyle = "rgba(255,238,205," + (Math.random() * 0.12) + ")";
+    x.fillRect(Math.random() * S, Math.random() * S, Math.random() * 3 + 1, Math.random() * 3 + 1);
   }
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 2);
   return t;
 }
-// crust = peau pressee brun tres fonce et lustree ; sponge = mie blonde mate (faces coupees).
-const matCrust  = new THREE.MeshStandardMaterial({ map: grainTex(46, 31, 18, 40, 230), roughness: 0.4, metalness: 0.3, side: THREE.DoubleSide });
-const matPale   = new THREE.MeshStandardMaterial({ map: grainTex(96, 74, 46, 30, 120), roughness: 0.8, side: THREE.DoubleSide });
-const matSponge = new THREE.MeshStandardMaterial({ map: grainTex(190, 162, 110, 40, 90), roughness: 0.96, side: THREE.DoubleSide });
+// Bruit grayscale partage -> bumpMap (relief tactile de la matiere).
+function bumpTex() {
+  const S = 256, c = document.createElement("canvas"); c.width = c.height = S;
+  const x = c.getContext("2d"); const img = x.createImageData(S, S);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 128 + (Math.random() - 0.5) * 120; img.data[i] = img.data[i+1] = img.data[i+2] = v; img.data[i+3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3);
+  return t;
+}
+const _bump = bumpTex();
+// crust = peau pressee brun fonce et lustree ; sponge = mie blonde mate (faces coupees).
+const matCrust  = new THREE.MeshStandardMaterial({ map: grainTex(46, 31, 18, 44, 260), bumpMap: _bump, bumpScale: 0.025, roughness: 0.42, metalness: 0.28, side: THREE.DoubleSide });
+const matPale   = new THREE.MeshStandardMaterial({ map: grainTex(96, 74, 46, 32, 140), bumpMap: _bump, bumpScale: 0.02, roughness: 0.82, side: THREE.DoubleSide });
+const matSponge = new THREE.MeshStandardMaterial({ map: grainTex(196, 168, 116, 46, 110), bumpMap: _bump, bumpScale: 0.04, roughness: 0.96, side: THREE.DoubleSide });
 const cakeMats  = [matCrust, matPale, matSponge];
 
 /* -------------------------------------------------------------------------
@@ -347,32 +360,39 @@ const cakeMats  = [matCrust, matPale, matSponge];
    On construit 6 quads (non indexes) avec des groupes pour les materiaux.
    ------------------------------------------------------------------------- */
 function makePrism(aNeg, aPos, bNeg, bPos) {
+  // (coupes droites en v2) -> boite x[xL..xR] z[zN..zP] y[0..H], dessus chanfreine.
+  const xL = (aNeg + aPos) / 2, xR = (bNeg + bPos) / 2;
   const zN = -W / 2, zP = W / 2;
-  // 8 coins : L=face gauche (a), R=face droite (b)
-  const L0=[aNeg,0,zN], L1=[aPos,0,zP], L2=[aPos,H,zP], L3=[aNeg,H,zN];
-  const R0=[bNeg,0,zN], R1=[bPos,0,zP], R2=[bPos,H,zP], R3=[bNeg,H,zN];
+  const dx = Math.max(0.0001, xR - xL);
+  const bv = Math.min(0.06, dx * 0.32, W * 0.08, H * 0.32);   // chanfrein (bords adoucis)
 
-  const pos = [], uv = [];
-  const quad = (p0,p1,p2,p3) => { // 2 triangles + UV planaires par face
+  // bas (y0) · epaule (y=H-bv, pleine largeur) · dessus incruste (y=H)
+  const A=[xL,0,zN], B=[xR,0,zN], C=[xR,0,zP], D=[xL,0,zP];
+  const Ap=[xL,H-bv,zN], Bp=[xR,H-bv,zN], Cp=[xR,H-bv,zP], Dp=[xL,H-bv,zP];
+  const At=[xL+bv,H,zN+bv], Bt=[xR-bv,H,zN+bv], Ct=[xR-bv,H,zP-bv], Dt=[xL+bv,H,zP-bv];
+
+  const pos = [], uv = [], grp = [];
+  const quad = (mat, p0, p1, p2, p3) => {
+    const s = pos.length / 3;
     pos.push(...p0,...p1,...p2,  ...p0,...p2,...p3);
     uv.push(0,0, 1,0, 1,1,  0,0, 1,1, 0,1);
+    grp.push([s, 6, mat]);                       // mat : 0=crust 1=pale 2=sponge
   };
-  quad(L0,R0,R1,L1); // 0 dessous     -> pale (1)
-  quad(L3,L2,R2,R3); // 1 dessus      -> crust (0)
-  quad(L0,L3,R3,R0); // 2 cote z-     -> crust (0)
-  quad(L1,R1,R2,L2); // 3 cote z+     -> crust (0)
-  quad(L0,L1,L2,L3); // 4 bout gauche -> sponge (2)
-  quad(R0,R1,R2,R3); // 5 bout droit  -> sponge (2)
+  quad(1, A, B, C, D);              // dessous -> pale
+  quad(0, A, Ap, Bp, B);           // cote z- -> crust
+  quad(0, C, Cp, Dp, D);           // cote z+ -> crust
+  quad(2, D, Dp, Ap, A);           // bout gauche (coupe) -> sponge
+  quad(2, B, Bp, Cp, C);           // bout droit (coupe)  -> sponge
+  quad(0, Ap, At, Bt, Bp);         // chanfrein z-
+  quad(0, Bp, Bt, Ct, Cp);         // chanfrein x+
+  quad(0, Cp, Ct, Dt, Dp);         // chanfrein z+
+  quad(0, Dp, Dt, At, Ap);         // chanfrein x-
+  quad(0, At, Bt, Ct, Dt);         // dessus -> crust
 
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
-  g.addGroup(0,  6, 1);
-  g.addGroup(6,  6, 0);
-  g.addGroup(12, 6, 0);
-  g.addGroup(18, 6, 0);
-  g.addGroup(24, 6, 2);
-  g.addGroup(30, 6, 2);
+  for (const [s, c, m] of grp) g.addGroup(s, c, m);
   g.computeVertexNormals();
   return g;
 }
