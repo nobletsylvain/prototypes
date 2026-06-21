@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Neige</title>
+<style>
+  /* --- Plein ecran, pense mobile (pas de scroll, pas de zoom) --- */
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+  html, body { width:100%; height:100%; overflow:hidden; touch-action:none;
+    font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(120% 120% at 50% 0%, #1b2b3c 0%, #0e1722 60%, #070d14 100%); }
+  #app { position:fixed; inset:0; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+
+  /* --- HUD (overlay HTML par dessus la scene 3D) --- */
+  .hud { position:fixed; left:0; right:0; pointer-events:none; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.5); }
+  #count { top:max(14px,env(safe-area-inset-top)); left:16px; font-weight:800; font-size:16px; color:#cfe9ff; }
+  #reset { position:fixed; top:max(10px,env(safe-area-inset-top)); right:14px; pointer-events:auto;
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
+    padding:9px 13px; border-radius:12px; font-size:14px; font-weight:700; backdrop-filter:blur(6px); }
+  #reset:active { background:rgba(255,255,255,.25); }
+  #hint { bottom:max(98px,calc(env(safe-area-inset-bottom) + 92px)); text-align:center; font-size:13px;
+    color:rgba(255,255,255,.7); padding:0 24px; transition:opacity .4s; }
+  #toast { top:38%; text-align:center; font-size:25px; font-weight:800; opacity:0;
+    transition:opacity .25s, transform .25s; transform:translateY(8px); }
+  #toast.show { opacity:1; transform:translateY(0); }
+  #title { top:max(46px,calc(env(safe-area-inset-top) + 30px)); left:16px; font-size:12px;
+    color:rgba(255,255,255,.45); font-weight:600; letter-spacing:.5px; }
+  #remain { top:max(62px,calc(env(safe-area-inset-top) + 46px)); left:16px; font-size:12px;
+    color:rgba(125,200,255,.85); font-weight:700; letter-spacing:.3px; }
+
+  /* --- Cash + bac dechets + reputation --- */
+  #cash { position:fixed; top:max(14px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+    font-weight:800; font-size:18px; color:#9be37d; text-shadow:0 2px 8px rgba(0,0,0,.5); pointer-events:none; }
+  #waste { position:fixed; top:calc(max(14px,env(safe-area-inset-top)) + 27px); left:50%; transform:translateX(-50%);
+    pointer-events:auto; background:rgba(202,161,95,.18); border:1px solid rgba(202,161,95,.5); color:#e6c896;
+    font-weight:700; font-size:13px; padding:4px 11px; border-radius:10px; }
+  #waste:active { background:rgba(202,161,95,.35); }
+  #rep { position:fixed; top:max(14px,env(safe-area-inset-top)); right:70px; pointer-events:none;
+    background:rgba(122,160,255,.16); border:1px solid rgba(122,160,255,.5); color:#bcd0ff;
+    font-weight:700; font-size:12px; padding:4px 9px; border-radius:999px; }
+
+  /* --- Niveau + barre d'XP (sous le bac dechets, centre) --- */
+  #xpwrap { position:fixed; top:calc(max(14px,env(safe-area-inset-top)) + 54px); left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:6px; pointer-events:none; z-index:4; }
+  #level { background:rgba(155,227,125,.18); border:1px solid rgba(155,227,125,.55); color:#bdf0a3;
+    font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  #xpbar { width:128px; height:7px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
+  #xpfill { height:100%; width:0%; background:linear-gradient(90deg,#7ad17a,#bdf0a3); border-radius:999px; transition:width .25s; }
+
+  /* --- Etiquettes flottantes (bacs / brique) --- */
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
+  .blabel { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
+    font-weight:800; font-size:13px; padding:2px 7px; border-radius:8px;
+    background:rgba(0,0,0,.55); text-shadow:0 1px 3px rgba(0,0,0,.6); }
+
+  /* --- Selecteur de format de vente (toujours visible) --- */
+  #fmtbar { position:fixed; left:14px; bottom:max(12px,calc(env(safe-area-inset-bottom) + 8px));
+    display:flex; align-items:center; gap:6px; pointer-events:auto; z-index:4; }
+  #fmtbar .lbl { color:rgba(255,255,255,.6); font-size:11px; font-weight:700; margin-right:2px; }
+  .fmtbtn { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
+    font-weight:800; font-size:13px; padding:7px 10px; border-radius:10px; }
+  .fmtbtn.on { background:#7aa0ff; color:#0e162a; border-color:#7aa0ff; }
+  .fmtbtn:disabled { opacity:.4; }
+
+  /* --- Cadre commun aux mini-jeux (overlay plein ecran, contenu en bas) --- */
+  .mini { position:fixed; inset:0; display:none; flex-direction:column; align-items:center;
+    justify-content:flex-end; padding-bottom:15vh; gap:12px; pointer-events:none; }
+  .mini.show { display:flex; }
+  .mtext { color:#fff; font-weight:800; font-size:16px; text-shadow:0 2px 8px rgba(0,0,0,.6); text-align:center; padding:0 22px; }
+  .mclose { pointer-events:auto; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25);
+    color:#fff; font-weight:800; font-size:15px; padding:11px 20px; border-radius:14px; }
+  .mclose:active { background:rgba(255,255,255,.28); }
+  .mbtn { pointer-events:auto; background:#7aa0ff; border:none; color:#0e162a; font-weight:900; font-size:16px;
+    padding:11px 22px; border-radius:14px; box-shadow:0 4px 14px rgba(122,160,255,.4); }
+  .mbtn:active { background:#5d86f5; }
+  .mrow { display:flex; gap:10px; align-items:center; pointer-events:none; }
+
+  /* Jauge generique (curseur + zone verte) reutilisee par Pesee et Ensachage */
+  .gauge { position:relative; width:74%; max-width:360px; height:24px; background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.18); border-radius:999px; overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,.4); }
+  .gsweet { position:absolute; top:0; bottom:0; }
+  .gcursor { position:absolute; top:-2px; bottom:-2px; width:5px; margin-left:-2.5px; background:#fff;
+    border-radius:3px; box-shadow:0 0 8px rgba(255,255,255,.9); }
+
+  /* --- Pesee (main sure) --- */
+  #weighscale { font-weight:900; font-size:26px; color:#fff; text-shadow:0 2px 10px rgba(0,0,0,.6); }
+  #weighbarwrap { width:62%; max-width:320px; height:12px; background:rgba(255,255,255,.15);
+    border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.4); }
+  #weighbar { height:100%; width:0%; background:linear-gradient(90deg,#7df9ff,#bdf0a3); transition:width .05s; }
+  #weighui .gsweet { background:linear-gradient(90deg,rgba(189,240,163,.25),rgba(189,240,163,.6),rgba(189,240,163,.25)); }
+
+  /* --- Cut / Melange (casse les grumeaux) --- */
+  #mixhead { display:flex; align-items:center; gap:10px; }
+  #mixref { width:30px; height:30px; border-radius:8px; border:2px solid rgba(255,255,255,.7);
+    background:#dfe7ef; box-shadow:0 2px 8px rgba(0,0,0,.4); }
+  #mixtimerwrap { width:62%; max-width:320px; height:8px; background:rgba(255,255,255,.15);
+    border-radius:8px; overflow:hidden; }
+  #mixtimer { height:100%; width:100%; background:linear-gradient(90deg,#ffd166,#ff7a3c); transition:width .1s linear; }
+  #mixgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; pointer-events:auto;
+    padding:10px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:16px; }
+  .mixtile { width:56px; height:56px; border-radius:10px; background:#dfe7ef; transition:transform .06s, background .12s;
+    box-shadow:inset 0 1px 2px rgba(255,255,255,.6); }
+  .mixtile.lump { background:radial-gradient(circle at 32% 30%, #9aa4b1 0 22%, #5d646f 60%);
+    box-shadow:inset 0 0 6px rgba(0,0,0,.5); }
+  .mixtile.over { background:#c79a52; box-shadow:inset 0 0 6px rgba(0,0,0,.4); }
+  .mixtile:active { transform:scale(.92); }
+
+  /* --- Ensachage (rythme) --- */
+  #bagstack { min-height:24px; font-size:20px; letter-spacing:-1px; line-height:1; max-width:82%;
+    text-align:center; word-break:break-all; filter:drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
+  #bagcombo { color:#ffd166; font-weight:900; font-size:24px; min-height:28px; text-shadow:0 2px 10px rgba(0,0,0,.6);
+    transition:transform .08s; }
+  #bagui .gsweet { background:linear-gradient(90deg,rgba(125,249,255,.25),rgba(125,249,255,.65),rgba(125,249,255,.25)); }
+
+  /* --- Inspection (reception) --- */
+  #inspectgrid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; pointer-events:auto;
+    padding:12px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:16px; }
+  .ipatch { width:96px; height:72px; border-radius:12px; box-shadow:inset 0 1px 3px rgba(255,255,255,.4);
+    transition:transform .06s; }
+  .ipatch:active { transform:scale(.95); }
+
+  /* --- Boutique --- */
+  #shopbtn { position:fixed; right:14px; top:calc(max(10px,env(safe-area-inset-top)) + 46px); pointer-events:auto;
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff; font-size:18px;
+    width:46px; height:42px; border-radius:12px; }
+  #shopbtn:active { background:rgba(255,255,255,.25); }
+  #shop { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); z-index:6; }
+  #shop.show { display:flex; }
+  #shopinner { width:88%; max-width:380px; max-height:74vh; overflow:auto; background:#14202e;
+    border:1px solid rgba(255,255,255,.15); border-radius:16px; padding:16px; color:#fff; }
+  #shophead { font-weight:800; font-size:18px; margin-bottom:12px; display:flex; justify-content:space-between; }
+  #shopcash { color:#9be37d; }
+  .shopitem { display:flex; align-items:center; gap:10px; padding:10px; margin-bottom:10px;
+    border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.04); }
+  .shopitem .ic { font-size:26px; }
+  .shopitem .info { flex:1; }
+  .shopitem .nm { font-weight:700; }
+  .shopitem .ds { font-size:12px; color:rgba(255,255,255,.6); }
+  .shopitem button { background:#2f5d8a; border:none; color:#fff; font-weight:700; padding:9px 12px; border-radius:10px; min-width:64px; }
+  .shopitem button:disabled { background:rgba(255,255,255,.12); color:rgba(255,255,255,.4); }
+  #shopclose { width:100%; background:rgba(255,255,255,.12); border:none; color:#fff; font-weight:700; padding:11px; border-radius:12px; }
+</style>
+
+<!-- Three.js charge en module depuis un CDN (import map). Supporte par Safari iOS 16.4+ -->
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div class="hud" id="count">Produit : 0 g</div>
+<div id="cash">💶 0 €</div>
+<button id="waste">🗑️ 0 g</button>
+<div id="rep">Réput 100%</div>
+<div id="xpwrap"><span id="level">Niv. 1</span><div id="xpbar"><div id="xpfill"></div></div></div>
+<div class="hud" id="title">BRIQUE</div>
+<div class="hud" id="remain">Bulk : 0 g</div>
+<button id="reset">🔄 Lot</button>
+<button id="shopbtn">🛒</button>
+<div class="hud" id="hint">Tape la BRIQUE pour peser · la DALLE pour mélanger · le bac PRODUIT pour ensacher · pince pour zoomer</div>
+<div class="hud" id="toast"></div>
+<div id="labels"></div>
+
+<!-- Selecteur de format de vente -->
+<div id="fmtbar">
+  <span class="lbl">Format</span>
+  <button class="fmtbtn on" data-fmt="1">1g</button>
+  <button class="fmtbtn" data-fmt="5">5g</button>
+  <button class="fmtbtn" data-fmt="25" title="Briquette (presse requise)">25g</button>
+</div>
+
+<!-- Mini-jeu : Inspection reception -->
+<div id="inspectui" class="mini">
+  <div class="mtext" id="inspecttext">Inspection — repère l'échantillon douteux</div>
+  <div id="inspectgrid"></div>
+  <button class="mclose" id="inspectskip">Passer</button>
+</div>
+
+<!-- Mini-jeu : Pesee (main sure) -->
+<div id="weighui" class="mini">
+  <div class="mtext" id="weightext">Pesée — garde l'aiguille dans le vert</div>
+  <div id="weighscale">0.0 / 25 g</div>
+  <div id="weighbarwrap"><div id="weighbar"></div></div>
+  <div class="gauge"><div class="gsweet" id="wsweet"></div><div class="gcursor" id="wcursor"></div></div>
+  <button class="mclose" id="weighdone">Terminer</button>
+</div>
+
+<!-- Mini-jeu : Cut / melange (casse les grumeaux) -->
+<div id="mixui" class="mini">
+  <div class="mtext" id="mixtext">Casse les grumeaux pour un mix homogène</div>
+  <div id="mixhead"><span style="font-size:12px;color:rgba(255,255,255,.6)">cible</span><div id="mixref"></div></div>
+  <div id="mixtimerwrap"><div id="mixtimer"></div></div>
+  <div id="mixgrid"></div>
+  <button class="mbtn" id="mixdone">Valider le mix</button>
+</div>
+
+<!-- Mini-jeu : Ensachage (rythme) -->
+<div id="bagui" class="mini">
+  <div class="mtext" id="bagtext">Ensachage</div>
+  <div id="bagstack"></div>
+  <div id="bagcombo"></div>
+  <div class="gauge"><div class="gsweet" id="bsweet"></div><div class="gcursor" id="bcursor"></div></div>
+  <button class="mclose" id="bagdone">Terminer</button>
+</div>
+
+<!-- Boutique -->
+<div id="shop">
+  <div id="shopinner">
+    <div id="shophead"><span>🛒 Boutique</span><span id="shopcash"></span></div>
+    <div id="shopitems"></div>
+    <button id="shopclose">Fermer</button>
+  </div>
+</div>
+
+<script type="module">
+"use strict";
+import * as THREE from "three";
+
+/* =========================================================================
+   NEIGE — core loop "bulk -> retail" (proto mobile WebGL)
+   -------------------------------------------------------------------------
+   Boucle de jeu, façon plan de travail vu en 3/4 plongeant :
+
+     1) RECEPTION  : on achète une brique (gros). Mini-jeu d'inspection
+                     (spot-the-difference) -> fixe la pureté du lot.
+     2) PESEE      : on tape la BRIQUE -> mini-jeu "main sûre" : on garde
+                     l'aiguille dans le vert pour débiter des portions du bulk
+                     vers la DALLE (tray) sans trop éclabousser.
+     3) CUT/MELANGE: on tape la DALLE -> mini-jeu "casse les grumeaux"
+                     (matching/texture) : un mix homogène = stretch propre.
+                     La portion pesée devient du PRODUIT coupé (volume gonflé,
+                     pureté diluée, qualité = homogénéité × pureté).
+     4) ENSACHAGE  : on tape le bac PRODUIT -> mini-jeu de rythme : chaque tap
+                     dans le vert scelle un sachet du format choisi (1/5/25 g)
+                     et le vend au détail (petit format = €/g plus élevé).
+
+   Boutique : agents de coupe (stretch+), balance de précision, tamis,
+   presse à briquettes, auto-ensacheuse, cadence. + niveaux (XP) + réputation
+   (la qualité moyenne des ventes fait monter/descendre le prix).
+   Tout est commenté en français, brique par brique. Persistance localStorage
+   sous le préfixe `neige_*`.
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   0) ECONOMIE (tous les nombres "de jeu" au même endroit)
+   ------------------------------------------------------------------------- */
+const BRICK_PRICES = { 50: 2200, 100: 4000 };     // achat gros (~44 / 40 €/g de bulk)
+const FMT_PRICE    = { 1: 80, 5: 62, 25: 48 };    // €/g au détail selon le format (petit = +cher)
+const FMT_LABEL    = { 1: "rue 1 g", 5: "semi 5 g", 25: "briquette 25 g" };
+const SCHLAG_RATE  = 12;                           // €/g des déchets bradés
+const PORTION_G    = 25;                            // g pesés par "remplissage" de balance
+const STARTER      = { g: 22, purity: 0.78 };       // lot de dépannage gratuit (anti soft-lock)
+
+/* -------------------------------------------------------------------------
+   1) SCENE, CAMERA, RENDU
+   ------------------------------------------------------------------------- */
+const app = document.getElementById("app");
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+renderer.setClearColor(0x000000, 0);              // fond transparent -> on voit le dégradé CSS
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
+// Cadrage : on garde tout le plan de travail à l'écran (portrait comme paysage).
+const VIEW_DIR    = new THREE.Vector3(0.0, 0.66, 0.75).normalize();
+const VIEW_TARGET = new THREE.Vector3(0, 0.25, 0.75);
+const VIEW_RADIUS = Math.hypot(2.5, 0.9, 2.1);
+const baseCamPos  = new THREE.Vector3();
+let zoom = +(localStorage.getItem("neige_zoom")) || 1;
+zoom = Math.max(0.6, Math.min(2.6, zoom));
+
+function fitView() {
+  const vFov = camera.fov * Math.PI / 180;
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  const fov  = Math.min(vFov, hFov);
+  const dist = (VIEW_RADIUS / Math.sin(fov / 2)) * 1.03 / zoom;
+  baseCamPos.copy(VIEW_TARGET).addScaledVector(VIEW_DIR, dist);
+  camera.position.copy(baseCamPos);
+  camera.lookAt(VIEW_TARGET);
+}
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  fitView();
+}
+window.addEventListener("resize", resize);
+
+/* -------------------------------------------------------------------------
+   2) LUMIERES (ambiance froide "salle blanche")
+   ------------------------------------------------------------------------- */
+scene.add(new THREE.HemisphereLight(0xdfeeff, 0x1a2230, 0.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.35);
+sun.position.set(5, 11, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.bias = -0.0004;
+const sc = sun.shadow.camera;
+sc.left = -8; sc.right = 8; sc.top = 8; sc.bottom = -8; sc.near = 1; sc.far = 30;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x9fc0ff, 0.4);
+fill.position.set(-4, 3, 6);
+scene.add(fill);
+
+/* -------------------------------------------------------------------------
+   3) PLAN DE TRAVAIL : table + dalle en verre + brique + balance + bacs
+   ------------------------------------------------------------------------- */
+const board = new THREE.Mesh(
+  new THREE.BoxGeometry(5.2, 0.3, 4.8),
+  new THREE.MeshStandardMaterial({ color: 0x2a3340, roughness: 0.7, metalness: 0.25 })
+);
+board.position.set(0, -0.15, 0.5);
+board.receiveShadow = true;
+scene.add(board);
+
+// Dalle en verre au centre (surface de coupe/mélange) — cible de tap "mélange".
+const SLAB_POS = new THREE.Vector3(0, 0, 0.2);
+const slab = new THREE.Mesh(
+  new THREE.BoxGeometry(2.3, 0.12, 1.5),
+  new THREE.MeshStandardMaterial({ color: 0xbfe9ff, transparent: true, opacity: 0.4,
+    roughness: 0.06, metalness: 0.3 })
+);
+slab.position.copy(SLAB_POS).setY(0.06);
+slab.receiveShadow = true;
+scene.add(slab);
+
+// Brique de bulk (emballage mylar) — cible de tap "pesée". Posée au fond-gauche.
+const BRICK_POS = new THREE.Vector3(-1.65, 0, -0.5);
+const brick = new THREE.Group();
+brick.position.copy(BRICK_POS);
+const mylar = new THREE.MeshStandardMaterial({ color: 0xdfe6ee, roughness: 0.32, metalness: 0.4 });
+const brickBody = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.5, 0.8), mylar);
+brickBody.position.y = 0.25; brickBody.castShadow = true; brick.add(brickBody);
+const tape = new THREE.Mesh(new THREE.BoxGeometry(1.17, 0.16, 0.12),
+  new THREE.MeshStandardMaterial({ color: 0x9aa6b2, roughness: 0.5 }));
+tape.position.set(0, 0.25, 0); brick.add(tape);
+scene.add(brick);
+
+// Balance de précision (déco) au fond-droit.
+const scaleGrp = new THREE.Group();
+scaleGrp.position.set(1.7, 0, -0.35);
+const scaleBase = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.16, 0.8),
+  new THREE.MeshStandardMaterial({ color: 0x20262e, roughness: 0.5, metalness: 0.4 }));
+scaleBase.position.y = 0.08; scaleBase.castShadow = true; scaleBase.receiveShadow = true; scaleGrp.add(scaleBase);
+const scalePan = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.04, 0.6),
+  new THREE.MeshStandardMaterial({ color: 0xc8d2dc, roughness: 0.25, metalness: 0.7 }));
+scalePan.position.set(0, 0.18, -0.02); scaleGrp.add(scalePan);
+const scaleRead = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.04),
+  new THREE.MeshStandardMaterial({ color: 0x0a1a12, emissive: 0x123d22, roughness: 0.4 }));
+scaleRead.position.set(0, 0.2, 0.3); scaleGrp.add(scaleRead);
+scene.add(scaleGrp);
+
+// Deux bacs devant : PRODUIT (coupé, à ensacher) et DECHETS (à brader).
+function makeBin(pos, col) {
+  const grp = new THREE.Group(); grp.position.copy(pos);
+  const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, metalness: 0.1, side: THREE.DoubleSide });
+  const w = 1.55, d = 1.1, h = 0.4, th = 0.07;
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(w, th, d), mat); floor.position.y = th / 2; floor.receiveShadow = true; grp.add(floor);
+  const wLR = (x) => { const m = new THREE.Mesh(new THREE.BoxGeometry(th, h, d), mat); m.position.set(x, h / 2, 0); grp.add(m); };
+  const wFB = (z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, th), mat); m.position.set(0, h / 2, z); grp.add(m); };
+  wLR(-w / 2); wLR(w / 2); wFB(-d / 2); wFB(d / 2);
+  scene.add(grp); return grp;
+}
+const PROD_POS  = new THREE.Vector3(-1.1, 0, 2.0);
+const WASTE_POS = new THREE.Vector3(1.1, 0, 2.0);
+const prodBin   = makeBin(PROD_POS, 0x2f5d8a);
+const wasteBin  = makeBin(WASTE_POS, 0x55504a);
+
+/* -------------------------------------------------------------------------
+   4) TAS DE POUDRE (heaps) : un cône blanc dont l'échelle suit les grammes.
+   - trayHeap   : portion pesée, sur la dalle (avant cut)
+   - prodHeap   : produit coupé, dans le bac PRODUIT
+   - wasteHeap  : déchets, dans le bac DECHETS
+   ------------------------------------------------------------------------- */
+function powderTex(base) {
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const x = c.getContext("2d"); const img = x.createImageData(64, 64);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 26;
+    img.data[i] = base + n; img.data[i+1] = base + n; img.data[i+2] = base + 4 + n; img.data[i+3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+}
+function makeHeap(base) {
+  const m = new THREE.Mesh(
+    new THREE.ConeGeometry(0.78, 0.5, 20),
+    new THREE.MeshStandardMaterial({ map: powderTex(base), roughness: 0.97 })
+  );
+  m.castShadow = true; m.visible = false; scene.add(m); return m;
+}
+const trayHeap  = makeHeap(238); trayHeap.position.set(SLAB_POS.x, 0.12, SLAB_POS.z);
+const prodHeap  = makeHeap(228); prodHeap.position.set(PROD_POS.x, 0.06, PROD_POS.z);
+const wasteHeap = makeHeap(150); wasteHeap.position.set(WASTE_POS.x, 0.06, WASTE_POS.z);
+// Echelle visuelle d'un tas en fonction des grammes (croissance douce, plafonnée).
+function setHeap(mesh, g, maxG) {
+  const k = Math.min(1, g / maxG);
+  const s = 0.18 + 0.95 * Math.cbrt(k);
+  mesh.visible = g > 0.3;
+  mesh.scale.set(s, 0.55 + 0.6 * k, s);
+}
+
+/* -------------------------------------------------------------------------
+   5) ETAT DE PARTIE + PERSISTANCE
+   ------------------------------------------------------------------------- */
+const SAVE_VERSION = "1";
+if (localStorage.getItem("neige_ver") !== SAVE_VERSION) {
+  ["neige_cash", "neige_waste", "neige_level", "neige_xp", "neige_shop", "neige_rep"].forEach(k => localStorage.removeItem(k));
+  localStorage.setItem("neige_ver", SAVE_VERSION);
+}
+let cash       = +(localStorage.getItem("neige_cash") || 0);
+let wasteGrams = +(localStorage.getItem("neige_waste") || 0);
+let level      = Math.max(1, +(localStorage.getItem("neige_level") || 1));
+let xp         = Math.max(0, +(localStorage.getItem("neige_xp") || 0));
+let rep        = Math.min(1.2, Math.max(0.7, +(localStorage.getItem("neige_rep") || 1)));
+let fmt        = +(localStorage.getItem("neige_fmt") || 1);
+
+// Inventaire courant (transitoire — non sauvegardé : on repart d'un lot frais).
+let bulkG = 0, bulkPurity = STARTER.purity;        // brique de bulk en cours
+const tray = { g: 0, psum: 0 };                     // portion pesée (avant cut) : g + pureté pondérée
+const prod = { g: 0, qsum: 0 };                     // produit coupé : g + qualité pondérée
+
+let mode = "idle";   // idle | inspect | weigh | mix | bag
+
+function trayPurity() { return tray.g > 0 ? tray.psum / tray.g : bulkPurity; }
+function prodQual()   { return prod.g > 0 ? prod.qsum / prod.g : 0.6; }
+function addTray(g, p)   { tray.g += g; tray.psum += g * p; }
+function addProd(g, q)   { prod.g += g; prod.qsum += g * q; updateProdLabel(); }
+function takeProd(g) {
+  if (prod.g <= 0) return;
+  const r = Math.min(1, g / prod.g);
+  prod.qsum *= (1 - r); prod.g = Math.max(0, prod.g - g);
+  updateProdLabel();
+}
+
+/* -------------------------------------------------------------------------
+   6) UI (références aux éléments du HUD / overlays)
+   ------------------------------------------------------------------------- */
+const ui = {
+  count:document.getElementById("count"), cash:document.getElementById("cash"),
+  waste:document.getElementById("waste"), rep:document.getElementById("rep"),
+  level:document.getElementById("level"), xpfill:document.getElementById("xpfill"),
+  title:document.getElementById("title"), remain:document.getElementById("remain"),
+  hint:document.getElementById("hint"), toast:document.getElementById("toast"),
+  shop:document.getElementById("shop"), shopitems:document.getElementById("shopitems"), shopcash:document.getElementById("shopcash"),
+  // pesée
+  weighui:document.getElementById("weighui"), weightext:document.getElementById("weightext"),
+  weighscale:document.getElementById("weighscale"), weighbar:document.getElementById("weighbar"),
+  wsweet:document.getElementById("wsweet"), wcursor:document.getElementById("wcursor"),
+  // mix
+  mixui:document.getElementById("mixui"), mixtext:document.getElementById("mixtext"),
+  mixref:document.getElementById("mixref"), mixtimer:document.getElementById("mixtimer"), mixgrid:document.getElementById("mixgrid"),
+  // bag
+  bagui:document.getElementById("bagui"), bagtext:document.getElementById("bagtext"),
+  bagstack:document.getElementById("bagstack"), bagcombo:document.getElementById("bagcombo"),
+  bsweet:document.getElementById("bsweet"), bcursor:document.getElementById("bcursor"),
+  // inspection
+  inspectui:document.getElementById("inspectui"), inspecttext:document.getElementById("inspecttext"), inspectgrid:document.getElementById("inspectgrid"),
+};
+
+function setCash(v) {
+  cash = v; localStorage.setItem("neige_cash", String(Math.round(cash)));
+  ui.cash.textContent = "💶 " + Math.round(cash) + " €";
+  if (ui.shop.classList.contains("show")) renderShop();
+}
+function setWaste(v) {
+  wasteGrams = Math.max(0, v); localStorage.setItem("neige_waste", String(Math.round(wasteGrams)));
+  ui.waste.textContent = "🗑️ " + Math.round(wasteGrams) + " g";
+  setHeap(wasteHeap, wasteGrams, 120);
+}
+function addWaste(g) { setWaste(wasteGrams + g); }
+function setRep(v) {
+  rep = Math.min(1.2, Math.max(0.7, v)); localStorage.setItem("neige_rep", rep.toFixed(3));
+  ui.rep.textContent = "Réput " + Math.round(rep * 100) + "%";
+}
+function updateCount()      { ui.count.textContent = "Produit : " + Math.round(prod.g) + " g"; }
+function updateRemain()     { ui.remain.textContent = "Bulk : " + Math.round(bulkG) + " g · " + Math.round(bulkPurity * 100) + "%"; }
+function updateProdLabel()  { prodLabel.textContent = "📦 PRODUIT " + Math.round(prod.g) + " g"; setHeap(prodHeap, prod.g, 260); updateCount(); }
+function updateTrayHeap()   { setHeap(trayHeap, tray.g, 120); }
+
+/* -------------------------------------------------------------------------
+   7) NIVEAUX / XP + RECOMPENSES
+   ------------------------------------------------------------------------- */
+function xpNeed(lvl)  { return Math.round(140 * Math.pow(1.35, lvl - 1)); }
+function levelMult()  { return 1 + (level - 1) * 0.025; }
+function updateXpUI() {
+  ui.level.textContent = "Niv. " + level + " · +" + Math.round((levelMult() - 1) * 100) + "%";
+  ui.xpfill.style.width = Math.min(100, (xp / xpNeed(level)) * 100) + "%";
+}
+function addXP(n) {
+  xp += n; let leveled = false;
+  while (xp >= xpNeed(level)) { xp -= xpNeed(level); level++; leveled = true; }
+  if (leveled) {
+    showToast("Niveau " + level + " ! +" + Math.round((levelMult() - 1) * 100) + "% revenus", "#bdf0a3");
+    addShake(0.18);
+    const ac = ensureAudio();
+    if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(880, t + 0.08, 0.1, 0.2); beep(1180, t + 0.16, 0.16, 0.22); }
+  }
+  localStorage.setItem("neige_level", String(level));
+  localStorage.setItem("neige_xp", String(Math.round(xp)));
+  updateXpUI();
+}
+
+/* -------------------------------------------------------------------------
+   8) AUDIO (synthétisé, aucun fichier ; AudioContext débloqué au 1er tap)
+   ------------------------------------------------------------------------- */
+let actx = null;
+function ensureAudio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (actx && actx.state === "suspended") actx.resume();
+  return actx;
+}
+function noiseBurst(dur, f0, f1, vol, type, q) {
+  const ac = ensureAudio(); if (!ac) return;
+  const t = ac.currentTime, len = Math.max(1, Math.floor(ac.sampleRate * dur));
+  const buf = ac.createBuffer(1, len, ac.sampleRate), ch = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.4);
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const filt = ac.createBiquadFilter(); filt.type = type || "bandpass"; filt.Q.value = q || 0.8;
+  filt.frequency.setValueAtTime(f0, t);
+  filt.frequency.exponentialRampToValueAtTime(Math.max(60, f1), t + dur);
+  const g = ac.createGain(); g.gain.value = vol;
+  src.connect(filt); filt.connect(g); g.connect(ac.destination);
+  src.start(t); src.stop(t + dur);
+}
+function beep(freq, t0, dur, vol) {
+  const ac = ensureAudio(); if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = "square"; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t0); o.stop(t0 + dur);
+}
+const sPour  = () => noiseBurst(0.16, 1700, 380, 0.2, "lowpass", 0.7);   // poudre versée
+const sScrape= () => noiseBurst(0.08, 2400, 900, 0.3, "bandpass", 0.9);  // carte qui racle
+const sZip   = () => noiseBurst(0.13, 1100, 2600, 0.22, "bandpass", 1.3); // zip sachet
+const sErr   = () => { const ac = ensureAudio(); if (ac) beep(150, ac.currentTime, 0.12, 0.2); };
+function sSale() { const ac = ensureAudio(); if (!ac) return; const t = ac.currentTime; beep(880, t, 0.12, 0.24); beep(1320, t + 0.08, 0.16, 0.22); }
+
+/* -------------------------------------------------------------------------
+   9) PUFFS de poudre (juice visuel léger, façon miettes)
+   ------------------------------------------------------------------------- */
+const puffs = [];
+const puffGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
+const puffMat = new THREE.MeshStandardMaterial({ color: 0xf2f6fb, roughness: 1 });
+function burstPuffs(pos, n, toward) {
+  for (let i = 0; i < n; i++) {
+    const m = new THREE.Mesh(puffGeo, puffMat);
+    m.position.set(pos.x + (Math.random() - 0.5) * 0.5, pos.y + 0.2, pos.z + (Math.random() - 0.5) * 0.5);
+    scene.add(m);
+    const tx = toward ? (toward.x - pos.x) * 1.2 : (Math.random() - 0.5) * 1.6;
+    const tz = toward ? (toward.z - pos.z) * 1.2 : (Math.random() - 0.5) * 1.6;
+    puffs.push({ mesh: m, vx: tx + (Math.random() - 0.5) * 0.6, vy: 1.6 + Math.random() * 1.0,
+      vz: tz + (Math.random() - 0.5) * 0.6, settled: false });
+  }
+  while (puffs.length > 70) { const p = puffs.shift(); scene.remove(p.mesh); }
+}
+function updatePuffs(dt) {
+  for (const p of puffs) {
+    if (p.settled) continue;
+    p.vy -= 9 * dt;
+    p.mesh.position.x += p.vx * dt; p.mesh.position.y += p.vy * dt; p.mesh.position.z += p.vz * dt;
+    p.mesh.rotation.x += dt * 6; p.mesh.rotation.y += dt * 4;
+    if (p.mesh.position.y <= 0.1) { scene.remove(p.mesh); p.settled = true; }
+  }
+  for (let i = puffs.length - 1; i >= 0; i--) if (puffs[i].settled) puffs.splice(i, 1);
+}
+let shake = 0;
+function addShake(a) { shake = Math.min(0.6, shake + a); }
+
+/* -------------------------------------------------------------------------
+   10) ETIQUETTES FLOTTANTES (projetées à l'écran)
+   ------------------------------------------------------------------------- */
+const labelsEl = document.getElementById("labels");
+function makeLabel(text, color) {
+  const d = document.createElement("div"); d.className = "blabel"; d.textContent = text; d.style.color = color;
+  labelsEl.appendChild(d); return d;
+}
+const prodLabel  = makeLabel("📦 PRODUIT 0 g", "#bfe9ff");
+const wasteLabel = makeLabel("🗑️ DÉCHETS", "#e6c896");
+const brickLabel = makeLabel("🧱 BRIQUE", "#dfe6ee");
+const slabLabel  = makeLabel("🪟 DALLE", "#bfe9ff");
+const _lv = new THREE.Vector3();
+function placeLabel(div, x, y, z) {
+  _lv.set(x, y, z).project(camera);
+  if (_lv.z > 1) { div.style.display = "none"; return; }
+  div.style.display = "block";
+  div.style.left = ((_lv.x * 0.5 + 0.5) * window.innerWidth) + "px";
+  div.style.top  = ((-_lv.y * 0.5 + 0.5) * window.innerHeight) + "px";
+}
+function updateLabels() {
+  // Pendant un mini-jeu (overlay plein écran), on masque les étiquettes 3D
+  // pour ne pas qu'elles chevauchent le texte de l'overlay.
+  if (mode !== "idle") {
+    for (const d of [prodLabel, wasteLabel, brickLabel, slabLabel]) d.style.display = "none";
+    return;
+  }
+  placeLabel(prodLabel, PROD_POS.x, 0.55, PROD_POS.z);
+  placeLabel(wasteLabel, WASTE_POS.x, 0.55, WASTE_POS.z);
+  placeLabel(brickLabel, BRICK_POS.x, 0.7, BRICK_POS.z);
+  slabLabel.textContent = tray.g > 0.3 ? ("🪟 TRAY " + Math.round(tray.g) + " g") : "🪟 DALLE";
+  placeLabel(slabLabel, SLAB_POS.x, 0.55, SLAB_POS.z);
+}
+
+/* -------------------------------------------------------------------------
+   11) TOAST (feedback éphémère)
+   ------------------------------------------------------------------------- */
+let toastTimer = 0;
+function showToast(msg, color) {
+  ui.toast.textContent = msg; ui.toast.style.color = color || "#fff";
+  ui.toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => ui.toast.classList.remove("show"), 950);
+}
+
+/* -------------------------------------------------------------------------
+   12) BOUTIQUE & UPGRADES (data-driven)
+   ------------------------------------------------------------------------- */
+const owned = JSON.parse(localStorage.getItem("neige_shop") || "{}");
+owned.agent   = owned.agent   || 0;   // agents de coupe : stretch +
+owned.balance = owned.balance || 0;   // balance de précision : zone verte + large à la pesée
+owned.sieve   = owned.sieve   || 0;   // tamis : moins de grumeaux au mélange
+owned.press   = owned.press   || 0;   // presse à briquettes : débloque le format 25 g
+owned.autobag = owned.autobag || 0;   // auto-ensacheuse : vend du produit toute seule
+owned.cadence = owned.cadence || 0;   // cadence de l'auto-ensacheuse
+function saveShop() { localStorage.setItem("neige_shop", JSON.stringify(owned)); }
+
+function stretchFactor() { return 1.25 + owned.agent * 0.09; }                 // 1.25 .. ~1.79
+function weighSweet()    { return Math.min(0.30, 0.10 + owned.balance * 0.025); } // demi-largeur du vert (pesée)
+function lumpProb()      { return Math.max(0.18, 0.52 - owned.sieve * 0.05); }    // proba de grumeau (mélange)
+function bagInterval()   { return 3.0 * Math.pow(0.82, owned.cadence); }          // s/sachet (auto)
+
+const SHOP = [
+  { id:"brick50", icon:"🧱", name:"Brique 50 g",
+    desc:()=>"Bulk (gros). Reçu + inspection du lot.",
+    cost:()=>BRICK_PRICES[50], can:()=>true, maxed:()=>false, buy:()=>receiveBrick(50) },
+  { id:"brick100", icon:"📦", name:"Brique 100 g",
+    desc:()=>"Bulk (gros, moins cher au gramme).",
+    cost:()=>BRICK_PRICES[100], can:()=>true, maxed:()=>false, buy:()=>receiveBrick(100) },
+  { id:"agent", icon:"🧂", name:"Agent de coupe +",
+    desc:()=>"Meilleur agent : stretch ×" + stretchFactor().toFixed(2) + " (plus de volume).",
+    cost:()=>Math.round(700 * Math.pow(1.6, owned.agent)),
+    can:()=>owned.agent < 6, maxed:()=>owned.agent >= 6, buy:()=>{ owned.agent++; } },
+  { id:"balance", icon:"⚖️", name:"Balance de précision",
+    desc:()=>"Élargit la zone verte de la pesée (moins de perte).",
+    cost:()=>Math.round(500 * Math.pow(1.6, owned.balance)),
+    can:()=>owned.balance < 6, maxed:()=>owned.balance >= 6, buy:()=>{ owned.balance++; } },
+  { id:"sieve", icon:"🕸️", name:"Tamis fin",
+    desc:()=>"Moins de grumeaux : mix homogène plus facile.",
+    cost:()=>Math.round(600 * Math.pow(1.6, owned.sieve)),
+    can:()=>owned.sieve < 6, maxed:()=>owned.sieve >= 6, buy:()=>{ owned.sieve++; } },
+  { id:"press", icon:"🗜️", name:"Presse à briquettes",
+    desc:()=>"Débloque le format 25 g (semi-gros).",
+    cost:()=>3000, can:()=>owned.press < 1, maxed:()=>owned.press >= 1, buy:()=>{ owned.press = 1; refreshFmtButtons(); } },
+  { id:"autobag", icon:"🤖", name:"Auto-ensacheuse",
+    desc:()=>"Ensache et vend du produit toute seule.",
+    cost:()=>5000, can:()=>owned.autobag < 1, maxed:()=>owned.autobag >= 1, buy:()=>{ owned.autobag = 1; } },
+  { id:"cadence", icon:"⚙️", name:"Cadence +",
+    desc:()=>"Accélère l'auto-ensacheuse (" + bagInterval().toFixed(1) + " s/sachet).",
+    cost:()=>Math.round(1200 * Math.pow(1.6, owned.cadence)),
+    can:()=>owned.autobag >= 1 && owned.cadence < 8, maxed:()=>owned.cadence >= 8, buy:()=>{ owned.cadence++; } },
+];
+function renderShop() {
+  ui.shopcash.textContent = "💶 " + Math.round(cash) + " €";
+  ui.shopitems.innerHTML = "";
+  for (const it of SHOP) {
+    const cost = it.cost(), maxed = it.maxed(), can = !maxed && it.can() && cash >= cost;
+    const row = document.createElement("div"); row.className = "shopitem";
+    row.innerHTML = '<div class="ic">' + it.icon + '</div><div class="info"><div class="nm">' +
+      it.name + '</div><div class="ds">' + it.desc() + '</div></div>';
+    const b = document.createElement("button");
+    b.textContent = maxed ? "✓" : (cost + " €"); b.disabled = !can;
+    b.addEventListener("click", () => buy(it));
+    row.appendChild(b); ui.shopitems.appendChild(row);
+  }
+}
+function buy(it) {
+  const cost = it.cost();
+  if (it.maxed() || !it.can() || cash < cost) return;
+  setCash(cash - cost); it.buy(); saveShop();
+  const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(990, t + 0.07, 0.14, 0.2); }
+  renderShop();
+}
+
+/* -------------------------------------------------------------------------
+   13) RECEPTION : acheter une brique -> inspection (spot-the-difference)
+   ------------------------------------------------------------------------- */
+let inspect = { done:false, oddIndex:0, baseP:0.8, size:50 };
+function receiveBrick(size) {
+  const cost = BRICK_PRICES[size];
+  if (cash < cost) { showToast("Pas assez : " + cost + " €", "#ff6b6b"); return; }
+  setCash(cash - cost);
+  ui.shop.classList.remove("show");
+  startInspection(size, 0.74 + Math.random() * 0.16);   // pureté de base aléatoire ~74..90 %
+}
+function startInspection(size, baseP) {
+  inspect = { done:false, oddIndex:(Math.random() * 4) | 0, baseP, size };
+  mode = "inspect";
+  ui.inspecttext.textContent = "Inspection — repère l'échantillon douteux (humide/coupé)";
+  ui.inspectgrid.innerHTML = "";
+  // 4 patchs : 3 identiques (poudre nette), 1 légèrement "off" (le mauvais lot).
+  const good = "#e7eef5";
+  const bad  = "#d9d2c0";   // teinte jaunie/humide, subtilement différente
+  for (let i = 0; i < 4; i++) {
+    const p = document.createElement("div"); p.className = "ipatch";
+    p.style.background = (i === inspect.oddIndex)
+      ? "radial-gradient(circle at 60% 65%, " + bad + " 0 55%, #cdbfa0 100%)"
+      : good;
+    p.addEventListener("click", () => inspectPick(i));
+    ui.inspectgrid.appendChild(p);
+  }
+  ui.inspectui.classList.add("show");
+}
+function inspectPick(i) {
+  if (inspect.done) return;
+  inspect.done = true;
+  const ok = (i === inspect.oddIndex);
+  // Bon repérage -> on "trie" le mauvais : pureté bonifiée. Sinon pureté de base.
+  const purity = Math.min(0.98, inspect.baseP + (ok ? 0.12 : 0.0));
+  if (ok) { burstPuffs(BRICK_POS, 8); sSale(); }
+  else { sErr(); }
+  // Met en évidence le bon patch.
+  const patches = ui.inspectgrid.children;
+  for (let k = 0; k < patches.length; k++)
+    patches[k].style.outline = (k === inspect.oddIndex) ? "3px solid #9be37d" : "none";
+  setTimeout(() => finishInspection(inspect.size, purity, ok), 650);
+}
+function finishInspection(size, purity, ok) {
+  ui.inspectui.classList.remove("show");
+  mode = "idle";
+  loadBrick(size, purity);
+  showToast((ok ? "Bon lot ✓ " : "Lot moyen ") + size + " g · " + Math.round(purity * 100) + "%",
+            ok ? "#9be37d" : "#e6c896");
+}
+function skipInspection() {
+  if (mode !== "inspect") return;
+  inspect.done = true;
+  ui.inspectui.classList.remove("show"); mode = "idle";
+  loadBrick(inspect.size, inspect.baseP);
+  showToast("Lot " + inspect.size + " g · " + Math.round(inspect.baseP * 100) + "%", "#e6c896");
+}
+// Charge une brique (ajoute au bulk). Si pureté différente, on fait une moyenne pondérée.
+function loadBrick(size, purity) {
+  const tot = bulkG + size;
+  bulkPurity = tot > 0 ? (bulkG * bulkPurity + size * purity) / tot : purity;
+  bulkG = tot;
+  brick.visible = true;
+  ui.title.textContent = "BRIQUE " + Math.round(bulkG) + " g";
+  updateRemain();
+  ui.hint.textContent = "Tape la BRIQUE pour peser une portion sur la balance";
+  ui.hint.style.opacity = "1";
+}
+
+/* -------------------------------------------------------------------------
+   14) PESEE (main sûre) : on garde l'aiguille dans le vert pour remplir une
+   portion. Le curseur "vibre" (marche aléatoire) ; chaque tap le recentre.
+   Temps passé hors du vert = poudre éclaboussée (déchets).
+   ------------------------------------------------------------------------- */
+const weigh = { p:0.5, v:0, fill:0, outT:0, totT:0, target:PORTION_G };
+const W_JIT = 6.0, W_DAMP = 0.90, W_KICK = 0.95, W_FILL_T = 1.5;
+
+function startWeigh() {
+  if (bulkG < 0.5) { showToast("Plus de bulk — achète une brique 🛒", "#e6c896"); return; }
+  mode = "weigh";
+  weigh.p = 0.5; weigh.v = 0; weigh.fill = 0; weigh.outT = 0; weigh.totT = 0;
+  weigh.target = Math.min(PORTION_G, bulkG);
+  ui.weightext.textContent = "Pèse ~" + Math.round(weigh.target) + " g — tape pour garder l'aiguille au centre";
+  ui.wsweet.style.left = (50 - weighSweet() * 100) + "%";
+  ui.wsweet.style.width = (weighSweet() * 200) + "%";
+  ui.weighui.classList.add("show");
+  ui.hint.style.opacity = "0";
+  refreshWeigh();
+}
+function refreshWeigh() {
+  ui.weighscale.textContent = (weigh.fill * weigh.target).toFixed(1) + " / " + Math.round(weigh.target) + " g";
+  ui.weighbar.style.width = (weigh.fill * 100) + "%";
+}
+function weighTap() {
+  // Coup de pouce vers le centre (recentre l'aiguille) + petit son.
+  weigh.v += (0.5 - weigh.p) * W_KICK;
+  const ac = ensureAudio(); if (ac) beep(280 + (1 - Math.abs(weigh.p - 0.5)) * 360, ac.currentTime, 0.04, 0.1);
+}
+function commitPortion() {
+  // Portion débitée du bulk : f = propreté (part du temps passé dans le vert).
+  const f = weigh.totT > 0 ? Math.max(0.25, 1 - (weigh.outT / weigh.totT) * 1.1) : 1;
+  const portion = Math.min(bulkG, weigh.target);
+  const kept = portion * f, lost = portion * (1 - f);
+  bulkG = Math.max(0, bulkG - portion);
+  addTray(kept, bulkPurity); addWaste(lost);
+  updateTrayHeap(); updateRemain();
+  burstPuffs(SLAB_POS, 6 + Math.round((1 - f) * 14));
+  sPour(); addShake(0.12);
+  ui.title.textContent = "BRIQUE " + Math.round(bulkG) + " g";
+  showToast("+" + kept.toFixed(1) + " g sur la dalle" + (lost > 0.4 ? "  (−" + lost.toFixed(1) + " g)" : ""),
+            f > 0.85 ? "#9be37d" : "#e6c896");
+  // Reset pour une éventuelle portion suivante.
+  weigh.fill = 0; weigh.outT = 0; weigh.totT = 0;
+  weigh.target = Math.min(PORTION_G, bulkG);
+  if (bulkG < 0.5) { ui.weightext.textContent = "Bulk épuisé — Terminer"; }
+  refreshWeigh();
+}
+function updateWeigh(dt) {
+  if (mode !== "weigh") return;
+  // Marche aléatoire amortie (l'aiguille "vibre"), rebond aux bords.
+  weigh.v += (Math.random() - 0.5) * W_JIT * dt;
+  weigh.v *= W_DAMP;
+  weigh.p += weigh.v * dt;
+  if (weigh.p < 0) { weigh.p = 0; weigh.v = Math.abs(weigh.v) * 0.5; }
+  if (weigh.p > 1) { weigh.p = 1; weigh.v = -Math.abs(weigh.v) * 0.5; }
+  ui.wcursor.style.left = (weigh.p * 100) + "%";
+  // Remplissage : monte dans le vert, redescend doucement hors du vert.
+  const inGreen = Math.abs(weigh.p - 0.5) <= weighSweet();
+  if (bulkG >= 0.5) {
+    weigh.totT += dt;
+    if (inGreen) weigh.fill = Math.min(1, weigh.fill + dt / W_FILL_T);
+    else { weigh.fill = Math.max(0, weigh.fill - dt * 0.5 / W_FILL_T); weigh.outT += dt; }
+    ui.wsweet.style.background = inGreen
+      ? "linear-gradient(90deg,rgba(189,240,163,.35),rgba(189,240,163,.8),rgba(189,240,163,.35))"
+      : "linear-gradient(90deg,rgba(189,240,163,.2),rgba(189,240,163,.5),rgba(189,240,163,.2))";
+    if (weigh.fill >= 1) commitPortion();
+  }
+  refreshWeigh();
+}
+function endWeigh() {
+  if (mode !== "weigh") return;
+  mode = "idle"; ui.weighui.classList.remove("show"); ui.hint.style.opacity = "1";
+  if (tray.g > 0.5) { ui.hint.textContent = "Tape la DALLE pour couper/mélanger la portion"; }
+}
+
+/* -------------------------------------------------------------------------
+   15) CUT / MELANGE (casse les grumeaux) : grille de tuiles. Les grumeaux
+   (sombres) se tapent pour les casser -> homogénéité. Toucher une tuile déjà
+   fine = sur-travail (elle s'abîme). À la fin : homogénéité -> qualité du mix,
+   et la portion devient du PRODUIT (volume gonflé par le stretch).
+   ------------------------------------------------------------------------- */
+const GRID_N = 16;
+let mix = { active:false, tiles:[], time:0 };
+const MIX_TIME = 6.0;
+
+function startMix() {
+  if (tray.g < 0.5) { showToast("Rien à mélanger — pèse d'abord", "#e6c896"); return; }
+  mode = "mix"; mix.active = true; mix.time = MIX_TIME; mix.tiles = [];
+  ui.mixtext.textContent = "Casse les grumeaux (×" + stretchFactor().toFixed(2) + " stretch)";
+  ui.mixgrid.innerHTML = "";
+  const lp = lumpProb();
+  for (let i = 0; i < GRID_N; i++) {
+    const lump = Math.random() < lp;
+    const el = document.createElement("div");
+    el.className = "mixtile" + (lump ? " lump" : "");
+    el.addEventListener("click", () => mixTap(i));
+    ui.mixgrid.appendChild(el);
+    mix.tiles.push({ el, state: lump ? "lump" : "fine" });
+  }
+  ui.mixtimer.style.width = "100%";
+  ui.mixui.classList.add("show");
+  ui.hint.style.opacity = "0";
+}
+function mixTap(i) {
+  if (!mix.active) return;
+  const t = mix.tiles[i];
+  if (t.state === "lump") {            // casse le grumeau -> fine
+    t.state = "fine"; t.el.className = "mixtile";
+    burstPuffs(SLAB_POS, 4); sScrape();
+  } else if (t.state === "fine") {     // sur-travail -> abîme (over)
+    t.state = "over"; t.el.className = "mixtile over"; sErr();
+  }
+  if (!mix.tiles.some(x => x.state === "lump")) setTimeout(finishMix, 120); // tout cassé -> fin
+}
+function updateMix(dt) {
+  if (!mix.active) return;
+  mix.time -= dt;
+  ui.mixtimer.style.width = Math.max(0, (mix.time / MIX_TIME) * 100) + "%";
+  if (mix.time <= 0) finishMix();
+}
+function finishMix() {
+  if (!mix.active) return;
+  mix.active = false; mode = "idle";
+  ui.mixui.classList.remove("show"); ui.hint.style.opacity = "1";
+  const fine = mix.tiles.filter(t => t.state === "fine").length;
+  const homog = fine / GRID_N;                         // homogénéité 0..1
+  const stretch = stretchFactor();
+  const resultP = trayPurity() / stretch;              // pureté diluée par le stretch
+  const qual = Math.max(0.15, Math.min(1, homog * (0.55 + 0.45 * resultP)));
+  const added = tray.g * stretch;                       // volume vendable gonflé
+  addProd(added, qual);
+  // Réputation : un bon mix (qualité) la fait monter, un mauvais la fait baisser.
+  setRep(rep + (qual - 0.55) * 0.06);
+  // Vide la portion travaillée.
+  tray.g = 0; tray.psum = 0; updateTrayHeap();
+  burstPuffs(PROD_POS, 12, null); addShake(0.16); sPour();
+  addXP(Math.max(1, Math.round(added * 0.3)));
+  showToast("Mix " + Math.round(homog * 100) + "% · +" + Math.round(added) + " g produit (qual " + Math.round(qual * 100) + "%)",
+            qual > 0.6 ? "#bfe9ff" : "#e6c896");
+}
+
+/* -------------------------------------------------------------------------
+   16) ENSACHAGE (rythme) : curseur qui balaie, tap dans le vert -> un sachet
+   du format choisi est scellé et vendu au détail. Combo sur les sachets nets.
+   ------------------------------------------------------------------------- */
+const BAG_SWEEP = 1.2, BAG_SWEET = 0.12;
+let bag = { active:false, cursor:0, dir:1, made:0, combo:0, earn:0 };
+
+function startBag() {
+  if (prod.g < 1) { showToast("Pas de produit — coupe d'abord", "#e6c896"); return; }
+  mode = "bag"; bag.active = true; bag.cursor = 0; bag.dir = 1; bag.made = 0; bag.combo = 0; bag.earn = 0;
+  ui.bsweet.style.left = (50 - BAG_SWEET * 100) + "%";
+  ui.bsweet.style.width = (BAG_SWEET * 200) + "%";
+  ui.bagui.classList.add("show");
+  ui.hint.style.opacity = "0";
+  refreshBag();
+}
+function refreshBag() {
+  ui.bagtext.textContent = "Format " + FMT_LABEL[fmt] + "  ·  Produit " + Math.round(prod.g) + " g";
+  ui.bagcombo.textContent = bag.combo > 1 ? ("COMBO ×" + bag.combo) : "";
+  ui.bagstack.textContent = "🛍️".repeat(Math.min(bag.made, 24));
+}
+function bagBump() { ui.bagcombo.style.transform = "scale(1.25)"; setTimeout(() => { ui.bagcombo.style.transform = ""; }, 80); }
+function bagTap() {
+  if (!bag.active) return;
+  const ac = ensureAudio();
+  if (prod.g < fmt) { showToast("Produit épuisé", "#e6c896"); sErr(); return; }
+  const q = prodQual();
+  takeProd(fmt);
+  const err = Math.abs(bag.cursor - 0.5);
+  if (err <= BAG_SWEET) {                              // sachet net -> vendu
+    bag.combo++;
+    const bonus = 1 + Math.min(bag.combo - 1, 16) * 0.025;
+    const price = fmt * FMT_PRICE[fmt] * q * rep * bonus * levelMult();
+    setCash(cash + price); bag.earn += price; bag.made++;
+    bagBump(); sZip();
+    if (ac) beep(620 + Math.min(bag.combo, 14) * 70, ac.currentTime, 0.06, 0.15);
+    burstPuffs(PROD_POS, 3, null);
+  } else {                                             // raté -> part aux déchets
+    bag.combo = 0; addWaste(fmt); sErr();
+  }
+  refreshBag();
+}
+function updateBag(dt) {
+  if (!bag.active) return;
+  bag.cursor += bag.dir * BAG_SWEEP * dt;
+  if (bag.cursor >= 1) { bag.cursor = 1; bag.dir = -1; }
+  if (bag.cursor <= 0) { bag.cursor = 0; bag.dir = 1; }
+  ui.bcursor.style.left = (bag.cursor * 100) + "%";
+}
+function endBag() {
+  if (!bag.active) return;
+  bag.active = false; mode = "idle"; ui.bagui.classList.remove("show"); ui.hint.style.opacity = "1";
+  if (bag.earn > 0) { addXP(Math.max(1, Math.round(bag.earn * 0.04))); showToast("Session : +" + Math.round(bag.earn) + " € (" + bag.made + " sachets)", "#9be37d"); sSale(); }
+}
+
+/* -------------------------------------------------------------------------
+   17) DECHETS : bradés aux schlags (vide le bac)
+   ------------------------------------------------------------------------- */
+function sellWaste() {
+  if (wasteGrams < 1) { showToast("Bac déchets vide", "#e6c896"); return; }
+  const earn = wasteGrams * SCHLAG_RATE * levelMult();
+  setCash(cash + earn); addXP(Math.max(1, Math.round(wasteGrams * 0.04)));
+  setWaste(0); addShake(0.1);
+  const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(440, t, 0.13, 0.22); beep(660, t + 0.09, 0.16, 0.2); }
+  showToast("+ " + Math.round(earn) + " € (schlag)", "#e6c896");
+}
+
+/* -------------------------------------------------------------------------
+   18) AUTO-ENSACHEUSE (passive, une fois achetée)
+   ------------------------------------------------------------------------- */
+let autoTimer = 0;
+function updateAuto(dt) {
+  if (!owned.autobag) return;
+  autoTimer += dt;
+  if (autoTimer >= bagInterval() && prod.g >= fmt) {
+    autoTimer = 0;
+    const q = prodQual(); takeProd(fmt);
+    const price = fmt * FMT_PRICE[fmt] * q * rep * 0.85 * levelMult();  // pas de combo
+    setCash(cash + price); addXP(Math.max(1, Math.round(price * 0.03)));
+    const ac = ensureAudio(); if (ac) beep(720, ac.currentTime, 0.07, 0.13);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   19) ENTREES (tap targets 3D + routage par mode + pinch zoom)
+   ------------------------------------------------------------------------- */
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const el = renderer.domElement;
+function rayHit(cx, cy, objs, recursive) {
+  const r = el.getBoundingClientRect();
+  ndc.x = ((cx - r.left) / r.width) * 2 - 1;
+  ndc.y = -((cy - r.top) / r.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  return raycaster.intersectObjects(objs, recursive).length > 0;
+}
+
+const pointers = new Map();
+let pinching = false, pinchStartDist = 0, pinchStartZoom = 1;
+function pinchDist() { const a = [...pointers.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
+function startPinch() { pinching = true; pinchStartDist = pinchDist() || 1; pinchStartZoom = zoom; }
+function updatePinch() {
+  zoom = Math.max(0.6, Math.min(2.6, pinchStartZoom * (pinchDist() / pinchStartDist)));
+  localStorage.setItem("neige_zoom", zoom.toFixed(3)); fitView();
+}
+
+el.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size >= 2) { startPinch(); return; }
+  ensureAudio();
+  // Pendant un mini-jeu : le tap alimente le mini-jeu (sauf inspection/mélange = boutons HTML).
+  if (mode === "weigh") { weighTap(); return; }
+  if (mode === "bag")   { bagTap();   return; }
+  if (mode === "inspect" || mode === "mix") return;
+  // Mode idle : on teste les cibles 3D.
+  if (rayHit(e.clientX, e.clientY, wasteBin.children, false)) { sellWaste(); return; }
+  if (rayHit(e.clientX, e.clientY, prodBin.children, false))  { startBag();  return; }
+  if (rayHit(e.clientX, e.clientY, [brickBody, tape], false)) { startWeigh(); return; }
+  if (rayHit(e.clientX, e.clientY, [slab, trayHeap], false))  { startMix();   return; }
+}, { passive:false });
+
+el.addEventListener("pointermove", (e) => {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinching && pointers.size >= 2) { e.preventDefault(); updatePinch(); }
+}, { passive:false });
+
+function onUp(e) {
+  if (e) e.preventDefault();
+  pointers.delete(e.pointerId);
+  if (pinching && pointers.size < 2) pinching = false;
+}
+el.addEventListener("pointerup", onUp, { passive:false });
+el.addEventListener("pointercancel", onUp, { passive:false });
+
+// Boutons HUD / overlays.
+document.getElementById("reset").addEventListener("click", restock);
+document.getElementById("shopbtn").addEventListener("click", () => { renderShop(); ui.shop.classList.add("show"); });
+document.getElementById("shopclose").addEventListener("click", () => ui.shop.classList.remove("show"));
+ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.classList.remove("show"); });
+ui.waste.addEventListener("click", sellWaste);
+document.getElementById("weighdone").addEventListener("click", endWeigh);
+document.getElementById("mixdone").addEventListener("click", finishMix);
+document.getElementById("bagdone").addEventListener("click", endBag);
+document.getElementById("inspectskip").addEventListener("click", skipInspection);
+for (const b of document.querySelectorAll(".fmtbtn")) b.addEventListener("click", () => setFmt(+b.dataset.fmt));
+
+function setFmt(f) {
+  if (f === 25 && !owned.press) { showToast("Achète la presse à briquettes 🛒", "#e6c896"); return; }
+  fmt = f; localStorage.setItem("neige_fmt", String(f));
+  for (const b of document.querySelectorAll(".fmtbtn")) b.classList.toggle("on", +b.dataset.fmt === f);
+  if (mode === "bag") refreshBag();
+}
+function refreshFmtButtons() {
+  for (const b of document.querySelectorAll(".fmtbtn"))
+    b.disabled = (+b.dataset.fmt === 25 && !owned.press);
+}
+
+// "🔄 Lot" : filet de sécurité anti soft-lock. Si on n'a pas de quoi acheter une
+// brique, on reçoit un petit lot de dépannage gratuit (qualité rue).
+function restock() {
+  if (cash >= BRICK_PRICES[50]) { renderShop(); ui.shop.classList.add("show"); return; }
+  loadBrick(STARTER.g, STARTER.purity);
+  showToast("Lot de dépannage +" + STARTER.g + " g (gratuit)", "#7df9ff");
+}
+
+/* -------------------------------------------------------------------------
+   20) BOUCLE PRINCIPALE
+   ------------------------------------------------------------------------- */
+let last = 0;
+function loop(t) {
+  const dt = Math.min((t - last) / 1000 || 0, 0.05); last = t;
+  updateWeigh(dt);
+  updateMix(dt);
+  updateBag(dt);
+  updateAuto(dt);
+  updatePuffs(dt);
+  if (shake > 0) { shake *= Math.pow(0.0008, dt); if (shake < 0.002) shake = 0; }
+  camera.position.copy(baseCamPos);
+  if (shake > 0) {
+    camera.position.x += (Math.random() - 0.5) * shake;
+    camera.position.y += (Math.random() - 0.5) * shake;
+    camera.position.z += (Math.random() - 0.5) * shake;
+  }
+  camera.lookAt(VIEW_TARGET);
+  updateLabels();
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+
+/* -------------------------------------------------------------------------
+   21) BOOTSTRAP
+   ------------------------------------------------------------------------- */
+resize();
+setCash(cash); setWaste(wasteGrams); setRep(rep); updateXpUI();
+setFmt(fmt); refreshFmtButtons();
+updateProdLabel(); updateTrayHeap();
+loadBrick(STARTER.g, STARTER.purity);   // lot de départ gratuit pour amorcer la boucle
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

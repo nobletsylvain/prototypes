@@ -6,6 +6,7 @@ Petits prototypes de **core loops** jouables/testables dans le navigateur (mobil
 ```
 /index.html              ← hub (liste des core loops)
 /hash-slicer/         ← core loop "Hash Slicer"
+/neige/                  ← core loop "Neige"
 /tools/                  ← captures d'écran headless (voir tools/README.md)
 ```
 
@@ -41,3 +42,30 @@ Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) chargé via C
 - En local : ouvrir `hash-slicer/index.html` dans un navigateur (idéalement Safari iOS). Nécessite une connexion (Three.js est chargé depuis un CDN).
 
 > ℹ️ L'aperçu de fichier intégré au chat/Files n'exécute pas le JavaScript (écran vide) — il faut une vraie URL (Pages) ou ouvrir le fichier dans un navigateur.
+
+## ❄️ Neige (core loop)
+
+Mini-jeu mobile en **3D** (même base technique : HTML + [Three.js](https://threejs.org/) via CDN, un seul `index.html`). Reskin stylisé d'une chaîne **« bulk → retail »** : on transforme du gros en unités de détail, sur un plan de travail vu en 3/4 plongeant (brique, dalle en verre, balance, bacs).
+
+**Boucle de jeu (4 mini-jeux) :**
+1. **Réception** : à la boutique 🛒, on reçoit une **brique 50 / 100 g** (prix de gros). Mini-jeu d'**inspection** (spot-the-difference) : repère l'échantillon douteux → fixe la **pureté du lot** (et un bon repérage le bonifie). La 1ʳᵉ est offerte (lot de dépannage).
+2. **Pesée — « main sûre »** : tape la **🧱 BRIQUE** → mini-jeu de **steady hand** : l'aiguille **vibre**, tape pour la **recentrer** et garder le remplissage **dans le vert**. Une pesée propre = peu de perte ; le temps passé hors du vert part en **déchets**. La portion atterrit sur la **🪟 DALLE**.
+3. **Cut / Mélange** : tape la **DALLE** → mini-jeu de **matching** « casse les grumeaux » : tape les grumeaux (sombres) pour homogénéiser, sans **sur-travailler** les zones déjà fines. Un mix homogène = **stretch propre** : la portion devient du **PRODUIT** (volume gonflé selon l'agent de coupe, pureté diluée). **Homogénéité × pureté = qualité.**
+4. **Ensachage — rythme** : tape le bac **📦 PRODUIT** → mini-jeu de **rythme** : tape **dans le vert** pour sceller et **vendre** un sachet du **format** choisi (**1 / 5 / 25 g**, sélecteur en bas). Petit format = €/g plus élevé. **Combo** qui monte le prix ; raté = aux déchets.
+
+**Économie & progression :**
+- **Réputation** : la **qualité moyenne** de tes ventes fait monter/descendre le prix (mauvais mix = clients mécontents). Affichée dans le HUD.
+- **Boutique** : **Agent de coupe** (stretch +), **Balance de précision** (zone verte + large), **Tamis** (moins de grumeaux), **Presse à briquettes** (débloque le 25 g semi-gros), **Auto-ensacheuse** + Cadence, briques.
+- **Niveaux (XP)** : chaque vente donne de l'XP ; +2,5 % de revenus par niveau.
+- **Déchets** : tape le bac **🗑️ DÉCHETS** pour les brader aux schlags (≈ 12 €/g).
+
+**Feedback juteux** : sons synthétisés (WebAudio, zéro fichier — poudre versée, raclage, zip, cha-ching), puffs de poudre, secousse de caméra, combos.
+
+> Prototype de jeu, habillage purement visuel/stylisé.
+
+### Jouer
+
+- **Caméra** : cadrage auto (portrait/paysage) + **pinch à deux doigts pour zoomer** (sauvegardé).
+- En ligne : **https://nobletsylvain.github.io/prototypes/neige/** (depuis le hub).
+- En local : ouvrir `neige/index.html` dans un navigateur (idéalement Safari iOS). Nécessite une connexion (Three.js est chargé depuis un CDN).
+- Sauvegarde locale sous le préfixe `neige_*` (cash, niveau, réputation, boutique).
