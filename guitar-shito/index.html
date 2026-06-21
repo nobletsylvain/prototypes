@@ -92,15 +92,12 @@
   #vismark { position:absolute; top:-3px; bottom:-3px; width:3px; margin-left:-1.5px; background:#fff;
     box-shadow:0 0 6px rgba(255,255,255,.9); left:55%; }
 
-  /* --- Emballage : indicateur de surveillance + jauge de serrage --- */
-  #watch { pointer-events:none; font-weight:800; font-size:14px; padding:5px 12px; border-radius:999px;
-    border:1px solid rgba(255,255,255,.2); background:rgba(122,209,122,.18); color:#bdf0a3; transition:all .15s; }
-  #watch.hot { background:rgba(255,94,94,.22); border-color:rgba(255,94,94,.7); color:#ffb4a0; }
-  #wrapbarwrap { width:70%; max-width:340px; height:14px; background:rgba(255,255,255,.15);
-    border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.4); position:relative; }
-  #wrapbar { height:100%; width:0%; background:linear-gradient(90deg,#7df9ff,#9be37d); transition:width .06s; }
-  #suspwrap { width:70%; max-width:340px; height:7px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
-  #suspfill { height:100%; width:0%; background:#ff5e5e; transition:width .1s; }
+  /* --- Emballage : statut de pliage + jauge de presse (scellage) --- */
+  #foldstatus { pointer-events:none; font-weight:800; font-size:14px; padding:5px 12px; border-radius:999px;
+    border:1px solid rgba(255,255,255,.2); background:rgba(180,150,255,.16); color:#cdb6ff; }
+  #pressgaugewrap { width:70%; max-width:340px; height:14px; background:rgba(255,255,255,.15);
+    border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.4); }
+  #pressgauge { height:100%; width:0%; background:linear-gradient(90deg,#ffd166,#ff7a3c); transition:width .06s; }
 
   /* --- Conditionnement : grille de formats --- */
   #packgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; width:94%; max-width:430px; pointer-events:auto; }
@@ -180,15 +177,14 @@
   </div>
 </div>
 
-<!-- Phase 3 : Emballage Cellophane (stealth drag + tap) -->
+<!-- Phase 3 : Emballage Cellophane (pliage tactile, façon Unpacking) -->
 <div class="panel" id="wrapui">
   <div class="card" id="wrapcard"></div>
-  <div id="watch">🟢 Champ libre</div>
-  <div id="wrapbarwrap"><div id="wrapbar"></div></div>
-  <div id="suspwrap"><div id="suspfill"></div></div>
+  <div id="foldstatus">Plis : 0 / 4</div>
+  <div id="pressgaugewrap" style="display:none"><div id="pressgauge"></div></div>
   <div id="packgrid"></div>
   <div class="row">
-    <button class="btn warn" id="seal" style="display:none">🔥 Sceller</button>
+    <button class="btn warn" id="seal" style="display:none">✋ Presser (maintenir)</button>
     <button class="btn go" id="wrapNext">Découpe ▸</button>
   </div>
 </div>
@@ -216,12 +212,13 @@ import * as THREE from "three";
      2) DILUTION / STRETCH (balance physique) : on verse du filler pour gonfler
         le poids. La balance penche ; reste sous le seuil "trop visible" sinon
         la came perd en grade et la chaleur (police) monte.
-     3) EMBALLAGE CELLOPHANE (stealth) : on enroule serre en glissant, mais des
-        flics passent en fond. Bouger pendant qu'ils MATENT fait monter la
-        suspicion -> contrôle. Sceller vite quand le champ est libre = bonus.
+     3) EMBALLAGE CELLOPHANE (pliage tactile, façon Unpacking) : on TAPE pour
+        replier chaque rabat (4), puis on MAINTIENT « Presser » pour sceller.
+        Calme et propre, sans punition. Vente par format.
    Formats : barrettes 5 g / 10 g (re-decoupables), + semi-gros 50/100 g.
-   Economie : on achete une PLAQUE (gros), on la transforme, on vend. XP/niv,
-   chaleur policiere = risque de descente. Persistance localStorage "gs_".
+   Economie : on achete une PLAQUE (gros), on la transforme, on vend. XP/niv ;
+   la chaleur (dilution trop visible) rogne le prix de vente, puis retombe.
+   Persistance localStorage "gs_".
    Tout est commente en francais, brique par brique.
    ========================================================================= */
 
@@ -479,34 +476,36 @@ const pourStream = [];
 const pourGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
 
 /* -------------------------------------------------------------------------
-   8) PHASE 3 — TABLE D'EMBALLAGE + CELLOPHANE + FLICS EN FOND
+   8) PHASE 3 — TABLE D'EMBALLAGE + PLIAGE CELLOPHANE (façon Unpacking)
    ------------------------------------------------------------------------- */
 const wrapStage = new THREE.Group();
 wrapStage.position.set(0, 0, 0.4);
 scene.add(wrapStage);
-// La barrette en cours d'emballage (slab) + film cellophane translucide.
+// La barrette a emballer (slab) + 4 RABATS de cellophane qui se replient.
 const packSlab = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.34, 0.7), matCrust);
 packSlab.castShadow = true; packSlab.position.y = 0.5;
 wrapStage.add(packSlab);
-const film = new THREE.Mesh(new THREE.BoxGeometry(1.34, 0.38, 0.74),
-  new THREE.MeshStandardMaterial({ color: 0xdff3ff, transparent: true, opacity: 0.26, roughness: 0.08, metalness: 0.3, side: THREE.DoubleSide }));
-packSlab.add(film);
-// Flics qui passent au fond (silhouettes simples) : corps + tete.
-const cops = new THREE.Group(); scene.add(cops);
-function makeCop(x) {
-  const g = new THREE.Group(); g.position.set(x, 0, -3.4);
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.7, 4, 8),
-    new THREE.MeshStandardMaterial({ color: 0x223a6b, roughness: 0.7 }));
-  body.position.y = 0.75; body.castShadow = true; g.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10),
-    new THREE.MeshStandardMaterial({ color: 0xd8b89a, roughness: 0.8 }));
-  head.position.y = 1.35; g.add(head);
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.12, 12),
-    new THREE.MeshStandardMaterial({ color: 0x16264a }));
-  cap.position.y = 1.52; g.add(cap);
-  cops.add(g); return g;
+// Materiau cellophane translucide, partage par les 4 rabats.
+const filmMat = new THREE.MeshStandardMaterial({ color: 0xdff3ff, transparent: true, opacity: 0.34,
+  roughness: 0.08, metalness: 0.3, side: THREE.DoubleSide });
+// Un rabat = une charniere (Group) posee sur un bord du dessus + un panneau qui
+// depasse vers le centre. Ferme (rotation 0) il couvre le dessus ; ouvert il se
+// dresse. On tape pour replier le rabat suivant.
+const flaps = [];
+function makeFlap(hinge, axis, openAng, geo, off) {
+  const g = new THREE.Group(); g.position.copy(hinge);
+  const panel = new THREE.Mesh(geo, filmMat); panel.position.copy(off); panel.castShadow = true;
+  g.add(panel); g.rotation[axis] = openAng;            // demarre ouvert
+  packSlab.add(g);
+  flaps.push({ group: g, axis, open: openAng });
 }
-const cop1 = makeCop(-2.2), cop2 = makeCop(1.0);
+const TOPY = 0.17;
+const geoFB = new THREE.BoxGeometry(1.28, 0.02, 0.36); // rabats avant/arriere (pleine largeur)
+const geoLR = new THREE.BoxGeometry(0.66, 0.02, 0.68); // rabats gauche/droite (pleine profondeur)
+makeFlap(new THREE.Vector3(0, TOPY,  0.35), "x",  1.35, geoFB, new THREE.Vector3(0, 0, -0.18)); // avant
+makeFlap(new THREE.Vector3(0, TOPY, -0.35), "x", -1.35, geoFB, new THREE.Vector3(0, 0,  0.18)); // arriere
+makeFlap(new THREE.Vector3(-0.65, TOPY, 0), "z",  1.35, geoLR, new THREE.Vector3(0.33, 0, 0));  // gauche
+makeFlap(new THREE.Vector3( 0.65, TOPY, 0), "z", -1.35, geoLR, new THREE.Vector3(-0.33, 0, 0)); // droite
 
 /* -------------------------------------------------------------------------
    9) JUICE : audio synthetise (zero fichier), secousse, miettes
@@ -562,8 +561,8 @@ function playNote(combo, good) {
 function playMiss()  { noiseBurst(0.14, 320, 90, 0.22, "lowpass", 0.7); }
 function playPour()  { noiseBurst(0.05, 1200, 600, 0.05, "bandpass", 0.6); }
 function playSeal()  { noiseBurst(0.22, 600, 1700, 0.22, "lowpass", 0.6); }
+function playFold()  { noiseBurst(0.07, 2800, 1300, 0.13, "highpass", 0.9); }   // froissement cellophane
 function playSale()  { const ac = ensureAudio(); if (!ac) return; const t = ac.currentTime; beep(880, t, 0.12, 0.22); beep(1320, t + 0.08, 0.16, 0.2); }
-function playBust()  { const ac = ensureAudio(); if (!ac) return; const t = ac.currentTime; beep(220, t, 0.5, 0.2, "sawtooth"); beep(180, t + 0.18, 0.5, 0.18, "sawtooth"); }
 
 // Miettes de resine projetees a la coupe ratee (filent vers le bac STOCK).
 const crumbs = [];
@@ -671,9 +670,9 @@ const ui = {
   vismark: document.getElementById("vismark"),
   wrapui:  document.getElementById("wrapui"),
   wrapcard:document.getElementById("wrapcard"),
-  watch:   document.getElementById("watch"),
-  wrapbar: document.getElementById("wrapbar"),
-  suspfill:document.getElementById("suspfill"),
+  foldstatus:document.getElementById("foldstatus"),
+  pressgaugewrap:document.getElementById("pressgaugewrap"),
+  pressgauge:document.getElementById("pressgauge"),
   packgrid:document.getElementById("packgrid"),
   seal:    document.getElementById("seal"),
   shop:    document.getElementById("shop"),
@@ -692,7 +691,6 @@ function setHeat(v) {
   ui.heatlbl.textContent = "🚔 Chaleur " + Math.round(heat);
   ui.heatfill.style.width = heat + "%";
 }
-function busted() { return Math.random() < (heat / 100) * 0.5; }   // proba de descente a la vente
 
 function xpNeed(lvl) { return Math.round(130 * Math.pow(1.35, lvl - 1)); }
 function levelMult() { return 1 + (level - 1) * 0.03; }
@@ -754,7 +752,6 @@ function setPhase(p) {
   fret.visible      = (p === "cut");
   balance.visible   = (p === "dilute");
   wrapStage.visible = (p === "wrap");
-  cops.visible      = (p === "wrap");
   ui.combo.classList.remove("show");
   updateStepper();
 }
@@ -1012,38 +1009,47 @@ function commitDilute(skip) {
 }
 
 /* -------------------------------------------------------------------------
-   15) PHASE 3 — EMBALLAGE CELLOPHANE (stealth drag + tap)
-   On enroule en glissant (jauge de serrage). Des flics MATENT par fenetres :
-   bouger pendant qu'ils matent monte la suspicion -> contrôle. Sceller au bon
-   format quand serre. Vite + discret = bonus.
+   15) PHASE 3 — EMBALLAGE CELLOPHANE (pliage tactile, façon Unpacking)
+   Calme et propre : on TAPE pour replier chaque rabat (4), puis on MAINTIENT
+   « Presser » pour sceller. Pas de flics, pas de punition. La seule tension
+   reste macro : une chaleur (dilution trop visible) qui rogne le prix de vente.
    ------------------------------------------------------------------------- */
-const wrapS = { pct: 0, watched: false, watchT: 1.4, susp: 0, t0: 0, dragging: false, copWalk: 0, sealed: false };
+const wrapS = { folds: 0, pressing: false, press: 0, sealed: false, t0: 0 };
 function gotoWrap() {
   setPhase("wrap");
-  wrapS.pct = 0; wrapS.susp = 0; wrapS.watched = false; wrapS.watchT = 1.2; wrapS.sealed = false;
+  wrapS.folds = 0; wrapS.pressing = false; wrapS.press = 0; wrapS.sealed = false;
   wrapS.t0 = performance.now();
-  film.scale.setScalar(1.3); film.material.opacity = 0.26;
-  ui.wrapbar.style.width = "0%"; ui.suspfill.style.width = "0%";
+  for (const fl of flaps) fl.group.rotation[fl.axis] = fl.open;   // rabats ouverts
+  packSlab.scale.set(1, 1, 1); packSlab.rotation.set(0, 0, 0);
+  ui.pressgauge.style.width = "0%";
+  ui.pressgaugewrap.style.display = "none";
   ui.seal.style.display = "none";
   setPackButtons(); renderPackGrid();
-  refreshWrapCard();
-  // Le panneau d'emballage est haut : on masque le hint (l'indicateur 🔴/🟢 + la
-  // carte guident deja). On le reaffiche dans les phases moins chargees.
-  ui.hint.style.opacity = "0";
+  refreshWrapCard(); setFoldStatus();
+  ui.hint.style.opacity = "0";        // le statut de pliage suffit (panneau deja charge)
+}
+function setFoldStatus() {
+  if (wrapS.sealed) { ui.foldstatus.textContent = "Scellé ✓"; return; }
+  ui.foldstatus.textContent =
+    wrapS.folds === 0 ? "👆 Tape pour replier (0/4)" :
+    wrapS.folds < 4   ? ("Plis : " + wrapS.folds + " / 4") :
+                        "Maintiens ✋ Presser pour sceller";
 }
 function refreshWrapCard() {
   const a = blendAvg();
+  const hot = heat > 25 ? " · <span class=\"q\">⚠ chaleur " + Math.round(heat) + " (prix ↓)</span>" : "";
   ui.wrapcard.innerHTML =
     "📦 Blend <b>" + Math.round(blend.g) + " g</b> · grade <b>" + gradeWord(a) + "</b><br>" +
-    "Format <b>" + (PACK_FORMATS.find(f => f.id === packFmt) || {}).name + "</b> · chaleur " + Math.round(heat);
+    "Format <b>" + (PACK_FORMATS.find(f => f.id === packFmt) || {}).name + "</b>" + hot;
 }
 function setPackButtons() {
   document.querySelectorAll(".fmt").forEach(b => b.classList.toggle("on", b.dataset.fmt === packFmt));
 }
+function packHeatMult() { return 1 - Math.min(0.35, heat / 100 * 0.35); }   // came "chaude" = se vend moins cher
 function renderPackGrid() {
   ui.packgrid.innerHTML = "";
   for (const f of PACK_FORMATS) {
-    const unit = Math.round(f.g * f.eur * qualMult(blendAvg()) * levelMult());
+    const unit = Math.round(f.g * f.eur * qualMult(blendAvg()) * packHeatMult() * (1 + owned.guet * 0.06) * levelMult());
     const b = document.createElement("button");
     b.className = "fmt" + (f.id === packFmt ? " on" : "");
     b.dataset.fmt = f.id;
@@ -1053,94 +1059,56 @@ function renderPackGrid() {
     ui.packgrid.appendChild(b);
   }
 }
-// Avancement de l'enroulage par le geste (appele depuis pointermove).
-function wrapDrag(dist) {
-  if (phase !== "wrap" || wrapS.sealed) return;
-  if (wrapS.pct >= 100) return;
-  const speed = 0.14 * (1 + owned.scelle * 0.18);
-  wrapS.pct = Math.min(100, wrapS.pct + dist * speed);
-  film.scale.setScalar(1.3 - 0.3 * (wrapS.pct / 100));
-  ui.wrapbar.style.width = wrapS.pct + "%";
-  packSlab.rotation.x += dist * 0.01;
-  // Si ca mate pendant qu'on bouge -> la suspicion grimpe.
-  if (wrapS.watched) {
-    wrapS.susp = Math.min(100, wrapS.susp + dist * 0.5);
-    ui.suspfill.style.width = wrapS.susp + "%";
-    if (wrapS.susp >= 100) { wrapBust(); return; }
-  }
-  if (wrapS.pct >= 100) {
-    ui.seal.style.display = "block";
-    setHint("Serré ! Scelle au briquet 🔥 (tant que c'est calme).");
-  }
-}
-function wrapBust() {
-  wrapS.sealed = true;
-  const loss = Math.round(cash * 0.12);
-  setCash(cash - loss);
-  setHeat(heat + 16);
-  blend.g *= 0.7; blend.qsum *= 0.7; saveBlend();
-  showToast("🚔 Contrôle ! −" + loss + " € + saisie", "#ff5e5e");
-  playBust(); addShake(0.45);
-  ui.wrapbar.style.width = "0%"; ui.suspfill.style.width = "0%";
-  ui.seal.style.display = "none";
-  setTimeout(() => { if (phase === "wrap") gotoWrap(); }, 1200);
-}
-function doSeal() {
-  if (phase !== "wrap" || wrapS.pct < 100 || wrapS.sealed) return;
+// Tape : replie le rabat suivant (façon Unpacking). 4 rabats puis on presse.
+function foldNext() {
+  if (phase !== "wrap" || wrapS.sealed || wrapS.folds >= 4) return;
   const f = PACK_FORMATS.find(x => x.id === packFmt);
   if (!f || blend.g < f.g) { showToast("Pas assez de blend", "#ffd166"); return; }
-  wrapS.sealed = true;
+  wrapS.folds++;
+  playFold(); addShake(0.05); setFoldStatus();
+  if (wrapS.folds >= 4) { ui.pressgaugewrap.style.display = "block"; ui.seal.style.display = "block"; }
+}
+// Scelle (presse complete) : vend le pochon au format choisi.
+function doSeal() {
+  if (phase !== "wrap" || wrapS.folds < 4 || wrapS.sealed) return;
+  const f = PACK_FORMATS.find(x => x.id === packFmt);
+  if (!f || blend.g < f.g) { showToast("Pas assez de blend", "#ffd166"); return; }
+  wrapS.sealed = true; wrapS.pressing = false;
   const a = blendAvg();
   const frac = f.g / blend.g;
   blend.qsum *= (1 - frac); blend.g -= f.g; saveBlend();
   const secs = (performance.now() - wrapS.t0) / 1000;
-  const fast = secs < 4 ? 1.15 : secs < 7 ? 1.0 : 0.9;        // emballage rapide = mieux serre
-  let price = f.g * f.eur * qualMult(a) * fast * levelMult();
+  const neat = secs < 5 ? 1.12 : secs < 9 ? 1.0 : 0.92;          // pochon soigne = petit bonus
+  const price = f.g * f.eur * qualMult(a) * neat * packHeatMult() * (1 + owned.guet * 0.06) * levelMult();
   setCash(cash + price);
   addXP(Math.max(1, Math.round(price * 0.05)));
-  film.material.opacity = 0.4;
-  playSeal(); playSale(); flame(); addShake(0.12);
+  playSeal(); playSale(); flame(); addShake(0.14);
   showToast("Vendu +" + Math.round(price) + " € · " + f.name, "#9be37d");
-  // Descente possible si la chaleur est haute.
-  if (busted()) {
-    const loss = Math.round(cash * 0.18);
-    setCash(cash - loss); setHeat(heat + 14);
-    setTimeout(() => { showToast("🚔 Balance ! Descente −" + loss + " €", "#ff5e5e"); playBust(); addShake(0.4); }, 600);
-  }
-  saveBlend();
+  ui.seal.style.display = "none"; ui.pressgaugewrap.style.display = "none";
   setTimeout(() => {
     refreshWrapCard(); renderPackGrid();
     if (blend.g >= f.g) gotoWrap();                 // enchaine un autre pochon
-    else { setHint("Blend écoulé. Retourne à la découpe ▸"); ui.seal.style.display = "none"; }
-  }, 700);
+    else { ui.foldstatus.textContent = "Blend écoulé — retourne à la découpe ▸"; }
+  }, 750);
 }
 function updateWrap(dt) {
   if (phase !== "wrap") return;
-  // Fenetres de surveillance : alterne calme/mate ; le guetteur raccourcit les "mate".
-  wrapS.watchT -= dt;
-  if (wrapS.watchT <= 0) {
-    wrapS.watched = !wrapS.watched;
-    const guet = owned.guet;
-    wrapS.watchT = wrapS.watched ? (1.3 + Math.random() * 1.2) * Math.pow(0.82, guet)
-                                 : (1.6 + Math.random() * 1.6);
-    ui.watch.textContent = wrapS.watched ? "🔴 Ça mate !" : "🟢 Champ libre";
-    ui.watch.classList.toggle("hot", wrapS.watched);
-    if (wrapS.watched) { addShake(0.05); }
+  // Replie chaque rabat en douceur vers sa cible (plie = 0, sinon ouvert).
+  for (let i = 0; i < flaps.length; i++) {
+    const fl = flaps[i];
+    const target = (i < wrapS.folds) ? 0 : fl.open;
+    fl.group.rotation[fl.axis] += (target - fl.group.rotation[fl.axis]) * Math.min(1, dt * 9);
   }
-  // Suspicion redescend doucement quand on ne bouge pas / champ libre.
-  if (!wrapS.dragging || !wrapS.watched) {
-    wrapS.susp = Math.max(0, wrapS.susp - dt * 22);
-    ui.suspfill.style.width = wrapS.susp + "%";
+  // Presse (maintien) une fois les 4 rabats replies -> scelle a 100 %.
+  if (wrapS.pressing && wrapS.folds >= 4 && !wrapS.sealed) {
+    const pressT = 0.7 * Math.pow(0.85, owned.scelle);           // presse pro = scelle plus vite
+    wrapS.press = Math.min(1, wrapS.press + dt / pressT);
+    ui.pressgauge.style.width = (wrapS.press * 100) + "%";
+    packSlab.scale.y = 1 - wrapS.press * 0.12;                   // le pochon se tasse
+    if (wrapS.press >= 1) doSeal();
   }
-  // Les flics defilent au fond ; ils s'arretent et se tournent quand "ca mate".
-  wrapS.copWalk += dt * (wrapS.watched ? 0.05 : 0.5);
-  cop1.position.x = -2.2 + Math.sin(wrapS.copWalk) * 1.4;
-  cop2.position.x = 1.4 + Math.cos(wrapS.copWalk * 0.8) * 1.4;
-  const face = wrapS.watched ? 0 : Math.PI * 0.5;
-  cop1.rotation.y += (face - cop1.rotation.y) * Math.min(1, dt * 4);
-  cop2.rotation.y += (face - cop2.rotation.y) * Math.min(1, dt * 4);
-  // Petite presentation qui tourne.
-  packSlab.rotation.y += dt * 0.6;
+  // Leger flottement de presentation tant qu'on n'a pas fini.
+  if (!wrapS.sealed) packSlab.position.y = 0.5 + Math.sin(performance.now() * 0.002) * 0.02;
 }
 // Flammeche du briquet (effet HTML ephemere).
 function flame() {
@@ -1178,12 +1146,12 @@ const SHOP = [
     desc: () => "Élargit la zone sûre de dilution (+5 % filler invisible). Actuel " + Math.round(safeShare() * 100) + " %.",
     cost: () => Math.round(900 * Math.pow(1.6, owned.calibre)),
     can: () => owned.calibre < 5, maxed: () => owned.calibre >= 5, buy: () => { owned.calibre++; } },
-  { id: "guet", icon: "👀", name: "Guetteur",
-    desc: () => "Raccourcit les fenêtres de surveillance à l'emballage.",
+  { id: "guet", icon: "🤝", name: "Réseau de revente",
+    desc: () => "Meilleurs débouchés : +" + (owned.guet * 6) + " % sur les pochons (+6 %/niv).",
     cost: () => Math.round(1200 * Math.pow(1.6, owned.guet)),
     can: () => owned.guet < 5, maxed: () => owned.guet >= 5, buy: () => { owned.guet++; } },
-  { id: "scelle", icon: "🌀", name: "Scelleuse pro",
-    desc: () => "Enroulage plus rapide (cellophane qui colle).",
+  { id: "scelle", icon: "✋", name: "Presse pro",
+    desc: () => "Scelle plus vite (presse plus courte à maintenir).",
     cost: () => Math.round(1000 * Math.pow(1.6, owned.scelle)),
     can: () => owned.scelle < 5, maxed: () => owned.scelle >= 5, buy: () => { owned.scelle++; } },
 ];
@@ -1219,7 +1187,7 @@ function buy(it) {
 const el = renderer.domElement;
 const pointers = new Map();
 let pinching = false, pinchStartDist = 0, pinchStartZoom = 1;
-let tapDown = null, tapMoved = false, lastDrag = null;
+let tapDown = null, tapMoved = false;
 function pinchDist() { const a = [...pointers.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
 
 el.addEventListener("pointerdown", (e) => {
@@ -1227,8 +1195,7 @@ el.addEventListener("pointerdown", (e) => {
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size >= 2) { pinching = true; pinchStartDist = pinchDist() || 1; pinchStartZoom = zoom; tapDown = null; return; }
   ensureAudio();
-  if (phase === "wrap") { wrapS.dragging = true; lastDrag = { x: e.clientX, y: e.clientY }; return; }
-  tapDown = { x: e.clientX, y: e.clientY }; tapMoved = false;
+  tapDown = { x: e.clientX, y: e.clientY }; tapMoved = false;   // cut = strum ; wrap = replier (au relacher)
 }, { passive: false });
 
 el.addEventListener("pointermove", (e) => {
@@ -1239,12 +1206,6 @@ el.addEventListener("pointermove", (e) => {
     localStorage.setItem("gs_zoom", zoom.toFixed(3)); fitView();
     return;
   }
-  if (phase === "wrap" && wrapS.dragging && lastDrag) {
-    const d = Math.hypot(e.clientX - lastDrag.x, e.clientY - lastDrag.y);
-    lastDrag = { x: e.clientX, y: e.clientY };
-    wrapDrag(d);
-    return;
-  }
   if (tapDown && Math.hypot(e.clientX - tapDown.x, e.clientY - tapDown.y) > 14) tapMoved = true;
 }, { passive: false });
 
@@ -1252,7 +1213,7 @@ function onUp(e) {
   if (e) e.preventDefault();
   pointers.delete(e.pointerId);
   if (pinching) { if (pointers.size < 2) pinching = false; tapDown = null; return; }
-  if (phase === "wrap") { wrapS.dragging = false; lastDrag = null; return; }
+  if (phase === "wrap" && tapDown && !tapMoved) foldNext();     // tap = replie un rabat
   // Phase 1 : tap OU swipe = strum. (le swipe droit garde l'esprit "découpe".)
   if (phase === "cut" && tapDown) {
     const swipeRight = (e.clientX - tapDown.x) > 18;
@@ -1269,7 +1230,11 @@ document.getElementById("cutNext").addEventListener("click", () => { if (stock.g
 document.getElementById("dilNext").addEventListener("click", () => commitDilute(false));
 document.getElementById("dilSkip").addEventListener("click", () => commitDilute(true));
 document.getElementById("wrapNext").addEventListener("click", () => gotoCut());
-ui.seal.addEventListener("click", doSeal);
+// Bouton "Presser" (maintien) : scelle quand la presse atteint 100 %.
+ui.seal.addEventListener("pointerdown", (e) => { e.preventDefault(); wrapS.pressing = true; ensureAudio(); });
+ui.seal.addEventListener("pointerup", (e) => { e.preventDefault(); wrapS.pressing = false; });
+ui.seal.addEventListener("pointerleave", () => { wrapS.pressing = false; });
+ui.seal.addEventListener("pointercancel", () => { wrapS.pressing = false; });
 // Bouton "Verser" (maintien).
 const pourbtn = document.getElementById("pourbtn");
 pourbtn.addEventListener("pointerdown", (e) => { e.preventDefault(); dil.pouring = true; ensureAudio(); });
