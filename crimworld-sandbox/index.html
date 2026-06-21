@@ -1,965 +1,419 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>CrimWorld — Sandbox 24h</title>
 <style>
-/* ============================================================
-   RESET + TOKENS
-   ============================================================ */
-* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-:root {
-  --bg:       #0d0815;
-  --bg1:      #160d22;
-  --bg2:      #1e1230;
-  --panel:    rgba(255,255,255,.05);
-  --border:   rgba(255,255,255,.10);
-  --border2:  rgba(255,255,255,.18);
-  --txt:      #f0edf5;
-  --txt2:     rgba(240,237,245,.55);
-  --accent:   #c084fc;   /* violet */
-  --danger:   #f87171;   /* rouge */
-  --warn:     #fbbf24;   /* ambre */
-  --green:    #86efac;
-  --font: -apple-system,"Segoe UI",Roboto,sans-serif;
-}
-html, body {
-  height:100%;
-  font-family:var(--font);
-  color:var(--txt);
-  background:var(--bg);
-  font-size:15px;
-  line-height:1.4;
-}
+  /* =========================================================================
+     CrimWorld — Sandbox 24h. REPREND LA LANGUE VISUELLE du proto « La Bascule »
+     (mêmes tokens sodium/néon, coque téléphone, rapport diégétique .bilan).
+     Logique de jeu = crimworld-sandbox/sim.mjs (importé, NON modifié).
+     ========================================================================= */
+  :root{
+    --bg:#0E0D0C; --surface:#1A1714; --surface2:#221E1A; --border:#352E28;
+    --text:#E4DED5; --muted:#8C837B; --faint:#615951;
+    --sodium:#E8A33D; --neon:#3E7CC2; --rust:#C8442F; --green:#7FA37F;
+    --snap:#FFFC00; --story1:#F44; --story2:#FB5; --story3:#9B5;
+    --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
+    --sans:-apple-system,"Segoe UI","Roboto","Helvetica Neue",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none;user-select:none}
+  html,body{height:100%}
+  body{background:radial-gradient(1200px 700px at 30% -10%,#1b1714 0,var(--bg) 60%);
+       font-family:var(--sans);color:var(--text);min-height:100vh;
+       display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;
+       padding:18px 12px}
 
-/* ============================================================
-   COQUE TÉLÉPHONE (centré, max 430 px)
-   ============================================================ */
-#phone {
-  position:relative;
-  max-width:430px;
-  min-height:100dvh;
-  margin:0 auto;
-  display:flex;
-  flex-direction:column;
-  background:radial-gradient(120% 80% at 50% 0%, #2c1440 0%, var(--bg1) 55%, var(--bg) 100%);
-  overflow:hidden;
-}
+  /* ---- coque téléphone ---- */
+  .phone{position:relative;width:min(390px,96vw);height:min(800px,92vh);border-radius:38px;
+       background:var(--bg);border:1px solid var(--border);overflow:hidden;
+       box-shadow:0 30px 80px -20px #000,0 0 0 8px #0a0908;display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);
+       width:130px;height:26px;background:#0a0908;border-radius:0 0 16px 16px;z-index:60}
+  .statusbar{height:38px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
+       padding:0 22px 6px;font:600 12px var(--sans);color:var(--muted)}
+  .statusbar #clock{font:700 12px var(--mono);color:var(--text)}
+  .statusbar b{color:var(--sodium)}
 
-/* ============================================================
-   HUD PERMANENT
-   ============================================================ */
-#hud {
-  flex:none;
-  padding:max(12px,env(safe-area-inset-top)) 16px 10px;
-  background:rgba(13,8,21,.85);
-  border-bottom:1px solid var(--border);
-  backdrop-filter:blur(6px);
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:6px 12px;
-  user-select:none;
-}
-#hud .hud-row {
-  display:flex;
-  align-items:baseline;
-  gap:6px;
-}
-#hud .lbl {
-  font-size:10px;
-  font-weight:700;
-  text-transform:uppercase;
-  letter-spacing:.8px;
-  color:var(--txt2);
-  flex:none;
-}
-#hud .val {
-  font-size:15px;
-  font-weight:700;
-  font-variant-numeric:tabular-nums;
-}
-#hud .val.danger { color:var(--danger); }
-#hud .val.warn   { color:var(--warn); }
-#hud .val.green  { color:var(--green); }
+  /* ---- enjeu : segments lisibles (caisse · loyer) ---- */
+  .stake{flex:none;display:flex;gap:7px;padding:7px 11px;
+       border-bottom:1px solid var(--border);background:#120f0c}
+  .stake .seg{flex:1;display:flex;flex-direction:column;gap:1px;padding:5px 9px;min-width:0;
+       border-radius:9px;background:#1a1511;border:1px solid #241d17}
+  .stake .seg .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);
+       text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stake .seg b{font:800 15px var(--mono);line-height:1.1}
+  .stake .cash b{color:var(--green)}
+  .stake .loyer b{color:var(--rust)}
+  .stake .doses b{color:var(--sodium)}
 
-/* rangée pleine largeur */
-#hud .hud-full { grid-column:1 / -1; }
+  /* ---- bandeau corner + jauges opaques ---- */
+  .corner{flex:none;margin:9px 11px 4px;border-radius:11px;padding:9px 13px;
+       border:1px solid var(--border);background:var(--surface);
+       display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .corner .cl{font:700 12px var(--sans);display:flex;align-items:center;gap:7px}
+  .corner .cs{font:800 12px var(--mono);color:var(--green);letter-spacing:.04em}
+  .corner.conteste{border-color:var(--rust);background:rgba(200,68,47,.1);animation:throb 1.6s infinite}
+  .corner.conteste .cs{color:var(--rust)}
+  @keyframes throb{0%,100%{box-shadow:0 0 0 0 rgba(200,68,47,.0)}50%{box-shadow:0 0 0 4px rgba(200,68,47,.12)}}
+  .gauges{flex:none;display:flex;gap:7px;padding:0 11px 4px}
+  .gauge{flex:1;border-radius:9px;border:1px solid var(--border);background:var(--surface);padding:7px 11px}
+  .gauge .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase}
+  .gauge .v{font:700 13px var(--mono);margin-top:2px;letter-spacing:.05em}
 
-/* CORNER STATE — bien visible */
-#corner-state {
-  grid-column:1 / -1;
-  text-align:center;
-  font-size:12px;
-  font-weight:800;
-  letter-spacing:.6px;
-  text-transform:uppercase;
-  padding:4px 10px;
-  border-radius:8px;
-  background:rgba(255,255,255,.06);
-  border:1px solid var(--border);
-  transition:background .3s, border-color .3s, color .3s;
-}
-#corner-state.conteste {
-  background:rgba(248,113,113,.15);
-  border-color:rgba(248,113,113,.5);
-  color:var(--danger);
-}
-#corner-state.tenu {
-  color:var(--green);
-}
+  /* ---- corps : le corner (placeholder) + journal ---- */
+  .body{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+  .scene{margin:8px 11px;flex:none;height:118px;border-radius:14px;border:1px dashed var(--border);
+       background:repeating-linear-gradient(45deg,#17130f 0 14px,#120f0c 14px 28px);
+       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;position:relative}
+  .scene .badge{position:absolute;top:8px;left:8px;font:700 9px var(--mono);color:#0a0908;
+       background:var(--snap);padding:2px 6px;border-radius:4px;letter-spacing:.03em}
+  .scene .ico{font-size:40px;opacity:.6}
+  .scene .txt{font:600 11px var(--mono);color:var(--faint);letter-spacing:.04em;text-align:center}
 
-/* ============================================================
-   ZONE DE JEU (scrollable)
-   ============================================================ */
-#game {
-  flex:1;
-  overflow-y:auto;
-  padding:16px;
-  display:flex;
-  flex-direction:column;
-  gap:16px;
-  padding-bottom:max(24px,env(safe-area-inset-bottom));
-}
+  /* journal du jour (fil léger des actions, ton Snapshit) */
+  .log{flex:1;display:flex;flex-direction:column;gap:7px;padding:4px 14px 10px}
+  .logsep{align-self:center;font:600 10px var(--sans);color:var(--faint);letter-spacing:.08em;
+       text-transform:uppercase;margin:2px 0}
+  .li{align-self:flex-start;max-width:88%;background:var(--surface);border:1px solid var(--border);
+       border-bottom-left-radius:5px;border-radius:16px;padding:8px 12px;font:400 13px/1.4 var(--sans);
+       animation:pop .2s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
-/* ============================================================
-   SECTIONS
-   ============================================================ */
-.section {
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:14px;
-  padding:14px;
-}
-.section-title {
-  font-size:11px;
-  font-weight:700;
-  text-transform:uppercase;
-  letter-spacing:.8px;
-  color:var(--txt2);
-  margin-bottom:10px;
-}
+  /* ---- panneau d'actions ---- */
+  .actions{flex:none;border-top:1px solid var(--border);background:var(--bg);padding:10px 12px 12px;
+       display:flex;flex-direction:column;gap:8px}
+  .arow{display:flex;gap:8px}
+  .abtn{flex:1;border-radius:13px;padding:11px 10px;border:1px solid var(--border);
+       background:var(--surface2);color:var(--text);cursor:pointer;font:700 13px var(--sans);
+       display:flex;flex-direction:column;align-items:center;gap:2px;transition:transform .05s,border-color .15s}
+  .abtn:active{transform:scale(.98)}
+  .abtn .es{font:500 10px var(--mono);color:var(--muted)}
+  .abtn.clean{border-color:var(--green);color:#cfe3cf}
+  .abtn.dirty{border-color:var(--sodium);color:#f0d3a3}
+  .abtn.snap{border-color:var(--snap);color:var(--snap)}
+  .abtn.ghost{flex:none;background:none;border-style:dashed;color:var(--muted);font:600 12px var(--sans)}
+  /* stepper de doses */
+  .stepper{display:flex;align-items:center;gap:8px;flex:1;justify-content:center;
+       background:var(--surface2);border:1px solid var(--border);border-radius:13px;padding:6px 10px}
+  .stepper button{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);
+       background:var(--surface);color:var(--text);font:800 16px var(--sans);cursor:pointer}
+  .stepper .n{flex:1;text-align:center;font:800 15px var(--mono);color:var(--sodium)}
+  .stepper .u{font:500 10px var(--mono);color:var(--faint)}
+  .sell{border-color:var(--neon);color:#bcd6f0}
+  /* sous-panneau coupe */
+  .subcut{display:none;gap:8px}
+  .subcut.show{display:flex}
 
-/* ============================================================
-   BOUTONS
-   ============================================================ */
-.btn {
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:6px;
-  padding:10px 16px;
-  border:none;
-  border-radius:10px;
-  font-family:var(--font);
-  font-size:14px;
-  font-weight:700;
-  cursor:pointer;
-  transition:opacity .1s, transform .08s;
-  color:#fff;
-  background:rgba(192,132,252,.18);
-  border:1px solid rgba(192,132,252,.35);
-}
-.btn:active { transform:scale(.96); }
-.btn:disabled { opacity:.38; cursor:not-allowed; transform:none; }
-.btn.primary  { background:rgba(192,132,252,.28); border-color:rgba(192,132,252,.6); }
-.btn.danger   { background:rgba(248,113,113,.18); border-color:rgba(248,113,113,.4); color:var(--danger); }
-.btn.confirm  { background:rgba(134,239,172,.18); border-color:rgba(134,239,172,.4); color:var(--green); }
-.btn.speed    { background:rgba(255,255,255,.08); border-color:var(--border2); font-size:12px; padding:6px 12px; }
+  /* vitesse (dans la statusbar) */
+  .spd{color:var(--sodium);cursor:pointer;font:700 12px var(--mono)}
 
-/* group de boutons */
-.btn-row { display:flex; gap:8px; flex-wrap:wrap; }
+  /* ---- toast / coach ---- */
+  .toast{position:absolute;left:50%;bottom:150px;transform:translateX(-50%) translateY(10px);
+       background:#0a0908;border:1px solid var(--sodium);color:var(--sodium);font:600 12px var(--sans);
+       padding:9px 14px;border-radius:12px;max-width:80%;text-align:center;opacity:0;pointer-events:none;
+       transition:opacity .25s,transform .25s;z-index:58}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-/* ============================================================
-   COUPE — sous-choix
-   ============================================================ */
-#coupe-detail {
-  margin-top:10px;
-  display:none;
-  flex-direction:column;
-  gap:8px;
-}
-#coupe-detail.open { display:flex; }
-.coupe-opt {
-  padding:10px 12px;
-  border-radius:10px;
-  border:1px solid var(--border);
-  background:rgba(255,255,255,.04);
-  cursor:pointer;
-  transition:background .12s, border-color .12s;
-}
-.coupe-opt:hover { background:rgba(255,255,255,.08); border-color:var(--border2); }
-.coupe-opt.selected {
-  border-color:rgba(192,132,252,.55);
-  background:rgba(192,132,252,.1);
-}
-.coupe-opt .co-titre {
-  font-size:14px;
-  font-weight:700;
-}
-.coupe-opt .co-desc {
-  font-size:12px;
-  color:var(--txt2);
-  margin-top:2px;
-}
+  /* ---- RAPPORT de fin de jour — bilan diégétique (pièce maîtresse) ---- */
+  .endscreen{position:absolute;inset:0;background:radial-gradient(700px 500px at 50% 0%,#1b1714,#0a0908);
+       display:none;flex-direction:column;z-index:70;padding:30px 22px;overflow-y:auto}
+  .endscreen.show{display:flex}
+  .endscreen h2{font:800 22px var(--sans);color:var(--text);margin-bottom:4px}
+  .endscreen .verdict{font:600 13px var(--sans);color:var(--sodium);margin-bottom:18px;line-height:1.5}
+  .bilan{display:flex;flex-direction:column;gap:10px}
+  .bline{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+  .bline .bt{font:700 13px var(--sans);display:flex;align-items:center;gap:7px;justify-content:space-between}
+  .bline .bt .lbl{display:flex;align-items:center;gap:7px;min-width:0}
+  .bline .bt .m{font:800 13px var(--mono);flex:none}
+  .bline .bc{font:500 12px var(--sans);color:var(--muted);margin-top:4px;line-height:1.45}
+  .bline .trace{font:600 11px var(--mono);color:var(--neon);margin-top:6px}
+  .bline.good{border-color:rgba(127,163,127,.5)}
+  .bline.bad{border-color:rgba(200,68,47,.5)}
+  .bline.tracebox{border-color:rgba(62,124,194,.5);background:rgba(62,124,194,.07)}
+  .m.pos{color:var(--green)} .m.neg{color:var(--rust)}
+  .rsum{margin-top:16px;display:flex;gap:7px}
+  .rsum .seg{flex:1;border-radius:10px;border:1px solid var(--border);background:var(--surface);padding:9px 11px}
+  .rsum .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase}
+  .rsum b{font:800 15px var(--mono);display:block;margin-top:2px}
+  .rstate{margin-top:14px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;
+       padding:12px 14px;font:600 12px var(--sans);color:var(--text);line-height:1.6}
+  .rstate .o{font:700 11px var(--mono);color:var(--muted)}
+  .rstate.conteste{border-color:var(--rust)}
+  .cont{margin-top:20px;align-self:stretch;background:var(--snap);color:#0a0908;border:none;border-radius:24px;
+       padding:14px;font:800 15px var(--sans);cursor:pointer}
 
-/* ============================================================
-   VENDRE — stepper
-   ============================================================ */
-#vendre-row {
-  display:flex;
-  align-items:center;
-  gap:8px;
-  margin-top:10px;
-}
-#doses-count {
-  font-size:20px;
-  font-weight:800;
-  font-variant-numeric:tabular-nums;
-  min-width:40px;
-  text-align:center;
-}
-#vendre-row .btn { flex:none; }
-
-/* ============================================================
-   TOAST
-   ============================================================ */
-#toast {
-  position:fixed;
-  bottom:calc(env(safe-area-inset-bottom) + 20px);
-  left:50%;
-  transform:translateX(-50%) translateY(60px);
-  background:rgba(22,13,34,.95);
-  border:1px solid var(--border2);
-  border-radius:10px;
-  padding:9px 18px;
-  font-size:13px;
-  font-weight:600;
-  white-space:nowrap;
-  pointer-events:none;
-  transition:transform .22s cubic-bezier(.2,.9,.4,1), opacity .2s;
-  opacity:0;
-  z-index:200;
-}
-#toast.show {
-  transform:translateX(-50%) translateY(0);
-  opacity:1;
-}
-
-/* ============================================================
-   ÉCRAN DE RAPPORT (plein écran par-dessus)
-   ============================================================ */
-#rapport-screen {
-  position:fixed;
-  inset:0;
-  z-index:100;
-  background:var(--bg);
-  display:none;
-  flex-direction:column;
-  max-width:430px;
-  margin:0 auto;
-}
-#rapport-screen.open { display:flex; }
-
-#rapport-header {
-  flex:none;
-  padding:max(16px,env(safe-area-inset-top)) 16px 12px;
-  background:rgba(13,8,21,.9);
-  border-bottom:1px solid var(--border2);
-}
-#rapport-titre {
-  font-size:20px;
-  font-weight:800;
-  letter-spacing:.2px;
-}
-#rapport-date {
-  font-size:12px;
-  color:var(--txt2);
-  margin-top:2px;
-}
-
-#rapport-body {
-  flex:1;
-  overflow-y:auto;
-  padding:16px;
-  display:flex;
-  flex-direction:column;
-  gap:14px;
-}
-
-/* LIGNES DE RAPPORT */
-.rap-section {
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:12px;
-  padding:12px;
-}
-.rap-section-title {
-  font-size:10px;
-  font-weight:700;
-  text-transform:uppercase;
-  letter-spacing:.8px;
-  color:var(--txt2);
-  margin-bottom:8px;
-}
-.rap-line {
-  display:grid;
-  grid-template-columns:auto 1fr auto;
-  gap:0 8px;
-  align-items:start;
-  padding:7px 0;
-  border-bottom:1px solid rgba(255,255,255,.05);
-}
-.rap-line:last-child { border-bottom:none; padding-bottom:0; }
-.rap-line .ric  { font-size:15px; line-height:1.3; }
-.rap-line .rlbl { font-size:14px; font-weight:600; }
-.rap-line .rcause {
-  grid-column:2 / 4;
-  font-size:12px;
-  color:var(--txt2);
-  margin-top:2px;
-  font-style:italic;
-}
-.rap-line .rmt {
-  font-size:14px;
-  font-weight:700;
-  font-variant-numeric:tabular-nums;
-  white-space:nowrap;
-}
-.rmt.plus  { color:var(--green); }
-.rmt.minus { color:var(--danger); }
-.rmt.zero  { color:var(--txt2); }
-
-/* TOTAL */
-.rap-total {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:10px 12px;
-  background:rgba(255,255,255,.04);
-  border:1px solid var(--border2);
-  border-radius:10px;
-  font-size:15px;
-  font-weight:800;
-}
-.rap-total .rtval { font-variant-numeric:tabular-nums; }
-.rap-total .rtval.plus { color:var(--green); }
-.rap-total .rtval.minus { color:var(--danger); }
-
-/* JAUGES OPAQUES */
-.opaque-row {
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-}
-.opaque-item {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:8px;
-}
-.opaque-lbl {
-  font-size:12px;
-  font-weight:600;
-  color:var(--txt2);
-}
-.opaque-val {
-  font-size:14px;
-  letter-spacing:2px;
-}
-
-/* CORNER ÉTAT dans le rapport */
-.rap-corner {
-  text-align:center;
-  font-size:14px;
-  font-weight:800;
-  padding:10px;
-  border-radius:10px;
-  background:rgba(134,239,172,.08);
-  border:1px solid rgba(134,239,172,.25);
-  color:var(--green);
-  letter-spacing:.5px;
-  text-transform:uppercase;
-}
-.rap-corner.conteste {
-  background:rgba(248,113,113,.12);
-  border-color:rgba(248,113,113,.45);
-  color:var(--danger);
-}
-
-/* TRACE INTER-JOURS — piece maitresse */
-.trace-block {
-  border:1px solid rgba(251,191,36,.3);
-  background:rgba(251,191,36,.06);
-  border-radius:12px;
-  padding:12px;
-}
-.trace-header {
-  font-size:11px;
-  font-weight:700;
-  text-transform:uppercase;
-  letter-spacing:.8px;
-  color:var(--warn);
-  margin-bottom:8px;
-}
-.trace-line {
-  padding:7px 0;
-  border-bottom:1px solid rgba(251,191,36,.12);
-}
-.trace-line:last-child { border-bottom:none; padding-bottom:0; }
-.trace-line .tl-main {
-  font-size:14px;
-  font-weight:600;
-  display:flex;
-  gap:6px;
-}
-.trace-line .tl-cause {
-  font-size:12px;
-  color:var(--warn);
-  margin-top:3px;
-  font-weight:600;
-}
-.trace-empty {
-  font-size:13px;
-  color:var(--txt2);
-  font-style:italic;
-}
-
-/* CAISSE + LOYER résumé en bas du rapport */
-.rap-footer-nums {
-  display:flex;
-  gap:10px;
-}
-.rap-kv {
-  flex:1;
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:10px;
-  padding:10px 12px;
-}
-.rap-kv .kv-lbl { font-size:10px; text-transform:uppercase; letter-spacing:.7px; color:var(--txt2); font-weight:700; }
-.rap-kv .kv-val { font-size:18px; font-weight:800; font-variant-numeric:tabular-nums; margin-top:2px; }
-.rap-kv .kv-val.danger { color:var(--danger); }
-
-/* bouton continuer */
-#rapport-footer {
-  flex:none;
-  padding:12px 16px max(16px,env(safe-area-inset-bottom));
-  border-top:1px solid var(--border);
-  background:rgba(13,8,21,.9);
-}
-#btn-continuer {
-  width:100%;
-  padding:14px;
-  font-size:16px;
-}
-
-/* ============================================================
-   VITESSE (overlay bouton top-right)
-   ============================================================ */
-#speed-toggle {
-  position:absolute;
-  top:max(12px,env(safe-area-inset-top));
-  right:16px;
-  z-index:10;
-}
-
-/* ============================================================
-   SCROLLBAR discrete
-   ============================================================ */
-#game::-webkit-scrollbar,
-#rapport-body::-webkit-scrollbar { width:3px; }
-#game::-webkit-scrollbar-thumb,
-#rapport-body::-webkit-scrollbar-thumb { background:rgba(255,255,255,.15); border-radius:2px; }
+  .devnote{font:500 11px var(--mono);color:var(--faint);text-align:center;max-width:390px;line-height:1.5}
 </style>
 </head>
 <body>
-<div id="phone">
 
-  <!-- ========================================================
-       HUD PERMANENT
-       ======================================================== -->
-  <div id="hud">
-    <div class="hud-row">
-      <span class="lbl">Jour</span>
-      <span class="val" id="hud-jour">1</span>
-    </div>
-    <div class="hud-row">
-      <span class="lbl">Heure</span>
-      <span class="val" id="hud-heure">00:00</span>
-    </div>
+<div class="phone" id="phone">
+  <div class="notch"></div>
+  <div class="statusbar"><span id="clock">08:00</span><span>JOUR <b id="jour">1</b> · <span id="speed" class="spd">▶ ×1</span></span></div>
 
-    <div class="hud-row">
-      <span class="lbl">Caisse</span>
-      <span class="val green" id="hud-cash">0 €</span>
-    </div>
-    <div class="hud-row">
-      <span class="lbl">Loyer du</span>
-      <span class="val" id="hud-loyer">0 €</span>
-    </div>
-
-    <div class="hud-row hud-full">
-      <span class="lbl">Reput</span>
-      <span class="val" id="hud-reput" style="letter-spacing:2px">--</span>
-      <span class="lbl" style="margin-left:14px">Pression</span>
-      <span class="val" id="hud-pression" style="letter-spacing:2px">--</span>
-    </div>
-
-    <div id="corner-state" class="tenu">Corner : tenu</div>
+  <!-- enjeu : caisse · loyer · doses du jour -->
+  <div class="stake">
+    <span class="seg cash"><span class="k">💵 Caisse</span><b id="cash">0€</b></span>
+    <span class="seg loyer"><span class="k">🏚️ Loyer dû</span><b id="loyer">0€</b></span>
+    <span class="seg doses"><span class="k">📦 Doses/j</span><b id="doses">0</b></span>
   </div>
 
-  <!-- ========================================================
-       BOUTON VITESSE (presentation pure, ne touche pas l'etat)
-       ======================================================== -->
-  <div id="speed-toggle">
-    <button class="btn speed" id="btn-speed">x1</button>
+  <!-- corner (la tension) -->
+  <div class="corner" id="corner">
+    <span class="cl">⚔️ Ton corner — block C</span>
+    <span class="cs" id="corner-state">tenu</span>
   </div>
 
-  <!-- ========================================================
-       ZONE DE JEU
-       ======================================================== -->
-  <div id="game">
+  <!-- jauges opaques -->
+  <div class="gauges">
+    <div class="gauge"><div class="k">Réput conso</div><div class="v" id="reput">🔥 •••</div></div>
+    <div class="gauge"><div class="k">Pression</div><div class="v" id="pression">•</div></div>
+  </div>
 
-    <!-- COUPE -->
-    <div class="section">
-      <div class="section-title">Coupe</div>
-      <div class="btn-row">
-        <button class="btn primary" id="btn-coupe">Couper...</button>
-      </div>
-      <div id="coupe-detail">
-        <div class="coupe-opt" id="opt-propre" data-grade="A">
-          <div class="co-titre">Propre (A)</div>
-          <div class="co-desc">Qualite maitrisee. Reputation monte. Prise de temps.</div>
-        </div>
-        <div class="coupe-opt" id="opt-arrache" data-grade="C">
-          <div class="co-titre">A l'arrache (C)</div>
-          <div class="co-desc">Bacle. Reputation prend un coup, pression monte fort.</div>
-        </div>
-      </div>
+  <!-- corps : scène + journal -->
+  <div class="body">
+    <div class="scene">
+      <span class="badge">TON SPOT</span>
+      <span class="ico">🏙️</span>
+      <span class="txt">le corner du block C — il est à toi (pour l'instant)</span>
     </div>
-
-    <!-- VITRINE -->
-    <div class="section">
-      <div class="section-title">Vitrine</div>
-      <p style="font-size:13px;color:var(--txt2);margin-bottom:10px">
-        Poster = exposition = co-effet sur la pression concurrence.
-      </p>
-      <button class="btn" id="btn-vitrine">Poster la vitrine</button>
-    </div>
-
-    <!-- VENDRE -->
-    <div class="section">
-      <div class="section-title">Vendre</div>
-      <p style="font-size:13px;color:var(--txt2);margin-bottom:10px">
-        Volume visible = co-effet sur la pression. Chaque dose = <span id="prix-dose">--</span> €.
-      </p>
-      <div id="vendre-row">
-        <button class="btn" id="btn-moins5">-5</button>
-        <button class="btn" id="btn-moins1">-1</button>
-        <span id="doses-count">0</span>
-        <button class="btn" id="btn-plus1">+1</button>
-        <button class="btn" id="btn-plus5">+5</button>
-      </div>
-      <div style="margin-top:10px">
-        <button class="btn confirm" id="btn-vendre">Vendre</button>
-      </div>
-    </div>
-
-  </div><!-- /#game -->
-
-  <!-- ========================================================
-       TOAST
-       ======================================================== -->
-  <div id="toast"></div>
-
-  <!-- ========================================================
-       ECRAN DE RAPPORT (plein ecran, pause boucle)
-       ======================================================== -->
-  <div id="rapport-screen">
-    <div id="rapport-header">
-      <div id="rapport-titre">Rapport — Jour ?</div>
-      <div id="rapport-date"></div>
-    </div>
-
-    <div id="rapport-body">
-      <!-- injecte dynamiquement par renderRapport() -->
-    </div>
-
-    <div id="rapport-footer">
-      <button class="btn confirm" id="btn-continuer">Continuer — Jour suivant</button>
+    <div class="log" id="log">
+      <div class="logsep">Jour 1 · à toi de jouer</div>
     </div>
   </div>
 
-</div><!-- /#phone -->
+  <!-- actions -->
+  <div class="actions">
+    <div class="arow subcut" id="subcut">
+      <button class="abtn clean" data-grade="A">✂️ Couper propre<span class="es">qualité haute</span></button>
+      <button class="abtn dirty" data-grade="C">🪓 À l'arrache<span class="es">vite, mais sale</span></button>
+    </div>
+    <div class="arow">
+      <button class="abtn" id="btn-couper">🔪 Couper<span class="es">la qualité = ton levier</span></button>
+      <button class="abtn snap" id="btn-vitrine">⚡ Vitrine<span class="es">exposition</span></button>
+    </div>
+    <div class="arow">
+      <div class="stepper">
+        <button id="dose-moins">−</button>
+        <div class="n"><span id="dose-n">5</span> <span class="u">doses</span></div>
+        <button id="dose-plus">+</button>
+      </div>
+      <button class="abtn sell" id="btn-vendre">🤝 Vendre<span class="es" id="prix-hint">au détail</span></button>
+    </div>
+  </div>
+
+  <!-- toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- RAPPORT de fin de jour -->
+  <div class="endscreen" id="endscreen"></div>
+</div>
+
+<div class="devnote">Sandbox 24h — boucle ouverte, horloge temps réel. Le rapport remonte chaque conséquence à sa cause.</div>
 
 <script type="module">
-/* ============================================================
-   IMPORTS — on importe le coeur de sim tel quel, SANS le modifier
-   ============================================================ */
 import { createSim, C, jaugeOpaque } from './sim.mjs';
 
-/* ============================================================
-   SAVE — scaffolding localStorage (persistance complete hors scope lot 1)
-   TODO lot 2+ : serialiser / deserialiser sim.state complet ici
-   ============================================================ */
-const SAVE_VERSION = '1';
-const SBX_VER_KEY  = 'sbx_ver';
-const SBX_KEY      = 'sbx_state';
-
-function clearSave(){
-  localStorage.removeItem(SBX_KEY);
-  localStorage.setItem(SBX_VER_KEY, SAVE_VERSION);
+/* reset de save propre au changement de version (scaffolding ; persistance
+   complète du sim hors scope de cette UI minimale) */
+const SAVE_VERSION = '2';
+const SBX_VER = 'sbx_ver';
+if (localStorage.getItem(SBX_VER) !== SAVE_VERSION){
+  for (const k of Object.keys(localStorage)) if (k.startsWith('sbx_')) localStorage.removeItem(k);
+  localStorage.setItem(SBX_VER, SAVE_VERSION);
 }
-// reset propre si la version a change
-if (localStorage.getItem(SBX_VER_KEY) !== SAVE_VERSION){ clearSave(); }
-// NOTE : chargement de l'etat persistant non implemente (lot 2+) — on repart
-//        toujours d'un sim frais au rechargement de la page.
 
-/* ============================================================
-   SIM
-   ============================================================ */
 const sim = createSim();
+const $ = id => document.getElementById(id);
 
-/* ============================================================
-   VITESSE DE SIMULATION (présentation pure — ne touche pas sim.state)
-   ============================================================ */
-let speedFactor = 1;
-const speedSteps = [1, 4];
-let speedIdx = 0;
-const btnSpeed = document.getElementById('btn-speed');
-btnSpeed.addEventListener('click', () => {
-  speedIdx = (speedIdx + 1) % speedSteps.length;
-  speedFactor = speedSteps[speedIdx];
-  btnSpeed.textContent = 'x' + speedFactor;
+/* ---- état UI local ---- */
+let paused = false, lastJour = 0, doseN = 5, speed = 1, subOpen = false;  // lastJour=0 → le rapport du JOUR 1 s'affiche
+let _reputLast = null, _reputNoise = '';      // brouillage réput STABLE (re-tiré au changement)
+
+/* ---- journal du jour (présentation) ---- */
+function logLine(txt){
+  const el = document.createElement('div'); el.className = 'li'; el.textContent = txt;
+  $('log').appendChild(el);
+  const log = $('log'); log.scrollTop = log.scrollHeight;
+  while (log.children.length > 24) log.removeChild(log.children[1]); // garde le séparateur [0]
+}
+function toast(t){ const e=$('toast'); e.textContent=t; e.classList.add('show');
+  clearTimeout(toast._t); toast._t=setTimeout(()=>e.classList.remove('show'),1900); }
+
+/* ---- horloge ---- */
+function heureStr(h){
+  const hh = Math.floor(h)%24, mm = Math.floor((h-Math.floor(h))*60);
+  return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+}
+
+/* ---- HUD ---- */
+function updateHUD(){
+  const s = sim.state;
+  $('clock').textContent  = heureStr(s.heure);
+  $('jour').textContent   = s.jour;
+  $('cash').textContent   = s.cash + '€';
+  $('loyer').textContent  = s.loyerDu + '€';
+  $('doses').textContent  = s.jourEnCours.doses;
+
+  // réput OPAQUE : brouillage de PRÉSENTATION (autorisé par la DNA) ; ne touche
+  // jamais l'état, re-tiré seulement quand la réput change (sinon ça clignote).
+  if (s.reput !== _reputLast){
+    _reputLast = s.reput;
+    _reputNoise = jaugeOpaque(Math.max(0,Math.min(100, s.reput + (Math.random()<.5?0:(Math.random()<.5?5:-5)))), 100);
+  }
+  $('reput').textContent    = _reputNoise;
+  $('pression').textContent = jaugeOpaque(s.pression, C.SEUIL_CONTESTE, '•', '⚔️');
+
+  const cornerEl = $('corner');
+  if (s.corner === 'contesté'){
+    cornerEl.classList.add('conteste');
+    $('corner-state').textContent = 'CONTESTÉ';
+  } else {
+    cornerEl.classList.remove('conteste');
+    $('corner-state').textContent = 'tenu';
+  }
+}
+
+/* ---- actions joueur (tout passe par l'API du sim) ---- */
+$('btn-couper').addEventListener('click', () => {
+  subOpen = !subOpen; $('subcut').classList.toggle('show', subOpen);
+});
+$('subcut').addEventListener('click', e => {
+  const b = e.target.closest('[data-grade]'); if (!b) return;
+  const g = b.dataset.grade;
+  sim.couper(g);
+  subOpen = false; $('subcut').classList.remove('show');
+  toast(g === 'A' ? 'Coupe propre 👌' : 'Coupe à l’arrache 🪓');
+  logLine(g === 'A' ? '✂️ Tu coupes propre — la came est nette.' : '🪓 Tu coupes à l’arrache — vite fait, mal fait.');
+  updateHUD();
+});
+$('btn-vitrine').addEventListener('click', () => {
+  sim.posterVitrine();
+  toast('Vitrine postée ⚡'); logLine('⚡ Tu postes ta vitrine sur Snapshit — ça s’expose.');
+  updateHUD();
+});
+$('dose-moins').addEventListener('click', () => { doseN = Math.max(1, doseN-1); $('dose-n').textContent = doseN; });
+$('dose-plus').addEventListener('click',  () => { doseN = Math.min(50, doseN+1); $('dose-n').textContent = doseN; });
+$('btn-vendre').addEventListener('click', () => {
+  sim.vendre(doseN);
+  toast('+' + (doseN*C.PRIX_DOSE) + '€'); logLine('🤝 Tu écoules ' + doseN + ' doses (+' + (doseN*C.PRIX_DOSE) + '€).');
+  updateHUD();
+});
+$('prix-hint').textContent = C.PRIX_DOSE + '€/dose';
+
+/* ---- vitesse (présentation) ---- */
+$('speed').addEventListener('click', () => {
+  speed = speed === 1 ? 4 : 1;
+  $('speed').textContent = (speed === 1 ? '▶ ×1' : '▶▶ ×4');
 });
 
-/* ============================================================
-   ÉTAT UI LOCAL
-   ============================================================ */
-let paused       = false;   // true quand le rapport est ouvert
-let lastJour     = sim.state.jour;  // pour detecter la cloture d'un jour
-let dosesEnCours = 0;       // stepper de vente
-let coupeOuverte = false;   // sous-panneau coupe visible ?
-let _reputLast = null, _reputNoiseStr = '';   // brouillage reput STABLE (re-tire seulement quand la reput change)
-
-/* ============================================================
-   BOUCLE TEMPS REEL (requestAnimationFrame)
-   ============================================================ */
+/* ---- boucle TEMPS RÉEL ---- */
 let lastTs = null;
-
 function loop(ts){
   if (lastTs === null) lastTs = ts;
-  let dtReel = ts - lastTs;
+  const dtReel = Math.min(ts - lastTs, 100);   // clamp anti-saut (retour d'onglet)
   lastTs = ts;
-
   if (!paused){
-    // clamp pour eviter les sauts au retour d'onglet (>100 ms → on cap)
-    const dtClamped = Math.min(dtReel, 100);
-    sim.tick(dtClamped * speedFactor);
-
-    // detecter la cloture d'un jour
+    sim.tick(dtReel * speed);
     if (sim.state.dernierRapport && sim.state.dernierRapport.jour !== lastJour){
       lastJour = sim.state.dernierRapport.jour;
       ouvrirRapport(sim.state.dernierRapport);
     }
-
     updateHUD();
   }
-
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
-/* ============================================================
-   MISE À JOUR DU HUD
-   ============================================================ */
-function heureStr(h){
-  const hh = Math.floor(h) % 24;
-  const mm = Math.floor((h - Math.floor(h)) * 60);
-  return String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0');
+/* ---- RAPPORT (pièce maîtresse) : rend la CAUSE verbatim, jamais inventée ---- */
+function mkBline(l){
+  const d = document.createElement('div');
+  d.className = 'bline ' + (l.montant > 0 ? 'good' : (l.montant < 0 ? 'bad' : ''));
+  const bt = document.createElement('div'); bt.className = 'bt';
+  const lbl = document.createElement('span'); lbl.className = 'lbl';
+  lbl.textContent = (l.ic ? l.ic + ' ' : '') + l.label;
+  bt.appendChild(lbl);
+  if (l.montant){
+    const m = document.createElement('span');
+    m.className = 'm ' + (l.montant > 0 ? 'pos' : 'neg');
+    m.textContent = (l.montant > 0 ? '+' : '') + l.montant + '€';
+    bt.appendChild(m);
+  }
+  d.appendChild(bt);
+  if (l.cause){ const c = document.createElement('div'); c.className = 'bc'; c.textContent = l.cause; d.appendChild(c); }
+  return d;
 }
 
-function updateHUD(){
-  const s = sim.state;
-  document.getElementById('hud-jour').textContent    = s.jour;
-  document.getElementById('hud-heure').textContent   = heureStr(s.heure);
-  document.getElementById('hud-cash').textContent    = s.cash + ' €';
-  document.getElementById('hud-loyer').textContent   = s.loyerDu + ' €';
-
-  // reput OPAQUE : brouillage de PRESENTATION (autorise par la DNA). Le bruit ne
-  // touche JAMAIS l'etat, et n'est re-tire que quand la reput CHANGE (pas a chaque
-  // frame) — sinon la jauge clignoterait.
-  if (s.reput !== _reputLast){
-    _reputLast = s.reput;
-    _reputNoiseStr = jaugeOpaque(
-      Math.max(0, Math.min(100, s.reput + (Math.random() < .5 ? 0 : (Math.random() < .5 ? 5 : -5)))),
-      100
-    );
-  }
-  document.getElementById('hud-reput').textContent     = _reputNoiseStr;
-  document.getElementById('hud-pression').textContent  = jaugeOpaque(s.pression, C.SEUIL_CONTESTE, '•', '⚔️');
-
-  const cornerEl = document.getElementById('corner-state');
-  if (s.corner === 'contesté'){
-    cornerEl.textContent = 'Corner : CONTESTÉ';
-    cornerEl.className = 'conteste';
-  } else {
-    cornerEl.textContent = 'Corner : tenu';
-    cornerEl.className = 'tenu';
-  }
-
-  // loyer colore selon le montant
-  const loyerEl = document.getElementById('hud-loyer');
-  loyerEl.className = 'val ' + (s.loyerDu > 0 ? 'danger' : 'green');
-}
-
-/* ============================================================
-   ÉCRAN DE RAPPORT
-   ============================================================ */
 function ouvrirRapport(r){
   paused = true;
-  renderRapport(r);
-  document.getElementById('rapport-screen').classList.add('open');
-}
+  const e = $('endscreen');
+  e.replaceChildren();
 
-function fermerRapport(){
-  document.getElementById('rapport-screen').classList.remove('open');
-  paused = false;
-}
+  const h = document.createElement('h2'); h.textContent = 'Rapport — Jour ' + r.jour; e.appendChild(h);
+  const v = document.createElement('div'); v.className = 'verdict';
+  v.textContent = r.corner === 'contesté'
+    ? 'Ton corner est contesté. Le succès attire les rivaux.'
+    : 'Tu tiens le corner. Pour l’instant.';
+  e.appendChild(v);
 
-document.getElementById('btn-continuer').addEventListener('click', fermerRapport);
-
-function montantClass(m){
-  if (m > 0)  return 'plus';
-  if (m < 0)  return 'minus';
-  return 'zero';
-}
-function montantStr(m){
-  if (m === 0 || m === undefined) return '';
-  return (m > 0 ? '+' : '') + m + ' €';
-}
-
-function renderRapport(r){
-  document.getElementById('rapport-titre').textContent = 'Rapport — Jour ' + r.jour;
-  document.getElementById('rapport-date').textContent  = 'Fin de la journée ' + r.jour;
-
-  const body = document.getElementById('rapport-body');
-  body.innerHTML = '';
-
-  // ---- LIGNES DU JOUR ----
-  const secLignes = mkSection('Bilan de la journée');
-  if (r.lignes.length === 0){
-    const p = document.createElement('p');
-    p.style.cssText = 'font-size:13px;color:var(--txt2);font-style:italic';
-    p.textContent = "Rien ne s’est passé aujourd’hui.";
-    secLignes.appendChild(p);
+  const bilan = document.createElement('div'); bilan.className = 'bilan';
+  if (!r.lignes.length){
+    const p = document.createElement('div'); p.className = 'bline';
+    p.textContent = 'Journée calme — rien à signaler.'; bilan.appendChild(p);
   } else {
-    for (const l of r.lignes){
-      secLignes.appendChild(mkRapLine(l));
-    }
+    for (const l of r.lignes) bilan.appendChild(mkBline(l));
   }
-  body.appendChild(secLignes);
-
-  // ---- TOTAL ----
-  const totalEl = document.createElement('div');
-  totalEl.className = 'rap-total';
-  const totLbl = document.createElement('span'); totLbl.textContent = 'Total journée';
-  const totVal = document.createElement('span');
-  totVal.className = 'rtval ' + montantClass(r.total);
-  totVal.textContent = (r.total >= 0 ? '+' : '') + r.total + ' €';
-  totalEl.appendChild(totLbl); totalEl.appendChild(totVal);
-  body.appendChild(totalEl);
-
-  // ---- CAISSE + LOYER DÛ ----
-  const footerNums = document.createElement('div');
-  footerNums.className = 'rap-footer-nums';
-  const mkKV = (lbl, val, danger) => {
-    const kv = document.createElement('div'); kv.className = 'rap-kv';
-    const l = document.createElement('div'); l.className = 'kv-lbl'; l.textContent = lbl;
-    const v = document.createElement('div'); v.className = 'kv-val' + (danger ? ' danger' : ''); v.textContent = val;
-    kv.appendChild(l); kv.appendChild(v); return kv;
-  };
-  footerNums.appendChild(mkKV('Caisse', r.cash + ' €', false));
-  footerNums.appendChild(mkKV('Loyer dû', r.loyerDu + ' €', r.loyerDu > 0));
-  body.appendChild(footerNums);
-
-  // ---- JAUGES OPAQUES + ÉTAT CORNER ----
-  const secEtat = mkSection('État du corner');
-
-  const cornerDiv = document.createElement('div');
-  cornerDiv.className = 'rap-corner' + (r.corner === 'contesté' ? ' conteste' : '');
-  cornerDiv.textContent = r.corner === 'contesté'
-    ? 'Corner CONTESTÉ — un rival est sur ton block'
-    : 'Corner tenu';
-  secEtat.appendChild(cornerDiv);
-
-  const opaqueDiv = document.createElement('div');
-  opaqueDiv.className = 'opaque-row';
-  opaqueDiv.style.marginTop = '10px';
-  const mkOpaque = (lbl, val) => {
-    const it = document.createElement('div'); it.className = 'opaque-item';
-    const l = document.createElement('span'); l.className = 'opaque-lbl'; l.textContent = lbl;
-    const v = document.createElement('span'); v.className = 'opaque-val'; v.textContent = val;
-    it.appendChild(l); it.appendChild(v); return it;
-  };
-  opaqueDiv.appendChild(mkOpaque('Réput conso', r.reputOpaque));
-  opaqueDiv.appendChild(mkOpaque('Pression concurrence', r.pressionOpaque));
-  secEtat.appendChild(opaqueDiv);
-  body.appendChild(secEtat);
-
-  // ---- TRACE INTER-JOURS (piece maitresse) ----
-  const traceBlock = document.createElement('div');
-  traceBlock.className = 'trace-block';
-
-  const traceHeader = document.createElement('div');
-  traceHeader.className = 'trace-header';
-  traceHeader.textContent = "Trace — problème d’aujourd’hui ↩ décision passée";
-  traceBlock.appendChild(traceHeader);
-
-  if (r.trace.length === 0){
-    const empty = document.createElement('div');
-    empty.className = 'trace-empty';
-    empty.textContent = 'Pas de trace inter-jours ce jour. Continue.';
-    traceBlock.appendChild(empty);
-  } else {
-    for (const t of r.trace){
-      const tl = document.createElement('div');
-      tl.className = 'trace-line';
-      const main = document.createElement('div');
-      main.className = 'tl-main';
-      main.textContent = t.ic + '  ' + t.label;
-      const cause = document.createElement('div');
-      cause.className = 'tl-cause';
-      // CONTRAT DE DONNEES : cause rendue VERBATIM — aucun ajout, aucune invention
-      cause.textContent = '↩ ' + t.cause;
-      tl.appendChild(main);
-      tl.appendChild(cause);
-      traceBlock.appendChild(tl);
-    }
+  // TRACE inter-jours — le cœur du concept : problème d'aujourd'hui ↩ décision passée
+  for (const t of (r.trace || [])){
+    const d = document.createElement('div'); d.className = 'bline tracebox';
+    const bt = document.createElement('div'); bt.className = 'bt';
+    const lbl = document.createElement('span'); lbl.className = 'lbl';
+    lbl.textContent = (t.ic ? t.ic + ' ' : '') + t.label; bt.appendChild(lbl);
+    d.appendChild(bt);
+    const tr = document.createElement('div'); tr.className = 'trace'; tr.textContent = '↩ ' + t.cause;
+    d.appendChild(tr);
+    bilan.appendChild(d);
   }
-  body.appendChild(traceBlock);
+  e.appendChild(bilan);
 
-  // scroll en haut
-  body.scrollTop = 0;
+  // sommaire chiffré
+  const sum = document.createElement('div'); sum.className = 'rsum';
+  const mkSeg = (k, val, cls) => {
+    const s = document.createElement('div'); s.className = 'seg';
+    const kk = document.createElement('div'); kk.className = 'k'; kk.textContent = k;
+    const b = document.createElement('b'); if (cls) b.style.color = cls; b.textContent = val;
+    s.appendChild(kk); s.appendChild(b); return s;
+  };
+  sum.appendChild(mkSeg('Total jour', (r.total>=0?'+':'') + r.total + '€', r.total>=0?'var(--green)':'var(--rust)'));
+  sum.appendChild(mkSeg('Caisse', r.cash + '€', 'var(--green)'));
+  sum.appendChild(mkSeg('Loyer dû', r.loyerDu + '€', 'var(--rust)'));
+  e.appendChild(sum);
+
+  // état opaque + corner
+  const st = document.createElement('div'); st.className = 'rstate' + (r.corner==='contesté'?' conteste':'');
+  const line1 = document.createElement('div');
+  line1.textContent = (r.corner === 'contesté' ? '⚔️ Corner CONTESTÉ' : '🟢 Corner tenu');
+  const line2 = document.createElement('div'); line2.className = 'o';
+  line2.textContent = 'réput ' + r.reputOpaque + '   ·   pression ' + r.pressionOpaque;
+  st.appendChild(line1); st.appendChild(line2);
+  e.appendChild(st);
+
+  const cont = document.createElement('button'); cont.className = 'cont'; cont.textContent = 'Continuer →';
+  cont.addEventListener('click', () => {
+    e.classList.remove('show'); paused = false;
+    $('log').replaceChildren();
+    const sep = document.createElement('div'); sep.className = 'logsep';
+    sep.textContent = 'Jour ' + sim.state.jour + ' · nouvelle journée'; $('log').appendChild(sep);
+  });
+  e.appendChild(cont);
+
+  e.classList.add('show');
 }
 
-/* helper : cree une section avec titre */
-function mkSection(titre){
-  const s = document.createElement('div');
-  s.className = 'rap-section';
-  const t = document.createElement('div');
-  t.className = 'rap-section-title';
-  t.textContent = titre;
-  s.appendChild(t);
-  return s;
-}
-
-/* helper : cree une ligne de rapport */
-function mkRapLine(l){
-  const div = document.createElement('div');
-  div.className = 'rap-line';
-
-  const ic = document.createElement('span');
-  ic.className = 'ric';
-  ic.textContent = l.ic || '';
-
-  const lbl = document.createElement('span');
-  lbl.className = 'rlbl';
-  lbl.textContent = l.label;
-
-  const mt = document.createElement('span');
-  mt.className = 'rmt ' + montantClass(l.montant || 0);
-  mt.textContent = montantStr(l.montant || 0);
-
-  const cause = document.createElement('span');
-  cause.className = 'rcause';
-  // CONTRAT DE DONNEES : l.cause rendu VERBATIM, jamais inventé côté UI
-  cause.textContent = l.cause || '';
-
-  div.appendChild(ic);
-  div.appendChild(lbl);
-  div.appendChild(mt);
-  div.appendChild(cause);
-  return div;
-}
-
-/* ============================================================
-   ACTIONS JOUEUR
-   ============================================================ */
-
-// --- COUPE ---
-const btnCoupe     = document.getElementById('btn-coupe');
-const coupeDetail  = document.getElementById('coupe-detail');
-const optPropre    = document.getElementById('opt-propre');
-const optArrache   = document.getElementById('opt-arrache');
-
-btnCoupe.addEventListener('click', () => {
-  coupeOuverte = !coupeOuverte;
-  coupeDetail.classList.toggle('open', coupeOuverte);
-  btnCoupe.textContent = coupeOuverte ? 'Annuler' : 'Couper...';
-});
-
-function selectionnerCoupe(grade){
-  sim.couper(grade);
-  coupeOuverte = false;
-  coupeDetail.classList.remove('open');
-  btnCoupe.textContent = 'Couper...';
-
-  // reset selection visuelle
-  optPropre.classList.remove('selected');
-  optArrache.classList.remove('selected');
-  (grade === 'A' ? optPropre : optArrache).classList.add('selected');
-
-  const label = grade === 'A' ? 'Coupe propre — reput monte' : 'Coupe a l\'arrache — reput prend un coup';
-  toast(label);
-}
-
-optPropre.addEventListener('click',  () => selectionnerCoupe('A'));
-optArrache.addEventListener('click', () => selectionnerCoupe('C'));
-
-// --- VITRINE ---
-document.getElementById('btn-vitrine').addEventListener('click', () => {
-  sim.posterVitrine();
-  toast('Vitrine postee — exposition +' + C.PRESS_EXPO);
-});
-
-// --- VENDRE : stepper ---
-document.getElementById('prix-dose').textContent = C.PRIX_DOSE;
-
-function setDoses(n){ dosesEnCours = Math.max(0, n); updateDosesDisplay(); }
-function updateDosesDisplay(){ document.getElementById('doses-count').textContent = dosesEnCours; }
-
-document.getElementById('btn-moins5').addEventListener('click', () => setDoses(dosesEnCours - 5));
-document.getElementById('btn-moins1').addEventListener('click', () => setDoses(dosesEnCours - 1));
-document.getElementById('btn-plus1').addEventListener('click',  () => setDoses(dosesEnCours + 1));
-document.getElementById('btn-plus5').addEventListener('click',  () => setDoses(dosesEnCours + 5));
-
-document.getElementById('btn-vendre').addEventListener('click', () => {
-  if (dosesEnCours <= 0){ toast('Aucune dose a ecouler'); return; }
-  sim.vendre(dosesEnCours);
-  toast(dosesEnCours + ' doses vendues — +'+(dosesEnCours * C.PRIX_DOSE)+' €');
-  setDoses(0);
-  updateHUD();
-});
-
-/* ============================================================
-   TOAST (présentation pure)
-   ============================================================ */
-let toastTimer = null;
-function toast(msg){
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.classList.remove('show'); }, 2200);
-}
-
-/* ============================================================
-   INIT HUD
-   ============================================================ */
 updateHUD();
-document.getElementById('prix-dose').textContent = C.PRIX_DOSE;
-
 </script>
 </body>
 </html>
