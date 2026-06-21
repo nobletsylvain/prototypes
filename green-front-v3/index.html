@@ -1342,8 +1342,23 @@ resize();
 setCash(cash); setDebt(debt); setRep(rep); updateXpUI();
 updateStockUI();
 setTrim(trimMode);
-// On reprend a la reception (les stocks/blend/dette sont conserves).
-gotoReception();
+// Handoff depuis l'effeuillage (green-front-v2) : si une récolte est passée,
+// on charge fleur + trim dans les bacs et on saute direct à la COUPE au dosage.
+const gf3seed = localStorage.getItem("gf3_seed");
+if (gf3seed) {
+  try {
+    const seed = JSON.parse(gf3seed), thc = seed.thc || 18;
+    stocks.A = { g: Math.max(0, seed.flower || 0), ts: Math.max(0, seed.flower || 0) * thc };
+    stocks.B = { g: 0, ts: 0 };
+    stocks.S = { g: Math.max(0, seed.trim || 0), ts: Math.max(0, seed.trim || 0) * thc * TRIM_THC_FACTOR };
+    saveStocks(); updateStockUI();
+    localStorage.removeItem("gf3_seed");
+    showToast("Récolte reçue : " + Math.round(seed.flower) + " g fleur · " + Math.round(seed.trim) + " g trim 🌿", "#bdf0a3");
+    gotoStretch();
+  } catch (e) { localStorage.removeItem("gf3_seed"); gotoReception(); }
+} else {
+  gotoReception();   // visite directe : on reprend à la réception (stocks/dette conservés)
+}
 requestAnimationFrame(loop);
 </script>
 </body>
