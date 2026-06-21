@@ -368,7 +368,9 @@ const state = {
   heat: false,       // l'accro a chauffé ta vitrine (tour 1 → fait fuir le Parano au tour 2)
   ventes: [],        // {qui, montant, content, note, round, grade} — bilan diegetique
   paid1: null,       // a-t-on payé les 200€ du tour 1 ?
-  cleared2: null,    // a-t-on remboursé le front de 350€ du tour 2 ?
+  cleared2: null,    // a-t-on soldé le loyer du corner (tour 2) ?
+  pneu: false,       // ch.2 : le Pote te fournit du bas de gamme (« pneu »)
+  contratPaid: null, // ch.2 : a-t-on financé le contrat (faire disparaître Momo) ?
   view: "accueil",   // accueil | thread
   activeThread: null, // fil affiché à l'écran (peut différer du fil narré)
   scriptThread: null, // fil que le SCRIPT narre (cible des messages entrants)
@@ -385,6 +387,7 @@ const CONV = {
   nadia: { nm:"Nadia",      av:"💅", st:"réseau Comtesse",  stcol:"var(--muted)", msgs:[], unread:false, preview:"", hidden:true },
   comptoir:{nm:"Le Comptoir",av:"🏪",st:"revendeur",        stcol:"var(--muted)", msgs:[], unread:false, preview:"", hidden:true },
   parano:{ nm:"Le Parano",  av:"🕶️", st:"discret",          stcol:"var(--muted)", msgs:[], unread:false, preview:"", hidden:true },
+  terrain:{nm:"Le Terrain", av:"🧒", st:"petits du block",   stcol:"var(--muted)", msgs:[], unread:false, preview:"", hidden:true },
 };
 
 /* =========================================================================
@@ -569,7 +572,11 @@ function exec(cmd, next){
     case "wait": { setTimeout(next, cmd.ms); break; }
     case "home": { showAccueil(); next(); break; }
     case "toast":{ coach(cmd.text); setTimeout(next, cmd.ms||1500); break; }
-    case "end":  { showEnd(); break; }   // terminal
+    case "report": {                 // bilan de chapitre (centerpiece)
+      if (cmd.phase === "ch2") { showReportCh2(); break; }       // terminal (hook ch.3)
+      showEnd(state.cleared2 ? next : null);   // ch.1 : succès → bouton « Continuer » (gate)
+      break;
+    }
     default: next();
   }
 }
@@ -721,7 +728,7 @@ els.body.addEventListener("click", () => { if (fastFwd) fastFwd(); });
 /* =========================================================================
    ECRAN DE FIN — bilan DIEGETIQUE (nomme la cause, ne narre pas)
    ========================================================================= */
-function showEnd(){
+function showEnd(onContinue){
   const v1 = state.ventes.filter(v => v.round === 1);
   const v2 = state.ventes.filter(v => v.round === 2);
   const sum = arr => arr.reduce((s,v)=>s+v.montant,0);
@@ -779,13 +786,57 @@ function showEnd(){
     }
   }
 
+  const btn = onContinue
+    ? `<button class="replay" id="continue">Continuer → chapitre 2 ›</button>`
+    : `<button class="replay" id="replay">↻ Recommencer le prologue</button>`;
   els.endscreen.innerHTML =
     `<h2>${titre}</h2>`+
     `<div class="verdict">${verdict}</div>`+
     `<div class="bilan">${bilan}</div>`+
-    bas +
-    `<button class="replay" id="replay">↻ Recommencer le prologue</button>`;
+    bas + btn;
   els.endscreen.classList.add("show");
+  if (onContinue) $("continue").addEventListener("click", () => { els.endscreen.classList.remove("show"); els.endscreen.scrollTop = 0; onContinue(); });
+  else $("replay").addEventListener("click", () => location.reload());
+}
+
+/* Bilan du CHAPITRE 2 — terminal (hook chapitre 3 : la foudre / la tôle). */
+function showReportCh2(){
+  const v3 = state.ventes.filter(v => v.round === 3);
+  const t3 = v3.reduce((s,v)=>s+v.montant,0);
+  const line = v => {
+    const cls = v.content ? "good" : "bad";
+    const ic = v.content ? "🤝" : "👎";
+    const g = v.grade === "A" ? "passable" : "massacré";
+    return `<div class="bline ${cls}"><div class="bt">${ic} ${v.qui} · +${v.montant}€</div>`+
+      `<div class="bc">${v.note}</div>`+
+      `<div class="trace">↩ pneu du Pote · coupe ${g}</div></div>`;
+  };
+  const lignes = v3.length ? v3.map(line).join("")
+    : `<div class="bline bad"><div class="bt">Aucune vente</div><div class="bc">Rien d'écoulé.</div></div>`;
+  let titre, verdict, bas;
+  if (state.contratPaid){
+    titre = "Momo a disparu.";
+    verdict = `Contrat financé (${PRIX_CONTRAT}€) et posté par le Pote. Le corner du block C n'a plus de caïd. Caisse : ${state.cash}€.`;
+    bas = `<div class="next">Sauf qu'un hit pareil, <b>ça fait du bruit</b>. La <b>foudre</b> te tombe dessus :
+      tu pars en <b>zonzon</b> avec le Pote… qui se fait pointer une fois dedans, en représailles. Tout semble foutu —
+      jusqu'à ton <b>premier contact</b> en tôle, qui va t'apprendre le métier et te garantir un nouveau point de deal.<br><br>
+      <b>À suivre</b> : chapitre 3 — la tôle.</div>`;
+  } else {
+    titre = "Momo t'a rattrapé.";
+    verdict = `Pas assez pour le contrat : il manquait ${PRIX_CONTRAT - state.cash}€. Le Pote n'a rien posté — Momo est toujours là, et son loyer aussi.`;
+    bas = `<div class="next">Le pneu paie mal, et tu as laissé filer des ventes. La cause est dans le bilan,
+      pas la malchance. Momo te tient toujours.</div>`;
+  }
+  els.endscreen.innerHTML =
+    `<h2>${titre}</h2>`+
+    `<div class="verdict">${verdict}</div>`+
+    `<div class="bilan"><div class="daysep">Chapitre 2 — le pneu · +${t3}€</div>${lignes}`+
+    `<div class="bline ${state.contratPaid?"good":"bad"}"><div class="bt">🎯 Contrat ${state.contratPaid?"financé · −"+PRIX_CONTRAT+"€":"NON financé"}</div>`+
+    `<div class="bc">${state.contratPaid?"Le Pote a posté l'annonce sur Snapshit. Momo dégage.":"Faute de thune, l'annonce n'est jamais partie."}</div></div></div>`+
+    bas +
+    `<button class="replay" id="replay">↻ Recommencer</button>`;
+  els.endscreen.classList.add("show");
+  els.endscreen.scrollTop = 0;
   $("replay").addEventListener("click", () => location.reload());
 }
 
@@ -811,8 +862,9 @@ function showEnd(){
 const LOYER = 175;                                      // loyer du corner, €/jour (arriéré 350 + 2j = ardoise 700) — réglage FTUE
 const JOURS_SQUAT_T1 = 2;                               // jours dealés sur le spot au tour 1 (arriéré)
 const JOURS_T2 = 2;                                     // fenêtre du tour 2 (le compteur tourne)
-const ARRIERE_T1 = LOYER * JOURS_SQUAT_T1;             // 100€ d'arriéré révélés à la bascule
-const ARDOISE_T2 = LOYER * (JOURS_SQUAT_T1 + JOURS_T2); // 200€ à éponger en fin de tour 2
+const ARRIERE_T1 = LOYER * JOURS_SQUAT_T1;             // 350€ d'arriéré révélés à la bascule
+const ARDOISE_T2 = LOYER * (JOURS_SQUAT_T1 + JOURS_T2); // 700€ à éponger en fin de tour 2
+const PRIX_CONTRAT = 400;                              // ch.2 : coût du contrat pour faire disparaître Momo — réglage FTUE
 
 function* prologue(){
   yield* round1();          // Beats 1-5 : Momo, le Pote, l'établi, la vitrine, clients
@@ -820,15 +872,20 @@ function* prologue(){
 
   if (!state.paid1){        // court → Momo serre, fin anticipée (pas de bascule)
     yield { t:"wait", ms:600 };
-    yield { t:"end" };
+    yield { t:"report", phase:"ch1" };
     return;
   }
 
-  yield* momoBascule();     // LE RETOURNEMENT : Snapshit = son point de vente
+  yield* momoBascule();     // LE RETOURNEMENT : le corner du block C = à Momo
   yield* round2();          // Tour 2 : re-up Pote, coupe #2, vitrine #2, clients sous loyer
-  yield* momoTour2();       // Beat final : éponger l'ardoise (le loyer)
+  yield* momoTour2();       // éponger l'ardoise (le loyer)
   yield { t:"wait", ms:600 };
-  yield { t:"end" };
+  yield { t:"report", phase:"ch1" };   // bilan ch.1 ; succès → bouton « Continuer »
+  if (!state.cleared2) return;         // échec tour 2 → terminal
+
+  yield* chapitre2();       // CHAPITRE 2 : le contrat pour faire disparaître Momo
+  yield { t:"wait", ms:600 };
+  yield { t:"report", phase:"ch2" };   // bilan ch.2 (terminal, hook ch.3)
 }
 
 /* --- TOUR 1 : la dette de 200€ --------------------------------------- */
@@ -958,6 +1015,131 @@ function* momoTour2(){
     yield { t:"recv", text:"maintenant t'as plus une dette. t'as un patron. tu m'appartiens, schlag. 💀" };
     yield { t:"set", fn:()=>{ state.cleared2 = false; } };
   }
+}
+
+/* =========================================================================
+   CHAPITRE 2 — « Le contrat » (suite de la FTUE)
+   Le Pote propose d'ouvrir un spot à deux et de faire DISPARAÎTRE Momo via un
+   contrat posté sur Snapshit (coûte PRIX_CONTRAT€ ; c'est LUI qui poste). En
+   attendant il ne te fournit que du « pneu » (bas de gamme) : ta coupe reste
+   le levier, mais le plafond de qualité est bas.
+   ========================================================================= */
+function* chapitre2(){
+  yield { t:"set", fn:()=>{
+    state.round = 3; state.pneu = true; state.qualite = null; state.barrettes = 0; state.jours = 3;
+  } };
+
+  // Le plan du Pote
+  yield { t:"unread", thread:"pote", preview:"faut qu'on parle. plan pour Momo." };
+  yield { t:"home" };
+  yield { t:"open", thread:"pote", coach:"Le Pote a un plan 👆" };
+  yield { t:"recv", text:"frère. son loyer s'arrêtera jamais, tu le sais." };
+  yield { t:"recv", text:"faut couper la racine. on ouvre NOTRE spot, à deux. 🤝" };
+  yield { t:"recv", text:"et Momo… il dégage. définitif. 💀" };
+  yield { t:"recv", card:{ title:"🎯 Contrat — faire sauter Momo", tag:"À FINANCER", badge:"annonce discrète sur Snapshit",
+          ico:"🎯", cliptxt:"un contrat, ça se paie", specs:["coûte "+PRIX_CONTRAT+"€","le Pote poste l'annonce"], price:PRIX_CONTRAT+"€" } };
+  yield { t:"recv", text:"tu réunis "+PRIX_CONTRAT+", c'est MOI qui poste l'annonce. après, plus de Momo." };
+  yield { t:"choice", options:[ { k:"🎯", cls:"go", label:"On le fait. (réunir "+PRIX_CONTRAT+"€)", echo:"ok. on le fait. je trouve la thune." } ] };
+  yield { t:"recv", text:"par contre j'ai que du pneu là 🛞 bas de gamme. faut faire avec, écoule vite." };
+
+  // Re-up pneu + coupe (qualité plafonnée)
+  yield { t:"recv", card:{ title:"🛞 Savonnette — pneu", tag:"À RENDRE", badge:"de la part du Pote — bas de gamme",
+          ico:"🛞", cliptxt:"matière première — pneu", specs:["qualité plafonnée","250 g brut"], price:"on règle après" } };
+  yield { t:"choice", options:[ { k:"🛞", cls:"go", label:"Prendre le pneu", echo:"ça ira. je gère." } ] };
+  yield { t:"recv", text:"va couper. même nickel ça restera moyen — c'est du pneu 🛞" };
+  yield { t:"recv", card:{ title:"🔪 L'établi — pneu", tag:"OUVRIR", badge:"coupe 3D · pneu",
+          ico:"🔪", cliptxt:"hash-slicer — tape pour couper", specs:["250 g de pneu"], action:"etabli" } };
+  yield { t:"etabli" };
+
+  // Vitrine pneu + clients
+  yield { t:"recv", text: state.qualite==="A"
+          ? "ok, t'as fait au mieux avec du pneu 🛞 poste, ça partira au rabais."
+          : "ola… t'as massacré du pneu 😬 poste, on verra qui mord." };
+  yield { t:"story" };
+  yield { t:"home" };
+  yield* clientTerrain();
+  yield* clientAccroPneu();
+  yield* clientKevinPneu();
+
+  // Financer le contrat
+  yield { t:"unread", thread:"pote", preview:"t'as la thune pour l'annonce ?" };
+  yield { t:"home" };
+  yield { t:"open", thread:"pote", coach:"Le Pote attend la thune 👆" };
+  yield { t:"recv", text:"alors ? "+PRIX_CONTRAT+"€ pour le contrat ? je poste dès que j'ai la thune." };
+  if (state.cash >= PRIX_CONTRAT){
+    yield { t:"choice", options:[ { k:"🎯", cls:"go", label:"Payer le contrat ("+PRIX_CONTRAT+"€)", echo:"tiens. fais-le. 🤫" } ] };
+    yield { t:"set", fn:()=>{ state.cash -= PRIX_CONTRAT; state.contratPaid = true;
+            CONV.momo.st = "hors ligne"; CONV.momo.stcol = "var(--faint)"; } };
+    yield { t:"recv", text:"c'est posté. 🤫 maintenant on attend." };
+    yield { t:"wait", ms:900 };
+    yield { t:"recv", text:"disparaît dans 9 s", ephem:true };
+    yield { t:"recv", text:"…c'est fait. Momo a disparu. 💀 le block respire." };
+    yield { t:"recv", text:"mais frère… un truc pareil, ça fait du bruit. la foudre va tomber. ⚡" };
+  } else {
+    yield { t:"recv", text:"…t'as pas la thune ?! 😤 il manque "+(PRIX_CONTRAT - state.cash)+"€." };
+    yield { t:"recv", text:"Momo va te serrer avant qu'on l'ait. on est morts, frère." };
+    yield { t:"set", fn:()=>{ state.contratPaid = false; } };
+  }
+}
+
+/* --- CHAPITRE 2 — clients du « pneu » (qualité plafonnée) ------------- */
+function* clientTerrain(){
+  const propre = state.qualite === "A";
+  yield { t:"unread", thread:"terrain", preview:"les petits du bât 4. on prend en gros" };
+  yield { t:"open", thread:"terrain", coach:"Le terrain veut du volume 👆" };
+  yield { t:"recv", text:"wesh c'est les petits du bâtiment 4. on prend en gros, pas cher 🧒" };
+  yield { t:"recv", text:"40g, on s'en fout que ce soit du pneu. mais tu casses le prix." };
+  const prix = propre ? 220 : 160;
+  yield { t:"recv", card:{ title:"Le Terrain veut 40 g", badge:"volume — bas prix", ico:"🧒",
+          cliptxt:"petits clients — écoulent le pneu", specs:["40 g","prix cassé"], price:prix+"€" } };
+  const c = yield { t:"choice", options:[
+    { k:"✅", cls:"go", label:"Accepter ("+prix+"€)", echo:"ok, 40g pour le terrain" },
+    { k:"✖️", cls:"no", label:"Refuser (trop bas)", echo:"non, c'est trop peu" },
+  ]};
+  if (c === 1){ yield { t:"recv", text:"tant pis, on ira voir ailleurs 🤷" };
+    coach("Refuser le gros volume = dur de financer le contrat…", true); return; }
+  finalize("Le Terrain", prix, propre, propre
+    ? "40g de pneu écoulés au terrain — peu cher, mais ça rentre."
+    : "40g de pneu massacré bradés au terrain — ils ont pris quand même.");
+  yield { t:"recv", text: propre ? "ça passe, à charge de revanche 🤝" : "bon, pour le prix on dit rien 🫤" };
+}
+
+function* clientAccroPneu(){
+  yield { t:"home" };
+  yield { t:"unread", thread:"accro", preview:"reviens stp, j'en ai besoin" };
+  yield { t:"open", thread:"accro", coach:"L'accro, encore 👆" };
+  yield { t:"recv", text:"frèèère 🙏 j'm'en fous que ce soit du pneu, file" };
+  const prix = 40;
+  yield { t:"recv", card:{ title:"L'accro veut 5 g", badge:"il s'en fout, il en veut", ico:"😵",
+          cliptxt:"client — prend n'importe quoi", specs:["5 g","paie cash"], price:prix+"€" } };
+  const c = yield { t:"choice", options:[
+    { k:"✅", cls:"go", label:"Servir ("+prix+"€)", echo:"tiens. fais gaffe." },
+    { k:"✖️", cls:"no", label:"Refuser", echo:"non, t'es grillé" },
+  ]};
+  if (c === 1){ yield { t:"recv", text:"rho… 😩" }; return; }
+  finalize("L'accro", prix, true, "Le pneu lui va très bien — il s'en fout. Cash facile (mais il parle).");
+  yield { t:"recv", text:"merci frère 🙏🔥" };
+}
+
+function* clientKevinPneu(){
+  const propre = state.qualite === "A";
+  yield { t:"home" };
+  yield { t:"unread", thread:"kevin", preview:"c'est quoi ce truc ?" };
+  yield { t:"open", thread:"kevin", coach:"Kévin a vu ta story 👆" };
+  yield { t:"recv", text:"yo… mais c'est quoi ça ? 🛞 c'est du pneu ton truc" };
+  yield { t:"recv", text:"bon je dépanne, mais à ce prix-là hein" };
+  const prix = propre ? 90 : 60;
+  yield { t:"recv", card:{ title:"Kévin veut 10 g", badge:"déçu — dépanne", ico:"🧃",
+          cliptxt:"client — sent le pneu", specs:["10 g","au rabais"], price:prix+"€" } };
+  const c = yield { t:"choice", options:[
+    { k:"✅", cls:"go", label:"Accepter ("+prix+"€)", echo:"ça marche, passe" },
+    { k:"✖️", cls:"no", label:"Refuser", echo:"pas dispo là" },
+  ]};
+  if (c === 1){ yield { t:"recv", text:"ouais vaut mieux 😒" }; return; }
+  finalize("Kévin", prix, propre, propre
+    ? "A dépanné malgré le pneu — mais il a tiré le prix."
+    : "Pneu massacré : il a pris au rabais, en se pinçant le nez.");
+  yield { t:"recv", text: propre ? "bon. la prochaine, ramène du vrai 🙏" : "franchement… 👎" };
 }
 
 /* --- Sous-scripts clients --------------------------------------------- */
