@@ -6,20 +6,18 @@
 <title>CrimWorld — Sandbox</title>
 <style>
   /* =========================================================================
-     CrimWorld — Sandbox v2. Langue visuelle du proto « La Bascule »
-     (tokens sodium/néon, coque téléphone). Logique = sim.mjs (importé).
-     Boucle : RÉASSORT (darkweb) → LABO → INVENTAIRE → VENTE. Pas de heat.
+     CrimWorld — Sandbox v2.1. Langue visuelle du proto « La Bascule ».
+     Snap = story + DM (clients qui te DM en temps réel). Logique = sim.mjs.
      ========================================================================= */
   :root{
     --bg:#0E0D0C; --surface:#1A1714; --surface2:#221E1A; --border:#352E28;
     --text:#E4DED5; --muted:#8C837B; --faint:#615951;
     --sodium:#E8A33D; --neon:#3E7CC2; --rust:#C8442F; --green:#7FA37F;
-    --snap:#FFFC00; --tor:#7E57C2;
+    --snap:#FFFC00; --tor:#7E57C2; --story1:#F44; --story2:#FB5; --story3:#9B5;
     --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
     --sans:-apple-system,"Segoe UI","Roboto","Helvetica Neue",sans-serif;
   }
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
-    -webkit-user-select:none;user-select:none}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
   html,body{height:100%}
   body{background:radial-gradient(1200px 700px at 30% -10%,#1b1714 0,var(--bg) 60%);
        font-family:var(--sans);color:var(--text);min-height:100vh;
@@ -28,25 +26,18 @@
   .phone{position:relative;width:min(390px,96vw);height:min(800px,92vh);border-radius:38px;
        background:var(--bg);border:1px solid var(--border);overflow:hidden;
        box-shadow:0 30px 80px -20px #000,0 0 0 8px #0a0908;display:flex;flex-direction:column}
-  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);
-       width:130px;height:26px;background:#0a0908;border-radius:0 0 16px 16px;z-index:60}
-  .statusbar{height:38px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
-       padding:0 22px 6px;font:600 12px var(--sans);color:var(--muted)}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:130px;height:26px;background:#0a0908;border-radius:0 0 16px 16px;z-index:60}
+  .statusbar{height:38px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 22px 6px;font:600 12px var(--sans);color:var(--muted)}
   .statusbar #clock{font:700 12px var(--mono);color:var(--text)}
   .statusbar b{color:var(--sodium)}
 
-  /* enjeu */
   .stake{flex:none;display:flex;gap:7px;padding:7px 11px;border-bottom:1px solid var(--border);background:#120f0c}
-  .stake .seg{flex:1;display:flex;flex-direction:column;gap:1px;padding:5px 9px;min-width:0;
-       border-radius:9px;background:#1a1511;border:1px solid #241d17}
-  .stake .seg .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);
-       text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stake .seg{flex:1;display:flex;flex-direction:column;gap:1px;padding:5px 9px;min-width:0;border-radius:9px;background:#1a1511;border:1px solid #241d17}
+  .stake .seg .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .stake .seg b{font:800 15px var(--mono);line-height:1.1}
-  .stake .cash b{color:var(--green)} .stake .loyer b{color:var(--rust)} .stake .vente b{color:var(--sodium)}
+  .stake .cash b{color:var(--green)} .stake .frais b{color:var(--rust)} .stake .vente b{color:var(--sodium)}
 
-  /* réput + inventaire (toujours visibles) */
-  .reputbar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;
-       margin:9px 11px 2px;border-radius:11px;padding:8px 13px;border:1px solid var(--border);background:var(--surface)}
+  .reputbar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:9px 11px 2px;border-radius:11px;padding:8px 13px;border:1px solid var(--border);background:var(--surface)}
   .reputbar .k{font:700 11px var(--sans);color:var(--text)}
   .reputbar .v{font:800 13px var(--mono);color:var(--sodium);letter-spacing:.05em}
   .inv{flex:none;display:flex;gap:7px;padding:2px 11px 4px}
@@ -56,22 +47,33 @@
   .invc .g{font:600 10px var(--mono);color:var(--muted);margin-top:2px}
   .invc .g b{color:var(--text)}
 
-  /* corps + écrans */
   .body{flex:1;overflow-y:auto;position:relative}
   .view{display:none;flex-direction:column;padding:10px 12px 14px;gap:10px}
   .view.show{display:flex}
   .vtitle{font:800 14px var(--sans);display:flex;align-items:center;gap:7px;color:var(--text)}
   .vsub{font:500 11px var(--sans);color:var(--muted);margin-top:-4px;line-height:1.4}
 
-  .scene{height:108px;border-radius:14px;border:1px dashed var(--border);
-       background:repeating-linear-gradient(45deg,#17130f 0 14px,#120f0c 14px 28px);
-       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;position:relative}
-  .scene .badge{position:absolute;top:8px;left:8px;font:700 9px var(--mono);color:#0a0908;
-       background:var(--snap);padding:2px 6px;border-radius:4px}
-  .scene .ico{font-size:36px;opacity:.6}
-  .scene .txt{font:600 11px var(--mono);color:var(--faint);text-align:center;padding:0 16px}
+  /* ---- Snap : story tray + DM ---- */
+  .tray{display:flex;gap:14px;padding:4px 2px 6px;border-bottom:1px solid var(--border)}
+  .story{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;width:64px;cursor:pointer}
+  .ring{width:58px;height:58px;border-radius:50%;padding:2.5px;background:#3a332c}
+  .ring.ready{background:var(--snap);animation:pulse 1.4s infinite}
+  .ring.posted{background:conic-gradient(var(--story1),var(--story2),var(--story3),var(--story1))}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,252,0,.5)}50%{box-shadow:0 0 0 7px rgba(255,252,0,0)}}
+  .ring .inner{width:100%;height:100%;border-radius:50%;background:var(--surface);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--muted)}
+  .story .cap{font:500 10px var(--sans);color:var(--muted);max-width:64px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dmempty{font:500 12px var(--sans);color:var(--faint);font-style:italic;text-align:center;padding:22px 10px;line-height:1.5}
+  .dm{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:9px 11px;animation:pop .2s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .dm .av{width:38px;height:38px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:18px;background:linear-gradient(135deg,#3a322b,#181410);border:1px solid var(--border)}
+  .dm .col{flex:1;min-width:0}
+  .dm .nm{font:700 12px var(--sans);display:flex;align-items:center;gap:6px}
+  .dm .msg{font:400 12px var(--sans);color:var(--muted);margin-top:1px}
+  .dm .serve{flex:none;border:1px solid var(--neon);color:#bcd6f0;background:var(--surface2);border-radius:11px;padding:8px 11px;font:800 12px var(--sans);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px}
+  .dm .serve .px{font:600 9px var(--mono);color:var(--muted)}
+  .dm .serve:active{transform:scale(.97)}
 
-  /* carte produit (vente / labo) */
+  /* cartes produit (labo) + offres (darkweb) */
   .card{border-radius:13px;border:1px solid var(--border);background:var(--surface);padding:11px 13px;display:flex;flex-direction:column;gap:9px}
   .card.lock{opacity:.5}
   .card .hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -79,30 +81,20 @@
   .card .meta{font:600 11px var(--mono);color:var(--muted);text-align:right;line-height:1.4}
   .card .meta b{color:var(--text)}
   .row{display:flex;gap:8px;align-items:center}
-  .stepper{display:flex;align-items:center;gap:8px;flex:1;justify-content:center;
-       background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:5px 9px}
-  .stepper button{width:28px;height:28px;border-radius:7px;border:1px solid var(--border);
-       background:var(--surface);color:var(--text);font:800 16px var(--sans);cursor:pointer}
-  .stepper .n{flex:1;text-align:center;font:800 14px var(--mono);color:var(--sodium)}
-  .stepper .u{font:500 10px var(--mono);color:var(--faint)}
-  .btn{border-radius:11px;padding:10px 12px;border:1px solid var(--border);background:var(--surface2);
-       color:var(--text);cursor:pointer;font:700 13px var(--sans);display:flex;flex-direction:column;align-items:center;gap:1px;transition:transform .05s}
+  .btn{flex:1;border-radius:11px;padding:10px 12px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font:700 13px var(--sans);display:flex;flex-direction:column;align-items:center;gap:1px;transition:transform .05s}
   .btn:active{transform:scale(.98)}
   .btn .es{font:500 10px var(--mono);color:var(--muted)}
-  .btn.sell{border-color:var(--neon);color:#bcd6f0} .btn.go{border-color:var(--green);color:#cfe3cf}
   .btn.clean{border-color:var(--green);color:#cfe3cf} .btn.dirty{border-color:var(--sodium);color:#f0d3a3}
   .btn.buy{border-color:var(--tor);color:#cdbce8} .btn:disabled{opacity:.4;cursor:default}
-
-  /* darkweb */
   .torhead{border-radius:12px;border:1px solid var(--tor);background:rgba(126,87,194,.1);padding:10px 13px}
   .torhead .t{font:800 13px var(--sans);color:#cdbce8;display:flex;align-items:center;gap:7px}
   .torhead .s{font:500 10px var(--mono);color:var(--muted);margin-top:3px}
   .offer{border-radius:12px;border:1px solid var(--border);background:var(--surface);padding:10px 12px;display:flex;align-items:center;gap:10px}
-  .offer .av{width:34px;height:34px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;
-       font-size:17px;background:linear-gradient(135deg,#2a2540,#161320);border:1px solid var(--tor)}
+  .offer .av{width:34px;height:34px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;font-size:17px;background:linear-gradient(135deg,#2a2540,#161320);border:1px solid var(--tor)}
   .offer .col{flex:1;min-width:0}
   .offer .nm{font:700 12px var(--sans)} .offer .ds{font:500 10px var(--mono);color:var(--muted);margin-top:2px}
   .offer .px{font:800 13px var(--mono);color:var(--sodium)}
+  .offer .btn{flex:none}
 
   /* metrics */
   .mday{border-radius:12px;border:1px solid var(--border);background:var(--surface);padding:11px 13px}
@@ -113,21 +105,14 @@
   .mline .ca{display:block;font:600 10px var(--mono);color:var(--faint);margin-top:1px}
   .empty{font:500 12px var(--sans);color:var(--faint);font-style:italic;text-align:center;padding:24px 0}
 
-  /* nav */
   .nav{flex:none;display:flex;border-top:1px solid var(--border);background:#0a0908}
-  .navbtn{flex:1;padding:9px 4px 11px;background:none;border:none;color:var(--muted);cursor:pointer;
-       display:flex;flex-direction:column;align-items:center;gap:3px;font:700 9.5px var(--sans);letter-spacing:.03em}
+  .navbtn{flex:1;padding:9px 4px 11px;background:none;border:none;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font:700 9.5px var(--sans);position:relative}
   .navbtn .ic{font-size:19px;filter:grayscale(.4);opacity:.7}
   .navbtn.on{color:var(--snap)} .navbtn.on .ic{filter:none;opacity:1}
-  .navbtn .dot{position:absolute;margin:-4px 0 0 16px;width:7px;height:7px;border-radius:50%;background:var(--rust)}
+  .navbtn .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:15px;height:15px;border-radius:8px;background:var(--rust);color:#fff;font:800 9px var(--mono);display:flex;align-items:center;justify-content:center;padding:0 3px}
 
-  /* toast */
-  .toast{position:absolute;left:50%;bottom:74px;transform:translateX(-50%) translateY(10px);
-       background:#0a0908;border:1px solid var(--sodium);color:var(--sodium);font:600 12px var(--sans);
-       padding:9px 14px;border-radius:12px;max-width:80%;text-align:center;opacity:0;pointer-events:none;
-       transition:opacity .25s,transform .25s;z-index:58}
+  .toast{position:absolute;left:50%;bottom:74px;transform:translateX(-50%) translateY(10px);background:#0a0908;border:1px solid var(--sodium);color:var(--sodium);font:600 12px var(--sans);padding:9px 14px;border-radius:12px;max-width:80%;text-align:center;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:58}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-
   .devnote{font:500 11px var(--mono);color:var(--faint);text-align:center;max-width:390px;line-height:1.5}
 </style>
 </head>
@@ -139,7 +124,7 @@
 
   <div class="stake">
     <span class="seg cash"><span class="k">💵 Caisse</span><b id="cash">0€</b></span>
-    <span class="seg loyer"><span class="k">💸 Frais dûs</span><b id="loyer">0€</b></span>
+    <span class="seg frais"><span class="k">💸 Frais (cumul)</span><b id="frais">0€</b></span>
     <span class="seg vente"><span class="k">📈 Ventes/j</span><b id="ventesj">0€</b></span>
   </div>
 
@@ -150,14 +135,14 @@
   <div class="inv" id="inv"></div>
 
   <div class="body">
-    <div class="view show" id="view-vente"></div>
+    <div class="view show" id="view-snap"></div>
     <div class="view" id="view-dark"></div>
     <div class="view" id="view-labo"></div>
     <div class="view" id="view-metrics"></div>
   </div>
 
   <div class="nav" id="nav">
-    <button class="navbtn on" data-v="vente"><span class="ic">⚡</span>Snap</button>
+    <button class="navbtn on" data-v="snap"><span class="ic">⚡</span>Snap</button>
     <button class="navbtn" data-v="dark"><span class="ic">🧅</span>Darkweb</button>
     <button class="navbtn" data-v="labo"><span class="ic">⚗️</span>Labo</button>
     <button class="navbtn" data-v="metrics"><span class="ic">📊</span>Metrics</button>
@@ -166,247 +151,232 @@
   <div class="toast" id="toast"></div>
 </div>
 
-<div class="devnote">Sandbox v2 — réassort → labo → inventaire → vente. Horloge temps réel, pas de bilan popup (voir Metrics).</div>
+<div class="devnote">Sandbox v2.1 — poste ta story, sers les clients qui te DM. Horloge temps réel, données dans Metrics.</div>
 
 <script type="module">
 import { createSim, C, jaugeOpaque } from './sim.mjs';
 
-/* reset propre au changement de version (modèle v2) */
-const SAVE_VERSION = '3';
+const SAVE_VERSION = '4';
 if (localStorage.getItem('sbx_ver') !== SAVE_VERSION){
   for (const k of Object.keys(localStorage)) if (k.startsWith('sbx_')) localStorage.removeItem(k);
   localStorage.setItem('sbx_ver', SAVE_VERSION);
 }
 
 const sim = createSim();
+window.sim = sim;          // inspection en console (DNA : « inspectable en console »)
 const $ = id => document.getElementById(id);
 
-/* ---- présentation des produits (jamais de logique ici) ---- */
-const META = {
-  hash:  { nm:'Hash',  ic:'🟫' },
-  weed:  { nm:'Weed',  ic:'🌿' },
-  neige: { nm:'Neige', ic:'❄️' },
-};
-/* catalogue de réassort (semi-grossistes, darkweb) — placeholders */
+const META = { hash:{nm:'Hash',ic:'🟫'}, weed:{nm:'Weed',ic:'🌿'}, neige:{nm:'Neige',ic:'❄️'} };
 const REASSORT = {
   hash:  [ { av:'🐍', nm:'ParraLi', g:100, px:250, ds:'savonnette 100g' },
            { av:'🦂', nm:'Vex_02',  g:250, px:560, ds:'plaque 250g (gros)' } ],
   weed:  [ { av:'🌒', nm:'Niko_tn', g:100, px:300, ds:'beuh 100g' } ],
   neige: [ { av:'❄️', nm:'Saff99',  g:50,  px:1800, ds:'coke 50g' } ],
 };
-/* labo provisoire (les vrais mini-jeux arrivent en P3) — rendement dans sim C */
-let doseN = { hash:5, weed:5, neige:5 };       // stepper de vente par produit
-let view = 'vente';
-let lastJour = sim.state.jour;
+/* présentation des DM (pseudo/avatar aléatoires = présentation autorisée) */
+const CM_PRE=['Kalo','Naps','Vex','Zko','Brth','Lome','Saff','Dru','Niko','Ylw','Mok','Ras','Tina','Momo'];
+const CM_SUF=['Li','45','_','xx','02','tn','99','z','_b','77','ka','23'];
+const CM_AV=['🦅','🐍','🦊','👹','🐺','🥷','🎭','🪙','😶‍🌫️','🧃','🧢','😵'];
+const MSGS=['yo tu dépanne ?','besoin vite frère 🙏','t’as de quoi ?','wesh dispo ?','un petit truc stp','tu peux me sortir ça ?'];
+const pick = a => a[(Math.random()*a.length)|0];
+
+let view = 'snap', lastJour = sim.state.jour, lastDmKey = '';
 let _reputLast = null, _reputNoise = '';
+const dmProfile = new Map();   // profil stable par id de client (présentation)
 
-/* ---- helpers DOM (textContent partout : pas d'injection) ---- */
-function el(tag, cls, txt){ const e=document.createElement(tag); if(cls)e.className=cls; if(txt!=null)e.textContent=txt; return e; }
-function toast(t){ const e=$('toast'); e.textContent=t; e.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>e.classList.remove('show'),1800); }
-function heureStr(h){ const hh=Math.floor(h)%24, mm=Math.floor((h-Math.floor(h))*60); return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0'); }
+const el = (t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>e.classList.remove('show'),1800);}
+function heureStr(h){const hh=Math.floor(h)%24,mm=Math.floor((h-Math.floor(h))*60);return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');}
 
-/* ---- HUD permanent ---- */
 function updateHUD(){
   const s = sim.state;
-  $('clock').textContent  = heureStr(s.heure);
-  $('jour').textContent   = s.jour;
-  $('cash').textContent   = s.cash + '€';
-  $('loyer').textContent  = s.loyerDu + '€';
-  $('ventesj').textContent= sim.metricsDuJour().ventesEUR + '€';
-  // réput OPAQUE : brouillage de présentation (autorisé), stable entre changements
-  if (s.reput !== _reputLast){
-    _reputLast = s.reput;
-    _reputNoise = jaugeOpaque(Math.max(0,Math.min(100, s.reput + (Math.random()<.5?0:(Math.random()<.5?5:-5)))), 100);
-  }
-  $('reput').textContent = _reputNoise;
+  $('clock').textContent=heureStr(s.heure);
+  $('jour').textContent=s.jour;
+  $('cash').textContent=s.cash+'€';
+  $('frais').textContent=s.loyerDu+'€';
+  $('ventesj').textContent=sim.metricsDuJour().ventesEUR+'€';
+  if (s.reput!==_reputLast){ _reputLast=s.reput;
+    _reputNoise=jaugeOpaque(Math.max(0,Math.min(100,s.reput+(Math.random()<.5?0:(Math.random()<.5?5:-5)))),100); }
+  $('reput').textContent=_reputNoise;
+  // badge DM sur l'onglet Snap
+  const n=sim.dmEnAttente().length;
+  const snapBtn=document.querySelector('[data-v="snap"]');
+  let b=snapBtn.querySelector('.badge');
+  if(n>0){ if(!b){b=el('span','badge');snapBtn.appendChild(b);} b.textContent=n; }
+  else if(b){ b.remove(); }
   renderInv();
 }
 function renderInv(){
-  const box = $('inv'); box.replaceChildren();
-  for (const p of C.PRODUITS){
-    const c = el('div', 'invc' + (sim.state.debloques[p] ? '' : ' lock'));
-    c.appendChild(el('div','nm', META[p].ic + ' ' + META[p].nm));
-    const g = el('div','g');
-    g.append('brut '); const b1=el('b',null, sim.state.matiere[p]+'g'); g.appendChild(b1);
-    g.append(' · prêt '); const b2=el('b',null, sim.state.stock[p]+'g'); g.appendChild(b2);
-    c.appendChild(g);
+  const box=$('inv'); box.replaceChildren();
+  for(const p of C.PRODUITS){
+    const c=el('div','invc'+(sim.state.debloques[p]?'':' lock'));
+    c.appendChild(el('div','nm',META[p].ic+' '+META[p].nm));
+    const g=el('div','g'); g.append('brut '); g.appendChild(el('b',null,sim.state.matiere[p]+'g'));
+    g.append(' · prêt '); g.appendChild(el('b',null,sim.state.stock[p]+'g')); c.appendChild(g);
     box.appendChild(c);
   }
 }
 
-/* ===================== ÉCRAN : SNAP / VENTE DIRECTE ===================== */
-function renderVente(){
-  const v = $('view-vente'); v.replaceChildren();
-  v.appendChild(el('div','vtitle','⚡ Snap — vente directe'));
-  const scene = el('div','scene');
-  scene.appendChild(el('span','badge','TA VITRINE'));
-  scene.appendChild(el('span','ico','📱'));
-  scene.appendChild(el('span','txt','ta vitrine Snapshit — les clients te DM, tu écoules toi-même en petites quantités (la demande suit ta réput)'));
-  v.appendChild(scene);
+/* ===================== SNAP : story + DM ===================== */
+function renderSnap(){
+  const v=$('view-snap'); v.replaceChildren();
+  v.appendChild(el('div','vtitle','⚡ Snap — ta vitrine'));
 
-  const actifs = C.PRODUITS.filter(p => sim.state.debloques[p]);
-  for (const p of actifs){
-    const dem = sim.demandeJour(p);
-    const card = el('div','card');
-    const hd = el('div','hd');
-    hd.appendChild(el('div','nm', META[p].ic + ' ' + META[p].nm));
-    const meta = el('div','meta');
-    const m1 = el('div'); m1.append('stock '); m1.appendChild(el('b',null, sim.state.stock[p]+'g')); meta.appendChild(m1);
-    meta.appendChild(el('div', null, 'demande ~'+dem+'g/j'));
-    hd.appendChild(meta); card.appendChild(hd);
+  const tray=el('div','tray');
+  const story=el('div','story');
+  const ring=el('div','ring '+(sim.state.storyPostee?'posted':'ready'));
+  const inner=el('div','inner',sim.state.storyPostee?'📱':'＋'); ring.appendChild(inner);
+  story.appendChild(ring);
+  story.appendChild(el('div','cap',sim.state.storyPostee?'en ligne':'Poster'));
+  story.addEventListener('click',()=>{
+    if(sim.state.storyPostee){toast('story déjà postée aujourd’hui');return;}
+    sim.posterStory(); toast('Story postée ⚡ — les clients vont DM'); renderSnap();
+  });
+  tray.appendChild(story);
+  v.appendChild(tray);
 
-    const row = el('div','row');
-    const stp = el('div','stepper');
-    const minus = el('button',null,'−'); const plus = el('button',null,'+');
-    const n = el('div','n'); const nn = el('span',null, doseN[p]); const uu = el('span','u',' g');
-    n.appendChild(nn); n.appendChild(uu);
-    minus.addEventListener('click', ()=>{ doseN[p]=Math.max(1,doseN[p]-1); nn.textContent=doseN[p]; });
-    plus.addEventListener('click',  ()=>{ doseN[p]=Math.min(50,doseN[p]+1); nn.textContent=doseN[p]; });
-    stp.append(minus,n,plus);
-    const sell = el('button','btn sell'); sell.appendChild(el('span',null,'Vendre')); sell.appendChild(el('span','es', C.PRIX_GRAMME[p]+'€/g'));
-    sell.addEventListener('click', ()=>{
-      const gain = sim.vendre(p, doseN[p]);
-      toast(gain>0 ? ('+'+gain+'€') : (sim.state.stock[p]<=0 ? 'rupture de stock' : 'demande du jour épuisée'));
-      refresh();
-    });
-    row.append(stp, sell); card.appendChild(row);
-    v.appendChild(card);
+  const list=el('div',null); list.id='dmlist'; list.style.cssText='display:flex;flex-direction:column;gap:8px;margin-top:6px';
+  v.appendChild(list);
+  renderDMs();
+}
+function renderDMs(){
+  const list=$('dmlist'); if(!list) return;
+  list.replaceChildren();
+  const dms=sim.dmEnAttente();
+  if(!sim.state.storyPostee){
+    list.appendChild(el('div','dmempty','Poste ta story 👆 pour que les clients te DM.')); return;
   }
-  const locked = C.PRODUITS.filter(p => !sim.state.debloques[p]);
-  if (locked.length){
-    const c = el('div','card lock');
-    c.appendChild(el('div','nm', locked.map(p=>META[p].ic+' '+META[p].nm).join('  ')));
-    c.appendChild(el('div','vsub','verrouillés — débloqués avec leur labo (P3)'));
-    v.appendChild(c);
+  if(!dms.length){
+    list.appendChild(el('div','dmempty','Ta vitrine est en ligne… les clients arrivent au fil de la journée.')); return;
+  }
+  for(const c of dms){
+    if(!dmProfile.has(c.id)) dmProfile.set(c.id,{nm:pick(CM_PRE)+pick(CM_SUF),av:pick(CM_AV),msg:pick(MSGS)});
+    const p=dmProfile.get(c.id);
+    const dm=el('div','dm');
+    dm.appendChild(el('div','av',p.av));
+    const col=el('div','col');
+    col.appendChild(el('div','nm',p.nm));
+    col.appendChild(el('div','msg',p.msg+' ('+c.grammes+'g '+META[c.produit].nm+')'));
+    dm.appendChild(col);
+    const serve=el('button','serve'); serve.appendChild(el('span',null,'Servir'));
+    serve.appendChild(el('span','px',(c.grammes*C.PRIX_GRAMME[c.produit])+'€'));
+    serve.addEventListener('click',()=>{
+      const g=sim.servir(c.id);
+      if(g>0){ toast('+'+g+'€'); dmProfile.delete(c.id); }   // servi : on oublie son profil
+      else { toast('rupture — produis au labo ⚗️'); }        // rupture : il reste en DM (sers-le après resto)
+      renderDMs(); updateHUD();
+    });
+    dm.appendChild(serve);
+    list.appendChild(dm);
   }
 }
 
-/* ===================== ÉCRAN : DARKWEB / RÉASSORT ===================== */
+/* ===================== DARKWEB : réassort ===================== */
 function renderDark(){
-  const v = $('view-dark'); v.replaceChildren();
+  const v=$('view-dark'); v.replaceChildren();
   v.appendChild(el('div','vtitle','🧅 Réassort — réseau oignon'));
-  const head = el('div','torhead');
+  const head=el('div','torhead');
   head.appendChild(el('div','t','🧅 SilkRoad — semi-grossistes'));
   head.appendChild(el('div','s','matière première · livraison discrète · paiement crypto'));
   v.appendChild(head);
-
-  for (const p of C.PRODUITS){
-    const unlocked = sim.state.debloques[p];
-    for (const o of (REASSORT[p]||[])){
-      const off = el('div','offer' + (unlocked?'':' lock'));
-      if (!unlocked) off.style.opacity = '.5';
-      off.appendChild(el('div','av', o.av));
-      const col = el('div','col');
-      col.appendChild(el('div','nm', META[p].ic + ' ' + o.nm + ' — ' + META[p].nm));
-      col.appendChild(el('div','ds', o.ds + ' · ' + o.g + 'g'));
+  for(const p of C.PRODUITS){
+    const unlocked=sim.state.debloques[p];
+    for(const o of (REASSORT[p]||[])){
+      const off=el('div','offer'); if(!unlocked) off.style.opacity='.5';
+      off.appendChild(el('div','av',o.av));
+      const col=el('div','col');
+      col.appendChild(el('div','nm',META[p].ic+' '+o.nm+' — '+META[p].nm));
+      col.appendChild(el('div','ds',o.ds+' · '+o.g+'g'));
       off.appendChild(col);
-      if (unlocked){
-        const buy = el('button','btn buy'); buy.appendChild(el('span',null, o.px+'€')); buy.appendChild(el('span','es','acheter'));
-        buy.addEventListener('click', ()=>{
-          sim.acheterMatiere(p, o.g, o.px, 'acheté à '+o.nm+' (darkweb)');
-          toast('+'+o.g+'g '+META[p].nm+' (−'+o.px+'€)'); refresh();
-        });
+      if(unlocked){
+        const buy=el('button','btn buy'); buy.appendChild(el('span',null,o.px+'€')); buy.appendChild(el('span','es','acheter'));
+        buy.addEventListener('click',()=>{ sim.acheterMatiere(p,o.g,o.px,'acheté à '+o.nm+' (darkweb)'); toast('+'+o.g+'g '+META[p].nm+' (−'+o.px+'€)'); updateHUD(); });
         off.appendChild(buy);
-      } else {
-        off.appendChild(el('div','px','🔒'));
-      }
+      } else off.appendChild(el('div','px','🔒'));
       v.appendChild(off);
     }
   }
-  v.appendChild(el('div','vsub','Weed / Neige : leurs vendeurs ouvriront avec leur labo (P3).'));
+  v.appendChild(el('div','vsub','Weed / Neige : leurs vendeurs ouvriront avec leur labo (P3). La négo arrive ensuite.'));
 }
 
-/* ===================== ÉCRAN : LABO (placeholder P3) ===================== */
+/* ===================== LABO : placeholder P3 ===================== */
 function renderLabo(){
-  const v = $('view-labo'); v.replaceChildren();
+  const v=$('view-labo'); v.replaceChildren();
   v.appendChild(el('div','vtitle','⚗️ Le labo'));
-  v.appendChild(el('div','vsub','Provisoire — les vrais mini-jeux (hash-slicer, green-front, neige) seront intégrés ici en iframe (P3). Pour l’instant : transforme la matière en batch fini.'));
-
-  for (const p of C.PRODUITS){
-    if (!sim.state.debloques[p]) continue;
-    const raw = sim.state.matiere[p];
-    const card = el('div','card');
-    const hd = el('div','hd');
-    hd.appendChild(el('div','nm', META[p].ic + ' ' + META[p].nm));
-    const meta = el('div','meta'); const m=el('div'); m.append('matière '); m.appendChild(el('b',null, raw+'g')); meta.appendChild(m);
+  v.appendChild(el('div','vsub','Provisoire — les vrais mini-jeux (hash-slicer / green-front / neige) seront intégrés en iframe (P3). Pour l’instant : transforme la matière en batch.'));
+  for(const p of C.PRODUITS){
+    if(!sim.state.debloques[p]) continue;
+    const raw=sim.state.matiere[p];
+    const card=el('div','card');
+    const hd=el('div','hd'); hd.appendChild(el('div','nm',META[p].ic+' '+META[p].nm));
+    const meta=el('div','meta'); const m=el('div'); m.append('matière '); m.appendChild(el('b',null,raw+'g')); meta.appendChild(m);
     hd.appendChild(meta); card.appendChild(hd);
-    const use = Math.min(C.LAB_RAW, raw);
-    card.appendChild(el('div','vsub', use>0 ? ('traite '+use+'g → '+Math.round(use*C.LAB_YIELD.A)+'g propre ou '+Math.round(use*C.LAB_YIELD.C)+'g arrache') : 'pas de matière — passe par le Darkweb'));
-    const row = el('div','row');
-    const clean = el('button','btn clean'); clean.appendChild(el('span',null,'✂️ Propre')); clean.appendChild(el('span','es','qualité +'));
-    const dirty = el('button','btn dirty'); dirty.appendChild(el('span',null,'🪓 Arrache')); dirty.appendChild(el('span','es','volume +, réput −'));
-    const make = (q)=>()=>{
-      const rawNow = sim.state.matiere[p]; const u = Math.min(C.LAB_RAW, rawNow);
-      if (u<=0){ toast('pas de matière'); return; }
-      sim.produireBatch({ produit:p, grammesRaw:u, grammesFinis:Math.round(u*C.LAB_YIELD[q]), qualite:q });
-      toast('Batch '+META[p].nm+' prêt'); refresh();
-    };
-    clean.addEventListener('click', make('A')); dirty.addEventListener('click', make('C'));
-    if (use<=0){ clean.disabled=true; dirty.disabled=true; }
-    row.append(clean, dirty); card.appendChild(row);
+    const use=Math.min(C.LAB_RAW,raw);
+    card.appendChild(el('div','vsub',use>0?('traite '+use+'g → '+Math.round(use*C.LAB_YIELD.A)+'g propre / '+Math.round(use*C.LAB_YIELD.C)+'g arrache'):'pas de matière — passe par le Darkweb'));
+    const row=el('div','row');
+    const clean=el('button','btn clean'); clean.appendChild(el('span',null,'✂️ Propre')); clean.appendChild(el('span','es','qualité +'));
+    const dirty=el('button','btn dirty'); dirty.appendChild(el('span',null,'🪓 Arrache')); dirty.appendChild(el('span','es','volume +, réput −'));
+    const make=q=>()=>{ const u=Math.min(C.LAB_RAW,sim.state.matiere[p]); if(u<=0){toast('pas de matière');return;}
+      sim.produireBatch({produit:p,grammesRaw:u,grammesFinis:Math.round(u*C.LAB_YIELD[q]),qualite:q}); toast('Batch '+META[p].nm+' prêt'); renderLabo(); updateHUD(); };
+    clean.addEventListener('click',make('A')); dirty.addEventListener('click',make('C'));
+    if(use<=0){clean.disabled=true;dirty.disabled=true;}
+    row.append(clean,dirty); card.appendChild(row);
     v.appendChild(card);
   }
 }
 
-/* ===================== ÉCRAN : METRICS (remplace le popup) ===================== */
+/* ===================== METRICS ===================== */
 function mkLigne(l){
-  const d = el('div','mline');
-  const m = l.montant ? (l.montant>0?' +'+l.montant+'€':' '+l.montant+'€') : '';
-  d.textContent = (l.ic?l.ic+' ':'') + l.label + m;
-  if (l.cause) d.appendChild(el('span','ca','↳ '+l.cause));
+  const d=el('div','mline');
+  const m=l.montant?(l.montant>0?' +'+l.montant+'€':' '+l.montant+'€'):'';
+  d.textContent=(l.ic?l.ic+' ':'')+l.label+m;
+  if(l.cause) d.appendChild(el('span','ca','↳ '+l.cause));
   return d;
 }
-function mkDay(s, label){
-  const d = el('div','mday');
-  const hd = el('div','hd');
-  hd.appendChild(el('span',null, label || ('Jour '+s.jour)));
-  hd.appendChild(el('span','net '+(s.net>=0?'pos':'neg'), (s.net>=0?'+':'')+s.net+'€'));
-  d.appendChild(hd);
-  const nums = el('div','nums');
-  nums.textContent = 'achats '+s.achatsEUR+'€ · ventes '+s.ventesEUR+'€ · caisse '+s.cash+'€'
-    + ' · stock h'+s.stock.hash+'/w'+s.stock.weed+'/n'+s.stock.neige+'g · réput '+s.reputOpaque;
+function mkDay(s,label){
+  const d=el('div','mday');
+  const hd=el('div','hd'); hd.appendChild(el('span',null,label||('Jour '+s.jour)));
+  hd.appendChild(el('span','net '+(s.net>=0?'pos':'neg'),(s.net>=0?'+':'')+s.net+'€')); d.appendChild(hd);
+  const nums=el('div','nums');
+  nums.textContent='ventes '+s.ventesEUR+'€ · achats '+s.achatsEUR+'€ · caisse '+s.cash+'€ · '+s.clientsServis+' clients servis · stock hash '+s.stock.hash+'g · réput '+s.reputOpaque;
   d.appendChild(nums);
-  for (const l of s.lignes) d.appendChild(mkLigne(l));
+  for(const l of s.lignes) d.appendChild(mkLigne(l));
   return d;
 }
 function renderMetrics(){
-  const v = $('view-metrics'); v.replaceChildren();
+  const v=$('view-metrics'); v.replaceChildren();
   v.appendChild(el('div','vtitle','📊 Metrics — jour par jour'));
   v.appendChild(el('div','vsub','Pas de bilan qui interrompt : les données de chaque jour s’empilent ici.'));
-  v.appendChild(mkDay(sim.metricsDuJour(), 'Jour '+sim.state.jour+' (en cours)'));
-  const past = sim.state.metrics.slice().reverse();
-  if (!past.length){ v.appendChild(el('div','empty','Aucun jour clos pour l’instant.')); }
-  for (const s of past) v.appendChild(mkDay(s));
+  v.appendChild(mkDay(sim.metricsDuJour(),'Jour '+sim.state.jour+' (en cours)'));
+  const past=sim.state.metrics.slice().reverse();
+  if(!past.length) v.appendChild(el('div','empty','Aucun jour clos pour l’instant.'));
+  for(const s of past) v.appendChild(mkDay(s));
 }
 
-/* ---- routeur d'écran ---- */
 function renderActive(){
-  if (view==='vente') renderVente();
-  else if (view==='dark') renderDark();
-  else if (view==='labo') renderLabo();
+  if(view==='snap') renderSnap();
+  else if(view==='dark') renderDark();
+  else if(view==='labo') renderLabo();
   else renderMetrics();
 }
-function refresh(){ updateHUD(); renderActive(); }
 
-$('nav').addEventListener('click', e=>{
-  const b = e.target.closest('[data-v]'); if(!b) return;
-  view = b.dataset.v;
-  for (const btn of $('nav').children) btn.classList.toggle('on', btn===b);
-  for (const id of ['vente','dark','labo','metrics']) $('view-'+id).classList.toggle('show', id===view);
-  refresh();
+$('nav').addEventListener('click',e=>{
+  const b=e.target.closest('[data-v]'); if(!b) return;
+  view=b.dataset.v;
+  for(const btn of $('nav').children) btn.classList.toggle('on',btn===b);
+  for(const id of ['snap','dark','labo','metrics']) $('view-'+id).classList.toggle('show',id===view);
+  renderActive();
 });
 
 /* ---- boucle TEMPS RÉEL (vitesse unique, pas de popup) ---- */
-let lastTs = null;
+let lastTs=null;
 function loop(ts){
-  if (lastTs===null) lastTs = ts;
-  const dt = Math.min(ts-lastTs, 100); lastTs = ts;
-  sim.tick(dt);                                  // 1 vitesse
-  if (sim.state.jour !== lastJour){              // nouveau jour : pas de popup
-    lastJour = sim.state.jour;
-    toast('Jour '+sim.state.jour+' — bilan dans 📊 Metrics');
-    renderActive();
-  }
+  if(lastTs===null) lastTs=ts;
+  const dt=Math.min(ts-lastTs,100); lastTs=ts;
+  sim.tick(dt);
+  if(sim.state.jour!==lastJour){ lastJour=sim.state.jour; dmProfile.clear(); toast('Jour '+sim.state.jour+' — bilan dans 📊 Metrics'); if(view==='snap'||view==='metrics') renderActive(); }
+  // rafraîchir la liste de DM quand l'ensemble change (clients qui arrivent)
+  if(view==='snap'){ const key=sim.dmEnAttente().map(c=>c.id).join(','); if(key!==lastDmKey){ lastDmKey=key; renderDMs(); } }
   updateHUD();
   requestAnimationFrame(loop);
 }
