@@ -3,6 +3,28 @@
 > Statut : **validé (2026-06-21) — décisions §8 tranchées**. Le lot 1 (cœur de
 > sim, JS pur, inspectable en console) peut démarrer ; on STOPpe AVANT l'UI
 > (checkpoint 2 de la DNA CrimWorld).
+
+## v2 — nouvelle approche (pivot 2026-06-21)
+
+On teste une approche **production/réassort** plutôt que la tension concurrence.
+Changements actés :
+- **Heat/concurrence DÉSACTIVÉ** comme métrique (plus de pression ni de « corner
+  contesté »). La tension §2 est mise en pause ; la **réput (demande)** reste le
+  levier — l'équilibre vit dans UNE courbe `demande ∝ réput`.
+- **Pas de bilan popup** en fin de jour → une **page Metrics** consultable
+  (données de chaque jour). L'horloge ne s'arrête plus à minuit.
+- **Horloge 5× plus lente** (1 h = 10 s ; journée ≈ 4 min), à affiner.
+- **Vitesse unique** (plus de toggle).
+- **Nouvelle boucle** : RÉASSORT (darkweb, semi-grossistes) → **LABO** (un proto
+  produit un BATCH) → **INVENTAIRE** → **VENTE en petites quantités**.
+- **Le labo** = les protos existants intégrés en **iframe « mode embed »**
+  (comme l'établi → coupe.html) : hash-slicer-v2 (sans la vente auto), green-front-v3
+  (sans la Réception : tri→coupe→pack), neige — chacun renvoie son batch via
+  `postMessage` → inventaire. Mécanisme commun aux 3 : batch → inventaire → doses.
+- **Priorité de build** : l'app **darkweb TOR/Silk Road** (réassort) en premier.
+
+Cœur de sim v2 : `crimworld-sandbox/sim.mjs` (acheterMatiere / produireBatch /
+vendre / tick / metrics). Le reste du document décrit la vision d'origine (v1).
 > Suite logique de la slice scriptée « La Bascule » (FTUE sur rails) : la
 > sandbox laisse le joueur **rejouer la boucle SANS script**.
 
