@@ -1,7 +1,8 @@
 # CrimWorld — Sandbox 24h (mini-spec, à valider AVANT tout code)
 
-> Statut : **brouillon pour validation papier**. Rien n'est codé tant que ce
-> document n'est pas validé (cf. checkpoint 1 de la DNA CrimWorld).
+> Statut : **validé (2026-06-21) — décisions §8 tranchées**. Le lot 1 (cœur de
+> sim, JS pur, inspectable en console) peut démarrer ; on STOPpe AVANT l'UI
+> (checkpoint 2 de la DNA CrimWorld).
 > Suite logique de la slice scriptée « La Bascule » (FTUE sur rails) : la
 > sandbox laisse le joueur **rejouer la boucle SANS script**.
 
@@ -25,7 +26,7 @@ d'arbitrage, ou si une conséquence semble tomber « par malchance », c'est rat
 
 ## 1. La boucle revue — le cycle 24h
 
-Une journée = une **horloge** qui avance ; des événements tombent à des heures
+Une journée = une **horloge TEMPS RÉEL** (cœur `tick(dt)`, testable) qui avance ; des événements tombent à des heures
 précises ; à minuit, le **rapport de jour**. Phases d'une journée (non
 strictement séquentielles — elles se chevauchent via l'horloge) :
 
@@ -44,10 +45,18 @@ acheteurs générés, marché darkweb + Ubeur, heat en moteur, rapport cumulatif
 
 ---
 
-## 2. Le moteur de tension (dans le périmètre)
+## 2. Le moteur de tension — la concurrence pour le corner
+
+**Prémisse (tension primaire, validée).** Le joueur a fait disparaître Momo pour
+sortir du piège — mais le corner du dealer est la position la PLUS convoitée du
+block, jamais vacante longtemps. « L'argent facile attire les plus mauvaises
+intentions » : plus le joueur réussit *visiblement*, plus vite et plus fort **la
+concurrence** vient lui disputer le corner. Le succès est l'appât ; on ne se
+relâche jamais parce qu'on EST devenu la cible. La dette/loyer reste un compteur
+de fond, pas l'antagoniste.
 
 Deux jauges, **co-effets PARALLÈLES** du levier unique (qualité), jamais en
-chaîne. C'est l'invariant le plus délicat à respecter dans du code.
+chaîne — l'invariant le plus délicat à coder :
 
 ### 2a. Réputation conso (la demande)
 - Pilote **qui** et **combien** d'acheteurs te DM (la courbe demande↔qualité).
@@ -56,15 +65,15 @@ chaîne. C'est l'invariant le plus délicat à respecter dans du code.
 - **Affichée OPAQUE** (brouillage de présentation autorisé : `🔥 ••• `, comme
   les vues de la vitrine). Le joueur sent la tendance, ne lit pas un chiffre.
 
-### 2b. Heat de rue (l'attention)
-- Monte comme **co-effet** de : exposition (vitrine), volume écoulé, coupe à
-  l'arrache. Chaque contribution est **traçable** (cause lisible).
-- ⚠️ JAMAIS « moins de ventes → heat ». Volume et heat sont deux sorties
+### 2b. Concurrence / pression sur le corner (l'attention)
+- Monte comme **co-effet** de la **visibilité du succès** : exposition (vitrine),
+  volume écoulé, coupe à l'arrache. Chaque contribution est **traçable** (cause).
+- ⚠️ JAMAIS « moins de ventes → pression ». Volume et pression sont deux sorties
   parallèles de la même cause, pas une chaîne.
-- Conséquences de heat haute : attention des **rivaux / du block** sur ton
-  corner (le corner devient « chaud » → il faut bouger), DM hostiles,
-  commentaires qui changent de ton. **Tout trace à une décision** (avoir trop
-  exposé, trop écoulé, coupé sale).
+- Conséquences (déterministes, traçables) : un **rival** se pointe sur ton
+  corner, tague ton spot, casse tes prix, débauche un acheteur. À pression
+  haute le corner devient **contesté** → tenir/défendre ou bouger. **Tout trace
+  à une décision** (trop exposé, trop écoulé, coupé sale).
 
 ### 2c. Garde-fou périmètre
 La heat reste **rue** (rivaux, block, Momo). La **heat autorités est HORS
@@ -92,10 +101,11 @@ L'idée : l'appro et la logistique vivent dans deux apps de l'OS du téléphone.
   fournisseur cheap mal noté, mauvais créneau du cycle, trop de mouvements —
   **jamais un tirage**. Contribution heat traçable. (Rue/rival, pas police.)
 
-### 3c. Symétrie (téléchargée plus tard)
-Même UI dans les deux sens. Acheteur : tu commandes + tu suis. En grandissant :
-tu **dispatches des drivers vers tes points de deal** (même vue Ubeur, rôle
-inversé). → **Hors v1** (à flagger), mais l'UI est conçue pour l'accueillir.
+### 3c. Symétrie — INCLUSE en v1 (validé)
+Même UI dans les deux sens. Acheteur : tu commandes + tu suis. Patron : tu
+**dispatches des drivers vers tes points de deal** (même vue Ubeur, rôle
+inversé). Les drivers en mouvement = **exposition supplémentaire** → nourrissent
+la pression concurrence (§2b). Construit au lot 4 (avec darkweb/Ubeur).
 
 ---
 
@@ -155,17 +165,15 @@ Chaque lot : sim JS pur testable en **console** → UI → **reviewer** → comm
 
 ---
 
-## 8. Questions ouvertes à TRANCHER avant le lot 1
+## 8. Décisions (validées le 2026-06-21)
 
-1. **Tension primaire** : qu'est-ce qui empêche de se relâcher d'un jour à
-   l'autre — la **heat de rue** (antagoniste actif) ou la **dette/loyer** (compteur
-   qui tourne) ? (Ou les deux, l'une nourrissant l'autre ?)
-2. **Horloge** : temps réel (l'ETA/les events tombent en secondes réelles, feel
-   idle) **ou** tours discrets que le joueur avance (« passer à l'heure suivante ») ?
-   → gros fork UX.
-3. **Risque de transit darkweb** : strictement **rue/rival** (reste dans le
-   périmètre) — confirmé ? (autorités = hors, on n'y touche pas.)
-4. **Opacité réput** : totalement brouillée (comme les vues) ou signal partiel
-   lisible ?
-5. **Périmètre v1** : côté acheteur seulement (commander + vendre), ou inclure
-   dès v1 l'inversion « dispatcher des drivers » ?
+1. **Tension primaire** : **la concurrence pour le corner**. Le succès *visible*
+   attire les rivaux (vacuum laissé par Momo) ; la dette/loyer n'est qu'un
+   compteur de fond. → moteur §2.
+2. **Horloge** : **temps réel** (cœur de sim `tick(dt)` pour rester déterministe
+   et inspectable en console).
+3. **Risque de transit darkweb** : **rue/rival** (dans le périmètre ; heat
+   autorités = hors, on n'y touche pas).
+4. **Opacité réput** : **totalement opaque** (comme les vues de la vitrine).
+5. **Périmètre v1** : **inclut le dispatch** de drivers (l'inversion §3c, au
+   lot 4).
