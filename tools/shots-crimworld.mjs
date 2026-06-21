@@ -19,7 +19,7 @@ import puppeteer from "puppeteer";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const THREE_JS = readFileSync(path.join(__dirname, "vendor", "three.module.js"), "utf8");
-const PAGE = "file://" + path.join(ROOT, "crimworld/index.html");
+const PAGE = "file://" + path.join(ROOT, "crimworld/index.html") + "?fast=1";  // ?fast = pacing quasi-instantané pour les captures
 const OUT = path.join(__dirname, "shots", "crimworld");
 mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -95,12 +95,18 @@ async function openEtabliCard(t = 9000) {
   return false;
 }
 // Attend que l'écran de bilan (endscreen) s'affiche, en accélérant la frappe.
-async function waitEnd(t = 14000) {
+// Si le viewer « le block réagit » est ouvert, c'est LUI qu'il faut taper.
+async function waitEnd(t = 18000) {
   const end = Date.now() + t;
   while (Date.now() < end) {
     if (await page.evaluate(() => document.getElementById("endscreen").classList.contains("show"))) return true;
-    await tapBody();
-    await sleep(220);
+    const onViewer = await page.evaluate(() => {
+      const v = document.getElementById("viewer");
+      if (v && v.classList.contains("show")) { v.click(); return true; }
+      return false;
+    });
+    if (!onViewer) await tapBody();
+    await sleep(260);
   }
   return false;
 }
@@ -211,7 +217,16 @@ await waitConv("Kévin"); await sleep(300); await tapBody(); await sleep(900); a
 await waitChoice("Accepter"); await sleep(900);
 await waitConv("Le Pote"); await sleep(300); await tapBody(); await sleep(900);
 log.paidContrat = await waitChoice("Payer le contrat");
-await waitEnd(); await sleep(500); await shot("25-bilan-ch2.png");
+// messages post-paiement → story « le block réagit » (commentaires qui tombent)
+let sawViewer = false;
+for (let k = 0; k < 50 && !sawViewer; k++) {
+  sawViewer = await page.evaluate(() => document.getElementById("viewer").classList.contains("show"));
+  if (!sawViewer) await tapBody();
+  await sleep(250);
+}
+log.blockReagit = sawViewer;
+await sleep(1900); await shot("25-block-reagit.png");
+await waitEnd(); await sleep(500); await shot("26-bilan-ch2.png");
 
 log.endShown = await page.evaluate(() => document.getElementById("endscreen").classList.contains("show"));
 log.endTitle = await page.evaluate(() => { const h = document.querySelector("#endscreen h2"); return h ? h.textContent : null; });
