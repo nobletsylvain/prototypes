@@ -50,7 +50,7 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). Chaî
 
 **Boucle de jeu (4 étapes, suivies par un *stepper* en haut) :**
 1. **Réception & inspection** — un **front** (lot **à crédit**) tombe sur le plan de travail. **Tape pour scanner** (pesée + qualité) : on révèle **% THC**, **humidité**, **% trim/stems**. Puis **Accepter** (alimente la **dette**), **Négocier** (timing → remise / fournisseur vexé) ou **Refuser**.
-2. **Bucking & trimming** — **tape dans le vert** pour bucker/trimmer une poignée. **🤚 Main** = lent mais plus de **A-flower** ; **⚙️ Machine** = rapide mais plus de **smalls/trim**. Tri auto dans les bacs **A / B / Trim**.
+2. **Bucking & trimming** — **frotte/glisse le doigt sur le tas** pour effeuiller : un **geste lent et net** donne de belles **A-flower**, un **geste vif** déchire en **trim** (la vitesse du drag fait la qualité). **🤚 Main** = qualité ; **⚙️ Machine** = volume. Tri auto dans les bacs **A / B / Trim**.
 3. **Coupe / stretch** — **curseur de coupe** : on gonfle le poids vendable en mélangeant du **trim** à la fleur. Plus on stretch, **plus de grammes** mais **%THC qui baisse** et **réputation qui chute** (jauge de **satisfaction clients** + plaintes si trop dilué).
 4. **Conditionnement multi-formats** — ensachage **1 g / 3.5 g / 7 g / 28 g / ½ lb / 1 lb** (petit = €/g plus élevé). **Scellage** au timing (bonus si serré), options **💧 humidité** (+valeur/réput) et **🏷️ étiquette fake** (+valeur mais **risque de descente** 🚔).
 
@@ -62,6 +62,20 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). Chaî
 
 - En ligne : **https://nobletsylvain.github.io/prototypes/green-front/** (depuis le hub).
 - En local : ouvrir `green-front/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
+
+### 🧪 Green Front v2 (fork « lab »)
+
+`green-front-v2/` est un **fork bac-à-sable** de Green Front, transformé en **banc d'essai de mini-jeux** : on y teste des mécaniques tactiles en isolé (menu → un mini-jeu → rejouer), sans toucher à la core loop d'origine (intacte dans `green-front/`). Trois mini-jeux à mécaniques volontairement différentes :
+
+- 🌿 **Effeuillage** — *glisser* le doigt le long de la branche pour détacher les têtes (lent & précis = A premium, trop vite = trim).
+- ⚖️ **Dosage balance** — *maintenir pour verser, lâcher* pile au bon poids (le débit s'emballe, l'inertie piège, le dépassement coûte cher).
+- ✂️ **Trim express** — *réflexe* : couper les feuilles qui poussent sans toucher la tête, avant qu'elles durcissent.
+
+2D canvas + DOM, zéro dépendance, records en `localStorage` (préfixe **`gf2_`**, isolé de Green Front `gf_`). Badge `🧪 v2 · lab` + tag « labo » du hub. En ligne : **https://nobletsylvain.github.io/prototypes/green-front-v2/**.
+
+### ⚖️ Green Front v3 (fork « coupe au dosage »)
+
+`green-front-v3/` est un **fork de la core loop complète** (avec le bucking au drag) où l'**étape coupe/stretch** passe du curseur à un **dosage tactile** : on **maintient sur le bol pour verser le trim** (le débit s'emballe), on **lâche au bon dosage** (inertie + risque de dépassement → clients fâchés / réput en chute). Le reste de la boucle (réception, tri, conditionnement, éco) est identique. Sauvegarde isolée (préfixe **`gf3_`**), badge `🧪 v3 · dosage`. En ligne : **https://nobletsylvain.github.io/prototypes/green-front-v3/**.
 
 ## 🎸 GuitarShito (core loop)
 

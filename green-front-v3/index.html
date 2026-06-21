@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Green Front</title>
+<title>Green Front v3 — coupe au dosage</title>
 <style>
   /* --- Plein ecran, pense mobile (pas de scroll, pas de zoom) --- */
   * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
@@ -36,6 +36,11 @@
     background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); color:rgba(255,255,255,.5); white-space:nowrap; }
   .step.on { background:rgba(155,227,125,.22); border-color:rgba(155,227,125,.6); color:#d6f7c2; }
   .step.done { color:rgba(155,227,125,.75); }
+
+  /* Badge fork experimental (v3 — coupe au dosage) */
+  #labtag { left:14px; top:calc(max(12px,env(safe-area-inset-top)) + 40px);
+    font-size:10px; font-weight:800; letter-spacing:.3px; padding:3px 8px; border-radius:999px;
+    background:rgba(255,209,102,.16); border:1px solid rgba(255,209,102,.5); color:#ffd166; }
 
   #hint { position:fixed; left:0; right:0; bottom:max(150px,calc(env(safe-area-inset-bottom) + 144px));
     text-align:center; font-size:13px; color:rgba(255,255,255,.72); padding:0 24px; transition:opacity .4s;
@@ -82,7 +87,7 @@
   .toggle.on { background:#7aa0ff; border-color:#7aa0ff; color:#0c142a; }
 
   /* --- Stretch : curseur de coupe (slider) + jauge de satisfaction --- */
-  #strack { position:relative; width:80%; max-width:360px; height:30px; pointer-events:auto;
+  #strack { position:relative; width:80%; max-width:360px; height:30px; pointer-events:none;
     display:flex; align-items:center; }
   #strail { position:absolute; left:0; right:0; height:10px; border-radius:999px;
     background:linear-gradient(90deg,#7ad17a,#ffd166 55%,#ff6b6b); opacity:.85; }
@@ -144,6 +149,7 @@
 <button id="shopbtn">🛒</button>
 
 <div class="hud" id="hint"></div>
+<div class="hud" id="labtag">🧪 v3 · dosage</div>
 <div id="toast"></div>
 <div id="labels"></div>
 
@@ -220,7 +226,7 @@ import * as THREE from "three";
      4) Conditionnement        : formats retail/gros, scellage, humidite, etiq fake.
    Economie : le front est a CREDIT -> il alimente une DETTE que les ventes
    remboursent en premier. Reputation = multiplicateur de prix de vente.
-   Persistance localStorage prefixe "gf_" (distinct de barrettes-shit "hash_").
+   Persistance localStorage prefixe "gf3_" (distinct de barrettes-shit "hash_").
    Tout est commente en francais, brique par brique.
    ========================================================================= */
 
@@ -266,7 +272,7 @@ const VIEW_DIR    = new THREE.Vector3(0.02, 0.62, 0.78).normalize();  // 3/4 plo
 const VIEW_TARGET = new THREE.Vector3(0, 0.15, 0.15);
 const VIEW_RADIUS = Math.hypot(3.1, 0.9, 2.7);
 const baseCamPos  = new THREE.Vector3();
-let zoom = +(localStorage.getItem("gf_zoom")) || 1;
+let zoom = +(localStorage.getItem("gf3_zoom")) || 1;
 zoom = Math.max(0.6, Math.min(2.4, zoom));
 
 function fitView() {
@@ -532,6 +538,7 @@ function playSnip() { noiseBurst(0.08, 3200, 900, 0.22, "bandpass", 1.1); }     
 function playSeal() { noiseBurst(0.22, 600, 1700, 0.22, "lowpass", 0.6); }         // scelleuse
 function playSale() { const ac = ensureAudio(); if (!ac) return; const t = ac.currentTime; beep(880, t, 0.12, 0.22); beep(1320, t + 0.08, 0.16, 0.2); }
 function playThud() { noiseBurst(0.18, 240, 70, 0.3, "lowpass", 0.7); }            // chute du front
+function playPour() { noiseBurst(0.09, 520, 360, 0.10, "lowpass", 0.5); }           // versement du trim
 
 // Nugs qui volent vers un bac (feedback du tri).
 const flyers = [];
@@ -555,27 +562,27 @@ function updateFlyers(dt) {
 }
 
 /* -------------------------------------------------------------------------
-   9) ETAT DE PARTIE + PERSISTANCE (prefixe "gf_")
+   9) ETAT DE PARTIE + PERSISTANCE (prefixe "gf3_")
    ------------------------------------------------------------------------- */
 const SAVE_VERSION = "1";
-if (localStorage.getItem("gf_ver") !== SAVE_VERSION) {
-  ["gf_cash","gf_debt","gf_rep","gf_level","gf_xp","gf_shop","gf_stocks","gf_blend","gf_trim"].forEach(k => localStorage.removeItem(k));
-  localStorage.setItem("gf_ver", SAVE_VERSION);
+if (localStorage.getItem("gf3_ver") !== SAVE_VERSION) {
+  ["gf3_cash","gf3_debt","gf3_rep","gf3_level","gf3_xp","gf3_shop","gf3_stocks","gf3_blend","gf3_trim"].forEach(k => localStorage.removeItem(k));
+  localStorage.setItem("gf3_ver", SAVE_VERSION);
 }
 
-let cash  = +(localStorage.getItem("gf_cash")  || 0);
-let debt  = +(localStorage.getItem("gf_debt")  || 0);
-let rep   = +(localStorage.getItem("gf_rep")   || 55);   // reputation 0..100
-let level = Math.max(1, +(localStorage.getItem("gf_level") || 1));
-let xp    = Math.max(0, +(localStorage.getItem("gf_xp")    || 0));
-let trimMode = localStorage.getItem("gf_trim") || "hand";
+let cash  = +(localStorage.getItem("gf3_cash")  || 0);
+let debt  = +(localStorage.getItem("gf3_debt")  || 0);
+let rep   = +(localStorage.getItem("gf3_rep")   || 55);   // reputation 0..100
+let level = Math.max(1, +(localStorage.getItem("gf3_level") || 1));
+let xp    = Math.max(0, +(localStorage.getItem("gf3_xp")    || 0));
+let trimMode = localStorage.getItem("gf3_trim") || "hand";
 
 // Stocks (g + somme ponderee de THC pour suivre le %THC moyen par bac).
 const defStock = { A: { g: 0, ts: 0 }, B: { g: 0, ts: 0 }, S: { g: 0, ts: 0 } };
-let stocks = Object.assign(defStock, JSON.parse(localStorage.getItem("gf_stocks") || "null") || {});
-let blend  = JSON.parse(localStorage.getItem("gf_blend") || "null") || { g: 0, ts: 0 };
+let stocks = Object.assign(defStock, JSON.parse(localStorage.getItem("gf3_stocks") || "null") || {});
+let blend  = JSON.parse(localStorage.getItem("gf3_blend") || "null") || { g: 0, ts: 0 };
 
-const owned = JSON.parse(localStorage.getItem("gf_shop") || "{}");
+const owned = JSON.parse(localStorage.getItem("gf3_shop") || "{}");
 owned.brick   = owned.brick   || 0;   // debloque les fronts "brique"
 owned.hands   = owned.hands   || 0;   // dexterite hand-trim (rendement A)
 owned.machine = owned.machine || 0;   // trimmeuse pro (moins de perte machine)
@@ -589,9 +596,9 @@ let offer = null;                     // front propose en cours
 let lot   = null;                     // lot accepte en cours de tri { raw, total, thc, hum, trim }
 let opts  = { humid: false, label: false };  // options de conditionnement
 
-function saveStocks() { localStorage.setItem("gf_stocks", JSON.stringify(stocks)); }
-function saveBlend()  { localStorage.setItem("gf_blend",  JSON.stringify(blend)); }
-function saveShop()   { localStorage.setItem("gf_shop",   JSON.stringify(owned)); }
+function saveStocks() { localStorage.setItem("gf3_stocks", JSON.stringify(stocks)); }
+function saveBlend()  { localStorage.setItem("gf3_blend",  JSON.stringify(blend)); }
+function saveShop()   { localStorage.setItem("gf3_shop",   JSON.stringify(owned)); }
 
 /* -------------------------------------------------------------------------
    10) UI : references + setters HUD
@@ -609,20 +616,20 @@ function repMult()   { return (0.8 + rep / 100 * 0.5) + owned.network * 0.04; } 
 
 function setCash(v) {
   cash = Math.max(0, Math.round(v));
-  localStorage.setItem("gf_cash", String(cash));
+  localStorage.setItem("gf3_cash", String(cash));
   ui.cash.textContent = "💶 " + cash + " €";
   if (ui.shop.classList.contains("show")) renderShop();
 }
 function setDebt(v) {
   debt = Math.max(0, Math.round(v));
-  localStorage.setItem("gf_debt", String(debt));
+  localStorage.setItem("gf3_debt", String(debt));
   ui.debt.textContent = debt > 0 ? "🧾 dette " + debt + " €" : "🧾 à jour";
   ui.debt.style.color = debt > 0 ? "#ff9f6b" : "#9be37d";
 }
 function setRep(v) {
   const was = rep;
   rep = Math.max(0, Math.min(100, v));
-  localStorage.setItem("gf_rep", String(Math.round(rep)));
+  localStorage.setItem("gf3_rep", String(Math.round(rep)));
   ui.replbl.textContent = "⭐ Réput. " + Math.round(rep);
   ui.repfill.style.width = rep + "%";
   if (Math.round(rep) !== Math.round(was)) {
@@ -656,8 +663,8 @@ function addXP(n) {
     addShake(0.16);
     const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(990, t + 0.08, 0.14, 0.22); }
   }
-  localStorage.setItem("gf_level", String(level));
-  localStorage.setItem("gf_xp", String(Math.round(xp)));
+  localStorage.setItem("gf3_level", String(level));
+  localStorage.setItem("gf3_xp", String(Math.round(xp)));
   updateXpUI();
 }
 
@@ -842,7 +849,7 @@ function refreshBuckCard() {
     "</b> · Trim <b>" + Math.round(stocks.S.g) + "</b> g";
 }
 function setTrim(m) {
-  trimMode = m; localStorage.setItem("gf_trim", m);
+  trimMode = m; localStorage.setItem("gf3_trim", m);
   document.querySelectorAll(".toggle[data-trim]").forEach(b => b.classList.toggle("on", b.dataset.trim === m));
 }
 // Une poignee effeuillee : repartit le brut en A / B / Smalls selon methode,
@@ -896,14 +903,53 @@ function buckCommitUI() {
 /* -------------------------------------------------------------------------
    14) PHASE 3 — STRETCH / DILUTION
    ------------------------------------------------------------------------- */
-let stretch = 0.15;                 // ratio de coupe 0..0.5 (part de trim dans le blend)
+// Coupe au DOSAGE : on verse le trim au doigt (maintenir = verser, lâcher = stop
+// avec inertie). La quantité versée `pour.g` dérive le ratio de coupe `stretch`.
+let stretch = 0;                    // ratio de coupe effectif 0..0.5 (derive du versement)
 const STRETCH_MAX = 0.5;
+const pour = { active: false, holdT: 0, rate: 0, trickle: 0, g: 0, sndCd: 0, maxG: 0 };
+function stretchFlowerG() { return stocks.A.g + stocks.B.g; }
 function gotoStretch() {
   setPhase("stretch");
-  stretch = 0.15;
+  pour.active = false; pour.holdT = 0; pour.rate = 0; pour.trickle = 0; pour.g = 0; pour.sndCd = 0;
+  pour.maxG = Math.min(stocks.S.g, stretchFlowerG());   // borne : coupe <= 50 %
+  stretch = 0;
   setKnob();
   refreshStretch();
-  setHint("Glisse le curseur : plus tu coupes au trim, plus tu gagnes de poids… mais la réput trinque.");
+  setHint("Maintiens sur le bol pour verser le trim — lâche au bon dosage. Trop coupé = clients fâchés.");
+}
+// Verser : maintien -> debit qui s'emballe ; relache -> inertie ; borne par le trim dispo.
+function startPour() {
+  if (stretchFlowerG() < 1) { showToast("Rien à couper — trie d'abord", "#caa15f"); return; }
+  if (pour.g >= pour.maxG - 0.01) { showToast(stocks.S.g < 1 ? "Pas de trim à couper" : "Coupe au max", "#caa15f"); return; }
+  ensureAudio(); pour.active = true; pour.trickle = 0;
+}
+function stopPour() {
+  if (!pour.active) return;
+  pour.active = false; pour.trickle = 0.22;   // inertie : un peu de rab apres le lacher
+}
+function updatePour(dt) {
+  if (phase !== "stretch") return;
+  const rMin = 8, rMax = 80, rampT = 0.9;     // g/s
+  let added = 0;
+  if (pour.active) {
+    pour.holdT += dt;
+    pour.rate = rMin + (rMax - rMin) * Math.min(1, pour.holdT / rampT);
+    added = pour.rate * dt;
+    pour.sndCd -= dt; if (pour.sndCd <= 0) { playPour(); pour.sndCd = 0.1; }
+    if (Math.random() < 0.25) flyNug(matTrim, 0.85, bowl.position);
+  } else if (pour.trickle > 0) {
+    added = pour.rate * 0.5 * (pour.trickle / 0.22) * dt;
+    pour.trickle -= dt;
+  } else return;
+  if (added > 0) {
+    pour.g = Math.min(pour.maxG, pour.g + added);
+    if (pour.active && pour.g >= pour.maxG - 0.01) { pour.active = false; pour.trickle = 0; }
+    stretch = stretchFlowerG() > 0.01 ? pour.g / (stretchFlowerG() + pour.g) : 0;
+    setKnob();
+    refreshStretch();
+    addShake(0.015);
+  }
 }
 // Projection du blend pour un ratio donne (sans rien consommer).
 function projectStretch(s) {
@@ -1144,15 +1190,8 @@ const pointers = new Map();
 let pinching = false, pinchStartDist = 0, pinchStartZoom = 1;
 function pinchDist() { const a = [...pointers.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
 
-let sliderDrag = false;
-function setStretchFromX(clientX) {
-  const r = ui.strack.getBoundingClientRect();
-  stretch = Math.max(0, Math.min(STRETCH_MAX, ((clientX - r.left) / r.width) * STRETCH_MAX));
-  setKnob(); refreshStretch();
-}
-ui.strack.addEventListener("pointerdown", (e) => { e.stopPropagation(); sliderDrag = true; setStretchFromX(e.clientX); });
-window.addEventListener("pointermove", (e) => { if (sliderDrag) setStretchFromX(e.clientX); });
-window.addEventListener("pointerup", () => { sliderDrag = false; });
+// La coupe se fait au DOSAGE (maintenir sur le bol pour verser), plus au slider :
+// le curseur #sknob n'est qu'un repere visuel pilote par updatePour().
 
 el.addEventListener("pointerdown", (e) => {
   e.preventDefault();
@@ -1166,6 +1205,7 @@ el.addEventListener("pointerdown", (e) => {
     buck.lastT = performance.now(); buck.acc = 0; buck.speed = 0;
     if (buck.cd <= 0 && buckStrip(0)) { buck.cd = 0.28; buckCommitUI(); }   // tap = poignee propre
   }
+  else if (phase === "stretch") { startPour(); }
   else if (phase === "pack") { if (seal.active) resolveSeal(); }
 }, { passive: false });
 
@@ -1174,7 +1214,7 @@ el.addEventListener("pointermove", (e) => {
   if (pinching && pointers.size >= 2) {
     e.preventDefault();
     zoom = Math.max(0.6, Math.min(2.4, pinchStartZoom * (pinchDist() / pinchStartDist)));
-    localStorage.setItem("gf_zoom", zoom.toFixed(3));
+    localStorage.setItem("gf3_zoom", zoom.toFixed(3));
     fitView();
   } else if (phase === "buck" && buck.dragging && pointers.size < 2) {
     // Effeuillage : on accumule la distance glissee ; chaque BUCK_STRIDE px
@@ -1197,7 +1237,7 @@ el.addEventListener("pointermove", (e) => {
 function onUp(e) {
   pointers.delete(e.pointerId);
   if (pinching && pointers.size < 2) pinching = false;
-  if (pointers.size === 0) buck.dragging = false;
+  if (pointers.size === 0) { buck.dragging = false; if (phase === "stretch") stopPour(); }
 }
 el.addEventListener("pointerup", onUp, { passive: false });
 el.addEventListener("pointercancel", onUp, { passive: false });
@@ -1271,7 +1311,7 @@ function loop(t) {
   // Petite rotation de presentation du bocal.
   if (phase === "pack") jar.rotation.y += dt * 0.4;
   // Bol qui frémit pendant le mélange.
-  if (phase === "stretch") bowlFill.rotation.y += dt * 0.8;
+  if (phase === "stretch") { bowlFill.rotation.y += dt * 0.8; updatePour(dt); }
 
   updateGauges(dt);
   updateFlyers(dt);
