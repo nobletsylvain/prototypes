@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Green Front v3 — coupe au dosage</title>
+<style>
+  /* --- Plein ecran, pense mobile (pas de scroll, pas de zoom) --- */
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+  html, body { width:100%; height:100%; overflow:hidden; touch-action:none;
+    font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(120% 120% at 50% 0%, #14361f 0%, #0c2114 55%, #07140c 100%); }
+  #app { position:fixed; inset:0; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+
+  /* --- HUD (overlay HTML par dessus la scene 3D) --- */
+  .hud { position:fixed; pointer-events:none; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.5); }
+  #cash { top:max(12px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+    font-weight:800; font-size:19px; color:#9be37d; }
+  #debt { top:calc(max(12px,env(safe-area-inset-top)) + 26px); left:50%; transform:translateX(-50%);
+    font-weight:700; font-size:12px; color:#ff9f6b; }
+  #repwrap { top:max(12px,env(safe-area-inset-top)); left:14px; display:flex; flex-direction:column; gap:3px; }
+  #replbl { font-size:11px; font-weight:800; color:#bdf0a3; letter-spacing:.3px; }
+  #repbar { width:104px; height:7px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
+  #repfill { height:100%; width:55%; background:linear-gradient(90deg,#ff6b6b,#ffd166 55%,#7ad17a); transition:width .3s; }
+  #xpwrap { top:max(12px,env(safe-area-inset-top)); right:64px; display:flex; align-items:center; gap:6px; }
+  #level { background:rgba(155,227,125,.18); border:1px solid rgba(155,227,125,.55); color:#bdf0a3;
+    font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  #xpbar { width:76px; height:7px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
+  #xpfill { height:100%; width:0%; background:linear-gradient(90deg,#7ad17a,#bdf0a3); border-radius:999px; transition:width .25s; }
+
+  /* --- Stepper : les 4 etapes du core loop --- */
+  #stepper { top:calc(max(12px,env(safe-area-inset-top)) + 46px); left:50%; transform:translateX(-50%);
+    display:flex; gap:5px; }
+  .step { font-size:10px; font-weight:800; letter-spacing:.2px; padding:3px 8px; border-radius:999px;
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); color:rgba(255,255,255,.5); white-space:nowrap; }
+  .step.on { background:rgba(155,227,125,.22); border-color:rgba(155,227,125,.6); color:#d6f7c2; }
+  .step.done { color:rgba(155,227,125,.75); }
+
+  /* Badge fork experimental (v3 — coupe au dosage) */
+  #labtag { left:14px; top:calc(max(12px,env(safe-area-inset-top)) + 40px);
+    font-size:10px; font-weight:800; letter-spacing:.3px; padding:3px 8px; border-radius:999px;
+    background:rgba(255,209,102,.16); border:1px solid rgba(255,209,102,.5); color:#ffd166; }
+
+  #hint { position:fixed; left:0; right:0; bottom:max(150px,calc(env(safe-area-inset-bottom) + 144px));
+    text-align:center; font-size:13px; color:rgba(255,255,255,.72); padding:0 24px; transition:opacity .4s;
+    pointer-events:none; text-shadow:0 2px 8px rgba(0,0,0,.5); }
+  #toast { position:fixed; left:0; right:0; top:40%; text-align:center; font-size:24px; font-weight:800; opacity:0;
+    transition:opacity .25s, transform .25s; transform:translateY(8px); pointer-events:none;
+    color:#fff; text-shadow:0 2px 10px rgba(0,0,0,.6); padding:0 20px; }
+  #toast.show { opacity:1; transform:translateY(0); }
+
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
+  .blabel { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
+    font-weight:800; font-size:12px; padding:2px 7px; border-radius:8px;
+    background:rgba(0,0,0,.5); text-shadow:0 1px 3px rgba(0,0,0,.6); }
+
+  /* --- Barre d'action basse commune aux phases --- */
+  .panel { position:fixed; left:0; right:0; bottom:0; display:none; flex-direction:column; align-items:center;
+    gap:9px; padding:12px 14px max(14px,calc(env(safe-area-inset-bottom) + 10px)); pointer-events:none; }
+  .panel.show { display:flex; }
+  .card { pointer-events:none; background:rgba(8,20,12,.62); border:1px solid rgba(255,255,255,.12);
+    border-radius:14px; padding:9px 14px; color:#fff; font-size:13px; font-weight:600; text-align:center;
+    backdrop-filter:blur(6px); max-width:420px; line-height:1.45; }
+  .card b { color:#bdf0a3; }
+  .card .q { color:#ffd166; }
+  .btn { pointer-events:auto; border:none; border-radius:13px; font-weight:800; font-size:15px;
+    padding:11px 18px; color:#10210f; background:#7ad17a; box-shadow:0 4px 14px rgba(122,209,122,.35); }
+  .btn:active { transform:scale(.98); }
+  .btn.alt { background:rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.25); box-shadow:none; }
+  .btn.warn { background:#ff7a3c; color:#fff; box-shadow:0 4px 14px rgba(255,122,60,.35); }
+  .btn:disabled { background:rgba(255,255,255,.1); color:rgba(255,255,255,.35); box-shadow:none; }
+  .row { display:flex; gap:9px; align-items:center; justify-content:center; flex-wrap:wrap; pointer-events:none; }
+  .row .btn, .row .toggle { pointer-events:auto; }
+
+  /* --- Jauge de timing reutilisable (scan, coupe, scellage, negoce) --- */
+  .gauge { position:relative; width:74%; max-width:340px; height:22px; background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.18); border-radius:999px; overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,.4);
+    pointer-events:none; }
+  .sweet { position:absolute; top:0; bottom:0; background:linear-gradient(90deg,rgba(155,227,125,.25),rgba(155,227,125,.65),rgba(155,227,125,.25)); }
+  .cursor { position:absolute; top:-2px; bottom:-2px; width:5px; margin-left:-2.5px; background:#fff;
+    border-radius:3px; box-shadow:0 0 8px rgba(255,255,255,.9); }
+
+  /* --- Sélecteur de méthode de trim --- */
+  .toggle { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
+    font-weight:700; font-size:13px; padding:8px 12px; border-radius:11px; }
+  .toggle.on { background:#7aa0ff; border-color:#7aa0ff; color:#0c142a; }
+
+  /* --- Stretch : curseur de coupe (slider) + jauge de satisfaction --- */
+  #strack { position:relative; width:80%; max-width:360px; height:30px; pointer-events:none;
+    display:flex; align-items:center; }
+  #strail { position:absolute; left:0; right:0; height:10px; border-radius:999px;
+    background:linear-gradient(90deg,#7ad17a,#ffd166 55%,#ff6b6b); opacity:.85; }
+  #sknob { position:absolute; width:24px; height:24px; border-radius:50%; background:#fff; left:0; margin-left:-12px;
+    box-shadow:0 2px 8px rgba(0,0,0,.5); border:2px solid #1a2c18; }
+  #satwrap { width:74%; max-width:340px; height:9px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
+  #satfill { height:100%; width:80%; background:#7ad17a; transition:width .12s, background .12s; }
+
+  /* --- Conditionnement : grille de formats --- */
+  #packgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; width:92%; max-width:420px; pointer-events:auto; }
+  .fmt { pointer-events:auto; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16);
+    border-radius:12px; padding:8px 6px; color:#fff; text-align:center; }
+  .fmt:active { background:rgba(255,255,255,.16); }
+  .fmt:disabled { opacity:.4; }
+  .fmt .fn { font-weight:800; font-size:14px; }
+  .fmt .fp { font-size:11px; color:#9be37d; margin-top:2px; }
+
+  /* --- Boutique --- */
+  #shopbtn { position:fixed; right:14px; top:max(10px,env(safe-area-inset-top)); pointer-events:auto;
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff; font-size:18px;
+    width:44px; height:40px; border-radius:12px; }
+  #shopbtn:active { background:rgba(255,255,255,.25); }
+  #shop { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); z-index:6; }
+  #shop.show { display:flex; }
+  #shopinner { width:88%; max-width:400px; max-height:76vh; overflow:auto; background:#10271a;
+    border:1px solid rgba(255,255,255,.15); border-radius:16px; padding:16px; color:#fff; }
+  #shophead { font-weight:800; font-size:18px; margin-bottom:12px; display:flex; justify-content:space-between; }
+  #shopcash { color:#9be37d; }
+  .shopitem { display:flex; align-items:center; gap:10px; padding:10px; margin-bottom:10px;
+    border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.04); }
+  .shopitem .ic { font-size:24px; }
+  .shopitem .info { flex:1; }
+  .shopitem .nm { font-weight:700; }
+  .shopitem .ds { font-size:12px; color:rgba(255,255,255,.6); }
+  .shopitem button { background:#3a6b3a; border:none; color:#fff; font-weight:700; padding:9px 12px; border-radius:10px; min-width:64px; }
+  .shopitem button:disabled { background:rgba(255,255,255,.12); color:rgba(255,255,255,.4); }
+  #shopclose { width:100%; background:rgba(255,255,255,.12); border:none; color:#fff; font-weight:700; padding:11px; border-radius:12px; }
+</style>
+
+<!-- Three.js charge en module depuis un CDN (import map). Supporte par Safari iOS 16.4+ -->
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- HUD haut -->
+<div class="hud" id="cash">💶 0 €</div>
+<div class="hud" id="debt">🧾 dette 0 €</div>
+<div class="hud" id="repwrap"><span id="replbl">⭐ Réput. 55</span><div id="repbar"><div id="repfill"></div></div></div>
+<div class="hud" id="xpwrap"><span id="level">Niv. 1</span><div id="xpbar"><div id="xpfill"></div></div></div>
+<div class="hud" id="stepper">
+  <span class="step" data-step="reception">1·Réception</span>
+  <span class="step" data-step="buck">2·Tri</span>
+  <span class="step" data-step="stretch">3·Coupe</span>
+  <span class="step" data-step="pack">4·Pack</span>
+</div>
+<button id="shopbtn">🛒</button>
+
+<div class="hud" id="hint"></div>
+<div class="hud" id="labtag">🧪 v3 · dosage</div>
+<div id="toast"></div>
+<div id="labels"></div>
+
+<!-- Phase 1 : Réception & Inspection -->
+<div class="panel" id="recui">
+  <div class="card" id="reccard"></div>
+  <div class="gauge" id="scangauge" style="display:none"><div class="sweet" id="scansweet"></div><div class="cursor" id="scancursor"></div></div>
+  <div class="row">
+    <button class="btn" id="recAccept">✅ Accepter</button>
+    <button class="btn alt" id="recNego">🤝 Négocier</button>
+    <button class="btn alt" id="recRefuse">🚫 Refuser</button>
+  </div>
+</div>
+
+<!-- Phase 2 : Bucking & Trimming -->
+<div class="panel" id="buckui">
+  <div class="card" id="buckcard"></div>
+  <div id="bswipe" style="text-align:center;font-size:12.5px;font-weight:800;color:rgba(173,224,140,.8);padding:7px 0 3px;pointer-events:none">👆 Frotte le tas — lent = belles A · vif = trim</div>
+  <div class="row">
+    <span style="color:rgba(255,255,255,.55);font-size:12px;font-weight:700;pointer-events:none">Trim</span>
+    <button class="toggle on" data-trim="hand">🤚 Main</button>
+    <button class="toggle" data-trim="machine">⚙️ Machine</button>
+    <button class="btn" id="buckNext">Mélange ▸</button>
+  </div>
+</div>
+
+<!-- Phase 3 : Stretch / Dilution -->
+<div class="panel" id="stretchui">
+  <div class="card" id="stretchcard"></div>
+  <div id="strack"><div id="strail"></div><div id="sknob"></div></div>
+  <div id="satwrap"><div id="satfill"></div></div>
+  <div class="row">
+    <button class="btn" id="stretchMix">⚗️ Mélanger</button>
+    <button class="btn alt" id="stretchSkip">Passer (pur) ▸</button>
+  </div>
+</div>
+
+<!-- Phase 4 : Conditionnement multi-formats -->
+<div class="panel" id="packui">
+  <div class="card" id="packcard"></div>
+  <div class="gauge" id="sealgauge" style="display:none"><div class="sweet" id="sealsweet"></div><div class="cursor" id="sealcursor"></div></div>
+  <div id="packgrid"></div>
+  <div class="row">
+    <button class="toggle" id="optHumid" title="Humidity pack">💧 Humidité</button>
+    <button class="toggle" id="optLabel" title="Fausse étiquette (risque)">🏷️ Étiq. fake</button>
+    <button class="btn" id="packNew">Nouveau front ▸</button>
+  </div>
+</div>
+
+<!-- Boutique -->
+<div id="shop">
+  <div id="shopinner">
+    <div id="shophead"><span>🛒 Boutique</span><span id="shopcash"></span></div>
+    <div id="shopitems"></div>
+    <button id="shopclose">Fermer</button>
+  </div>
+</div>
+
+<script type="module">
+"use strict";
+import * as THREE from "three";
+
+/* =========================================================================
+   GREEN FRONT — core loop de transfo/distrib de fleur (proto mobile 3D)
+   -------------------------------------------------------------------------
+   On recoit un FRONT (lot a credit), on l'inspecte, on BUCK + TRIM la fleur
+   en A / B / Smalls, on la COUPE (stretch : on gonfle le poids au trim au
+   risque de la reputation), puis on CONDITIONNE en formats 1 g -> 1 lb.
+     1) Reception & inspection : pesee + scan qualite -> accepter/negocier/refuser.
+     2) Bucking & trimming     : on FROTTE le tas (drag) ; vitesse du geste = qualite
+                                 (lent -> A, vif -> trim). Main (qualite) vs machine (volume).
+     3) Stretch / dilution     : curseur de coupe, plus on stretch plus on gagne
+                                 de poids vendable mais plus la reput baisse.
+     4) Conditionnement        : formats retail/gros, scellage, humidite, etiq fake.
+   Economie : le front est a CREDIT -> il alimente une DETTE que les ventes
+   remboursent en premier. Reputation = multiplicateur de prix de vente.
+   Persistance localStorage prefixe "gf3_" (distinct de barrettes-shit "hash_").
+   Tout est commente en francais, brique par brique.
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   0) ECONOMIE (constantes de jeu)
+   ------------------------------------------------------------------------- */
+// Fronts disponibles (matiere premiere a credit). €/g de gros baisse avec le volume.
+const FRONTS = {
+  half:  { g: 224,  name: "Demi-livre (224 g)", wholesale: 3.4 },
+  pound: { g: 448,  name: "Livre (448 g)",      wholesale: 3.0 },
+  brick: { g: 1000, name: "Brique (1 kg)",      wholesale: 2.5 },
+};
+
+// Formats de conditionnement : petite quantite = €/g plus eleve (retail),
+// gros volume = €/g plus bas mais ecoule vite.
+const FORMATS = [
+  { id: "g1",  g: 1,   eur: 12,  name: "1 g",   emoji: "🛍️" },
+  { id: "g35", g: 3.5, eur: 10,  name: "3.5 g", emoji: "🛍️" },
+  { id: "g7",  g: 7,   eur: 9,   name: "7 g",   emoji: "🛍️" },
+  { id: "oz",  g: 28,  eur: 7,   name: "28 g",  emoji: "🫙" },
+  { id: "hp",  g: 224, eur: 5.2, name: "½ lb",  emoji: "📦" },
+  { id: "lb",  g: 448, eur: 4.6, name: "1 lb",  emoji: "📦" },
+];
+
+const TRIM_THC_FACTOR = 0.32;   // le trim/stems titre ~1/3 de la fleur -> dilue le %THC
+const SCHLAG_RATE      = 2.4;    // (reserve) revente bas de gamme
+
+/* -------------------------------------------------------------------------
+   1) SCENE, CAMERA, RENDU
+   ------------------------------------------------------------------------- */
+const app = document.getElementById("app");
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setClearColor(0x000000, 0);            // fond transparent -> degrade CSS visible
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
+// Cadrage auto : la scene (plan de travail + bacs) rentre toujours a l'ecran.
+const VIEW_DIR    = new THREE.Vector3(0.02, 0.62, 0.78).normalize();  // 3/4 plongeant
+const VIEW_TARGET = new THREE.Vector3(0, 0.15, 0.15);
+const VIEW_RADIUS = Math.hypot(3.1, 0.9, 2.7);
+const baseCamPos  = new THREE.Vector3();
+let zoom = +(localStorage.getItem("gf3_zoom")) || 1;
+zoom = Math.max(0.6, Math.min(2.4, zoom));
+
+function fitView() {
+  const vFov = camera.fov * Math.PI / 180;
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  const fov = Math.min(vFov, hFov);
+  const dist = (VIEW_RADIUS / Math.sin(fov / 2)) * 1.05 / zoom;
+  baseCamPos.copy(VIEW_TARGET).addScaledVector(VIEW_DIR, dist);
+  camera.position.copy(baseCamPos);
+  camera.lookAt(VIEW_TARGET);
+}
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  fitView();
+}
+window.addEventListener("resize", resize);
+
+/* -------------------------------------------------------------------------
+   2) LUMIERES
+   ------------------------------------------------------------------------- */
+scene.add(new THREE.HemisphereLight(0xeafff0, 0x16281a, 0.6));
+const sun = new THREE.DirectionalLight(0xffffe8, 1.4);
+sun.position.set(5, 11, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.bias = -0.0004;
+const sc = sun.shadow.camera;
+sc.left = -7; sc.right = 7; sc.top = 7; sc.bottom = -7; sc.near = 1; sc.far = 28;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xbce0ff, 0.32);
+fill.position.set(-4, 3, 6);
+scene.add(fill);
+
+/* -------------------------------------------------------------------------
+   3) TEXTURES PROCEDURALES (grain) — aucun fichier externe
+   ------------------------------------------------------------------------- */
+function grainTex(r, g, b, contrast, spots) {
+  const c = document.createElement("canvas"); c.width = c.height = 96;
+  const x = c.getContext("2d");
+  const img = x.createImageData(96, 96);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * contrast;
+    img.data[i]   = Math.max(0, Math.min(255, r + n));
+    img.data[i+1] = Math.max(0, Math.min(255, g + n));
+    img.data[i+2] = Math.max(0, Math.min(255, b + n));
+    img.data[i+3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  for (let k = 0; k < spots; k++) {
+    x.fillStyle = "rgba(60,30,70," + (Math.random() * 0.2) + ")";       // petits pistils
+    x.fillRect(Math.random() * 96, Math.random() * 96, Math.random() * 2 + 1, Math.random() * 2 + 1);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 2);
+  return t;
+}
+const matBudA  = new THREE.MeshStandardMaterial({ map: grainTex(86, 150, 66, 46, 120), roughness: 0.85 }); // A : vert vif
+const matBudB  = new THREE.MeshStandardMaterial({ map: grainTex(104, 132, 70, 40, 80),  roughness: 0.9 });  // B : olive
+const matTrim  = new THREE.MeshStandardMaterial({ map: grainTex(120, 120, 74, 34, 40),  roughness: 0.96 }); // trim/smalls
+const matBrick = new THREE.MeshStandardMaterial({ map: grainTex(58, 78, 44, 30, 60),    roughness: 0.7, metalness: 0.1 });
+const matBlend = new THREE.MeshStandardMaterial({ map: grainTex(94, 146, 70, 44, 100),  roughness: 0.87 });
+
+/* -------------------------------------------------------------------------
+   4) PLAN DE TRAVAIL
+   ------------------------------------------------------------------------- */
+const board = new THREE.Mesh(
+  new THREE.BoxGeometry(7.8, 0.3, 6.2),
+  new THREE.MeshStandardMaterial({ color: 0x6f7378, roughness: 0.55, metalness: 0.3 })
+);
+board.position.set(0, -0.15, 0.2);
+board.receiveShadow = true;
+scene.add(board);
+
+/* -------------------------------------------------------------------------
+   5) NUGS (tetes) : icosaedres deformes + materiau passe en parametre
+   ------------------------------------------------------------------------- */
+function makeNugGeo(r) {
+  const g = new THREE.IcosahedronGeometry(r, 1);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const f = 0.74 + Math.random() * 0.5;     // bosselage : chaque sommet pousse/recule
+    p.setXYZ(i, p.getX(i) * f, p.getY(i) * f, p.getZ(i) * f);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+const nugGeoBig = makeNugGeo(0.16);
+const nugGeoSm  = makeNugGeo(0.1);
+function makeNug(mat, small) {
+  const m = new THREE.Mesh(small ? nugGeoSm : nugGeoBig, mat);
+  m.castShadow = true;
+  m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+  return m;
+}
+
+/* -------------------------------------------------------------------------
+   6) BACS DE TRI (A / B / Smalls) au fond + leurs piles de nugs
+   ------------------------------------------------------------------------- */
+function makeBin(pos, col) {
+  const grp = new THREE.Group(); grp.position.copy(pos);
+  const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, metalness: 0.1, side: THREE.DoubleSide });
+  const w = 1.5, d = 1.2, h = 0.4, th = 0.07;
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(w, th, d), mat);
+  floor.position.y = th / 2; floor.receiveShadow = true; grp.add(floor);
+  const wLR = (x) => { const m = new THREE.Mesh(new THREE.BoxGeometry(th, h, d), mat); m.position.set(x, h / 2, 0); grp.add(m); };
+  const wFB = (z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, th), mat); m.position.set(0, h / 2, z); grp.add(m); };
+  wLR(-w / 2); wLR(w / 2); wFB(-d / 2); wFB(d / 2);
+  scene.add(grp);
+  // Pile de nugs (visibilite pilotee par le poids).
+  const pile = new THREE.Group(); grp.add(pile);
+  const PMAX = 16;
+  const mat2 = col === 0x2f5a31 ? matBudA : col === 0x4a5232 ? matBudB : matTrim;
+  for (let i = 0; i < PMAX; i++) {
+    const m = makeNug(mat2, false);
+    const layer = Math.floor(i / 8), idx = i % 8, cx = idx % 4, rz = Math.floor(idx / 4);
+    m.position.set(-0.5 + cx * 0.33, 0.16 + layer * 0.16, -0.26 + rz * 0.52);
+    m.visible = false; pile.add(m);
+  }
+  grp.userData.pile = pile; grp.userData.PMAX = PMAX;
+  return grp;
+}
+const BIN_A = new THREE.Vector3(-2.25, 0, -1.55);
+const BIN_B = new THREE.Vector3(0,     0, -2.0);
+const BIN_S = new THREE.Vector3(2.25,  0, -1.55);
+const binA = makeBin(BIN_A, 0x2f5a31);
+const binB = makeBin(BIN_B, 0x4a5232);
+const binS = makeBin(BIN_S, 0x55504a);
+
+function refreshPile(bin, grams, perNug) {
+  const pile = bin.userData.pile, PMAX = bin.userData.PMAX;
+  const n = Math.max(0, Math.min(PMAX, Math.round(grams / perNug)));
+  for (let i = 0; i < PMAX; i++) pile.children[i].visible = i < n;
+}
+
+/* -------------------------------------------------------------------------
+   7) ZONE DE TRAVAIL CENTRALE (contenu selon la phase)
+   ------------------------------------------------------------------------- */
+// 7a) La BRIQUE/front qui arrive (reception) : bloc presse + film mylar.
+const brick = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.7, 1.0), matBrick);
+brick.castShadow = true; brick.receiveShadow = true;
+const mylar = new THREE.Mesh(
+  new THREE.BoxGeometry(1.56, 0.76, 1.06),
+  new THREE.MeshStandardMaterial({ color: 0xcfe8d6, transparent: true, opacity: 0.22, roughness: 0.1, metalness: 0.5, side: THREE.DoubleSide })
+);
+brick.add(mylar);
+scene.add(brick);
+
+// 7b) Le TAS de fleur a trier (bucking) : nugs dont le nombre suit le brut restant.
+const rawPileGrp = new THREE.Group();
+rawPileGrp.position.set(0, 0, 0.1);
+scene.add(rawPileGrp);
+const RAW_MAX = 22;
+for (let i = 0; i < RAW_MAX; i++) {
+  const m = makeNug(i % 4 === 0 ? matBudB : matBudA, false);
+  const a = (i / RAW_MAX) * Math.PI * 2, r = 0.15 + (i % 5) * 0.13;
+  m.position.set(Math.cos(a) * r, 0.16 + (i % 3) * 0.12, Math.sin(a) * r * 0.7);
+  rawPileGrp.add(m);
+}
+function refreshRawPile(grams, total) {
+  const n = total > 0 ? Math.max(0, Math.min(RAW_MAX, Math.round((grams / total) * RAW_MAX))) : 0;
+  for (let i = 0; i < RAW_MAX; i++) rawPileGrp.children[i].visible = i < n;
+}
+
+// 7c) Le BOL de mélange (stretch).
+const bowl = new THREE.Group();
+const bowlMat = new THREE.MeshStandardMaterial({ color: 0x9aa1a8, metalness: 0.5, roughness: 0.35, side: THREE.DoubleSide });
+const bowlWall = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 0.78, 0.5, 28, 1, true), bowlMat);
+bowlWall.position.y = 0.27;
+const bowlBottom = new THREE.Mesh(new THREE.CircleGeometry(0.78, 28), bowlMat);
+bowlBottom.rotation.x = -Math.PI / 2; bowlBottom.position.y = 0.04;
+bowl.add(bowlWall); bowl.add(bowlBottom);
+bowl.position.set(0, 0, 0.1);
+bowl.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+const bowlFill = new THREE.Group(); bowl.add(bowlFill);  // nugs dans le bol
+for (let i = 0; i < 12; i++) {
+  const m = makeNug(i % 3 === 0 ? matTrim : matBlend, true);
+  const a = Math.random() * 6.28, r = Math.random() * 0.6;
+  m.position.set(Math.cos(a) * r, 0.12 + Math.random() * 0.06, Math.sin(a) * r);
+  bowlFill.add(m);
+}
+scene.add(bowl);
+
+// 7d) Le BOCAL de blend (pack) + le tapis de conditionnement + pile de pochons.
+const jar = new THREE.Group();
+const glass = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.5, 0.5, 0.9, 24, 1, true),
+  new THREE.MeshStandardMaterial({ color: 0xdfeef0, transparent: true, opacity: 0.2, roughness: 0.05, metalness: 0.3, side: THREE.DoubleSide })
+);
+glass.position.y = 0.5;
+const jarFill = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.46, 0.46, 0.8, 24),
+  matBlend
+);
+jarFill.position.y = 0.45;
+const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.54, 0.54, 0.12, 24),
+  new THREE.MeshStandardMaterial({ color: 0xb8a14a, metalness: 0.6, roughness: 0.4 }));
+lid.position.y = 1.0;
+jar.add(glass); jar.add(jarFill); jar.add(lid);
+jar.position.set(-1.7, 0, 1.7);
+jar.traverse(o => { if (o.isMesh) o.castShadow = true; });
+scene.add(jar);
+jar.userData.fill = jarFill;
+
+const packMat = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.05, 1.6),
+  new THREE.MeshStandardMaterial({ color: 0x223524, roughness: 0.8 }));
+packMat.position.set(0.55, 0.03, 1.75);
+packMat.receiveShadow = true;
+scene.add(packMat);
+const packPile = new THREE.Group(); packMat.add(packPile);   // pochons scellés empilés
+const bagGeo = new THREE.BoxGeometry(0.34, 0.06, 0.26);
+const bagMat = new THREE.MeshStandardMaterial({ color: 0x2b2b30, transparent: true, opacity: 0.85, roughness: 0.4, metalness: 0.2 });
+for (let i = 0; i < 18; i++) {
+  const m = new THREE.Mesh(bagGeo, bagMat);
+  const layer = Math.floor(i / 6), idx = i % 6;
+  m.position.set(-0.85 + idx * 0.34, 0.06 + layer * 0.07, -0.3 + (i % 2) * 0.32);
+  m.rotation.y = (Math.random() - 0.5) * 0.4;
+  m.castShadow = true; m.visible = false; packPile.add(m);
+}
+let packShown = 0;
+function showPack() { if (packShown < packPile.children.length) packPile.children[packShown++].visible = true; }
+function clearPacks() { packShown = 0; for (const c of packPile.children) c.visible = false; }
+
+/* -------------------------------------------------------------------------
+   8) MIETTES / SECOUSSE / AUDIO (juice synthetise, zero fichier)
+   ------------------------------------------------------------------------- */
+let shake = 0;
+function addShake(a) { shake = Math.min(0.6, shake + a); }
+
+let actx = null;
+function ensureAudio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (actx && actx.state === "suspended") actx.resume();
+  return actx;
+}
+function beep(freq, t0, dur, vol, type) {
+  const ac = ensureAudio(); if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || "square"; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t0); o.stop(t0 + dur);
+}
+function noiseBurst(dur, f0, f1, vol, type, q) {
+  const ac = ensureAudio(); if (!ac) return;
+  const t = ac.currentTime, len = Math.max(1, Math.floor(ac.sampleRate * dur));
+  const buf = ac.createBuffer(1, len, ac.sampleRate), ch = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.5);
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const filt = ac.createBiquadFilter(); filt.type = type || "bandpass"; filt.Q.value = q || 0.8;
+  filt.frequency.setValueAtTime(f0, t);
+  filt.frequency.exponentialRampToValueAtTime(Math.max(60, f1), t + dur);
+  const g = ac.createGain(); g.gain.value = vol;
+  src.connect(filt); filt.connect(g); g.connect(ac.destination);
+  src.start(t); src.stop(t + dur);
+}
+function playSnip() { noiseBurst(0.08, 3200, 900, 0.22, "bandpass", 1.1); }       // ciseaux de trim
+function playSeal() { noiseBurst(0.22, 600, 1700, 0.22, "lowpass", 0.6); }         // scelleuse
+function playSale() { const ac = ensureAudio(); if (!ac) return; const t = ac.currentTime; beep(880, t, 0.12, 0.22); beep(1320, t + 0.08, 0.16, 0.2); }
+function playThud() { noiseBurst(0.18, 240, 70, 0.3, "lowpass", 0.7); }            // chute du front
+function playPour() { noiseBurst(0.09, 520, 360, 0.10, "lowpass", 0.5); }           // versement du trim
+
+// Nugs qui volent vers un bac (feedback du tri).
+const flyers = [];
+const _fv = new THREE.Vector3();
+function flyNug(mat, fromY, target) {
+  const m = makeNug(mat, true);
+  m.position.set((Math.random() - 0.5) * 0.6, fromY, 0.1 + (Math.random() - 0.5) * 0.4);
+  scene.add(m);
+  flyers.push({ mesh: m, target: target.clone().setY(0.35), t: 0 });
+  while (flyers.length > 40) { const f = flyers.shift(); scene.remove(f.mesh); }
+}
+function updateFlyers(dt) {
+  for (let i = flyers.length - 1; i >= 0; i--) {
+    const f = flyers[i];
+    f.t += dt; f.mesh.rotation.x += dt * 8; f.mesh.rotation.y += dt * 6;
+    f.mesh.position.lerp(f.target, Math.min(1, dt * 6));
+    if (f.mesh.position.distanceTo(f.target) < 0.12 || f.t > 1.2) {
+      scene.remove(f.mesh); flyers.splice(i, 1);
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------
+   9) ETAT DE PARTIE + PERSISTANCE (prefixe "gf3_")
+   ------------------------------------------------------------------------- */
+const SAVE_VERSION = "1";
+if (localStorage.getItem("gf3_ver") !== SAVE_VERSION) {
+  ["gf3_cash","gf3_debt","gf3_rep","gf3_level","gf3_xp","gf3_shop","gf3_stocks","gf3_blend","gf3_trim"].forEach(k => localStorage.removeItem(k));
+  localStorage.setItem("gf3_ver", SAVE_VERSION);
+}
+
+let cash  = +(localStorage.getItem("gf3_cash")  || 0);
+let debt  = +(localStorage.getItem("gf3_debt")  || 0);
+let rep   = +(localStorage.getItem("gf3_rep")   || 55);   // reputation 0..100
+let level = Math.max(1, +(localStorage.getItem("gf3_level") || 1));
+let xp    = Math.max(0, +(localStorage.getItem("gf3_xp")    || 0));
+let trimMode = localStorage.getItem("gf3_trim") || "hand";
+
+// Stocks (g + somme ponderee de THC pour suivre le %THC moyen par bac).
+const defStock = { A: { g: 0, ts: 0 }, B: { g: 0, ts: 0 }, S: { g: 0, ts: 0 } };
+let stocks = Object.assign(defStock, JSON.parse(localStorage.getItem("gf3_stocks") || "null") || {});
+let blend  = JSON.parse(localStorage.getItem("gf3_blend") || "null") || { g: 0, ts: 0 };
+
+const owned = JSON.parse(localStorage.getItem("gf3_shop") || "{}");
+owned.brick   = owned.brick   || 0;   // debloque les fronts "brique"
+owned.hands   = owned.hands   || 0;   // dexterite hand-trim (rendement A)
+owned.machine = owned.machine || 0;   // trimmeuse pro (moins de perte machine)
+owned.humid   = owned.humid   || 0;   // packs humidite debloques
+owned.sealer  = owned.sealer  || 0;   // scelleuse (zone verte de scellage)
+owned.network = owned.network || 0;   // reseau de revendeurs (prix retail)
+owned.autobuck= owned.autobuck|| 0;   // auto-bucker (tri passif)
+
+let phase = "reception";              // reception | buck | stretch | pack
+let offer = null;                     // front propose en cours
+let lot   = null;                     // lot accepte en cours de tri { raw, total, thc, hum, trim }
+let opts  = { humid: false, label: false };  // options de conditionnement
+
+function saveStocks() { localStorage.setItem("gf3_stocks", JSON.stringify(stocks)); }
+function saveBlend()  { localStorage.setItem("gf3_blend",  JSON.stringify(blend)); }
+function saveShop()   { localStorage.setItem("gf3_shop",   JSON.stringify(owned)); }
+
+/* -------------------------------------------------------------------------
+   10) UI : references + setters HUD
+   ------------------------------------------------------------------------- */
+const ui = {};
+["cash","debt","replbl","repfill","level","xpfill","hint","toast",
+ "recui","reccard","scangauge","scansweet","scancursor","recAccept","recNego","recRefuse",
+ "buckui","buckcard","bswipe","buckNext",
+ "stretchui","stretchcard","strack","strail","sknob","satfill","stretchMix","stretchSkip",
+ "packui","packcard","sealgauge","sealsweet","sealcursor","packgrid","optHumid","optLabel","packNew",
+ "shop","shopitems","shopcash"].forEach(id => ui[id] = document.getElementById(id));
+
+function levelMult() { return 1 + (level - 1) * 0.04; }
+function repMult()   { return (0.8 + rep / 100 * 0.5) + owned.network * 0.04; } // prix retail selon reput + reseau
+
+function setCash(v) {
+  cash = Math.max(0, Math.round(v));
+  localStorage.setItem("gf3_cash", String(cash));
+  ui.cash.textContent = "💶 " + cash + " €";
+  if (ui.shop.classList.contains("show")) renderShop();
+}
+function setDebt(v) {
+  debt = Math.max(0, Math.round(v));
+  localStorage.setItem("gf3_debt", String(debt));
+  ui.debt.textContent = debt > 0 ? "🧾 dette " + debt + " €" : "🧾 à jour";
+  ui.debt.style.color = debt > 0 ? "#ff9f6b" : "#9be37d";
+}
+function setRep(v) {
+  const was = rep;
+  rep = Math.max(0, Math.min(100, v));
+  localStorage.setItem("gf3_rep", String(Math.round(rep)));
+  ui.replbl.textContent = "⭐ Réput. " + Math.round(rep);
+  ui.repfill.style.width = rep + "%";
+  if (Math.round(rep) !== Math.round(was)) {
+    const d = rep - was;
+    if (Math.abs(d) >= 1) showToast((d > 0 ? "+" : "") + Math.round(d) + " réput.", d > 0 ? "#bdf0a3" : "#ff9f6b");
+  }
+}
+// Le revenu rembourse d'abord la DETTE, le surplus tombe en cash.
+function applyRevenue(rev) {
+  rev = Math.max(0, rev);
+  if (debt > 0) {
+    const pay = Math.min(debt, rev);
+    const before = debt;
+    setDebt(debt - pay); rev -= pay;
+    if (before > 0 && debt === 0) setRep(rep + 2);   // front rembourse -> confiance du fournisseur
+  }
+  if (rev > 0) setCash(cash + rev);
+}
+
+// XP / niveaux.
+function xpNeed(lvl) { return Math.round(90 * Math.pow(1.3, lvl - 1)); }
+function updateXpUI() {
+  ui.level.textContent = "Niv. " + level + " · +" + Math.round((levelMult() - 1) * 100) + "%";
+  ui.xpfill.style.width = Math.min(100, (xp / xpNeed(level)) * 100) + "%";
+}
+function addXP(n) {
+  xp += n; let leveled = false;
+  while (xp >= xpNeed(level)) { xp -= xpNeed(level); level++; leveled = true; }
+  if (leveled) {
+    showToast("Niveau " + level + " ! +" + Math.round((levelMult() - 1) * 100) + "% revenus", "#bdf0a3");
+    addShake(0.16);
+    const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(990, t + 0.08, 0.14, 0.22); }
+  }
+  localStorage.setItem("gf3_level", String(level));
+  localStorage.setItem("gf3_xp", String(Math.round(xp)));
+  updateXpUI();
+}
+
+let toastTimer = 0;
+function showToast(msg, color) {
+  ui.toast.textContent = msg;
+  ui.toast.style.color = color || "#fff";
+  ui.toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => ui.toast.classList.remove("show"), 950);
+}
+function setHint(t) { ui.hint.textContent = t; ui.hint.style.opacity = t ? "1" : "0"; }
+
+// Etiquettes 3D projetees pour les bacs.
+const labelsEl = document.getElementById("labels");
+function makeLabel(text, color) {
+  const d = document.createElement("div"); d.className = "blabel";
+  d.textContent = text; d.style.color = color; labelsEl.appendChild(d); return d;
+}
+const labA = makeLabel("A 0 g", "#9be37d");
+const labB = makeLabel("B 0 g", "#d9e6a0");
+const labS = makeLabel("Trim 0 g", "#caa15f");
+const _lv = new THREE.Vector3();
+function placeLabel(div, pos, y) {
+  _lv.set(pos.x, y, pos.z).project(camera);
+  if (_lv.z > 1) { div.style.display = "none"; return; }
+  div.style.display = "block";
+  div.style.left = ((_lv.x * 0.5 + 0.5) * window.innerWidth) + "px";
+  div.style.top  = ((-_lv.y * 0.5 + 0.5) * window.innerHeight) + "px";
+}
+function thcOf(b) { return b.g > 0.01 ? b.ts / b.g : 0; }
+function updateStockUI() {
+  labA.textContent = "A " + Math.round(stocks.A.g) + " g";
+  labB.textContent = "B " + Math.round(stocks.B.g) + " g";
+  labS.textContent = "Trim " + Math.round(stocks.S.g) + " g";
+  refreshPile(binA, stocks.A.g, 26);
+  refreshPile(binB, stocks.B.g, 26);
+  refreshPile(binS, stocks.S.g, 26);
+}
+
+/* -------------------------------------------------------------------------
+   11) STEPPER + bascule de phase (montre la bonne station + overlay)
+   ------------------------------------------------------------------------- */
+const ORDER = ["reception", "buck", "stretch", "pack"];
+function updateStepper() {
+  const idx = ORDER.indexOf(phase);
+  document.querySelectorAll(".step").forEach(s => {
+    const i = ORDER.indexOf(s.dataset.step);
+    s.classList.toggle("on", s.dataset.step === phase);
+    s.classList.toggle("done", i < idx);
+  });
+}
+function setPhase(p) {
+  phase = p;
+  ui.recui.classList.toggle("show", p === "reception");
+  ui.buckui.classList.toggle("show", p === "buck");
+  ui.stretchui.classList.toggle("show", p === "stretch");
+  ui.packui.classList.toggle("show", p === "pack");
+  brick.visible      = (p === "reception");
+  rawPileGrp.visible = (p === "buck");
+  bowl.visible       = (p === "stretch");
+  jar.visible        = (p === "pack");
+  packMat.visible    = (p === "pack");
+  updateStepper();
+}
+
+/* -------------------------------------------------------------------------
+   12) PHASE 1 — RECEPTION & INSPECTION
+   ------------------------------------------------------------------------- */
+let brickDrop = 0;                 // animation de chute du front (0 = au sol)
+const scanState = { val: 0 };      // 0..1 : avancement du scan
+const nego = { active: false, cursor: 0, dir: 1, done: false };
+
+function maxDebt() { return 900 + rep * 26 + level * 220; }
+
+function newOffer() {
+  const sizes = ["half"];
+  if (level >= 2) sizes.push("pound");
+  if (owned.brick) sizes.push("pound", "brick");
+  const key = sizes[Math.floor(Math.random() * sizes.length)];
+  const f = FRONTS[key];
+  offer = {
+    key, g: f.g,
+    wholesale: +(f.wholesale * (1 - rep / 500)).toFixed(2),  // meilleure reput -> un poil moins cher
+    thc: +(12 + Math.random() * 14).toFixed(1),               // 12..26 %
+    hum: +(8 + Math.random() * 10).toFixed(1),                // 8..18 % humidite
+    trim: +(0.12 + Math.random() * 0.22).toFixed(2),          // 12..34 % de trim/stems
+    mult: 1,                                                   // multiplicateur de prix (negoce)
+  };
+  scanState.val = 0; nego.active = false; nego.done = false;
+  brickDrop = 1;                    // declenche la chute
+  refreshRecCard();
+}
+function offerCost() { return Math.round(offer.g * offer.wholesale * offer.mult); }
+
+function gradeWord(thc) { return thc >= 21 ? "top" : thc >= 16 ? "correct" : "moyen"; }
+function refreshRecCard() {
+  const s = scanState.val;
+  const q = (label, val, at) => s >= at ? "<b>" + val + "</b>" : '<span class="q">??</span>';
+  ui.reccard.innerHTML =
+    "📦 Front : <b>" + FRONTS[offer.key].name + "</b> — credit <b>" + offerCost() + " €</b> (" + offer.wholesale + " €/g)<br>" +
+    "THC " + q("thc", offer.thc + " %", 0.34) + " · Humidité " + q("hum", offer.hum + " %", 0.67) +
+    " · Trim " + q("trim", Math.round(offer.trim * 100) + " %", 1.0) +
+    (s >= 1 ? "<br>Lot <b>" + gradeWord(offer.thc) + "</b>" + (offer.hum > 14 ? " · <span class=\"q\">humide</span>" : "") : "");
+}
+function gotoReception() {
+  setPhase("reception");
+  newOffer();
+  ui.scangauge.style.display = "none";
+  setHint("Tape le front pour le scanner (pesée + qualité), puis décide.");
+}
+function doScan() {
+  if (scanState.val >= 1) return;
+  scanState.val = Math.min(1, scanState.val + 0.34);
+  const ac = ensureAudio(); if (ac) beep(900 + scanState.val * 500, ac.currentTime, 0.05, 0.12, "sine");
+  addShake(0.04);
+  refreshRecCard();
+  if (scanState.val >= 1) setHint("Lot révélé. Accepte, négocie le prix, ou refuse.");
+}
+function acceptFront() {
+  if (debt + offerCost() > maxDebt()) {
+    showToast("Fournisseur méfiant : paie ta dette", "#ff6b6b");
+    return;
+  }
+  setDebt(debt + offerCost());                 // le front est a CREDIT -> dette
+  lot = { raw: offer.g, total: offer.g, thc: offer.thc, hum: offer.hum, trim: offer.trim };
+  showToast("Front pris à crédit", "#bdf0a3");
+  const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(520, t, 0.1, 0.2); beep(760, t + 0.07, 0.12, 0.2); }
+  gotoBuck();
+}
+function startNego() {
+  if (nego.done) { showToast("Déjà négocié", "#caa15f"); return; }
+  nego.active = true; nego.cursor = 0; nego.dir = 1;
+  ui.scangauge.style.display = "block";
+  ui.scansweet.style.left = "38%"; ui.scansweet.style.width = "24%";
+  setHint("Tape le front dans le vert pour arracher une remise.");
+}
+function resolveNego() {
+  nego.active = false; nego.done = true;
+  ui.scangauge.style.display = "none";
+  const err = Math.abs(nego.cursor - 0.5);
+  const ac = ensureAudio();
+  if (err <= 0.07) {
+    offer.mult = 0.82; showToast("Remise −18 % 🤝", "#9be37d");
+    if (ac) beep(880, ac.currentTime, 0.1, 0.2);
+  } else if (err <= 0.16) {
+    offer.mult = 0.93; showToast("Remise −7 %", "#d9e6a0");
+    if (ac) beep(620, ac.currentTime, 0.1, 0.18);
+  } else {
+    offer.mult = 1.05; setRep(rep - 2); showToast("Vexé : +5 % 😤", "#ff6b6b");
+    if (ac) beep(160, ac.currentTime, 0.12, 0.2);
+  }
+  refreshRecCard();
+  setHint("Accepte ou refuse ce front.");
+}
+function refuseFront() {
+  setRep(rep - 1);
+  showToast("Front refusé", "#caa15f");
+  newOffer();
+}
+
+/* -------------------------------------------------------------------------
+   13) PHASE 2 — BUCKING & TRIMMING
+   ------------------------------------------------------------------------- */
+// Bucking au DRAG : on frotte le tas pour effeuiller. La VITESSE du geste fait
+// la qualite (lent = belles A, vif = trim). On accumule la distance glissee ;
+// chaque BUCK_STRIDE px detache une poignee. Le tap simple = une poignee propre.
+const buck = { dragging: false, lastX: 0, lastY: 0, lastT: 0, acc: 0, speed: 0, flash: 0, cd: 0 };
+const BUCK_STRIDE = 30;   // px de glisse par poignee detachee
+function gotoBuck() {
+  setPhase("buck");
+  buck.dragging = false; buck.acc = 0; buck.flash = 0; buck.cd = 0;
+  refreshRawPile(lot.raw, lot.total);
+  refreshBuckCard();
+  setTrim(trimMode);
+  setHint("Frotte le tas pour effeuiller : geste lent = belles A, geste vif = volume (trim). 🤚 qualité · ⚙️ vitesse.");
+}
+function refreshBuckCard() {
+  ui.buckcard.innerHTML =
+    "🌿 Brut restant : <b>" + Math.round(lot.raw) + " g</b> / " + lot.total + " g<br>" +
+    "Stock — A <b>" + Math.round(stocks.A.g) + "</b> · B <b>" + Math.round(stocks.B.g) +
+    "</b> · Trim <b>" + Math.round(stocks.S.g) + "</b> g";
+}
+function setTrim(m) {
+  trimMode = m; localStorage.setItem("gf3_trim", m);
+  document.querySelectorAll(".toggle[data-trim]").forEach(b => b.classList.toggle("on", b.dataset.trim === m));
+}
+// Une poignee effeuillee : repartit le brut en A / B / Smalls selon methode,
+// qualite du lot et VIVACITE du geste (speed en px/ms : lent -> A, vif -> trim).
+// Appelee en rafale pendant le drag (une par BUCK_STRIDE). Ne touche pas l'UI :
+// buckCommitUI() regroupe save + rendu une fois par geste (perf).
+function buckStrip(speed) {
+  if (phase !== "buck" || lot.raw <= 0) return false;
+  const machine = trimMode === "machine";
+  const batch = Math.min(lot.raw, machine ? 20 : 12);
+  const clean = Math.max(0, Math.min(1, 1 - (speed - 0.15) / 0.9));  // 1 = geste lent et net
+
+  // Repartition de base par methode, modulee par geste + qualite du lot.
+  let aShare = (machine ? 0.34 + owned.machine * 0.02 : 0.50 + owned.hands * 0.035);
+  aShare += clean * 0.16;                              // geste propre -> plus de A
+  aShare -= lot.trim * 0.25;                           // lot plein de stems -> moins de A
+  if (lot.hum > 14) aShare -= 0.05;                   // humide -> trim collant
+  aShare = Math.max(0.12, Math.min(0.72, aShare));
+  let sShare = (machine ? 0.30 - owned.machine * 0.03 : 0.16) + lot.trim * 0.5 + (1 - clean) * 0.1;
+  sShare = Math.max(0.08, Math.min(0.6, sShare));
+  let bShare = Math.max(0.05, 1 - aShare - sShare);
+
+  const gA = batch * aShare, gB = batch * bShare, gS = batch * sShare;
+  stocks.A.g += gA; stocks.A.ts += gA * (lot.thc * 1.06);
+  stocks.B.g += gB; stocks.B.ts += gB * (lot.thc * 0.9);
+  stocks.S.g += gS; stocks.S.ts += gS * (lot.thc * TRIM_THC_FACTOR);
+  lot.raw -= batch;
+
+  // Juice : nugs qui filent vers chaque bac + ciseaux (allege pour le drag).
+  flyNug(matBudA, 0.5, BIN_A);
+  if (Math.random() < 0.6) flyNug(matBudB, 0.5, BIN_B);
+  if (sShare > 0.18 && Math.random() < 0.7) flyNug(matTrim, 0.45, BIN_S);
+  buck.flash = 0.16;
+  if (Math.random() < 0.4) addShake(0.06);
+  playSnip();
+  return true;
+}
+// Regroupe sauvegarde + rendu apres une rafale de strips (un seul write/DOM).
+function buckCommitUI() {
+  saveStocks();
+  updateStockUI();
+  if (phase === "buck") { refreshRawPile(lot.raw, lot.total); refreshBuckCard(); }
+  if (lot && lot.raw <= 0.5 && !lot._done) {
+    lot._done = true; lot.raw = 0;
+    refreshRawPile(0, lot.total);
+    setHint("Lot trié ! Passe au mélange ▸");
+    showToast("Lot trié 🌿", "#9be37d");
+  }
+}
+
+/* -------------------------------------------------------------------------
+   14) PHASE 3 — STRETCH / DILUTION
+   ------------------------------------------------------------------------- */
+// Coupe au DOSAGE : on verse le trim au doigt (maintenir = verser, lâcher = stop
+// avec inertie). La quantité versée `pour.g` dérive le ratio de coupe `stretch`.
+let stretch = 0;                    // ratio de coupe effectif 0..0.5 (derive du versement)
+const STRETCH_MAX = 0.5;
+const pour = { active: false, holdT: 0, rate: 0, trickle: 0, g: 0, sndCd: 0, maxG: 0 };
+function stretchFlowerG() { return stocks.A.g + stocks.B.g; }
+function gotoStretch() {
+  setPhase("stretch");
+  pour.active = false; pour.holdT = 0; pour.rate = 0; pour.trickle = 0; pour.g = 0; pour.sndCd = 0;
+  pour.maxG = Math.min(stocks.S.g, stretchFlowerG());   // borne : coupe <= 50 %
+  stretch = 0;
+  setKnob();
+  refreshStretch();
+  setHint("Maintiens sur le bol pour verser le trim — lâche au bon dosage. Trop coupé = clients fâchés.");
+}
+// Verser : maintien -> debit qui s'emballe ; relache -> inertie ; borne par le trim dispo.
+function startPour() {
+  if (stretchFlowerG() < 1) { showToast("Rien à couper — trie d'abord", "#caa15f"); return; }
+  if (pour.g >= pour.maxG - 0.01) { showToast(stocks.S.g < 1 ? "Pas de trim à couper" : "Coupe au max", "#caa15f"); return; }
+  ensureAudio(); pour.active = true; pour.trickle = 0;
+}
+function stopPour() {
+  if (!pour.active) return;
+  pour.active = false; pour.trickle = 0.22;   // inertie : un peu de rab apres le lacher
+}
+function updatePour(dt) {
+  if (phase !== "stretch") return;
+  const rMin = 8, rMax = 80, rampT = 0.9;     // g/s
+  let added = 0;
+  if (pour.active) {
+    pour.holdT += dt;
+    pour.rate = rMin + (rMax - rMin) * Math.min(1, pour.holdT / rampT);
+    added = pour.rate * dt;
+    pour.sndCd -= dt; if (pour.sndCd <= 0) { playPour(); pour.sndCd = 0.1; }
+    if (Math.random() < 0.25) flyNug(matTrim, 0.85, bowl.position);
+  } else if (pour.trickle > 0) {
+    added = pour.rate * 0.5 * (pour.trickle / 0.22) * dt;
+    pour.trickle -= dt;
+  } else return;
+  if (added > 0) {
+    pour.g = Math.min(pour.maxG, pour.g + added);
+    if (pour.active && pour.g >= pour.maxG - 0.01) { pour.active = false; pour.trickle = 0; }
+    stretch = stretchFlowerG() > 0.01 ? pour.g / (stretchFlowerG() + pour.g) : 0;
+    setKnob();
+    refreshStretch();
+    addShake(0.015);
+  }
+}
+// Projection du blend pour un ratio donne (sans rien consommer).
+function projectStretch(s) {
+  const flowerG  = stocks.A.g + stocks.B.g;
+  const flowerTs = stocks.A.ts + stocks.B.ts;
+  const flowerThc = flowerG > 0.01 ? flowerTs / flowerG : 0;
+  // trim necessaire pour atteindre la part s, plafonne par le trim dispo.
+  let need = flowerG * s / (1 - s);
+  const t = Math.min(need, stocks.S.g);
+  const outG = flowerG + t;
+  const trimThc = thcOf(stocks.S);
+  const outThc = outG > 0.01 ? (flowerTs + (stocks.S.g > 0.01 ? (t / stocks.S.g) * stocks.S.ts : 0)) / outG : 0;
+  const effS = outG > 0.01 ? t / outG : 0;            // part reelle de trim (si trim limite)
+  return { flowerG, flowerThc, t, outG, outThc, effS };
+}
+function satisfaction(p) {
+  // Clients contents si le blend reste correct : penalise par la coupe + le bas THC.
+  let sat = 1 - p.effS * 1.5 + (p.outThc - 15) / 30;
+  return Math.max(0, Math.min(1, sat));
+}
+function refreshStretch() {
+  const p = projectStretch(stretch);
+  if (p.flowerG < 1) {
+    ui.stretchcard.innerHTML = "Rien à mélanger — tri d'abord une fleur.";
+    ui.satfill.style.width = "0%";
+    return;
+  }
+  const sat = satisfaction(p);
+  ui.stretchcard.innerHTML =
+    "⚗️ Coupe <b>" + Math.round(p.effS * 100) + " %</b> · Fleur " + Math.round(p.flowerG) +
+    " g + Trim " + Math.round(p.t) + " g<br>" +
+    "Blend ➜ <b>" + Math.round(p.outG) + " g</b> à <b>" + p.outThc.toFixed(1) + " % THC</b>" +
+    "<br>Satisfaction clients : <b>" + Math.round(sat * 100) + " %</b>" +
+    (sat < 0.4 ? " <span class=\"q\">⚠ plaintes</span>" : "");
+  ui.satfill.style.width = Math.round(sat * 100) + "%";
+  ui.satfill.style.background = sat > 0.6 ? "#7ad17a" : sat > 0.35 ? "#ffd166" : "#ff6b6b";
+}
+function setKnob() {
+  const pct = stretch / STRETCH_MAX;
+  ui.sknob.style.left = (pct * 100) + "%";
+}
+function commitStretch(skip) {
+  const s = skip ? 0 : stretch;
+  const p = projectStretch(s);
+  if (p.flowerG < 1) { showToast("Rien à mélanger", "#caa15f"); return; }
+  // Consomme A+B (toute la fleur) + le trim utilise ; produit le blend (cumulable).
+  blend.g += p.outG;
+  blend.ts += p.flowerThc * p.flowerG + (stocks.S.g > 0.01 ? (p.t / stocks.S.g) * stocks.S.ts : 0);
+  stocks.A = { g: 0, ts: 0 };
+  stocks.B = { g: 0, ts: 0 };
+  if (stocks.S.g > 0.01) {
+    const frac = 1 - p.t / stocks.S.g;
+    stocks.S.ts *= frac; stocks.S.g = Math.max(0, stocks.S.g - p.t);
+  }
+  // Reputation : coupe propre -> neutre/+, coupe agressive -> chute.
+  const sat = satisfaction(p);
+  const dRep = (sat - 0.55) * 12;
+  setRep(rep + dRep);
+  if (sat < 0.4) showToast("Clients mécontents 😠", "#ff6b6b");
+  saveStocks(); saveBlend(); updateStockUI();
+  addShake(0.18); playSeal();
+  const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(440, t, 0.1, 0.18); beep(620, t + 0.08, 0.12, 0.18); }
+  gotoPack();
+}
+
+/* -------------------------------------------------------------------------
+   15) PHASE 4 — CONDITIONNEMENT MULTI-FORMATS
+   ------------------------------------------------------------------------- */
+const seal = { active: false, fmt: null, cursor: 0, dir: 1 };
+function sealSweet() { return 0.1 + owned.sealer * 0.03; }   // scelleuse = vise plus large
+
+function gotoPack() {
+  setPhase("pack");
+  opts.humid = false; opts.label = false;
+  ui.optHumid.classList.remove("on"); ui.optLabel.classList.remove("on");
+  clearPacks();
+  renderFormats();
+  refreshPackCard();
+  setHint("Choisis un format à ensacher. Petit = €/g plus haut. Scelle dans le vert pour un bonus.");
+}
+function refreshPackCard() {
+  const thc = thcOf(blend);
+  ui.packcard.innerHTML =
+    "📦 Blend : <b>" + Math.round(blend.g) + " g</b> à <b>" + thc.toFixed(1) + " % THC</b>" +
+    "<br>Réput. ×" + repMult().toFixed(2) + " sur le prix retail";
+  const fill = jar.userData.fill;
+  const k = Math.max(0.02, Math.min(1, blend.g / 500));
+  fill.scale.y = k; fill.position.y = 0.05 + 0.4 * k;
+}
+function qualMult(thc) { return Math.max(0.7, Math.min(1.45, 0.7 + (thc - 12) / 14 * 0.75)); }
+function renderFormats() {
+  ui.packgrid.innerHTML = "";
+  for (const f of FORMATS) {
+    const unit = Math.round(f.g * f.eur * qualMult(thcOf(blend)) * repMult() * levelMult());
+    const b = document.createElement("button");
+    b.className = "fmt"; b.dataset.fmt = f.id;
+    b.disabled = blend.g < f.g;
+    b.innerHTML = '<div class="fn">' + f.emoji + " " + f.name + '</div><div class="fp">~' + unit + " €</div>";
+    b.addEventListener("click", () => startSeal(f.id));
+    ui.packgrid.appendChild(b);
+  }
+}
+function startSeal(fid) {
+  if (seal.active) return;
+  const f = FORMATS.find(x => x.id === fid);
+  if (blend.g < f.g) { showToast("Pas assez de blend", "#caa15f"); return; }
+  seal.active = true; seal.fmt = f; seal.cursor = 0; seal.dir = 1;
+  ui.sealgauge.style.display = "block";
+  const sw = sealSweet();
+  ui.sealsweet.style.left = (50 - sw * 100) + "%";
+  ui.sealsweet.style.width = (sw * 200) + "%";
+  setHint("Tape dans le vert pour sceller bien serré (" + f.name + ").");
+}
+function resolveSeal() {
+  if (!seal.active) return;
+  const f = seal.fmt;
+  seal.active = false;
+  ui.sealgauge.style.display = "none";
+  if (blend.g < f.g) { showToast("Plus assez de blend", "#caa15f"); return; }
+
+  const err = Math.abs(seal.cursor - 0.5);
+  const tight = err <= sealSweet() ? 1.12 : err <= sealSweet() * 2.4 ? 1.0 : 0.9;
+  const thc = thcOf(blend);
+  // Consomme le format depuis le blend (proportionnel pour garder le %THC).
+  const frac = f.g / blend.g;
+  blend.ts *= (1 - frac); blend.g -= f.g;
+
+  let price = f.g * f.eur * qualMult(thc) * repMult() * levelMult() * tight;
+  if (opts.humid) price *= 1.1;                       // humidity pack : fraicheur -> +valeur
+  if (opts.label) price *= 1.16;                      // etiquette fake : +valeur mais risque
+  applyRevenue(price);
+  addXP(Math.max(1, Math.round(price * 0.05)));
+  if (opts.humid) setRep(rep + 0.2);
+
+  showPack(); playSeal(); playSale(); addShake(0.12);
+  showToast("+" + Math.round(price) + " € · " + f.name, "#9be37d");
+
+  // Risque police si etiquette fake trop visible.
+  if (opts.label && Math.random() < 0.07) {
+    const loss = Math.round(cash * 0.18);
+    setCash(cash - loss); setRep(rep - 8);
+    blend.g *= 0.7; blend.ts *= 0.7;
+    showToast("🚔 Descente ! −" + loss + " € + stock saisi", "#ff6b6b");
+    addShake(0.4);
+  }
+  saveBlend();
+  renderFormats(); refreshPackCard();
+  if (blend.g < 1) { setHint("Blend écoulé. Prends un nouveau front ▸"); }
+}
+
+/* -------------------------------------------------------------------------
+   16) AUTO-BUCKER (tri passif idle) — 1er employe achetable
+   ------------------------------------------------------------------------- */
+let autoBuckTimer = 0;
+function updateAutoBuck(dt) {
+  if (!owned.autobuck || !lot || lot.raw <= 0 || phase === "reception") return;
+  autoBuckTimer += dt;
+  if (autoBuckTimer >= 1.6) {
+    autoBuckTimer = 0;
+    const batch = Math.min(lot.raw, 18);
+    const gA = batch * 0.4, gB = batch * 0.3, gS = batch * 0.3;
+    stocks.A.g += gA; stocks.A.ts += gA * lot.thc;
+    stocks.B.g += gB; stocks.B.ts += gB * lot.thc * 0.9;
+    stocks.S.g += gS; stocks.S.ts += gS * lot.thc * TRIM_THC_FACTOR;
+    lot.raw -= batch;
+    saveStocks(); updateStockUI();
+    if (phase === "buck") { refreshRawPile(lot.raw, lot.total); refreshBuckCard(); }
+  }
+}
+
+/* -------------------------------------------------------------------------
+   17) BOUTIQUE (data-driven)
+   ------------------------------------------------------------------------- */
+const SHOP = [
+  { id: "brick", icon: "🧱", name: "Filière brique",
+    desc: () => "Débloque les fronts brique (1 kg) — gros volume.",
+    cost: () => 1500, can: () => owned.brick < 1, maxed: () => owned.brick >= 1,
+    buy: () => { owned.brick = 1; } },
+  { id: "hands", icon: "✋", name: "Doigté hand-trim",
+    desc: () => "Plus de A-flower au trim main (+" + ((owned.hands + 1) * 3.5).toFixed(0) + "%).",
+    cost: () => Math.round(300 * Math.pow(1.6, owned.hands)),
+    can: () => owned.hands < 5, maxed: () => owned.hands >= 5,
+    buy: () => { owned.hands++; } },
+  { id: "machine", icon: "⚙️", name: "Trimmeuse pro",
+    desc: () => "Moins de perte au trim machine.",
+    cost: () => Math.round(350 * Math.pow(1.6, owned.machine)),
+    can: () => owned.machine < 5, maxed: () => owned.machine >= 5,
+    buy: () => { owned.machine++; } },
+  { id: "humid", icon: "💧", name: "Packs humidité",
+    desc: () => "Débloque l'option humidité (+10 % valeur, +réput).",
+    cost: () => 600, can: () => owned.humid < 1, maxed: () => owned.humid >= 1,
+    buy: () => { owned.humid = 1; } },
+  { id: "sealer", icon: "🛡️", name: "Scelleuse sous-vide",
+    desc: () => "Élargit la zone verte de scellage.",
+    cost: () => Math.round(500 * Math.pow(1.7, owned.sealer)),
+    can: () => owned.sealer < 4, maxed: () => owned.sealer >= 4,
+    buy: () => { owned.sealer++; } },
+  { id: "network", icon: "📇", name: "Réseau revendeurs",
+    desc: () => "+4 % prix retail par niveau (lieutenants).",
+    cost: () => Math.round(700 * Math.pow(1.6, owned.network)),
+    can: () => owned.network < 6, maxed: () => owned.network >= 6,
+    buy: () => { owned.network++; } },
+  { id: "autobuck", icon: "🤖", name: "Auto-bucker",
+    desc: () => "Trie le brut tout seul, en fond.",
+    cost: () => 2500, can: () => owned.autobuck < 1, maxed: () => owned.autobuck >= 1,
+    buy: () => { owned.autobuck = 1; } },
+];
+function renderShop() {
+  ui.shopcash.textContent = "💶 " + cash + " €";
+  ui.shopitems.innerHTML = "";
+  for (const it of SHOP) {
+    const cost = it.cost(), maxed = it.maxed(), can = !maxed && it.can() && cash >= cost;
+    const row = document.createElement("div"); row.className = "shopitem";
+    row.innerHTML = '<div class="ic">' + it.icon + '</div><div class="info"><div class="nm">' +
+      it.name + '</div><div class="ds">' + it.desc() + '</div></div>';
+    const b = document.createElement("button");
+    b.textContent = maxed ? "✓" : (cost + " €");
+    b.disabled = !can;
+    b.addEventListener("click", () => buyItem(it));
+    row.appendChild(b);
+    ui.shopitems.appendChild(row);
+  }
+}
+function buyItem(it) {
+  const cost = it.cost();
+  if (it.maxed() || !it.can() || cash < cost) return;
+  setCash(cash - cost); it.buy(); saveShop();
+  const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(990, t + 0.07, 0.14, 0.2); }
+  renderShop();
+  if (phase === "pack") { renderFormats(); refreshPackCard(); }
+}
+
+/* -------------------------------------------------------------------------
+   18) ENTREES (pointer) : tap selon la phase + pinch zoom
+   ------------------------------------------------------------------------- */
+const el = renderer.domElement;
+const pointers = new Map();
+let pinching = false, pinchStartDist = 0, pinchStartZoom = 1;
+function pinchDist() { const a = [...pointers.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
+
+// La coupe se fait au DOSAGE (maintenir sur le bol pour verser), plus au slider :
+// le curseur #sknob n'est qu'un repere visuel pilote par updatePour().
+
+el.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size >= 2) { pinching = true; pinchStartDist = pinchDist() || 1; pinchStartZoom = zoom; return; }
+  ensureAudio();
+  // Tap sur la scene -> action de la phase courante.
+  if (phase === "reception") { if (nego.active) resolveNego(); else doScan(); }
+  else if (phase === "buck") {
+    buck.dragging = true; buck.lastX = e.clientX; buck.lastY = e.clientY;
+    buck.lastT = performance.now(); buck.acc = 0; buck.speed = 0;
+    if (buck.cd <= 0 && buckStrip(0)) { buck.cd = 0.28; buckCommitUI(); }   // tap = poignee propre
+  }
+  else if (phase === "stretch") { startPour(); }
+  else if (phase === "pack") { if (seal.active) resolveSeal(); }
+}, { passive: false });
+
+el.addEventListener("pointermove", (e) => {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinching && pointers.size >= 2) {
+    e.preventDefault();
+    zoom = Math.max(0.6, Math.min(2.4, pinchStartZoom * (pinchDist() / pinchStartDist)));
+    localStorage.setItem("gf3_zoom", zoom.toFixed(3));
+    fitView();
+  } else if (phase === "buck" && buck.dragging && pointers.size < 2) {
+    // Effeuillage : on accumule la distance glissee ; chaque BUCK_STRIDE px
+    // detache une poignee, dont la qualite depend de la vitesse instantanee.
+    e.preventDefault();
+    const now = performance.now();
+    const dx = e.clientX - buck.lastX, dy = e.clientY - buck.lastY;
+    const dist = Math.hypot(dx, dy);
+    buck.speed = dist / Math.max(1, now - buck.lastT);   // px/ms
+    buck.lastX = e.clientX; buck.lastY = e.clientY; buck.lastT = now;
+    buck.acc += dist;
+    let did = false, guard = 0;
+    while (buck.acc >= BUCK_STRIDE && guard++ < 12) {
+      buck.acc -= BUCK_STRIDE;
+      if (buckStrip(buck.speed)) did = true; else break;
+    }
+    if (did) buckCommitUI();
+  }
+}, { passive: false });
+function onUp(e) {
+  pointers.delete(e.pointerId);
+  if (pinching && pointers.size < 2) pinching = false;
+  if (pointers.size === 0) { buck.dragging = false; if (phase === "stretch") stopPour(); }
+}
+el.addEventListener("pointerup", onUp, { passive: false });
+el.addEventListener("pointercancel", onUp, { passive: false });
+
+// Boutons des overlays.
+ui.recAccept.addEventListener("click", acceptFront);
+ui.recNego.addEventListener("click", startNego);
+ui.recRefuse.addEventListener("click", refuseFront);
+document.querySelectorAll(".toggle[data-trim]").forEach(b => b.addEventListener("click", () => setTrim(b.dataset.trim)));
+ui.buckNext.addEventListener("click", () => {
+  if (stocks.A.g + stocks.B.g < 1) { showToast("Trie d'abord de la fleur", "#caa15f"); return; }
+  if (lot && lot.raw > 0.5) { stocks.S.g += lot.raw; stocks.S.ts += lot.raw * lot.thc * TRIM_THC_FACTOR; lot.raw = 0; saveStocks(); updateStockUI(); }
+  gotoStretch();
+});
+ui.stretchMix.addEventListener("click", () => commitStretch(false));
+ui.stretchSkip.addEventListener("click", () => commitStretch(true));
+ui.optHumid.addEventListener("click", () => {
+  if (!owned.humid) { showToast("Achète les packs humidité 🛒", "#caa15f"); return; }
+  opts.humid = !opts.humid; ui.optHumid.classList.toggle("on", opts.humid);
+});
+ui.optLabel.addEventListener("click", () => { opts.label = !opts.label; ui.optLabel.classList.toggle("on", opts.label); });
+ui.packNew.addEventListener("click", () => {
+  if (debt > maxDebt() * 0.98) { showToast("Paie ta dette avant un nouveau front", "#ff6b6b"); return; }
+  gotoReception();
+});
+document.getElementById("shopbtn").addEventListener("click", () => { renderShop(); ui.shop.classList.add("show"); });
+document.getElementById("shopclose").addEventListener("click", () => ui.shop.classList.remove("show"));
+ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.classList.remove("show"); });
+
+/* -------------------------------------------------------------------------
+   19) BOUCLE PRINCIPALE
+   ------------------------------------------------------------------------- */
+function updateGauges(dt) {
+  // Bucking au drag : pas de jauge — on entretient le cooldown du tap et un
+  // petit pulse de l'indice quand une poignee vient d'etre detachee.
+  if (phase === "buck") {
+    if (buck.cd > 0) buck.cd = Math.max(0, buck.cd - dt);
+    if (buck.flash > 0) buck.flash = Math.max(0, buck.flash - dt);
+    if (ui.bswipe) ui.bswipe.style.color = "rgba(173,224,140," + (0.6 + buck.flash * 2).toFixed(2) + ")";
+  }
+  // Jauge de negoce.
+  if (phase === "reception" && nego.active) {
+    nego.cursor += nego.dir * 1.3 * dt;
+    if (nego.cursor >= 1) { nego.cursor = 1; nego.dir = -1; }
+    if (nego.cursor <= 0) { nego.cursor = 0; nego.dir = 1; }
+    ui.scancursor.style.left = (nego.cursor * 100) + "%";
+  }
+  // Jauge de scellage.
+  if (phase === "pack" && seal.active) {
+    seal.cursor += seal.dir * (1.25 - owned.sealer * 0.08) * dt;
+    if (seal.cursor >= 1) { seal.cursor = 1; seal.dir = -1; }
+    if (seal.cursor <= 0) { seal.cursor = 0; seal.dir = 1; }
+    ui.sealcursor.style.left = (seal.cursor * 100) + "%";
+  }
+}
+
+let last = 0;
+function loop(t) {
+  const dt = Math.min((t - last) / 1000 || 0, 0.05);
+  last = t;
+
+  // Chute du front a la reception.
+  if (phase === "reception" && brickDrop > 0) {
+    brickDrop = Math.max(0, brickDrop - dt * 2.2);
+    brick.position.set(0, 0.35 + brickDrop * brickDrop * 4.5, 0.55);
+    brick.rotation.z = brickDrop * 0.3;
+    if (brickDrop === 0) { brick.position.y = 0.35; brick.rotation.z = 0; playThud(); addShake(0.18); }
+  } else if (phase === "reception") {
+    brick.position.set(0, 0.35, 0.55);
+  }
+  // Petite rotation de presentation du bocal.
+  if (phase === "pack") jar.rotation.y += dt * 0.4;
+  // Bol qui frémit pendant le mélange.
+  if (phase === "stretch") { bowlFill.rotation.y += dt * 0.8; updatePour(dt); }
+
+  updateGauges(dt);
+  updateFlyers(dt);
+  updateAutoBuck(dt);
+
+  if (shake > 0) { shake *= Math.pow(0.0009, dt); if (shake < 0.002) shake = 0; }
+  camera.position.copy(baseCamPos);
+  if (shake > 0) {
+    camera.position.x += (Math.random() - 0.5) * shake;
+    camera.position.y += (Math.random() - 0.5) * shake;
+    camera.position.z += (Math.random() - 0.5) * shake;
+  }
+  camera.lookAt(VIEW_TARGET);
+
+  // Etiquettes des bacs.
+  placeLabel(labA, BIN_A, 0.7);
+  placeLabel(labB, BIN_B, 0.7);
+  placeLabel(labS, BIN_S, 0.7);
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+
+/* -------------------------------------------------------------------------
+   20) INIT
+   ------------------------------------------------------------------------- */
+resize();
+setCash(cash); setDebt(debt); setRep(rep); updateXpUI();
+updateStockUI();
+setTrim(trimMode);
+// On reprend a la reception (les stocks/blend/dette sont conserves).
+gotoReception();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

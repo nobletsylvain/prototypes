@@ -71,3 +71,7 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). Chaî
 - ✂️ **Trim express** — *réflexe* : couper les feuilles qui poussent sans toucher la tête, avant qu'elles durcissent.
 
 2D canvas + DOM, zéro dépendance, records en `localStorage` (préfixe **`gf2_`**, isolé de Green Front `gf_`). Badge `🧪 v2 · lab` + tag « labo » du hub. En ligne : **https://nobletsylvain.github.io/prototypes/green-front-v2/**.
+
+### ⚖️ Green Front v3 (fork « coupe au dosage »)
+
+`green-front-v3/` est un **fork de la core loop complète** (avec le bucking au drag) où l'**étape coupe/stretch** passe du curseur à un **dosage tactile** : on **maintient sur le bol pour verser le trim** (le débit s'emballe), on **lâche au bon dosage** (inertie + risque de dépassement → clients fâchés / réput en chute). Le reste de la boucle (réception, tri, conditionnement, éco) est identique. Sauvegarde isolée (préfixe **`gf3_`**), badge `🧪 v3 · dosage`. En ligne : **https://nobletsylvain.github.io/prototypes/green-front-v3/**.
