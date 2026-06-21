@@ -79,15 +79,26 @@ async function waitChoice(sub, t = 9000) {
   }
   return false;
 }
+// Clique la carte établi jusqu'à ce que l'overlay s'ouvre VRAIMENT (la gate
+// pendingEtabli doit être posée — sinon le clic est un no-op).
 async function openEtabliCard(t = 9000) {
   const end = Date.now() + t;
   while (Date.now() < end) {
-    const ok = await page.evaluate(() => {
+    await page.evaluate(() => {
       const c = [...document.querySelectorAll(".menu")].find((m) => m.textContent.includes("L'établi"));
-      if (c) { c.click(); return true; }
-      return false;
+      if (c) c.click();
     });
-    if (ok) return true;
+    if (await page.evaluate(() => document.getElementById("etabli").classList.contains("show"))) return true;
+    await tapBody();
+    await sleep(220);
+  }
+  return false;
+}
+// Attend que l'écran de bilan (endscreen) s'affiche, en accélérant la frappe.
+async function waitEnd(t = 14000) {
+  const end = Date.now() + t;
+  while (Date.now() < end) {
+    if (await page.evaluate(() => document.getElementById("endscreen").classList.contains("show"))) return true;
     await tapBody();
     await sleep(220);
   }
@@ -178,10 +189,29 @@ await waitChoice("Accepter", 3000);                     // 2e accept si arrache 
 await waitConv("La Comtesse"); await sleep(300); await tapBody(); await sleep(900); await shot("18-comtesse-t2.png");
 await waitChoice("Accepter"); await sleep(900);
 
-// Payer le loyer -> BILAN
+// Payer le loyer -> BILAN CH.1
 await waitConv("Momo"); await sleep(300); await tapBody(); await sleep(900);
 log.paidLoyer = await waitChoice("Payer le loyer");
-await sleep(1000); await tapBody(); await sleep(1500); await shot("19-bilan.png");
+log.ch1End = await waitEnd(); await sleep(500); await shot("19-bilan-ch1.png");
+log.ch1Title = await page.evaluate(() => { const h = document.querySelector("#endscreen h2"); return h ? h.textContent : null; });
+
+// ============================ CHAPITRE 2 ============================
+log.continueBtn = await page.evaluate(() => { const b = document.getElementById("continue"); if (b) { b.click(); return true; } return false; });
+await sleep(900);
+await waitConv("Le Pote"); await sleep(300); await tapBody(); await sleep(1200); await shot("20-ch2-plan.png");
+await waitChoice("On le fait"); await sleep(600);
+await waitChoice("Prendre le pneu"); await sleep(600);
+log.cut3 = await doCut("ch2", "21-etabli-pneu.png");
+await postVitrine(); await shot("22-vitrine-ch2.png");
+await waitConv("Le Terrain"); await sleep(300); await tapBody(); await sleep(900); await shot("23-terrain.png");
+await waitChoice("Accepter"); await sleep(900);
+await waitConv("L'accro"); await sleep(300); await tapBody(); await sleep(900);
+await waitChoice("Servir"); await sleep(900);
+await waitConv("Kévin"); await sleep(300); await tapBody(); await sleep(900); await shot("24-kevin-pneu.png");
+await waitChoice("Accepter"); await sleep(900);
+await waitConv("Le Pote"); await sleep(300); await tapBody(); await sleep(900);
+log.paidContrat = await waitChoice("Payer le contrat");
+await waitEnd(); await sleep(500); await shot("25-bilan-ch2.png");
 
 log.endShown = await page.evaluate(() => document.getElementById("endscreen").classList.contains("show"));
 log.endTitle = await page.evaluate(() => { const h = document.querySelector("#endscreen h2"); return h ? h.textContent : null; });
