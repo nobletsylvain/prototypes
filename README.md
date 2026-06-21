@@ -105,14 +105,14 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). « Gu
 Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) via CDN, un seul `index.html`). Reskin stylisé d'une chaîne **« bulk → retail »** : on transforme du gros en unités de détail sur un plan de travail vu en 3/4 plongeant (brique, dalle en verre, balance, bacs). Même base technique que Hash Slicer.
 
 **Boucle de jeu — gestes directs (feeling > skill, rien à « viser ») :**
-1. **Réception** 🛒 — on reçoit une **brique 50 / 100 g** (gros) avec sa **pureté**. La 1ʳᵉ est offerte (🔄 Lot de dépannage).
-2. **Verser** — **maintiens le doigt sur le 🧱 BLOC** → un flux de poudre coule sur la **🪟 DALLE**. On verse autant qu'on veut, aucune perte.
-3. **Mélanger** — **tourne le doigt sur la DALLE** → le **volume gonfle** (stretch) et la poudre s'homogénéise (teinte qui vire) ; progresse au drag **et** au temps, donc même un geste grossier marche. À 100 % le lot devient du **PRODUIT** (**qualité = pureté diluée par le stretch**).
+1. **Réception** 🛒 — on achète la **coke (50 / 100 g)** ET le **diluant (recharge 200 g)**, de la même façon. Le 1ᵉʳ lot est offert (🔄 Lot de dépannage).
+2. **Verser** — **maintiens le doigt sur le 🧱 BLOC DE COKE** → un flux de poudre coule sur la **🪟 DALLE**. Idem sur le **🧂 TUB DE DILUANT** (à droite) : la **coupe est physique**, tu ajoutes toi-même le diluant et sa quantité fait le **stretch** (volume + / pureté −). Aucune perte.
+3. **Mélanger** — une fois **coke + diluant** sur la dalle, **tourne le doigt dessus** → ça se coupe/homogénéise (teinte qui vire) et part en **PRODUIT** (grammes = coke + diluant ; **pureté diluée d'autant**, qualité = pureté). Même un geste grossier marche.
 4. **Ensacher** — **tape (ou maintiens) le bac 📦 PRODUIT** → chaque geste remplit un sachet du **format** choisi (**1 / 5 / 25 g**) qui se scelle, s'envole et **se vend**. Pas de timing, pas de raté (petit = €/g plus élevé).
 
-Un **halo lumineux** pulse sous la station active et un **bandeau de consigne** suit l'étape : la boucle bloc → poudre → mix → sachet est guidée.
+Un **halo lumineux** pulse sous la station active et un **bandeau de consigne** suit l'étape : la boucle coke + diluant → mix → sachet est guidée.
 
-**Économie & progression :** **réputation** (la qualité moyenne des ventes module le prix), **niveaux (XP)** +2,5 %/niv, **déchets** bradés aux schlags. Boutique : **agent de coupe** (stretch +), **presse à briquettes** (débloque le 25 g), **auto-ensacheuse** + cadence. Persistance `localStorage` préfixée **`neige_`** (isolée de `hash_` / `gf_` / `gs_`).
+**Économie & progression :** **réputation** (la qualité moyenne des ventes — donc combien tu coupes — module le prix), **niveaux (XP)** +2,5 %/niv. Boutique : **coke** & **diluant** (recharges), **agent premium** (coupe moins détectable : qualité +), **presse à briquettes** (25 g), **auto-ensacheuse** + cadence. Persistance `localStorage` préfixée **`neige_`** (isolée de `hash_` / `gf_` / `gs_`).
 
 **Feedback juteux** : sons synthétisés (WebAudio — flux de poudre, raclage du mix, zip, cha-ching), puffs de poudre, sachets qui s'envolent, secousse de caméra.
 
