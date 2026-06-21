@@ -1,6 +1,15 @@
 # prototypes
 
-Petits prototypes jouables/testables directement dans le navigateur (mobile-first).
+Petits prototypes de **core loops** jouables/testables dans le navigateur (mobile-first).
+**Un dossier par core loop**, listés par un hub à la racine :
+
+```
+/index.html              ← hub (liste des core loops)
+/barrettes-shit/         ← core loop "Barrettes Shit"
+/tools/                  ← captures d'écran headless (voir tools/README.md)
+```
+
+Hub en ligne : **https://nobletsylvain.github.io/prototypes/**
 
 ## 🟫 Barrettes Shit (core loop)
 
@@ -28,7 +37,7 @@ Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) chargé via C
 ### Jouer
 
 - **Caméra** : cadrage auto (portrait/paysage) + **pinch à deux doigts pour zoomer** (sauvegardé).
-- En ligne : **https://nobletsylvain.github.io/prototypes/**
-- En local : ouvrir `index.html` dans un navigateur (idéalement Safari iOS). Nécessite une connexion (Three.js est chargé depuis un CDN).
+- En ligne : **https://nobletsylvain.github.io/prototypes/barrettes-shit/** (depuis le hub).
+- En local : ouvrir `barrettes-shit/index.html` dans un navigateur (idéalement Safari iOS). Nécessite une connexion (Three.js est chargé depuis un CDN).
 
 > ℹ️ L'aperçu de fichier intégré au chat/Files n'exécute pas le JavaScript (écran vide) — il faut une vraie URL (Pages) ou ouvrir le fichier dans un navigateur.
