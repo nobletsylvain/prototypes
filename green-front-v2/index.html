@@ -177,6 +177,96 @@ function distSeg(px, py, ax, ay, bx, by) {
 function fontPx(px, weight) { return (weight || 700) + " " + Math.round(px) + 'px -apple-system,"Segoe UI",Roboto,sans-serif'; }
 
 /* -------------------------------------------------------------------------
+   MODELES DE BUDS : sprites pré-rendus (touffe de calices ombrés + pistils +
+   givre) dessinés une fois sur des canvas offscreen, puis estampillés (perf).
+   ------------------------------------------------------------------------- */
+function drawSprite(c, img, x, y, size, rot) {
+  c.save(); c.translate(x, y); if (rot) c.rotate(rot);
+  c.drawImage(img, -size / 2, -size / 2, size, size);
+  c.restore();
+}
+// Une feuille de sucre pointue (amande à pointe) : remplie + contour marqué + nervure.
+function budLeaf(g, x, y, ang, len, w, fill, line) {
+  const ux = Math.cos(ang), uy = Math.sin(ang), px = -uy, py = ux;
+  const tx = x + ux * len, ty = y + uy * len;
+  g.beginPath();
+  g.moveTo(x + px * w, y + py * w);
+  g.quadraticCurveTo(x + ux * len * 0.5 + px * w * 1.4, y + uy * len * 0.5 + py * w * 1.4, tx, ty);
+  g.quadraticCurveTo(x + ux * len * 0.5 - px * w * 1.4, y + uy * len * 0.5 - py * w * 1.4, x - px * w, y - py * w);
+  g.closePath();
+  g.fillStyle = fill; g.fill();
+  g.lineWidth = 2.2; g.strokeStyle = line; g.stroke();
+  g.beginPath(); g.moveTo(x, y); g.lineTo(tx, ty);           // nervure
+  g.globalAlpha = 0.45; g.lineWidth = 1; g.stroke(); g.globalAlpha = 1;
+}
+// Un calice : boule ombrée (dégradé radial) + contour marqué.
+function budCalyx(g, x, y, r, pal) {
+  const grad = g.createRadialGradient(x - r * 0.35, y - r * 0.42, r * 0.12, x, y, r);
+  grad.addColorStop(0, pal.light); grad.addColorStop(0.55, pal.mid); grad.addColorStop(1, pal.dark);
+  g.beginPath(); g.ellipse(x, y, r, r * 0.94, 0, 0, 7);
+  g.fillStyle = grad; g.fill();
+  g.lineWidth = 2.2; g.strokeStyle = pal.line; g.stroke();
+}
+// Modèle de tête « sticker » : cône de calices + feuilles de sucre qui dépassent + tige.
+function makeBudSprite(pal) {
+  const S = 128, cnv = document.createElement("canvas"); cnv.width = cnv.height = S;
+  const g = cnv.getContext("2d"); g.lineJoin = "round"; g.lineCap = "round";
+  const cx = S * 0.5, baseY = S * 0.7, topY = S * 0.16;
+  const spreadAt = (t) => S * 0.3 * (1 - t * 0.82);          // largeur du cône (t : 0 bas → 1 haut)
+  const yAt = (t) => baseY + (topY - baseY) * t;
+  const pivot = baseY - S * 0.12;
+
+  g.strokeStyle = "#6b4a2a"; g.lineWidth = 6;                // tige
+  g.beginPath(); g.moveTo(cx, baseY - S * 0.05); g.lineTo(cx, S * 0.92); g.stroke();
+
+  for (let i = 0; i < 9; i++) {                              // feuilles DERRIÈRE (dépassent du cône)
+    const t = 0.15 + Math.random() * 0.8, side = i % 2 ? 1 : -1;
+    const ex = cx + side * spreadAt(t) * (0.65 + Math.random() * 0.45);
+    const ey = yAt(t) + (Math.random() - 0.5) * 6;
+    const ang = Math.atan2(ey - pivot, ex - cx) + (Math.random() - 0.5) * 0.25;
+    budLeaf(g, ex, ey, ang, S * (0.11 + Math.random() * 0.06), S * 0.045, pal.leaf, pal.line);
+  }
+  budLeaf(g, cx + (Math.random() - 0.5) * 6, topY + S * 0.03, -Math.PI / 2 + (Math.random() - 0.5) * 0.3, S * 0.13, S * 0.045, pal.leaf, pal.line);
+
+  const cal = [];                                            // calices en cône
+  for (let i = 0; i < 16; i++) {
+    const t = Math.pow(Math.random(), 0.8), sp = spreadAt(t);
+    cal.push({ x: cx + (Math.random() * 2 - 1) * sp, y: yAt(t) + (Math.random() - 0.5) * S * 0.04,
+      r: (S * 0.1 + Math.random() * S * 0.05) * (1 - t * 0.35) });
+  }
+  cal.sort((a, b) => a.y - b.y);                             // haut (arrière) dessiné d'abord
+  for (const c of cal) budCalyx(g, c.x, c.y, c.r, pal);
+
+  for (let i = 0; i < 4; i++) {                              // feuilles DEVANT (plus claires)
+    const t = 0.2 + Math.random() * 0.6, side = Math.random() < 0.5 ? 1 : -1;
+    const ex = cx + side * spreadAt(t) * 0.5, ey = yAt(t);
+    budLeaf(g, ex, ey, Math.atan2(ey - baseY, ex - cx), S * 0.09, S * 0.034, pal.leafHi, pal.line);
+  }
+  g.strokeStyle = pal.pistil; g.lineWidth = 1.5;            // pistils ambrés
+  for (let i = 0; i < 4; i++) {
+    const t = 0.3 + Math.random() * 0.5, x0 = cx + (Math.random() * 2 - 1) * spreadAt(t) * 0.5, y0 = yAt(t);
+    const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.5, l = S * (0.05 + Math.random() * 0.06);
+    g.beginPath(); g.moveTo(x0, y0);
+    g.quadraticCurveTo(x0 + (Math.random() - 0.5) * 8, y0 - l * 0.6, x0 + Math.cos(a) * l, y0 + Math.sin(a) * l);
+    g.stroke();
+  }
+  for (let i = 0; i < 20; i++) {                             // givre (trichomes)
+    const t = Math.random(), x = cx + (Math.random() * 2 - 1) * spreadAt(t) * 0.8, y = yAt(t);
+    g.fillStyle = "rgba(232,255,224," + (0.12 + Math.random() * 0.2) + ")";
+    g.beginPath(); g.arc(x, y, 0.7 + Math.random() * 1.1, 0, 7); g.fill();
+  }
+  return cnv;
+}
+const BUD_PAL = {
+  fresh: { dark: "#2b6a26", mid: "#4f9a3a", light: "#92db74", leaf: "#3c8a33", leafHi: "#62b24a", line: "#163a14", pistil: "#cf9b46" },
+  A:     { dark: "#2b6a26", mid: "#55ac40", light: "#a0ea80", leaf: "#43973a", leafHi: "#6cc150", line: "#163a14", pistil: "#d3a85f" },
+  B:     { dark: "#586627", mid: "#8a9a3a", light: "#c9d477", leaf: "#7a8a33", leafHi: "#a3b257", line: "#33390f", pistil: "#b98a3a" },
+  trim:  { dark: "#564527", mid: "#846f3c", light: "#b69a62", leaf: "#6f5e34", leafHi: "#917a48", line: "#33270f", pistil: "#7a5a32" },
+};
+function budSet(pal, n) { const a = []; for (let i = 0; i < n; i++) a.push(makeBudSprite(pal)); return a; }
+const BUDS = { fresh: budSet(BUD_PAL.fresh, 5), A: budSet(BUD_PAL.A, 5), B: budSet(BUD_PAL.B, 4), trim: budSet(BUD_PAL.trim, 4) };
+
+/* -------------------------------------------------------------------------
    UI refs + harnais (menu / partie / résultat)
    ------------------------------------------------------------------------- */
 const menuEl = document.getElementById("menu");
@@ -290,12 +380,13 @@ G1.start = function () {
   this.over = false; this.dragging = false; this.prev = null;
   this.tLeft = TBUCK; this.A = 0; this.B = 0; this.trim = 0;
   this.buds = []; this.anchors = [];
-  const n = 14, x0 = W * 0.13, x1 = W * 0.87, ymid = H * 0.6;
+  const n = 11, x0 = W * 0.13, x1 = W * 0.87, ymid = H * 0.6;
   for (let i = 0; i < n; i++) {
     const u = i / (n - 1);
     const x = x0 + (x1 - x0) * u;
     const y = ymid - Math.sin(u * Math.PI) * H * 0.1 + (Math.random() - 0.5) * 26;
-    this.buds.push({ x, y, r: 13 + Math.random() * 6, on: true, pop: 0, q: null, tx: 0, ty: 0 });
+    this.buds.push({ x, y, r: 13 + Math.random() * 6, on: true, pop: 0, q: null, tx: 0, ty: 0,
+      spr: Math.floor(Math.random() * BUDS.fresh.length), rot: (Math.random() - 0.5) * 0.7 });
     this.anchors.push({ x, y });
   }
 };
@@ -353,18 +444,17 @@ G1.draw = function (c) {
     if (i === 0) c.moveTo(a.x, a.y); else c.lineTo(a.x, a.y);
   }
   c.stroke();
-  // têtes encore attachées
+  // têtes encore attachées (modèles de buds)
   for (const bud of this.buds) {
     if (!bud.on) continue;
-    c.beginPath(); c.fillStyle = "#3f7d3a"; c.arc(bud.x, bud.y, bud.r, 0, 7); c.fill();
-    c.beginPath(); c.fillStyle = "rgba(173,224,140,.5)"; c.arc(bud.x - bud.r * 0.3, bud.y - bud.r * 0.3, bud.r * 0.35, 0, 7); c.fill();
+    drawSprite(c, BUDS.fresh[bud.spr], bud.x, bud.y, bud.r * 2.7, bud.rot);
   }
-  // têtes détachées qui filent vers leur bac
+  // têtes détachées qui filent vers leur bac (teintées par qualité)
   for (const bud of this.buds) {
     if (bud.on || bud.pop <= 0) continue;
-    c.globalAlpha = Math.max(0, bud.pop);
-    c.fillStyle = bud.q === "A" ? "#7ad17a" : bud.q === "B" ? "#bcc36a" : "#9a7b4a";
-    c.beginPath(); c.arc(bud.x, bud.y, bud.r * (0.7 + bud.pop * 0.4), 0, 7); c.fill();
+    const set = bud.q === "A" ? BUDS.A : bud.q === "B" ? BUDS.B : BUDS.trim;
+    c.globalAlpha = Math.max(0, Math.min(1, bud.pop));
+    drawSprite(c, set[bud.spr % set.length], bud.x, bud.y, bud.r * 2.7 * (0.7 + bud.pop * 0.4), bud.rot + (1 - bud.pop) * 2.2);
     c.globalAlpha = 1;
   }
 };
