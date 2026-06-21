@@ -148,6 +148,12 @@
   .shopitem button { background:#3a6b3a; border:none; color:#fff; font-weight:700; padding:9px 12px; border-radius:10px; min-width:64px; }
   .shopitem button:disabled { background:rgba(255,255,255,.12); color:rgba(255,255,255,.4); }
   #shopclose { width:100%; background:rgba(255,255,255,.12); border:none; color:#fff; font-weight:700; padding:11px; border-radius:12px; }
+
+  /* --- Bouton "fini" du mode prologue (renvoie le grade au mockup parent) --- */
+  #prologue-done { position:fixed; left:50%; bottom:max(16px,calc(env(safe-area-inset-bottom) + 12px));
+    transform:translateX(-50%); background:#FFFC00; color:#0a0908; border:none; font-weight:800;
+    font-size:15px; padding:13px 24px; border-radius:16px; box-shadow:0 6px 18px rgba(0,0,0,.45); z-index:7; }
+  #prologue-done:active { filter:brightness(.92); }
 </style>
 
 <!-- Three.js charge en module depuis un CDN (import map). Supporte par Safari iOS 16.4+ -->
@@ -208,6 +214,12 @@
 <script type="module">
 "use strict";
 import * as THREE from "three";
+
+// Mode "prologue" : la scene est embarquee dans la maquette "La Bascule".
+// On ne fait QUE couper, et on renvoie le grade obtenu au mockup parent via
+// postMessage. Active par #embed=prologue (ou ?embed=prologue) dans l'URL.
+// SANS ce flag, le comportement par defaut est strictement inchange.
+const PROLOGUE = /[?#&]embed=prologue/.test(location.href);
 
 /* =========================================================================
    CAKE SLICER 3D — quatre-quarts long, coupe multiple
@@ -454,7 +466,7 @@ function loadLoaf(sizeG) {
   for (const c of crumbs) scene.remove(c.mesh);
   crumbs.length = 0;
 
-  savSize = sizeG; localStorage.setItem("hash_savsize", String(sizeG));
+  savSize = sizeG; if (!PROLOGUE) localStorage.setItem("hash_savsize", String(sizeG));
   const r = Math.min(L, sizeG / PER_LEN);
   rightNeg = r; rightPos = r;
   count = 0; over = false;
@@ -896,6 +908,7 @@ function addXP(n) {
 
 // Vendre les dechets aux schlags (bas prix). Vide le bac.
 function sellWaste() {
+  if (PROLOGUE) return;                          // prologue : on coupe seulement
   if (wasteGrams < 1) { showToast("Bac déchets vide", "#caa15f"); return; }
   const earn = wasteGrams * SCHLAG_RATE * levelMult();
   setCash(cash + earn);
@@ -1104,6 +1117,7 @@ function setMethod(m) {
 }
 
 function startDosing() {
+  if (PROLOGUE) return;                          // prologue : pas de dosage, on coupe seulement
   if (dose.active) return;
   if (stock.g < 0.5) { showToast("Stock vide — coupe des barrettes", "#caa15f"); return; }
   dose.method = doseMethod; dose.cal = caliber;
@@ -1502,8 +1516,26 @@ function loop(t) {
   requestAnimationFrame(loop);
 }
 
+// --- Mode prologue embarque : ne montrer QUE la coupe + un bouton de fin qui
+//     renvoie le grade obtenu (A/B/C) a la maquette parent via postMessage. ---
+function setupPrologue() {
+  for (const id of ["shopbtn", "cash", "waste", "xpwrap", "reset", "dosebar"]) {
+    const e = document.getElementById(id); if (e) e.style.display = "none";
+  }
+  ui.hint.style.opacity = "1";
+  ui.hint.textContent = "Tape dans le vert pour couper ~10 g. Coupe propre = client content.";
+  const btn = document.createElement("button");
+  btn.id = "prologue-done"; btn.textContent = "✓ J'ai fini de couper";
+  btn.addEventListener("click", finishPrologue);
+  document.body.appendChild(btn);
+}
+function finishPrologue() {
+  if (count < 1) { showToast("Coupe au moins une barrette ✂️", "#caa15f"); return; }
+  try { parent.postMessage({ type:"bascule-cut-done", grade: stockGrade(), bars: count, grams: Math.round(stock.g) }, "*"); } catch (e) {}
+}
+
 resize();
-resetGame();
+if (PROLOGUE) { loadLoaf(100); setupPrologue(); } else { resetGame(); }
 setCash(cash);
 setWaste(wasteGrams);
 updateXpUI();
