@@ -173,6 +173,14 @@
   .ebtn .et{font:700 14px var(--sans)}
   .ebtn .es{font:500 11px var(--mono);color:var(--muted)}
 
+  /* iframe de la vraie scene de coupe (hash-slicer) + fallback "mode simple" */
+  #etabli-frame{flex:1;width:100%;border:0;background:#0d0b09;display:block}
+  .efallback{flex:none;padding:8px 16px 14px;text-align:center}
+  .efallback .link{font:600 12px var(--sans);color:var(--faint);text-decoration:underline;cursor:pointer}
+  .efallback .fbtns{display:none;flex-direction:column;gap:10px;margin-top:8px}
+  .efallback.open .fbtns{display:flex}
+  .efallback.open .link{display:none}
+
   /* ---- STORY (composer + viewer plein ecran) ---- */
   .viewer{position:absolute;inset:0;background:#0a0908;display:none;flex-direction:column;z-index:50}
   .viewer.show{display:flex}
@@ -296,24 +304,14 @@
 
   <!-- ETABLI : stub de la coupe 3D (hash-slicer) -->
   <div class="etabli" id="etabli">
-    <div class="ehdr"><span class="back" id="etabli-back">‹</span><span class="nm">🔪 L'établi</span></div>
-    <div class="estage">
-      <span class="badge">3D · placeholder</span>
-      <span class="ico">▦</span>
-      <span class="txt">coupe 3D — hash-slicer<br>à câbler ici (timing + dosage)</span>
-      <span class="lead" id="etabli-lead">Tu coupes le pavé en barrettes. Vise propre :
-        une barrette nette = client content. À l'arrache = plus de barrettes,
-        mais la came se sent coupée → les clients tiquent.</span>
-    </div>
-    <div class="ebtns" id="etabli-btns">
-      <button class="ebtn clean" data-cut="clean">
-        <span class="et">✂️ Couper propre</span>
-        <span class="es">~10 barrettes · qualité haute · prend ton temps</span>
-      </button>
-      <button class="ebtn dirty" data-cut="dirty">
-        <span class="et">🪓 Couper à l'arrache</span>
-        <span class="es">~14 barrettes · qualité basse · vite fait</span>
-      </button>
+    <div class="ehdr"><span class="back" id="etabli-back">‹</span><span class="nm">🔪 L'établi — coupe</span></div>
+    <iframe id="etabli-frame" title="établi — coupe 3D"></iframe>
+    <div class="efallback" id="etabli-fallback">
+      <span class="link" id="fallback-link">La 3D ne charge pas ? Couper en mode simple</span>
+      <div class="fbtns">
+        <button class="ebtn clean" data-cut="clean"><span class="et">✂️ Couper propre</span><span class="es">qualité haute</span></button>
+        <button class="ebtn dirty" data-cut="dirty"><span class="et">🪓 Couper à l'arrache</span><span class="es">qualité basse</span></button>
+      </div>
     </div>
   </div>
 
@@ -351,7 +349,7 @@
 </div>
 
 <div class="devnote">Maquette cliquable · prologue « La Bascule » — l'éco est scriptée (pas de vraie simu).
-L'établi 3D et les clips IA sont des placeholders à câbler.</div>
+L'établi embarque la vraie coupe 3D (hash-slicer) ; les clips IA des stories sont des placeholders.</div>
 
 <script type="module">
 "use strict";
@@ -386,7 +384,8 @@ const $ = (id) => document.getElementById(id);
 const els = {
   hdr:$("hdr"), back:$("back"), hdrAv:$("hdr-av"), hdrNm:$("hdr-nm"), hdrSt:$("hdr-st"),
   tray:$("tray"), body:$("body"), list:$("list"), thread:$("thread"), composer:$("composer"),
-  etabli:$("etabli"), etabliBack:$("etabli-back"), etabliBtns:$("etabli-btns"), etabliLead:$("etabli-lead"),
+  etabli:$("etabli"), etabliBack:$("etabli-back"), etabliFrame:$("etabli-frame"),
+  etabliFallback:$("etabli-fallback"), fallbackLink:$("fallback-link"),
   scompose:$("scompose"), postBtn:$("post-btn"), viewer:$("viewer"), viewerViews:$("viewer-views"),
   toast:$("toast"), endscreen:$("endscreen"),
   sDette:$("s-dette"), sClock:$("s-clock"), sCash:$("s-cash"), ringMine:$("ring-mine"), storyMine:$("story-mine"),
@@ -619,23 +618,38 @@ els.back.addEventListener("click", showAccueil);
    pour rester simple, on ouvre l'etabli quand le joueur tape le coach. */
 function openEtabli(){
   if (!pendingEtabli) return;
+  // charge la vraie scene de coupe (hash-slicer) en mode prologue, a la demande
+  if (!els.etabliFrame.getAttribute("src"))
+    els.etabliFrame.src = "../hash-slicer/index.html#embed=prologue";
   els.etabli.classList.add("show");
   els.toast.classList.remove("show");
 }
-els.etabliBack.addEventListener("click", () => {
-  if (state.qualite) els.etabli.classList.remove("show");   // ne sort que si on a coupe
+
+// Resout l'etabli : grade C -> "arrache", sinon "propre". bars = nb de barrettes.
+function resolveEtabli(grade, bars){
+  if (!pendingEtabli) return;
+  state.qualite = (grade === "C") ? "C" : "A";
+  state.barrettes = bars || (state.qualite === "A" ? 10 : 14);
+  els.etabli.classList.remove("show");
+  els.etabliFrame.src = "about:blank";              // decharge la 3D
+  coach(state.qualite === "A" ? "Coupe propre 👌" : "Coupe à l'arrache 😬");
+  const cb = pendingEtabli; pendingEtabli = null; cb();
+}
+
+// Resultat renvoye par la scene de coupe embarquee (iframe -> parent).
+window.addEventListener("message", (e) => {
+  const d = e.data;
+  if (d && d.type === "bascule-cut-done") resolveEtabli(d.grade, d.bars);
 });
-els.etabliBtns.addEventListener("click", (e) => {
-  const btn = e.target.closest(".ebtn"); if (!btn || !pendingEtabli) return;
-  const dirty = btn.dataset.cut === "dirty";
-  state.qualite = dirty ? "C" : "A";
-  state.barrettes = dirty ? 14 : 10;
-  coach(dirty ? "14 barrettes — vite fait, mais ça se sent 😬" : "10 barrettes nettes 👌");
-  setTimeout(() => {
-    els.etabli.classList.remove("show");
-    const cb = pendingEtabli; pendingEtabli = null; cb();
-  }, 1100);
+
+// Fallback "mode simple" si la 3D ne charge pas (CDN bloque en session distante).
+els.fallbackLink.addEventListener("click", () => els.etabliFallback.classList.add("open"));
+els.etabliFallback.addEventListener("click", (e) => {
+  const b = e.target.closest(".ebtn"); if (!b) return;
+  const dirty = b.dataset.cut === "dirty";
+  resolveEtabli(dirty ? "C" : "A", dirty ? 14 : 10);
 });
+els.etabliBack.addEventListener("click", () => { /* sortie uniquement via la fin de coupe */ });
 
 /* Story : ouvrir le composer via la vitrine, puis poster -> viewer. */
 els.storyMine.addEventListener("click", () => {
@@ -730,8 +744,8 @@ function* prologue(){
   yield { t:"set", fn:()=>{ /* sav recue, cosmetique */ } };
 
   // --- Beat 3 : l'etabli (stub) — l'arbitrage propre vs arrache ---
-  yield { t:"recv", card:{ title:"🔪 L'établi", tag:"OUVRIR", badge:"3D · placeholder",
-          ico:"▦", cliptxt:"coupe 3D (hash-slicer) — à câbler", specs:["tape pour ouvrir"], action:"etabli" } };
+  yield { t:"recv", card:{ title:"🔪 L'établi", tag:"OUVRIR", badge:"coupe 3D",
+          ico:"🔪", cliptxt:"hash-slicer — tape pour couper", specs:["tape pour ouvrir"], action:"etabli" } };
   yield { t:"etabli" };   // attend l'ouverture de la carte + le choix de coupe
 
   // --- Beat 4 : poster la vitrine ---
