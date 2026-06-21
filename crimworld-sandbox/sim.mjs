@@ -14,12 +14,14 @@
    ======================================================================= */
 
 export const C = {
-  HOUR_MS: 60000,            // 1 min de jeu = 1 s réelle (1 h = 60 s ; journée ≈ 24 min)
+  HOUR_MS: 6000,             // rythme playtest : 1 h de jeu = 6 s réelles (journée ≈ 2,4 min)
   DAY_HOURS: 24,
   LOYER_JOUR: 40,            // frais de base du block (compteur de fond) — tunable
   PRODUITS: ['hash', 'weed', 'neige'],
   PRIX_GRAMME:  { hash: 10, weed: 8,  neige: 60 },   // € / g au détail
-  CLIENTS_BASE: 8,           // nb de clients/jour à réput 100 (si la story est postée)
+  CLIENTS_BASE: 12,          // nb de clients/jour à réput 100 (si la story est postée)
+  PREMIER_DM_H: 0.4,         // 1er DM ~0,4 h après la story (≈ 2,4 s) — feedback quasi immédiat
+  MARGE_FIN_H: 2,            // dernier DM ~2 h avant minuit → le temps de le servir (peu de temps mort)
   PANIER: [10, 5, 15, 5, 10, 20, 5, 10],  // g demandés par client (cyclique, déterministe)
   REPUT_PROPRE: 6,           // une coupe propre fait monter la demande
   REPUT_ARRACHE: -25,        // une coupe à l'arrache la fait fuir
@@ -72,7 +74,9 @@ export function createSim(){
     // range le batch en stock. qualite 'A' (propre) | 'C' (arrache).
     produireBatch({ produit, grammesRaw, grammesFinis, qualite }){
       if (!state.debloques[produit]) return api;
-      state.matiere[produit] = Math.max(0, state.matiere[produit] - grammesRaw);
+      // anti free-mint : pas de batch sans assez de matière (chaque g fini vient d'un g acheté)
+      if (grammesRaw <= 0 || state.matiere[produit] < grammesRaw) return api;
+      state.matiere[produit] -= grammesRaw;
       state.stock[produit] += grammesFinis;
       state.batches.push({ produit, grammes: grammesFinis, qualite, jour: state.jour });
       state.reput = clamp(state.reput + (qualite === 'A' ? C.REPUT_PROPRE : C.REPUT_ARRACHE));
@@ -89,12 +93,16 @@ export function createSim(){
       state.storyPostee = true;
       const n = Math.round(C.CLIENTS_BASE * state.reput / 100);
       const debut = state.heure;
+      // arrivées étalées, FRONT-LOADÉES : 1er DM quasi tout de suite (PREMIER_DM_H), dernier
+      // ~MARGE_FIN_H avant minuit (le temps de le servir). Déterministe → zéro latence d'amorce.
+      const first = debut + C.PREMIER_DM_H;
+      const last  = Math.max(first, C.DAY_HOURS - C.MARGE_FIN_H);
       for (let i = 0; i < n; i++){
         state.clientsJour.push({
           id: ++state.clientSeq,
           produit: 'hash',                               // produit actif (généralisé plus tard)
           grammes: C.PANIER[i % C.PANIER.length],
-          heureArrivee: debut + (C.DAY_HOURS - debut) * (i + 1) / (n + 1),
+          heureArrivee: n > 1 ? first + (last - first) * i / (n - 1) : first,
           arrive: false, servi: false,
         });
       }
@@ -215,6 +223,7 @@ export function demo(){
   printJour(sim.state.dernierMetrics);
 
   // JOUR 3 — labo à l'arrache → réput chute → MOINS de clients le DM.
+  sim.acheterMatiere('hash', 100, 250);   // il faut racheter de la matière (anti free-mint)
   sim.produireBatch({ produit: 'hash', grammesRaw: 100, grammesFinis: 120, qualite: 'C' });
   sim.posterStory();
   jouerJournee();
