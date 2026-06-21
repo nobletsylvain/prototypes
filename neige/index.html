@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Neige</title>
 <style>
-  /* --- Plein ecran, pense mobile (pas de scroll, pas de zoom) --- */
   * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
   html, body { width:100%; height:100%; overflow:hidden; touch-action:none;
     font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -13,29 +12,26 @@
   #app { position:fixed; inset:0; }
   canvas { display:block; width:100%; height:100%; touch-action:none; }
 
-  /* --- HUD (overlay HTML par dessus la scene 3D) --- */
   .hud { position:fixed; left:0; right:0; pointer-events:none; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.5); }
   #count { top:max(14px,env(safe-area-inset-top)); left:16px; font-weight:800; font-size:16px; color:#cfe9ff; }
   #reset { position:fixed; top:max(10px,env(safe-area-inset-top)); right:14px; pointer-events:auto;
     background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
     padding:9px 13px; border-radius:12px; font-size:14px; font-weight:700; backdrop-filter:blur(6px); }
   #reset:active { background:rgba(255,255,255,.25); }
-  #toast { top:34%; text-align:center; font-size:25px; font-weight:800; opacity:0;
-    transition:opacity .25s, transform .25s; transform:translateY(8px); }
+  #toast { top:32%; text-align:center; font-size:24px; font-weight:800; opacity:0;
+    transition:opacity .25s, transform .25s; transform:translateY(8px); padding:0 18px; }
   #toast.show { opacity:1; transform:translateY(0); }
   #title { top:max(46px,calc(env(safe-area-inset-top) + 30px)); left:16px; font-size:12px;
     color:rgba(255,255,255,.55); font-weight:700; letter-spacing:.3px; }
   #remain { top:max(62px,calc(env(safe-area-inset-top) + 46px)); left:16px; font-size:12px;
     color:rgba(220,210,180,.85); font-weight:700; letter-spacing:.3px; }
 
-  /* --- Cash + reputation --- */
   #cash { position:fixed; top:max(14px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
     font-weight:800; font-size:18px; color:#9be37d; text-shadow:0 2px 8px rgba(0,0,0,.5); pointer-events:none; }
   #rep { position:fixed; top:max(14px,env(safe-area-inset-top)); right:70px; pointer-events:none;
     background:rgba(122,160,255,.16); border:1px solid rgba(122,160,255,.5); color:#bcd0ff;
     font-weight:700; font-size:12px; padding:4px 9px; border-radius:999px; }
 
-  /* --- Niveau + barre d'XP --- */
   #xpwrap { position:fixed; top:calc(max(14px,env(safe-area-inset-top)) + 27px); left:50%; transform:translateX(-50%);
     display:flex; align-items:center; gap:6px; pointer-events:none; z-index:4; }
   #level { background:rgba(155,227,125,.18); border:1px solid rgba(155,227,125,.55); color:#bdf0a3;
@@ -43,28 +39,28 @@
   #xpbar { width:120px; height:7px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
   #xpfill { height:100%; width:0%; background:linear-gradient(90deg,#7ad17a,#bdf0a3); border-radius:999px; transition:width .25s; }
 
-  /* --- Etiquettes flottantes --- */
   #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
   .blabel { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
     font-weight:800; font-size:13px; padding:2px 7px; border-radius:8px;
     background:rgba(0,0,0,.5); text-shadow:0 1px 3px rgba(0,0,0,.6); }
 
-  /* --- Bandeau de consigne (guidage) --- */
-  #prompt { bottom:max(60px,calc(env(safe-area-inset-bottom) + 54px)); text-align:center; pointer-events:none; }
+  #prompt { bottom:max(88px,calc(env(safe-area-inset-bottom) + 82px)); text-align:center; pointer-events:none; }
   #prompt span { display:inline-block; background:rgba(8,16,26,.6); border:1px solid rgba(125,200,255,.35);
     color:#eaf6ff; font-size:14px; font-weight:700; padding:8px 16px; border-radius:999px;
-    backdrop-filter:blur(6px); box-shadow:0 4px 14px rgba(0,0,0,.4); max-width:90vw; }
+    backdrop-filter:blur(6px); box-shadow:0 4px 14px rgba(0,0,0,.4); max-width:92vw; }
 
-  /* --- Selecteur de format de vente --- */
-  #fmtbar { position:fixed; left:50%; transform:translateX(-50%); bottom:max(12px,calc(env(safe-area-inset-bottom) + 8px));
-    display:flex; align-items:center; gap:6px; pointer-events:auto; z-index:4; }
-  #fmtbar .lbl { color:rgba(255,255,255,.6); font-size:11px; font-weight:700; margin-right:2px; }
-  .fmtbtn { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
-    font-weight:800; font-size:13px; padding:7px 11px; border-radius:10px; }
+  /* Deux barres de sélecteurs : Coupe (diluant) au-dessus, Sachet (format) en bas. */
+  .selbar { position:fixed; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:6px; pointer-events:auto; z-index:4; }
+  #dilbar { bottom:max(48px,calc(env(safe-area-inset-bottom) + 44px)); }
+  #fmtbar { bottom:max(12px,calc(env(safe-area-inset-bottom) + 8px)); }
+  .selbar .lbl { color:rgba(255,255,255,.6); font-size:11px; font-weight:700; margin-right:2px; }
+  .selbtn { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
+    font-weight:800; font-size:13px; padding:6px 9px; border-radius:10px; }
   .fmtbtn.on { background:#7aa0ff; color:#0e162a; border-color:#7aa0ff; }
-  .fmtbtn:disabled { opacity:.4; }
+  .dilbtn.on  { background:#caa15f; color:#1a1020; border-color:#caa15f; }
+  .selbtn:disabled { opacity:.4; }
+  .dilbtn.empty { opacity:.5; }
 
-  /* --- Boutique --- */
   #shopbtn { position:fixed; right:14px; top:calc(max(10px,env(safe-area-inset-top)) + 46px); pointer-events:auto;
     background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff; font-size:18px;
     width:46px; height:42px; border-radius:12px; }
@@ -88,7 +84,6 @@
   #shopclose { width:100%; background:rgba(255,255,255,.12); border:none; color:#fff; font-weight:700; padding:11px; border-radius:12px; }
 </style>
 
-<!-- Three.js charge en module depuis un CDN (import map). Supporte par Safari iOS 16.4+ -->
 <script type="importmap">
 { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
 </script>
@@ -107,15 +102,20 @@
 <div class="hud" id="toast"></div>
 <div id="labels"></div>
 
-<!-- Selecteur de format de vente -->
-<div id="fmtbar">
+<div id="dilbar" class="selbar">
+  <span class="lbl">Coupe</span>
+  <button class="selbtn dilbtn" data-dil="leva">Léva</button>
+  <button class="selbtn dilbtn" data-dil="lacto">Lacto</button>
+  <button class="selbtn dilbtn" data-dil="manni">Manni</button>
+  <button class="selbtn dilbtn" data-dil="benzo">Benzo</button>
+</div>
+<div id="fmtbar" class="selbar">
   <span class="lbl">Sachet</span>
-  <button class="fmtbtn on" data-fmt="1">1g</button>
-  <button class="fmtbtn" data-fmt="5">5g</button>
-  <button class="fmtbtn" data-fmt="25" title="Briquette (presse requise)">25g</button>
+  <button class="selbtn fmtbtn on" data-fmt="1">1g</button>
+  <button class="selbtn fmtbtn" data-fmt="5">5g</button>
+  <button class="selbtn fmtbtn" data-fmt="25">25g</button>
 </div>
 
-<!-- Boutique -->
 <div id="shop">
   <div id="shopinner">
     <div id="shophead"><span>🛒 Boutique</span><span id="shopcash"></span></div>
@@ -131,37 +131,46 @@ import * as THREE from "three";
 /* =========================================================================
    NEIGE — core loop "bulk -> retail" (proto mobile WebGL)
    -------------------------------------------------------------------------
-   "Feeling > skill" : on manipule DIRECTEMENT la matière au doigt, jamais de
-   geste raté. La coupe est PHYSIQUE — on ajoute soi-même du diluant avant de
-   mélanger, et la quantité de diluant fait le stretch (volume + / pureté -).
+   "Feeling > skill" : on manipule la matière au doigt, jamais de geste raté.
+   La COUPE est physique ET un choix : on verse soi-même un diluant (4 paliers
+   du moins cher/plus nocif au plus cher/plus propre) avant de mélanger. Plus
+   on coupe, plus de grammes mais pureté/qualité en baisse ; un diluant nocif
+   rapporte vite mais fait chuter la réputation.
 
-     1) RECEPTION : on achète de la coke (brique) ET du diluant (recharge),
-                    de la même façon, à la boutique.
-     2) VERSER     : on MAINTIENT le doigt sur le 🧱 BLOC DE COKE -> un flux de
-                     poudre coule sur la 🪟 DALLE. Idem sur le 🧂 DILUANT.
-     3) MELANGER   : une fois coke + diluant sur la dalle, on TOURNE le doigt
-                     dessus -> ça se coupe/homogénéise et part en PRODUIT
-                     (grammes = coke + diluant ; pureté diluée d'autant).
-     4) ENSACHER   : on TAPE / MAINTIENT le bac 📦 PRODUIT -> chaque geste
-                     remplit un sachet (1/5/25 g) qui se scelle, s'envole, se
-                     vend. Pas de timing, pas de raté.
+     1) RECEPTION : on achète coke (briques pressées) + diluant (pots), de la
+                    même façon, en boutique.
+     2) VERSER     : MAINTENIR le doigt sur la 🧱 PILE DE COKE ou le 🧪 POT DE
+                     DILUANT -> un flux de poudre coule sur la 🪟 DALLE.
+     3) MELANGER   : coke + diluant sur la dalle -> TOURNER le doigt dessus ->
+                     PRODUIT (g = coke + diluant ; pureté = coke / total).
+     4) ENSACHER   : TAPER / MAINTENIR le bac 📦 PRODUIT -> un pochon (sachet
+                     zip plat) se remplit, se pose sur la table et se vend.
 
-   Boutique : coke, diluant, agent premium (qualité de coupe), presse à
-   briquettes, auto-ensacheuse + cadence. Niveaux (XP) + réputation (qualité
-   moyenne des ventes). Persistance localStorage sous le préfixe `neige_*`.
+   Formes inspirées de Drug Dealer Simulator : briques pressées empilées, pots
+   de coupe cylindriques, pochons carrés plats alignés sur la table.
+   Persistance localStorage sous le préfixe `neige_*`.
    ========================================================================= */
 
 /* -------------------------------------------------------------------------
    0) ECONOMIE
    ------------------------------------------------------------------------- */
-const BRICK_PRICES = { 50: 2200, 100: 4000 };      // coke (gros) ~44 / 40 €/g
-const DIL_REFILL   = { g: 200, cost: 320 };         // diluant (lactose/mannitol) ~1.6 €/g
-const FMT_PRICE    = { 1: 80, 5: 62, 25: 48 };      // €/g au détail selon le format
-const STARTER      = { coke: 30, purity: 0.8, dil: 40 }; // lot de dépannage gratuit
-const POUR_RATE    = 26;                             // g/s versés en maintenant
-const MIX_DRAG_K   = 1 / 650;                        // homogénéité par pixel de swirl
-const MIX_TIME_K   = 0.55;                           // homogénéité par seconde d'engagement
-const BAG_HOLD_RATE= 0.26;                           // s entre deux sachets quand on maintient
+const BRICK_PRICES = { 50: 2200, 100: 4000 };      // coke (gros)
+const FMT_PRICE    = { 1: 80, 5: 62, 25: 48 };     // €/g au détail selon le format
+const STARTER      = { coke: 30, purity: 0.8, dil: 40 };
+const POUR_RATE    = 26;
+const MIX_DRAG_K   = 1 / 650;
+const MIX_TIME_K   = 0.55;
+const BAG_HOLD_RATE= 0.26;
+const DIL_REFILL_G = 200;
+// Paliers de diluant : du moins cher/plus nocif au plus cher/plus propre.
+//  price = €/g d'achat · clean = propreté (-> qualité/€/g) · harm = nocivité (-> réput)
+const DILUANTS = [
+  { key:"leva",  name:"Lévamisole", short:"Léva",  icon:"☠️", price:0.6, clean:0.55, harm:0.12, col:0xb89086 },
+  { key:"lacto", name:"Lactose",    short:"Lacto", icon:"🧂", price:1.2, clean:0.70, harm:0.04, col:0xdad7cc },
+  { key:"manni", name:"Mannitol",   short:"Manni", icon:"⚪", price:2.2, clean:0.85, harm:0.015,col:0xc3d2df },
+  { key:"benzo", name:"Benzocaïne", short:"Benzo", icon:"💉", price:4.5, clean:1.00, harm:0.0,  col:0xa9c4e6 },
+];
+const DIL_BY = Object.fromEntries(DILUANTS.map(d => [d.key, d]));
 
 /* -------------------------------------------------------------------------
    1) SCENE, CAMERA, RENDU
@@ -169,7 +178,6 @@ const BAG_HOLD_RATE= 0.26;                           // s entre deux sachets qua
 const app = document.getElementById("app");
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
-
 const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
 renderer.setClearColor(0x000000, 0);
 renderer.shadowMap.enabled = true;
@@ -177,8 +185,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 app.appendChild(renderer.domElement);
 
 const VIEW_DIR    = new THREE.Vector3(0.0, 0.66, 0.75).normalize();
-const VIEW_TARGET = new THREE.Vector3(0, 0.25, 0.75);
-const VIEW_RADIUS = Math.hypot(2.5, 0.9, 2.1);
+const VIEW_TARGET = new THREE.Vector3(0, 0.25, 0.8);
+const VIEW_RADIUS = Math.hypot(2.5, 0.9, 2.3);
 const baseCamPos  = new THREE.Vector3();
 let zoom = +(localStorage.getItem("neige_zoom")) || 1;
 zoom = Math.max(0.6, Math.min(2.6, zoom));
@@ -207,62 +215,69 @@ window.addEventListener("resize", resize);
    ------------------------------------------------------------------------- */
 scene.add(new THREE.HemisphereLight(0xdfeeff, 0x1a2230, 0.6));
 const sun = new THREE.DirectionalLight(0xffffff, 1.35);
-sun.position.set(5, 11, 5);
-sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.bias = -0.0004;
-const sc = sun.shadow.camera;
-sc.left = -8; sc.right = 8; sc.top = 8; sc.bottom = -8; sc.near = 1; sc.far = 30;
+sun.position.set(5, 11, 5); sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024); sun.shadow.bias = -0.0004;
+const sc = sun.shadow.camera; sc.left = -8; sc.right = 8; sc.top = 8; sc.bottom = -8; sc.near = 1; sc.far = 30;
 scene.add(sun);
-const fill = new THREE.DirectionalLight(0x9fc0ff, 0.4);
-fill.position.set(-4, 3, 6);
-scene.add(fill);
+const fill = new THREE.DirectionalLight(0x9fc0ff, 0.4); fill.position.set(-4, 3, 6); scene.add(fill);
 
 /* -------------------------------------------------------------------------
-   3) PLAN DE TRAVAIL : table + dalle + bloc de coke + tub de diluant + bac
+   3) PLAN DE TRAVAIL
    ------------------------------------------------------------------------- */
 const board = new THREE.Mesh(
-  new THREE.BoxGeometry(5.2, 0.3, 4.8),
+  new THREE.BoxGeometry(5.2, 0.3, 5.2),
   new THREE.MeshStandardMaterial({ color: 0x2a3340, roughness: 0.7, metalness: 0.25 })
 );
-board.position.set(0, -0.15, 0.5);
-board.receiveShadow = true;
-scene.add(board);
+board.position.set(0, -0.15, 0.6); board.receiveShadow = true; scene.add(board);
 
 const SLAB_POS = new THREE.Vector3(0, 0, 0.2);
 const slab = new THREE.Mesh(
   new THREE.BoxGeometry(2.3, 0.12, 1.5),
   new THREE.MeshStandardMaterial({ color: 0xbfe9ff, transparent: true, opacity: 0.4, roughness: 0.06, metalness: 0.3 })
 );
-slab.position.copy(SLAB_POS).setY(0.06);
-slab.receiveShadow = true;
-scene.add(slab);
+slab.position.copy(SLAB_POS).setY(0.06); slab.receiveShadow = true; scene.add(slab);
 
-// BLOC DE COKE (mylar) au fond-gauche -> source de poudre "coke".
-const COKE_POS = new THREE.Vector3(-1.55, 0, -0.5);
-const coke = new THREE.Group();
-coke.position.copy(COKE_POS);
-const mylar = new THREE.MeshStandardMaterial({ color: 0xdfe6ee, roughness: 0.32, metalness: 0.4 });
-const cokeBody = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.5, 0.78), mylar);
-cokeBody.position.y = 0.25; cokeBody.castShadow = true; coke.add(cokeBody);
-const cokeTape = new THREE.Mesh(new THREE.BoxGeometry(1.07, 0.16, 0.12),
-  new THREE.MeshStandardMaterial({ color: 0x9aa6b2, roughness: 0.5 }));
-cokeTape.position.set(0, 0.25, 0); coke.add(cokeTape);
+// PILE DE COKE (briques pressées empilées, façon DDS) au fond-gauche.
+const COKE_POS = new THREE.Vector3(-1.6, 0, -0.6);
+const coke = new THREE.Group(); coke.position.copy(COKE_POS);
+const mylar = new THREE.MeshStandardMaterial({ color: 0xe8ecf1, roughness: 0.3, metalness: 0.35 });
+const tapeMat = new THREE.MeshStandardMaterial({ color: 0x9aa6b2, roughness: 0.5 });
+const brandMat = new THREE.MeshStandardMaterial({ color: 0x2f7fd6, roughness: 0.5 });
+const cokePick = [];
+function pressedBrick(x, y, z, ry) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 0.82), mylar);
+  body.castShadow = true; body.receiveShadow = true; g.add(body); cokePick.push(body);
+  const t1 = new THREE.Mesh(new THREE.BoxGeometry(1.22, 0.04, 0.12), tapeMat); t1.position.y = 0.16; g.add(t1);
+  const t2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.84), tapeMat); t2.position.y = 0.16; g.add(t2);
+  const brand = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.02, 0.18), brandMat); brand.position.set(0.36, 0.16, 0.22); g.add(brand);
+  coke.add(g); return g;
+}
+pressedBrick(0.05, 0.15, 0.05, 0.05);              // brique du dessous
+pressedBrick(-0.05, 0.46, -0.04, -0.12);           // brique du dessus, décalée -> pile
 scene.add(coke);
 
-// TUB DE DILUANT (bidon) au fond-droit -> source de poudre "diluant".
-const DIL_POS = new THREE.Vector3(1.55, 0, -0.5);
-const dilTub = new THREE.Group();
-dilTub.position.copy(DIL_POS);
-const dilBody = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.62, 22),
-  new THREE.MeshStandardMaterial({ color: 0xc3d2df, roughness: 0.4, metalness: 0.15 }));
-dilBody.position.y = 0.31; dilBody.castShadow = true; dilTub.add(dilBody);
-const dilLid = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.1, 22),
-  new THREE.MeshStandardMaterial({ color: 0x8197a8, roughness: 0.5 }));
-dilLid.position.y = 0.64; dilTub.add(dilLid);
+// POTS DE DILUANT (cylindres étiquetés, façon DDS) au fond-droit. Un seul pot
+// "actif" visible, teinté selon le palier choisi.
+const DIL_POS = new THREE.Vector3(1.6, 0, -0.6);
+const dilTub = new THREE.Group(); dilTub.position.copy(DIL_POS);
+const dilBody = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.64, 24),
+  new THREE.MeshStandardMaterial({ color: 0xdad7cc, roughness: 0.4, metalness: 0.15 }));
+dilBody.position.y = 0.32; dilBody.castShadow = true; dilTub.add(dilBody);
+const dilBand = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.43, 0.22, 24),
+  new THREE.MeshStandardMaterial({ color: 0xf3f0e8, roughness: 0.7 }));
+dilBand.position.y = 0.3; dilTub.add(dilBand);
+const dilLid = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.1, 24),
+  new THREE.MeshStandardMaterial({ color: 0x7e8a97, roughness: 0.5 }));
+dilLid.position.y = 0.66; dilTub.add(dilLid);
 scene.add(dilTub);
+// Petits pots décoratifs derrière (les autres paliers en rayon).
+for (let i = 0; i < 3; i++) {
+  const j = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.5, 18),
+    new THREE.MeshStandardMaterial({ color: DILUANTS[i].col, roughness: 0.5 }));
+  j.position.set(DIL_POS.x - 0.5 + i * 0.5, 0.25, DIL_POS.z - 0.7); j.castShadow = true; scene.add(j);
+}
 
-// Bac PRODUIT (coupé, à ensacher) au centre-avant.
 function makeBin(pos, col) {
   const grp = new THREE.Group(); grp.position.copy(pos);
   const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, metalness: 0.1, side: THREE.DoubleSide });
@@ -273,10 +288,9 @@ function makeBin(pos, col) {
   wLR(-w / 2); wLR(w / 2); wFB(-d / 2); wFB(d / 2);
   scene.add(grp); return grp;
 }
-const PROD_POS = new THREE.Vector3(0, 0, 2.05);
+const PROD_POS = new THREE.Vector3(-0.55, 0, 1.95);
 const prodBin  = makeBin(PROD_POS, 0x2f5d8a);
 
-// Halo de guidage pulsant sous la station active.
 const glow = new THREE.Mesh(
   new THREE.CircleGeometry(1.0, 28),
   new THREE.MeshBasicMaterial({ color: 0x7df9ff, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false })
@@ -284,7 +298,7 @@ const glow = new THREE.Mesh(
 glow.rotation.x = -Math.PI / 2; glow.position.y = 0.04; scene.add(glow);
 
 /* -------------------------------------------------------------------------
-   4) TAS DE POUDRE (heaps)
+   4) TAS DE POUDRE
    ------------------------------------------------------------------------- */
 function powderTex(base) {
   const c = document.createElement("canvas"); c.width = c.height = 64;
@@ -297,19 +311,16 @@ function powderTex(base) {
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
 }
 function makeHeap(base) {
-  const m = new THREE.Mesh(
-    new THREE.ConeGeometry(0.78, 0.5, 20),
-    new THREE.MeshStandardMaterial({ map: powderTex(base), roughness: 0.97 })
-  );
+  const m = new THREE.Mesh(new THREE.ConeGeometry(0.78, 0.5, 20),
+    new THREE.MeshStandardMaterial({ map: powderTex(base), roughness: 0.97 }));
   m.castShadow = true; m.visible = false; scene.add(m); return m;
 }
-const trayHeap  = makeHeap(238); trayHeap.position.set(SLAB_POS.x, 0.12, SLAB_POS.z);
-const prodHeap  = makeHeap(228); prodHeap.position.set(PROD_POS.x, 0.06, PROD_POS.z);
+const trayHeap = makeHeap(238); trayHeap.position.set(SLAB_POS.x, 0.12, SLAB_POS.z);
+const prodHeap = makeHeap(228); prodHeap.position.set(PROD_POS.x, 0.06, PROD_POS.z);
 function setHeap(mesh, g, maxG) {
   const k = Math.min(1, g / maxG);
   const s = 0.18 + 0.95 * Math.cbrt(k);
-  mesh.visible = g > 0.3;
-  mesh.scale.set(s, 0.55 + 0.6 * k, s);
+  mesh.visible = g > 0.3; mesh.scale.set(s, 0.55 + 0.6 * k, s);
 }
 const COL_FRESH = new THREE.Color(0xffffff);
 const COL_CUT   = new THREE.Color(0xefe6cf);
@@ -328,26 +339,28 @@ let level = Math.max(1, +(localStorage.getItem("neige_level") || 1));
 let xp    = Math.max(0, +(localStorage.getItem("neige_xp") || 0));
 let rep   = Math.min(1.2, Math.max(0.7, +(localStorage.getItem("neige_rep") || 1)));
 let fmt   = +(localStorage.getItem("neige_fmt") || 1);
+let curDil = localStorage.getItem("neige_dil") || "lacto";
+if (!DIL_BY[curDil]) curDil = "lacto";
 
-let bulkG = 0, bulkPurity = STARTER.purity;        // stock de coke
-let dilG  = 0;                                      // stock de diluant
-const tray = { coke: 0, dil: 0, cokePure: 0 };      // sur la dalle : coke, diluant, "grammes purs" de coke
-const prod = { g: 0, qsum: 0 };                     // produit coupé : g + qualité pondérée
-let homog = 0;                                       // homogénéité du mélange courant (0..1)
+let bulkG = 0, bulkPurity = STARTER.purity;
+const dilStock = { leva: 0, lacto: 0, manni: 0, benzo: 0 };
+const tray = { coke: 0, dil: 0, cokePure: 0, dilClean: 0, dilHarm: 0 };
+const prod = { g: 0, qsum: 0 };
+let homog = 0;
 
 function trayG()      { return tray.coke + tray.dil; }
-function trayPurity() { return trayG() > 0 ? tray.cokePure / trayG() : bulkPurity; }
+function totalDil()   { let s = 0; for (const k in dilStock) s += dilStock[k]; return s; }
+function curDef()     { return DIL_BY[curDil]; }
 function prodQual()   { return prod.g > 0 ? prod.qsum / prod.g : 0.6; }
 function addProd(g, q){ prod.g += g; prod.qsum += g * q; updateProdLabel(); }
 function takeProd(g) {
   if (prod.g <= 0) return;
   const r = Math.min(1, g / prod.g);
-  prod.qsum *= (1 - r); prod.g = Math.max(0, prod.g - g);
-  updateProdLabel();
+  prod.qsum *= (1 - r); prod.g = Math.max(0, prod.g - g); updateProdLabel();
 }
 
 /* -------------------------------------------------------------------------
-   6) UI (références + setters)
+   6) UI
    ------------------------------------------------------------------------- */
 const ui = {
   count:document.getElementById("count"), cash:document.getElementById("cash"), rep:document.getElementById("rep"),
@@ -369,7 +382,8 @@ function setRep(v) {
 function updateCount()      { ui.count.textContent = "Produit : " + Math.round(prod.g) + " g"; }
 function updateResources()  {
   ui.title.textContent  = "COKE " + Math.round(bulkG) + " g · " + Math.round(bulkPurity * 100) + "%";
-  ui.remain.textContent = "DILUANT " + Math.round(dilG) + " g";
+  ui.remain.textContent = "COUPE " + curDef().name + " : " + Math.round(dilStock[curDil]) + " g";
+  updateDilBar();
 }
 function updateProdLabel()  { prodLabel.textContent = "📦 PRODUIT " + Math.round(prod.g) + " g"; setHeap(prodHeap, prod.g, 260); updateCount(); }
 function updateTrayHeap()   { setHeap(trayHeap, trayG(), 160); }
@@ -398,7 +412,7 @@ function addXP(n) {
 }
 
 /* -------------------------------------------------------------------------
-   8) AUDIO (synthétisé)
+   8) AUDIO
    ------------------------------------------------------------------------- */
 let actx = null;
 function ensureAudio() {
@@ -435,7 +449,7 @@ const sErr   = () => { const ac = ensureAudio(); if (ac) beep(150, ac.currentTim
 function sSale() { const ac = ensureAudio(); if (!ac) return; const t = ac.currentTime; beep(880, t, 0.12, 0.24); beep(1320, t + 0.08, 0.16, 0.22); }
 
 /* -------------------------------------------------------------------------
-   9) PUFFS de poudre (coke = blanc, diluant = crème) + secousse
+   9) PUFFS de poudre + secousse
    ------------------------------------------------------------------------- */
 const puffs = [];
 const puffGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
@@ -469,25 +483,40 @@ let shake = 0;
 function addShake(a) { shake = Math.min(0.6, shake + a); }
 
 /* -------------------------------------------------------------------------
-   10) SACHETS qui s'envolent (juice de vente)
+   10) POCHONS (sachets zip carrés plats, alignés sur la table façon DDS)
    ------------------------------------------------------------------------- */
-const bags = [];
-const bagGeo = new THREE.BoxGeometry(0.3, 0.07, 0.38);
-const bagMat = new THREE.MeshStandardMaterial({ color: 0xeaf6ff, transparent: true, opacity: 0.9, roughness: 0.3, metalness: 0.1 });
-function spawnBagFly() {
-  const m = new THREE.Mesh(bagGeo, bagMat);
-  m.position.set(PROD_POS.x, 0.4, PROD_POS.z); m.castShadow = true; scene.add(m);
-  bags.push({ mesh: m, t: 0, from: m.position.clone(),
-    to: new THREE.Vector3(PROD_POS.x + 1.2 + Math.random()*0.5, 1.7, PROD_POS.z - 0.5) });
-  while (bags.length > 24) { const b = bags.shift(); scene.remove(b.mesh); }
+const POCHON_N = 10;
+const POCHON_SIZE = { 1: 0.78, 5: 1.15, 25: 1.55 };   // 1 g petit · 5 g plus grand · 25 g briquette
+const pochonZipMat = new THREE.MeshStandardMaterial({ color: 0x2bb6c4, roughness: 0.4 });
+const pochonBagMat = new THREE.MeshStandardMaterial({ color: 0xf2f7fc, transparent: true, opacity: 0.86, roughness: 0.35, metalness: 0.05 });
+const pochons = [];
+function makePochon() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.3), pochonBagMat);
+  body.position.y = 0.03; body.castShadow = true; g.add(body);
+  const zip = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.03, 0.06), pochonZipMat);
+  zip.position.set(0, 0.06, 0.13); g.add(zip);
+  return g;
 }
-function updateBags(dt) {
-  for (let i = bags.length - 1; i >= 0; i--) {
-    const b = bags[i]; b.t += dt * 1.7; const k = Math.min(1, b.t);
-    b.mesh.position.lerpVectors(b.from, b.to, k);
-    b.mesh.position.y += Math.sin(k * Math.PI) * 0.4;
-    b.mesh.rotation.y += dt * 5; b.mesh.scale.setScalar(1 - 0.55 * k);
-    if (k >= 1) { scene.remove(b.mesh); bags.splice(i, 1); }
+for (let i = 0; i < POCHON_N; i++) {
+  const col = i % 5, row = Math.floor(i / 5);
+  const g = makePochon();
+  g.position.set(PROD_POS.x - 0.96 + col * 0.48, 0.02, 2.55 + row * 0.46);
+  g.rotation.y = (Math.random() - 0.5) * 0.35;
+  g.visible = false; g.scale.setScalar(0.001); scene.add(g);
+  pochons.push({ grp: g, pop: 0, size: 1 });
+}
+let pochonIdx = 0;
+// La taille du pochon reflète le format vendu : 1 g petit, 5 g plus grand, 25 g briquette.
+function popPochon() {
+  const p = pochons[pochonIdx % POCHON_N]; pochonIdx++;
+  p.grp.visible = true; p.pop = 0; p.size = POCHON_SIZE[fmt] || 1;
+}
+function updatePochons(dt) {
+  for (const p of pochons) {
+    if (!p.grp.visible || p.pop >= 1) continue;
+    p.pop = Math.min(1, p.pop + dt * 6);
+    p.grp.scale.setScalar(p.size * (0.25 + 0.75 * p.pop));
   }
 }
 
@@ -501,7 +530,7 @@ function makeLabel(text, color) {
 }
 const prodLabel = makeLabel("📦 PRODUIT 0 g", "#bfe9ff");
 const cokeLabel = makeLabel("🧱 COKE", "#dfe6ee");
-const dilLabel  = makeLabel("🧂 DILUANT", "#e7ddc6");
+const dilLabel  = makeLabel("🧪 COUPE", "#e7ddc6");
 const slabLabel = makeLabel("🪟 DALLE", "#bfe9ff");
 const _lv = new THREE.Vector3();
 function placeLabel(div, x, y, z) {
@@ -514,10 +543,10 @@ function placeLabel(div, x, y, z) {
 function updateLabels() {
   placeLabel(prodLabel, PROD_POS.x, 0.55, PROD_POS.z);
   cokeLabel.textContent = bulkG > 0.3 ? ("🧱 COKE " + Math.round(bulkG) + " g") : "🧱 (vide)";
-  placeLabel(cokeLabel, COKE_POS.x, 0.75, COKE_POS.z);
-  dilLabel.textContent = dilG > 0.3 ? ("🧂 DILUANT " + Math.round(dilG) + " g") : "🧂 (vide)";
-  placeLabel(dilLabel, DIL_POS.x, 0.85, DIL_POS.z);
-  if (trayG() > 0.3) slabLabel.textContent = "🪟 " + Math.round(tray.coke) + "g coke +" + Math.round(tray.dil) + "g dil" + (homog > 0.02 ? " · " + Math.round(homog*100) + "%" : "");
+  placeLabel(cokeLabel, COKE_POS.x, 0.95, COKE_POS.z);
+  dilLabel.textContent = dilStock[curDil] > 0.3 ? ("🧪 " + curDef().name + " " + Math.round(dilStock[curDil]) + " g") : "🧪 (pot vide)";
+  placeLabel(dilLabel, DIL_POS.x, 0.95, DIL_POS.z);
+  if (trayG() > 0.3) slabLabel.textContent = "🪟 " + Math.round(tray.coke) + "g coke +" + Math.round(tray.dil) + "g coupe" + (homog > 0.02 ? " · " + Math.round(homog*100) + "%" : "");
   else slabLabel.textContent = "🪟 DALLE";
   placeLabel(slabLabel, SLAB_POS.x, 0.5, SLAB_POS.z);
 }
@@ -530,36 +559,33 @@ function showToast(msg, color) {
   ui.toast.textContent = msg; ui.toast.style.color = color || "#fff";
   ui.toast.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => ui.toast.classList.remove("show"), 900);
+  toastTimer = setTimeout(() => ui.toast.classList.remove("show"), 1000);
 }
 
 /* -------------------------------------------------------------------------
-   13) BOUTIQUE & UPGRADES
+   13) BOUTIQUE
    ------------------------------------------------------------------------- */
 const owned = JSON.parse(localStorage.getItem("neige_shop") || "{}");
-owned.agent   = owned.agent   || 0;   // agent premium : coupe moins détectable (qualité +)
-owned.press   = owned.press   || 0;   // presse à briquettes : débloque le 25 g
-owned.autobag = owned.autobag || 0;   // auto-ensacheuse
-owned.cadence = owned.cadence || 0;   // cadence de l'auto-ensacheuse
+owned.press   = owned.press   || 0;
+owned.autobag = owned.autobag || 0;
+owned.cadence = owned.cadence || 0;
 function saveShop() { localStorage.setItem("neige_shop", JSON.stringify(owned)); }
 function bagInterval() { return 3.0 * Math.pow(0.82, owned.cadence); }
-// Qualité du produit selon sa pureté (après coupe) + bonus d'agent premium.
-function cutQuality(purity) { return Math.max(0.2, Math.min(1, 0.3 + 0.7 * purity + owned.agent * 0.035)); }
+// Qualité du produit = pureté (après coupe) + propreté du diluant utilisé.
+function cutQuality(purity, clean) { return Math.max(0.2, Math.min(1, 0.25 + 0.45 * purity + 0.30 * clean)); }
+function harmWord(h) { return h >= 0.1 ? "élevée" : h >= 0.03 ? "moyenne" : "faible"; }
 
 const SHOP = [
   { id:"brick50", icon:"🧱", name:"Coke 50 g",
-    desc:()=>"Matière première (gros). Recharge le bloc.",
+    desc:()=>"Brique pressée (gros). Recharge la pile.",
     cost:()=>BRICK_PRICES[50], can:()=>true, maxed:()=>false, buy:()=>receiveCoke(50) },
   { id:"brick100", icon:"📦", name:"Coke 100 g",
-    desc:()=>"Matière première (gros, moins cher au gramme).",
+    desc:()=>"Brique pressée (gros, moins cher au gramme).",
     cost:()=>BRICK_PRICES[100], can:()=>true, maxed:()=>false, buy:()=>receiveCoke(100) },
-  { id:"dil", icon:"🧂", name:"Diluant " + DIL_REFILL.g + " g",
-    desc:()=>"Agent de coupe (lactose/mannitol). Recharge le tub.",
-    cost:()=>DIL_REFILL.cost, can:()=>true, maxed:()=>false, buy:()=>receiveDiluant() },
-  { id:"agent", icon:"✨", name:"Agent premium",
-    desc:()=>"Coupe moins détectable : qualité +" + Math.round((owned.agent+1)*3.5) + "% à pureté égale.",
-    cost:()=>Math.round(800 * Math.pow(1.6, owned.agent)),
-    can:()=>owned.agent < 6, maxed:()=>owned.agent >= 6, buy:()=>{ owned.agent++; } },
+  ...DILUANTS.map(d => ({
+    id:"dil_" + d.key, icon:d.icon, name:d.name + " " + DIL_REFILL_G + " g",
+    desc:()=>"Coupe : propreté " + Math.round(d.clean*100) + "% · nocivité " + harmWord(d.harm) + " · " + d.price.toFixed(1) + " €/g",
+    cost:()=>Math.round(d.price * DIL_REFILL_G), can:()=>true, maxed:()=>false, buy:()=>receiveDiluant(d.key) })),
   { id:"press", icon:"🗜️", name:"Presse à briquettes",
     desc:()=>"Débloque le format 25 g (semi-gros).",
     cost:()=>3000, can:()=>owned.press < 1, maxed:()=>owned.press >= 1, buy:()=>{ owned.press = 1; refreshFmtButtons(); } },
@@ -594,7 +620,7 @@ function buy(it) {
 }
 
 /* -------------------------------------------------------------------------
-   14) RECEPTION : coke & diluant (achetés de la même façon)
+   14) RECEPTION : coke & diluant
    ------------------------------------------------------------------------- */
 function receiveCoke(size) {
   const cost = BRICK_PRICES[size];
@@ -607,32 +633,31 @@ function receiveCoke(size) {
   burstPuffs(COKE_POS, 8); sSale();
   showToast("Coke +" + size + " g · " + Math.round(purity * 100) + "%", "#bfe9ff");
 }
-function receiveDiluant() {
-  const cost = DIL_REFILL.cost;
+function receiveDiluant(key) {
+  const d = DIL_BY[key], cost = Math.round(d.price * DIL_REFILL_G);
   if (cash < cost) { showToast("Pas assez : " + cost + " €", "#ff6b6b"); return; }
   setCash(cash - cost); ui.shop.classList.remove("show");
-  dilG += DIL_REFILL.g; updateResources();
+  dilStock[key] += DIL_REFILL_G; setDil(key);
   burstPuffs(DIL_POS, 8, null, puffMatDil); sSale();
-  showToast("Diluant +" + DIL_REFILL.g + " g", "#e7ddc6");
+  showToast(d.name + " +" + DIL_REFILL_G + " g", "#e7ddc6");
 }
 
 /* -------------------------------------------------------------------------
-   15) GESTE 1 — VERSER : maintenir sur le BLOC (coke) ou le TUB (diluant).
-   pouring vaut null | "coke" | "dil". Aucune perte, on verse autant qu'on veut.
+   15) GESTE 1 — VERSER (coke ou diluant du palier sélectionné)
    ------------------------------------------------------------------------- */
 let pouring = null, pourSndT = 0;
 function updatePour(dt) {
   if (!pouring) return;
   const isCoke = pouring === "coke";
-  const stock = isCoke ? bulkG : dilG;
-  if (stock <= 0.05) { pouring = null; showToast(isCoke ? "Bloc fini" : "Diluant fini", "#e6c896"); return; }
+  const stock = isCoke ? bulkG : dilStock[curDil];
+  if (stock <= 0.05) { pouring = null; showToast(isCoke ? "Brique finie" : "Pot « " + curDef().name + " » vide", "#e6c896"); return; }
   const g = Math.min(stock, POUR_RATE * dt);
   if (isCoke) { bulkG -= g; tray.coke += g; tray.cokePure += g * bulkPurity; }
-  else        { dilG  -= g; tray.dil  += g; }
-  homog = 0; setTrayTint(0);                        // composition modifiée -> à (re)mélanger
+  else { const d = curDef(); dilStock[curDil] -= g; tray.dil += g; tray.dilClean += g * d.clean; tray.dilHarm += g * d.harm; }
+  homog = 0; setTrayTint(0);
   updateTrayHeap(); updateResources();
   const src = isCoke ? COKE_POS : DIL_POS;
-  spawnPuff(new THREE.Vector3(src.x + (isCoke?0.3:-0.3), 0.6, src.z + 0.2),
+  spawnPuff(new THREE.Vector3(src.x + (isCoke ? 0.3 : -0.3), 0.7, src.z + 0.2),
     (SLAB_POS.x - src.x) * 1.1 + (Math.random()-0.5)*0.3, 0.3 + Math.random()*0.3,
     (SLAB_POS.z - src.z) * 1.1 + (Math.random()-0.5)*0.3, isCoke ? puffMat : puffMatDil);
   pourSndT += dt;
@@ -640,19 +665,16 @@ function updatePour(dt) {
 }
 
 /* -------------------------------------------------------------------------
-   16) GESTE 2 — MELANGER : tourner le doigt sur la dalle. Exige coke + diluant.
-   Coupe physique : produit = coke + diluant ; pureté = coke_pur / total.
+   16) GESTE 2 — MELANGER (exige coke + diluant). Coupe physique.
    ------------------------------------------------------------------------- */
 let mixing = false;
 function mixAddDrag(px) {
   if (!mixing || trayG() <= 0) return;
-  homog = Math.min(1, homog + px * MIX_DRAG_K);
-  setTrayTint(homog);
+  homog = Math.min(1, homog + px * MIX_DRAG_K); setTrayTint(homog);
 }
 function updateMix(dt) {
   if (!mixing || tray.coke <= 0 || tray.dil <= 0) return;
-  homog = Math.min(1, homog + dt * MIX_TIME_K);
-  setTrayTint(homog);
+  homog = Math.min(1, homog + dt * MIX_TIME_K); setTrayTint(homog);
   if (Math.random() < dt * 14) {
     spawnPuff(new THREE.Vector3(SLAB_POS.x + (Math.random()-0.5)*1.0, 0.3, SLAB_POS.z + (Math.random()-0.5)*0.6),
       (Math.random()-0.5)*0.6, 0.6 + Math.random()*0.4, (Math.random()-0.5)*0.6, puffMatDil);
@@ -664,18 +686,21 @@ function commitMix() {
   mixing = false;
   const total = trayG();
   const purity = total > 0 ? tray.cokePure / total : 0;
-  const qual = cutQuality(purity);
+  const cleanAvg = tray.dil > 0 ? tray.dilClean / tray.dil : 1;
+  const harmAvg  = tray.dil > 0 ? tray.dilHarm / tray.dil : 0;
+  const cutFrac  = total > 0 ? tray.dil / total : 0;
+  const qual = cutQuality(purity, cleanAvg);
   addProd(total, qual);
-  setRep(rep + (qual - 0.6) * 0.05);
+  setRep(rep + (qual - 0.55) * 0.06 - harmAvg * cutFrac);   // nocivité -> réput
   const stretch = tray.coke > 0 ? total / tray.coke : 1;
-  tray.coke = 0; tray.dil = 0; tray.cokePure = 0; homog = 0; setTrayTint(0); updateTrayHeap();
+  tray.coke = tray.dil = tray.cokePure = tray.dilClean = tray.dilHarm = 0; homog = 0; setTrayTint(0); updateTrayHeap();
   burstPuffs(SLAB_POS, 12, PROD_POS); addShake(0.16); sSale();
   addXP(Math.max(1, Math.round(total * 0.3)));
   showToast("Coupé ×" + stretch.toFixed(2) + " → +" + Math.round(total) + " g (pureté " + Math.round(purity*100) + "%, qual " + Math.round(qual*100) + "%)", "#bfe9ff");
 }
 
 /* -------------------------------------------------------------------------
-   17) GESTE 3 — ENSACHER : taper/maintenir le bac PRODUIT.
+   17) GESTE 3 — ENSACHER
    ------------------------------------------------------------------------- */
 let bagging = false, bagHoldT = 0;
 function bagOnce() {
@@ -683,7 +708,7 @@ function bagOnce() {
   const q = prodQual(); takeProd(fmt);
   const price = fmt * FMT_PRICE[fmt] * q * rep * levelMult();
   setCash(cash + price); addXP(Math.max(1, Math.round(price * 0.03)));
-  spawnBagFly(); sZip(); burstPuffs(PROD_POS, 3, null);
+  popPochon(); sZip(); burstPuffs(PROD_POS, 3, null);
   const ac = ensureAudio(); if (ac) beep(720, ac.currentTime, 0.05, 0.12);
   return true;
 }
@@ -694,7 +719,7 @@ function updateBagging(dt) {
 }
 
 /* -------------------------------------------------------------------------
-   18) AUTO-ENSACHEUSE (passive)
+   18) AUTO-ENSACHEUSE
    ------------------------------------------------------------------------- */
 let autoTimer = 0;
 function updateAuto(dt) {
@@ -705,24 +730,25 @@ function updateAuto(dt) {
     const q = prodQual(); takeProd(fmt);
     const price = fmt * FMT_PRICE[fmt] * q * rep * 0.85 * levelMult();
     setCash(cash + price); addXP(Math.max(1, Math.round(price * 0.03)));
-    spawnBagFly();
+    popPochon();
     const ac = ensureAudio(); if (ac) beep(680, ac.currentTime, 0.05, 0.1);
   }
 }
 
 /* -------------------------------------------------------------------------
-   19) GUIDAGE : consigne + halo sous la station "à utiliser".
+   19) GUIDAGE
    ------------------------------------------------------------------------- */
 function currentStep() {
-  if (tray.coke > 0.3 && tray.dil > 0.3) return "mix";       // coke + diluant prêts -> mélanger
-  if (tray.coke > 0.3)                   return "pourDil";   // coke versée -> ajouter diluant
-  if (prod.g >= fmt)                     return "bag";       // du produit à vendre
-  if (bulkG > 0.3)                       return "pourCoke";  // verser de la coke
+  if (tray.coke > 0.3 && tray.dil > 0.3) return "mix";
+  if (tray.coke > 0.3)                   return totalDil() > 0.3 ? "pourDil" : "buyDil";
+  if (prod.g >= fmt)                     return "bag";
+  if (bulkG > 0.3)                       return "pourCoke";
   return "receive";
 }
 const PROMPTS = {
-  pourCoke: "🧱 Maintiens sur le BLOC DE COKE pour en verser sur la dalle",
-  pourDil:  "🧂 Maintiens sur le DILUANT (à droite) pour couper — ajoute-en sur la dalle",
+  pourCoke: "🧱 Maintiens sur la PILE DE COKE pour en verser sur la dalle",
+  pourDil:  "🧪 Maintiens sur le POT DE COUPE (à droite) pour ajouter du diluant",
+  buyDil:   "🧪 Plus de diluant — achète une coupe 🛒 (paliers en bas : « Coupe »)",
   mix:      "🪟 Tourne le doigt sur la DALLE pour mélanger la coupe",
   bag:      "📦 Tape (ou maintiens) le bac PRODUIT pour ensacher & vendre",
   receive:  "🛒 Reçois de la coke et du diluant (ou 🔄 Lot gratuit)",
@@ -732,7 +758,7 @@ let glowPhase = 0;
 function updateGuide(dt) {
   const step = currentStep();
   if (ui.prompt.textContent !== PROMPTS[step]) ui.prompt.textContent = PROMPTS[step];
-  ui.shopbtn.classList.toggle("pulse", step === "receive");
+  ui.shopbtn.classList.toggle("pulse", step === "receive" || step === "buyDil");
   const pos = STEP_POS[step];
   glow.visible = !!pos;
   if (pos) {
@@ -745,7 +771,7 @@ function updateGuide(dt) {
 }
 
 /* -------------------------------------------------------------------------
-   20) ENTREES : gestes directs sur la scène 3D (+ pinch zoom)
+   20) ENTREES
    ------------------------------------------------------------------------- */
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
@@ -757,7 +783,6 @@ function rayHit(cx, cy, objs, recursive) {
   raycaster.setFromCamera(ndc, camera);
   return raycaster.intersectObjects(objs, !!recursive).length > 0;
 }
-
 const pointers = new Map();
 let pinching = false, pinchStartDist = 0, pinchStartZoom = 1;
 let gesture = null, lastX = 0, lastY = 0;
@@ -777,28 +802,25 @@ el.addEventListener("pointerdown", (e) => {
   if (pointers.size >= 2) { startPinch(); return; }
   ensureAudio();
   lastX = e.clientX; lastY = e.clientY;
-  // Bac PRODUIT -> ensacher.
   if (rayHit(e.clientX, e.clientY, prodBin.children) || (prod.g >= fmt && rayHit(e.clientX, e.clientY, [prodHeap]))) {
     if (prod.g >= fmt) { gesture = "bag"; bagging = true; bagHoldT = 0; bagOnce(); }
     else showToast("Mélange du produit d'abord", "#e6c896");
     return;
   }
-  // Bloc de coke -> verser de la coke.
-  if (rayHit(e.clientX, e.clientY, [cokeBody, cokeTape])) {
+  if (rayHit(e.clientX, e.clientY, cokePick)) {
     if (bulkG > 0.05) { gesture = "pour"; pouring = "coke"; }
-    else showToast("Bloc vide — achète de la coke 🛒", "#e6c896");
+    else showToast("Plus de coke — achète une brique 🛒", "#e6c896");
     return;
   }
-  // Tub de diluant -> verser du diluant.
-  if (rayHit(e.clientX, e.clientY, [dilBody, dilLid])) {
-    if (dilG > 0.05) { gesture = "pour"; pouring = "dil"; }
-    else showToast("Diluant vide — achète-en 🛒", "#e6c896");
+  if (rayHit(e.clientX, e.clientY, [dilBody, dilBand, dilLid])) {
+    if (dilStock[curDil] > 0.05) { gesture = "pour"; pouring = "dil"; }
+    else if (totalDil() > 0.05) showToast("Pot « " + curDef().name + " » vide — change de coupe (en bas)", "#e6c896");
+    else showToast("Plus de diluant — achète une coupe 🛒", "#e6c896");
     return;
   }
-  // Dalle -> mélanger (exige coke + diluant).
   if (rayHit(e.clientX, e.clientY, [slab, trayHeap])) {
     if (tray.coke <= 0.3) showToast("Verse d'abord de la coke sur la dalle", "#e6c896");
-    else if (tray.dil <= 0.3) showToast("Ajoute du diluant avant de mélanger 🧂", "#e6c896");
+    else if (tray.dil <= 0.3) showToast("Ajoute du diluant avant de mélanger 🧪", "#e6c896");
     else { gesture = "mix"; mixing = true; }
     return;
   }
@@ -823,12 +845,12 @@ function onUp(e) {
 el.addEventListener("pointerup", onUp, { passive:false });
 el.addEventListener("pointercancel", onUp, { passive:false });
 
-// Boutons HUD.
 document.getElementById("reset").addEventListener("click", restock);
 ui.shopbtn.addEventListener("click", () => { renderShop(); ui.shop.classList.add("show"); });
 document.getElementById("shopclose").addEventListener("click", () => ui.shop.classList.remove("show"));
 ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.classList.remove("show"); });
 for (const b of document.querySelectorAll(".fmtbtn")) b.addEventListener("click", () => setFmt(+b.dataset.fmt));
+for (const b of document.querySelectorAll(".dilbtn")) b.addEventListener("click", () => setDil(b.dataset.dil));
 
 function setFmt(f) {
   if (f === 25 && !owned.press) { showToast("Achète la presse à briquettes 🛒", "#e6c896"); return; }
@@ -839,14 +861,26 @@ function refreshFmtButtons() {
   for (const b of document.querySelectorAll(".fmtbtn"))
     b.disabled = (+b.dataset.fmt === 25 && !owned.press);
 }
-// "🔄 Lot" : filet anti soft-lock -> coke + diluant gratuits si on est à sec.
+function setDil(key) {
+  if (!DIL_BY[key]) return;
+  curDil = key; localStorage.setItem("neige_dil", key);
+  dilBody.material.color.setHex(DIL_BY[key].col);
+  updateDilBar(); updateResources();
+}
+function updateDilBar() {
+  for (const b of document.querySelectorAll(".dilbtn")) {
+    b.classList.toggle("on", b.dataset.dil === curDil);
+    b.classList.toggle("empty", dilStock[b.dataset.dil] <= 0.5);
+  }
+}
 function restock() {
   if (cash >= BRICK_PRICES[50]) { renderShop(); ui.shop.classList.add("show"); return; }
   const tot = bulkG + STARTER.coke;
   bulkPurity = tot > 0 ? (bulkG * bulkPurity + STARTER.coke * STARTER.purity) / tot : STARTER.purity;
-  bulkG = tot; dilG += STARTER.dil; coke.visible = true; updateResources();
+  bulkG = tot; dilStock.lacto += STARTER.dil; coke.visible = true;
+  if (dilStock[curDil] <= 0.5) setDil("lacto"); else updateResources();
   burstPuffs(COKE_POS, 6); burstPuffs(DIL_POS, 6, null, puffMatDil);
-  showToast("Lot de dépannage : +" + STARTER.coke + " g coke, +" + STARTER.dil + " g diluant", "#7df9ff");
+  showToast("Lot de dépannage : +" + STARTER.coke + " g coke, +" + STARTER.dil + " g lactose", "#7df9ff");
 }
 
 /* -------------------------------------------------------------------------
@@ -860,7 +894,7 @@ function loop(t) {
   updateBagging(dt);
   updateAuto(dt);
   updatePuffs(dt);
-  updateBags(dt);
+  updatePochons(dt);
   updateGuide(dt);
   if (shake > 0) { shake *= Math.pow(0.0008, dt); if (shake < 0.002) shake = 0; }
   camera.position.copy(baseCamPos);
@@ -882,9 +916,10 @@ resize();
 setCash(cash); setRep(rep); updateXpUI();
 setFmt(fmt); refreshFmtButtons();
 updateProdLabel(); updateTrayHeap();
-// Lot de départ gratuit (coke + diluant) pour amorcer la boucle.
-bulkG = STARTER.coke; bulkPurity = STARTER.purity; dilG = STARTER.dil;
-coke.visible = true; updateResources();
+bulkG = STARTER.coke; bulkPurity = STARTER.purity; dilStock.lacto = STARTER.dil;
+coke.visible = true;
+setDil(curDil);           // applique la teinte du pot + la barre, puis met à jour le HUD
+if (dilStock[curDil] <= 0.5) setDil("lacto");
 requestAnimationFrame(loop);
 </script>
 </body>

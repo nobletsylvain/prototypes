@@ -49,7 +49,7 @@ Mini-jeu mobile en **3D** (même base technique : HTML + [Three.js](https://thre
 
 **Boucle de jeu — gestes directs (feeling > skill, rien à « viser ») :**
 1. **Réception** : à la boutique 🛒, on achète la **coke (50 / 100 g)** ET le **diluant (recharge 200 g)**, de la même façon. Le 1ᵉʳ lot (coke + diluant) est offert (🔄 Lot de dépannage).
-2. **Verser** : **maintiens le doigt sur le 🧱 BLOC DE COKE** → un flux de poudre coule sur la **🪟 DALLE**. Idem sur le **🧂 TUB DE DILUANT** (à droite) : la **coupe est physique** — c'est toi qui ajoutes le diluant, et la quantité fait le **stretch** (volume + / pureté −). Aucune perte.
+2. **Verser** : **maintiens le doigt sur la 🧱 PILE DE COKE** → un flux de poudre coule sur la **🪟 DALLE**. Idem sur le **🧪 POT DE COUPE** (à droite). La **coupe est physique** : c'est toi qui ajoutes le diluant (quantité = **stretch**), et tu choisis le **palier** au sélecteur « Coupe » — de **Lévamisole** (donné mais nocif) à **Benzocaïne** (cher mais propre), via Lactose / Mannitol. Aucune perte.
 3. **Mélanger** : une fois **coke + diluant** sur la dalle, **tourne le doigt dessus** → ça se coupe/homogénéise (teinte qui vire) et part en **PRODUIT** (grammes = coke + diluant ; **pureté diluée d'autant**, qualité = pureté). Même un geste grossier marche — jamais raté.
 4. **Ensacher** : **tape (ou maintiens) le bac 📦 PRODUIT** → chaque geste remplit un sachet du **format** choisi (**1 / 5 / 25 g**) qui se scelle, s'envole et **se vend**. Pas de timing, pas de raté (petit format = €/g plus élevé).
 
@@ -57,7 +57,9 @@ Un **halo lumineux** pulse sous la station à utiliser et un **bandeau de consig
 
 **Économie & progression :**
 - **Réputation** : la **qualité moyenne** de tes ventes (donc combien tu coupes) fait monter/descendre le prix. Affichée dans le HUD.
-- **Boutique** : **Coke** & **Diluant** (recharges), **Agent premium** (coupe moins détectable : qualité +), **Presse à briquettes** (débloque le 25 g semi-gros), **Auto-ensacheuse** + Cadence.
+- **Coupe (4 paliers)** : **propreté** (→ qualité/€/g) vs **nocivité** (→ réputation) vs **prix**. Le cheap (Lévamisole) maximise la marge mais fait chuter la réput ; le premium (Benzocaïne) coûte mais « passe ». À doser selon ta clientèle.
+- **Boutique** : **Coke** (briques) & les 4 **coupes** (recharges), **Presse à briquettes** (débloque le 25 g semi-gros), **Auto-ensacheuse** + Cadence.
+- **Formes** inspirées de *Drug Dealer Simulator* : briques pressées empilées, pots de coupe cylindriques, **pochons** (sachets zip carrés plats) qui s'alignent sur la table, **2 tailles** selon le format (1 g / 5 g).
 - **Niveaux (XP)** : chaque vente donne de l'XP ; +2,5 % de revenus par niveau.
 
 **Feedback juteux** : sons synthétisés (WebAudio, zéro fichier — flux de poudre, raclage du mix, zip, cha-ching), puffs de poudre, sachets qui s'envolent, secousse de caméra.
