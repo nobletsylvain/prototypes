@@ -5,13 +5,13 @@ Petits prototypes de **core loops** jouables/testables dans le navigateur (mobil
 
 ```
 /index.html              ← hub (liste des core loops)
-/barrettes-shit/         ← core loop "Barrettes Shit"
+/hash-slicer/         ← core loop "Hash Slicer"
 /tools/                  ← captures d'écran headless (voir tools/README.md)
 ```
 
 Hub en ligne : **https://nobletsylvain.github.io/prototypes/**
 
-## 🟫 Barrettes Shit (core loop)
+## 🟫 Hash Slicer (core loop)
 
 Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) chargé via CDN, un seul fichier `index.html`). Reskin humoristique d'un jeu de découpe/revente : chaîne de production en 3 niveaux, du gros au détail.
 
@@ -37,7 +37,7 @@ Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) chargé via C
 ### Jouer
 
 - **Caméra** : cadrage auto (portrait/paysage) + **pinch à deux doigts pour zoomer** (sauvegardé).
-- En ligne : **https://nobletsylvain.github.io/prototypes/barrettes-shit/** (depuis le hub).
-- En local : ouvrir `barrettes-shit/index.html` dans un navigateur (idéalement Safari iOS). Nécessite une connexion (Three.js est chargé depuis un CDN).
+- En ligne : **https://nobletsylvain.github.io/prototypes/hash-slicer/** (depuis le hub).
+- En local : ouvrir `hash-slicer/index.html` dans un navigateur (idéalement Safari iOS). Nécessite une connexion (Three.js est chargé depuis un CDN).
 
 > ℹ️ L'aperçu de fichier intégré au chat/Files n'exécute pas le JavaScript (écran vide) — il faut une vraie URL (Pages) ou ouvrir le fichier dans un navigateur.
