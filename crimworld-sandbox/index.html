@@ -114,6 +114,14 @@
   .toast{position:absolute;left:50%;bottom:74px;transform:translateX(-50%) translateY(10px);background:#0a0908;border:1px solid var(--sodium);color:var(--sodium);font:600 12px var(--sans);padding:9px 14px;border-radius:12px;max-width:80%;text-align:center;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:58}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .devnote{font:500 11px var(--mono);color:var(--faint);text-align:center;max-width:390px;line-height:1.5}
+
+  /* ---- overlay LABO : un proto (iframe) en mode atelier ---- */
+  .labov{position:absolute;inset:0;z-index:70;background:#0a0908;display:none;flex-direction:column}
+  .labov.show{display:flex}
+  .labov .lh{flex:none;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);background:#120f0c}
+  .labov .lh .t{font:800 13px var(--sans);color:var(--text);display:flex;align-items:center;gap:7px}
+  .labov .lh .x{border:1px solid var(--border);background:var(--surface2);color:var(--muted);border-radius:9px;padding:7px 12px;font:700 12px var(--sans);cursor:pointer}
+  .labov iframe{flex:1;width:100%;border:0;background:#000;display:block}
 </style>
 </head>
 <body>
@@ -148,6 +156,11 @@
     <button class="navbtn" data-v="metrics"><span class="ic">📊</span>Metrics</button>
   </div>
 
+  <div class="labov" id="labov">
+    <div class="lh"><span class="t" id="labotitle">⚗️ Labo</span><button class="x" id="laboclose">✕ Fermer</button></div>
+    <iframe id="laboframe" title="labo"></iframe>
+  </div>
+
   <div class="toast" id="toast"></div>
 </div>
 
@@ -156,7 +169,7 @@
 <script type="module">
 import { createSim, C, jaugeOpaque } from './sim.mjs';
 
-const SAVE_VERSION = '5';
+const SAVE_VERSION = '6';
 if (localStorage.getItem('sbx_ver') !== SAVE_VERSION){
   for (const k of Object.keys(localStorage)) if (k.startsWith('sbx_')) localStorage.removeItem(k);
   localStorage.setItem('sbx_ver', SAVE_VERSION);
@@ -173,6 +186,8 @@ const REASSORT = {
   weed:  [ { av:'🌒', nm:'Niko_tn', g:100, px:300, ds:'beuh 100g' } ],
   neige: [ { av:'❄️', nm:'Saff99',  g:50,  px:1800, ds:'coke 50g' } ],
 };
+/* labo : chaque produit ouvre SON proto en mode atelier (embed) */
+const LABO_PROTO = { hash:'../hash-slicer-v2/', weed:'../green-front-v3/', neige:'../neige/' };
 /* présentation des DM (pseudo/avatar aléatoires = présentation autorisée) */
 const CM_PRE=['Kalo','Naps','Vex','Zko','Brth','Lome','Saff','Dru','Niko','Ylw','Mok','Ras','Tina','Momo'];
 const CM_SUF=['Li','45','_','xx','02','tn','99','z','_b','77','ka','23'];
@@ -299,11 +314,11 @@ function renderDark(){
   v.appendChild(el('div','vsub','Weed / Neige : leurs vendeurs ouvriront avec leur labo (P3). La négo arrive ensuite.'));
 }
 
-/* ===================== LABO : placeholder P3 ===================== */
+/* ===================== LABO : atelier (proto en iframe, mode embed) ===================== */
 function renderLabo(){
   const v=$('view-labo'); v.replaceChildren();
   v.appendChild(el('div','vtitle','⚗️ Le labo'));
-  v.appendChild(el('div','vsub','Provisoire — les vrais mini-jeux (hash-slicer / green-front / neige) seront intégrés en iframe (P3). Pour l’instant : transforme la matière en batch.'));
+  v.appendChild(el('div','vsub','Ouvre l’atelier, coupe ta matière à la main, puis renvoie le batch au stock. Tu peux bosser ton labo pendant que les clients te DM.'));
   for(const p of C.PRODUITS){
     if(!sim.state.debloques[p]) continue;
     const raw=sim.state.matiere[p];
@@ -311,19 +326,39 @@ function renderLabo(){
     const hd=el('div','hd'); hd.appendChild(el('div','nm',META[p].ic+' '+META[p].nm));
     const meta=el('div','meta'); const m=el('div'); m.append('matière '); m.appendChild(el('b',null,raw+'g')); meta.appendChild(m);
     hd.appendChild(meta); card.appendChild(hd);
-    const use=Math.min(C.LAB_RAW,raw);
-    card.appendChild(el('div','vsub',use>0?('traite '+use+'g → '+Math.round(use*C.LAB_YIELD.A)+'g propre / '+Math.round(use*C.LAB_YIELD.C)+'g arrache'):'pas de matière — passe par le Darkweb'));
+    card.appendChild(el('div','vsub',raw>0?('jusqu’à 250g par fournée — tu coupes, le reste part en perte'):'pas de matière — passe par le Darkweb'));
     const row=el('div','row');
-    const clean=el('button','btn clean'); clean.appendChild(el('span',null,'✂️ Propre')); clean.appendChild(el('span','es','qualité +'));
-    const dirty=el('button','btn dirty'); dirty.appendChild(el('span',null,'🪓 Arrache')); dirty.appendChild(el('span','es','volume +, réput −'));
-    const make=q=>()=>{ const u=Math.min(C.LAB_RAW,sim.state.matiere[p]); if(u<=0){toast('pas de matière');return;}
-      sim.produireBatch({produit:p,grammesRaw:u,grammesFinis:Math.round(u*C.LAB_YIELD[q]),qualite:q}); toast('Batch '+META[p].nm+' prêt'); renderLabo(); updateHUD(); };
-    clean.addEventListener('click',make('A')); dirty.addEventListener('click',make('C'));
-    if(use<=0){clean.disabled=true;dirty.disabled=true;}
-    row.append(clean,dirty); card.appendChild(row);
+    const open=el('button','btn clean'); open.appendChild(el('span',null,'⚗️ Ouvrir l’atelier')); open.appendChild(el('span','es',raw>0?('couper '+Math.min(250,raw)+'g'):'—'));
+    if(raw<=0) open.disabled=true; else open.addEventListener('click',()=>openLabo(p));
+    row.appendChild(open); card.appendChild(row);
     v.appendChild(card);
   }
 }
+function openLabo(produit){
+  const path=LABO_PROTO[produit]; if(!path){toast('atelier indisponible');return;}
+  const g=sim.state.matiere[produit];
+  if(g<=0){toast('pas de matière — passe au Darkweb');return;}
+  $('labotitle').textContent='⚗️ Atelier — '+META[produit].nm;
+  $('laboframe').src=path+'#embed=lab&produit='+encodeURIComponent(produit)+'&matiere='+Math.round(g);
+  $('labov').classList.add('show');
+}
+function closeLabo(){ $('labov').classList.remove('show'); $('laboframe').src='about:blank'; renderLabo(); }
+/* réception d'un batch depuis le proto embarqué (même origine seulement) */
+window.addEventListener('message',e=>{
+  if(e.origin!==location.origin) return;                       // même origine seulement
+  if(e.source!==$('laboframe').contentWindow) return;          // …et seulement depuis NOTRE atelier
+  const d=e.data;
+  if(!d||d.type!=='crimworld-lab-batch') return;
+  const produit=C.PRODUITS.includes(d.produit)?d.produit:null;
+  const raw=Math.max(0,Math.round(+d.grammesRaw||0)), finis=Math.max(0,Math.round(+d.grammesFinis||0));
+  try{
+    if(produit&&raw>0&&finis>0){
+      sim.produireBatch({produit,grammesRaw:raw,grammesFinis:finis,qualite:d.qualite==='A'?'A':'C'});
+      toast('📦 +'+finis+'g '+META[produit].nm+' au stock');
+    } else { toast('atelier fermé — rien produit'); }
+  } finally { closeLabo(); updateHUD(); }
+});
+$('laboclose').addEventListener('click',closeLabo);
 
 /* ===================== METRICS ===================== */
 function mkLigne(l){
