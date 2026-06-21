@@ -44,7 +44,7 @@ export function createSim(){
     stock: z(),                    // g finis, prêts à vendre
     batches: [],
     debloques: { hash: true, weed: false, neige: false },
-    storyPostee: false,            // story postée aujourd'hui ?
+    vitrine: false,                // vitrine EN VENTE — persiste jour après jour (plus de story quotidienne)
     clientsJour: [],               // clients programmés pour la journée (déterministe)
     clientSeq: 0,
     metricsJour: newJour(),
@@ -55,6 +55,26 @@ export function createSim(){
   function newJour(){ return { achatsEUR: 0, ventesEUR: 0, gProduits: z(), vendu: z(), clientsServis: 0, lignes: [] }; }
   function ligne(o){ state.metricsJour.lignes.push(o); }
   const clamp = v => Math.max(0, Math.min(100, v));
+
+  // programme les DM clients d'une journée (déterministe) à partir de l'heure `debut`.
+  // nb ∝ réput (la courbe unique) ; arrivées front-loadées + cadence irrégulière.
+  function programmerJour(debut){
+    const n = Math.round(C.CLIENTS_BASE * state.reput / 100);
+    const first = debut + C.PREMIER_DM_H;
+    const last  = Math.max(first, C.DAY_HOURS - C.MARGE_FIN_H);
+    for (let i = 0; i < n; i++){
+      const base = n > 1 ? first + (last - first) * i / (n - 1) : first;  // étalement uniforme
+      const j = C.CADENCE_JITTER[i % C.CADENCE_JITTER.length];            // décalage déterministe
+      state.clientsJour.push({
+        id: ++state.clientSeq,
+        produit: 'hash',                                 // produit actif (généralisé plus tard)
+        grammes: C.PANIER[i % C.PANIER.length],
+        heureArrivee: Math.max(first, Math.min(last, base + j)),          // cadence irrégulière (rafales/creux)
+        arrive: false, servi: false,
+      });
+    }
+    return n;
+  }
 
   const api = {
     state,
@@ -87,29 +107,14 @@ export function createSim(){
       return api;
     },
 
-    // SNAP : poster la story expose ta vitrine → programme les DM clients du jour.
-    // nb de clients ∝ réput (la courbe unique) ; arrivées étalées sur la journée.
-    posterStory(){
-      if (state.storyPostee) return api;
-      state.storyPostee = true;
-      const n = Math.round(C.CLIENTS_BASE * state.reput / 100);
-      const debut = state.heure;
-      // arrivées étalées, FRONT-LOADÉES : 1er DM quasi tout de suite (PREMIER_DM_H), dernier
-      // ~MARGE_FIN_H avant minuit (le temps de le servir). Déterministe → zéro latence d'amorce.
-      const first = debut + C.PREMIER_DM_H;
-      const last  = Math.max(first, C.DAY_HOURS - C.MARGE_FIN_H);
-      for (let i = 0; i < n; i++){
-        const base = n > 1 ? first + (last - first) * i / (n - 1) : first;  // étalement uniforme
-        const j = C.CADENCE_JITTER[i % C.CADENCE_JITTER.length];            // décalage déterministe
-        state.clientsJour.push({
-          id: ++state.clientSeq,
-          produit: 'hash',                               // produit actif (généralisé plus tard)
-          grammes: C.PANIER[i % C.PANIER.length],
-          heureArrivee: Math.max(first, Math.min(last, base + j)),          // cadence irrégulière (rafales/creux)
-          arrive: false, servi: false,
-        });
-      }
-      ligne({ ic: '📸', label: 'Story postée', cause: 'ta vitrine est en ligne — les clients vont DM' });
+    // SNAP : mettre la vitrine EN VENTE. Persiste jour après jour (plus de story
+    // quotidienne) — ton stock reste en vente jusqu'à épuisement ; les jours
+    // suivants sont reprogrammés automatiquement à minuit (cloreJour).
+    ouvrirVitrine(){
+      if (state.vitrine) return api;
+      state.vitrine = true;
+      const n = programmerJour(state.heure);
+      ligne({ ic: '🟢', label: 'Vitrine en vente', cause: 'ton stock est en ligne — les clients DM jusqu’à épuisement' });
       if (n === 0) ligne({ ic: '🦗', label: 'Personne ne DM', cause: 'réput trop basse — ta came n’attire pas' });
       return api;
     },
@@ -172,7 +177,8 @@ export function createSim(){
     state.dernierMetrics = snap;
     state.jour++;
     state.metricsJour = newJour();
-    state.clientsJour = []; state.storyPostee = false;
+    state.clientsJour = [];
+    if (state.vitrine) programmerJour(0);   // vitrine persistante : on reprogramme le jour suivant
   }
 
   function snapshot(){
@@ -211,24 +217,22 @@ export function demo(){
   const sim = createSim();
   const H = C.HOUR_MS;
   const jouerJournee = () => { for (let h = 0; h < C.DAY_HOURS; h++){ sim.tick(H); for (const c of sim.dmEnAttente()) sim.servir(c.id); } };
-  console.log('CrimWorld Sandbox v2.1 — démo Snap (story + DM)');
+  console.log('CrimWorld Sandbox v2.1 — démo vitrine persistante (Snap DM)');
 
-  // JOUR 1 — tu postes la story SANS stock → les clients DM mais tu rates tout.
+  // JOUR 1 — tu OUVRES la vitrine SANS stock → les clients DM mais tu rates tout.
   sim.acheterMatiere('hash', 100, 250);
-  sim.posterStory();
+  sim.ouvrirVitrine();                     // une seule fois : la vitrine reste en vente
   jouerJournee();
   printJour(sim.state.dernierMetrics);
 
-  // JOUR 2 — labo propre + story → les clients arrivent et tu les sers.
+  // JOUR 2 — labo propre → les clients (reprogrammés AUTO) arrivent et tu les sers.
   sim.produireBatch({ produit: 'hash', grammesRaw: 100, grammesFinis: 80, qualite: 'A' });
-  sim.posterStory();
   jouerJournee();
   printJour(sim.state.dernierMetrics);
 
-  // JOUR 3 — labo à l'arrache → réput chute → MOINS de clients le DM.
+  // JOUR 3 — labo à l'arrache → réput chute → MOINS de clients le DM (toujours pas de re-post).
   sim.acheterMatiere('hash', 100, 250);   // il faut racheter de la matière (anti free-mint)
   sim.produireBatch({ produit: 'hash', grammesRaw: 100, grammesFinis: 120, qualite: 'C' });
-  sim.posterStory();
   jouerJournee();
   printJour(sim.state.dernierMetrics);
 }

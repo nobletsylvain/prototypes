@@ -164,12 +164,12 @@
   <div class="toast" id="toast"></div>
 </div>
 
-<div class="devnote">Sandbox v2.1 — poste ta story, sers les clients qui te DM. Horloge temps réel, données dans Metrics.</div>
+<div class="devnote">Sandbox v2.1 — mets ta vitrine en vente, sers les clients qui te DM (jusqu’à épuisement du stock). Horloge temps réel, données dans Metrics.</div>
 
 <script type="module">
 import { createSim, C, jaugeOpaque } from './sim.mjs';
 
-const SAVE_VERSION = '6';
+const SAVE_VERSION = '7';
 if (localStorage.getItem('sbx_ver') !== SAVE_VERSION){
   for (const k of Object.keys(localStorage)) if (k.startsWith('sbx_')) localStorage.removeItem(k);
   localStorage.setItem('sbx_ver', SAVE_VERSION);
@@ -239,13 +239,13 @@ function renderSnap(){
 
   const tray=el('div','tray');
   const story=el('div','story');
-  const ring=el('div','ring '+(sim.state.storyPostee?'posted':'ready'));
-  const inner=el('div','inner',sim.state.storyPostee?'📱':'＋'); ring.appendChild(inner);
+  const ring=el('div','ring '+(sim.state.vitrine?'posted':'ready'));
+  const inner=el('div','inner',sim.state.vitrine?'🟢':'＋'); ring.appendChild(inner);
   story.appendChild(ring);
-  story.appendChild(el('div','cap',sim.state.storyPostee?'en ligne':'Poster'));
+  story.appendChild(el('div','cap',sim.state.vitrine?'En vente':'Mettre en vente'));
   story.addEventListener('click',()=>{
-    if(sim.state.storyPostee){toast('story déjà postée aujourd’hui');return;}
-    sim.posterStory(); toast('Story postée ⚡ — les clients vont DM'); renderSnap();
+    if(sim.state.vitrine){toast('déjà en vente — ton stock part jusqu’à épuisement');return;}
+    sim.ouvrirVitrine(); toast('Vitrine en vente 🟢 — les clients vont DM'); renderSnap();
   });
   tray.appendChild(story);
   v.appendChild(tray);
@@ -258,11 +258,11 @@ function renderDMs(){
   const list=$('dmlist'); if(!list) return;
   list.replaceChildren();
   const dms=sim.dmEnAttente();
-  if(!sim.state.storyPostee){
-    list.appendChild(el('div','dmempty','Poste ta story 👆 pour que les clients te DM.')); return;
+  if(!sim.state.vitrine){
+    list.appendChild(el('div','dmempty','Mets ta vitrine en vente 👆 — ton stock partira jusqu’à épuisement.')); return;
   }
   if(!dms.length){
-    list.appendChild(el('div','dmempty','Ta vitrine est en ligne… les clients arrivent au fil de la journée.')); return;
+    list.appendChild(el('div','dmempty','Vitrine en vente 🟢 — les clients arrivent au fil de la journée.')); return;
   }
   for(const c of dms){
     if(!dmProfile.has(c.id)) dmProfile.set(c.id,{nm:pick(CM_PRE)+pick(CM_SUF),av:pick(CM_AV),msg:pick(MSGS)});

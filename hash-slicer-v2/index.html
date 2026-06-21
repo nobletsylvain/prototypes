@@ -1309,9 +1309,9 @@ if (EMBED) {
 
   const send = document.createElement("button");
   send.id = "labsend";
-  send.textContent = "📦 Envoyer au stock";
-  send.style.cssText = "position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:50;" +
-    "background:#3a6b3a;color:#fff;border:none;font:800 15px system-ui;padding:13px 22px;border-radius:14px;box-shadow:0 8px 24px -6px #000";
+  send.textContent = "📦 Au stock";
+  send.style.cssText = "position:fixed;right:14px;bottom:max(12px,calc(env(safe-area-inset-bottom) + 8px));z-index:50;pointer-events:auto;" +
+    "background:#3a6b3a;color:#fff;border:none;font:800 14px system-ui;padding:11px 16px;border-radius:13px;box-shadow:0 8px 24px -6px #000";
   send.addEventListener("click", () => {
     const raw   = Math.max(0, Math.round(embLoaf - gramsLeft()));      // matière réellement coupée
     const finis = Math.min(raw, Math.round(embProduced));              // barrettes (le reste = perte)
