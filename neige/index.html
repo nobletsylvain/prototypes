@@ -66,6 +66,10 @@
     width:46px; height:42px; border-radius:12px; }
   #shopbtn:active { background:rgba(255,255,255,.25); }
   #shopbtn.pulse { animation:pulsebtn 1.1s ease-in-out infinite; }
+  #discard { position:fixed; right:14px; top:calc(max(10px,env(safe-area-inset-top)) + 94px); pointer-events:auto;
+    background:rgba(202,161,95,.18); border:1px solid rgba(202,161,95,.5); color:#e6c896; font-size:17px;
+    width:46px; height:42px; border-radius:12px; }
+  #discard:active { background:rgba(202,161,95,.35); }
   @keyframes pulsebtn { 0%,100%{ box-shadow:0 0 0 0 rgba(125,200,255,.0);} 50%{ box-shadow:0 0 0 6px rgba(125,200,255,.35);} }
   #shop { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); z-index:6; }
   #shop.show { display:flex; }
@@ -98,6 +102,7 @@
 <div class="hud" id="remain">Diluant</div>
 <button id="reset">🔄 Lot</button>
 <button id="shopbtn">🛒</button>
+<button id="discard" title="Jeter le mix / nettoyer la dalle">🗑️</button>
 <div class="hud" id="prompt"><span>Reçois de la coke…</span></div>
 <div class="hud" id="toast"></div>
 <div id="labels"></div>
@@ -367,7 +372,9 @@ function addProd(g, q){ prod.g += g; prod.qsum += g * q; updateProdLabel(); }
 function takeProd(g) {
   if (prod.g <= 0) return;
   const r = Math.min(1, g / prod.g);
-  prod.qsum *= (1 - r); prod.g = Math.max(0, prod.g - g); updateProdLabel();
+  prod.qsum *= (1 - r); prod.g = Math.max(0, prod.g - g);
+  if (prod.g < 0.05) { prod.g = 0; prod.qsum = 0; }   // pas de reliquat fantôme < format
+  updateProdLabel();
 }
 
 /* -------------------------------------------------------------------------
@@ -496,11 +503,10 @@ function addShake(a) { shake = Math.min(0.6, shake + a); }
 /* -------------------------------------------------------------------------
    10) POCHONS (sachets zip carrés plats, alignés sur la table façon DDS)
    ------------------------------------------------------------------------- */
-const POCHON_N = 10;
-const POCHON_SIZE = { 1: 0.78, 5: 1.15, 25: 1.55 };   // 1 g petit · 5 g plus grand · 25 g briquette
+const POCHON_SIZE = { 1: 0.8, 5: 1.15, 25: 1.5 };    // 1 g petit · 5 g plus grand · 25 g briquette
+const MAXPILE = 10;
 const pochonZipMat = new THREE.MeshStandardMaterial({ color: 0x2bb6c4, roughness: 0.4 });
 const pochonBagMat = new THREE.MeshStandardMaterial({ color: 0xf2f7fc, transparent: true, opacity: 0.86, roughness: 0.35, metalness: 0.05 });
-const pochons = [];
 function makePochon() {
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.3), pochonBagMat);
@@ -509,25 +515,36 @@ function makePochon() {
   zip.position.set(0, 0.06, 0.13); g.add(zip);
   return g;
 }
-for (let i = 0; i < POCHON_N; i++) {
-  const col = i % 5, row = Math.floor(i / 5);
-  const g = makePochon();
-  g.position.set(PROD_POS.x - 0.96 + col * 0.48, 0.02, 2.55 + row * 0.46);
-  g.rotation.y = (Math.random() - 0.5) * 0.35;
-  g.visible = false; g.scale.setScalar(0.001); scene.add(g);
-  pochons.push({ grp: g, pop: 0, size: 1 });
-}
-let pochonIdx = 0;
-// La taille du pochon reflète le format vendu : 1 g petit, 5 g plus grand, 25 g briquette.
-function popPochon() {
-  const p = pochons[pochonIdx % POCHON_N]; pochonIdx++;
-  p.grp.visible = true; p.pop = 0; p.size = POCHON_SIZE[fmt] || 1;
+// Trois TAS de pochons sur la droite de la table : un par format (1 / 5 / 25 g).
+// Chaque vente empile un sachet (taille selon le format) ; le tas se vide et
+// repart quand il est plein (lot « expédié »).
+const PILES = {};
+[ { f:1, z:1.2 }, { f:5, z:1.95 }, { f:25, z:2.75 } ].forEach(cfg => {
+  const size = POCHON_SIZE[cfg.f], thick = 0.05 * size + 0.02;
+  const pile = { idx:0, size, items:[] };
+  for (let i = 0; i < MAXPILE; i++) {
+    const g = makePochon();
+    g.position.set(1.62 + (Math.random()-0.5)*0.06, 0.02 + i * thick, cfg.z + (Math.random()-0.5)*0.06);
+    g.rotation.y = (Math.random()-0.5) * 0.4;
+    g.visible = false; g.scale.setScalar(0.001); scene.add(g);
+    pile.items.push({ grp: g, pop: 0 });
+  }
+  PILES[cfg.f] = pile;
+});
+function popPochon(f) {
+  const pile = PILES[f] || PILES[1];
+  const slot = pile.idx % MAXPILE;
+  if (slot === 0 && pile.idx > 0) for (const it of pile.items) it.grp.visible = false;  // tas plein -> on repart
+  const it = pile.items[slot]; it.grp.visible = true; it.pop = 0; pile.idx++;
 }
 function updatePochons(dt) {
-  for (const p of pochons) {
-    if (!p.grp.visible || p.pop >= 1) continue;
-    p.pop = Math.min(1, p.pop + dt * 6);
-    p.grp.scale.setScalar(p.size * (0.25 + 0.75 * p.pop));
+  for (const k in PILES) {
+    const pile = PILES[k];
+    for (const it of pile.items) {
+      if (!it.grp.visible || it.pop >= 1) continue;
+      it.pop = Math.min(1, it.pop + dt * 6);
+      it.grp.scale.setScalar(pile.size * (0.25 + 0.75 * it.pop));
+    }
   }
 }
 
@@ -715,11 +732,12 @@ function commitMix() {
    ------------------------------------------------------------------------- */
 let bagging = false, bagHoldT = 0;
 function bagOnce() {
-  if (prod.g < fmt) { showToast("Pas assez pour un sachet " + fmt + " g", "#e6c896"); sErr(); return false; }
-  const q = prodQual(); takeProd(fmt);
-  const price = fmt * FMT_PRICE[fmt] * q * rep * levelMult();
+  if (prod.g < 0.05) { showToast("Plus de produit à ensacher", "#e6c896"); sErr(); return false; }
+  const take = Math.min(fmt, prod.g);             // le dernier sachet peut être partiel (reliquat)
+  const q = prodQual(); takeProd(take);
+  const price = take * FMT_PRICE[fmt] * q * rep * levelMult();
   setCash(cash + price); addXP(Math.max(1, Math.round(price * 0.03)));
-  popPochon(); sZip(); burstPuffs(PROD_POS, 3, null);
+  popPochon(fmt); sZip(); burstPuffs(PROD_POS, 3, null);
   const ac = ensureAudio(); if (ac) beep(720, ac.currentTime, 0.05, 0.12);
   return true;
 }
@@ -736,12 +754,13 @@ let autoTimer = 0;
 function updateAuto(dt) {
   if (!owned.autobag) return;
   autoTimer += dt;
-  if (autoTimer >= bagInterval() && prod.g >= fmt) {
+  if (autoTimer >= bagInterval() && prod.g >= 0.05) {
     autoTimer = 0;
-    const q = prodQual(); takeProd(fmt);
-    const price = fmt * FMT_PRICE[fmt] * q * rep * 0.85 * levelMult();
+    const take = Math.min(fmt, prod.g);
+    const q = prodQual(); takeProd(take);
+    const price = take * FMT_PRICE[fmt] * q * rep * 0.85 * levelMult();
     setCash(cash + price); addXP(Math.max(1, Math.round(price * 0.03)));
-    popPochon();
+    popPochon(fmt);
     const ac = ensureAudio(); if (ac) beep(680, ac.currentTime, 0.05, 0.1);
   }
 }
@@ -752,7 +771,7 @@ function updateAuto(dt) {
 function currentStep() {
   if (tray.coke > 0.3 && tray.dil > 0.3) return "mix";
   if (tray.coke > 0.3)                   return totalDil() > 0.3 ? "pourDil" : "buyDil";
-  if (prod.g >= fmt)                     return "bag";
+  if (prod.g >= 0.05)                    return "bag";
   if (bulkG > 0.3)                       return "pourCoke";
   return "receive";
 }
@@ -813,8 +832,8 @@ el.addEventListener("pointerdown", (e) => {
   if (pointers.size >= 2) { startPinch(); return; }
   ensureAudio();
   lastX = e.clientX; lastY = e.clientY;
-  if (rayHit(e.clientX, e.clientY, prodBin.children) || (prod.g >= fmt && rayHit(e.clientX, e.clientY, [prodHeap]))) {
-    if (prod.g >= fmt) { gesture = "bag"; bagging = true; bagHoldT = 0; bagOnce(); }
+  if (rayHit(e.clientX, e.clientY, prodBin.children) || (prod.g >= 0.05 && rayHit(e.clientX, e.clientY, [prodHeap]))) {
+    if (prod.g >= 0.05) { gesture = "bag"; bagging = true; bagHoldT = 0; bagOnce(); }
     else showToast("Mélange du produit d'abord", "#e6c896");
     return;
   }
@@ -857,6 +876,20 @@ el.addEventListener("pointerup", onUp, { passive:false });
 el.addEventListener("pointercancel", onUp, { passive:false });
 
 document.getElementById("reset").addEventListener("click", restock);
+document.getElementById("discard").addEventListener("click", discardMix);
+// Jeter le contenu : d'abord le PRODUIT (mix prêt), sinon nettoyer la dalle.
+function discardMix() {
+  if (prod.g > 0.05) {
+    const lost = Math.round(prod.g);
+    prod.g = 0; prod.qsum = 0; updateProdLabel();
+    burstPuffs(PROD_POS, 8, null, puffMatDil); addShake(0.08); sScrape();
+    showToast("Produit jeté : −" + lost + " g", "#e6c896");
+  } else if (trayG() > 0.3) {
+    burstPuffs(SLAB_POS, 8, null, puffMatDil); addShake(0.08); sScrape();
+    tray.coke = tray.dil = tray.cokePure = tray.dilClean = tray.dilHarm = 0; homog = 0; setTrayTint(0); updateTrayHeap();
+    showToast("Dalle nettoyée", "#e6c896");
+  } else { showToast("Rien à jeter", "#e6c896"); }
+}
 ui.shopbtn.addEventListener("click", () => { renderShop(); ui.shop.classList.add("show"); });
 document.getElementById("shopclose").addEventListener("click", () => ui.shop.classList.remove("show"));
 ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.classList.remove("show"); });
