@@ -416,11 +416,9 @@ let level = Math.max(1, +(localStorage.getItem("hsv2_level") || 1)); // niveau j
 let xp    = Math.max(0, +(localStorage.getItem("hsv2_xp") || 0));    // XP dans le niveau courant
 let savSize = +(localStorage.getItem("hsv2_savsize") || 250);       // taille savonnette courante (g)
 let barSize = +(localStorage.getItem("hsv2_barsize") || 5);         // taille de barrette choisie (2/5/10 g)
-const stock = { g: 0, qsum: 0 };   // barrettes coupees en attente de vente (g + qualite ponderee)
 
 // Coupe au feeling : on maintient pour enfoncer la lame ; a pleine pression -> crack.
 const PRESS_TIME = 0.65;           // s pour traverser la plaque
-const SELL_PER_G = 7;              // €/g a la vente du stock
 let pressing = false, pressT = 0;
 const wrap = { slice:null, film:null, pct:0, shownPct:0, phase:"", t0:0, tSell:0,
                spin:0, spinTarget:0, filmScale:1.32, focus:new THREE.Vector3() };
@@ -436,7 +434,6 @@ function loadLoaf(sizeG) {
   wrap.slice = null; wrap.phase = ""; mode = "cut";
   ui.wrapui.classList.remove("show");
 
-  machineJob = null; machineTimer = 0;   // annule un traitement machine en cours
   for (const sl of slices) { scene.remove(sl.mesh); sl.mesh.geometry.dispose(); sl.label.remove(); }
   slices = [];
   for (const c of crumbs) scene.remove(c.mesh);
@@ -450,7 +447,7 @@ function loadLoaf(sizeG) {
   ui.count.textContent = "Barrettes : 0";
   if (ui.title) ui.title.textContent = "SAVONNETTE " + sizeG + "g";
   ui.hint.style.opacity = "1";
-  ui.hint.textContent = "Maintiens sur la plaque pour appuyer la lame · bac STOCK 📦 = vendre";
+  ui.hint.textContent = "Maintiens pour couper (taille choisie) · tape un bac 📦 pour conditionner & vendre";
   updateRemain();
 }
 function resetGame() { loadLoaf(savSize); }   // recharge la taille courante (gratuit) — init
@@ -490,7 +487,7 @@ function pointOnTop(clientX, clientY) {
    - performCut    : coupe AUTO du massicot (grade deduit de la geometrie)
    - manualChop    : coupe MANUELLE = mini-jeu de jauge (vise ~10 g)
    ------------------------------------------------------------------------- */
-function spawnBarrette(cutNeg, cutPos, grams, grade, keep = 1) {
+function spawnBarrette(cutNeg, cutPos, grams, grade, keep = 1, size = 5) {
   const geo = makePrism(cutNeg, cutPos, rightNeg, rightPos);
   geo.computeBoundingBox();
   const c = new THREE.Vector3();
@@ -506,7 +503,7 @@ function spawnBarrette(cutNeg, cutPos, grams, grade, keep = 1) {
 
   const label = makeLabel(grams.toFixed(1) + " g · " + grade, GRADE_COL[grade] || "#fff");
   slices.push({
-    mesh, label, grams, grade,
+    mesh, label, grams, grade, size,
     vx: 0.7 + Math.random() * 0.6,
     vy: 1.8 + Math.random() * 1.0,
     vz: 1.0 + Math.random() * 0.9,
@@ -563,24 +560,13 @@ function pressCut() {
   cn = Math.max(0, cn); cp = Math.max(0, cp);
   const grams = ((rightNeg - cn) + (rightPos - cp)) / 2 * PER_LEN;
   bladeChop = 1;                                // rebond de la lame
-  spawnBarrette(cn, cp, grams, "A", 1);         // coupe nette -> grade A
+  spawnBarrette(cn, cp, grams, "A", 1, barSize); // coupe nette -> grade A, vers le bac de sa taille
   addWaste(grams * 0.05);                        // un peu de poussiere -> bac dechets (vendable)
   burstCrumbs((cn + cp) / 2, H * 0.6, 0, 6);
   addShake(0.3);                                // crack
   playCut("A");
   haptic(45);                                   // vibration du "crack" (best-effort)
   const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(180, t, 0.09, 0.2); } // "pop" de relache
-}
-
-// Vente du stock (tap sur le bac STOCK).
-function sellStock() {
-  if (stock.g < 0.5) { showToast("Stock vide — coupe des barrettes", "#caa15f"); return; }
-  const price = stock.g * SELL_PER_G * gradeVal(stockGrade()) * levelMult();
-  setCash(cash + price);
-  addXP(Math.max(1, Math.round(stock.g)));
-  showToast("+ " + Math.round(price) + " €  (" + Math.round(stock.g) + " g)", "#9be37d");
-  stock.g = 0; stock.qsum = 0; updateStockLabel();
-  playSale(); addShake(0.12);
 }
 
 // Barre de PRESSION : se remplit tant qu'on maintient ; pleine -> pressCut().
@@ -704,50 +690,45 @@ let shake = 0;
 function addShake(a) { shake = Math.min(0.6, shake + a); }
 
 /* -------------------------------------------------------------------------
-   10c) BACS DE TRI + DECHETS (vente aux schlags)
-   Deux bacs poses devant la savonnette : les barrettes emballees filent dans
-   le bac "a vendre", les miettes tombent dans le bac "dechets" (vendu a bas
-   prix aux schlags). Le bac dechets se tape pour encaisser.
+   10c) BACS PAR TAILLE (2/5/10 g) + DECHETS + TAS LATERAUX (conditionnement)
+   Les barrettes coupees tombent dans le bac de LEUR taille (elles s'empilent).
+   Taper un bac = conditionner sous sachet : les barrettes filent en TAS lateral
+   (un par taille, a gauche de la table) et sont vendues. Bac dechets -> schlags.
    ------------------------------------------------------------------------- */
-const SELL_POS  = new THREE.Vector3(L * 0.26, 0, 2.25);  // bac des barrettes emballees (rangee avant)
-const WASTE_POS = new THREE.Vector3(L * 0.74, 0, 2.25);  // bac des miettes / dechets (rangee avant)
 const SCHLAG_RATE = 2.5;                                  // €/g des boulettes bradees aux schlags
 const _tmp = new THREE.Vector3();
+const SIZES = [2, 5, 10];
+const PRICE_BY_SIZE = { 2: 9, 5: 7.5, 10: 6.5 };         // €/g (petite barrette = €/g plus eleve)
+const BIN_COL = { 2: 0x2f5fa0, 5: 0x3a6b3a, 10: 0x8a5a2a };
+const SELL_POS  = new THREE.Vector3(L * 0.5, 0, 2.3);    // (leftover, code emballage dormant)
+const WASTE_POS = new THREE.Vector3(L * 0.9, 0, 2.3);    // bac des miettes / dechets
 
-function makeBin(pos, col) {
+function makeBin(pos, col, w) {
+  w = w || 1.6;
   const grp = new THREE.Group(); grp.position.copy(pos);
   const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, metalness: 0.1, side: THREE.DoubleSide });
-  const w = 1.6, d = 1.15, h = 0.42, th = 0.07;
+  const d = 1.0, h = 0.4, th = 0.06;
   const floor = new THREE.Mesh(new THREE.BoxGeometry(w, th, d), mat); floor.position.y = th / 2; floor.receiveShadow = true; grp.add(floor);
   const wLR = (x) => { const m = new THREE.Mesh(new THREE.BoxGeometry(th, h, d), mat); m.position.set(x, h / 2, 0); grp.add(m); };
   const wFB = (z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, th), mat); m.position.set(0, h / 2, z); grp.add(m); };
   wLR(-w / 2); wLR(w / 2); wFB(-d / 2); wFB(d / 2);
   scene.add(grp); return grp;
 }
-const sellBin  = makeBin(SELL_POS, 0x3a6b3a);
-const wasteBin = makeBin(WASTE_POS, 0x55504a);
 
-// Pile de barrettes dans le bac STOCK : se remplit/vide selon stock.g.
-const stockPile = new THREE.Group();
-sellBin.add(stockPile);
-const PILE_MAX = 24, PILE_PER = 10;                 // 1 barrette affichee = ~10 g
-const slabGeo = new THREE.BoxGeometry(0.2, 0.1, 0.4);
-for (let i = 0; i < PILE_MAX; i++) {
-  const m = new THREE.Mesh(slabGeo, matCrust);
-  const layer = Math.floor(i / 12), idx = i % 12, col = idx % 6, row = Math.floor(idx / 6);
-  m.position.set(-0.55 + col * 0.22, 0.11 + layer * 0.105, -0.21 + row * 0.42);
-  m.rotation.y = (Math.random() - 0.5) * 0.35;
-  m.castShadow = true; m.visible = false;
-  stockPile.add(m);
-}
-function updateStockPile() {
-  const n = Math.max(0, Math.min(PILE_MAX, Math.round(stock.g / PILE_PER)));
-  for (let i = 0; i < PILE_MAX; i++) stockPile.children[i].visible = i < n;
+const slabGeo = new THREE.BoxGeometry(0.18, 0.1, 0.34);  // barrette miniature (piles)
+const filmMat = new THREE.MeshStandardMaterial({ color: 0xdff3ff, transparent: true, opacity: 0.55, roughness: 0.05, metalness: 0.3 });
+
+function makePile(parent, cols, max, mat) {       // pile de barrettes dans un bac
+  const g = new THREE.Group(); parent.add(g);
+  for (let i = 0; i < max; i++) {
+    const m = new THREE.Mesh(slabGeo, mat);
+    const layer = Math.floor(i / (cols * 2)), idx = i % (cols * 2), col = idx % cols, row = Math.floor(idx / cols);
+    m.position.set(-((cols - 1) * 0.24) / 2 + col * 0.24, 0.10 + layer * 0.105, -0.18 + row * 0.36);
+    m.rotation.y = (Math.random() - 0.5) * 0.4; m.castShadow = true; m.visible = false; g.add(m);
+  }
+  return g;
 }
 
-// Etiquettes flottantes des deux bacs (memes etiquettes HTML projetees).
-const sellLabel  = makeLabel("📦 À VENDRE", "#9be37d");
-const wasteLabel = makeLabel("🗑️ DÉCHETS", "#caa15f");
 function placeLabel(div, pos) {
   _lv.set(pos.x, 0.6, pos.z).project(camera);
   if (_lv.z > 1) { div.style.display = "none"; return; }
@@ -755,23 +736,51 @@ function placeLabel(div, pos) {
   div.style.left = ((_lv.x * 0.5 + 0.5) * window.innerWidth) + "px";
   div.style.top  = ((-_lv.y * 0.5 + 0.5) * window.innerHeight) + "px";
 }
-function updateBinLabels() { placeLabel(sellLabel, SELL_POS); placeLabel(wasteLabel, WASTE_POS); }
 
-// --- STOCK de barrettes (alimente par la coupe, consomme par le dosage) ---
-const SELL_TARGET = new THREE.Vector3(SELL_POS.x, 0.4, SELL_POS.z);
-function gradeVal(gr) { return gr === "A" ? 1 : gr === "B" ? 0.75 : 0.55; }
-function stockGrade() {
-  if (stock.g <= 0) return "B";
-  const a = stock.qsum / stock.g;
-  return a >= 0.9 ? "A" : a >= 0.68 ? "B" : "C";
+// 3 bacs par taille + leur tas lateral (sachets) ; + bac dechets.
+const bins = {};
+SIZES.forEach((s, i) => {
+  const pos = new THREE.Vector3(L * (0.16 + i * 0.24), 0, 2.3);
+  const grp = makeBin(pos, BIN_COL[s], 1.15);
+  const pile = makePile(grp, 4, 16, matCrust);
+  const sideGrp = new THREE.Group();
+  sideGrp.position.set(-0.4, 0, -0.5 + i * 0.95);        // tas lateral a gauche de la table
+  scene.add(sideGrp);
+  for (let k = 0; k < 16; k++) {                          // sachets empiles (cellophane)
+    const m = new THREE.Mesh(slabGeo, filmMat);
+    m.position.set((k % 2) * 0.22 - 0.11, 0.07 + Math.floor(k / 2) * 0.11, 0);
+    m.rotation.y = (Math.random() - 0.5) * 0.3; m.castShadow = true; m.visible = false; sideGrp.add(m);
+  }
+  bins[s] = { grp, pile, sideGrp, n: 0, packed: 0, pos, label: makeLabel("📦 " + s + "g ×0", "#cfe6ff") };
+});
+const wasteBin = makeBin(WASTE_POS, 0x55504a, 1.2);
+const wasteLabel = makeLabel("🗑️ DÉCHETS", "#caa15f");
+
+function gradeVal(gr) { return gr === "A" ? 1 : gr === "B" ? 0.75 : 0.55; }   // (conserve, inutilise)
+
+function refreshBin(s) {
+  const b = bins[s];
+  for (let i = 0; i < b.pile.children.length; i++) b.pile.children[i].visible = i < b.n;
+  const sc = b.sideGrp.children.length;
+  for (let i = 0; i < sc; i++) b.sideGrp.children[i].visible = i < Math.min(sc, b.packed);
+  b.label.textContent = "📦 " + s + "g ×" + b.n;
 }
-function updateStockLabel() { sellLabel.textContent = "📦 STOCK " + Math.round(stock.g) + " g"; updateStockPile(); }
-function addToStock(g, grade) { stock.g += g; stock.qsum += g * gradeVal(grade); updateStockLabel(); }
-function takeFromStock(g) {
-  if (stock.g <= 0) return;
-  const r = Math.min(1, g / stock.g);
-  stock.qsum *= (1 - r);
-  stock.g = Math.max(0, stock.g - g);
+function updateBinLabels() {
+  SIZES.forEach(s => placeLabel(bins[s].label, bins[s].pos));
+  placeLabel(wasteLabel, WASTE_POS);
+}
+
+// Conditionnement : taper un bac taille -> barrettes sous sachet (tas lateral) + vente.
+function packageBin(s) {
+  const b = bins[s];
+  if (b.n <= 0) { showToast(s + "g : bac vide", "#caa15f"); return; }
+  const n = b.n;
+  const earn = n * s * PRICE_BY_SIZE[s] * levelMult();
+  setCash(cash + earn);
+  addXP(Math.max(1, Math.round(n * s)));
+  b.packed += n; b.n = 0; refreshBin(s);
+  showToast("Conditionné ×" + n + " · " + s + "g  +" + Math.round(earn) + " €", "#9be37d");
+  playSale(); addShake(0.12); haptic(20);
 }
 
 /* -------------------------------------------------------------------------
@@ -780,12 +789,15 @@ function takeFromStock(g) {
 function updateSlices(dt) {
   const g = 11;
   for (const sl of slices) {
-    if (sl.collect) {                              // la barrette file vers le bac STOCK
-      sl.mesh.position.lerp(SELL_TARGET, Math.min(1, dt * 5));
+    if (sl.collect) {                              // la barrette file vers le bac de SA taille
+      const b = bins[sl.size] || bins[5];
+      _tmp.set(b.pos.x, 0.42, b.pos.z);
+      sl.mesh.position.lerp(_tmp, Math.min(1, dt * 5));
       sl.mesh.rotation.y += dt * 9;
       sl.mesh.scale.multiplyScalar(1 - Math.min(0.85, dt * 3.2));
       if (sl.mesh.scale.x < 0.16) {
-        addToStock(sl.grams, sl.grade);
+        b.n = Math.min(b.pile.children.length, b.n + 1);
+        refreshBin(sl.size);
         removeSlice(sl);
       }
       continue;
@@ -923,13 +935,14 @@ function pickWasteBin(cx, cy) {
   return raycaster.intersectObjects(wasteBin.children, false).length > 0;
 }
 
-// Le doigt est-il sur le BAC STOCK ? (pour lancer le dosage)
-function pickSellBin(cx, cy) {
+// Quel BAC TAILLE est sous le doigt ? (pour conditionner) -> renvoie la taille ou null
+function pickBin(cx, cy) {
   const r = el.getBoundingClientRect();
   ndc.x = ((cx - r.left) / r.width) * 2 - 1;
   ndc.y = -((cy - r.top) / r.height) * 2 + 1;
   raycaster.setFromCamera(ndc, camera);
-  return raycaster.intersectObjects(sellBin.children, false).length > 0;
+  for (const s of SIZES) if (raycaster.intersectObjects(bins[s].grp.children, false).length) return s;
+  return null;
 }
 
 el.addEventListener("pointerdown", (e) => {
@@ -937,7 +950,8 @@ el.addEventListener("pointerdown", (e) => {
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size >= 2) { startPinch(); pressing = false; pressT = 0; return; }   // 2e doigt -> zoom
   ensureAudio();                            // debloque le son (requis sur iOS)
-  if (pickSellBin(e.clientX, e.clientY))  { sellStock(); return; }   // tape le bac STOCK -> vente
+  const bs = pickBin(e.clientX, e.clientY);
+  if (bs) { packageBin(bs); return; }       // tape un bac taille -> conditionner (sachet) + vente
   if (pickWasteBin(e.clientX, e.clientY)) { sellWaste(); return; }   // tape le bac dechets -> schlag
   if (over) return;                        // plus de plaque a couper
   if (pointOnTop(e.clientX, e.clientY)) { pressing = true; pressT = 0; haptic(8); }  // appui sur la plaque -> contact lame
@@ -1036,173 +1050,6 @@ function exitWrap() {
   removeSlice(wrap.slice);
   wrap.slice = null; wrap.film = null; wrap.phase = ""; mode = "cut";
   ui.wrapui.classList.remove("show");
-}
-
-/* -------------------------------------------------------------------------
-   12c) DOSAGE + ENSACHAGE (methodes selectionnables)
-   On prend un lot du STOCK (~10 g) et on le debite en doses du calibre choisi.
-   - "hachoir" : curseur qui balaie -> tap dans le jaune = dose nette + COMBO
-   - "balance" : tap pour ajouter des eclats, viser PILE le calibre, puis ensacher
-   Petite dose = €/g plus eleve. Les ratees / surplus partent en miettes.
-   ------------------------------------------------------------------------- */
-const DOSE_SWEEP = 1.25;          // vitesse du curseur (hachoir)
-const DOSE_SWEET = 0.12;          // demi-largeur de la zone (hachoir)
-// Dosage CONTINU : on puise directement dans le STOCK, dose apres dose, jusqu'a
-// ce que le joueur tape "Terminer" (le stock peut se remplir pendant ce temps).
-const dose = { active:false, method:"hachoir", cursor:0, dir:1, cal:5, grade:"B",
-               made:0, combo:0, earn:0, cur:0 };
-
-function setCaliber(c) {
-  caliber = c; localStorage.setItem("hsv2_caliber", String(c));
-  for (const b of document.querySelectorAll(".calbtn")) b.classList.toggle("on", +b.dataset.cal === c);
-}
-function setMethod(m) {
-  doseMethod = m; localStorage.setItem("hsv2_dosemethod", m);
-  for (const b of document.querySelectorAll(".methbtn")) b.classList.toggle("on", b.dataset.meth === m);
-}
-
-function startDosing() {
-  if (dose.active) return;
-  if (stock.g < 0.5) { showToast("Stock vide — coupe des barrettes", "#caa15f"); return; }
-  dose.method = doseMethod; dose.cal = caliber;
-  dose.made = 0; dose.combo = 0; dose.earn = 0;
-  dose.cursor = 0; dose.dir = 1; dose.cur = 0;
-  dose.grade = stockGrade();
-  dose.active = true; mode = "dose";
-  ui.doseui.classList.add("show");
-  ui.hint.style.opacity = "0";
-  const bal = dose.method === "balance", tr = dose.method === "trace";
-  ui.dosegauge.style.display = (bal || tr) ? "none" : "block";
-  ui.dosescale.classList.toggle("show", bal);
-  ui.dosebag.classList.toggle("show", bal);
-  ui.dosetrace.classList.toggle("show", tr);
-  refreshDoseUI();
-}
-
-function refreshDoseUI() {
-  if (dose.method === "balance") {
-    ui.dosetext.textContent = "Pèse ~" + dose.cal + " g puis Ensacher  ·  Stock " + Math.round(stock.g) + " g";
-    ui.dosescale.textContent = dose.cur.toFixed(1) + " / " + dose.cal + " g";
-    ui.dosescale.style.color = Math.abs(dose.cur - dose.cal) <= dose.cal * 0.08 ? "#9be37d"
-                              : dose.cur > dose.cal ? "#ff6b6b" : "#fff";
-  } else if (dose.method === "trace") {
-    ui.dosetext.textContent = "Swipe droit le long de la ligne  ·  Calibre " + dose.cal + " g · Stock " + Math.round(stock.g) + " g";
-  } else {
-    ui.dosetext.textContent = "Calibre " + dose.cal + " g  ·  Stock " + Math.round(stock.g) + " g";
-    ui.dsweet.style.left  = (50 - DOSE_SWEET * 100) + "%";
-    ui.dsweet.style.width = (DOSE_SWEET * 200) + "%";
-  }
-  ui.dosecombo.textContent = dose.combo > 1 ? ("COMBO ×" + dose.combo) : "";
-  ui.dosestack.textContent = "📦".repeat(Math.min(dose.made, 24));   // les doses produites s'empilent
-}
-function bump() { ui.dosecombo.style.transform = "scale(1.25)"; setTimeout(() => { ui.dosecombo.style.transform = ""; }, 80); }
-
-// Tap pendant le dosage : hachoir -> chop une dose ; balance -> ajoute un eclat.
-function doseTap() {
-  if (!dose.active) return;
-  const ac = ensureAudio();
-  if (dose.method === "balance") {
-    if (stock.g < 0.05) { showToast("Stock vide", "#caa15f"); return; }
-    if (dose.cur < 0.01) dose.grade = stockGrade();   // qualite figee au debut de la dose
-    const sliver = Math.min(stock.g, 0.3 + Math.random() * 0.6);
-    takeFromStock(sliver); dose.cur += sliver;
-    updateStockLabel();
-    if (ac) { const t = ac.currentTime; beep(300 + Math.min(1.4, dose.cur / dose.cal) * 500, t, 0.05, 0.12); }
-    refreshDoseUI();
-    return;
-  }
-  // --- hachoir : chaque tap = une dose prelevee dans le stock ---
-  if (stock.g < dose.cal) { showToast("Stock vide", "#caa15f"); if (ac) beep(150, ac.currentTime, 0.12, 0.2); return; }
-  dose.grade = stockGrade();
-  takeFromStock(dose.cal);
-  const err = Math.abs(dose.cursor - 0.5);
-  if (err <= DOSE_SWEET) {                          // dose nette -> vendue au detail
-    dose.combo++;
-    const bonus = 1 + Math.min(dose.combo - 1, 16) * 0.025;   // combo plus doux (max ~1.4)
-    const price = dose.cal * DOSE_PRICE[dose.cal] * gradeVal(dose.grade) * bonus * levelMult();
-    setCash(cash + price); dose.earn += price; dose.made++;
-    bump();
-    if (ac) { const t = ac.currentTime; beep(620 + Math.min(dose.combo, 14) * 70, t, 0.07, 0.16); }
-  } else {                                          // rate -> la dose part aux dechets (schlag)
-    dose.combo = 0;
-    addWaste(dose.cal);
-    if (ac) { const t = ac.currentTime; beep(150, t, 0.12, 0.2); }
-  }
-  updateStockLabel();                               // le curseur continue son va-et-vient
-  refreshDoseUI();
-}
-
-// Bouton "Ensacher" (balance) : finalise la dose courante et la vend.
-function doseBag() {
-  if (!dose.active || dose.method !== "balance") return;
-  const cal = dose.cal, w = dose.cur, ac = ensureAudio();
-  if (w < 0.05) return;
-  const perfect = Math.abs(w - cal) <= cal * 0.08;
-  if (perfect) dose.combo++; else dose.combo = 0;
-  const billG = Math.min(w, cal);
-  if (w > cal) addWaste(w - cal);                  // surplus gaspille
-  const bonus = (perfect ? 1.15 : 1.0) + Math.min(dose.combo, 10) * 0.025;
-  const price = billG * DOSE_PRICE[cal] * gradeVal(dose.grade) * bonus * levelMult();
-  setCash(cash + price); dose.earn += price; dose.made++;
-  bump();
-  if (ac) { const t = ac.currentTime; if (perfect) { beep(880, t, 0.08, 0.18); beep(1320, t + 0.07, 0.1, 0.2); } else beep(500, t, 0.08, 0.14); }
-  dose.cur = 0;
-  refreshDoseUI();
-}
-
-function flashTrace(col) {
-  ui.dosetrace.style.borderColor = col;
-  setTimeout(() => { ui.dosetrace.style.borderColor = "rgba(255,255,255,.2)"; }, 130);
-}
-
-// Coupe tracee : on evalue la rectitude du swipe (deviation horizontale / hauteur).
-function doseTrace(dy, dev) {
-  if (!dose.active || dy < 50) return;              // swipe trop court -> ignore
-  const ac = ensureAudio();
-  if (stock.g < dose.cal) { showToast("Stock vide", "#caa15f"); return; }
-  dose.grade = stockGrade();
-  takeFromStock(dose.cal);
-  const ratio = dev / dy;                           // 0 = parfaitement droit
-  if (ratio < 0.16) {                               // coupe nette
-    dose.combo++;
-    const bonus = 1 + Math.min(dose.combo - 1, 16) * 0.025;   // combo plus doux (max ~1.4)
-    const price = dose.cal * DOSE_PRICE[dose.cal] * gradeVal(dose.grade) * bonus * levelMult();
-    setCash(cash + price); dose.earn += price; dose.made++;
-    bump(); flashTrace("#9be37d");
-    if (ac) { const t = ac.currentTime; beep(700 + Math.min(dose.combo, 14) * 60, t, 0.07, 0.16); }
-  } else if (ratio < 0.34) {                        // de travers -> dose moins chere, combo perdu
-    dose.combo = 0;
-    const price = dose.cal * DOSE_PRICE[dose.cal] * 0.7 * gradeVal(dose.grade) * levelMult();
-    setCash(cash + price); dose.earn += price; dose.made++;
-    flashTrace("#ffd166");
-    if (ac) beep(420, ac.currentTime, 0.08, 0.14);
-  } else {                                          // rate -> aux dechets
-    dose.combo = 0;
-    addWaste(dose.cal);
-    flashTrace("#ff6b6b");
-    if (ac) beep(150, ac.currentTime, 0.12, 0.2);
-  }
-  updateStockLabel();
-  refreshDoseUI();
-}
-
-// "Terminer" : sort du dosage (le cash est deja encaisse dose par dose).
-function endDosing() {
-  if (!dose.active) return;
-  if (dose.method === "balance" && dose.cur > 0.05) addWaste(dose.cur);   // dose en cours abandonnee
-  dose.active = false; mode = "cut"; dose.cur = 0;
-  ui.doseui.classList.remove("show");
-  ui.hint.style.opacity = "1";
-  if (dose.earn > 0) { addXP(Math.max(1, Math.round(dose.earn * 0.05))); showToast("Session : +" + Math.round(dose.earn) + " €  (" + dose.made + " doses)", "#9be37d"); playSale(); }
-  updateStockLabel();
-}
-
-function updateDose(dt) {
-  if (!dose.active || dose.method !== "hachoir") return;
-  dose.cursor += dose.dir * DOSE_SWEEP * dt;
-  if (dose.cursor >= 1) { dose.cursor = 1; dose.dir = -1; }
-  if (dose.cursor <= 0) { dose.cursor = 0; dose.dir =  1; }
-  ui.dcursor.style.left = (dose.cursor * 100) + "%";
 }
 
 // Petite flammeche du briquet (effet HTML ephemere).
@@ -1322,23 +1169,7 @@ function updateKnife(dt) {
   bladeMesh.position.set(cutX, y, 0);
 }
 
-let machineJob = null, machineTimer = 0;
-// Machine = auto-doseuse/ensacheuse : prend une dose du STOCK toutes les N s et la vend.
-function updateMachine(dt) {
-  machineMesh.visible = !!owned.autowrap;
-  if (!owned.autowrap) return;
-  machineTimer += dt;
-  if (machineTimer >= mInterval() && stock.g >= caliber) {
-    machineTimer = 0;
-    const gr = stockGrade();
-    takeFromStock(caliber);
-    const price = caliber * DOSE_PRICE[caliber] * gradeVal(gr) * 0.85 * levelMult(); // machine : pas de combo
-    setCash(cash + price);
-    addXP(Math.max(1, Math.round(price * 0.05)));
-    updateStockLabel();
-    const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(720, t, 0.08, 0.14); }
-  }
-}
+// (v2 Phase 2 : pas de machine auto ; conditionnement manuel par bac)
 
 // Boutique (data-driven : facile d'ajouter des machines plus tard).
 const SHOP = [
@@ -1427,7 +1258,7 @@ setCash(cash);
 setWaste(wasteGrams);
 updateXpUI();
 setSize(barSize);
-updateStockLabel();
+SIZES.forEach(refreshBin);
 requestAnimationFrame(loop);
 </script>
 </body>
