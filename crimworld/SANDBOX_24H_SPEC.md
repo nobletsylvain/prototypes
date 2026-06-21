@@ -23,6 +23,33 @@ Changements actés :
   `postMessage` → inventaire. Mécanisme commun aux 3 : batch → inventaire → doses.
 - **Priorité de build** : l'app **darkweb TOR/Silk Road** (réassort) en premier.
 
+### Contrat d'embed du Labo (P3) — DÉCIDÉ
+**Mode retenu : « pur mini-jeu ».** En embed, chaque proto PERD son économie propre
+(cash, boutique, XP, vente au détail) : il ne reste que le **craft**, nourri par la
+**matière fournie par le sandbox**, et il **émet un batch**. Une seule économie (le
+sandbox). Les protos gardent leur version standalone intacte hors embed.
+
+Protocole (sur le modèle `coupe.html#embed=prologue` de la slice) :
+1. iframe ouverte avec `…/<proto>/#embed=lab&produit=<p>&matiere=<g>` → mode labo.
+2. Le proto masque cash/boutique/XP/vente, garde le mini-jeu, consomme `matiere`
+   (pas de rachat dans le proto), et expose un bouton **« Envoyer au stock 📦 »**.
+3. `parent.postMessage({type:'crimworld-lab-batch', produit, grammesRaw, grammesFinis, qualite}, '*')`.
+4. Le sandbox écoute → `sim.produireBatch(...)` → ferme l'iframe. Le Snap gère la vente.
+
+Mapping par proto (préfixes localStorage disjoints : `hsv2_`/`gf3_`/`neige_`, pas de
+collision avec `sbx_`) :
+- **hash-slicer-v2** (hash) : garde *acheter savonnette (fournie) → couper (timing) →
+  bacs STOCK* ; retire dosage/emballage-vente, boutique, XP, déchets. Batch = g coupés,
+  qualité depuis le grade des barrettes (A/B/C → propre/arrache).
+- **green-front-v3** (weed) : démarre à *2·Tri → 3·Coupe → 4·Pack* (saute 1·Réception) ;
+  retire cash/boutique/vente. Batch = g packés + qualité.
+- **neige** (neige) : garde la *coupe/dilution* (lacto, format) ; retire cash/boutique/
+  vente. Batch = g produits + pureté.
+
+**Ordre de build P3** : hash-slicer-v2 (référence) → green-front-v3 → neige. Côté
+sandbox : remplacer l'écran Labo placeholder par un **lanceur d'iframe** (par produit)
++ **listener postMessage** → `produireBatch`.
+
 ### Messagerie — tout passe par les DM (Snap + Darkweb)
 - **Snap (aval)** : tu postes ta **story** (vitrine) → les clients te **DM** au fil
   de la journée pour acheter → tu sers depuis ton stock. La demande = des
