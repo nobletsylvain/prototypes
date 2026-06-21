@@ -713,6 +713,7 @@ function makeLabel(text, color) {
 }
 const labA = makeLabel("A 0 g", "#9be37d");
 const labS = makeLabel("Trim 0 g", "#caa15f");
+const labBlend = makeLabel("Blend", "#bdf0a3");   // etiquette du bocal de blend (quantite + qualite)
 const _lv = new THREE.Vector3();
 function placeLabel(div, pos, y) {
   _lv.set(pos.x, y, pos.z).project(camera);
@@ -1052,6 +1053,7 @@ function refreshPackCard() {
   const fill = jar.userData.fill;
   const k = Math.max(0.02, Math.min(1, blend.g / 500));
   fill.scale.y = k; fill.position.y = 0.05 + 0.4 * k;
+  labBlend.textContent = "Blend " + Math.round(blend.g) + " g · " + thc.toFixed(1) + "%";
 }
 function qualMult(thc) { return Math.max(0.7, Math.min(1.45, 0.7 + (thc - 12) / 14 * 0.75)); }
 function renderFormats() {
@@ -1349,6 +1351,7 @@ function loop(t) {
   // Etiquettes des bacs.
   placeLabel(labA, BIN_A, 0.7);
   placeLabel(labS, BIN_S, 0.7);
+  if (phase === "pack") placeLabel(labBlend, jar.position, 1.25); else labBlend.style.display = "none";
 
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
