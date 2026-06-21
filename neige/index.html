@@ -159,21 +159,30 @@ import * as THREE from "three";
 /* -------------------------------------------------------------------------
    0) ECONOMIE
    ------------------------------------------------------------------------- */
-const BRICK_PRICES = { 50: 2200, 100: 4000 };      // coke (gros)
-const FMT_PRICE    = { 1: 80, 5: 62, 25: 48 };     // €/g au détail selon le format
-const STARTER      = { coke: 30, purity: 0.8, dil: 40 };
+/* -------------------------------------------------------------------------
+   0) ECONOMIE — calibrée sur les prix réels du marché (UE, en €)
+   - Cocaïne en gros : ~25–35 k€/kg ; plus cher au gramme en petite quantité.
+     Pureté d'import ~80–92 %.
+   - Détail (rue) : ~60–80 €/g au gramme, dégressif sur les plus gros lots.
+   - Agents de coupe : très bon marché (centimes/g). Le vrai coût d'un cut
+     bâclé n'est pas l'agent mais la RÉPUTATION (donc le prix de TOUTES les
+     ventes) : le cheap rapporte par le volume, mais sa nocivité plombe la réput.
+   ------------------------------------------------------------------------- */
+const BRICK_PRICES = { 50: 2600, 100: 4800, 250: 10500, 500: 19000 };  // ≈ 52 / 48 / 42 / 38 €/g
+const FMT_PRICE    = { 1: 78, 5: 62, 25: 50 };     // €/g détail à qualité 100 % (prix réel = × qualité)
+const STARTER      = { coke: 30, purity: 0.82, dil: 50 };
 const POUR_RATE    = 26;
 const MIX_DRAG_K   = 1 / 650;
 const MIX_TIME_K   = 0.55;
 const BAG_HOLD_RATE= 0.26;
 const DIL_REFILL_G = 200;
-// Paliers de diluant : du moins cher/plus nocif au plus cher/plus propre.
-//  price = €/g d'achat · clean = propreté (-> qualité/€/g) · harm = nocivité (-> réput)
+// price = €/g réel de l'agent (centimes) · clean = propreté (→ qualité/prix) ·
+// harm = nocivité (→ réputation).
 const DILUANTS = [
-  { key:"leva",  name:"Lévamisole", short:"Léva",  icon:"☠️", price:0.6, clean:0.55, harm:0.12, col:0xb89086 },
-  { key:"lacto", name:"Lactose",    short:"Lacto", icon:"🧂", price:1.2, clean:0.70, harm:0.04, col:0xdad7cc },
-  { key:"manni", name:"Mannitol",   short:"Manni", icon:"⚪", price:2.2, clean:0.85, harm:0.015,col:0xc3d2df },
-  { key:"benzo", name:"Benzocaïne", short:"Benzo", icon:"💉", price:4.5, clean:1.00, harm:0.0,  col:0xa9c4e6 },
+  { key:"leva",  name:"Lévamisole", short:"Léva",  icon:"☠️", price:0.06, clean:0.55, harm:0.12, col:0xb89086 },
+  { key:"lacto", name:"Lactose",    short:"Lacto", icon:"🧂", price:0.03, clean:0.70, harm:0.04, col:0xdad7cc },
+  { key:"manni", name:"Mannitol",   short:"Manni", icon:"⚪", price:0.07, clean:0.85, harm:0.015,col:0xc3d2df },
+  { key:"benzo", name:"Benzocaïne", short:"Benzo", icon:"💉", price:0.22, clean:1.00, harm:0.0,  col:0xa9c4e6 },
 ];
 const DIL_BY = Object.fromEntries(DILUANTS.map(d => [d.key, d]));
 
@@ -269,7 +278,7 @@ scene.add(coke);
 // La coke n'est physiquement présente que si le joueur en a en stock.
 function updateCokeBricks() {
   cokeBricks[0].visible = bulkG > 0.5;
-  cokeBricks[1].visible = bulkG > 55;
+  cokeBricks[1].visible = bulkG > 130;        // 2e brique visible quand gros stock
   cokeSpill.visible = bulkG > 0.5;
 }
 
@@ -409,7 +418,7 @@ function updateTrayHeap()   { setHeap(trayHeap, trayG(), 160); }
 /* -------------------------------------------------------------------------
    7) NIVEAUX / XP
    ------------------------------------------------------------------------- */
-function xpNeed(lvl)  { return Math.round(140 * Math.pow(1.35, lvl - 1)); }
+function xpNeed(lvl)  { return Math.round(260 * Math.pow(1.4, lvl - 1)); }
 function levelMult()  { return 1 + (level - 1) * 0.025; }
 function updateXpUI() {
   ui.level.textContent = "Niv. " + level + " · +" + Math.round((levelMult() - 1) * 100) + "%";
@@ -610,21 +619,27 @@ const SHOP = [
     desc:()=>"Brique pressée (gros). Recharge la pile.",
     cost:()=>BRICK_PRICES[50], can:()=>true, maxed:()=>false, buy:()=>receiveCoke(50) },
   { id:"brick100", icon:"📦", name:"Coke 100 g",
-    desc:()=>"Brique pressée (gros, moins cher au gramme).",
+    desc:()=>"Brique pressée (gros, ~48 €/g).",
     cost:()=>BRICK_PRICES[100], can:()=>true, maxed:()=>false, buy:()=>receiveCoke(100) },
+  { id:"brick250", icon:"🧊", name:"Coke 250 g",
+    desc:()=>"Quart de kilo (gros volume, ~42 €/g).",
+    cost:()=>BRICK_PRICES[250], can:()=>true, maxed:()=>false, buy:()=>receiveCoke(250) },
+  { id:"brick500", icon:"🧊", name:"Coke 500 g",
+    desc:()=>"Demi-kilo (le moins cher au gramme, ~38 €/g).",
+    cost:()=>BRICK_PRICES[500], can:()=>true, maxed:()=>false, buy:()=>receiveCoke(500) },
   ...DILUANTS.map(d => ({
     id:"dil_" + d.key, icon:d.icon, name:d.name + " " + DIL_REFILL_G + " g",
-    desc:()=>"Coupe : propreté " + Math.round(d.clean*100) + "% · nocivité " + harmWord(d.harm) + " · " + d.price.toFixed(1) + " €/g",
+    desc:()=>"Coupe : propreté " + Math.round(d.clean*100) + "% · nocivité " + harmWord(d.harm) + " · " + d.price.toFixed(2) + " €/g",
     cost:()=>Math.round(d.price * DIL_REFILL_G), can:()=>true, maxed:()=>false, buy:()=>receiveDiluant(d.key) })),
   { id:"press", icon:"🗜️", name:"Presse à briquettes",
     desc:()=>"Débloque le format 25 g (semi-gros).",
-    cost:()=>3000, can:()=>owned.press < 1, maxed:()=>owned.press >= 1, buy:()=>{ owned.press = 1; refreshFmtButtons(); } },
+    cost:()=>12000, can:()=>owned.press < 1, maxed:()=>owned.press >= 1, buy:()=>{ owned.press = 1; refreshFmtButtons(); } },
   { id:"autobag", icon:"🤖", name:"Auto-ensacheuse",
     desc:()=>"Ensache et vend du produit toute seule.",
-    cost:()=>5000, can:()=>owned.autobag < 1, maxed:()=>owned.autobag >= 1, buy:()=>{ owned.autobag = 1; } },
+    cost:()=>28000, can:()=>owned.autobag < 1, maxed:()=>owned.autobag >= 1, buy:()=>{ owned.autobag = 1; } },
   { id:"cadence", icon:"⚙️", name:"Cadence +",
     desc:()=>"Accélère l'auto-ensacheuse (" + bagInterval().toFixed(1) + " s/sachet).",
-    cost:()=>Math.round(1200 * Math.pow(1.6, owned.cadence)),
+    cost:()=>Math.round(4000 * Math.pow(1.6, owned.cadence)),
     can:()=>owned.autobag >= 1 && owned.cadence < 8, maxed:()=>owned.cadence >= 8, buy:()=>{ owned.cadence++; } },
 ];
 function renderShop() {
@@ -656,7 +671,7 @@ function receiveCoke(size) {
   const cost = BRICK_PRICES[size];
   if (cash < cost) { showToast("Pas assez : " + cost + " €", "#ff6b6b"); return; }
   setCash(cash - cost); ui.shop.classList.remove("show");
-  const purity = 0.74 + Math.random() * 0.18;
+  const purity = 0.80 + Math.random() * 0.12;       // pureté d'import ~80–92 %
   const tot = bulkG + size;
   bulkPurity = tot > 0 ? (bulkG * bulkPurity + size * purity) / tot : purity;
   bulkG = tot; updateResources();
