@@ -62,6 +62,9 @@
   .rbtns button { flex:1; padding:12px; border-radius:13px; font-size:15px; font-weight:800; border:none; }
   #replayBtn { background:#7ad17a; color:#0c1611; }
   #menuBtn { background:rgba(255,255,255,.1); color:#eaf3ea; border:1px solid rgba(255,255,255,.18); }
+  .rcard .contbtn { display:block; text-align:center; margin-top:14px; padding:12px; border-radius:13px;
+    background:#7ad17a; color:#0c1611; font-weight:800; font-size:15px; text-decoration:none; }
+  .rcard .contbtn:active { transform:scale(.99); }
 
   /* --- Badge fork --- */
   #labtag { position:fixed; z-index:3; left:14px; bottom:max(12px,env(safe-area-inset-bottom));
@@ -368,12 +371,12 @@ function drawWasteLeaf(c, lf) {
   c.closePath(); c.fillStyle = "#4e6b2e"; c.fill();
 }
 const G1 = {
-  id: "buck", name: "Effeuillage", emoji: "🌿", unit: "%", timed: true,
+  id: "buck", name: "Effeuillage", emoji: "🌿", unit: "%", timed: false,
   blurb: "Passe le doigt sur les branches pour récolter toutes les têtes — pas de timing. Rendement = têtes récoltées (jusqu'à 100 %) ; les feuilles tombent dans le bac trim (pour diluer plus tard).",
 };
 G1.start = function () {
   this.over = false; this.dragging = false; this.prev = null;
-  this.tLeft = TBUCK;
+  // récolte libre : pas de timer
   this.buds = []; this.branches = []; this.leaves = [];
   this.pileT = []; this.pileD = [];
   this.tAssigned = 0; this.dAssigned = 0; this.tetesMass = 0; this.totalMass = 0; this.feuillesMass = 0;
@@ -426,7 +429,6 @@ G1.onDown = function (p) { this.dragging = true; this.strip(p, p); this.prev = p
 G1.onMove = function (p) { if (!this.dragging || !this.prev) return; this.strip(this.prev, p); this.prev = p; };
 G1.onUp = function () { this.dragging = false; this.prev = null; };
 G1.update = function (dt) {
-  this.tLeft -= dt;
   let onCount = 0;
   for (const bud of this.buds) {
     if (bud.on) { onCount++; continue; }
@@ -439,8 +441,7 @@ G1.update = function (dt) {
       }
     }
   }
-  timerfill.style.width = Math.max(0, this.tLeft / TBUCK * 100) + "%";
-  if (onCount === 0 || this.tLeft <= 0) this.finish();
+  if (onCount === 0) this.finish();
 };
 G1.draw = function (c) {
   c.lineCap = "round"; c.lineJoin = "round";
@@ -466,13 +467,16 @@ G1.draw = function (c) {
 G1.hud = function () { return "🌿 Rendement <b>" + Math.round(this.yieldPct() * 100) + "%</b> · 🍂 " + Math.round(this.feuillesMass) + " g trim"; };
 G1.finish = function () {
   if (this.over) return;
-  const y = Math.round(this.yieldPct() * 100), n = this.tAssigned, left = this.buds.filter(b => b.on).length;
-  const tip = left === 0 ? "Récolte complète — tout est dans le bac. 🌿" : left + " tête(s) oubliée(s) sur les branches.";
+  const y = Math.round(this.yieldPct() * 100), left = this.buds.filter(b => b.on).length;
+  const flower = Math.round(this.tetesMass), trim = Math.round(this.feuillesMass);
+  try { localStorage.setItem("gf3_seed", JSON.stringify({ flower, trim, thc: 18 })); } catch (e) {}   // -> coupe (v3)
+  const tip = left === 0 ? "Récolte complète. 🌿" : left + " tête(s) laissée(s) sur les branches.";
   endRound(this,
     '<div class="big">Rendement <b style="color:#9be37d">' + y + '%</b></div>' +
-    '<div class="row"><span>🌿 Bonnes têtes</span><b>' + n + '</b></div>' +
-    '<div class="row"><span>🍂 Trim récolté</span><b>' + Math.round(this.feuillesMass) + ' g</b></div>' +
-    '<div class="tip">' + tip + ' Le trim servira à la dilution.</div>', y);
+    '<div class="row"><span>🌿 Fleur récoltée</span><b>' + flower + ' g</b></div>' +
+    '<div class="row"><span>🍂 Trim (pour diluer)</span><b>' + trim + ' g</b></div>' +
+    '<div class="tip">' + tip + '</div>' +
+    '<a class="contbtn" href="../green-front-v3/index.html">Continuer → Coupe ▸</a>', y);
 };
 
 /* =========================================================================
