@@ -161,7 +161,7 @@
 <!-- Phase 2 : Bucking & Trimming -->
 <div class="panel" id="buckui">
   <div class="card" id="buckcard"></div>
-  <div class="gauge" id="bgauge"><div class="sweet" id="bsweet"></div><div class="cursor" id="bcursor"></div></div>
+  <div id="bswipe" style="text-align:center;font-size:12.5px;font-weight:800;color:rgba(173,224,140,.8);padding:7px 0 3px;pointer-events:none">👆 Frotte le tas — lent = belles A · vif = trim</div>
   <div class="row">
     <span style="color:rgba(255,255,255,.55);font-size:12px;font-weight:700;pointer-events:none">Trim</span>
     <button class="toggle on" data-trim="hand">🤚 Main</button>
@@ -213,7 +213,8 @@ import * as THREE from "three";
    en A / B / Smalls, on la COUPE (stretch : on gonfle le poids au trim au
    risque de la reputation), puis on CONDITIONNE en formats 1 g -> 1 lb.
      1) Reception & inspection : pesee + scan qualite -> accepter/negocier/refuser.
-     2) Bucking & trimming     : tap au timing, main (qualite) vs machine (volume).
+     2) Bucking & trimming     : on FROTTE le tas (drag) ; vitesse du geste = qualite
+                                 (lent -> A, vif -> trim). Main (qualite) vs machine (volume).
      3) Stretch / dilution     : curseur de coupe, plus on stretch plus on gagne
                                  de poids vendable mais plus la reput baisse.
      4) Conditionnement        : formats retail/gros, scellage, humidite, etiq fake.
@@ -598,7 +599,7 @@ function saveShop()   { localStorage.setItem("gf_shop",   JSON.stringify(owned))
 const ui = {};
 ["cash","debt","replbl","repfill","level","xpfill","hint","toast",
  "recui","reccard","scangauge","scansweet","scancursor","recAccept","recNego","recRefuse",
- "buckui","buckcard","bgauge","bsweet","bcursor","buckNext",
+ "buckui","buckcard","bswipe","buckNext",
  "stretchui","stretchcard","strack","strail","sknob","satfill","stretchMix","stretchSkip",
  "packui","packcard","sealgauge","sealsweet","sealcursor","packgrid","optHumid","optLabel","packNew",
  "shop","shopitems","shopcash"].forEach(id => ui[id] = document.getElementById(id));
@@ -821,15 +822,18 @@ function refuseFront() {
 /* -------------------------------------------------------------------------
    13) PHASE 2 — BUCKING & TRIMMING
    ------------------------------------------------------------------------- */
-const buckG = { cursor: 0, dir: 1, flash: 0, cd: 0 };   // jauge de timing + cooldown
-function buckSweet() { return 0.1; }
+// Bucking au DRAG : on frotte le tas pour effeuiller. La VITESSE du geste fait
+// la qualite (lent = belles A, vif = trim). On accumule la distance glissee ;
+// chaque BUCK_STRIDE px detache une poignee. Le tap simple = une poignee propre.
+const buck = { dragging: false, lastX: 0, lastY: 0, lastT: 0, acc: 0, speed: 0, flash: 0, cd: 0 };
+const BUCK_STRIDE = 30;   // px de glisse par poignee detachee
 function gotoBuck() {
   setPhase("buck");
-  buckG.cursor = 0; buckG.dir = 1; buckG.cd = 0;
+  buck.dragging = false; buck.acc = 0; buck.flash = 0; buck.cd = 0;
   refreshRawPile(lot.raw, lot.total);
   refreshBuckCard();
   setTrim(trimMode);
-  setHint("Tape dans le vert pour bucker/trimmer une poignée. 🤚 = qualité, ⚙️ = volume.");
+  setHint("Frotte le tas pour effeuiller : geste lent = belles A, geste vif = volume (trim). 🤚 qualité · ⚙️ vitesse.");
 }
 function refreshBuckCard() {
   ui.buckcard.innerHTML =
@@ -841,21 +845,19 @@ function setTrim(m) {
   trimMode = m; localStorage.setItem("gf_trim", m);
   document.querySelectorAll(".toggle[data-trim]").forEach(b => b.classList.toggle("on", b.dataset.trim === m));
 }
-// Une poignee trimmee : repartit le brut en A / B / Smalls selon methode,
-// qualite du lot et timing. Main = + de A (lent) ; machine = + de smalls (rapide).
-function buckHandful() {
-  if (phase !== "buck" || lot.raw <= 0) return;
-  if (buckG.cd > 0) return;                          // cadence (main plus lente)
+// Une poignee effeuillee : repartit le brut en A / B / Smalls selon methode,
+// qualite du lot et VIVACITE du geste (speed en px/ms : lent -> A, vif -> trim).
+// Appelee en rafale pendant le drag (une par BUCK_STRIDE). Ne touche pas l'UI :
+// buckCommitUI() regroupe save + rendu une fois par geste (perf).
+function buckStrip(speed) {
+  if (phase !== "buck" || lot.raw <= 0) return false;
   const machine = trimMode === "machine";
-  buckG.cd = machine ? 0.16 : 0.42;                  // machine = plus rapide
-  const batch = Math.min(lot.raw, machine ? 30 : 16);
-  const err = Math.abs(buckG.cursor - 0.5);
-  const clean = Math.max(0, 1 - err / 0.32);         // 1 = pile dans le vert
+  const batch = Math.min(lot.raw, machine ? 20 : 12);
+  const clean = Math.max(0, Math.min(1, 1 - (speed - 0.15) / 0.9));  // 1 = geste lent et net
 
-  // Repartition de base par methode, modulee par timing + qualite du lot.
+  // Repartition de base par methode, modulee par geste + qualite du lot.
   let aShare = (machine ? 0.34 + owned.machine * 0.02 : 0.50 + owned.hands * 0.035);
-  aShare += clean * 0.16;                              // beau geste -> plus de A
-  aShare -= offer ? 0 : 0;
+  aShare += clean * 0.16;                              // geste propre -> plus de A
   aShare -= lot.trim * 0.25;                           // lot plein de stems -> moins de A
   if (lot.hum > 14) aShare -= 0.05;                   // humide -> trim collant
   aShare = Math.max(0.12, Math.min(0.72, aShare));
@@ -869,19 +871,23 @@ function buckHandful() {
   stocks.S.g += gS; stocks.S.ts += gS * (lot.thc * TRIM_THC_FACTOR);
   lot.raw -= batch;
 
-  // Juice : nugs qui filent vers chaque bac + son.
+  // Juice : nugs qui filent vers chaque bac + ciseaux (allege pour le drag).
   flyNug(matBudA, 0.5, BIN_A);
-  if (Math.random() < 0.7) flyNug(matBudB, 0.5, BIN_B);
-  if (sShare > 0.18) flyNug(matTrim, 0.45, BIN_S);
-  buckG.flash = 0.16; addShake(machine ? 0.1 : 0.14);
+  if (Math.random() < 0.6) flyNug(matBudB, 0.5, BIN_B);
+  if (sShare > 0.18 && Math.random() < 0.7) flyNug(matTrim, 0.45, BIN_S);
+  buck.flash = 0.16;
+  if (Math.random() < 0.4) addShake(0.06);
   playSnip();
-
+  return true;
+}
+// Regroupe sauvegarde + rendu apres une rafale de strips (un seul write/DOM).
+function buckCommitUI() {
   saveStocks();
   updateStockUI();
-  refreshRawPile(lot.raw, lot.total);
-  refreshBuckCard();
-  if (lot.raw <= 0.5) {
-    lot.raw = 0; refreshRawPile(0, lot.total);
+  if (phase === "buck") { refreshRawPile(lot.raw, lot.total); refreshBuckCard(); }
+  if (lot && lot.raw <= 0.5 && !lot._done) {
+    lot._done = true; lot.raw = 0;
+    refreshRawPile(0, lot.total);
     setHint("Lot trié ! Passe au mélange ▸");
     showToast("Lot trié 🌿", "#9be37d");
   }
@@ -1155,7 +1161,11 @@ el.addEventListener("pointerdown", (e) => {
   ensureAudio();
   // Tap sur la scene -> action de la phase courante.
   if (phase === "reception") { if (nego.active) resolveNego(); else doScan(); }
-  else if (phase === "buck") { buckHandful(); }
+  else if (phase === "buck") {
+    buck.dragging = true; buck.lastX = e.clientX; buck.lastY = e.clientY;
+    buck.lastT = performance.now(); buck.acc = 0; buck.speed = 0;
+    if (buck.cd <= 0 && buckStrip(0)) { buck.cd = 0.28; buckCommitUI(); }   // tap = poignee propre
+  }
   else if (phase === "pack") { if (seal.active) resolveSeal(); }
 }, { passive: false });
 
@@ -1166,11 +1176,28 @@ el.addEventListener("pointermove", (e) => {
     zoom = Math.max(0.6, Math.min(2.4, pinchStartZoom * (pinchDist() / pinchStartDist)));
     localStorage.setItem("gf_zoom", zoom.toFixed(3));
     fitView();
+  } else if (phase === "buck" && buck.dragging && pointers.size < 2) {
+    // Effeuillage : on accumule la distance glissee ; chaque BUCK_STRIDE px
+    // detache une poignee, dont la qualite depend de la vitesse instantanee.
+    e.preventDefault();
+    const now = performance.now();
+    const dx = e.clientX - buck.lastX, dy = e.clientY - buck.lastY;
+    const dist = Math.hypot(dx, dy);
+    buck.speed = dist / Math.max(1, now - buck.lastT);   // px/ms
+    buck.lastX = e.clientX; buck.lastY = e.clientY; buck.lastT = now;
+    buck.acc += dist;
+    let did = false, guard = 0;
+    while (buck.acc >= BUCK_STRIDE && guard++ < 12) {
+      buck.acc -= BUCK_STRIDE;
+      if (buckStrip(buck.speed)) did = true; else break;
+    }
+    if (did) buckCommitUI();
   }
 }, { passive: false });
 function onUp(e) {
   pointers.delete(e.pointerId);
   if (pinching && pointers.size < 2) pinching = false;
+  if (pointers.size === 0) buck.dragging = false;
 }
 el.addEventListener("pointerup", onUp, { passive: false });
 el.addEventListener("pointercancel", onUp, { passive: false });
@@ -1204,18 +1231,12 @@ ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.cla
    19) BOUCLE PRINCIPALE
    ------------------------------------------------------------------------- */
 function updateGauges(dt) {
-  // Jauge de bucking (toujours animee en phase buck).
+  // Bucking au drag : pas de jauge — on entretient le cooldown du tap et un
+  // petit pulse de l'indice quand une poignee vient d'etre detachee.
   if (phase === "buck") {
-    buckG.cursor += buckG.dir * 1.15 * dt;
-    if (buckG.cursor >= 1) { buckG.cursor = 1; buckG.dir = -1; }
-    if (buckG.cursor <= 0) { buckG.cursor = 0; buckG.dir = 1; }
-    const half = buckSweet();
-    ui.bsweet.style.left = (50 - half * 100) + "%";
-    ui.bsweet.style.width = (half * 200) + "%";
-    ui.bcursor.style.left = (buckG.cursor * 100) + "%";
-    if (buckG.cd > 0) buckG.cd = Math.max(0, buckG.cd - dt);
-    if (buckG.flash > 0) { buckG.flash -= dt; ui.bgauge.style.boxShadow = "0 0 14px rgba(255,255,255," + Math.max(0, buckG.flash / 0.16 * 0.7) + ")"; }
-    else ui.bgauge.style.boxShadow = "";
+    if (buck.cd > 0) buck.cd = Math.max(0, buck.cd - dt);
+    if (buck.flash > 0) buck.flash = Math.max(0, buck.flash - dt);
+    if (ui.bswipe) ui.bswipe.style.color = "rgba(173,224,140," + (0.6 + buck.flash * 2).toFixed(2) + ")";
   }
   // Jauge de negoce.
   if (phase === "reception" && nego.active) {

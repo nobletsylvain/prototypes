@@ -49,7 +49,7 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). Chaî
 
 **Boucle de jeu (4 étapes, suivies par un *stepper* en haut) :**
 1. **Réception & inspection** — un **front** (lot **à crédit**) tombe sur le plan de travail. **Tape pour scanner** (pesée + qualité) : on révèle **% THC**, **humidité**, **% trim/stems**. Puis **Accepter** (alimente la **dette**), **Négocier** (timing → remise / fournisseur vexé) ou **Refuser**.
-2. **Bucking & trimming** — **tape dans le vert** pour bucker/trimmer une poignée. **🤚 Main** = lent mais plus de **A-flower** ; **⚙️ Machine** = rapide mais plus de **smalls/trim**. Tri auto dans les bacs **A / B / Trim**.
+2. **Bucking & trimming** — **frotte/glisse le doigt sur le tas** pour effeuiller : un **geste lent et net** donne de belles **A-flower**, un **geste vif** déchire en **trim** (la vitesse du drag fait la qualité). **🤚 Main** = qualité ; **⚙️ Machine** = volume. Tri auto dans les bacs **A / B / Trim**.
 3. **Coupe / stretch** — **curseur de coupe** : on gonfle le poids vendable en mélangeant du **trim** à la fleur. Plus on stretch, **plus de grammes** mais **%THC qui baisse** et **réputation qui chute** (jauge de **satisfaction clients** + plaintes si trop dilué).
 4. **Conditionnement multi-formats** — ensachage **1 g / 3.5 g / 7 g / 28 g / ½ lb / 1 lb** (petit = €/g plus élevé). **Scellage** au timing (bonus si serré), options **💧 humidité** (+valeur/réput) et **🏷️ étiquette fake** (+valeur mais **risque de descente** 🚔).
 
