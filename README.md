@@ -106,15 +106,15 @@ Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) via CDN, un s
 
 **Boucle de jeu — gestes directs (feeling > skill, rien à « viser ») :**
 1. **Réception** 🛒 — on achète la **coke (50 / 100 g)** ET le **diluant (recharge 200 g)**, de la même façon. Le 1ᵉʳ lot est offert (🔄 Lot de dépannage).
-2. **Verser** — **maintiens le doigt sur le 🧱 BLOC DE COKE** → un flux de poudre coule sur la **🪟 DALLE**. Idem sur le **🧂 TUB DE DILUANT** (à droite) : la **coupe est physique**, tu ajoutes toi-même le diluant et sa quantité fait le **stretch** (volume + / pureté −). Aucune perte.
-3. **Mélanger** — une fois **coke + diluant** sur la dalle, **tourne le doigt dessus** → ça se coupe/homogénéise (teinte qui vire) et part en **PRODUIT** (grammes = coke + diluant ; **pureté diluée d'autant**, qualité = pureté). Même un geste grossier marche.
-4. **Ensacher** — **tape (ou maintiens) le bac 📦 PRODUIT** → chaque geste remplit un sachet du **format** choisi (**1 / 5 / 25 g**) qui se scelle, s'envole et **se vend**. Pas de timing, pas de raté (petit = €/g plus élevé).
+2. **Verser** — **maintiens le doigt sur la 🧱 PILE DE COKE** → un flux de poudre coule sur la **🪟 DALLE**. Idem sur le **🧪 POT DE COUPE** (à droite). La **coupe est physique** : la quantité de diluant fait le **stretch**, et tu choisis le **palier** au sélecteur « Coupe » — de **Lévamisole** (donné mais nocif) à **Benzocaïne** (cher mais propre), via Lactose / Mannitol. Aucune perte.
+3. **Mélanger** — une fois **coke + diluant** sur la dalle, **tourne le doigt dessus** → ça se coupe/homogénéise (teinte qui vire) et part en **PRODUIT** (grammes = coke + diluant ; **pureté diluée d'autant**, qualité = pureté × propreté de la coupe). Même un geste grossier marche.
+4. **Ensacher** — **tape (ou maintiens) le bac 📦 PRODUIT** → chaque geste remplit un **pochon** (sachet zip carré plat) du **format** choisi (**1 / 5 / 25 g**, **2 tailles**), qui se pose sur la table et **se vend**. Pas de timing, pas de raté (petit = €/g plus élevé).
 
 Un **halo lumineux** pulse sous la station active et un **bandeau de consigne** suit l'étape : la boucle coke + diluant → mix → sachet est guidée.
 
-**Économie & progression :** **réputation** (la qualité moyenne des ventes — donc combien tu coupes — module le prix), **niveaux (XP)** +2,5 %/niv. Boutique : **coke** & **diluant** (recharges), **agent premium** (coupe moins détectable : qualité +), **presse à briquettes** (25 g), **auto-ensacheuse** + cadence. Persistance `localStorage` préfixée **`neige_`** (isolée de `hash_` / `gf_` / `gs_`).
+**Économie & progression :** la **coupe** a 4 paliers — **propreté** (→ qualité/€/g) vs **nocivité** (→ réputation) vs **prix** : le cheap (Lévamisole) rapporte vite mais fait chuter la réput, le premium (Benzocaïne) coûte mais « passe ». **Réputation** + **niveaux (XP)** +2,5 %/niv. Boutique : **coke** (briques) & les 4 **coupes** (recharges), **presse à briquettes** (25 g), **auto-ensacheuse** + cadence. **Formes** inspirées de *Drug Dealer Simulator* (briques pressées empilées, pots de coupe cylindriques, pochons zip plats alignés sur la table). Persistance `localStorage` préfixée **`neige_`** (isolée de `hash_` / `gf_` / `gs_`).
 
-**Feedback juteux** : sons synthétisés (WebAudio — flux de poudre, raclage du mix, zip, cha-ching), puffs de poudre, sachets qui s'envolent, secousse de caméra.
+**Feedback juteux** : sons synthétisés (WebAudio — flux de poudre, raclage du mix, zip, cha-ching), puffs de poudre, pochons qui s'alignent sur la table, secousse de caméra.
 
 > Prototype de jeu, habillage purement visuel/stylisé.
 
