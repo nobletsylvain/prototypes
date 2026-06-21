@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Green Front v2 — Lab mini-jeux</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    color:#eaf3ea; background:radial-gradient(120% 120% at 50% 0%, #1b3326 0%, #122017 55%, #0b130e 100%);
+    touch-action:none; user-select:none; -webkit-user-select:none; }
+
+  /* Canvas plein écran : terrain de jeu des mini-jeux tactiles. */
+  #cv { position:fixed; inset:0; z-index:0; display:block; }
+
+  /* --- Barre du haut (pendant une partie) --- */
+  #topbar { position:fixed; z-index:3; top:0; left:0; right:0; display:none;
+    align-items:center; gap:10px; padding:max(10px,env(safe-area-inset-top)) 14px 8px; }
+  #topbar.show { display:flex; }
+  #backbtn { pointer-events:auto; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18);
+    color:#eaf3ea; font-size:14px; font-weight:700; padding:6px 12px; border-radius:999px; }
+  #title { font-size:15px; font-weight:800; letter-spacing:.2px; }
+  #readout { margin-left:auto; font-size:13px; font-weight:700; color:rgba(255,255,255,.85);
+    background:rgba(0,0,0,.25); padding:5px 10px; border-radius:999px; white-space:nowrap; }
+  #readout b { color:#fff; }
+  #timerwrap { position:fixed; z-index:3; top:calc(max(10px,env(safe-area-inset-top)) + 44px);
+    left:14px; right:14px; height:5px; background:rgba(255,255,255,.12); border-radius:999px; overflow:hidden; display:none; }
+  #topbar.show ~ #timerwrap { }
+  #timerfill { height:100%; width:100%; background:linear-gradient(90deg,#7ad17a,#ffd166); transition:width .08s linear; }
+
+  /* --- Menu (sélecteur de mini-jeux) --- */
+  #menu { position:fixed; inset:0; z-index:4; overflow-y:auto; display:none;
+    flex-direction:column; padding:max(26px,env(safe-area-inset-top)) 18px 32px; }
+  #menu.show { display:flex; }
+  .lab-h { font-size:22px; font-weight:800; letter-spacing:.3px; }
+  .lab-sub { color:rgba(255,255,255,.55); font-size:13px; margin:5px 0 18px; line-height:1.45; max-width:520px; }
+  .gcard { display:flex; align-items:center; gap:13px; text-align:left; width:100%;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:16px;
+    padding:14px; margin-bottom:12px; color:#eaf3ea; transition:background .15s, transform .05s; }
+  .gcard:active { transform:scale(.99); background:rgba(255,255,255,.09); }
+  .gcard .ic { font-size:30px; width:50px; height:50px; flex:none; display:flex; align-items:center; justify-content:center;
+    background:rgba(255,209,102,.12); border:1px solid rgba(255,209,102,.3); border-radius:14px; }
+  .gcard .nm { font-weight:800; font-size:16px; }
+  .gcard .bl { font-size:12.5px; color:rgba(255,255,255,.6); margin-top:3px; line-height:1.4; }
+  .gcard .bs { margin-left:auto; flex:none; font-size:11px; font-weight:800; color:#ffd166;
+    background:rgba(255,209,102,.12); border:1px solid rgba(255,209,102,.35); padding:4px 9px; border-radius:999px; white-space:nowrap; }
+  .lab-note { color:rgba(255,255,255,.4); font-size:12px; margin-top:8px; line-height:1.5; }
+
+  /* --- Carte de résultat (fin de manche) --- */
+  #result { position:fixed; inset:0; z-index:5; display:none; align-items:center; justify-content:center; padding:24px;
+    background:rgba(8,14,10,.55); backdrop-filter:blur(2px); }
+  #result.show { display:flex; }
+  .rcard { width:100%; max-width:340px; background:#16241a; border:1px solid rgba(255,255,255,.14);
+    border-radius:20px; padding:20px; box-shadow:0 18px 50px rgba(0,0,0,.5); }
+  .rcard .big { font-size:20px; font-weight:800; text-align:center; margin-bottom:12px; }
+  .rcard .row { display:flex; justify-content:space-between; font-size:14px; padding:5px 2px;
+    border-bottom:1px solid rgba(255,255,255,.07); }
+  .rcard .row b { font-weight:800; }
+  .rcard .tip { font-size:12.5px; color:rgba(255,255,255,.6); margin-top:12px; line-height:1.45; text-align:center; }
+  .rcard .rec { text-align:center; color:#ffd166; font-weight:800; font-size:14px; margin-top:10px; }
+  .rbtns { display:flex; gap:10px; margin-top:16px; }
+  .rbtns button { flex:1; padding:12px; border-radius:13px; font-size:15px; font-weight:800; border:none; }
+  #replayBtn { background:#7ad17a; color:#0c1611; }
+  #menuBtn { background:rgba(255,255,255,.1); color:#eaf3ea; border:1px solid rgba(255,255,255,.18); }
+
+  /* --- Badge fork --- */
+  #labtag { position:fixed; z-index:3; left:14px; bottom:max(12px,env(safe-area-inset-bottom));
+    font-size:10px; font-weight:800; letter-spacing:.3px; padding:3px 8px; border-radius:999px; pointer-events:none;
+    background:rgba(255,209,102,.16); border:1px solid rgba(255,209,102,.5); color:#ffd166; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="topbar">
+  <button id="backbtn">‹ Menu</button>
+  <div id="title">Mini-jeu</div>
+  <div id="readout"></div>
+</div>
+<div id="timerwrap"><div id="timerfill"></div></div>
+
+<div id="menu">
+  <div class="lab-h">🧪 Green Front — Lab</div>
+  <div class="lab-sub">Banc d'essai de mini-jeux tactiles. Choisis-en un, joue, rejoue. Chaque manche donne un score de « feel ». Fork de Green&nbsp;Front — la core loop d'origine reste intacte.</div>
+  <div id="gcards"></div>
+  <div class="lab-note">Idée : trois mécaniques différentes (glisser, maintenir/relâcher, réflexe) pour comparer ce qui est le plus satisfaisant au doigt.</div>
+</div>
+
+<div id="result">
+  <div class="rcard">
+    <div id="resultBody"></div>
+    <div class="rbtns">
+      <button id="replayBtn">↻ Rejouer</button>
+      <button id="menuBtn">Menu</button>
+    </div>
+  </div>
+</div>
+
+<div id="labtag">🧪 v2 · lab</div>
+
+<script type="module">
+"use strict";
+/* =========================================================================
+   GREEN FRONT v2 — LAB MINI-JEUX
+   -------------------------------------------------------------------------
+   Fork bac-à-sable de green-front/ : ici on ne joue PAS la core loop éco,
+   on teste des MINI-JEUX tactiles en isolé pour comparer leur « feel ».
+   Trois mécaniques distinctes (volontairement différentes du « tape dans
+   le vert » de l'original) :
+     1) Effeuillage  — glisser le doigt le long de la branche (drag).
+     2) Dosage       — maintenir pour verser, lâcher au bon poids (hold/inertie).
+     3) Trim express — couper les feuilles au réflexe (tap rapide).
+   2D canvas + DOM, zéro dépendance externe. Records en localStorage "gf2_".
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   AUDIO (juice synthétisé, zéro fichier) — repris de green-front.
+   ------------------------------------------------------------------------- */
+let actx = null;
+function ensureAudio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (actx && actx.state === "suspended") actx.resume();
+  return actx;
+}
+function beep(freq, t0, dur, vol, type) {
+  const ac = ensureAudio(); if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || "square"; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t0); o.stop(t0 + dur);
+}
+function noiseBurst(dur, f0, f1, vol, type, q) {
+  const ac = ensureAudio(); if (!ac) return;
+  const t = ac.currentTime, len = Math.max(1, Math.floor(ac.sampleRate * dur));
+  const buf = ac.createBuffer(1, len, ac.sampleRate), ch = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.5);
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const filt = ac.createBiquadFilter(); filt.type = type || "bandpass"; filt.Q.value = q || 0.8;
+  filt.frequency.setValueAtTime(f0, t);
+  filt.frequency.exponentialRampToValueAtTime(Math.max(60, f1), t + dur);
+  const g = ac.createGain(); g.gain.value = vol;
+  src.connect(filt); filt.connect(g); g.connect(ac.destination);
+  src.start(t); src.stop(t + dur);
+}
+function playSnip() { noiseBurst(0.07, 3200, 900, 0.22, "bandpass", 1.1); }   // ciseaux
+function playSeal() { noiseBurst(0.20, 600, 1700, 0.20, "lowpass", 0.6); }     // scellage / fin
+function playPour() { noiseBurst(0.10, 520, 380, 0.12, "lowpass", 0.5); }      // versement
+function playNick() { noiseBurst(0.14, 240, 70, 0.30, "lowpass", 0.7); }       // erreur / nick
+function playWin()  { const ac = ensureAudio(); if (!ac) return; const t = ac.currentTime; beep(740, t, 0.1, 0.2); beep(1100, t + 0.08, 0.16, 0.2); }
+
+/* -------------------------------------------------------------------------
+   CANVAS + helpers
+   ------------------------------------------------------------------------- */
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+let W = 0, H = 0, DPR = 1;
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  cv.style.width = W + "px"; cv.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener("resize", resize);
+resize();
+
+function pos(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() }; }
+function distSeg(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+  let t = l2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+function fontPx(px, weight) { return (weight || 700) + " " + Math.round(px) + 'px -apple-system,"Segoe UI",Roboto,sans-serif'; }
+
+/* -------------------------------------------------------------------------
+   MODELES DE BUDS : sprites pré-rendus (touffe de calices ombrés + pistils +
+   givre) dessinés une fois sur des canvas offscreen, puis estampillés (perf).
+   ------------------------------------------------------------------------- */
+function drawSprite(c, img, x, y, size, rot) {
+  c.save(); c.translate(x, y); if (rot) c.rotate(rot);
+  c.drawImage(img, -size / 2, -size / 2, size, size);
+  c.restore();
+}
+// Modèle de tête = NUG façon Green Front : icosaèdre déformé rendu à plat
+// (low-poly facetté) en 2D logiciel. Rotation + bosselage aléatoires par sprite
+// -> variété ; teinte (mid RGB) par qualité. Pré-rendus puis estampillés.
+const ICO_T = (1 + Math.sqrt(5)) / 2;
+const ICO_V = [[-1, ICO_T, 0], [1, ICO_T, 0], [-1, -ICO_T, 0], [1, -ICO_T, 0],
+  [0, -1, ICO_T], [0, 1, ICO_T], [0, -1, -ICO_T], [0, 1, -ICO_T],
+  [ICO_T, 0, -1], [ICO_T, 0, 1], [-ICO_T, 0, -1], [-ICO_T, 0, 1]];
+const ICO_F = [[0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],[1,5,9],[5,11,4],[11,10,2],
+  [10,7,6],[7,1,8],[3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],[4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]];
+function makeNugSprite(mid) {
+  const S = 96, cnv = document.createElement("canvas"); cnv.width = cnv.height = S;
+  const g = cnv.getContext("2d"); g.lineJoin = "round";
+  const rx = Math.random() * 6.28, ry = Math.random() * 6.28, rz = Math.random() * 6.28;
+  const cX = Math.cos(rx), sX = Math.sin(rx), cY = Math.cos(ry), sY = Math.sin(ry), cZ = Math.cos(rz), sZ = Math.sin(rz);
+  const verts = ICO_V.map(v => {
+    const f = 0.78 + Math.random() * 0.44;                  // bosselage (cf. makeNugGeo de green-front)
+    let x = v[0] * f, y = v[1] * f, z = v[2] * f, t;
+    t = y * cX - z * sX; z = y * sX + z * cX; y = t;        // rot X
+    t = x * cY + z * sY; z = -x * sY + z * cY; x = t;        // rot Y
+    t = x * cZ - y * sZ; y = x * sZ + y * cZ; x = t;         // rot Z
+    return [x, y, z];
+  });
+  const scale = S * 0.2, cx = S / 2, cy = S / 2;
+  const lx = -0.4, ly = 0.72, lz = 0.78, ll = Math.hypot(lx, ly, lz);
+  g.fillStyle = "rgba(0,0,0,.16)";                          // ombre douce dessous
+  g.beginPath(); g.ellipse(cx, cy + S * 0.32, S * 0.26, S * 0.1, 0, 0, 7); g.fill();
+  const faces = ICO_F.map(f => {
+    const a = verts[f[0]], b = verts[f[1]], c = verts[f[2]];
+    const ux = b[0]-a[0], uy = b[1]-a[1], uz = b[2]-a[2], vx = c[0]-a[0], vy = c[1]-a[1], vz = c[2]-a[2];
+    let nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx; const nl = Math.hypot(nx, ny, nz) || 1;
+    const sh = Math.max(0, (nx*lx + ny*ly + nz*lz) / (nl * ll));   // ombrage plat (lambert)
+    return { a, b, c, zc: (a[2]+b[2]+c[2]) / 3, sh };
+  }).sort((p, q) => p.zc - q.zc);                           // peintre : du fond vers l'avant
+  for (const f of faces) {
+    const k = 0.42 + 0.8 * f.sh, j = (Math.random() - 0.5) * 14;   // + grain léger par facette
+    const r = Math.max(0, Math.min(255, mid[0]*k + j)) | 0;
+    const gg = Math.max(0, Math.min(255, mid[1]*k + j)) | 0;
+    const bb = Math.max(0, Math.min(255, mid[2]*k + j)) | 0;
+    g.fillStyle = "rgb(" + r + "," + gg + "," + bb + ")";
+    g.strokeStyle = "rgba(18,36,16,.28)"; g.lineWidth = 0.6;
+    g.beginPath();
+    g.moveTo(cx + f.a[0]*scale, cy - f.a[1]*scale);
+    g.lineTo(cx + f.b[0]*scale, cy - f.b[1]*scale);
+    g.lineTo(cx + f.c[0]*scale, cy - f.c[1]*scale);
+    g.closePath(); g.fill(); g.stroke();
+  }
+  return cnv;
+}
+const NUG_MID = { fresh: [92, 156, 70], A: [98, 166, 76], B: [120, 140, 78], trim: [134, 122, 86] };
+function nugSet(mid, n) { const a = []; for (let i = 0; i < n; i++) a.push(makeNugSprite(mid)); return a; }
+const BUDS = { fresh: nugSet(NUG_MID.fresh, 7), A: nugSet(NUG_MID.A, 7), B: nugSet(NUG_MID.B, 6), trim: nugSet(NUG_MID.trim, 6) };
+
+/* -------------------------------------------------------------------------
+   UI refs + harnais (menu / partie / résultat)
+   ------------------------------------------------------------------------- */
+const menuEl = document.getElementById("menu");
+const gcardsEl = document.getElementById("gcards");
+const topbar = document.getElementById("topbar");
+const titleEl = document.getElementById("title");
+const readoutEl = document.getElementById("readout");
+const timerwrap = document.getElementById("timerwrap");
+const timerfill = document.getElementById("timerfill");
+const resultEl = document.getElementById("result");
+const resultBody = document.getElementById("resultBody");
+
+let current = null, lastId = null;
+
+function bestKey(id) { return "gf2_lab_best_" + id; }
+function getBest(id) { return +(localStorage.getItem(bestKey(id)) || 0); }
+
+function openMenu() {
+  current = null;
+  topbar.classList.remove("show");
+  resultEl.classList.remove("show");
+  timerwrap.style.display = "none";
+  renderMenu();
+  menuEl.classList.add("show");
+}
+function play(id) {
+  const g = GAMES[id]; if (!g) return;
+  ensureAudio();
+  current = g; lastId = id;
+  menuEl.classList.remove("show");
+  resultEl.classList.remove("show");
+  topbar.classList.add("show");
+  titleEl.textContent = g.emoji + " " + g.name;
+  timerwrap.style.display = g.timed ? "block" : "none";
+  timerfill.style.width = "100%";
+  g.start();
+}
+function endRound(g, html, score) {
+  g.over = true;
+  const prev = getBest(g.id);
+  const rec = score > prev;
+  if (rec) localStorage.setItem(bestKey(g.id), String(score));
+  resultBody.innerHTML = html +
+    (rec ? '<div class="rec">🏆 Nouveau record !</div>'
+         : (prev ? '<div class="tip">Record actuel : ' + prev + '</div>' : ""));
+  resultEl.classList.add("show");
+  playWin();
+}
+
+function renderMenu() {
+  gcardsEl.innerHTML = "";
+  for (const id of ORDER) {
+    const g = GAMES[id], b = getBest(id);
+    const card = document.createElement("button");
+    card.className = "gcard";
+    card.innerHTML =
+      '<div class="ic">' + g.emoji + '</div>' +
+      '<div style="flex:1"><div class="nm">' + g.name + '</div><div class="bl">' + g.blurb + '</div></div>' +
+      (b ? '<div class="bs">★ ' + b + g.unit + '</div>' : '');
+    card.addEventListener("click", () => play(id));
+    gcardsEl.appendChild(card);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   ENTRÉES (pointer) : dispatch vers le mini-jeu courant
+   ------------------------------------------------------------------------- */
+function down(e) {
+  e.preventDefault();
+  if (!current || current.over) return;
+  try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+  ensureAudio();
+  if (current.onDown) current.onDown(pos(e));
+}
+function move(e) {
+  if (!current || current.over) return;
+  if (current.onMove) current.onMove(pos(e));
+}
+function up(e) {
+  if (!current || current.over) return;
+  if (current.onUp) current.onUp(pos(e));
+}
+cv.addEventListener("pointerdown", down, { passive: false });
+cv.addEventListener("pointermove", move, { passive: false });
+cv.addEventListener("pointerup", up, { passive: false });
+cv.addEventListener("pointercancel", up, { passive: false });
+
+document.getElementById("backbtn").addEventListener("click", openMenu);
+document.getElementById("menuBtn").addEventListener("click", openMenu);
+document.getElementById("replayBtn").addEventListener("click", () => play(lastId));
+
+/* -------------------------------------------------------------------------
+   FOND (plan de travail discret)
+   ------------------------------------------------------------------------- */
+function drawBg() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "rgba(28,52,38,0)"); g.addColorStop(1, "rgba(8,16,11,0.35)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+
+/* =========================================================================
+   MINI-JEU 1 — EFFEUILLAGE (drag : détacher les têtes de la branche)
+   Lent & précis = belles têtes A. Trop rapide = on déchire en trim.
+   ========================================================================= */
+const TBUCK = 16;
+const G1 = {
+  id: "buck", name: "Effeuillage", emoji: "🌿", unit: "%", timed: true,
+  blurb: "Glisse le long de la branche pour détacher les têtes. Lent & net = A premium, trop vite = trim.",
+};
+G1.start = function () {
+  this.over = false; this.dragging = false; this.prev = null;
+  this.tLeft = TBUCK; this.A = 0; this.B = 0; this.trim = 0;
+  this.buds = []; this.branches = [];
+  this.lineY = H * 0.15;                                  // fil de séchage (en haut)
+  const nB = 4, steps = 6;
+  for (let bi = 0; bi < nB; bi++) {
+    const ax = W * (0.18 + 0.64 * (bi / (nB - 1))) + (Math.random() - 0.5) * W * 0.03;
+    const len = H * (0.4 + Math.random() * 0.16);
+    const drift = (Math.random() - 0.5) * W * 0.08;       // le bout qui pend dérive un peu
+    const pts = [];
+    for (let s = 0; s <= steps; s++) {
+      const u = s / steps;
+      pts.push({ x: ax + drift * u + Math.sin(u * 3 + bi) * 5, y: this.lineY + len * u });
+    }
+    this.branches.push({ pts });
+    const k = 4;                                           // têtes réparties le long de la tige
+    for (let j = 0; j < k; j++) {
+      const u = 0.2 + 0.75 * (j / (k - 1));
+      const idx = u * steps, i0 = Math.min(steps - 1, Math.floor(idx)), f = idx - i0;
+      const p0 = pts[i0], p1 = pts[i0 + 1];
+      const sx = p0.x + (p1.x - p0.x) * f, sy = p0.y + (p1.y - p0.y) * f;
+      const side = j % 2 ? 1 : -1;
+      this.buds.push({
+        x: sx + side * (7 + Math.random() * 9), y: sy + Math.random() * 6,
+        r: 11 + Math.random() * 15, on: true, pop: 0, q: null, tx: 0, ty: 0,
+        spr: Math.floor(Math.random() * BUDS.fresh.length),
+        rot: Math.random() * 6.28,   // nug = boule facettée : orientation libre
+      });
+    }
+  }
+};
+G1.strip = function (a, b) {
+  const dt = Math.max(1, b.t - a.t);                 // ms
+  const speed = Math.hypot(b.x - a.x, b.y - a.y) / dt; // px/ms
+  for (const bud of this.buds) {
+    if (!bud.on) continue;
+    if (distSeg(bud.x, bud.y, a.x, a.y, b.x, b.y) < bud.r + 14) {
+      bud.on = false; bud.pop = 1;
+      if (speed < 0.5)       { bud.q = "A";    this.A++;    bud.tx = W * 0.18; bud.ty = H * 0.82; }
+      else if (speed < 1.15) { bud.q = "B";    this.B++;    bud.tx = W * 0.5;  bud.ty = H * 0.86; }
+      else                   { bud.q = "trim"; this.trim++; bud.tx = W * 0.82; bud.ty = H * 0.82; }
+      playSnip();
+    }
+  }
+};
+G1.onDown = function (p) {
+  this.dragging = true;
+  // un tap posé (vitesse nulle) détache proprement -> stratégie « précise »
+  this.strip({ x: p.x, y: p.y, t: p.t - 16 }, p);
+  this.prev = p;
+};
+G1.onMove = function (p) {
+  if (!this.dragging || !this.prev) return;
+  this.strip(this.prev, p);
+  this.prev = p;
+};
+G1.onUp = function () { this.dragging = false; this.prev = null; };
+G1.update = function (dt) {
+  this.tLeft -= dt;
+  let onCount = 0;
+  for (const bud of this.buds) {
+    if (bud.on) { onCount++; continue; }
+    if (bud.pop > 0) {
+      bud.pop = Math.max(0, bud.pop - dt * 1.6);
+      bud.x += (bud.tx - bud.x) * Math.min(1, dt * 4);
+      bud.y += (bud.ty - bud.y) * Math.min(1, dt * 4);
+    }
+  }
+  timerfill.style.width = Math.max(0, this.tLeft / TBUCK * 100) + "%";
+  if (this.tLeft <= 0 || onCount === 0) this.finish();
+};
+G1.draw = function (c) {
+  // bacs (destinations) en bas — les têtes détachées y tombent
+  c.textAlign = "center"; c.font = fontPx(12, 800);
+  c.fillStyle = "rgba(155,227,125,.6)"; c.fillText("A premium", W * 0.18, H * 0.83);
+  c.fillStyle = "rgba(217,230,160,.6)"; c.fillText("B", W * 0.5, H * 0.87);
+  c.fillStyle = "rgba(202,161,95,.6)"; c.fillText("trim", W * 0.82, H * 0.83);
+  // fil de séchage
+  c.strokeStyle = "#3ea05a"; c.lineWidth = 2.5; c.lineCap = "round";
+  c.beginPath(); c.moveTo(W * 0.02, this.lineY); c.lineTo(W * 0.98, this.lineY); c.stroke();
+  // branches qui pendent
+  c.lineJoin = "round";
+  for (const br of this.branches) {
+    c.strokeStyle = "#6f7a3c"; c.lineWidth = 5;
+    c.beginPath();
+    for (let i = 0; i < br.pts.length; i++) { const p = br.pts[i]; i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y); }
+    c.stroke();
+    c.fillStyle = "#586a2c"; c.beginPath(); c.arc(br.pts[0].x, br.pts[0].y, 3.5, 0, 7); c.fill();  // nœud sur le fil
+  }
+  // têtes encore attachées (modèles de buds, qui pendent)
+  for (const bud of this.buds) {
+    if (!bud.on) continue;
+    drawSprite(c, BUDS.fresh[bud.spr], bud.x, bud.y, bud.r * 2.4, bud.rot);
+  }
+  // têtes détachées qui filent vers leur bac (teintées par qualité)
+  for (const bud of this.buds) {
+    if (bud.on || bud.pop <= 0) continue;
+    const set = bud.q === "A" ? BUDS.A : bud.q === "B" ? BUDS.B : BUDS.trim;
+    c.globalAlpha = Math.max(0, Math.min(1, bud.pop));
+    drawSprite(c, set[bud.spr % set.length], bud.x, bud.y, bud.r * 2.4 * (0.7 + bud.pop * 0.4), bud.rot + (1 - bud.pop) * 2.2);
+    c.globalAlpha = 1;
+  }
+};
+G1.hud = function () { return "🌿 A <b>" + this.A + "</b> · 🍃 B <b>" + this.B + "</b> · 🟤 " + this.trim; };
+G1.finish = function () {
+  if (this.over) return;
+  const left = this.buds.filter(b => b.on).length;
+  const total = this.buds.length;
+  const rend = Math.round((this.A + this.B * 0.55) / total * 100);
+  const tip = rend > 70 ? "Beau geste : lent et net sur chaque tête."
+            : rend > 45 ? "Pas mal — ralentis sur les grosses têtes pour plus de A."
+            : "Trop rapide : tu déchires les têtes en trim.";
+  endRound(this,
+    '<div class="big">Rendement <b style="color:#9be37d">' + rend + '%</b></div>' +
+    '<div class="row"><span>🌿 A premium</span><b>' + this.A + '</b></div>' +
+    '<div class="row"><span>🍃 B moyen</span><b>' + this.B + '</b></div>' +
+    '<div class="row"><span>🟤 Trim (abîmé)</span><b>' + this.trim + '</b></div>' +
+    '<div class="row"><span>⌛ Oubliées</span><b>' + left + '</b></div>' +
+    '<div class="tip">' + tip + '</div>', rend);
+};
+
+/* =========================================================================
+   MINI-JEU 2 — DOSAGE BALANCE (hold to pour : verser pile au bon poids)
+   On maintient pour verser, le débit monte, l'inertie continue après le
+   relâché. Dépasser la cible coûte cher.
+   ========================================================================= */
+const G2 = {
+  id: "dose", name: "Dosage balance", emoji: "⚖️", unit: "%", timed: false,
+  blurb: "Maintiens pour verser, lâche pile au bon poids. Le débit s'emballe et l'inertie te piège.",
+};
+G2.start = function () {
+  this.over = false; this.ended = false;
+  this.pouring = false; this.g = 0; this.holdT = 0; this.rate = 0; this.trickle = 0; this.sndCd = 0;
+  this.target = [3.5, 7, 14, 28][Math.floor(Math.random() * 4)];
+  this.max = this.target * 1.4;
+};
+G2.onDown = function () { if (this.ended) return; this.pouring = true; };
+G2.onUp = function () {
+  if (this.ended || !this.pouring) return;
+  this.pouring = false; this.trickle = 0.22;      // inertie : quelques grammes de rab
+};
+G2.update = function (dt) {
+  if (this.ended) return;
+  const rMin = 2, rMax = 26, rampT = 1.1;
+  if (this.pouring) {
+    this.holdT += dt;
+    this.rate = rMin + (rMax - rMin) * Math.min(1, this.holdT / rampT);
+    this.g += this.rate * dt;
+    this.sndCd -= dt; if (this.sndCd <= 0) { playPour(); this.sndCd = 0.09; }
+  } else if (this.trickle > 0) {
+    const k = this.trickle / 0.22;
+    this.g += this.rate * 0.5 * k * dt;
+    this.trickle -= dt;
+    if (this.trickle <= 0) this.finish();
+  }
+  if (this.g >= this.max) { this.g = this.max; this.pouring = false; this.trickle = 0; this.finish(); }
+};
+G2.draw = function (c) {
+  const cx = W / 2, cy = H * 0.5, R = Math.min(W, H) * 0.3;
+  const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
+  const gp = (g) => a0 + (a1 - a0) * Math.min(1, g / this.max);
+  c.lineCap = "round";
+  // piste
+  c.lineWidth = 18; c.strokeStyle = "rgba(255,255,255,.1)";
+  c.beginPath(); c.arc(cx, cy, R, a0, a1); c.stroke();
+  // zone cible (vert) + dépassement (rouge)
+  c.strokeStyle = "#7ad17a"; c.beginPath(); c.arc(cx, cy, R, gp(this.target * 0.95), gp(this.target * 1.05)); c.stroke();
+  c.strokeStyle = "rgba(255,107,107,.55)"; c.beginPath(); c.arc(cx, cy, R, gp(this.target * 1.05), a1); c.stroke();
+  // progression
+  c.lineWidth = 10; c.strokeStyle = this.g > this.target * 1.05 ? "#ff6b6b" : "#ffd166";
+  c.beginPath(); c.arc(cx, cy, R, a0, gp(this.g)); c.stroke();
+  // aiguille
+  const na = gp(this.g);
+  c.strokeStyle = "#fff"; c.lineWidth = 3;
+  c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(na) * R, cy + Math.sin(na) * R); c.stroke();
+  c.beginPath(); c.fillStyle = "#fff"; c.arc(cx, cy, 6, 0, 7); c.fill();
+  // textes
+  c.textAlign = "center";
+  c.fillStyle = "#fff"; c.font = fontPx(R * 0.32, 800);
+  c.fillText(this.g.toFixed(1) + " g", cx, cy - 4);
+  c.fillStyle = "rgba(255,255,255,.6)"; c.font = fontPx(16, 700);
+  c.fillText("cible " + this.target + " g", cx, cy + R * 0.55);
+  c.fillStyle = "rgba(255,255,255,.45)"; c.font = fontPx(14, 600);
+  c.fillText(this.pouring ? "…verse…" : "maintiens pour verser · lâche au bon poids", cx, H * 0.88);
+};
+G2.hud = function () { return "cible <b>" + this.target + " g</b>"; };
+G2.finish = function () {
+  if (this.ended) return;
+  this.ended = true;
+  const err = Math.abs(this.g - this.target), over = this.g > this.target;
+  const acc = Math.max(0, Math.round(100 - err / this.target * 100 * (over ? 1.8 : 1)));
+  const tip = acc > 90 ? "Pesée chirurgicale 👌" : over ? "Dépassé — anticipe l'inertie, lâche plus tôt." : "Sous la cible — ose tenir un poil plus.";
+  endRound(this,
+    '<div class="big">Précision <b style="color:#9be37d">' + acc + '%</b></div>' +
+    '<div class="row"><span>Versé</span><b>' + this.g.toFixed(1) + ' g</b></div>' +
+    '<div class="row"><span>Cible</span><b>' + this.target + ' g</b></div>' +
+    '<div class="row"><span>Écart</span><b style="color:' + (over ? '#ff6b6b' : '#ffd166') + '">' + (over ? "+" : "−") + err.toFixed(1) + ' g</b></div>' +
+    '<div class="tip">' + tip + '</div>', acc);
+};
+
+/* =========================================================================
+   MINI-JEU 3 — TRIM EXPRESS (réflexe : couper les feuilles, pas la tête)
+   Les feuilles poussent ; tape-les avant qu'elles durcissent. Toucher la
+   tête = nick (pénalité).
+   ========================================================================= */
+const TTRIM = 16;
+const G3 = {
+  id: "trim", name: "Trim express", emoji: "✂️", unit: "%", timed: true,
+  blurb: "Coupe les feuilles qui poussent (tape la pointe). Ne touche pas la tête. Vite, avant qu'elles durcissent.",
+};
+G3.start = function () {
+  this.over = false; this.tLeft = TTRIM; this.spawnCd = 0.25;
+  this.trimmed = 0; this.hard = 0; this.nick = 0; this.nickFlash = 0;
+  this.leaves = [];
+  this.cx = W / 2; this.cy = H * 0.52; this.budR = Math.min(W, H) * 0.13;
+};
+G3.tip = function (lf) {
+  const r = this.budR + lf.len;
+  return { x: this.cx + Math.cos(lf.ang) * r, y: this.cy + Math.sin(lf.ang) * r };
+};
+G3.onDown = function (p) {
+  const d = Math.hypot(p.x - this.cx, p.y - this.cy);
+  if (d < this.budR * 0.95) { this.nick++; this.nickFlash = 0.8; playNick(); return; }   // tête touchée
+  let best = -1, bd = 1e9;
+  for (let i = 0; i < this.leaves.length; i++) {
+    const tp = this.tip(this.leaves[i]);
+    const dd = Math.hypot(p.x - tp.x, p.y - tp.y);
+    if (dd < bd) { bd = dd; best = i; }
+  }
+  if (best >= 0 && bd < 42) {
+    if (this.leaves[best].state === "fresh") this.trimmed++;
+    this.leaves.splice(best, 1);
+    playSnip();
+  }
+};
+G3.update = function (dt) {
+  this.tLeft -= dt; this.spawnCd -= dt;
+  const elapsed = TTRIM - this.tLeft;
+  if (this.spawnCd <= 0 && this.leaves.length < 16) {
+    this.leaves.push({ ang: Math.random() * Math.PI * 2, len: 6, age: 0, state: "fresh" });
+    this.spawnCd = Math.max(0.38, 0.95 - elapsed * 0.045);
+  }
+  for (const lf of this.leaves) {
+    lf.age += dt;
+    lf.len = Math.min(this.budR * 0.95, 6 + lf.age * 46);
+    if (lf.state === "fresh" && lf.age > 2.2) { lf.state = "hard"; this.hard++; }
+  }
+  if (this.nickFlash > 0) this.nickFlash = Math.max(0, this.nickFlash - dt);
+  timerfill.style.width = Math.max(0, this.tLeft / TTRIM * 100) + "%";
+  if (this.tLeft <= 0) this.finish();
+};
+G3.draw = function (c) {
+  // feuilles
+  c.lineCap = "round";
+  for (const lf of this.leaves) {
+    const r0 = this.budR * 0.85, r1 = this.budR + lf.len, a = lf.ang;
+    c.strokeStyle = lf.state === "hard" ? "#7a5a32" : (lf.age > 1.4 ? "#cdd861" : "#7ad17a");
+    c.lineWidth = lf.state === "hard" ? 6 : 5;
+    c.beginPath();
+    c.moveTo(this.cx + Math.cos(a) * r0, this.cy + Math.sin(a) * r0);
+    c.lineTo(this.cx + Math.cos(a) * r1, this.cy + Math.sin(a) * r1);
+    c.stroke();
+    const tp = this.tip(lf);
+    c.fillStyle = lf.state === "hard" ? "#7a5a32" : "#a9e08c";
+    c.beginPath(); c.arc(tp.x, tp.y, 4, 0, 7); c.fill();
+  }
+  // tête
+  c.fillStyle = "#3f7d3a"; c.beginPath(); c.arc(this.cx, this.cy, this.budR, 0, 7); c.fill();
+  c.fillStyle = "rgba(173,224,140,.45)"; c.beginPath(); c.arc(this.cx - this.budR * 0.3, this.cy - this.budR * 0.3, this.budR * 0.4, 0, 7); c.fill();
+  if (this.nickFlash > 0) {
+    c.strokeStyle = "rgba(255,107,107," + this.nickFlash + ")"; c.lineWidth = 6;
+    c.beginPath(); c.arc(this.cx, this.cy, this.budR + 5, 0, 7); c.stroke();
+  }
+};
+G3.hud = function () { return "✂ <b>" + this.trimmed + "</b> · durci " + this.hard + (this.nick ? " · nick " + this.nick : ""); };
+G3.finish = function () {
+  if (this.over) return;
+  const denom = this.trimmed + this.hard + this.nick * 2;
+  const q = denom > 0 ? Math.round(this.trimmed / denom * 100) : 0;
+  const tip = q > 75 ? "Mains de chirurgien ✂️" : q > 50 ? "Bien — surveille les feuilles qui durcissent." : "Trop de feuilles oubliées (ou de nicks).";
+  endRound(this,
+    '<div class="big">Qualité <b style="color:#9be37d">' + q + '%</b></div>' +
+    '<div class="row"><span>✂️ Feuilles coupées</span><b>' + this.trimmed + '</b></div>' +
+    '<div class="row"><span>🟤 Durcies (loupées)</span><b>' + this.hard + '</b></div>' +
+    '<div class="row"><span>🩸 Nicks (tête)</span><b>' + this.nick + '</b></div>' +
+    '<div class="tip">' + tip + '</div>', q);
+};
+
+/* -------------------------------------------------------------------------
+   REGISTRE + BOUCLE
+   ------------------------------------------------------------------------- */
+const GAMES = { buck: G1, dose: G2, trim: G3 };
+const ORDER = ["buck", "dose", "trim"];
+
+let last = 0;
+function frame(t) {
+  const dt = Math.min((t - last) / 1000 || 0, 0.05);
+  last = t;
+  ctx.clearRect(0, 0, W, H);
+  drawBg();
+  if (current) {
+    if (!current.over) current.update(dt);
+    current.draw(ctx);
+    if (current.hud) readoutEl.innerHTML = current.hud();
+  }
+  requestAnimationFrame(frame);
+}
+
+/* -------------------------------------------------------------------------
+   INIT
+   ------------------------------------------------------------------------- */
+openMenu();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

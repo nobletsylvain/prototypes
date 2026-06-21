@@ -8,6 +8,7 @@ Petits prototypes de **core loops** jouables/testables dans le navigateur (mobil
 /hash-slicer/         ← core loop "Hash Slicer"
 /green-front/         ← core loop "Green Front"
 /guitar-shito/        ← core loop "GuitarShito"
+/neige/                  ← core loop "Neige"
 /tools/                  ← captures d'écran headless (voir tools/README.md)
 ```
 
@@ -50,7 +51,7 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). Chaî
 
 **Boucle de jeu (4 étapes, suivies par un *stepper* en haut) :**
 1. **Réception & inspection** — un **front** (lot **à crédit**) tombe sur le plan de travail. **Tape pour scanner** (pesée + qualité) : on révèle **% THC**, **humidité**, **% trim/stems**. Puis **Accepter** (alimente la **dette**), **Négocier** (timing → remise / fournisseur vexé) ou **Refuser**.
-2. **Bucking & trimming** — **tape dans le vert** pour bucker/trimmer une poignée. **🤚 Main** = lent mais plus de **A-flower** ; **⚙️ Machine** = rapide mais plus de **smalls/trim**. Tri auto dans les bacs **A / B / Trim**.
+2. **Bucking & trimming** — **frotte/glisse le doigt sur le tas** pour effeuiller : un **geste lent et net** donne de belles **A-flower**, un **geste vif** déchire en **trim** (la vitesse du drag fait la qualité). **🤚 Main** = qualité ; **⚙️ Machine** = volume. Tri auto dans les bacs **A / B / Trim**.
 3. **Coupe / stretch** — **curseur de coupe** : on gonfle le poids vendable en mélangeant du **trim** à la fleur. Plus on stretch, **plus de grammes** mais **%THC qui baisse** et **réputation qui chute** (jauge de **satisfaction clients** + plaintes si trop dilué).
 4. **Conditionnement multi-formats** — ensachage **1 g / 3.5 g / 7 g / 28 g / ½ lb / 1 lb** (petit = €/g plus élevé). **Scellage** au timing (bonus si serré), options **💧 humidité** (+valeur/réput) et **🏷️ étiquette fake** (+valeur mais **risque de descente** 🚔).
 
@@ -63,6 +64,20 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). Chaî
 - En ligne : **https://nobletsylvain.github.io/prototypes/green-front/** (depuis le hub).
 - En local : ouvrir `green-front/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
 
+### 🧪 Green Front v2 (fork « lab »)
+
+`green-front-v2/` est un **fork bac-à-sable** de Green Front, transformé en **banc d'essai de mini-jeux** : on y teste des mécaniques tactiles en isolé (menu → un mini-jeu → rejouer), sans toucher à la core loop d'origine (intacte dans `green-front/`). Trois mini-jeux à mécaniques volontairement différentes :
+
+- 🌿 **Effeuillage** — *glisser* le doigt le long de la branche pour détacher les têtes (lent & précis = A premium, trop vite = trim).
+- ⚖️ **Dosage balance** — *maintenir pour verser, lâcher* pile au bon poids (le débit s'emballe, l'inertie piège, le dépassement coûte cher).
+- ✂️ **Trim express** — *réflexe* : couper les feuilles qui poussent sans toucher la tête, avant qu'elles durcissent.
+
+2D canvas + DOM, zéro dépendance, records en `localStorage` (préfixe **`gf2_`**, isolé de Green Front `gf_`). Badge `🧪 v2 · lab` + tag « labo » du hub. En ligne : **https://nobletsylvain.github.io/prototypes/green-front-v2/**.
+
+### ⚖️ Green Front v3 (fork « coupe au dosage »)
+
+`green-front-v3/` est un **fork de la core loop complète** (avec le bucking au drag) où l'**étape coupe/stretch** passe du curseur à un **dosage tactile** : on **maintient sur le bol pour verser le trim** (le débit s'emballe), on **lâche au bon dosage** (inertie + risque de dépassement → clients fâchés / réput en chute). Le reste de la boucle (réception, tri, conditionnement, éco) est identique. Sauvegarde isolée (préfixe **`gf3_`**), badge `🧪 v3 · dosage`. En ligne : **https://nobletsylvain.github.io/prototypes/green-front-v3/**.
+
 ## 🎸 GuitarShito (core loop)
 
 Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). « Guitar Hero du hasch » : trois stations chaînées (suivies par un *stepper* en haut), chacune avec son **mini-jeu d'adresse**.
@@ -70,11 +85,11 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). « Gu
 **Boucle de jeu (3 stations) :**
 1. **Découpe Précise** *(rythme + swipe)* — des **lignes de coupe** descendent un **manche** façon Guitar Hero vers une **barre de strum**. **Tape / swipe PILE** quand la ligne passe la barre : `PARFAIT` (barrette nette, premium) → `BIEN` → `JUSTE`. Le **combo** réduit la perte et monte la qualité ; **raté** = miettes + combo remis à zéro. Les barrettes filent dans le bac **STOCK**. Format **5 g / 10 g**.
 2. **Dilution / Stretch** *(balance physique)* — **maintiens « Verser »** pour gonfler le poids au **filler**. Le **fléau penche** avec inertie et la jauge de **« visibilité »** monte : reste **sous le repère** (zone sûre), sinon la came perd en grade et la **chaleur** 🚔 grimpe. `Emballer ▸` transforme STOCK → **blend**.
-3. **Emballage Cellophane** *(stealth drag + tap)* — **glisse pour enrouler** serré, mais des **flics passent en fond** : bouger pendant qu'**🔴 ça mate** fait monter la **suspicion** → **contrôle** (saisie + chaleur). À 100 %, **🔥 Sceller** vite quand c'est calme (emballage rapide = bonus). Vente par **format** (5 / 10 / 50 / 100 g — petit = €/g plus élevé).
+3. **Emballage Cellophane** *(scellage au briquet)* — la barrette est sous film, **3 bouts** de cellophane dépassent. **Maintiens le 🔥 briquet** sur chaque bout (il rougit, fond, grésille) et **lâche dans le vert** = bout scellé **propre** ; trop tenu = **cramé** (un peu moins cher). 3 bouts → **pochon vendu** par **format** (5 / 10 / 50 / 100 g — petit = €/g plus élevé).
 
-**Économie :** on achète une **plaque** (gros), on la transforme, on vend. La **chaleur policière** (0–100) monte avec les coupes trop visibles et les contrôles, redescend avec le temps, et augmente le **risque de descente** à la vente.
+**Économie :** on achète une **plaque** (gros), on la transforme, on vend. La **chaleur** (0–100) monte quand la dilution est **trop visible**, redescend avec le temps, et **rogne le prix de vente** des pochons (came « chaude » = se vend moins cher) — la seule tension est macro, pas dans le geste.
 
-**Progression :** Boutique — **Métronome auto** (auto-coupe parfaite au rythme), **Calibreur** (élargit la zone sûre de dilution), **Guetteur** (raccourcit les fenêtres de surveillance), **Scelleuse pro** (enroulage plus rapide), plaques — et **niveaux (XP)**, +3 % de revenus par niveau. Persistance `localStorage` préfixée `gs_` (distincte de `hash_` / `gf_`).
+**Progression :** Boutique — **Métronome auto** (auto-coupe parfaite au rythme), **Calibreur** (élargit la zone sûre de dilution), **Réseau de revente** (+6 %/niv sur les pochons), **Briquet turbo** (les bouts fondent plus vite), plaques — et **niveaux (XP)**, +3 % de revenus par niveau. Persistance `localStorage` préfixée `gs_` (distincte de `hash_` / `gf_`).
 
 **Feedback juteux** : notes de guitare synthétisées (WebAudio, hauteur qui monte avec le combo), miettes, secousse de caméra, combo géant + jugement à l'écran.
 
@@ -84,3 +99,24 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). « Gu
 
 - En ligne : **https://nobletsylvain.github.io/prototypes/guitar-shito/** (depuis le hub).
 - En local : ouvrir `guitar-shito/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
+
+## ❄️ Neige (core loop)
+
+Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) via CDN, un seul `index.html`). Reskin stylisé d'une chaîne **« bulk → retail »** : on transforme du gros en unités de détail sur un plan de travail vu en 3/4 plongeant (brique, dalle en verre, balance, bacs). Même base technique que Hash Slicer.
+
+**Boucle de jeu (4 mini-jeux) :**
+1. **Réception** 🛒 — on reçoit une **brique 50 / 100 g** (gros). Mini-jeu d'**inspection** (spot-the-difference) : repère l'échantillon douteux → fixe la **pureté du lot**. La 1ʳᵉ est offerte (lot de dépannage).
+2. **Pesée — « main sûre »** — tape la **🧱 BRIQUE** : l'aiguille **vibre**, tape pour la **recentrer** et garder le remplissage **dans le vert**. Temps hors-vert = poudre perdue (**déchets**). La portion atterrit sur la **🪟 DALLE**.
+3. **Cut / Mélange** — tape la **DALLE** : matching « **casse les grumeaux** » (sans sur-travailler les zones déjà fines). Un mix homogène = **stretch propre** → la portion devient du **PRODUIT** (volume gonflé selon l'agent de coupe, pureté diluée). **Homogénéité × pureté = qualité.**
+4. **Ensachage — rythme** — tape le bac **📦 PRODUIT** : tap **dans le vert** pour sceller et **vendre** un sachet du **format** choisi (**1 / 5 / 25 g**, petit = €/g plus élevé). **Combo** qui monte le prix ; raté = aux déchets.
+
+**Économie & progression :** **réputation** (la qualité moyenne des ventes module le prix), **niveaux (XP)** +2,5 %/niv, **déchets** bradés aux schlags. Boutique : **agent de coupe** (stretch +), **balance de précision**, **tamis**, **presse à briquettes** (débloque le 25 g), **auto-ensacheuse** + cadence. Persistance `localStorage` préfixée **`neige_`** (isolée de `hash_` / `gf_` / `gs_`).
+
+**Feedback juteux** : sons synthétisés (WebAudio — poudre versée, raclage, zip, cha-ching), puffs de poudre, secousse de caméra, combos.
+
+> Prototype de jeu, habillage purement visuel/stylisé.
+
+### Jouer
+
+- En ligne : **https://nobletsylvain.github.io/prototypes/neige/** (depuis le hub).
+- En local : ouvrir `neige/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
