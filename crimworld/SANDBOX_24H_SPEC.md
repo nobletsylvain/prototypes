@@ -80,6 +80,20 @@ La heat reste **rue** (rivaux, block, Momo). La **heat autorités est HORS
 périmètre** — à ne pas coder. Le risque de transit darkweb (§3) doit donc être
 cadré côté **rue/rival**, jamais police, sous peine de sortir du périmètre.
 
+### 2d. Prix — levier DIFFÉRÉ (lot ultérieur, validé)
+Quand le joueur pourra **fixer ses prix**, le prix devient un **second levier**
+au-delà de la qualité — **extension assumée pour la sandbox** (la slice prouvait
+UN levier unique ; la sandbox gagne en profondeur). Règle clé : la sanction est
+**différée et silencieuse**. Trop cher → les clients ne râlent pas, ils **partent
+chez un autre supplier** ; le joueur ne le comprend qu'**avec un temps de retard**,
+au rapport (« 4 clients perdus ↩ prix trop haut il y a N jours »). C'est la trace
+inter-jours appliquée au prix, et un autre visage de la concurrence (§2 : le rival
+absorbe ta clientèle).
+- **Déterministe** : churn = f(prix vs prix « juste » lié à qualité/réput) + délai
+  fixe, JAMAIS un tirage. Cause traçable.
+- **Co-effet parallèle, pas une chaîne** : le prix agit sur la **demande** (churn),
+  en parallèle de la qualité ; il ne « cause » pas la pression via les ventes.
+
 ---
 
 ## 3. La couche darkweb + Ubeur (sourcing & logistique)
@@ -158,7 +172,8 @@ Chaque lot : sim JS pur testable en **console** → UI → **reviewer** → comm
   rapport de jour qui nomme les causes. Console-testable, sans UI.
 - **Lot 2 — Bassin d'acheteurs.** Génération (présentation) + comportement
   déterministe piloté par la courbe réput/qualité.
-- **Lot 3 — Moteur heat.** Co-effets parallèles + conséquences traçables (rue).
+- **Lot 3 — Moteur heat + prix.** Co-effets parallèles + conséquences traçables
+  (rue) ; **prix fixé par le joueur → churn différé vers la concurrence (§2d)**.
 - **Lot 4 — Darkweb + Ubeur.** UI de présentation par-dessus une sim
   déterministe (commande → ETA → livraison).
 - **Lot 5 — Intégration & trace inter-jours** dans le rapport.
