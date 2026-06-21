@@ -246,7 +246,7 @@ const PRICE = { A: 12, B: 9, C: 6 };              // €/g par grade de barrette
 const SAV_PRICES = { 100: 550, 250: 1200 };       // €  (~5.5 / ~4.8 €/g)
 
 // Vente au detail par dose : plus la dose est petite, plus le €/g est eleve.
-const DOSE_PRICE = { 1: 15, 2: 13, 5: 11 };       // €/g par calibre de dose
+const DOSE_PRICE = { 1: 10, 2: 8.5, 5: 7 };       // €/g par calibre (petite dose = €/g plus eleve)
 
 /* -------------------------------------------------------------------------
    1) SCENE, CAMERA, RENDU
@@ -420,7 +420,7 @@ let mode = "cut";    // "cut" (coupe) | "wrap" (emballage)
 
 // --- Version de sauvegarde : on bump apres un gros rééquilibrage pour repartir
 // de zero. Si la version stockee differe, on efface la progression (une fois). ---
-const SAVE_VERSION = "2";
+const SAVE_VERSION = "3";
 if (localStorage.getItem("hash_ver") !== SAVE_VERSION) {
   ["hash_cash", "hash_waste", "hash_level", "hash_xp", "hash_shop"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("hash_ver", SAVE_VERSION);
@@ -722,7 +722,7 @@ function addShake(a) { shake = Math.min(0.6, shake + a); }
    ------------------------------------------------------------------------- */
 const SELL_POS  = new THREE.Vector3(L * 0.26, 0, 2.25);  // bac des barrettes emballees (rangee avant)
 const WASTE_POS = new THREE.Vector3(L * 0.74, 0, 2.25);  // bac des miettes / dechets (rangee avant)
-const SCHLAG_RATE = 3;                                    // €/g des boulettes bradees aux schlags (vs ~12 €/g retail)
+const SCHLAG_RATE = 2.5;                                  // €/g des boulettes bradees aux schlags
 const _tmp = new THREE.Vector3();
 
 function makeBin(pos, col) {
@@ -872,8 +872,8 @@ function setWaste(v) {
 function addWaste(g) { setWaste(wasteGrams + g); }
 
 // --- Niveaux / XP : on gagne de l'XP a chaque vente, chaque niveau donne +4% de revenus. ---
-function xpNeed(lvl) { return Math.round(80 * Math.pow(1.3, lvl - 1)); }  // XP requise pour passer ce niveau
-function levelMult() { return 1 + (level - 1) * 0.04; }                   // bonus de revenus cumule
+function xpNeed(lvl) { return Math.round(120 * Math.pow(1.35, lvl - 1)); } // XP requise pour passer ce niveau
+function levelMult() { return 1 + (level - 1) * 0.025; }                   // bonus de revenus cumule (+2,5%/niv)
 function updateXpUI() {
   const need = xpNeed(level);
   ui.level.textContent = "Niv. " + level + " · +" + Math.round((levelMult() - 1) * 100) + "%";
@@ -1160,7 +1160,7 @@ function doseTap() {
   const err = Math.abs(dose.cursor - 0.5);
   if (err <= DOSE_SWEET) {                          // dose nette -> vendue au detail
     dose.combo++;
-    const bonus = 1 + Math.min(dose.combo - 1, 12) * 0.06;
+    const bonus = 1 + Math.min(dose.combo - 1, 16) * 0.025;   // combo plus doux (max ~1.4)
     const price = dose.cal * DOSE_PRICE[dose.cal] * gradeVal(dose.grade) * bonus * levelMult();
     setCash(cash + price); dose.earn += price; dose.made++;
     bump();
@@ -1183,7 +1183,7 @@ function doseBag() {
   if (perfect) dose.combo++; else dose.combo = 0;
   const billG = Math.min(w, cal);
   if (w > cal) addWaste(w - cal);                  // surplus gaspille
-  const bonus = (perfect ? 1.2 : 1.0) + Math.min(dose.combo, 10) * 0.04;
+  const bonus = (perfect ? 1.15 : 1.0) + Math.min(dose.combo, 10) * 0.025;
   const price = billG * DOSE_PRICE[cal] * gradeVal(dose.grade) * bonus * levelMult();
   setCash(cash + price); dose.earn += price; dose.made++;
   bump();
@@ -1207,7 +1207,7 @@ function doseTrace(dy, dev) {
   const ratio = dev / dy;                           // 0 = parfaitement droit
   if (ratio < 0.16) {                               // coupe nette
     dose.combo++;
-    const bonus = 1 + Math.min(dose.combo - 1, 12) * 0.06;
+    const bonus = 1 + Math.min(dose.combo - 1, 16) * 0.025;   // combo plus doux (max ~1.4)
     const price = dose.cal * DOSE_PRICE[dose.cal] * gradeVal(dose.grade) * bonus * levelMult();
     setCash(cash + price); dose.earn += price; dose.made++;
     bump(); flashTrace("#9be37d");
@@ -1235,7 +1235,7 @@ function endDosing() {
   dose.active = false; mode = "cut"; dose.cur = 0;
   ui.doseui.classList.remove("show");
   ui.hint.style.opacity = "1";
-  if (dose.earn > 0) { addXP(Math.max(1, Math.round(dose.earn * 0.06))); showToast("Session : +" + Math.round(dose.earn) + " €  (" + dose.made + " doses)", "#9be37d"); playSale(); }
+  if (dose.earn > 0) { addXP(Math.max(1, Math.round(dose.earn * 0.05))); showToast("Session : +" + Math.round(dose.earn) + " €  (" + dose.made + " doses)", "#9be37d"); playSale(); }
   updateStockLabel();
 }
 
@@ -1388,9 +1388,9 @@ function updateMachine(dt) {
     machineTimer = 0;
     const gr = stockGrade();
     takeFromStock(caliber);
-    const price = caliber * DOSE_PRICE[caliber] * gradeVal(gr) * 0.9 * levelMult();  // machine : pas de combo
+    const price = caliber * DOSE_PRICE[caliber] * gradeVal(gr) * 0.85 * levelMult(); // machine : pas de combo
     setCash(cash + price);
-    addXP(Math.max(1, Math.round(price * 0.06)));
+    addXP(Math.max(1, Math.round(price * 0.05)));
     updateStockLabel();
     const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(720, t, 0.08, 0.14); }
   }
@@ -1408,25 +1408,25 @@ const SHOP = [
     buy: () => { loadLoaf(250); } },
   { id: "guide", icon: "🎯", name: "Gabarit de coupe",
     desc: () => "Élargit la zone verte : coupes plus régulières.",
-    cost: () => Math.round(250 * Math.pow(1.7, owned.guide)),
+    cost: () => Math.round(300 * Math.pow(1.7, owned.guide)),
     can: () => owned.guide < 6, maxed: () => owned.guide >= 6,
     buy: () => { owned.guide++; } },
   { id: "autowrap", icon: "📦", name: "Auto-doseuse",
     desc: () => "Dose et vend une dose du stock toute seule.",
-    cost: () => 800, can: () => owned.autowrap < 1, maxed: () => owned.autowrap >= 1,
+    cost: () => 1500, can: () => owned.autowrap < 1, maxed: () => owned.autowrap >= 1,
     buy: () => { owned.autowrap = 1; } },
   { id: "cadence", icon: "⚙️", name: "Cadence +",
     desc: () => "Accélère la machine (" + mInterval().toFixed(1) + " s/dose).",
-    cost: () => Math.round(600 * Math.pow(1.6, owned.cadence)),
+    cost: () => Math.round(900 * Math.pow(1.6, owned.cadence)),
     can: () => owned.autowrap >= 1 && owned.cadence < 8, maxed: () => owned.cadence >= 8,
     buy: () => { owned.cadence++; } },
   { id: "autocut", icon: "🔪", name: "Massicot auto",
     desc: () => "Découpe une barrette tout seul (" + cInterval().toFixed(1) + " s).",
-    cost: () => 2500, can: () => owned.autocut < 1, maxed: () => owned.autocut >= 1,
+    cost: () => 5000, can: () => owned.autocut < 1, maxed: () => owned.autocut >= 1,
     buy: () => { owned.autocut = 1; } },
   { id: "affut", icon: "🪓", name: "Affûtage",
     desc: () => "Accélère le massicot (" + cInterval().toFixed(1) + " s/coupe).",
-    cost: () => Math.round(1300 * Math.pow(1.6, owned.affut)),
+    cost: () => Math.round(1800 * Math.pow(1.6, owned.affut)),
     can: () => owned.autocut >= 1 && owned.affut < 8, maxed: () => owned.affut >= 8,
     buy: () => { owned.affut++; } },
 ];

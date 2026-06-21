@@ -22,8 +22,8 @@ Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) chargé via C
    - 🪓 **Hachoir rythmé** : tap au bon moment (combo qui monte le prix).
    - ⚖️ **Balance** : tape pour peser **pile** le calibre, puis **Ensacher**.
    - ✂️ **Coupe tracée** : **swipe bien droit** le long du gabarit.
-   Les 📦 doses produites s'empilent ; **vente au détail** (petite dose = €/g plus élevé : 1 g ≈ 15, 5 g ≈ 11 €/g).
-4. **Déchets** : tape le bac **🗑️ DÉCHETS** pour brader les miettes aux schlags (≈ 3 €/g). Rien ne se perd.
+   Les 📦 doses produites s'empilent ; **vente au détail** (petite dose = €/g plus élevé : 1 g ≈ 10, 5 g ≈ 7 €/g, × qualité × combo × niveau).
+4. **Déchets** : tape le bac **🗑️ DÉCHETS** pour brader les miettes aux schlags (≈ 2,5 €/g). Rien ne se perd.
 
 **Progression :**
 - **Boutique** : Gabarit de coupe (élargit la zone verte), **Auto-doseuse** + Cadence, **Massicot auto** (coupe passive) + Affûtage, savonnettes.
