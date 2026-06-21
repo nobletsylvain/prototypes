@@ -346,10 +346,10 @@
   <div class="viewer" id="viewer">
     <div class="vclip">
       <div class="progress"><span class="on"><b></b></span><span><b></b></span></div>
-      <div class="vhdr"><div class="av">⚡</div><div><div class="nm">Ta vitrine</div><div class="tm">à l'instant</div></div></div>
-      <div class="badge">CLIP IA · placeholder</div>
+      <div class="vhdr"><div class="av" id="vhdr-av">⚡</div><div><div class="nm" id="vhdr-nm">Ta vitrine</div><div class="tm" id="vhdr-tm">à l'instant</div></div></div>
+      <div class="badge" id="vhdr-badge">CLIP IA · placeholder</div>
       <span class="ico">📦</span>
-      <span class="txt">VIDÉO 9:16 — ta came, grain de nuit<br>(générée hors-ligne → bakée .mp4)</span>
+      <span class="txt" id="vclip-txt">VIDÉO 9:16 — ta came, grain de nuit<br>(générée hors-ligne → bakée .mp4)</span>
       <div class="vcap">
         <div class="big" id="viewer-cap">fraîchement coupé 🔥💨</div>
         <div class="sub" id="viewer-views">— vu par 🔥 •••• (opaque)</div>
@@ -419,6 +419,8 @@ const els = {
   etabliFallback:$("etabli-fallback"), fallbackLink:$("fallback-link"),
   scompose:$("scompose"), postBtn:$("post-btn"), viewer:$("viewer"), viewerViews:$("viewer-views"),
   viewerCap:$("viewer-cap"), vcomments:$("vcomments"),
+  vhdrAv:$("vhdr-av"), vhdrNm:$("vhdr-nm"), vhdrTm:$("vhdr-tm"),
+  vhdrBadge:$("vhdr-badge"), vclipTxt:$("vclip-txt"),
   toast:$("toast"), endscreen:$("endscreen"),
   sDette:$("s-dette"), sClock:$("s-clock"), sCash:$("s-cash"), ringMine:$("ring-mine"), storyMine:$("story-mine"),
 };
@@ -501,6 +503,9 @@ function buildBubble(m){
     if (m.card.action === "etabli"){          // la carte du Pote ouvre l'etabli
       card.style.cursor = "pointer";
       card.addEventListener("click", (e) => { e.stopPropagation(); openEtabli(); });
+    } else if (m.card.action === "momostory") {   // la carte de la story de Momo
+      card.style.cursor = "pointer";
+      card.addEventListener("click", (e) => { e.stopPropagation(); openMomoStory(); });
     }
     wrap.appendChild(card); return wrap;
   }
@@ -570,6 +575,13 @@ function exec(cmd, next){
 
     case "choice": {                 // boutons accepter/negocier/refuser…
       showChoices(cmd.options, next);
+      break;
+    }
+
+    case "momostory": {              // arme la gate story de Momo
+      pendingMomoStoryData = cmd;
+      pendingMomoStory = next;
+      coach(cmd.coach || "Momo a posté une story 👀 — tape la carte pour voir");
       break;
     }
 
@@ -715,7 +727,37 @@ function coach(text, sticky){
    GATES JOUEUR (ouverture de fil, etabli, story)
    ========================================================================= */
 let pendingOpen = null, pendingEtabli = null, pendingStory = null;
+let pendingMomoStory = null, pendingMomoStoryData = null;
 let pendingGateRender = null;   // re-rend les boutons de choix si on revient sur le fil
+
+/* Valeurs PAR DÉFAUT du viewer (vitrine du joueur) — capturées une seule fois au chargement. */
+const VIEWER_DEFAULT = {
+  av:    "⚡",
+  nm:    "Ta vitrine",
+  tm:    "à l'instant",
+  badge: "CLIP IA · placeholder",
+  clip:  "VIDÉO 9:16 — ta came, grain de nuit\n(générée hors-ligne → bakée .mp4)",
+};
+
+function setViewerStory({ av, nm, tm, badge, clip, cap, views }) {
+  els.vhdrAv.textContent    = av;
+  els.vhdrNm.textContent    = nm;
+  els.vhdrTm.textContent    = tm;
+  els.vhdrBadge.textContent = badge || "";
+  els.vclipTxt.textContent  = clip;
+  els.viewerCap.textContent = cap  || "";
+  els.viewerViews.textContent = views || "";
+}
+
+function resetViewerStory() {
+  els.vhdrAv.textContent    = VIEWER_DEFAULT.av;
+  els.vhdrNm.textContent    = VIEWER_DEFAULT.nm;
+  els.vhdrTm.textContent    = VIEWER_DEFAULT.tm;
+  els.vhdrBadge.textContent = VIEWER_DEFAULT.badge;
+  els.vclipTxt.textContent  = VIEWER_DEFAULT.clip;
+  els.viewerCap.textContent = "fraîchement coupé 🔥💨";
+  els.viewerViews.textContent = "";
+}
 
 function openThread(key){
   showThreadView(key);
@@ -793,6 +835,22 @@ els.viewer.addEventListener("click", () => {
   els.viewer.classList.remove("show");
   const cb = pendingStory; pendingStory = null; cb();
 });
+
+function openMomoStory() {
+  if (!pendingMomoStory) return;
+  const d = pendingMomoStoryData;
+  setViewerStory({ av: d.av, nm: d.nm, tm: d.tm, badge: d.badge, clip: d.clip, cap: d.cap, views: d.views });
+  els.viewer.classList.add("show");
+  els.toast.classList.remove("show");
+  const onTap = (e) => {
+    e.stopPropagation();
+    els.viewer.removeEventListener("click", onTap);
+    els.viewer.classList.remove("show");
+    resetViewerStory();
+    const cb = pendingMomoStory; pendingMomoStory = null; cb();
+  };
+  els.viewer.addEventListener("click", onTap);
+}
 
 /* Tap global = accelerer la frappe en cours. */
 els.body.addEventListener("click", () => { if (fastFwd) fastFwd(); });
@@ -994,6 +1052,16 @@ function* round1(){
   yield { t:"open", thread:"pote", coach:"Le Pote t'a écrit — reviens à l'accueil (‹) et ouvre-le 👆" };
   yield { t:"recv", text:"yo mec ça va ? 😬" };
   yield { t:"recv", text:"j'ai entendu que Momo est vener de pas avoir reçu sa thune" };
+  yield { t:"recv", text:"tiens regarde, il vient de poster ça 👀" };
+  yield { t:"recv", card:{ title:"Story de Momo", tag:"VOIR", badge:"💀 éphémère",
+          ico:"💀", cliptxt:"story 9:16 — Momo sur son corner", specs:["le block C, c'est moi"],
+          action:"momostory" } };
+  yield { t:"momostory", av:"💀", nm:"Momo", tm:"story · éphémère",
+          clip:"STORY 9:16 — Momo sur SON corner, liasse au poing, grain de nuit",
+          cap:"le block C, c'est MOI 💀", views:"— vu par tout le quartier (opaque)",
+          badge:"STORY · éphémère",
+          coach:"Momo a posté une story 👀 — tape la carte pour voir" };
+  yield { t:"recv", text:"tu vois le bonhomme. faut éponger vite frère 😬" };
   yield { t:"recv", text:"j'ai un plan. c'est pas grand-chose mais ça peut t'aider à éponger 👇" };
   yield { t:"recv", card:{ title:"🧼 Savonnette 100g", tag:"CADEAU", badge:"de la part du Pote",
           ico:"🧼", cliptxt:"matière première — offerte", specs:["levier : fraude","100 g brut"], price:"gratos" } };
