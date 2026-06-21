@@ -1,0 +1,909 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>CrimWorld — La Bascule (prologue)</title>
+<style>
+  /* =========================================================================
+     MAQUETTE CLIQUABLE — prologue "Snapshit".
+     Reprend la langue visuelle du mockup (cite sodium / neon, fonts mono).
+     Coque cliquable + script de tutoriel. AUCUNE economie reelle : les
+     chiffres sont scriptes, le but est de valider le RESSENTI et le TON.
+     L'etabli (coupe 3D hash-slicer) est un STUB a cabler plus tard.
+     ========================================================================= */
+  :root{
+    --bg:#0E0D0C; --surface:#1A1714; --surface2:#221E1A; --border:#352E28;
+    --text:#E4DED5; --muted:#8C837B; --faint:#615951;
+    --sodium:#E8A33D; --neon:#3E7CC2; --rust:#C8442F; --green:#7FA37F;
+    --snap:#FFFC00; --story1:#F44; --story2:#FB5; --story3:#9B5;
+    --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
+    --sans:-apple-system,"Segoe UI","Roboto","Helvetica Neue",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none;user-select:none}
+  html,body{height:100%}
+  body{background:radial-gradient(1200px 700px at 30% -10%,#1b1714 0,var(--bg) 60%);
+       font-family:var(--sans);color:var(--text);min-height:100vh;
+       display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;
+       padding:18px 12px}
+
+  /* ---- phone frame ---- */
+  .phone{position:relative;width:min(390px,96vw);height:min(800px,92vh);border-radius:38px;
+       background:var(--bg);border:1px solid var(--border);overflow:hidden;
+       box-shadow:0 30px 80px -20px #000,0 0 0 8px #0a0908;display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);
+       width:130px;height:26px;background:#0a0908;border-radius:0 0 16px 16px;z-index:60}
+  .statusbar{height:38px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
+       padding:0 22px 6px;font:600 12px var(--sans);color:var(--muted)}
+
+  /* ---- enjeu (dette Momo + cash) : barre fine sous la statusbar ---- */
+  .stake{flex:none;display:flex;align-items:center;gap:8px;padding:5px 14px;
+       border-bottom:1px solid var(--border);background:#120f0c;font:700 11px var(--mono)}
+  .stake .dette{color:var(--rust);display:flex;align-items:center;gap:5px}
+  .stake .clock{color:var(--sodium)}
+  .stake .spacer{flex:1}
+  .stake .cash{color:var(--green)}
+
+  /* ---- header ---- */
+  .hdr{flex:none;display:flex;align-items:center;gap:11px;padding:8px 14px 12px;
+       border-bottom:1px solid var(--border)}
+  .hdr .back{font-size:20px;color:var(--muted);padding:2px 6px 2px 0;display:none}
+  .hdr.in-thread .back{display:block}
+  .hdr .av{width:40px;height:40px;border-radius:50%;flex:none;
+       background:linear-gradient(135deg,#3a322b,#181410);display:flex;align-items:center;
+       justify-content:center;font-size:18px;border:1px solid var(--border)}
+  .hdr .nm{font:700 15px var(--sans)}
+  .hdr .st{font:500 11px var(--sans);color:var(--green);display:flex;align-items:center;gap:5px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block}
+  .hdr .spacer{flex:1}
+  .hdr .ico{color:var(--muted);font-size:18px;padding:4px}
+
+  /* ---- stories tray ---- */
+  .tray{flex:none;display:flex;gap:14px;padding:12px 16px;overflow-x:auto;border-bottom:1px solid var(--border)}
+  .story{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;width:62px;cursor:pointer}
+  .ring{width:58px;height:58px;border-radius:50%;padding:2.5px;
+       background:conic-gradient(var(--story1),var(--story2),var(--story3),var(--story1))}
+  .ring.seen{background:#3a332c}
+  .ring.mine{background:#3a332c}
+  .ring.mine.ready{background:var(--snap);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,252,0,.5)}50%{box-shadow:0 0 0 7px rgba(255,252,0,0)}}
+  .ring .inner{width:100%;height:100%;border-radius:50%;background:var(--surface);
+       border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;
+       font-size:18px;color:var(--muted);text-align:center;line-height:1.1;overflow:hidden}
+  .ring .ph{font:700 9px var(--mono);color:var(--faint)}
+  .story .cap{font:500 10px var(--sans);color:var(--muted);max-width:62px;text-align:center;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .live{font:700 8px var(--sans);color:#fff;background:var(--rust);border-radius:4px;
+       padding:1px 4px;letter-spacing:.05em}
+
+  /* ---- corps : liste de conversations OU fil ---- */
+  .body{flex:1;overflow-y:auto;position:relative}
+
+  /* liste de conversations (accueil) */
+  .list{display:flex;flex-direction:column}
+  .conv{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid #221d18;cursor:pointer}
+  .conv:active{background:var(--surface)}
+  .conv .av{width:46px;height:46px;border-radius:50%;flex:none;font-size:20px;
+       background:linear-gradient(135deg,#3a322b,#181410);display:flex;align-items:center;
+       justify-content:center;border:1px solid var(--border);position:relative}
+  .conv .av.unread::after{content:"";position:absolute;top:-1px;right:-1px;width:13px;height:13px;
+       border-radius:50%;background:var(--snap);border:2px solid var(--bg)}
+  .conv .col{flex:1;min-width:0}
+  .conv .nm{font:700 14px var(--sans);display:flex;align-items:center;gap:6px}
+  .conv .pv{font:500 12px var(--sans);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .conv.un .pv{color:var(--text);font-weight:600}
+  .conv .tm{font:500 10px var(--sans);color:var(--faint);flex:none;align-self:flex-start;margin-top:3px}
+
+  /* fil de discussion */
+  .thread{padding:14px 14px 14px;display:flex;flex-direction:column;gap:9px}
+  .daysep{align-self:center;font:600 10px var(--sans);color:var(--faint);letter-spacing:.08em;
+       text-transform:uppercase;margin:2px 0}
+  .row{display:flex;gap:8px;max-width:86%;animation:pop .2s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .row.in{align-self:flex-start}
+  .row.out{align-self:flex-end;justify-content:flex-end}
+  .bub{padding:9px 13px;border-radius:18px;font:400 13.5px/1.4 var(--sans);word-wrap:break-word}
+  .in .bub{background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:5px}
+  .out .bub{background:var(--neon);color:#fff;border-bottom-right-radius:5px}
+  .meta{font:500 10px var(--sans);color:var(--faint);margin:1px 2px 0;align-self:flex-start}
+  .ephem{align-self:flex-start;display:flex;align-items:center;gap:5px;font:500 10px var(--sans);color:var(--faint)}
+
+  /* indicateur "en train d'ecrire" */
+  .typing{align-self:flex-start;background:var(--surface);border:1px solid var(--border);
+       border-radius:18px;border-bottom-left-radius:5px;padding:11px 14px;display:flex;gap:4px}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--faint);animation:blink 1.2s infinite}
+  .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,60%,100%{opacity:.3}30%{opacity:1}}
+
+  /* ---- menu card (le four 2.0 / commande client) ---- */
+  .menu{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;width:236px}
+  .menu .clip{height:120px;background:repeating-linear-gradient(45deg,#1d1916 0 12px,#191512 12px 24px);
+       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+       border-bottom:1px solid var(--border);position:relative}
+  .clip .badge{position:absolute;top:8px;left:8px;font:700 9px var(--mono);color:#0a0908;
+       background:var(--snap);padding:2px 6px;border-radius:4px;letter-spacing:.03em}
+  .clip .ico{font-size:34px;opacity:.7}
+  .clip .txt{font:600 10px var(--mono);color:var(--faint);letter-spacing:.04em}
+  .menu .mbody{padding:11px 13px;display:flex;flex-direction:column;gap:7px}
+  .menu .ttl{font:700 13px var(--sans);display:flex;align-items:center;gap:7px}
+  .menu .arr{font:700 9px var(--sans);color:#0a0908;background:var(--green);padding:1px 6px;border-radius:4px}
+  .menu .specs{font:500 11px var(--mono);color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px}
+  .menu .price{font:800 16px var(--sans);color:var(--text)}
+
+  /* ---- choix (accepter / negocier / refuser) ---- */
+  .choices{align-self:stretch;display:flex;flex-direction:column;gap:8px;padding:6px 2px 2px}
+  .choice{width:100%;text-align:left;background:var(--surface2);border:1px solid var(--border);
+       color:var(--text);border-radius:14px;padding:12px 14px;font:600 13px var(--sans);cursor:pointer;
+       display:flex;align-items:center;gap:9px;transition:transform .05s,border-color .15s}
+  .choice:active{transform:scale(.985)}
+  .choice .k{font-size:16px}
+  .choice.go{border-color:var(--green);color:#cfe3cf}
+  .choice.neg{border-color:var(--sodium);color:#f0d3a3}
+  .choice.no{border-color:var(--faint);color:var(--muted)}
+
+  /* ---- composer ---- */
+  .composer{flex:none;height:60px;background:var(--bg);border-top:1px solid var(--border);
+       display:flex;align-items:center;gap:10px;padding:0 14px}
+  .composer .field{flex:1;height:36px;border-radius:20px;background:var(--surface);
+       border:1px solid var(--border);display:flex;align-items:center;padding:0 14px;
+       font:400 13px var(--sans);color:var(--faint)}
+  .composer .snapbtn{width:36px;height:36px;border-radius:50%;background:var(--snap);
+       display:flex;align-items:center;justify-content:center;font-size:18px;flex:none}
+
+  /* ---- ETABLI (stub coupe 3D) ---- */
+  .etabli{position:absolute;inset:0;background:#0d0b09;display:none;flex-direction:column;z-index:40}
+  .etabli.show{display:flex}
+  .etabli .ehdr{flex:none;display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+  .etabli .ehdr .back{font-size:20px;color:var(--muted)}
+  .etabli .ehdr .nm{font:800 15px var(--sans)}
+  .estage{flex:1;margin:16px;border-radius:16px;border:1px dashed var(--border);
+       background:repeating-linear-gradient(45deg,#17130f 0 14px,#120f0c 14px 28px);
+       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:20px}
+  .estage .ico{font-size:54px;opacity:.55}
+  .estage .badge{font:700 10px var(--mono);color:#0a0908;background:var(--snap);padding:3px 8px;border-radius:5px}
+  .estage .txt{font:600 12px var(--mono);color:var(--faint);max-width:260px;line-height:1.5}
+  .estage .lead{font:600 13px var(--sans);color:var(--text);max-width:280px;line-height:1.5}
+  .ebtns{flex:none;padding:0 16px 22px;display:flex;flex-direction:column;gap:10px}
+  .ebtn{width:100%;border-radius:14px;padding:14px;font:700 14px var(--sans);border:1px solid var(--border);
+       background:var(--surface2);color:var(--text);cursor:pointer;display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+  .ebtn:active{transform:scale(.99)}
+  .ebtn.clean{border-color:var(--green)}
+  .ebtn.dirty{border-color:var(--sodium)}
+  .ebtn .et{font:700 14px var(--sans)}
+  .ebtn .es{font:500 11px var(--mono);color:var(--muted)}
+
+  /* iframe de la vraie scene de coupe (hash-slicer) + fallback "mode simple" */
+  #etabli-frame{flex:1;width:100%;border:0;background:#0d0b09;display:block}
+  .efallback{flex:none;padding:8px 16px 14px;text-align:center}
+  .efallback .link{font:600 12px var(--sans);color:var(--faint);text-decoration:underline;cursor:pointer}
+  .efallback .fbtns{display:none;flex-direction:column;gap:10px;margin-top:8px}
+  .efallback.open .fbtns{display:flex}
+  .efallback.open .link{display:none}
+
+  /* ---- STORY (composer + viewer plein ecran) ---- */
+  .viewer{position:absolute;inset:0;background:#0a0908;display:none;flex-direction:column;z-index:50}
+  .viewer.show{display:flex}
+  .vclip{flex:1;background:repeating-linear-gradient(45deg,#17130f 0 14px,#120f0c 14px 28px);
+       position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+  .vclip .badge{position:absolute;top:54px;left:14px;font:700 10px var(--mono);color:#0a0908;
+       background:var(--snap);padding:3px 7px;border-radius:5px}
+  .vclip .ico{font-size:54px;opacity:.5}
+  .vclip .txt{font:600 12px var(--mono);color:var(--faint);letter-spacing:.05em;text-align:center;max-width:240px;line-height:1.5}
+  .progress{position:absolute;top:46px;left:14px;right:14px;display:flex;gap:5px;z-index:5}
+  .progress span{flex:1;height:3px;border-radius:3px;background:rgba(255,255,255,.25);overflow:hidden}
+  .progress span b{display:block;height:100%;width:0;background:#fff}
+  .progress span.on b{animation:fill 3.2s linear forwards}
+  @keyframes fill{to{width:100%}}
+  .vhdr{position:absolute;top:58px;left:14px;right:14px;display:flex;align-items:center;gap:9px;z-index:5}
+  .vhdr .av{width:32px;height:32px;border-radius:50%;background:var(--snap);display:flex;align-items:center;
+       justify-content:center;font-size:15px;border:1px solid var(--border)}
+  .vhdr .nm{font:700 13px var(--sans);color:#fff}
+  .vhdr .tm{font:500 11px var(--sans);color:rgba(255,255,255,.6)}
+  .vcap{position:absolute;left:0;right:0;bottom:96px;text-align:center;padding:0 30px}
+  .vcap .big{font:800 22px var(--sans);color:#fff;text-shadow:0 2px 12px #000;line-height:1.2}
+  .vcap .sub{font:600 12px var(--mono);color:var(--snap);margin-top:8px;letter-spacing:.04em}
+  .vreply{position:absolute;left:14px;right:14px;bottom:24px;height:44px;border-radius:24px;
+       border:1.5px solid rgba(255,255,255,.4);display:flex;align-items:center;padding:0 18px;
+       font:500 13px var(--sans);color:rgba(255,255,255,.6);justify-content:space-between}
+  .vreply .emojis{display:flex;gap:14px;font-size:18px}
+
+  /* composer de story (avant de poster) */
+  .scompose{position:absolute;inset:0;background:rgba(10,9,8,.92);display:none;flex-direction:column;
+       align-items:center;justify-content:center;gap:16px;z-index:55;padding:30px}
+  .scompose.show{display:flex}
+  .scompose .pre{width:200px;height:300px;border-radius:18px;border:1px solid var(--border);
+       background:repeating-linear-gradient(45deg,#1d1916 0 12px,#191512 12px 24px);
+       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;position:relative}
+  .scompose .pre .cap{position:absolute;bottom:18px;left:0;right:0;text-align:center;
+       font:800 16px var(--sans);color:#fff;text-shadow:0 2px 8px #000}
+  .scompose .pre .ico{font-size:40px;opacity:.6}
+  .scompose .pre .ph{font:600 9px var(--mono);color:var(--faint)}
+  .scompose .lead{font:600 13px var(--sans);color:var(--text);text-align:center;max-width:280px}
+  .scompose .post{background:var(--snap);color:#0a0908;border:none;border-radius:24px;
+       padding:13px 28px;font:800 14px var(--sans);cursor:pointer;display:flex;align-items:center;gap:8px}
+
+  /* ---- toast / coach ---- */
+  .toast{position:absolute;left:50%;bottom:78px;transform:translateX(-50%) translateY(10px);
+       background:#0a0908;border:1px solid var(--sodium);color:var(--sodium);font:600 12px var(--sans);
+       padding:9px 14px;border-radius:12px;max-width:80%;text-align:center;opacity:0;pointer-events:none;
+       transition:opacity .25s,transform .25s;z-index:58}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* ---- ecran de fin / bilan (rapport diegetique) ---- */
+  .endscreen{position:absolute;inset:0;background:radial-gradient(700px 500px at 50% 0%,#1b1714,#0a0908);
+       display:none;flex-direction:column;z-index:70;padding:30px 22px;overflow-y:auto}
+  .endscreen.show{display:flex}
+  .endscreen h2{font:800 22px var(--sans);color:var(--text);margin-bottom:4px}
+  .endscreen .verdict{font:600 13px var(--sans);color:var(--sodium);margin-bottom:18px;line-height:1.5}
+  .bilan{display:flex;flex-direction:column;gap:10px}
+  .bline{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+  .bline .bt{font:700 13px var(--sans);display:flex;align-items:center;gap:7px}
+  .bline .bc{font:500 12px var(--sans);color:var(--muted);margin-top:4px;line-height:1.45}
+  .bline .trace{font:600 11px var(--mono);color:var(--neon);margin-top:6px}
+  .bline.good{border-color:rgba(127,163,127,.5)}
+  .bline.bad{border-color:rgba(200,68,47,.5)}
+  .endscreen .next{margin-top:20px;background:var(--surface2);border:1px solid var(--border);
+       border-radius:14px;padding:14px;font:500 13px var(--sans);color:var(--text);line-height:1.5}
+  .endscreen .next b{color:var(--snap)}
+  .endscreen .replay{margin-top:16px;align-self:center;background:none;border:1px solid var(--border);
+       color:var(--muted);border-radius:20px;padding:10px 22px;font:600 12px var(--sans);cursor:pointer}
+
+  .devnote{font:500 11px var(--mono);color:var(--faint);text-align:center;max-width:390px;line-height:1.5}
+</style>
+</head>
+<body>
+
+<div class="phone" id="phone">
+  <div class="notch"></div>
+  <div class="statusbar"><span id="clock">21:47</span><span>▲ ▮▮ 12%</span></div>
+
+  <!-- enjeu : dette Momo + horloge + cash (scriptes, cosmetiques) -->
+  <div class="stake">
+    <span class="dette">💀 Momo <span id="s-dette">200€</span></span>
+    <span class="clock" id="s-clock">⏳ 2 jours</span>
+    <span class="spacer"></span>
+    <span class="cash">💶 <span id="s-cash">0</span>€</span>
+  </div>
+
+  <!-- header (devient header de fil quand on ouvre une conv) -->
+  <div class="hdr" id="hdr">
+    <span class="back" id="back">‹</span>
+    <div class="av" id="hdr-av">⚡</div>
+    <div>
+      <div class="nm" id="hdr-nm">Snapshit</div>
+      <div class="st" id="hdr-st"><span class="dot"></span> en ligne</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="ico">📷</div><div class="ico">⋯</div>
+  </div>
+
+  <!-- stories tray (visible sur l'accueil) -->
+  <div class="tray" id="tray">
+    <div class="story" id="story-mine">
+      <div class="ring mine" id="ring-mine"><div class="inner"><span class="ph">+ TOI</span></div></div>
+      <div class="cap">Ta vitrine</div>
+    </div>
+    <div class="story"><div class="ring seen"><div class="inner">🏪</div></div><div class="cap">Le Comptoir</div></div>
+    <div class="story"><div class="ring seen"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
+    <div class="story"><div class="ring"><div class="inner">🌃</div></div><div class="cap"><span class="live">● ARRIVAGE</span></div></div>
+    <div class="story"><div class="ring seen"><div class="inner">🚬</div></div><div class="cap">La Ruelle</div></div>
+  </div>
+
+  <!-- corps : accueil (liste) OU fil -->
+  <div class="body" id="body">
+    <div class="list" id="list"></div>
+    <div class="thread" id="thread" style="display:none"></div>
+  </div>
+
+  <!-- composer (sous un fil) -->
+  <div class="composer" id="composer" style="display:none">
+    <div class="field">Message…</div>
+    <div class="snapbtn">⚡</div>
+  </div>
+
+  <!-- ETABLI : stub de la coupe 3D (hash-slicer) -->
+  <div class="etabli" id="etabli">
+    <div class="ehdr"><span class="back" id="etabli-back">‹</span><span class="nm">🔪 L'établi — coupe</span></div>
+    <iframe id="etabli-frame" title="établi — coupe 3D"></iframe>
+    <div class="efallback" id="etabli-fallback">
+      <span class="link" id="fallback-link">La 3D ne charge pas ? Couper en mode simple</span>
+      <div class="fbtns">
+        <button class="ebtn clean" data-cut="clean"><span class="et">✂️ Couper propre</span><span class="es">qualité haute</span></button>
+        <button class="ebtn dirty" data-cut="dirty"><span class="et">🪓 Couper à l'arrache</span><span class="es">qualité basse</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STORY : composer puis viewer plein ecran -->
+  <div class="scompose" id="scompose">
+    <div class="pre">
+      <span class="ico">📦</span>
+      <span class="ph">CLIP 9:16<br>(à générer)</span>
+      <div class="cap">fraîchement coupé 🔥💨</div>
+    </div>
+    <div class="lead">Poster ta vitrine sur Snapshit. Les clients qui la voient te DM.</div>
+    <button class="post" id="post-btn">⚡ Poster ma vitrine</button>
+  </div>
+
+  <div class="viewer" id="viewer">
+    <div class="vclip">
+      <div class="progress"><span class="on"><b></b></span><span><b></b></span></div>
+      <div class="vhdr"><div class="av">⚡</div><div><div class="nm">Ta vitrine</div><div class="tm">à l'instant</div></div></div>
+      <div class="badge">CLIP IA · placeholder</div>
+      <span class="ico">📦</span>
+      <span class="txt">VIDÉO 9:16 — ta came, grain de nuit<br>(générée hors-ligne → bakée .mp4)</span>
+      <div class="vcap">
+        <div class="big">fraîchement coupé 🔥💨</div>
+        <div class="sub" id="viewer-views">— vu par 🔥 •••• (opaque)</div>
+      </div>
+      <div class="vreply"><span>Répondre…</span><span class="emojis">❄️ 🌿 💸</span></div>
+    </div>
+  </div>
+
+  <!-- toast / coach -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ecran de fin / bilan (rapport diegetique) -->
+  <div class="endscreen" id="endscreen"></div>
+</div>
+
+<div class="devnote">Maquette cliquable · prologue « La Bascule » — l'éco est scriptée (pas de vraie simu).
+L'établi embarque la vraie coupe 3D (hash-slicer) ; les clips IA des stories sont des placeholders.</div>
+
+<script type="module">
+"use strict";
+/* =========================================================================
+   ETAT (cosmetique — scripte, pas une simulation)
+   ========================================================================= */
+const state = {
+  dette: 200,        // ce qu'on doit a Momo (€)
+  cash: 0,           // ce qu'on a encaisse (€)
+  jours: 2,          // horloge (cosmetique)
+  qualite: null,     // 'A' (propre) | 'C' (arrache) — choisi a l'etabli
+  barrettes: 0,      // produit a l'etabli
+  ventes: [],        // {qui, montant, content} pour le bilan diegetique
+  success: null,     // a-t-on payé Momo ?
+  view: "accueil",   // accueil | thread
+  activeThread: null,
+};
+
+/* Conversations. L'ordre = ordre d'affichage dans la liste d'accueil. */
+const CONV = {
+  momo:  { nm:"Momo",       av:"💀", st:"vu · éphémère",   stcol:"var(--rust)",  msgs:[], unread:false, preview:"", hidden:true },
+  pote:  { nm:"Le Pote",    av:"🧢", st:"en ligne",         stcol:"var(--green)", msgs:[], unread:false, preview:"", hidden:true },
+  kevin: { nm:"Kévin",      av:"🧃", st:"vu ta story",      stcol:"var(--muted)", msgs:[], unread:false, preview:"", hidden:true },
+  sami:  { nm:"Sami",       av:"🧢", st:"vu ta story",      stcol:"var(--muted)", msgs:[], unread:false, preview:"", hidden:true },
+  comtesse:{nm:"La Comtesse",av:"👑",st:"vu ta story",      stcol:"var(--muted)", msgs:[], unread:false, preview:"", hidden:true },
+};
+
+/* =========================================================================
+   ELEMENTS
+   ========================================================================= */
+const $ = (id) => document.getElementById(id);
+const els = {
+  hdr:$("hdr"), back:$("back"), hdrAv:$("hdr-av"), hdrNm:$("hdr-nm"), hdrSt:$("hdr-st"),
+  tray:$("tray"), body:$("body"), list:$("list"), thread:$("thread"), composer:$("composer"),
+  etabli:$("etabli"), etabliBack:$("etabli-back"), etabliFrame:$("etabli-frame"),
+  etabliFallback:$("etabli-fallback"), fallbackLink:$("fallback-link"),
+  scompose:$("scompose"), postBtn:$("post-btn"), viewer:$("viewer"), viewerViews:$("viewer-views"),
+  toast:$("toast"), endscreen:$("endscreen"),
+  sDette:$("s-dette"), sClock:$("s-clock"), sCash:$("s-cash"), ringMine:$("ring-mine"), storyMine:$("story-mine"),
+};
+
+function refreshStake(){
+  els.sDette.textContent = state.dette + "€";
+  els.sClock.textContent = "⏳ " + state.jours + " jour" + (state.jours>1?"s":"");
+  els.sCash.textContent = state.cash;
+}
+
+/* =========================================================================
+   RENDU : liste d'accueil + fil
+   ========================================================================= */
+function renderList(){
+  els.list.innerHTML = "";
+  for (const key of Object.keys(CONV)){
+    const c = CONV[key];
+    if (c.hidden) continue;
+    const div = document.createElement("div");
+    div.className = "conv" + (c.unread ? " un" : "");
+    div.innerHTML =
+      `<div class="av${c.unread?" unread":""}">${c.av}</div>`+
+      `<div class="col"><div class="nm">${c.nm}</div>`+
+      `<div class="pv">${c.preview||"—"}</div></div>`+
+      `<div class="tm">${c.unread?"now":"21:4"}</div>`;
+    div.addEventListener("click", () => openThread(key));
+    els.list.appendChild(div);
+  }
+}
+
+function showAccueil(){
+  state.view = "accueil"; state.activeThread = null;
+  els.hdr.classList.remove("in-thread");
+  els.hdrAv.textContent = "⚡"; els.hdrNm.textContent = "Snapshit";
+  els.hdrSt.innerHTML = '<span class="dot"></span> en ligne'; els.hdrSt.style.color = "var(--green)";
+  els.tray.style.display = "flex";
+  els.list.style.display = "flex"; els.thread.style.display = "none";
+  els.composer.style.display = "none";
+  renderList();
+}
+
+function showThreadView(key){
+  const c = CONV[key];
+  state.view = "thread"; state.activeThread = key;
+  c.unread = false;
+  els.hdr.classList.add("in-thread");
+  els.hdrAv.textContent = c.av; els.hdrNm.textContent = c.nm;
+  els.hdrSt.innerHTML = '<span class="dot"></span> ' + c.st; els.hdrSt.style.color = c.stcol;
+  els.tray.style.display = "none";
+  els.list.style.display = "none"; els.thread.style.display = "flex";
+  els.composer.style.display = "flex";
+  paintThread(key);
+}
+
+/* (re)peint le contenu deja "delivre" d'un fil (sans animation) */
+function paintThread(key){
+  els.thread.innerHTML = '<div class="daysep">Aujourd\'hui</div>';
+  for (const m of CONV[key].msgs) els.thread.appendChild(buildBubble(m));
+  scrollDown();
+}
+function scrollDown(){ els.body.scrollTop = els.body.scrollHeight; }
+
+function buildBubble(m){
+  if (m.type === "ephem"){
+    const d = document.createElement("div"); d.className = "ephem";
+    d.textContent = "👁️ " + m.text; return d;
+  }
+  if (m.type === "card"){
+    const wrap = document.createElement("div"); wrap.className = "row in";
+    const card = menuCard(m.card);
+    if (m.card.action === "etabli"){          // la carte du Pote ouvre l'etabli
+      card.style.cursor = "pointer";
+      card.addEventListener("click", (e) => { e.stopPropagation(); openEtabli(); });
+    }
+    wrap.appendChild(card); return wrap;
+  }
+  const row = document.createElement("div");
+  row.className = "row " + (m.dir === "out" ? "out" : "in");
+  const b = document.createElement("div"); b.className = "bub"; b.textContent = m.text;
+  row.appendChild(b);
+  return row;
+}
+
+function menuCard(card){
+  const d = document.createElement("div"); d.className = "menu";
+  const specs = (card.specs||[]).map(s => `<span>${s}</span>`).join("");
+  d.innerHTML =
+    `<div class="clip"><span class="badge">${card.badge||"CLIP · placeholder"}</span>`+
+    `<span class="ico">${card.ico||"📦"}</span><span class="txt">${card.cliptxt||"story 9:16 — à générer"}</span></div>`+
+    `<div class="mbody"><div class="ttl">${card.title} ${card.tag?`<span class="arr">${card.tag}</span>`:""}</div>`+
+    (specs?`<div class="specs">${specs}</div>`:"")+
+    (card.price?`<div class="price">${card.price}</div>`:"")+`</div>`;
+  return d;
+}
+
+/* =========================================================================
+   MOTEUR DE SCRIPT (generateur + pilote)
+   Chaque "yield" est une commande ; le pilote l'execute puis relance le
+   generateur quand l'effet (eventuellement gate par le joueur) est fini.
+   ========================================================================= */
+let fastFwd = null;   // callback pour accelerer la frappe en cours
+
+function run(gen, sent){
+  const { value, done } = gen.next(sent);
+  if (done) return;
+  exec(value, (res) => run(gen, res));
+}
+
+function exec(cmd, next){
+  switch (cmd.t){
+
+    case "unread": {                 // pose des messages "recus" + badge non-lu
+      const c = CONV[cmd.thread];
+      c.hidden = false; c.unread = true; if (cmd.preview) c.preview = cmd.preview;
+      if (state.view === "accueil") renderList();
+      next();
+      break;
+    }
+
+    case "open": {                   // attend que le JOUEUR ouvre ce fil
+      pendingOpen = { thread: cmd.thread, cb: next };
+      coach(cmd.coach || ("Ouvre la conv de " + CONV[cmd.thread].nm + " 👆"));
+      break;
+    }
+
+    case "recv": {                   // message entrant anime (fil deja ouvert)
+      typeThen(cmd, next);
+      break;
+    }
+
+    case "send": {                   // message sortant (scripte) du joueur
+      const m = { dir:"out", text:cmd.text };
+      CONV[state.activeThread].msgs.push(m);
+      els.thread.appendChild(buildBubble(m)); scrollDown();
+      setTimeout(next, 280);
+      break;
+    }
+
+    case "choice": {                 // boutons accepter/negocier/refuser…
+      showChoices(cmd.options, next);
+      break;
+    }
+
+    case "etabli": {                 // attend l'ouverture de l'etabli + le choix de coupe
+      pendingEtabli = next;
+      coach("Va à l'établi 🔪 (sur le message du Pote) pour couper.");
+      break;
+    }
+
+    case "story": {                  // attend que le joueur poste sa vitrine
+      pendingStory = next;
+      els.ringMine.classList.add("ready");
+      coach("Poste ta vitrine ⚡ (en haut à gauche) pour appâter les clients.");
+      break;
+    }
+
+    case "set":  { cmd.fn(); refreshStake(); next(); break; }
+    case "wait": { setTimeout(next, cmd.ms); break; }
+    case "home": { showAccueil(); next(); break; }
+    case "toast":{ coach(cmd.text); setTimeout(next, cmd.ms||1500); break; }
+    case "end":  { showEnd(); break; }   // terminal
+    default: next();
+  }
+}
+
+/* Frappe : indicateur "..." puis bulle (acceleree au tap). */
+function typeThen(cmd, next){
+  const c = CONV[state.activeThread];
+  const dots = document.createElement("div"); dots.className = "typing";
+  dots.innerHTML = "<i></i><i></i><i></i>";
+  els.thread.appendChild(dots); scrollDown();
+  const delay = cmd.card ? 700 : Math.min(1100, 350 + (cmd.text||"").length * 16);
+  const finish = () => {
+    fastFwd = null; clearTimeout(timer);
+    if (dots.parentNode) dots.remove();
+    const m = cmd.card ? { type:"card", card:cmd.card } : { type:"msg", dir:"in", text:cmd.text };
+    if (cmd.ephem) { m.type = "ephem"; m.text = cmd.text; }
+    c.msgs.push(m);
+    els.thread.appendChild(buildBubble(m)); scrollDown();
+    next();
+  };
+  const timer = setTimeout(finish, delay);
+  fastFwd = finish;
+}
+
+/* Boutons de choix dans le fil courant. */
+function showChoices(options, next){
+  const box = document.createElement("div"); box.className = "choices";
+  options.forEach((opt, i) => {
+    const b = document.createElement("button");
+    b.className = "choice " + (opt.cls||"");
+    b.innerHTML = `<span class="k">${opt.k||"•"}</span><span>${opt.label}</span>`;
+    b.addEventListener("click", () => {
+      box.remove();
+      if (opt.echo){ const m={dir:"out",text:opt.echo}; CONV[state.activeThread].msgs.push(m);
+        els.thread.appendChild(buildBubble(m)); scrollDown(); }
+      next(i);
+    });
+    box.appendChild(b);
+  });
+  els.thread.appendChild(box); scrollDown();
+}
+
+/* Coach / toast ephemere. */
+let coachTimer = 0;
+function coach(text, sticky){
+  els.toast.textContent = text; els.toast.classList.add("show");
+  clearTimeout(coachTimer);
+  if (!sticky) coachTimer = setTimeout(() => els.toast.classList.remove("show"), 2600);
+}
+
+/* =========================================================================
+   GATES JOUEUR (ouverture de fil, etabli, story)
+   ========================================================================= */
+let pendingOpen = null, pendingEtabli = null, pendingStory = null;
+
+function openThread(key){
+  showThreadView(key);
+  els.toast.classList.remove("show");
+  if (pendingOpen && pendingOpen.thread === key){
+    const cb = pendingOpen.cb; pendingOpen = null; cb();
+  }
+}
+
+els.back.addEventListener("click", showAccueil);
+
+/* Etabli : ouvert via le clic sur le coach OU via la carte du Pote.
+   Ici on l'ouvre par un appui sur l'avatar "🔪" injecte cote Pote :
+   pour rester simple, on ouvre l'etabli quand le joueur tape le coach. */
+function openEtabli(){
+  if (!pendingEtabli) return;
+  // charge la vraie scene de coupe (hash-slicer) en mode prologue, a la demande
+  if (!els.etabliFrame.getAttribute("src"))
+    els.etabliFrame.src = "../hash-slicer/index.html#embed=prologue";
+  els.etabli.classList.add("show");
+  els.toast.classList.remove("show");
+}
+
+// Resout l'etabli : grade C -> "arrache", sinon "propre". bars = nb de barrettes.
+function resolveEtabli(grade, bars){
+  if (!pendingEtabli) return;
+  state.qualite = (grade === "C") ? "C" : "A";
+  state.barrettes = bars || (state.qualite === "A" ? 10 : 14);
+  els.etabli.classList.remove("show");
+  els.etabliFrame.src = "about:blank";              // decharge la 3D
+  coach(state.qualite === "A" ? "Coupe propre 👌" : "Coupe à l'arrache 😬");
+  const cb = pendingEtabli; pendingEtabli = null; cb();
+}
+
+// Resultat renvoye par la scene de coupe embarquee (iframe -> parent).
+window.addEventListener("message", (e) => {
+  const d = e.data;
+  if (d && d.type === "bascule-cut-done") resolveEtabli(d.grade, d.bars);
+});
+
+// Fallback "mode simple" si la 3D ne charge pas (CDN bloque en session distante).
+els.fallbackLink.addEventListener("click", () => els.etabliFallback.classList.add("open"));
+els.etabliFallback.addEventListener("click", (e) => {
+  const b = e.target.closest(".ebtn"); if (!b) return;
+  const dirty = b.dataset.cut === "dirty";
+  resolveEtabli(dirty ? "C" : "A", dirty ? 14 : 10);
+});
+els.etabliBack.addEventListener("click", () => { /* sortie uniquement via la fin de coupe */ });
+
+/* Story : ouvrir le composer via la vitrine, puis poster -> viewer. */
+els.storyMine.addEventListener("click", () => {
+  if (!pendingStory) return;
+  els.scompose.classList.add("show");
+});
+els.postBtn.addEventListener("click", () => {
+  els.scompose.classList.remove("show");
+  els.ringMine.classList.remove("ready"); els.ringMine.classList.add("seen");
+  els.viewer.classList.add("show");
+  els.viewerViews.textContent = state.qualite === "A"
+    ? "— vu par 🔥🔥 ••••• (opaque)" : "— vu par 🔥 ••• (opaque)";
+});
+els.viewer.addEventListener("click", () => {
+  if (!pendingStory) return;
+  els.viewer.classList.remove("show");
+  const cb = pendingStory; pendingStory = null; cb();
+});
+
+/* Tap global = accelerer la frappe en cours. */
+els.body.addEventListener("click", () => { if (fastFwd) fastFwd(); });
+
+/* =========================================================================
+   ECRAN DE FIN — bilan DIEGETIQUE (nomme la cause, ne narre pas)
+   ========================================================================= */
+function showEnd(){
+  const propre = state.qualite === "A";
+  const success = state.success;
+  const contents = state.ventes.filter(v => v.content).length;
+  const total = state.ventes.reduce((s,v)=>s+v.montant,0);
+  const lignes = state.ventes.map(v => {
+    const cls = v.content ? "good" : "bad";
+    const ic = v.content ? "🤝" : "👎";
+    return `<div class="bline ${cls}"><div class="bt">${ic} ${v.qui} · +${v.montant}€</div>`+
+      `<div class="bc">${v.note}</div>`+
+      `<div class="trace">↩ ta coupe du tour 1 · ${propre?"propre":"à l'arrache"}</div></div>`;
+  }).join("") || `<div class="bline bad"><div class="bt">Aucune vente</div>`+
+      `<div class="bc">Tu as tout refusé. Pas de came écoulée, pas de thune.</div></div>`;
+
+  let titre, verdict, bas;
+  if (success){
+    titre = "Réglo. Pour l'instant.";
+    verdict = propre
+      ? `Momo payé, il te reste ${state.cash}€. Tes ${contents}/${state.ventes.length} clients ont kiffé : la coupe propre a tenu le prix.`
+      : `Momo payé de justesse. L'arrache t'a fait ${state.barrettes} barrettes mais ~${240-total}€ de marge en moins : tes clients ont senti la came coupée.`;
+    bas = `<div class="next">Momo : « t'es réglo finalement 😏. Mais 200 boules c'est rien.
+      J'ai un <b>vrai lot</b> pour toi — fronté, à crédit. Tu coupes, tu écoules, tu rembourses…
+      et tu recommences. »<br><br><b>À suivre</b> : la boucle de re-commande sous dette.</div>`;
+  } else {
+    titre = "Tu es court.";
+    verdict = `Il te manquait ${200 - total}€. ` + (propre
+      ? `Même propre, refuser des clients t'a laissé sous les 200€.`
+      : `L'arrache a fait du volume mais peu de marge — et refuser des clients a fini de t'enterrer.`);
+    bas = `<div class="next">Momo te laisse <b>un jour de plus</b>. Le problème vient de tes
+      décisions de ce tour — relis le bilan : la cause est là, pas dans la malchance.</div>`;
+  }
+
+  els.endscreen.innerHTML =
+    `<h2>${titre}</h2>`+
+    `<div class="verdict">${verdict}</div>`+
+    `<div class="bilan">${lignes}</div>`+
+    bas +
+    `<button class="replay" id="replay">↻ Recommencer le prologue</button>`;
+  els.endscreen.classList.add("show");
+  $("replay").addEventListener("click", () => location.reload());
+}
+
+/* =========================================================================
+   LE SCRIPT DU PROLOGUE (generateur)
+   ========================================================================= */
+function* prologue(){
+  // --- Beat 1 : Momo menace ---
+  yield { t:"unread", thread:"momo", preview:"Tu me dois 200 boules…" };
+  yield { t:"open", thread:"momo", coach:"Momo t'a écrit. Ouvre 👆" };
+  yield { t:"recv", text:"Wesh." };
+  yield { t:"recv", text:"Tu me dois 200 boules espèce de sgeg. 💀" };
+  yield { t:"recv", text:"T'as 2 jours. Après je te marrave. Tic tac ⏳" };
+  yield { t:"recv", text:"disparaît dans 9 s", ephem:true };
+
+  // --- Beat 2 : le pote, le plan, la 1re sav ---
+  yield { t:"unread", thread:"pote", preview:"j'ai un plan pour toi…" };
+  yield { t:"home" };
+  yield { t:"open", thread:"pote", coach:"Reviens à l'accueil… le Pote t'a écrit 👆" };
+  yield { t:"recv", text:"yo mec ça va ? 😬" };
+  yield { t:"recv", text:"j'ai entendu que Momo est vener de pas avoir reçu sa thune" };
+  yield { t:"recv", text:"j'ai un plan. c'est pas grand-chose mais ça peut t'aider à éponger 👇" };
+  yield { t:"recv", card:{ title:"🧼 Savonnette 100g", tag:"CADEAU", badge:"de la part du Pote",
+          ico:"🧼", cliptxt:"matière première — offerte", specs:["levier : fraude","100 g brut"], price:"gratos" } };
+  yield { t:"choice", options:[ { k:"🧼", cls:"go", label:"Prendre le pavé", echo:"je prends. merci frère 🙏" } ] };
+  yield { t:"recv", text:"tiens. tu coupes en barrettes, tu vends sur ta story. easy." };
+  yield { t:"recv", text:"va à l'établi 🔪 et coupe-moi ça 👇" };
+  yield { t:"set", fn:()=>{ /* sav recue, cosmetique */ } };
+
+  // --- Beat 3 : l'etabli (stub) — l'arbitrage propre vs arrache ---
+  yield { t:"recv", card:{ title:"🔪 L'établi", tag:"OUVRIR", badge:"coupe 3D",
+          ico:"🔪", cliptxt:"hash-slicer — tape pour couper", specs:["tape pour ouvrir"], action:"etabli" } };
+  yield { t:"etabli" };   // attend l'ouverture de la carte + le choix de coupe
+
+  // --- Beat 4 : poster la vitrine ---
+  yield { t:"recv", text: state.qualite==="A"
+          ? "propre 👌 maintenant poste ta vitrine, les gens vont DM" : "bon… poste quand même, on verra" };
+  yield { t:"story" };
+  yield { t:"set", fn:()=>{ state.jours = 1; } };
+
+  // --- Beat 5 : les clients (accepter / negocier / refuser) ---
+  yield { t:"home" };
+  // Kevin — petit client facile
+  yield* clientKevin();
+  // Sami — negociateur
+  yield* clientSami();
+  // La Comtesse — grosse commande qui boucle la dette
+  yield* clientComtesse();
+
+  // --- Beat 6 : payer Momo + hook (ou se faire serrer si on est court) ---
+  yield { t:"unread", thread:"momo", preview:"t'as ma thune ? 👀" };
+  yield { t:"home" };
+  yield { t:"open", thread:"momo", coach:"Momo revient 👆" };
+  yield { t:"recv", text:"alors ? t'as ma thune ? 👀" };
+  if (state.cash >= 200){
+    yield { t:"choice", options:[ { k:"💸", cls:"go", label:"Payer Momo (200€)", echo:"tiens. 200. on est quitte." } ] };
+    yield { t:"set", fn:()=>{ state.cash -= 200; state.dette = 0; state.success = true; } };
+    yield { t:"recv", text:"ok. t'es réglo finalement 😏" };
+    yield { t:"recv", text:"mais 200 boules c'est rien. j'ai un vrai plan pour toi…" };
+  } else {
+    yield { t:"recv", text:"…t'as même pas tout. tu te fous de moi ? 😤" };
+    yield { t:"recv", text:"je te laisse jusqu'à demain. après je te marrave pour de vrai. ⏳" };
+    yield { t:"set", fn:()=>{ state.success = false; } };
+  }
+  yield { t:"wait", ms:600 };
+  yield { t:"end" };
+}
+
+/* --- Sous-scripts clients --------------------------------------------- */
+function* clientKevin(){
+  const propre = state.qualite === "A";
+  const prix = propre ? 35 : 30;
+  yield { t:"unread", thread:"kevin", preview:"t'as de la frappe ? je prends 5g" };
+  yield { t:"open", thread:"kevin", coach:"Un client a vu ta story 👆" };
+  yield { t:"recv", text:"yo t'as de la frappe ? 👀" };
+  yield { t:"recv", card:{ title:"Kévin veut 5 g", badge:"commande", ico:"🧃",
+          cliptxt:"client — vu ta vitrine", specs:["5 g","régulier du coin"], price:prix+"€" } };
+  const c = yield { t:"choice", options:[
+    { k:"✅", cls:"go",  label:"Accepter ("+prix+"€)", echo:"ça marche, passe" },
+    { k:"💬", cls:"neg", label:"Négocier le prix", echo:"40 pour toi, c'est de la bonne" },
+    { k:"✖️", cls:"no",  label:"Refuser", echo:"pas là, désolé" },
+  ]};
+  if (c === 2){ // refuse
+    yield { t:"recv", text:"tranquille 🤙" };
+    return;
+  }
+  if (c === 1){ // negocie
+    if (propre){
+      yield { t:"recv", text:"abusé… aller 38, dernier prix 🤝" };
+      const c2 = yield { t:"choice", options:[
+        { k:"✅", cls:"go", label:"Accepter (38€)", echo:"vendu" },
+        { k:"✖️", cls:"no", label:"Refuser", echo:"laisse tomber" } ]};
+      if (c2 === 1){ yield { t:"recv", text:"rho… ok tant pis" }; return; }
+      finalize("Kévin", 38, true, "5 g servis nets — il repart content.");
+      yield { t:"recv", text:"propre. je te garde dans les contacts 🤝" };
+      return;
+    } else {
+      yield { t:"recv", text:"35 max, et encore… ça a l'air sec ton truc 😒" };
+      const c2 = yield { t:"choice", options:[
+        { k:"✅", cls:"go", label:"Accepter (32€)", echo:"aller, 32" },
+        { k:"✖️", cls:"no", label:"Refuser", echo:"laisse" } ]};
+      if (c2 === 1){ yield { t:"recv", text:"comme tu veux" }; return; }
+      finalize("Kévin", 32, false, "Il a tiqué sur la coupe — a payé moins que prévu.");
+      yield { t:"recv", text:"mouais. la prochaine fois fais gaffe 👎" };
+      return;
+    }
+  }
+  // accepte direct
+  finalize("Kévin", prix, propre, propre
+    ? "5 g servis nets — il repart content."
+    : "Servi vite — il a senti la coupe mais a pris quand même.");
+  yield { t:"recv", text: propre ? "nickel 🔥" : "ok… 🫤" };
+}
+
+function* clientSami(){
+  const propre = state.qualite === "A";
+  yield { t:"unread", thread:"sami", preview:"10g mais tu fais un prix" };
+  yield { t:"home" };
+  yield { t:"open", thread:"sami", coach:"Encore un client 👆" };
+  yield { t:"recv", text:"wesh j'ai vu ta story. 10g mais tu fais un prix hein 😏" };
+  const offre = propre ? 55 : 45;
+  yield { t:"recv", card:{ title:"Sami veut 10 g", badge:"commande", ico:"🧢",
+          cliptxt:"client — négocie dur", specs:["10 g","lowball"], price:"il offre "+offre+"€" } };
+  const c = yield { t:"choice", options:[
+    { k:"✅", cls:"go",  label:"Accepter ("+offre+"€)", echo:"ok pour "+offre },
+    { k:"💬", cls:"neg", label:"Négocier (viser 70€)", echo:"70, c'est cadeau" },
+    { k:"✖️", cls:"no",  label:"Refuser", echo:"trop bas, non" },
+  ]};
+  if (c === 2){ yield { t:"recv", text:"rho l'autre… bon tant pis 🙄" }; return; }
+  if (c === 0){ finalize("Sami", offre, propre,
+      propre ? "Accepté son prix bas — marge laissée sur la table." : "A payé peu, came coupée — il s'en fout.");
+    yield { t:"recv", text:"deal 🤝" }; return; }
+  // negocie
+  if (propre){
+    yield { t:"recv", text:"70 ?! … aller 65 et je reviens 🤝" };
+    const c2 = yield { t:"choice", options:[
+      { k:"✅", cls:"go", label:"Accepter (65€)", echo:"vendu, 65" },
+      { k:"✖️", cls:"no", label:"Tenir 70€", echo:"70 ou rien" } ]};
+    if (c2 === 1){ yield { t:"recv", text:"trop cher frère, je file 🙄" }; return; }
+    finalize("Sami", 65, true, "10 g nets — négocié au juste prix, il devient régulier.");
+    yield { t:"recv", text:"ça c'est de la bonne 🔥 à bientôt" };
+  } else {
+    yield { t:"recv", text:"70 pour ça ?? c'est coupé ton truc, ça se voit 😤 je reste à 45" };
+    const c2 = yield { t:"choice", options:[
+      { k:"✅", cls:"go", label:"Accepter (45€)", echo:"bon… 45" },
+      { k:"✖️", cls:"no", label:"Refuser", echo:"laisse tomber" } ]};
+    if (c2 === 1){ yield { t:"recv", text:"ouais c'est ça 🙄" }; return; }
+    finalize("Sami", 45, false, "A imposé son prix bas : la coupe se voyait.");
+    yield { t:"recv", text:"voilà. et arrête de couper autant 👎" };
+  }
+}
+
+function* clientComtesse(){
+  const propre = state.qualite === "A";
+  const prix = propre ? 140 : 125;
+  yield { t:"unread", thread:"comtesse", preview:"il me faut 20g pour ce soir" };
+  yield { t:"home" };
+  yield { t:"open", thread:"comtesse", coach:"Grosse commande 👆" };
+  yield { t:"recv", text:"Bonsoir. Il me faut 20 g pour ce soir. Du sérieux." };
+  yield { t:"recv", card:{ title:"La Comtesse veut 20 g", badge:"grosse commande", ico:"👑",
+          cliptxt:"cliente — réseau, paie bien", specs:["20 g","fiable"], price:prix+"€" } };
+  const c = yield { t:"choice", options:[
+    { k:"✅", cls:"go", label:"Accepter ("+prix+"€)", echo:"c'est prêt, 20g" },
+    { k:"✖️", cls:"no", label:"Refuser (trop gros)", echo:"désolé, pas tant" },
+  ]};
+  if (c === 1){
+    yield { t:"recv", text:"Dommage. Vous savez où me trouver." };
+    coach("Sans cette vente, tu ne réunis pas les 200€…", true);
+    return;
+  }
+  finalize("La Comtesse", prix, propre, propre
+    ? "20 g nets livrés — elle paie plein pot et te recommandera."
+    : "20 g coupés — elle a payé, mais a remarqué. Réseau prévenu.");
+  yield { t:"recv", text: propre ? "Parfait. À la prochaine. 👑" : "Convenable. Sans plus. 🫤" };
+}
+
+/* Encaisse une vente (cosmetique) + nourrit le bilan diegetique. */
+function finalize(qui, montant, content, note){
+  state.cash += montant;
+  state.ventes.push({ qui, montant, content, note });
+  refreshStake();
+  coach("+" + montant + "€ 💶");
+}
+
+/* =========================================================================
+   BOOT
+   ========================================================================= */
+refreshStake();
+showAccueil();
+run(prologue());
+</script>
+</body>
+</html>
