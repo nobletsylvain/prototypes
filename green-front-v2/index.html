@@ -185,87 +185,57 @@ function drawSprite(c, img, x, y, size, rot) {
   c.drawImage(img, -size / 2, -size / 2, size, size);
   c.restore();
 }
-// Une feuille de sucre pointue (amande à pointe) : remplie + contour marqué + nervure.
-function budLeaf(g, x, y, ang, len, w, fill, line) {
-  const ux = Math.cos(ang), uy = Math.sin(ang), px = -uy, py = ux;
-  const tx = x + ux * len, ty = y + uy * len;
-  g.beginPath();
-  g.moveTo(x + px * w, y + py * w);
-  g.quadraticCurveTo(x + ux * len * 0.5 + px * w * 1.4, y + uy * len * 0.5 + py * w * 1.4, tx, ty);
-  g.quadraticCurveTo(x + ux * len * 0.5 - px * w * 1.4, y + uy * len * 0.5 - py * w * 1.4, x - px * w, y - py * w);
-  g.closePath();
-  g.fillStyle = fill; g.fill();
-  g.lineWidth = 2.2; g.strokeStyle = line; g.stroke();
-  g.beginPath(); g.moveTo(x, y); g.lineTo(tx, ty);           // nervure
-  g.globalAlpha = 0.45; g.lineWidth = 1; g.stroke(); g.globalAlpha = 1;
-}
-// Un calice : boule ombrée (dégradé radial) + contour marqué.
-function budCalyx(g, x, y, r, pal) {
-  const grad = g.createRadialGradient(x - r * 0.35, y - r * 0.42, r * 0.12, x, y, r);
-  grad.addColorStop(0, pal.light); grad.addColorStop(0.55, pal.mid); grad.addColorStop(1, pal.dark);
-  g.beginPath(); g.ellipse(x, y, r, r * 0.94, 0, 0, 7);
-  g.fillStyle = grad; g.fill();
-  g.lineWidth = 2.2; g.strokeStyle = pal.line; g.stroke();
-}
-// Modèle de tête « sticker » : cône de calices + feuilles de sucre qui dépassent + tige.
-function makeBudSprite(pal) {
-  const S = 128, cnv = document.createElement("canvas"); cnv.width = cnv.height = S;
-  const g = cnv.getContext("2d"); g.lineJoin = "round"; g.lineCap = "round";
-  const cx = S * 0.5, baseY = S * 0.72, topY = S * 0.12, Hb = baseY - topY;
-  const yAt = (t) => baseY - t * Hb;                          // t : 0 bas → 1 pointe
-  const hwAt = (t) => S * 0.3 * Math.sin((0.22 + 0.78 * Math.min(1, Math.max(0, t))) * Math.PI); // cola effilée
-  const below = baseY + S * 0.16;                            // pivot sous la tête → feuilles vers le haut
-
-  g.strokeStyle = "#6b4a2a"; g.lineWidth = 6;                // tige
-  g.beginPath(); g.moveTo(cx, baseY - S * 0.02); g.lineTo(cx + (Math.random() - 0.5) * 5, S * 0.94); g.stroke();
-
-  for (let i = 0; i < 13; i++) {                             // feuilles DERRIÈRE → silhouette dentelée (tout le pourtour)
-    const t = 0.08 + 0.9 * (i / 12), side = i % 2 ? 1 : -1;
-    const ex = cx + side * hwAt(t) * (0.85 + Math.random() * 0.3);
-    const ey = yAt(t) + (Math.random() - 0.5) * 5;
-    const ang = Math.atan2(ey - below, ex - cx) + (Math.random() - 0.5) * 0.2;
-    budLeaf(g, ex, ey, ang, S * (0.14 + Math.random() * 0.09), S * 0.05, pal.leaf, pal.line);
-  }
-  for (let i = 0; i < 2; i++)                                // pointe feuillue (vers le haut)
-    budLeaf(g, cx + (i ? 1 : -1) * S * 0.03, topY + S * 0.04, -Math.PI / 2 + (i ? 0.25 : -0.25), S * (0.15 + Math.random() * 0.05), S * 0.05, pal.leaf, pal.line);
-
-  const cal = [];                                            // calices (cluster effilé)
-  for (let i = 0; i < 18; i++) {
-    const t = Math.pow(Math.random(), 0.7), hw = hwAt(t);
-    cal.push({ x: cx + (Math.random() * 2 - 1) * hw * 0.95, y: yAt(t) + (Math.random() - 0.5) * S * 0.03,
-      r: (S * 0.085 + Math.random() * S * 0.045) * (0.55 + hw / (S * 0.3) * 0.6) });
-  }
-  cal.sort((a, b) => a.y - b.y);                             // haut (arrière) d'abord
-  for (const c of cal) budCalyx(g, c.x, c.y, c.r, pal);
-
-  for (let i = 0; i < 5; i++) {                              // feuilles DEVANT (plus claires)
-    const t = 0.15 + Math.random() * 0.7, side = Math.random() < 0.5 ? 1 : -1;
-    const ex = cx + side * hwAt(t) * 0.55, ey = yAt(t);
-    budLeaf(g, ex, ey, Math.atan2(ey - below, ex - cx), S * (0.08 + Math.random() * 0.04), S * 0.035, pal.leafHi, pal.line);
-  }
-  g.strokeStyle = pal.pistil; g.lineWidth = 1.5;            // pistils ambrés
-  for (let i = 0; i < 6; i++) {
-    const t = 0.25 + Math.random() * 0.6, x0 = cx + (Math.random() * 2 - 1) * hwAt(t) * 0.5, y0 = yAt(t);
-    const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.4, l = S * (0.05 + Math.random() * 0.06);
-    g.beginPath(); g.moveTo(x0, y0);
-    g.quadraticCurveTo(x0 + (Math.random() - 0.5) * 8, y0 - l * 0.6, x0 + Math.cos(a) * l, y0 + Math.sin(a) * l);
-    g.stroke();
-  }
-  for (let i = 0; i < 22; i++) {                             // givre (trichomes)
-    const t = Math.random(), x = cx + (Math.random() * 2 - 1) * hwAt(t) * 0.85, y = yAt(t);
-    g.fillStyle = "rgba(232,255,224," + (0.12 + Math.random() * 0.2) + ")";
-    g.beginPath(); g.arc(x, y, 0.7 + Math.random() * 1.1, 0, 7); g.fill();
+// Modèle de tête = NUG façon Green Front : icosaèdre déformé rendu à plat
+// (low-poly facetté) en 2D logiciel. Rotation + bosselage aléatoires par sprite
+// -> variété ; teinte (mid RGB) par qualité. Pré-rendus puis estampillés.
+const ICO_T = (1 + Math.sqrt(5)) / 2;
+const ICO_V = [[-1, ICO_T, 0], [1, ICO_T, 0], [-1, -ICO_T, 0], [1, -ICO_T, 0],
+  [0, -1, ICO_T], [0, 1, ICO_T], [0, -1, -ICO_T], [0, 1, -ICO_T],
+  [ICO_T, 0, -1], [ICO_T, 0, 1], [-ICO_T, 0, -1], [-ICO_T, 0, 1]];
+const ICO_F = [[0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],[1,5,9],[5,11,4],[11,10,2],
+  [10,7,6],[7,1,8],[3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],[4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]];
+function makeNugSprite(mid) {
+  const S = 96, cnv = document.createElement("canvas"); cnv.width = cnv.height = S;
+  const g = cnv.getContext("2d"); g.lineJoin = "round";
+  const rx = Math.random() * 6.28, ry = Math.random() * 6.28, rz = Math.random() * 6.28;
+  const cX = Math.cos(rx), sX = Math.sin(rx), cY = Math.cos(ry), sY = Math.sin(ry), cZ = Math.cos(rz), sZ = Math.sin(rz);
+  const verts = ICO_V.map(v => {
+    const f = 0.78 + Math.random() * 0.44;                  // bosselage (cf. makeNugGeo de green-front)
+    let x = v[0] * f, y = v[1] * f, z = v[2] * f, t;
+    t = y * cX - z * sX; z = y * sX + z * cX; y = t;        // rot X
+    t = x * cY + z * sY; z = -x * sY + z * cY; x = t;        // rot Y
+    t = x * cZ - y * sZ; y = x * sZ + y * cZ; x = t;         // rot Z
+    return [x, y, z];
+  });
+  const scale = S * 0.2, cx = S / 2, cy = S / 2;
+  const lx = -0.4, ly = 0.72, lz = 0.78, ll = Math.hypot(lx, ly, lz);
+  g.fillStyle = "rgba(0,0,0,.16)";                          // ombre douce dessous
+  g.beginPath(); g.ellipse(cx, cy + S * 0.32, S * 0.26, S * 0.1, 0, 0, 7); g.fill();
+  const faces = ICO_F.map(f => {
+    const a = verts[f[0]], b = verts[f[1]], c = verts[f[2]];
+    const ux = b[0]-a[0], uy = b[1]-a[1], uz = b[2]-a[2], vx = c[0]-a[0], vy = c[1]-a[1], vz = c[2]-a[2];
+    let nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx; const nl = Math.hypot(nx, ny, nz) || 1;
+    const sh = Math.max(0, (nx*lx + ny*ly + nz*lz) / (nl * ll));   // ombrage plat (lambert)
+    return { a, b, c, zc: (a[2]+b[2]+c[2]) / 3, sh };
+  }).sort((p, q) => p.zc - q.zc);                           // peintre : du fond vers l'avant
+  for (const f of faces) {
+    const k = 0.42 + 0.8 * f.sh, j = (Math.random() - 0.5) * 14;   // + grain léger par facette
+    const r = Math.max(0, Math.min(255, mid[0]*k + j)) | 0;
+    const gg = Math.max(0, Math.min(255, mid[1]*k + j)) | 0;
+    const bb = Math.max(0, Math.min(255, mid[2]*k + j)) | 0;
+    g.fillStyle = "rgb(" + r + "," + gg + "," + bb + ")";
+    g.strokeStyle = "rgba(18,36,16,.28)"; g.lineWidth = 0.6;
+    g.beginPath();
+    g.moveTo(cx + f.a[0]*scale, cy - f.a[1]*scale);
+    g.lineTo(cx + f.b[0]*scale, cy - f.b[1]*scale);
+    g.lineTo(cx + f.c[0]*scale, cy - f.c[1]*scale);
+    g.closePath(); g.fill(); g.stroke();
   }
   return cnv;
 }
-const BUD_PAL = {
-  fresh: { dark: "#2b6a26", mid: "#4f9a3a", light: "#92db74", leaf: "#3c8a33", leafHi: "#62b24a", line: "#163a14", pistil: "#cf9b46" },
-  A:     { dark: "#2b6a26", mid: "#55ac40", light: "#a0ea80", leaf: "#43973a", leafHi: "#6cc150", line: "#163a14", pistil: "#d3a85f" },
-  B:     { dark: "#586627", mid: "#8a9a3a", light: "#c9d477", leaf: "#7a8a33", leafHi: "#a3b257", line: "#33390f", pistil: "#b98a3a" },
-  trim:  { dark: "#564527", mid: "#846f3c", light: "#b69a62", leaf: "#6f5e34", leafHi: "#917a48", line: "#33270f", pistil: "#7a5a32" },
-};
-function budSet(pal, n) { const a = []; for (let i = 0; i < n; i++) a.push(makeBudSprite(pal)); return a; }
-const BUDS = { fresh: budSet(BUD_PAL.fresh, 5), A: budSet(BUD_PAL.A, 5), B: budSet(BUD_PAL.B, 4), trim: budSet(BUD_PAL.trim, 4) };
+const NUG_MID = { fresh: [92, 156, 70], A: [98, 166, 76], B: [120, 140, 78], trim: [134, 122, 86] };
+function nugSet(mid, n) { const a = []; for (let i = 0; i < n; i++) a.push(makeNugSprite(mid)); return a; }
+const BUDS = { fresh: nugSet(NUG_MID.fresh, 7), A: nugSet(NUG_MID.A, 7), B: nugSet(NUG_MID.B, 6), trim: nugSet(NUG_MID.trim, 6) };
 
 /* -------------------------------------------------------------------------
    UI refs + harnais (menu / partie / résultat)
@@ -402,9 +372,9 @@ G1.start = function () {
       const side = j % 2 ? 1 : -1;
       this.buds.push({
         x: sx + side * (7 + Math.random() * 9), y: sy + Math.random() * 6,
-        r: 13 + Math.random() * 6, on: true, pop: 0, q: null, tx: 0, ty: 0,
+        r: 11 + Math.random() * 15, on: true, pop: 0, q: null, tx: 0, ty: 0,
         spr: Math.floor(Math.random() * BUDS.fresh.length),
-        rot: Math.PI + side * 0.4 + (Math.random() - 0.5) * 0.4,   // la tête pend vers le bas
+        rot: Math.random() * 6.28,   // nug = boule facettée : orientation libre
       });
     }
   }
@@ -470,14 +440,14 @@ G1.draw = function (c) {
   // têtes encore attachées (modèles de buds, qui pendent)
   for (const bud of this.buds) {
     if (!bud.on) continue;
-    drawSprite(c, BUDS.fresh[bud.spr], bud.x, bud.y, bud.r * 3.6, bud.rot);
+    drawSprite(c, BUDS.fresh[bud.spr], bud.x, bud.y, bud.r * 2.4, bud.rot);
   }
   // têtes détachées qui filent vers leur bac (teintées par qualité)
   for (const bud of this.buds) {
     if (bud.on || bud.pop <= 0) continue;
     const set = bud.q === "A" ? BUDS.A : bud.q === "B" ? BUDS.B : BUDS.trim;
     c.globalAlpha = Math.max(0, Math.min(1, bud.pop));
-    drawSprite(c, set[bud.spr % set.length], bud.x, bud.y, bud.r * 3.6 * (0.7 + bud.pop * 0.4), bud.rot + (1 - bud.pop) * 2.2);
+    drawSprite(c, set[bud.spr % set.length], bud.x, bud.y, bud.r * 2.4 * (0.7 + bud.pop * 0.4), bud.rot + (1 - bud.pop) * 2.2);
     c.globalAlpha = 1;
   }
 };
