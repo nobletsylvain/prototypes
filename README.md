@@ -61,3 +61,7 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). Chaî
 
 - En ligne : **https://nobletsylvain.github.io/prototypes/green-front/** (depuis le hub).
 - En local : ouvrir `green-front/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
+
+### 🧪 Green Front v2 (fork « lab »)
+
+`green-front-v2/` est un **fork bac-à-sable** de Green Front : copie conforme de la core loop, destinée à **tester une nouvelle mécanique sans toucher à l'original**. Sa sauvegarde est **isolée** (préfixe `localStorage` `gf2_` au lieu de `gf_`) — les deux protos coexistent sans écraser leurs parties. Un badge `🧪 v2 · lab` (et le tag « labo » du hub) le distingue. En ligne : **https://nobletsylvain.github.io/prototypes/green-front-v2/**.
