@@ -1,11 +1,19 @@
 # CLAUDE.md — repère pour les sessions
 
-Prototype de jeu mobile **Barrettes Shit** (core loop) : un seul fichier `index.html`
-(HTML + CSS + un module JS) utilisant **Three.js** (WebGL) chargé depuis un CDN
-via import-map. Déployé sur **GitHub Pages**
-(https://nobletsylvain.github.io/prototypes/).
+Dépôt de **prototypes de core loops** mobiles (WebGL/Three.js). On teste
+plusieurs boucles de jeu, **une par dossier**, listées par un hub à la racine :
 
-## Boucle de jeu (résumé)
+```
+/index.html              ← hub (liste/links des core loops)
+/barrettes-shit/index.html  ← core loop "Barrettes Shit" (le plus abouti)
+/tools/                  ← captures d'écran headless (cible paramétrable)
+```
+
+Déployé sur **GitHub Pages** (https://nobletsylvain.github.io/prototypes/ →
+hub ; chaque proto à `…/prototypes/<dossier>/`). Chaque core loop est un seul
+fichier `index.html` (HTML + CSS + un module JS), Three.js chargé via import-map.
+
+## Barrettes Shit — boucle de jeu (résumé)
 
 1. **Acheter** une savonnette (matière première, 100/250 g, prix de gros).
 2. **Couper** la savonnette en **barrettes ~10 g** (mini-jeu de timing à la
@@ -19,22 +27,28 @@ via import-map. Déployé sur **GitHub Pages**
 
 ## Conventions
 
-- Tout est dans `index.html`. Le JS est un `<script type="module">`.
+- Un core loop = un dossier avec son `index.html` (JS en `<script type="module">`).
+  Le hub racine `index.html` ne fait que lister/linker les protos.
+- Nouveau core loop : créer `un-nouveau-dossier/index.html` et l'ajouter au hub.
+  Utiliser un **préfixe localStorage distinct** par proto (sinon collisions :
+  Barrettes Shit utilise `hash_*`).
 - Vérifier la syntaxe avant de pousser :
   ```bash
   # extraire le module et le passer à node --check (voir l'historique des PRs)
   node --check <module-extrait>.mjs
   ```
-- Persistance via `localStorage` (`hash_*`). Une clé `hash_ver` force un reset
-  propre de la progression : **bumper `SAVE_VERSION`** dans `index.html` après
-  un gros rééquilibrage.
+- Barrettes Shit : persistance via `localStorage` (`hash_*`). La clé `hash_ver`
+  force un reset propre : **bumper `SAVE_VERSION`** dans
+  `barrettes-shit/index.html` après un gros rééquilibrage.
 
 ## Voir le rendu (captures d'écran)
 
 Le rendu WebGL peut être capturé sans appareil — outil dans **`tools/`** :
 
 ```bash
-cd tools && npm install && node screenshots.mjs   # -> tools/shots/*.png
+cd tools && npm install
+node screenshots.mjs                       # cible barrettes-shit/ -> tools/shots/barrettes-shit/
+node screenshots.mjs <dossier>/index.html  # cible un autre core loop
 ```
 
 Il lance Chromium headless et **sert Three.js depuis `tools/vendor/`**
