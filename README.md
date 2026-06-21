@@ -56,9 +56,10 @@ Mini-jeu mobile en **3D** (même base technique : HTML + [Three.js](https://thre
 Un **halo lumineux** pulse sous la station à utiliser et un **bandeau de consigne** indique le geste courant : la boucle coke + diluant → mix → sachet est guidée.
 
 **Économie & progression :**
+- **Prix calibrés sur le marché réel (UE, €)** : coke en gros ~**38–52 €/g** selon la quantité (briques 50 / 100 / 250 / 500 g, pureté ~80–92 %) ; détail rue ~**50–78 €/g** (× qualité) ; agents de coupe à **quelques centimes/g** — le vrai coût d'un cut bâclé, c'est la **réputation**, pas l'agent.
 - **Réputation** : la **qualité moyenne** de tes ventes (donc combien tu coupes) fait monter/descendre le prix. Affichée dans le HUD.
-- **Coupe (4 paliers)** : **propreté** (→ qualité/€/g) vs **nocivité** (→ réputation) vs **prix**. Le cheap (Lévamisole) maximise la marge mais fait chuter la réput ; le premium (Benzocaïne) coûte mais « passe ». À doser selon ta clientèle.
-- **Boutique** : **Coke** (briques) & les 4 **coupes** (recharges), **Presse à briquettes** (débloque le 25 g semi-gros), **Auto-ensacheuse** + Cadence.
+- **Coupe (4 paliers)** : **propreté** (→ qualité/€/g) vs **nocivité** (→ réputation). Le cheap (Lévamisole) maximise le volume mais plombe la réput ; le premium (Benzocaïne) « passe ». À doser selon ta clientèle.
+- **Boutique** : **Coke** (briques 50→500 g, dégressif) & les 4 **coupes** (recharges), **Presse à briquettes** (débloque le 25 g semi-gros), **Auto-ensacheuse** + Cadence.
 - **Formes** inspirées de *Drug Dealer Simulator* : briques pressées empilées, pots de coupe cylindriques, **pochons** (sachets zip carrés plats) qui s'alignent sur la table, **2 tailles** selon le format (1 g / 5 g).
 - **Niveaux (XP)** : chaque vente donne de l'XP ; +2,5 % de revenus par niveau.
 
