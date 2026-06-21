@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Hash Slicer</title>
+<title>CrimWorld — coupe</title>
 <style>
   /* --- Plein ecran, pense mobile (pas de scroll, pas de zoom) --- */
   * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
@@ -282,7 +282,7 @@ const VIEW_DIR = new THREE.Vector3(0.04, 0.66, 0.75).normalize(); // 3/4 plongea
 const VIEW_TARGET = new THREE.Vector3(L / 2, 0.30, 0.7);         // centre entre savonnette et rangee avant
 const VIEW_RADIUS = Math.hypot(L / 2 + 0.4, 0.85, 1.7);        // englobe la savonnette + les bacs/machine
 const baseCamPos = new THREE.Vector3();                          // position "au repos" (la secousse oscille autour)
-let zoom = +(localStorage.getItem("hash_zoom")) || 1;           // facteur de zoom (pinch a 2 doigts)
+let zoom = +(localStorage.getItem("cw_zoom")) || 1;           // facteur de zoom (pinch a 2 doigts)
 zoom = Math.max(0.6, Math.min(2.6, zoom));
 
 function fitView() {
@@ -433,18 +433,18 @@ let mode = "cut";    // "cut" (coupe) | "wrap" (emballage)
 // --- Version de sauvegarde : on bump apres un gros rééquilibrage pour repartir
 // de zero. Si la version stockee differe, on efface la progression (une fois). ---
 const SAVE_VERSION = "3";
-if (localStorage.getItem("hash_ver") !== SAVE_VERSION) {
-  ["hash_cash", "hash_waste", "hash_level", "hash_xp", "hash_shop"].forEach(k => localStorage.removeItem(k));
-  localStorage.setItem("hash_ver", SAVE_VERSION);
+if (localStorage.getItem("cw_ver") !== SAVE_VERSION) {
+  ["cw_cash", "cw_waste", "cw_level", "cw_xp", "cw_shop"].forEach(k => localStorage.removeItem(k));
+  localStorage.setItem("cw_ver", SAVE_VERSION);
 }
 
-let cash = +(localStorage.getItem("hash_cash") || 0);     // € sauvegardes
-let wasteGrams = +(localStorage.getItem("hash_waste") || 0); // dechets accumules (g)
-let level = Math.max(1, +(localStorage.getItem("hash_level") || 1)); // niveau joueur
-let xp    = Math.max(0, +(localStorage.getItem("hash_xp") || 0));    // XP dans le niveau courant
-let savSize = +(localStorage.getItem("hash_savsize") || 250);       // taille savonnette courante (g)
-let caliber = +(localStorage.getItem("hash_caliber") || 5);         // calibre de dose choisi (g)
-let doseMethod = localStorage.getItem("hash_dosemethod") || "hachoir"; // methode de dosage
+let cash = +(localStorage.getItem("cw_cash") || 0);     // € sauvegardes
+let wasteGrams = +(localStorage.getItem("cw_waste") || 0); // dechets accumules (g)
+let level = Math.max(1, +(localStorage.getItem("cw_level") || 1)); // niveau joueur
+let xp    = Math.max(0, +(localStorage.getItem("cw_xp") || 0));    // XP dans le niveau courant
+let savSize = +(localStorage.getItem("cw_savsize") || 250);       // taille savonnette courante (g)
+let caliber = +(localStorage.getItem("cw_caliber") || 5);         // calibre de dose choisi (g)
+let doseMethod = localStorage.getItem("cw_dosemethod") || "hachoir"; // methode de dosage
 const stock = { g: 0, qsum: 0 };   // barrettes coupees en attente de dosage (g + qualite ponderee)
 const wrap = { slice:null, film:null, pct:0, shownPct:0, phase:"", t0:0, tSell:0,
                spin:0, spinTarget:0, filmScale:1.32, focus:new THREE.Vector3() };
@@ -466,7 +466,7 @@ function loadLoaf(sizeG) {
   for (const c of crumbs) scene.remove(c.mesh);
   crumbs.length = 0;
 
-  savSize = sizeG; if (!PROLOGUE) localStorage.setItem("hash_savsize", String(sizeG));
+  savSize = sizeG; if (!PROLOGUE) localStorage.setItem("cw_savsize", String(sizeG));
   const r = Math.min(L, sizeG / PER_LEN);
   rightNeg = r; rightPos = r;
   count = 0; over = false;
@@ -872,13 +872,13 @@ const ui = {
 
 function setCash(v) {
   cash = v;
-  localStorage.setItem("hash_cash", String(Math.round(cash)));
+  localStorage.setItem("cw_cash", String(Math.round(cash)));
   ui.cash.textContent = "💶 " + Math.round(cash) + " €";
   if (ui.shop.classList.contains("show")) renderShop(); // garde la boutique a jour
 }
 function setWaste(v) {
   wasteGrams = Math.max(0, v);
-  localStorage.setItem("hash_waste", String(Math.round(wasteGrams)));
+  localStorage.setItem("cw_waste", String(Math.round(wasteGrams)));
   ui.waste.textContent = "🗑️ " + Math.round(wasteGrams) + " g";
 }
 function addWaste(g) { setWaste(wasteGrams + g); }
@@ -901,8 +901,8 @@ function addXP(n) {
     const ac = ensureAudio();
     if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(880, t + 0.08, 0.1, 0.2); beep(1180, t + 0.16, 0.16, 0.22); }
   }
-  localStorage.setItem("hash_level", String(level));
-  localStorage.setItem("hash_xp", String(Math.round(xp)));
+  localStorage.setItem("cw_level", String(level));
+  localStorage.setItem("cw_xp", String(Math.round(xp)));
   updateXpUI();
 }
 
@@ -934,7 +934,7 @@ function startPinch() {
 }
 function updatePinch() {
   zoom = Math.max(0.6, Math.min(2.6, pinchStartZoom * (pinchDist() / pinchStartDist)));
-  localStorage.setItem("hash_zoom", zoom.toFixed(3));
+  localStorage.setItem("cw_zoom", zoom.toFixed(3));
   fitView();
 }
 
@@ -1108,11 +1108,11 @@ const dose = { active:false, method:"hachoir", cursor:0, dir:1, cal:5, grade:"B"
                made:0, combo:0, earn:0, cur:0 };
 
 function setCaliber(c) {
-  caliber = c; localStorage.setItem("hash_caliber", String(c));
+  caliber = c; localStorage.setItem("cw_caliber", String(c));
   for (const b of document.querySelectorAll(".calbtn")) b.classList.toggle("on", +b.dataset.cal === c);
 }
 function setMethod(m) {
-  doseMethod = m; localStorage.setItem("hash_dosemethod", m);
+  doseMethod = m; localStorage.setItem("cw_dosemethod", m);
   for (const b of document.querySelectorAll(".methbtn")) b.classList.toggle("on", b.dataset.meth === m);
 }
 
@@ -1320,13 +1320,13 @@ function showToast(msg, color) {
    l'emballe/vend automatiquement (serrage fixe 1.0, donc un peu moins
    rentable que l'emballage manuel soigne). Amelioration "Cadence +".
    ------------------------------------------------------------------------- */
-const owned = JSON.parse(localStorage.getItem("hash_shop") || "{}");
+const owned = JSON.parse(localStorage.getItem("cw_shop") || "{}");
 owned.autowrap = owned.autowrap || 0;
 owned.cadence  = owned.cadence  || 0;
 owned.autocut  = owned.autocut  || 0;   // massicot automatique (decoupe passive)
 owned.affut    = owned.affut    || 0;   // affutage : cadence du massicot
 owned.guide    = owned.guide    || 0;   // gabarit : elargit la zone verte du mini-jeu
-function saveShop() { localStorage.setItem("hash_shop", JSON.stringify(owned)); }
+function saveShop() { localStorage.setItem("cw_shop", JSON.stringify(owned)); }
 function gradeMult(g) { return g === "A" ? 1.5 : g === "B" ? 1.0 : 0.6; }
 function mInterval() { return 3.2 * Math.pow(0.82, owned.cadence); } // s entre deux barrettes
 
