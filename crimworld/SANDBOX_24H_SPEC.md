@@ -23,6 +23,17 @@ Changements actés :
   `postMessage` → inventaire. Mécanisme commun aux 3 : batch → inventaire → doses.
 - **Priorité de build** : l'app **darkweb TOR/Silk Road** (réassort) en premier.
 
+### Messagerie — tout passe par les DM (Snap + Darkweb)
+- **Snap (aval)** : tu postes ta **story** (vitrine) → les clients te **DM** au fil
+  de la journée pour acheter → tu sers depuis ton stock. La demande = des
+  ÉVÉNEMENTS DM étalés (pilotés par réput/expo), pas un plafond vidable d'un coup
+  → corrige le temps mort. Rupture = clients non servis (tracé dans Metrics).
+- **Darkweb (amont)** : mise en relation + **négociation** avec les semi-grossistes
+  par messages (envoyer / répondre / négocier). Accès **GATÉ par réput/standing** :
+  trop bas → tu te fais **basher** ; au niveau requis → **invitation à te connecter**
+  (déblocage du tier). ⚠️ standing = une réput DE RELATION (hors périmètre d'origine,
+  ajout assumé pour la sandbox).
+
 ### Chaîne d'approvisionnement (2 paliers)
 **Palier 1 — solo (en cours).** `semi-grossiste (Darkweb) → Labo (toi) → Snap
 (vente directe, petites quantités)`. La vente passe par TA vitrine ; tu écoules
