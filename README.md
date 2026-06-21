@@ -64,4 +64,10 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). Chaî
 
 ### 🧪 Green Front v2 (fork « lab »)
 
-`green-front-v2/` est un **fork bac-à-sable** de Green Front : copie conforme de la core loop, destinée à **tester une nouvelle mécanique sans toucher à l'original**. Sa sauvegarde est **isolée** (préfixe `localStorage` `gf2_` au lieu de `gf_`) — les deux protos coexistent sans écraser leurs parties. Un badge `🧪 v2 · lab` (et le tag « labo » du hub) le distingue. En ligne : **https://nobletsylvain.github.io/prototypes/green-front-v2/**.
+`green-front-v2/` est un **fork bac-à-sable** de Green Front, transformé en **banc d'essai de mini-jeux** : on y teste des mécaniques tactiles en isolé (menu → un mini-jeu → rejouer), sans toucher à la core loop d'origine (intacte dans `green-front/`). Trois mini-jeux à mécaniques volontairement différentes :
+
+- 🌿 **Effeuillage** — *glisser* le doigt le long de la branche pour détacher les têtes (lent & précis = A premium, trop vite = trim).
+- ⚖️ **Dosage balance** — *maintenir pour verser, lâcher* pile au bon poids (le débit s'emballe, l'inertie piège, le dépassement coûte cher).
+- ✂️ **Trim express** — *réflexe* : couper les feuilles qui poussent sans toucher la tête, avant qu'elles durcissent.
+
+2D canvas + DOM, zéro dépendance, records en `localStorage` (préfixe **`gf2_`**, isolé de Green Front `gf_`). Badge `🧪 v2 · lab` + tag « labo » du hub. En ligne : **https://nobletsylvain.github.io/prototypes/green-front-v2/**.
