@@ -29,9 +29,6 @@ fichier `index.html` (HTML + CSS + un module JS), Three.js chargé via import-ma
 
 - Un core loop = un dossier avec son `index.html` (JS en `<script type="module">`).
   Le hub racine `index.html` ne fait que lister/linker les protos.
-- Nouveau core loop : créer `un-nouveau-dossier/index.html` et l'ajouter au hub.
-  Utiliser un **préfixe localStorage distinct** par proto (sinon collisions :
-  Barrettes Shit utilise `hash_*`).
 - Vérifier la syntaxe avant de pousser :
   ```bash
   # extraire le module et le passer à node --check (voir l'historique des PRs)
@@ -40,6 +37,41 @@ fichier `index.html` (HTML + CSS + un module JS), Three.js chargé via import-ma
 - Barrettes Shit : persistance via `localStorage` (`hash_*`). La clé `hash_ver`
   force un reset propre : **bumper `SAVE_VERSION`** dans
   `barrettes-shit/index.html` après un gros rééquilibrage.
+
+## Ajouter un nouveau core loop (checklist)
+
+À suivre dans l'ordre pour rester cohérent avec la structure :
+
+1. **Dossier + page** : créer `<slug>/index.html` (slug en kebab-case, ex.
+   `mon-idee/`). Partir d'un proto existant comme base si utile
+   (`barrettes-shit/index.html`).
+2. **Hub** : ajouter une carte dans le `/index.html` racine, qui pointe vers le
+   nouveau dossier :
+   ```html
+   <a class="card" href="./<slug>/">
+     <div class="ic">🎲</div>
+     <div><div class="nm">Nom du proto</div><div class="ds">Pitch en une ligne.</div></div>
+     <span class="tag live">jouable</span>
+   </a>
+   ```
+3. **localStorage** : utiliser un **préfixe unique** par proto (ex. `<slug>_…`)
+   pour éviter les collisions de sauvegarde entre boucles (Barrettes Shit
+   utilise `hash_*`). Prévoir une clé de version (`<slug>_ver`) + une constante
+   `SAVE_VERSION` pour forcer un reset propre après un gros rééquilibrage.
+4. **Three.js** : charger via import-map comme les autres, JS en module :
+   ```html
+   <script type="importmap">
+   { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+   </script>
+   ```
+   (L'outil de captures sert Three.js depuis `tools/vendor/` — garder la même
+   version, sinon mettre à jour le vendor : voir `tools/README.md`.)
+5. **Vérifier la syntaxe** : extraire le module et `node --check` (voir ci-dessous).
+6. **Captures** : `cd tools && npm install && node screenshots.mjs <slug>/index.html`.
+   ⚠️ Les *interactions* du script (coupe/boutique/dosage) sont propres à
+   Barrettes Shit ; pour un autre proto, au minimum la capture de base marche,
+   adapter les clics si besoin.
+7. **Commit/PR** sur la branche de la session, puis merge dans `main`.
 
 ## Voir le rendu (captures d'écran)
 
