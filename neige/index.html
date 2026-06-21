@@ -504,9 +504,10 @@ function addShake(a) { shake = Math.min(0.6, shake + a); }
    10) POCHONS (sachets zip carrés plats, alignés sur la table façon DDS)
    ------------------------------------------------------------------------- */
 const POCHON_SIZE = { 1: 0.8, 5: 1.15, 25: 1.5 };    // 1 g petit · 5 g plus grand · 25 g briquette
-const MAXPILE = 10;
-const pochonZipMat = new THREE.MeshStandardMaterial({ color: 0x2bb6c4, roughness: 0.4 });
-const pochonBagMat = new THREE.MeshStandardMaterial({ color: 0xf2f7fc, transparent: true, opacity: 0.86, roughness: 0.35, metalness: 0.05 });
+const COL_H = 6, COLS = 4;                            // 6 pochons / colonne, 4 colonnes (l'une derrière l'autre)
+const pochonZipMat = new THREE.MeshStandardMaterial({ color: 0x2bb6c4, roughness: 0.3 });
+// Sachet plastique : translucide + brillant (faible rugosité -> reflets plastique).
+const pochonBagMat = new THREE.MeshStandardMaterial({ color: 0xeaf4fb, transparent: true, opacity: 0.55, roughness: 0.1, metalness: 0.08, side: THREE.DoubleSide });
 function makePochon() {
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.3), pochonBagMat);
@@ -515,16 +516,17 @@ function makePochon() {
   zip.position.set(0, 0.06, 0.13); g.add(zip);
   return g;
 }
-// Trois TAS de pochons sur la droite de la table : un par format (1 / 5 / 25 g).
-// Chaque vente empile un sachet (taille selon le format) ; le tas se vide et
-// repart quand il est plein (lot « expédié »).
+// Trois files de tas sur la droite (une par format). Une colonne monte jusqu'à
+// COL_H, puis une nouvelle se forme DERRIÈRE — on ne repart de zéro qu'une fois
+// les COLS colonnes pleines (lot « expédié »).
 const PILES = {};
-[ { f:1, z:1.2 }, { f:5, z:1.95 }, { f:25, z:2.75 } ].forEach(cfg => {
+[ { f:1, x:1.25 }, { f:5, x:1.78 }, { f:25, x:2.3 } ].forEach(cfg => {
   const size = POCHON_SIZE[cfg.f], thick = 0.05 * size + 0.02;
   const pile = { idx:0, size, items:[] };
-  for (let i = 0; i < MAXPILE; i++) {
+  for (let i = 0; i < COL_H * COLS; i++) {
+    const col = Math.floor(i / COL_H), h = i % COL_H;
     const g = makePochon();
-    g.position.set(1.62 + (Math.random()-0.5)*0.06, 0.02 + i * thick, cfg.z + (Math.random()-0.5)*0.06);
+    g.position.set(cfg.x + (Math.random()-0.5)*0.05, 0.02 + h * thick, 2.5 - col * 0.46 + (Math.random()-0.5)*0.05);
     g.rotation.y = (Math.random()-0.5) * 0.4;
     g.visible = false; g.scale.setScalar(0.001); scene.add(g);
     pile.items.push({ grp: g, pop: 0 });
@@ -533,8 +535,8 @@ const PILES = {};
 });
 function popPochon(f) {
   const pile = PILES[f] || PILES[1];
-  const slot = pile.idx % MAXPILE;
-  if (slot === 0 && pile.idx > 0) for (const it of pile.items) it.grp.visible = false;  // tas plein -> on repart
+  const slot = pile.idx % (COL_H * COLS);
+  if (slot === 0 && pile.idx > 0) for (const it of pile.items) it.grp.visible = false;  // tout plein -> on repart
   const it = pile.items[slot]; it.grp.visible = true; it.pop = 0; pile.idx++;
 }
 function updatePochons(dt) {
