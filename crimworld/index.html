@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>CrimWorld — La Bascule (prologue)</title>
+<title>CrimWorld — prologue (autonome)</title>
 <style>
   /* =========================================================================
      MAQUETTE CLIQUABLE — prologue "Snapshit".
@@ -626,7 +626,7 @@ function openEtabli(){
       fr.addEventListener("load", () => {             // re-fit la scene une fois chargee & visible
         try { fr.contentWindow.dispatchEvent(new Event("resize")); } catch (e) {}
       }, { once: true });
-      fr.src = "../hash-slicer/index.html#embed=prologue";
+      fr.src = "./coupe.html#embed=prologue";
     } else {
       try { fr.contentWindow.dispatchEvent(new Event("resize")); } catch (e) {}
     }
