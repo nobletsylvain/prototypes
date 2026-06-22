@@ -133,10 +133,14 @@ conséquences*, pas dans le *texte*. **Aucune règle de sim n'est touchée.**
 
 ### 4b. Le ton EST la jauge de réput opaque
 §8.4 sandbox = réput **totalement opaque**. On **supprime le compteur exact**
-(`40 + réput×6` est une fuite) et on le remplace par le **registre des
-réactions** : chaleureux / neutre / méfiant / hostile selon la tendance de
-réput. Le joueur *sent* sa cote dans la manière dont on lui parle, ne lit aucun
-chiffre. Le feed devient la jauge diégétique.
+(`40 + réput×6` est une fuite) et on le remplace par le **ton des réactions** :
+chaleureux / neutre / méfiant / hostile selon la tendance de réput. Le joueur
+*sent* sa cote dans la manière dont on lui parle, ne lit aucun chiffre. Le feed
+devient la jauge diégétique.
+
+> Note de vocabulaire : ce **ton** (chaleur de la réaction) ≠ le **registre**
+> linguistique du dico (`cite`/`rap`/`verlan`/`prison`…, §4g). Le ton vient de
+> l'état ; le registre vient du choix éditorial/de la voix.
 
 ### 4c. Une troupe de voix récurrentes (pas des strings jetables)
 Des **personnages persistants** (archétypes : l'accro, la comtesse, le
@@ -160,28 +164,42 @@ Le WTF **porte** la cause, ne l'enterre jamais. Comédie au service de la
 lisibilité de la trace, jamais l'inverse. L'edge gratuit lasse ; ce qui tient,
 ce sont les **personnages qui reviennent**, pas les vannes choc isolées.
 
-### 4g. Matériau-amorce : le dictionnaire déjà commencé
-Le « dictionnaire des codes de la rue » existe **déjà**, mais **éparpillé inline**
-dans le prologue scripté `crimworld/index.html` : pools de commentaires du block
-(ex. *« ta vitrine tourne fort frérot 🔥 »*, *« c'est qui le patron du C
-maintenant ? »*, story de Momo ~l.1263) et DM des acheteurs (le Terrain : *« wesh
-c'est les petits du bâtiment 4, on prend en gros »* ~l.1289). C'est la graine du
-ton — à **ne pas réinventer**.
+### 4g. Deux couches : le DICO (vocabulaire) + les VOIX (phrases)
 
-Reco : **centraliser** ce matériau en un lexique **structuré** (présentation
-pure, donc hors invariants), plutôt qu'en strings dispersées. Schéma proposé :
+Il existe **déjà** un asset transverse — **ne pas réinventer** :
+
+- **`slang/dico-trafic.json`** (+ `slang/README.md`), sur `main` ; en ligne :
+  `https://nobletsylvain.github.io/prototypes/slang/`. **29 concepts / 410
+  termes / 8 langues** (`fr, en-US, en-GB, es, it, de, nl, pt-BR`), registres
+  `courant/cite/rap/verlan/police/regional/prison`. Schéma :
+  `concepts[CLÉ].terms[langue][] → { term, register?, region?, note? }`
+  (ex. `SELL_POINT` → `four`, `charbon`, `trap`, `boca`…). Son README pose déjà
+  l'alignement invariant (**présentation only**, aucun terme ne pilote l'état).
+
+C'est la couche **VOCABULAIRE** (comment *nommer* : noms de lieux, rôles,
+produit, came, thune…) **+ i18n**. Elle n'est PAS la couche voix.
+
+La spec ajoute la couche **VOIX / PHRASES** (ce que le block *dit*), **mince et
+posée par-dessus le dico** — elle pioche les noms dans le dico → argot crédible
+et localisé gratuitement. Schéma proposé :
 
 ```text
-voix:    { id, archétype, avatar, registre_par_défaut }     // la troupe (§4c)
-phrases: { registre: 'chaleureux'|'neutre'|'méfiant'|'hostile',
-           contexte: 'drop'|'qualité_basse'|'volume'|'cry_wolf'|'ambiant',
-           texte }                                          // pioché par état (§4b)
+voix:    { id, archétype, avatar, registre_dico }   // la troupe (§4c) ;
+                                                     // registre_dico ∈ registres du dico
+phrases: { ton: 'chaleureux'|'neutre'|'méfiant'|'hostile',   // pioché par état (§4b)
+           contexte: 'drop'|'qualité_basse'|'volume'|'cry_wolf'|'ambiant', // mappe §5
+           gabarit }   // gabarit à trous : « {SELL_POINT} tourne fort frérot 🔥 »
 callbacks: { cause_code, gabarit }   // rappel d'une décision passée → trace (§4c/§4e)
 ```
 
-Le `registre` est choisi par l'état (réput/expo) = la jauge opaque (§4b) ; le
-`contexte` mappe les codes de cause (§5) ; les `callbacks` rendent les voix
-« qui se souviennent ». Aucune logique de jeu là-dedans : juste du texte indexé.
+Clés : le `ton` vient de l'**état** (jauge opaque, §4b) ; le `registre_dico`
+vient de la **voix/éditorial** ; les **trous `{CONCEPT}`** sont résolus depuis
+`dico-trafic.json` selon la locale → i18n du flavour offerte. Aucune logique de
+jeu : juste du texte indexé.
+
+> Le matériau brut existe aussi **inline** dans le prologue `crimworld/index.html`
+> (commentaires du block ~l.1263, DM du Terrain ~l.1289) : à **migrer** vers ce
+> schéma de phrases, en pointant ses noms vers les concepts du dico.
 
 ---
 
@@ -275,5 +293,7 @@ Ce lot social se branche sur les lots de la sandbox :
 3. **Drop** : un **seul système** drop générique + drop ciblé (§3d) — ok ?
 4. **Périmètre du ton** : jusqu'où pousse-t-on le WTF / langage cru (curseur
    éditorial) ? (§4f garde-fou : la comédie ne doit pas noyer la trace)
-5. **Lexique** : on **centralise** le dictionnaire amorcé (§4g) en data
-   structurée (voix × registre × contexte × callbacks) — confirmé ?
+5. **Lexique** : on réutilise `slang/dico-trafic.json` comme couche
+   **vocabulaire** (i18n) et on bâtit la couche **voix/phrases** par-dessus
+   (gabarits à trous `{CONCEPT}`, §4g) — confirmé ? (le dico est sur `main`,
+   pas encore lié au hub ni branché dans un proto)
