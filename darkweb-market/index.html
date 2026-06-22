@@ -69,6 +69,7 @@
   .wallet .cash b{color:var(--onion)}
   .wallet .stock b{color:var(--text)}
   .wallet .qual b{color:var(--gold)}
+  .wallet .debt b{color:var(--rust)}
 
   /* ---- filtres famille + tri ---- */
   .filters{flex:none;display:flex;gap:6px;padding:9px 12px 3px;overflow-x:auto}
@@ -165,11 +166,24 @@
   .desc .warn{color:var(--gold)} .desc .good{color:var(--onion)}
   .qtitle{font:700 11px var(--sans);color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px}
   .qtys{display:flex;gap:7px;margin-bottom:13px}
-  .qty{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:9px 4px;
+  .qtys{flex-wrap:wrap}
+  .qty{flex:1 1 28%;background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:9px 4px;
        text-align:center;cursor:pointer;transition:border-color .12s}
   .qty.on{border-color:var(--onion);background:rgba(127,191,77,.1)}
+  .qty.locked{opacity:.55;border-style:dashed}
   .qty .g{font:800 14px var(--mono)}
   .qty .e{font:600 10px var(--mono);color:var(--faint);margin-top:2px}
+  /* forme (weed) + crédit */
+  .forms{display:flex;gap:7px;margin-bottom:13px}
+  .formopt{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:9px 10px;cursor:pointer}
+  .formopt.on{border-color:var(--onion);background:rgba(127,191,77,.1)}
+  .formopt b{display:block;font:800 12px var(--sans)}
+  .formopt span{font:600 10px var(--mono);color:var(--faint)}
+  .credit{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 11px;cursor:pointer;
+       background:var(--surface2);border:1px solid var(--border);border-radius:11px;font:700 12px var(--sans);color:var(--text)}
+  .credit input{width:16px;height:16px;accent-color:var(--gold)}
+  .credit span{font:600 10px var(--mono);color:var(--faint)}
+  .credithint{margin-top:10px;font:600 10px var(--mono);color:var(--faint);text-align:center}
   .recap{display:flex;justify-content:space-between;align-items:baseline;font:600 12px var(--sans);
        color:var(--muted);margin-bottom:4px}
   .recap b{font:800 15px var(--mono);color:var(--text)}
@@ -248,16 +262,12 @@
     </div>
   </div>
 
-  <div class="wallet">
-    <div class="seg cash"><div class="k">Cash</div><b id="w-cash">—</b></div>
-    <div class="seg stock"><div class="k">Stock brut</div><b id="w-stock">—</b></div>
-    <div class="seg qual"><div class="k">Qualité moy.</div><b id="w-qual">—</b></div>
-  </div>
+  <div class="wallet" id="wallet"></div>
 
   <div class="filters" id="filters">
     <div class="chip on" data-f="all">Tout</div>
     <div class="chip" data-f="resine">Résine</div>
-    <div class="chip" data-f="extraction">Extraction</div>
+    <div class="chip" data-f="extraction">Concentrés</div>
     <div class="chip" data-f="weed">Weed</div>
     <div class="chip fav" data-f="fav">★ Favoris</div>
   </div>
@@ -289,12 +299,11 @@ import * as THREE from 'three';
    DONNÉES — roster FIXE (constantes nommées). Aucun tirage ne pilote l'état.
    family : resine | extraction | weed   ·   tier : cheap | mid | premium
    =========================================================================== */
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 const KEY = 'dw_state';
 const START_CASH = 1600;
-const BULK_G = 100;              // volume à partir duquel s'ajoute la remise « gros volume »
 
-const FAMILIES = { resine:'Résine', extraction:'Extraction', weed:'Weed' };
+const FAMILIES = { resine:'Résine', extraction:'Concentrés', weed:'Weed' };
 
 const SUPPLIERS = [
   // ---- Résine (hash pressé) ----
@@ -336,8 +345,16 @@ const byId = id => SUPPLIERS.find(s => s.id === id);
 /* ----- fonctions DÉTERMINISTES (cœur du design) ----- */
 const reliab   = r => Math.min(1, 0.5 + 0.1 * r);                 // fiabilité 0..1 depuis le rating
 const realQual = s => Math.round(s.annoncee * reliab(s.rating));  // qualité réelle livrée
-const negoCap  = { cheap:18, mid:12, premium:8 };                 // plafond de remise par tier
+const capPct   = { cheap:32, mid:24, premium:14 };                // plafond de remise par tier
 const negoBonus= { cheap:8,  mid:5,  premium:2 };                 // remise débloquée par la négociation
+// remise « gros volume » — c'est là que se font les meilleures affaires, surtout
+// en cheap/moyen (bas/moyen de gamme). Le premium ne brade presque pas.
+const BULK = {
+  cheap:   [[1000,16],[500,11],[250,7],[100,3]],
+  mid:     [[1000,12],[500,9],[250,6],[100,3]],
+  premium: [[2000,7],[1000,5],[500,2]],
+};
+function bulkPct(s,g){ for(const [t,p] of BULK[s.tier]) if(g>=t) return p; return 0; }
 // palier de fidélité depuis le nombre de commandes passées chez ce fournisseur
 function loyalty(count){
   if(count >= 10) return { lvl:'régulier', pct:8 };
@@ -345,24 +362,39 @@ function loyalty(count){
   if(count >= 2)  return { lvl:'connu',    pct:2 };
   return { lvl:'nouveau', pct:0 };
 }
+// rang de réputation (gate les grosses quantités)
+function repRank(s){ const c = rel(s.id).count; return c>=10?3 : c>=5?2 : c>=2?1 : 0; }
+// échelle de quantités par tier/famille. Le haut de gamme ne se vend qu'en
+// gros (250 g→2 kg) ; la weed part de 250 g ; les très grosses quantités
+// exigent de la réputation.
+function qtyBase(s){
+  if(s.family === 'weed')    return [250,500,1000,2000];
+  if(s.tier === 'premium')   return [250,500,1000,2000];
+  if(s.tier === 'mid')       return [50,100,250,500,1000];
+  return [50,100,250,500,1000];                                   // cheap
+}
+const qtyReq = g => g>=2000?3 : g>=1000?2 : g>=500?1 : 0;          // rang de répu requis
+function qtyLadder(s){ return qtyBase(s).map(g => ({ g, need:qtyReq(g), locked: repRank(s) < qtyReq(g) })); }
+// crédit : débloqué une fois la relation établie (habitué), jamais sur le premium
+function creditOK(s){ return s.tier !== 'premium' && rel(s.id).count >= 5; }
+// facteur de prix selon la forme (weed branchage = brut, moins cher)
+const formFactor = (s, form) => (s.family === 'weed' && form === 'branchage') ? 0.7 : 1;
 // remise debout (hors volume) : fidélité + négo si débloquée, plafonnée par tier
 function standingPct(s){
   const r = rel(s.id);
-  const raw = loyalty(r.count).pct + (r.deal ? negoBonus[s.tier] : 0);
-  return Math.min(negoCap[s.tier], raw);
+  return Math.min(capPct[s.tier], loyalty(r.count).pct + (r.deal ? negoBonus[s.tier] : 0));
 }
 // remise effective pour une commande de g grammes
 function orderPct(s, g){
   const r = rel(s.id);
-  const raw = loyalty(r.count).pct + (r.deal ? negoBonus[s.tier] : 0) + (g >= BULK_G ? 3 : 0);
-  return Math.min(negoCap[s.tier], raw);
+  return Math.min(capPct[s.tier], loyalty(r.count).pct + (r.deal ? negoBonus[s.tier] : 0) + bulkPct(s, g));
 }
-const effEurG = (s, g) => s.eurG * (1 - orderPct(s, g) / 100);
+const effEurG = (s, g, form) => s.eurG * formFactor(s, form) * (1 - orderPct(s, g) / 100);
 
 /* ===========================================================================
    ÉTAT + persistance
    =========================================================================== */
-const DEFAULT = () => ({ v:SAVE_VERSION, cash:START_CASH, stockG:0, qualSum:0, receipts:[], favs:[], rel:{} });
+const DEFAULT = () => ({ v:SAVE_VERSION, cash:START_CASH, stockG:0, qualSum:0, debt:0, receipts:[], favs:[], rel:{} });
 function load(){
   try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.v === SAVE_VERSION) return s; }catch(e){}
   return DEFAULT();
@@ -382,25 +414,74 @@ const avgQual = () => S.stockG > 0 ? Math.round(S.qualSum / S.stockG) : 0;
    =========================================================================== */
 const seeded = i => { const x = Math.sin(i*127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 const qOf = pct => Math.max(0, Math.min(1, (pct - 50) / 46));   // qualité % -> 0..1 visuel
+const _cl = v => Math.max(0, Math.min(255, v|0));
 
-function makeProduct(family, pct){
+// --- grain procédural multi-échelle (marbrures + grain fin + impuretés), repris
+//     de guitar-shito : c'est ce qui rend la résine crédible (pas une couleur plate).
+function grainTex(r,g,b,contrast,spots){
+  const S=128, c=document.createElement('canvas'); c.width=c.height=S; const x=c.getContext('2d');
+  x.fillStyle='rgb('+(r|0)+','+(g|0)+','+(b|0)+')'; x.fillRect(0,0,S,S);
+  for(let i=0;i<20;i++){                                   // marbrures (pressage irrégulier)
+    const rx=seeded(i*3)*S, ry=seeded(i*5)*S, rad=S*(0.06+seeded(i*7)*0.16), d=(seeded(i*9)-0.5)*contrast;
+    const rgb=_cl(r+d)+','+_cl(g+d)+','+_cl(b+d*0.9);
+    const grd=x.createRadialGradient(rx,ry,0,rx,ry,rad);
+    grd.addColorStop(0,'rgba('+rgb+',0.42)'); grd.addColorStop(1,'rgba('+rgb+',0)');
+    x.fillStyle=grd; x.fillRect(0,0,S,S);
+  }
+  const img=x.getImageData(0,0,S,S), d=img.data;          // grain fin
+  for(let i=0;i<d.length;i+=4){ const n=(Math.random()-0.5)*contrast; d[i]=_cl(d[i]+n); d[i+1]=_cl(d[i+1]+n); d[i+2]=_cl(d[i+2]+n); }
+  x.putImageData(img,0,0);
+  for(let k=0;k<spots;k++){                                // impuretés pressées
+    x.fillStyle='rgba(20,12,6,'+(Math.random()*0.22)+')';
+    x.beginPath(); x.arc(Math.random()*S,Math.random()*S,Math.random()*1.6+0.5,0,6.283); x.fill();
+  }
+  const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(1.5,1.5); t.anisotropy=4; return t;
+}
+// bump map partagé : micro-relief de résine pressée
+const resinBump = (()=>{
+  const S=128, c=document.createElement('canvas'); c.width=c.height=S; const x=c.getContext('2d');
+  x.fillStyle='#808080'; x.fillRect(0,0,S,S);
+  for(let i=0;i<40;i++){ const rx=Math.random()*S, ry=Math.random()*S, rad=S*(0.03+Math.random()*0.1), v=Math.random()<0.5?0:255, a=0.1+Math.random()*0.22;
+    const grd=x.createRadialGradient(rx,ry,0,rx,ry,rad); grd.addColorStop(0,'rgba('+v+','+v+','+v+','+a+')'); grd.addColorStop(1,'rgba('+v+','+v+','+v+',0)');
+    x.fillStyle=grd; x.fillRect(0,0,S,S); }
+  const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(1.5,1.5); return t;
+})();
+// rectangle arrondi + plaque extrudée biseautée (plaque de hash plate à coins ronds)
+function roundedRect(w,h,r){
+  const s=new THREE.Shape(), x=-w/2, y=-h/2;
+  s.moveTo(x+r,y); s.lineTo(x+w-r,y); s.quadraticCurveTo(x+w,y,x+w,y+r);
+  s.lineTo(x+w,y+h-r); s.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  s.lineTo(x+r,y+h); s.quadraticCurveTo(x,y+h,x,y+h-r);
+  s.lineTo(x,y+r); s.quadraticCurveTo(x,y,x+r,y); return s;
+}
+function roundedSlab(w,len,thick,r){
+  const b=r*0.6;
+  const geo=new THREE.ExtrudeGeometry(roundedRect(w,len,r),
+    { depth:Math.max(0.02,thick-2*b), bevelEnabled:true, bevelThickness:b, bevelSize:b, bevelSegments:2, steps:1 });
+  geo.center(); geo.rotateX(-Math.PI/2); geo.computeVertexNormals(); return geo;
+}
+
+function makeProduct(family, pct, form){
   const q = qOf(pct), g = new THREE.Group();
   if(family === 'resine'){
-    // hash pressé : MeshPhysical + clearcoat (gras huileux qui monte avec la qualité)
-    const col = new THREE.Color().lerpColors(new THREE.Color('#3a2414'), new THREE.Color('#c08a33'), q);
-    const brick = new THREE.Mesh(new THREE.BoxGeometry(1.5,0.55,1.0),
-      new THREE.MeshPhysicalMaterial({ color:col, roughness:0.62-0.30*q, metalness:0.0,
-        clearcoat:0.2+0.6*q, clearcoatRoughness:0.45-0.2*q, envMapIntensity:0.85 }));
-    g.add(brick);
-    const stamp = new THREE.Mesh(new THREE.BoxGeometry(0.55,0.03,0.55),
-      new THREE.MeshPhysicalMaterial({ color:col.clone().multiplyScalar(0.6), roughness:0.7, envMapIntensity:0.6 }));
-    stamp.position.y = 0.29; g.add(stamp);
-    // miettes (plus nombreuses en basse qualité = produit sale)
-    const crumbs = Math.round(8*(1-q));
+    // plaque de hash pressée : slab arrondi + grain multi-échelle + bump + lustre.
+    const lo = new THREE.Color(46/255,31/255,18/255), hi = new THREE.Color(150/255,112/255,56/255);
+    const base = lo.clone().lerp(hi, q);
+    const grain = grainTex(base.r*255, base.g*255, base.b*255, 34, Math.round(50 + (1-q)*200));
+    const mat = new THREE.MeshPhysicalMaterial({ map:grain, bumpMap:resinBump, bumpScale:0.5,
+      roughness:0.62-0.30*q, metalness:0.06, clearcoat:0.15+0.55*q, clearcoatRoughness:0.5-0.25*q, envMapIntensity:0.95 });
+    const slab = new THREE.Mesh(roundedSlab(1.7,1.25,0.34,0.16), mat); g.add(slab);
+    // estampe pressée au centre
+    const stampMat = new THREE.MeshPhysicalMaterial({ map:grain, bumpMap:resinBump, bumpScale:0.9,
+      color:new THREE.Color(0.6,0.55,0.5), roughness:0.5, clearcoat:0.3 });
+    const stamp = new THREE.Mesh(roundedSlab(0.6,0.6,0.06,0.1), stampMat); stamp.position.y=0.16; g.add(stamp);
+    // miettes (plus nombreuses en basse qualité)
+    const crumbs = Math.round(7*(1-q));
     for(let i=0;i<crumbs;i++){
       const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.05+seeded(i)*0.05,0),
-        new THREE.MeshStandardMaterial({ color:col.clone().multiplyScalar(0.8), roughness:0.95, flatShading:true }));
-      c.position.set((seeded(i*3)-0.5)*1.7, -0.27, (seeded(i*7)-0.5)*1.2); g.add(c);
+        new THREE.MeshStandardMaterial({ map:grain, roughness:0.95, flatShading:true }));
+      c.position.set((seeded(i*3)-0.5)*1.85, -0.16, (seeded(i*7)-0.5)*1.35);
+      c.rotation.set(seeded(i)*3, seeded(i*2)*3, 0); g.add(c);
     }
   } else if(family === 'extraction'){
     // cristaux : MeshPhysical + transmission (translucidité vitreuse ∝ qualité)
@@ -417,18 +498,30 @@ function makeProduct(family, pct){
       m.rotation.set(seeded(i)*3, seeded(i*2)*3, seeded(i*4)*3); g.add(m);
     }
   } else { // weed
-    // têtes : MeshPhysical + sheen (velours), givre de trichomes en Points
+    const branch = (form === 'branchage');     // brut (tiges + feuilles) vs paquet manucuré
     const green = new THREE.Color().lerpColors(new THREE.Color('#56602c'), new THREE.Color('#5f9230'), q);
     const calyx = new THREE.MeshPhysicalMaterial({ color:green, roughness:0.68, metalness:0,
       sheen:0.5+0.4*q, sheenRoughness:0.5, sheenColor:new THREE.Color('#d2e8a0'),
       clearcoat:0.15*q, envMapIntensity:0.6 });
     const n = 16 + Math.round(q*12);
     for(let i=0;i<n;i++){
-      const r = 0.17 + seeded(i)*0.09, t = i/n, ang = i*2.39, rad = 0.37*(1-0.45*t);
+      const r = 0.17 + seeded(i)*0.09, t = i/n, ang = i*2.39, rad = (branch?0.46:0.37)*(1-0.45*t);
       const m = new THREE.Mesh(new THREE.SphereGeometry(r,10,8), calyx);
       m.position.set(Math.cos(ang)*rad, t*1.3-0.65, Math.sin(ang)*rad); g.add(m);
     }
-    const np = 5 + Math.round(q*16);                                   // pistils orange
+    if(branch){
+      // forme brute : tige centrale + ramures + feuilles palmées -> mène à l'effeuillage
+      const stemMat = new THREE.MeshStandardMaterial({ color:'#6e5a30', roughness:0.9 });
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.06,1.7,6), stemMat); g.add(stem);
+      const leafMat = new THREE.MeshStandardMaterial({ color:green.clone().multiplyScalar(0.85), roughness:0.85, side:THREE.DoubleSide });
+      for(let i=0;i<6;i++){
+        const l = new THREE.Mesh(new THREE.CircleGeometry(0.36,5), leafMat);
+        const a = i/6*6.283;
+        l.position.set(Math.cos(a)*0.4, -0.35+i*0.2, Math.sin(a)*0.4);
+        l.rotation.set(-1.0, a, (seeded(i)-0.5)*0.8); g.add(l);
+      }
+    }
+    const np = (branch?3:5) + Math.round(q*(branch?8:16));             // pistils orange
     const pm = new THREE.MeshStandardMaterial({ color:'#d2702a', roughness:0.5 });
     for(let i=0;i<np;i++){
       const c = new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.022,0.24,4), pm);
@@ -436,10 +529,10 @@ function makeProduct(family, pct){
       c.position.set(Math.cos(ang)*rad, t*1.2-0.45, Math.sin(ang)*rad);
       c.rotation.set((seeded(i*2)-0.5)*1.6, 0, (seeded(i)-0.5)*1.6); g.add(c);
     }
-    const npt = Math.round(50 + q*260);                                // trichomes (givre)
+    const npt = Math.round((branch?20:50) + q*(branch?120:260));        // givre (moins sur le brut)
     const pts = new Float32Array(npt*3);
     for(let i=0;i<npt;i++){
-      const t=i/npt, ang=i*2.39, rad=0.4*(1-0.45*t)*(0.82+0.2*seeded(i));
+      const t=i/npt, ang=i*2.39, rad=(branch?0.46:0.4)*(1-0.45*t)*(0.82+0.2*seeded(i));
       pts[i*3]=Math.cos(ang)*rad; pts[i*3+1]=t*1.3-0.65+(seeded(i*3)-0.5)*0.1; pts[i*3+2]=Math.sin(ang)*rad;
     }
     const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pts,3));
@@ -522,7 +615,7 @@ function disposeViewer(){
   if(live.dom && live.dom.parentNode) live.dom.parentNode.removeChild(live.dom);
   live = null;
 }
-function mountViewer(el, family, pct){
+function mountViewer(el, family, pct, form){
   disposeViewer();
   let renderer;
   try{ renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true }); }
@@ -532,7 +625,7 @@ function mountViewer(el, family, pct){
   renderer.setSize(w, h); tuneRenderer(renderer); el.appendChild(renderer.domElement);
   const stage = makeStage(); stage.scene.environment = buildEnv(renderer);
   stage.camera.aspect = w/h; stage.camera.updateProjectionMatrix();
-  const group = makeProduct(family, pct); stage.scene.add(group);
+  const group = makeProduct(family, pct, form); stage.scene.add(group);
   let rot = 0.5, vel = 0.006, dragging = false, lastX = 0;
   const dom = renderer.domElement; dom.style.cursor = 'grab';
   const down = e => { dragging = true; lastX = (e.touches?e.touches[0].clientX:e.clientX); vel = 0; dom.style.cursor='grabbing'; };
@@ -557,9 +650,13 @@ const stars = r => { const f=Math.floor(r), h=r-f>=0.5; return '★'.repeat(f)+(
 let filter = 'all', sortBy = 'rating';
 
 function renderWallet(){
-  $('w-cash').textContent  = fmt(S.cash);
-  $('w-stock').textContent = S.stockG + ' g';
-  $('w-qual').textContent  = S.stockG > 0 ? avgQual() + '%' : '—';
+  const segs = [
+    `<div class="seg cash"><div class="k">Cash</div><b>${fmt(S.cash)}</b></div>`,
+    `<div class="seg stock"><div class="k">Stock brut</div><b>${S.stockG} g</b></div>`,
+    `<div class="seg qual"><div class="k">Qualité moy.</div><b>${S.stockG>0?avgQual()+'%':'—'}</b></div>`,
+    S.debt>0 ? `<div class="seg debt"><div class="k">Dette</div><b>${fmt(S.debt)}</b></div>` : '',
+  ].filter(Boolean).join('');
+  $('wallet').innerHTML = segs;
   const last = S.receipts[0];
   $('last').innerHTML = last
     ? `Dernier : <b>${last.g} g</b> de ${last.handle} · qualité ${last.real}%`
@@ -601,7 +698,7 @@ function renderFeed(){
       ? `<div class="thumb"><img src="${thumb}" alt=""><span class="pe">${s.emoji}</span></div>`
       : `<div class="av">${s.emoji}</div>`;
     const el = document.createElement('div');
-    el.className = 'listing';
+    el.className = 'listing'; el.dataset.card = s.id;
     el.innerHTML = `
       <div class="lhead">
         ${thumbHTML}
@@ -631,11 +728,15 @@ function renderFeed(){
 /* ===========================================================================
    COMMANDE (la conséquence)
    =========================================================================== */
-let sel = null, selQty = 0;
+let sel = null, selQty = 0, selForm = 'paquet', selCredit = false;
+const labelG = g => g>=1000 ? (g/1000)+' kg' : g+' g';
+const repName = rank => rank>=3 ? 'régulier' : rank>=2 ? 'habitué' : 'connu';
 
 function openOrder(s){
   disposeViewer();
-  sel = s; selQty = s.qtys.includes(selQty) ? selQty : s.qtys[0];
+  sel = s; selCredit = false; if(s.family !== 'weed') selForm = 'paquet';
+  const ladder = qtyLadder(s);
+  if(!ladder.some(o => o.g===selQty && !o.locked)) selQty = (ladder.find(o=>!o.locked) || ladder[0]).g;
   const r = rel(s.id), loy = loyalty(r.count);
   const real = realQual(s), gap = s.annoncee - real;
   const qInfo = r.sampled
@@ -643,11 +744,17 @@ function openOrder(s){
     : (gap > 6
         ? `<span class="warn">⚠ Note basse (${s.rating.toFixed(1)}★) : la qualité réelle tombe souvent sous l'annonce. Demande un échantillon en message.</span>`
         : `<span class="good">Note solide : livre au niveau annoncé.</span>`);
-  const dealLines = [
-    loy.pct>0 ? `Fidélité « ${loy.lvl} » : −${loy.pct}%` : '',
-    r.deal ? `Remise négociée : −${negoBonus[s.tier]}%` : '',
-    `Gros volume (≥${BULK_G} g) : −3%`,
-  ].filter(Boolean).join(' · ');
+  const formSel = s.family === 'weed' ? `
+    <div class="qtitle">Forme</div>
+    <div class="forms" id="forms">
+      <div class="formopt ${selForm==='paquet'?'on':''}" data-form="paquet"><b>🌿 Paquet manucuré</b><span>têtes parées · prix plein</span></div>
+      <div class="formopt ${selForm==='branchage'?'on':''}" data-form="branchage"><b>🌾 Branchage brut</b><span>−30% · à effeuiller</span></div>
+    </div>` : '';
+  const creditRow = creditOK(s)
+    ? `<label class="credit" id="credit-row"><input type="checkbox" id="credit-cb"> 💳 Payer à crédit <span>· dette envers ${s.handle}, à rembourser</span></label>`
+    : (s.tier!=='premium' && r.count<5 ? `<div class="credithint">💳 Crédit débloqué après 5 commandes (relation « habitué »).</div>`
+                                       : (s.tier==='premium' ? `<div class="credithint">Haut de gamme : cash uniquement, pas de crédit.</div>` : ''));
+  const basePrice = fmt1(s.eurG * formFactor(s, selForm));
   $('sheet').innerHTML = `
     <div class="grab"></div>
     <div class="shead">
@@ -662,65 +769,85 @@ function openOrder(s){
     </div>
     <div class="specs">
       <div class="spec"><div class="k">Produit</div><div class="v" style="font-size:11px">${s.prod}</div></div>
-      <div class="spec"><div class="k">Prix base</div><div class="v">${fmt1(s.eurG)}/g</div></div>
+      <div class="spec"><div class="k">Prix base</div><div class="v" id="r-base">${basePrice}/g</div></div>
       <div class="spec q"><div class="k">Qualité ${r.sampled?'réelle':'annoncée'}</div><div class="v">${r.sampled?realQual(s):s.annoncee}%</div></div>
     </div>
-    <div class="desc">${qInfo}<br><span style="color:var(--faint);font-size:11px">${dealLines}</span></div>
+    <div class="desc">${qInfo}</div>
+    ${formSel}
     <div class="qtitle">Quantité</div>
     <div class="qtys" id="qtys"></div>
     <div class="recap"><span>Prix appliqué</span><b id="r-unit">—</b></div>
-    <div class="recap"><span id="r-disc-k">Remise</span><b class="disc" id="r-disc">—</b></div>
+    <div class="recap"><span>Remise</span><b class="disc" id="r-disc">—</b></div>
     <div class="recap tot"><span>Total</span><b id="r-total">—</b></div>
+    ${creditRow}
     <button class="buy" id="buy"></button>
     <button class="ghostbtn" id="to-chat">💬 Négocier / demander un échantillon</button>`;
   renderQtys();
   $('buy').addEventListener('click', doOrder);
   $('to-chat').addEventListener('click', () => openChat(s));
+  const cb = $('credit-cb'); if(cb) cb.addEventListener('change', e => { selCredit = e.target.checked; refreshRecap(); });
+  const forms = $('forms'); if(forms) forms.addEventListener('click', e => {
+    const o = e.target.closest('[data-form]'); if(!o) return; selForm = o.dataset.form; openOrder(s);
+  });
   showSheet();
-  mountViewer($('viewer'), s.family, r.sampled ? realQual(s) : s.annoncee);
+  mountViewer($('viewer'), s.family, r.sampled ? realQual(s) : s.annoncee, selForm);
 }
 function renderQtys(){
   const box = $('qtys'); box.innerHTML = '';
-  sel.qtys.forEach(g => {
+  qtyLadder(sel).forEach(o => {
     const el = document.createElement('div');
-    el.className = 'qty' + (g===selQty?' on':'');
-    el.innerHTML = `<div class="g">${g} g</div><div class="e">${fmt(g*effEurG(sel,g))}</div>`;
-    el.addEventListener('click', () => { selQty = g; renderQtys(); refreshRecap(); });
+    el.className = 'qty' + (o.g===selQty?' on':'') + (o.locked?' locked':'');
+    el.innerHTML = o.locked
+      ? `<div class="g">${labelG(o.g)}</div><div class="e">🔒 ${repName(o.need)}</div>`
+      : `<div class="g">${labelG(o.g)}</div><div class="e">${fmt(o.g*effEurG(sel,o.g,selForm))}</div>`;
+    el.addEventListener('click', () => {
+      if(o.locked){ toast(`Quantité réservée : réputation « ${repName(o.need)} » requise chez ${sel.handle}.`, true); return; }
+      selQty = o.g; renderQtys(); refreshRecap();
+    });
     box.appendChild(el);
   });
   refreshRecap();
 }
 function refreshRecap(){
-  const s = sel, g = selQty, pct = orderPct(s,g), unit = effEurG(s,g), total = g*unit;
+  const s = sel, g = selQty, pct = orderPct(s,g), unit = effEurG(s,g,selForm), total = Math.round(g*unit);
+  const full = s.eurG * formFactor(s, selForm) * g;
   $('r-unit').textContent = fmt1(unit) + '/g';
-  $('r-disc').textContent = pct > 0 ? `−${pct}% (${fmt(g*s.eurG - total)})` : '—';
+  $('r-disc').textContent = pct > 0 ? `−${pct}% (${fmt(full - total)})` : '—';
   $('r-total').textContent = fmt(total);
-  const btn = $('buy'), ok = total <= S.cash;
-  btn.disabled = !ok;
-  btn.innerHTML = ok
-    ? `Commander ${g} g · ${fmt(total)} <span class="sm">paiement cash · escrow · livraison immédiate</span>`
-    : `Cash insuffisant <span class="sm">il manque ${fmt(total - S.cash)}</span>`;
+  const btn = $('buy');
+  if(selCredit){
+    btn.disabled = false;
+    btn.innerHTML = `Commander ${labelG(g)} à crédit · ${fmt(total)} <span class="sm">+${fmt(total)} de dette envers ${s.handle}</span>`;
+  } else {
+    const ok = total <= S.cash; btn.disabled = !ok;
+    btn.innerHTML = ok
+      ? `Commander ${labelG(g)} · ${fmt(total)} <span class="sm">paiement cash · escrow · livraison immédiate</span>`
+      : `Cash insuffisant <span class="sm">il manque ${fmt(total - S.cash)}</span>`;
+  }
 }
 function doOrder(){
-  const s = sel, g = selQty, pct = orderPct(s,g), unit = effEurG(s,g), total = Math.round(g*unit);
-  if(total > S.cash) return;
-  const real = realQual(s), r = rel(s.id), loy = loyalty(r.count);
-  S.cash -= total; S.stockG += g; S.qualSum += g*real;
+  const s = sel, g = selQty, pct = orderPct(s,g), unit = effEurG(s,g,selForm), total = Math.round(g*unit);
+  if(!selCredit && total > S.cash) return;
+  const credit = selCredit, real = realQual(s), r = rel(s.id), loy = loyalty(r.count);
+  if(credit) S.debt += total; else S.cash -= total;
+  S.stockG += g; S.qualSum += g*real;
   r.count += 1; r.grams += g; s.sales += 1;
   const gap = s.annoncee - real;
-  const qcause = gap <= 2
+  const form = (s.family==='weed') ? (selForm==='branchage'?' · branchage brut (à effeuiller)':' · paquet manucuré') : '';
+  const qcause = (gap <= 2
     ? `<span class="ok">qualité tenue (${real}%)</span> — ${s.rating.toFixed(1)}★`
-    : `<span class="lo">qualité réelle ${real}% &lt; ${s.annoncee}% annoncé</span> — note ${s.rating.toFixed(1)}★`;
+    : `<span class="lo">qualité réelle ${real}% &lt; ${s.annoncee}% annoncé</span> — note ${s.rating.toFixed(1)}★`) + form;
   const dparts = [
     loy.pct>0?`fidélité ${loy.lvl} −${loy.pct}%`:'',
     r.deal?`négo −${negoBonus[s.tier]}%`:'',
-    g>=BULK_G?`volume −3%`:'',
+    bulkPct(s,g)>0?`volume −${bulkPct(s,g)}%`:'',
   ].filter(Boolean);
   const dcause = pct>0 ? ` · <span class="di">remise −${pct}% (${dparts.join(', ')})</span>` : '';
-  S.receipts.unshift({ handle:s.handle, g, total, annoncee:s.annoncee, real, cause:qcause + dcause });
+  const ccause = credit ? ` · <span class="lo">à crédit (+${fmt(total)} dette)</span>` : '';
+  S.receipts.unshift({ handle:s.handle, g, total, credit, annoncee:s.annoncee, real, cause:qcause + dcause + ccause });
   if(S.receipts.length > 40) S.receipts.pop();
   save(); closeSheet(); renderWallet(); renderFeed();
-  toast(`${g} g reçus de ${s.handle} · qualité réelle ${real}%` + (gap>6?` (annoncé ${s.annoncee}%)`:''), gap>6);
+  toast(`${labelG(g)} ${credit?'à crédit ':''}reçus de ${s.handle} · qualité réelle ${real}%` + (gap>6?` (annoncé ${s.annoncee}%)`:''), gap>6);
 }
 
 /* ===========================================================================
@@ -739,6 +866,12 @@ function renderChat(){
               : loy.lvl==='connu'    ? "Salut, déjà recroisé je crois. Qu'est-ce qu'il te faut ?"
               : "Yo. Tu cherches quoi ? PGP/escrow only, je réponds pas en clair.";
   const msgs = [`<div class="msg-b them">${greet}<span class="meta">${s.handle} · ${stars(s.rating)} ${s.rating.toFixed(1)}</span></div>`];
+
+  // offres proactives qui s'ouvrent avec la relation (déterministe)
+  if(creditOK(s))
+    msgs.push(`<div class="msg-b them">Et puis t'as fait tes preuves : je peux te laisser tourner <span class="num">à crédit</span> maintenant, tu régleras la dette plus tard. 🤝</div>`);
+  if(repRank(s) >= 2)
+    msgs.push(`<div class="msg-b them">Vu la confiance, je t'ouvre les <span class="num">gros volumes</span> (jusqu'à 2 kg). Les grosses quantités, je les garde pour les sérieux.</div>`);
 
   if(r.sampled){
     msgs.push(`<div class="msg-b me">Tu peux m'envoyer un échantillon avant que je commande ?</div>`);
@@ -823,6 +956,7 @@ $('feed').addEventListener('click', e => {
     i<0 ? S.favs.push(id) : S.favs.splice(i,1); save(); renderFeed(); return; }
   const msg = e.target.closest('[data-msg]'); if(msg){ openChat(byId(msg.dataset.msg)); return; }
   const ord = e.target.closest('[data-order]'); if(ord){ openOrder(byId(ord.dataset.order)); return; }
+  const card = e.target.closest('[data-card]'); if(card){ openOrder(byId(card.dataset.card)); return; }
 });
 $('filters').addEventListener('click', e => {
   const c = e.target.closest('.chip'); if(!c) return;
