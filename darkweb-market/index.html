@@ -31,6 +31,7 @@
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
     -webkit-user-select:none;user-select:none}
+  [hidden]{display:none!important}
   html,body{height:100%}
   body{background:radial-gradient(1100px 650px at 70% -10%,#13180f 0,var(--bg) 60%);
        font-family:var(--sans);color:var(--text);min-height:100vh;
@@ -83,6 +84,39 @@
   .seg{display:flex;gap:0;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface)}
   .seg button{font:700 10px var(--sans);color:var(--muted);background:none;border:none;padding:5px 10px;cursor:pointer}
   .seg button.on{background:var(--surface2);color:var(--text)}
+
+  /* ---- bascule Acheter / Vendre ---- */
+  .modebar{flex:none;display:flex;gap:7px;padding:9px 12px 2px}
+  .modebar button{flex:1;font:800 12px var(--sans);color:var(--muted);background:var(--surface);
+       border:1px solid var(--border);border-radius:11px;padding:9px;cursor:pointer;display:flex;
+       align-items:center;justify-content:center;gap:6px}
+  .modebar button.on{color:var(--bg);background:var(--onion);border-color:var(--onion)}
+
+  /* ---- vue Vendeur ---- */
+  .sellview{flex:1;overflow-y:auto;padding:6px 12px 16px;display:flex;flex-direction:column;gap:11px}
+  .scard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px}
+  .scard h3{font:700 10px var(--sans);text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:9px}
+  .scard h3 .hint{float:right;text-transform:none;letter-spacing:0;color:var(--muted);font-weight:600}
+  .annrow .qty.lie{border-color:rgba(232,184,75,.5)} .annrow .qty.lie.on{background:rgba(232,184,75,.12)}
+  .annrow .qty .e.warn{color:var(--gold)} .annrow .qty .e.good{color:var(--onion)}
+  .estim{display:flex;justify-content:space-between;align-items:baseline;font:600 12px var(--sans);color:var(--muted);margin:2px 0 4px}
+  .estim b{font:800 14px var(--mono);color:var(--text)}
+  .lrow{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);
+       border-radius:11px;padding:9px 11px}
+  .lrow .li{flex:1;min-width:0}
+  .lrow .lt{font:800 13px var(--mono)}
+  .lrow .ls{font:600 10px var(--mono);color:var(--faint);margin-top:2px}
+  .lrow .bar{height:5px;border-radius:3px;background:var(--border);margin-top:6px;overflow:hidden}
+  .lrow .bar i{display:block;height:100%;background:var(--onion)}
+  .lrow .amt{font:800 13px var(--mono);color:var(--onion);flex:none}
+  .bdg.lie{background:rgba(232,184,75,.14);color:var(--gold);border:1px solid rgba(232,184,75,.4)}
+  .bdg.honest{background:rgba(127,191,77,.12);color:var(--onion);border:1px solid var(--onion-d)}
+  .report .rrow{font:500 11px/1.45 var(--mono);color:var(--muted);padding:6px 0;border-top:1px dashed var(--border)}
+  .report .rrow:first-child{border-top:none}
+  .report .rrow .ok{color:var(--onion)} .report .rrow .lo{color:var(--rust)} .report .rrow .gd{color:var(--gold)}
+  .report .falaise{margin-top:8px;font:700 11px/1.4 var(--mono);color:var(--rust);
+       background:rgba(200,68,47,.1);border:1px solid var(--rust);border-radius:9px;padding:8px 10px}
+  .sellempty{font:600 12px/1.5 var(--sans);color:var(--faint);text-align:center;padding:18px 8px}
 
   /* ---- liste des listings ---- */
   .feed{flex:1;overflow-y:auto;padding:4px 12px 14px;display:flex;flex-direction:column;gap:9px}
@@ -264,8 +298,13 @@
 
   <div class="wallet" id="wallet"></div>
 
+  <div class="modebar" id="modebar">
+    <button data-v="buy" class="on">🛒 Acheter</button>
+    <button data-v="sell">🏷️ Vendre</button>
+  </div>
+
   <div class="filters" id="filters"></div>
-  <div class="sortrow">
+  <div class="sortrow" id="sortrow">
     <span class="lbl">Trier</span>
     <div class="seg" id="sort">
       <button data-s="rating" class="on">Note ★</button>
@@ -275,6 +314,7 @@
   </div>
 
   <div class="feed" id="feed"></div>
+  <div class="sellview" id="sellview" hidden></div>
 
   <div class="tabbar">
     <div class="last" id="last">Aucune commande pour l'instant.</div>
@@ -294,7 +334,7 @@ import * as THREE from 'three';
    family : resine | extraction | weed | coke | speed | mdma | cachets | fournitures
    tier   : cheap | mid | premium     ·     kind (fournitures) : cut|reagent|pack|press|precursor
    =========================================================================== */
-const SAVE_VERSION = 5;
+const SAVE_VERSION = 6;
 const KEY = 'dw_state';
 const START_CASH = 1600;
 
@@ -452,6 +492,27 @@ function orderPct(s, g){
   return Math.min(capPct[s.tier], loyalty(r.count).pct + (r.deal ? negoBonus[s.tier] : 0) + bulkPct(s, g));
 }
 const effEurG = (s, g, form) => s.eurG * formFactor(s, form) * (1 - orderPct(s, g) / 100);
+
+/* ----- ÉCONOMIE VENDEUR (T2) — demande déterministe, aucune RNG sur les conséquences -----
+   Le joueur revend son stock : il choisit un PRIX et une QUALITÉ ANNONCÉE (qu'il peut gonfler
+   au-dessus du réel). La demande répond au prix, à l'annonce et à sa note de vendeur. L'écart
+   annoncé−réel se PAIE : honnête → la note monte ; gonflé → tromperie qui s'accumule en silence
+   puis casse net la confiance (FALAISE, miroir de la fraude de « La Bascule »). */
+const SELL = {
+  REF_K:   0.135,  // prix de référence du marché (€/g) = REF_K × qualité annoncée
+  DEMAND:  44,     // demande de base par cycle (unités) à conditions neutres
+  TOL:     6,      // tolérance d'écart annoncé−réel avant que ça se sente
+  SEUIL:   7,      // cumul de tromperie qui déclenche la falaise
+  FALAISE: 1.3,    // chute de note à la falaise
+  GAIN:    0.09,   // gain de note par cycle de vente honnête
+};
+const refEurG    = ann => +(SELL.REF_K * ann).toFixed(2);
+const sellerLvl  = r => r<=0?'nouveau' : r<2?'douteux' : r<3.5?'correct' : r<4.5?'établi' : 'référence';
+const priceMult  = (eurG, ann) => Math.max(0.12, Math.min(2.2, Math.pow(refEurG(ann)/eurG, 1.6)));
+const qualMult   = ann => 0.55 + ann/100*0.85;                      // annonce haute = plus d'acheteurs
+const ratingMult = r => 0.45 + Math.min(5, Math.max(0, r))/5*0.65;  // note basse = méfiance
+const cycleDemand = (eurG, ann, r) => Math.round(SELL.DEMAND * priceMult(eurG,ann) * qualMult(ann) * ratingMult(r));
+
 // unité de vente : grammes par défaut, cachets à la pièce
 const U = s => s.unit || 'g';
 const labelAmt = (g, unit) => unit === 'u' ? g + ' u' : (g >= 1000 ? (g/1000) + ' kg' : g + ' g');
@@ -460,7 +521,8 @@ const labelQ = (s, g) => labelAmt(g, U(s));
 /* ===========================================================================
    ÉTAT + persistance
    =========================================================================== */
-const DEFAULT = () => ({ v:SAVE_VERSION, cash:START_CASH, stockG:0, qualSum:0, debt:0, receipts:[], favs:[], rel:{} });
+const DEFAULT = () => ({ v:SAVE_VERSION, cash:START_CASH, stockG:0, qualSum:0, debt:0, receipts:[], favs:[], rel:{},
+  seller:{ rating:0, sales:0, cum:0, fallen:false, day:0 }, listings:[], lastReport:null, listSeq:0 });
 function load(){
   try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.v === SAVE_VERSION) return s; }catch(e){}
   return DEFAULT();
@@ -1121,6 +1183,171 @@ function openReceipts(){
 }
 
 /* ===========================================================================
+   MODE VENDEUR (T2) — revendre son stock, écouler par cycle, rapport tracable
+   =========================================================================== */
+let view = 'buy';
+let selListQty = 0, selListAnnDelta = 0, selListPriceMode = 'market';
+const PRICE_MODE = { brade:0.82, market:1.0, premium:1.22 };
+
+function switchView(v){
+  view = v;
+  [...$('modebar').children].forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  const sell = v === 'sell';
+  ['filters','sortrow','feed'].forEach(id => $(id).hidden = sell);
+  $('sellview').hidden = !sell;
+  if(sell) renderSell(); else renderFeed();
+}
+
+// options de quantité à mettre en vente, bornées par le stock
+function sellQtyOptions(){
+  const opts = [50,100,250,500,1000].filter(g => g <= S.stockG);
+  if(S.stockG > 0 && !opts.includes(S.stockG)) opts.push(S.stockG);   // « tout »
+  return [...new Set(opts)].sort((a,b)=>a-b);
+}
+const annOf   = real => Math.min(98, real + selListAnnDelta);
+const priceOf = real => +(refEurG(annOf(real)) * PRICE_MODE[selListPriceMode]).toFixed(2);
+
+function renderSell(){
+  const sv = $('sellview'), real = avgQual(), sr = S.seller;
+  const head = `
+    <div class="scard">
+      <h3>Profil vendeur <span class="hint">jour ${sr.day}</span></h3>
+      <div class="specs">
+        <div class="spec"><div class="k">Note vendeur</div><div class="v" style="color:var(--gold)">${sr.rating>0?sr.rating.toFixed(1)+'★':'—'}</div></div>
+        <div class="spec"><div class="k">Réputation</div><div class="v" style="font-size:12px">${sellerLvl(sr.rating)}</div></div>
+        <div class="spec"><div class="k">Unités vendues</div><div class="v">${sr.sales}</div></div>
+      </div>
+    </div>`;
+
+  // formulaire de mise en vente
+  let form;
+  if(S.stockG <= 0){
+    form = `<div class="scard"><h3>Mettre en vente</h3>
+      <div class="sellempty">Ton stock est vide.<br>Passe en <b>🛒 Acheter</b> pour t'approvisionner, puis reviens revendre.</div></div>`;
+  } else {
+    const opts = sellQtyOptions();
+    if(!opts.includes(selListQty)) selListQty = opts[0];
+    const qtyTiles = opts.map(g => `<div class="qty${g===selListQty?' on':''}" data-sq="${g}">
+        <div class="g">${g===S.stockG?'tout':labelAmt(g,'g')}</div><div class="e">${g} u</div></div>`).join('');
+    const annTiles = [[0,'honnête'],[10,'gonflé +10'],[20,'gonflé +20']].map(([d,lab])=>{
+      const a = Math.min(98, real + d), gap = a - real;
+      return `<div class="qty${d>0?' lie':''}${d===selListAnnDelta?' on':''}" data-ann="${d}">
+        <div class="g">${a}%</div><div class="e ${gap>SELL.TOL?'warn':'good'}">${lab}</div></div>`;
+    }).join('');
+    const priceTiles = Object.keys(PRICE_MODE).map(m => {
+      const saved = selListPriceMode; selListPriceMode = m; const p = priceOf(real); selListPriceMode = saved;
+      const pct = Math.round((PRICE_MODE[m]-1)*100);
+      const lab = m==='brade'?`${pct}% (brade)`:m==='premium'?`+${pct}% (premium)`:'marché';
+      return `<div class="qty${m===selListPriceMode?' on':''}" data-pm="${m}">
+        <div class="g">${fmt1(p)}<span style="font-size:9px">/g</span></div><div class="e">${lab}</div></div>`;
+    }).join('');
+    const ann = annOf(real), price = priceOf(real);
+    const dem = Math.min(selListQty, cycleDemand(price, ann, sr.rating));
+    const gap = ann - real;
+    const riskTxt = gap > SELL.TOL
+      ? `<span style="color:var(--gold)">⚠ annonce gonflée (+${gap}%) : ça vend plus, mais la tromperie s'accumule</span>`
+      : `<span style="color:var(--onion)">annonce honnête : ta note grimpe à chaque livraison</span>`;
+    form = `<div class="scard">
+      <h3>Mettre en vente <span class="hint">stock ${S.stockG} u · réel ${real}%</span></h3>
+      <div class="qtitle">Quantité</div><div class="qtys" id="sq">${qtyTiles}</div>
+      <div class="qtitle">Qualité annoncée</div><div class="qtys annrow" id="sa">${annTiles}</div>
+      <div class="qtitle">Prix</div><div class="qtys" id="sp">${priceTiles}</div>
+      <div class="estim"><span>Demande estimée</span><b>≈ ${dem} u / jour</b></div>
+      <div class="estim"><span>Revenu / jour</span><b>≈ ${fmt(dem*price)}</b></div>
+      <div class="desc" style="margin:6px 0 0">${riskTxt}</div>
+      <button class="buy" id="post-btn">Mettre en vente · ${selListQty} u @ ${fmt1(price)}/g</button>
+    </div>`;
+  }
+
+  // annonces actives
+  let actives = '';
+  if(S.listings.length){
+    const rows = S.listings.map(L => {
+      const gap = L.annoncee - L.real, pct = Math.round(L.sold/L.qty*100);
+      return `<div class="lrow">
+        <div class="li">
+          <div class="lt">${L.qty} u @ ${fmt1(L.eurG)}/g
+            <span class="bdg ${gap>SELL.TOL?'lie':'honest'}">${L.annoncee}%${gap>SELL.TOL?` (réel ${L.real}%)`:''}</span></div>
+          <div class="ls">${L.sold}/${L.qty} vendues · encaissé ${fmt(L.revenue)}</div>
+          <div class="bar"><i style="width:${pct}%"></i></div>
+        </div></div>`;
+    }).join('');
+    actives = `<div class="scard"><h3>Annonces en ligne <span class="hint">${S.listings.length}</span></h3>
+      <div style="display:flex;flex-direction:column;gap:8px">${rows}</div>
+      <button class="buy" id="day-btn" style="margin-top:11px">⏭ Écouler — jour suivant</button></div>`;
+  }
+
+  // rapport du dernier cycle
+  let report = '';
+  if(S.lastReport){
+    const R = S.lastReport;
+    const rrows = R.rows.map(r => `<div class="rrow">${r.cause}</div>`).join('');
+    report = `<div class="scard report"><h3>Rapport — jour ${R.day} <span class="hint">+${fmt(R.totRev)} · ${R.anySold} u</span></h3>
+      ${rrows}${R.falaise?`<div class="falaise">${R.falaise}</div>`:''}</div>`;
+  }
+
+  sv.innerHTML = head + form + actives + report;
+  const sq = $('sq'); if(sq) sq.onclick = e => { const t=e.target.closest('[data-sq]'); if(t){ selListQty=+t.dataset.sq; renderSell(); } };
+  const sa = $('sa'); if(sa) sa.onclick = e => { const t=e.target.closest('[data-ann]'); if(t){ selListAnnDelta=+t.dataset.ann; renderSell(); } };
+  const sp = $('sp'); if(sp) sp.onclick = e => { const t=e.target.closest('[data-pm]'); if(t){ selListPriceMode=t.dataset.pm; renderSell(); } };
+  const pb = $('post-btn'); if(pb) pb.onclick = postListing;
+  const db = $('day-btn'); if(db) db.onclick = resolveDay;
+}
+
+function postListing(){
+  const real = avgQual(), qty = Math.min(selListQty, S.stockG);
+  if(qty <= 0) return;
+  const ann = annOf(real), eurG = priceOf(real);
+  S.stockG -= qty; S.qualSum -= qty*real;                    // sort le lot du stock (qualité moyenne inchangée)
+  if(S.stockG <= 0) S.qualSum = 0;
+  S.listings.push({ id:++S.listSeq, qty, sold:0, eurG, annoncee:ann, real, revenue:0 });
+  selListQty = 0; selListAnnDelta = 0; selListPriceMode = 'market';
+  save(); renderWallet(); renderSell();
+  toast(`Annonce en ligne : ${qty} u @ ${fmt1(eurG)}/g · annoncé ${ann}%`);
+}
+
+function resolveDay(){
+  if(!S.listings.length) return;
+  const sr = S.seller; sr.day += 1;
+  const rows = []; let totRev = 0, anySold = 0;
+  for(const L of S.listings){
+    const remain = L.qty - L.sold;
+    if(remain <= 0) continue;
+    const want = cycleDemand(L.eurG, L.annoncee, sr.rating);
+    const sold = Math.min(remain, want);
+    const ref = refEurG(L.annoncee);
+    const priceTxt = L.eurG < ref ? `prix sous le marché <span class="ok">(+demande)</span>`
+                   : L.eurG > ref ? `prix premium <span class="gd">(−demande)</span>` : `au prix du marché`;
+    if(sold <= 0){
+      rows.push({ cause:`<b>${L.annoncee}% @ ${fmt1(L.eurG)}/g</b> — aucune vente · ${priceTxt}, note ${sellerLvl(sr.rating)}` });
+      continue;
+    }
+    const rev = Math.round(sold * L.eurG);
+    L.sold += sold; L.revenue += rev; S.cash += rev; sr.sales += sold;
+    totRev += rev; anySold += sold;
+    const gap = L.annoncee - L.real;
+    let honTxt;
+    if(gap > SELL.TOL){
+      const add = sold/100 * (gap - SELL.TOL); sr.cum += add;
+      honTxt = `<span class="lo">tromperie +${add.toFixed(1)} (annoncé ${L.annoncee}% vs réel ${L.real}%)</span>`;
+    } else {
+      sr.rating = Math.min(5, sr.rating + SELL.GAIN);
+      honTxt = `<span class="ok">livraison conforme (note +${SELL.GAIN})</span>`;
+    }
+    rows.push({ cause:`<b>${sold} u</b> @ ${fmt1(L.eurG)}/g = ${fmt(rev)} · ${priceTxt} · ${honTxt}` });
+  }
+  let falaise = null;
+  if(!sr.fallen && sr.cum >= SELL.SEUIL){
+    sr.fallen = true; sr.rating = Math.max(0, sr.rating - SELL.FALAISE);
+    falaise = `⚠ FALAISE — la rue a recoupé tes lots : tes annonces gonflées se sont sues. Note −${SELL.FALAISE.toFixed(1)}. La confiance, une fois cassée, ne revient pas en un jour.`;
+  }
+  S.listings = S.listings.filter(L => L.sold < L.qty);       // purge des annonces écoulées
+  S.lastReport = { day:sr.day, rows, totRev, anySold, falaise };
+  save(); renderWallet(); renderSell();
+  toast(falaise ? `Jour ${sr.day} : la confiance s'est effondrée.` : `Jour ${sr.day} : ${anySold} u vendues · +${fmt(totRev)}`, !!falaise);
+}
+
+/* ===========================================================================
    SHEET helpers, filtres, tri, reset, horloge, init
    =========================================================================== */
 function showSheet(){ $('scrim').classList.add('show'); $('sheet').classList.add('show'); }
@@ -1155,11 +1382,14 @@ $('sort').addEventListener('click', e => {
   [...$('sort').children].forEach(x => x.classList.toggle('on', x===b));
   renderFeed();
 });
+$('modebar').addEventListener('click', e => {
+  const b = e.target.closest('[data-v]'); if(b) switchView(b.dataset.v);
+});
 $('scrim').addEventListener('click', closeSheet);
 $('receipts-btn').addEventListener('click', openReceipts);
 $('reset-btn').addEventListener('click', () => {
   if(confirm('Repartir de zéro (cash, stock, relations, favoris) ?')){
-    S = DEFAULT(); save(); renderWallet(); renderFeed(); toast('Compte réinitialisé.');
+    S = DEFAULT(); save(); renderWallet(); renderFeed(); if(view==='sell') renderSell(); toast('Compte réinitialisé.');
   }
 });
 
