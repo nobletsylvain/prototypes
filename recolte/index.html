@@ -302,7 +302,7 @@ app.appendChild(renderer.domElement);
 // stock, et "eff" (frontal, plus bas) pour l'effeuillage des colas suspendues.
 const VIEWS = {
   work: { target: new THREE.Vector3(0, 0.15, 0.0), dir: new THREE.Vector3(0.02, 0.64, 0.77).normalize(), radius: Math.hypot(3.9, 0.9, 3.0) },
-  eff:  { target: new THREE.Vector3(0, 1.45, 0.0), dir: new THREE.Vector3(0, 0.20, 1).normalize(),        radius: Math.hypot(2.4, 1.1, 0.4) },
+  eff:  { target: new THREE.Vector3(0, 1.95, 0.0), dir: new THREE.Vector3(0, 0.16, 1).normalize(),        radius: Math.hypot(2.4, 1.9, 0.4) },
 };
 let curView = VIEWS.work;
 const VIEW_TARGET = new THREE.Vector3();   // cible courante (utilisee par la boucle)
@@ -481,7 +481,7 @@ function refreshPile(binGrp, grams, perNug) {
 // 4 colas (une par variete) pendent a un fil de sechage ; on glisse le doigt le
 // long d'une cola pour detacher ses tetes (detection en pixels ecran, cf. v2).
 // Tout tombe MELE dans le panier central (le tri par variete vient apres).
-const COLA_TOP = 2.85, COLA_BOT = 0.85;          // hauteurs haut/bas des colas
+const COLA_TOP = 3.7, COLA_BOT = 0.55;          // hauteurs haut/bas des colas (tiges longues)
 // Fil de sechage.
 const dryLine = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 7.2, 6),
   new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 0.4, roughness: 0.5 }));
@@ -490,17 +490,17 @@ scene.add(dryLine);
 
 const colasGrp = new THREE.Group();
 scene.add(colasGrp);
-// Une cola = tige + ~10 tetes + feuilles deco. Pool reutilisable : la variete
-// (couleur des tetes) est (re)assignee a chaque recolte. On en montre 3 a 8.
+// Une cola = tige longue + ~14 tetes (le long du stem) + feuilles deco. Pool
+// reutilisable : la variete (couleur des tetes) est (re)assignee a chaque recolte.
 function buildCola() {
   const grp = new THREE.Group();
   const len = COLA_TOP - COLA_BOT, midY = (COLA_TOP + COLA_BOT) / 2;
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.05, len, 6), matBranch);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.05, len, 6), matBranch);
   stem.position.y = midY; stem.castShadow = true; grp.add(stem);
   const hook = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.016, 6, 10),
     new THREE.MeshStandardMaterial({ color: 0x8a8f95, metalness: 0.5, roughness: 0.5 }));
   hook.position.y = COLA_TOP; hook.rotation.x = Math.PI / 2; grp.add(hook);
-  const buds = [], n = 10;
+  const buds = [], n = 14;                              // plus de tetes sur la tige longue
   for (let i = 0; i < n; i++) {
     const u = i / (n - 1);
     const y = COLA_TOP - 0.16 - u * (len - 0.26);
@@ -511,8 +511,8 @@ function buildCola() {
     buds.push({ mesh: m, mass: 0, leafFrac: 0, on: true });
   }
   const leaves = [];
-  for (let i = 0; i < 5; i++) {
-    const u = (i + 0.5) / 5, y = COLA_TOP - 0.2 - u * (len - 0.3), side = i % 2 ? 1 : -1;
+  for (let i = 0; i < 7; i++) {
+    const u = (i + 0.5) / 7, y = COLA_TOP - 0.2 - u * (len - 0.3), side = i % 2 ? 1 : -1;
     const lf = makeLeaf();
     lf.position.set(side * 0.12, y, 0.04);
     lf.rotation.z = side > 0 ? -1.1 : 1.1; lf.rotation.x = 0.4;
@@ -534,26 +534,27 @@ function setColaVariety(c, v) {
 // Panier de reception sous les colas : les tetes effeuillees y tombent (melees).
 const basket = new THREE.Group();
 const basketMat = new THREE.MeshStandardMaterial({ color: 0x6b5836, roughness: 0.85, side: THREE.DoubleSide });
-const bW = 3.4, bD = 1.1, bH = 0.34, bt = 0.06;
+const bW = 5.6, bD = 1.2, bH = 0.36, bt = 0.06;   // bac long (couvre l'etendue des colas)
 const bFloor = new THREE.Mesh(new THREE.BoxGeometry(bW, bt, bD), basketMat);
 bFloor.position.y = bt / 2; bFloor.receiveShadow = true; basket.add(bFloor);
 { const f = new THREE.Mesh(new THREE.BoxGeometry(bW, bH, bt), basketMat); f.position.set(0, bH / 2, -bD / 2); basket.add(f);
   const b = new THREE.Mesh(new THREE.BoxGeometry(bW, bH, bt), basketMat); b.position.set(0, bH / 2, bD / 2); basket.add(b);
   const l = new THREE.Mesh(new THREE.BoxGeometry(bt, bH, bD), basketMat); l.position.set(-bW / 2, bH / 2, 0); basket.add(l);
   const r = new THREE.Mesh(new THREE.BoxGeometry(bt, bH, bD), basketMat); r.position.set(bW / 2, bH / 2, 0); basket.add(r); }
-basket.position.set(0, 0.2, 0.55);
+basket.position.set(0, 0.05, 0.55);
 basket.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
 scene.add(basket);
-// Pile melee dans le panier (visibilite pilotee par le % effeuille).
+// Pile melee dans le panier (visibilite pilotee par le % effeuille), repartie sur la longueur.
 const basketPile = new THREE.Group(); basket.add(basketPile);
-const BASKET_MAX = 24;
+const BASKET_MAX = 40;
+const BPILE_COLS = 13;
 for (let i = 0; i < BASKET_MAX; i++) {
   const m = makeNug(matStrain[STR_IDS[i % STR_IDS.length]], i % 4 === 0);
-  const col = i % 8, layer = Math.floor(i / 8);
-  m.position.set(-1.5 + col * 0.42 + (Math.random() - 0.5) * 0.1, 0.12 + layer * 0.13, -0.28 + (i % 2) * 0.5);
+  const col = i % BPILE_COLS, layer = Math.floor(i / BPILE_COLS);
+  m.position.set(-2.5 + col * 0.4 + (Math.random() - 0.5) * 0.1, 0.13 + layer * 0.13, -0.3 + (i % 2) * 0.55);
   m.visible = false; basketPile.add(m);
 }
-const _bw = new THREE.Vector3(0, 0.45, 0.55);   // cible monde du panier (pour les flyers)
+const _bw = new THREE.Vector3(0, 0.45, 0.55);   // cible monde du panier (pour les flyers feuilles)
 function refreshBasket(strippedG, totalG) {
   const n = totalG > 0 ? Math.max(0, Math.min(BASKET_MAX, Math.round(strippedG / totalG * BASKET_MAX))) : 0;
   for (let i = 0; i < BASKET_MAX; i++) basketPile.children[i].visible = i < n;
@@ -730,7 +731,7 @@ function updateFlyers(dt) {
 // "sentir les buds tomber". Une tete detachee chute, derive vers le panier, rebondit
 // une fois puis se pose ; un petit "toc" sourd a l'atterrissage (throttle).
 const fallers = [];
-const FALL_FLOOR = 0.46;       // hauteur monde du dessus du panier
+const FALL_FLOOR = 0.4;        // hauteur monde du dessus du panier
 let landCd = 0;
 function playDrop() { noiseBurst(0.06, 360, 110, 0.13, "lowpass", 0.8); }
 function dropBud(mat, from) {
@@ -738,7 +739,7 @@ function dropBud(mat, from) {
   m.position.copy(from); scene.add(m);
   fallers.push({
     mesh: m, vy: 0.2 + Math.random() * 0.4,
-    tx: (Math.random() - 0.5) * 2.4, tz: 0.55 + (Math.random() - 0.5) * 0.5,
+    tx: (Math.random() - 0.5) * 4.6, tz: 0.55 + (Math.random() - 0.5) * 0.55,
     spin: (Math.random() - 0.5) * 12, t: 0, bounced: false, rest: 0,
   });
   while (fallers.length > 70) { const f = fallers.shift(); scene.remove(f.mesh); }
@@ -993,20 +994,14 @@ function newHarvest(grams) {
 // Prepare les colas : on en montre PLUSIEURS (3 a 8 selon la recolte), reparties
 // entre les varietes au prorata de la recolte. Plus de branches a effeuiller =
 // plus de tetes a faire tomber.
-// Calcule la position (x,z) de chaque cola : 1 rangee jusqu'a 7, sinon 2 rangees
-// (avant/arriere, decalees) pour un effet "full feuillage" sans trop serrer.
+// Position (x,z) de chaque cola : UNE seule rangee, tiges hautes. On serre
+// l'ecartement quand il y en a beaucoup (mur de colas) -> les tiges restent
+// grandes (l'espace vertical du mobile est mis a profit), pas de dezoom 2 rangees.
 function colaLayout(n) {
   const pos = [];
-  if (n <= 7) {
-    const span = n <= 1 ? 0 : Math.min(2.8, 0.45 * (n - 1));
-    for (let i = 0; i < n; i++) pos.push({ x: n === 1 ? 0 : -span + 2 * span * (i / (n - 1)), z: (i % 2) * 0.16 - 0.08 });
-    return { pos, radius: Math.hypot(span + 0.9, 1.15, 0.45), targetZ: 0 };
-  }
-  const back = Math.ceil(n / 2), front = n - back;
-  const spanB = Math.min(3.2, 0.52 * (back - 1)), spanF = Math.min(3.2, 0.52 * (front - 1));
-  for (let i = 0; i < back; i++)  pos.push({ x: back === 1 ? 0 : -spanB + 2 * spanB * (i / (back - 1)), z: -0.5 });
-  for (let i = 0; i < front; i++) pos.push({ x: (front === 1 ? 0 : -spanF + 2 * spanF * (i / (front - 1))) + 0.26, z: 0.4 });
-  return { pos, radius: Math.hypot(Math.max(spanB, spanF) + 1.0, 1.4, 1.0), targetZ: -0.05 };
+  const span = n <= 1 ? 0 : Math.min(2.65, 0.5 * (n - 1));   // serre au-dela de ~11 colas
+  for (let i = 0; i < n; i++) pos.push({ x: n === 1 ? 0 : -span + 2 * span * (i / (n - 1)), z: (i % 2) * 0.16 - 0.08 });
+  return { pos, radius: Math.hypot(span + 0.8, 1.9, 0.45), targetZ: 0 };
 }
 function setupColas() {
   for (const c of colaPool) c.grp.visible = false;
