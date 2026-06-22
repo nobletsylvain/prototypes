@@ -30,7 +30,15 @@
     font-weight:800; font-size:18px; color:#9be37d; text-shadow:0 2px 8px rgba(0,0,0,.5); pointer-events:none; }
   #rep { position:fixed; top:max(14px,env(safe-area-inset-top)); right:70px; pointer-events:none;
     background:rgba(122,160,255,.16); border:1px solid rgba(122,160,255,.5); color:#bcd0ff;
-    font-weight:700; font-size:12px; padding:4px 9px; border-radius:999px; }
+    font-weight:700; font-size:12px; padding:4px 9px; border-radius:999px;
+    transition:color .25s, border-color .25s, background .25s, transform .12s; }
+  #rep.up   { color:#bdf0a3; border-color:#9be37d; background:rgba(155,227,125,.25); transform:scale(1.08); }
+  #rep.down { color:#ffb3b3; border-color:#ff6b6b; background:rgba(255,107,107,.2);  transform:scale(1.08); }
+  .profit { position:fixed; transform:translate(-50%,-50%); pointer-events:none; z-index:5;
+    font-weight:900; font-size:18px; color:#9be37d; text-shadow:0 2px 6px rgba(0,0,0,.7);
+    animation:floatup .85s ease-out forwards; }
+  @keyframes floatup { 0%{ opacity:0; transform:translate(-50%,-20%) scale(.7);} 18%{ opacity:1; }
+    100%{ opacity:0; transform:translate(-50%,-170%) scale(1.05);} }
 
   #xpwrap { position:fixed; top:calc(max(14px,env(safe-area-inset-top)) + 27px); left:50%; transform:translateX(-50%);
     display:flex; align-items:center; gap:6px; pointer-events:none; z-index:4; }
@@ -250,6 +258,10 @@ const slab = new THREE.Mesh(
   new THREE.MeshStandardMaterial({ color: 0xbfe9ff, transparent: true, opacity: 0.4, roughness: 0.06, metalness: 0.3 })
 );
 slab.position.copy(SLAB_POS).setY(0.06); slab.receiveShadow = true; scene.add(slab);
+// cadre métallique discret autour de la dalle (lit la dalle comme une surface de travail)
+const slabRim = new THREE.Mesh(new THREE.BoxGeometry(2.52, 0.08, 1.72),
+  new THREE.MeshStandardMaterial({ color: 0x3a4654, roughness: 0.5, metalness: 0.5 }));
+slabRim.position.copy(SLAB_POS).setY(0.02); slabRim.receiveShadow = true; scene.add(slabRim);
 
 // PILE DE COKE (briques pressées empilées, façon DDS) au fond-gauche.
 const COKE_POS = new THREE.Vector3(-1.6, 0, -0.6);
@@ -317,8 +329,8 @@ const PROD_POS = new THREE.Vector3(-0.55, 0, 1.95);
 const prodBin  = makeBin(PROD_POS, 0x2f5d8a);
 
 const glow = new THREE.Mesh(
-  new THREE.CircleGeometry(1.0, 28),
-  new THREE.MeshBasicMaterial({ color: 0x7df9ff, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false })
+  new THREE.RingGeometry(0.72, 1.05, 40),
+  new THREE.MeshBasicMaterial({ color: 0x7df9ff, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false })
 );
 glow.rotation.x = -Math.PI / 2; glow.position.y = 0.04; scene.add(glow);
 
@@ -397,14 +409,26 @@ const ui = {
   shop:document.getElementById("shop"), shopitems:document.getElementById("shopitems"), shopcash:document.getElementById("shopcash"),
   shopbtn:document.getElementById("shopbtn"),
 };
+let shownCash = cash;
+function fmtEur(n) { return Math.round(n).toLocaleString("fr-FR"); }   // séparateurs de milliers
 function setCash(v) {
   cash = v; localStorage.setItem("neige_cash", String(Math.round(cash)));
-  ui.cash.textContent = "💶 " + Math.round(cash) + " €";
   if (ui.shop.classList.contains("show")) renderShop();
 }
+function renderCash(dt) {                  // l'affichage "tick" doucement vers la valeur réelle
+  shownCash += (cash - shownCash) * Math.min(1, dt * 10);
+  if (Math.abs(cash - shownCash) < 0.5) shownCash = cash;
+  ui.cash.textContent = "💶 " + fmtEur(shownCash) + " €";
+}
 function setRep(v) {
+  const prev = rep;
   rep = Math.min(1.2, Math.max(0.7, v)); localStorage.setItem("neige_rep", rep.toFixed(3));
   ui.rep.textContent = "Réput " + Math.round(rep * 100) + "%";
+  if (Math.abs(rep - prev) > 0.001) {      // flash vert/rouge selon le sens
+    const cls = rep > prev ? "up" : "down";
+    ui.rep.classList.remove("up", "down"); void ui.rep.offsetWidth; ui.rep.classList.add(cls);
+    setTimeout(() => ui.rep.classList.remove(cls), 600);
+  }
 }
 function updateCount()      { ui.count.textContent = "Produit : " + Math.round(prod.g) + " g"; }
 function updateResources()  {
@@ -412,7 +436,12 @@ function updateResources()  {
   ui.remain.textContent = "COUPE " + curDef().name + " : " + Math.round(dilStock[curDil]) + " g";
   updateDilBar(); updateCokeBricks();
 }
-function updateProdLabel()  { prodLabel.textContent = "📦 PRODUIT " + Math.round(prod.g) + " g"; setHeap(prodHeap, prod.g, 260); updateCount(); }
+function updateProdLabel()  {
+  prodLabel.textContent = prod.g > 0.3
+    ? ("📦 PRODUIT " + Math.round(prod.g) + " g · " + Math.round(prodQual() * 100) + "%")
+    : "📦 PRODUIT 0 g";
+  setHeap(prodHeap, prod.g, 260); updateCount();
+}
 function updateTrayHeap()   { setHeap(trayHeap, trayG(), 160); }
 
 /* -------------------------------------------------------------------------
@@ -643,7 +672,7 @@ const SHOP = [
     can:()=>owned.autobag >= 1 && owned.cadence < 8, maxed:()=>owned.cadence >= 8, buy:()=>{ owned.cadence++; } },
 ];
 function renderShop() {
-  ui.shopcash.textContent = "💶 " + Math.round(cash) + " €";
+  ui.shopcash.textContent = "💶 " + fmtEur(cash) + " €";
   ui.shopitems.innerHTML = "";
   for (const it of SHOP) {
     const cost = it.cost(), maxed = it.maxed(), can = !maxed && it.can() && cash >= cost;
@@ -651,7 +680,7 @@ function renderShop() {
     row.innerHTML = '<div class="ic">' + it.icon + '</div><div class="info"><div class="nm">' +
       it.name + '</div><div class="ds">' + it.desc() + '</div></div>';
     const b = document.createElement("button");
-    b.textContent = maxed ? "✓" : (cost + " €"); b.disabled = !can;
+    b.textContent = maxed ? "✓" : (fmtEur(cost) + " €"); b.disabled = !can;
     b.addEventListener("click", () => buy(it));
     row.appendChild(b); ui.shopitems.appendChild(row);
   }
@@ -748,12 +777,23 @@ function commitMix() {
    17) GESTE 3 — ENSACHER
    ------------------------------------------------------------------------- */
 let bagging = false, bagHoldT = 0;
+// "+X €" qui s'élève au-dessus du bac à chaque vente.
+function popProfit(amount) {
+  _lv.set(PROD_POS.x, 0.55, PROD_POS.z).project(camera);
+  if (_lv.z > 1) return;
+  const d = document.createElement("div"); d.className = "profit";
+  d.textContent = "+" + fmtEur(amount) + " €";
+  d.style.left = ((_lv.x * 0.5 + 0.5) * window.innerWidth + (Math.random() - 0.5) * 44) + "px";
+  d.style.top  = ((-_lv.y * 0.5 + 0.5) * window.innerHeight) + "px";
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 850);
+}
 function bagOnce() {
   if (prod.g < 0.05) { showToast("Plus de produit à ensacher", "#e6c896"); sErr(); return false; }
   const take = Math.min(fmt, prod.g);             // le dernier sachet peut être partiel (reliquat)
   const q = prodQual(); takeProd(take);
   const price = take * FMT_PRICE[fmt] * q * rep * levelMult();
-  setCash(cash + price); addXP(Math.max(1, Math.round(price * 0.03)));
+  setCash(cash + price); addXP(Math.max(1, Math.round(price * 0.03))); popProfit(price);
   popPochon(fmt); sZip(); burstPuffs(PROD_POS, 3, null);
   const ac = ensureAudio(); if (ac) beep(720, ac.currentTime, 0.05, 0.12);
   return true;
@@ -776,7 +816,7 @@ function updateAuto(dt) {
     const take = Math.min(fmt, prod.g);
     const q = prodQual(); takeProd(take);
     const price = take * FMT_PRICE[fmt] * q * rep * 0.85 * levelMult();
-    setCash(cash + price); addXP(Math.max(1, Math.round(price * 0.03)));
+    setCash(cash + price); addXP(Math.max(1, Math.round(price * 0.03))); popProfit(price);
     popPochon(fmt);
     const ac = ensureAudio(); if (ac) beep(680, ac.currentTime, 0.05, 0.1);
   }
@@ -957,6 +997,7 @@ function loop(t) {
   updatePuffs(dt);
   updatePochons(dt);
   updateGuide(dt);
+  renderCash(dt);
   if (shake > 0) { shake *= Math.pow(0.0008, dt); if (shake < 0.002) shake = 0; }
   camera.position.copy(baseCamPos);
   if (shake > 0) {
@@ -974,7 +1015,7 @@ function loop(t) {
    22) BOOTSTRAP
    ------------------------------------------------------------------------- */
 resize();
-setCash(cash); setRep(rep); updateXpUI();
+setCash(cash); renderCash(1); setRep(rep); updateXpUI();
 setFmt(fmt); refreshFmtButtons();
 updateProdLabel(); updateTrayHeap();
 bulkG = STARTER.coke; bulkPurity = STARTER.purity; dilStock.lacto = STARTER.dil;
