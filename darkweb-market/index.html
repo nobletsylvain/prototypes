@@ -31,6 +31,7 @@
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
     -webkit-user-select:none;user-select:none}
+  [hidden]{display:none!important}
   html,body{height:100%}
   body{background:radial-gradient(1100px 650px at 70% -10%,#13180f 0,var(--bg) 60%);
        font-family:var(--sans);color:var(--text);min-height:100vh;
@@ -83,6 +84,39 @@
   .seg{display:flex;gap:0;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface)}
   .seg button{font:700 10px var(--sans);color:var(--muted);background:none;border:none;padding:5px 10px;cursor:pointer}
   .seg button.on{background:var(--surface2);color:var(--text)}
+
+  /* ---- bascule Acheter / Vendre ---- */
+  .modebar{flex:none;display:flex;gap:7px;padding:9px 12px 2px}
+  .modebar button{flex:1;font:800 12px var(--sans);color:var(--muted);background:var(--surface);
+       border:1px solid var(--border);border-radius:11px;padding:9px;cursor:pointer;display:flex;
+       align-items:center;justify-content:center;gap:6px}
+  .modebar button.on{color:var(--bg);background:var(--onion);border-color:var(--onion)}
+
+  /* ---- vue Vendeur ---- */
+  .sellview{flex:1;overflow-y:auto;padding:6px 12px 16px;display:flex;flex-direction:column;gap:11px}
+  .scard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px}
+  .scard h3{font:700 10px var(--sans);text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:9px}
+  .scard h3 .hint{float:right;text-transform:none;letter-spacing:0;color:var(--muted);font-weight:600}
+  .annrow .qty.lie{border-color:rgba(232,184,75,.5)} .annrow .qty.lie.on{background:rgba(232,184,75,.12)}
+  .annrow .qty .e.warn{color:var(--gold)} .annrow .qty .e.good{color:var(--onion)}
+  .estim{display:flex;justify-content:space-between;align-items:baseline;font:600 12px var(--sans);color:var(--muted);margin:2px 0 4px}
+  .estim b{font:800 14px var(--mono);color:var(--text)}
+  .lrow{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);
+       border-radius:11px;padding:9px 11px}
+  .lrow .li{flex:1;min-width:0}
+  .lrow .lt{font:800 13px var(--mono)}
+  .lrow .ls{font:600 10px var(--mono);color:var(--faint);margin-top:2px}
+  .lrow .bar{height:5px;border-radius:3px;background:var(--border);margin-top:6px;overflow:hidden}
+  .lrow .bar i{display:block;height:100%;background:var(--onion)}
+  .lrow .amt{font:800 13px var(--mono);color:var(--onion);flex:none}
+  .bdg.lie{background:rgba(232,184,75,.14);color:var(--gold);border:1px solid rgba(232,184,75,.4)}
+  .bdg.honest{background:rgba(127,191,77,.12);color:var(--onion);border:1px solid var(--onion-d)}
+  .report .rrow{font:500 11px/1.45 var(--mono);color:var(--muted);padding:6px 0;border-top:1px dashed var(--border)}
+  .report .rrow:first-child{border-top:none}
+  .report .rrow .ok{color:var(--onion)} .report .rrow .lo{color:var(--rust)} .report .rrow .gd{color:var(--gold)}
+  .report .falaise{margin-top:8px;font:700 11px/1.4 var(--mono);color:var(--rust);
+       background:rgba(200,68,47,.1);border:1px solid var(--rust);border-radius:9px;padding:8px 10px}
+  .sellempty{font:600 12px/1.5 var(--sans);color:var(--faint);text-align:center;padding:18px 8px}
 
   /* ---- liste des listings ---- */
   .feed{flex:1;overflow-y:auto;padding:4px 12px 14px;display:flex;flex-direction:column;gap:9px}
@@ -264,14 +298,13 @@
 
   <div class="wallet" id="wallet"></div>
 
-  <div class="filters" id="filters">
-    <div class="chip on" data-f="all">Tout</div>
-    <div class="chip" data-f="resine">Résine</div>
-    <div class="chip" data-f="extraction">Concentrés</div>
-    <div class="chip" data-f="weed">Weed</div>
-    <div class="chip fav" data-f="fav">★ Favoris</div>
+  <div class="modebar" id="modebar">
+    <button data-v="buy" class="on">🛒 Acheter</button>
+    <button data-v="sell">🏷️ Vendre</button>
   </div>
-  <div class="sortrow">
+
+  <div class="filters" id="filters"></div>
+  <div class="sortrow" id="sortrow">
     <span class="lbl">Trier</span>
     <div class="seg" id="sort">
       <button data-s="rating" class="on">Note ★</button>
@@ -281,6 +314,7 @@
   </div>
 
   <div class="feed" id="feed"></div>
+  <div class="sellview" id="sellview" hidden></div>
 
   <div class="tabbar">
     <div class="last" id="last">Aucune commande pour l'instant.</div>
@@ -297,13 +331,16 @@
 import * as THREE from 'three';
 /* ===========================================================================
    DONNÉES — roster FIXE (constantes nommées). Aucun tirage ne pilote l'état.
-   family : resine | extraction | weed   ·   tier : cheap | mid | premium
+   family : resine | extraction | weed | coke | speed | mdma | cachets | fournitures
+   tier   : cheap | mid | premium     ·     kind (fournitures) : cut|reagent|pack|press|precursor
    =========================================================================== */
-const SAVE_VERSION = 3;
+const SAVE_VERSION = 6;
 const KEY = 'dw_state';
 const START_CASH = 1600;
 
-const FAMILIES = { resine:'Résine', extraction:'Concentrés', weed:'Weed' };
+const FAMILIES = { resine:'Résine', extraction:'Concentrés', weed:'Weed',
+                   coke:'Coke', speed:'Speed', mdma:'MDMA', cachets:'Cachets',
+                   fournitures:'Fournitures' };
 
 const SUPPLIERS = [
   // ---- Résine (hash pressé) ----
@@ -339,6 +376,66 @@ const SUPPLIERS = [
   { id:'paco',  handle:'OutdoorPaco', emoji:'🌳', family:'weed', tier:'cheap', rating:2.6, sales:233,
     prod:'Outdoor OG', eurG:5.5, annoncee:70, qtys:[25,50,100,250],
     desc:"Outdoor de plein champ, prix au plus bas. Annonce généreuse, réalité plus modeste. Avis partagés." },
+  // ---- Coke (écailles / cailloux) ----
+  { id:'fish',  handle:'FishScaleCo', emoji:'🐟', family:'coke', tier:'premium', rating:4.6, sales:288,
+    prod:'Fish-scale écaille', eurG:72, annoncee:93, qtys:[10,25,50,100],
+    desc:"Écaille nacrée, lab-tested, escrow obligatoire. Cher mais la pureté annoncée arrive. Min. de commande élevé." },
+  { id:'peru',  handle:'PeruFlake', emoji:'🏔️', family:'coke', tier:'mid', rating:3.8, sales:430,
+    prod:'Pérou caillou', eurG:60, annoncee:84, qtys:[10,25,50,100],
+    desc:"Caillou compact, coupe légère. Le rapport pureté/prix de référence. Quelques avis « un peu rebattu »." },
+  { id:'snow',  handle:'SnowmanStreet', emoji:'⛄', family:'coke', tier:'cheap', rating:2.4, sales:512,
+    prod:'Coke de rue (coupée)', eurG:46, annoncee:70, qtys:[25,50,100,250],
+    desc:"Volume, prix planché. Recoupée au lévamisole — l'annonce est optimiste. Pour qui recoupe derrière." },
+  // ---- Speed (pâte d'amphét) ----
+  { id:'baseup',handle:'BaseUpLab', emoji:'🧪', family:'speed', tier:'mid', rating:3.9, sales:240,
+    prod:'Base amphét 70%', eurG:13, annoncee:80, qtys:[25,50,100,250],
+    desc:"Base pressée propre, peu d'humidité. Sérieux, monte en réput. Idéal pour recouper proprement." },
+  { id:'turbo', handle:'TurboPaste', emoji:'⚡', family:'speed', tier:'cheap', rating:2.8, sales:690,
+    prod:'Speed pâte (street)', eurG:8, annoncee:62, qtys:[50,100,250,500],
+    desc:"Pâte humide rosée, gros volumes, prix au sol. Très coupée caféine — annonce généreuse. Le débit du marché." },
+  // ---- MDMA (cristaux) ----
+  { id:'champ', handle:'ChampagneXTC', emoji:'🥂', family:'mdma', tier:'premium', rating:4.7, sales:333,
+    prod:'Cristal champagne', eurG:38, annoncee:94, qtys:[10,25,50,100],
+    desc:"Gros cristaux champagne translucides, lab-tested. Top du marché, escrow signé. Ce que tu vois arrive." },
+  { id:'brown', handle:'BrownRocks', emoji:'🟤', family:'mdma', tier:'mid', rating:3.6, sales:410,
+    prod:'Cristal brun', eurG:30, annoncee:82, qtys:[25,50,100,250],
+    desc:"Cristal brun correct, dosage honnête sans plus. Lots irréguliers. Bon volume pour le prix." },
+  { id:'molly', handle:'MollyDiscount', emoji:'💎', family:'mdma', tier:'cheap', rating:2.7, sales:520,
+    prod:'Molly coupée', eurG:22, annoncee:70, qtys:[25,50,100,250],
+    desc:"Poudreux, coupé caféine/sucre. L'annonce flatte la pureté. Volume pas cher pour recouper en gélules." },
+  // ---- Cachets / taz (pressés, à l'unité) ----
+  { id:'tesla', handle:'TeslaPress', emoji:'🚗', family:'cachets', tier:'premium', rating:4.5, sales:401,
+    prod:'Tesla 240 mg', eurG:3.2, annoncee:90, unit:'u', qtys:[50,100,250,500],
+    desc:"Press net, dosage testé et tenu. Réput béton. Cher au cachet mais zéro mauvaise surprise sur le dosage." },
+  { id:'punish',handle:'PunisherDrop', emoji:'💀', family:'cachets', tier:'mid', rating:3.5, sales:355,
+    prod:'Punisher 180 mg', eurG:2.4, annoncee:80, unit:'u', qtys:[50,100,250,500],
+    desc:"Dosage moyen, press correct. Quelques cachets ébréchés par lot. Bon volume pour soirée." },
+  { id:'smiley',handle:'SmileyCheap', emoji:'🙂', family:'cachets', tier:'cheap', rating:2.5, sales:600,
+    prod:'Smiley dosage faible', eurG:1.7, annoncee:66, unit:'u', qtys:[100,250,500,1000],
+    desc:"Press grossier, dosage faible et inégal — l'annonce gonfle le mg. Prix au cachet imbattable, en gros." },
+  // ---- Fournitures : coupe + matériel + ressources de production (l'atelier du top boy) ----
+  // « qualité » = pureté/discrétion de la coupe, propreté du matériel, rendement de la ressource.
+  { id:'pharmacut', handle:'PharmaGradeCut', emoji:'⚗️', family:'fournitures', tier:'premium', rating:4.7, sales:382,
+    prod:'Agent de coupe pharma', eurG:9, annoncee:96, kind:'cut', qtys:[100,250,500,1000],
+    desc:"Diluant qualité pharma, inodore, passe les réactifs de rue. Cher mais ta came ne trahit pas la coupe." },
+  { id:'cleancut',  handle:'CleanCutCo', emoji:'🥛', family:'fournitures', tier:'mid', rating:3.7, sales:441,
+    prod:'Coupe fine inodore', eurG:4.5, annoncee:80, kind:'cut', qtys:[100,250,500,1000],
+    desc:"Diluant fin sans goût, se lie bien. Le compromis discrétion/prix pour gonfler sans casser la réput." },
+  { id:'bulkcut',   handle:'BulkFillers', emoji:'🧂', family:'fournitures', tier:'cheap', rating:2.6, sales:914,
+    prod:'Coupe générique (vrac)', eurG:2.2, annoncee:60, kind:'cut', qtys:[250,500,1000,2000],
+    desc:"Lactose/créatine en gros sacs, prix au sol. Grossier — un nez averti le sent. Pour gonfler vite fait." },
+  { id:'reagent',   handle:'ReagentLab', emoji:'🧪', family:'fournitures', tier:'mid', rating:4.0, sales:560,
+    prod:'Kits de test réactifs', eurG:6, annoncee:88, kind:'reagent', unit:'u', qtys:[10,25,50,100],
+    desc:"Marquis / Mecke / Mandelin. Pour vérifier ce que tu reçois — ou ce que tu vends. L'outil de prudence." },
+  { id:'vacpack',   handle:'VacPackSupply', emoji:'🧰', family:'fournitures', tier:'cheap', rating:3.1, sales:1322,
+    prod:'Sachets + scelleuse (lot)', eurG:0.6, annoncee:72, kind:'pack', unit:'u', qtys:[100,250,500,1000],
+    desc:"Baggies zip, mylar, sous-vide. Conditionnement discret en gros. Le consommable de base de l'atelier." },
+  { id:'press',     handle:'PressMasters', emoji:'🛠️', family:'fournitures', tier:'premium', rating:4.4, sales:121,
+    prod:'Presse + matrice custom', eurG:850, annoncee:92, kind:'press', unit:'u', qtys:[1,2,5],
+    desc:"Presse hydraulique et matrice de logo sur mesure. L'investissement qui te fait passer producteur." },
+  { id:'base',      handle:'SealedBase', emoji:'🛢️', family:'fournitures', tier:'premium', rating:4.6, sales:88,
+    prod:'Base de synthèse (lot scellé)', eurG:42, annoncee:94, kind:'precursor', qtys:[100,250,500],
+    desc:"Intrant de production scellé et lab-testé, pour qui fabrique au lieu d'acheter. Réservé aux relations établies." },
 ];
 const byId = id => SUPPLIERS.find(s => s.id === id);
 
@@ -368,6 +465,11 @@ function repRank(s){ const c = rel(s.id).count; return c>=10?3 : c>=5?2 : c>=2?1
 // gros (250 g→2 kg) ; la weed part de 250 g ; les très grosses quantités
 // exigent de la réputation.
 function qtyBase(s){
+  if(s.family === 'fournitures') return s.qtys;                   // paliers hétérogènes par item (coupe/matériel/ressource)
+  if(s.family === 'cachets') return [50,100,250,500,1000];        // à l'unité
+  if(s.family === 'coke')    return [10,25,50,100,250];           // cher, petits paliers
+  if(s.family === 'mdma')    return [25,50,100,250,500];
+  if(s.family === 'speed')   return [50,100,250,500,1000];
   if(s.family === 'weed')    return [250,500,1000,2000];
   if(s.tier === 'premium')   return [250,500,1000,2000];
   if(s.tier === 'mid')       return [50,100,250,500,1000];
@@ -391,10 +493,36 @@ function orderPct(s, g){
 }
 const effEurG = (s, g, form) => s.eurG * formFactor(s, form) * (1 - orderPct(s, g) / 100);
 
+/* ----- ÉCONOMIE VENDEUR (T2) — demande déterministe, aucune RNG sur les conséquences -----
+   Le joueur revend son stock : il choisit un PRIX et une QUALITÉ ANNONCÉE (qu'il peut gonfler
+   au-dessus du réel). La demande répond au prix, à l'annonce et à sa note de vendeur. L'écart
+   annoncé−réel se PAIE : honnête → la note monte ; gonflé → tromperie qui s'accumule en silence
+   puis casse net la confiance (FALAISE, miroir de la fraude de « La Bascule »). */
+const SELL = {
+  REF_K:   0.135,  // prix de référence du marché (€/g) = REF_K × qualité annoncée
+  DEMAND:  44,     // demande de base par cycle (unités) à conditions neutres
+  TOL:     6,      // tolérance d'écart annoncé−réel avant que ça se sente
+  SEUIL:   7,      // cumul de tromperie qui déclenche la falaise
+  FALAISE: 1.3,    // chute de note à la falaise
+  GAIN:    0.09,   // gain de note par cycle de vente honnête
+};
+const refEurG    = ann => +(SELL.REF_K * ann).toFixed(2);
+const sellerLvl  = r => r<=0?'nouveau' : r<2?'douteux' : r<3.5?'correct' : r<4.5?'établi' : 'référence';
+const priceMult  = (eurG, ann) => Math.max(0.12, Math.min(2.2, Math.pow(refEurG(ann)/eurG, 1.6)));
+const qualMult   = ann => 0.55 + ann/100*0.85;                      // annonce haute = plus d'acheteurs
+const ratingMult = r => 0.45 + Math.min(5, Math.max(0, r))/5*0.65;  // note basse = méfiance
+const cycleDemand = (eurG, ann, r) => Math.round(SELL.DEMAND * priceMult(eurG,ann) * qualMult(ann) * ratingMult(r));
+
+// unité de vente : grammes par défaut, cachets à la pièce
+const U = s => s.unit || 'g';
+const labelAmt = (g, unit) => unit === 'u' ? g + ' u' : (g >= 1000 ? (g/1000) + ' kg' : g + ' g');
+const labelQ = (s, g) => labelAmt(g, U(s));
+
 /* ===========================================================================
    ÉTAT + persistance
    =========================================================================== */
-const DEFAULT = () => ({ v:SAVE_VERSION, cash:START_CASH, stockG:0, qualSum:0, debt:0, receipts:[], favs:[], rel:{} });
+const DEFAULT = () => ({ v:SAVE_VERSION, cash:START_CASH, stockG:0, qualSum:0, debt:0, receipts:[], favs:[], rel:{},
+  seller:{ rating:0, sales:0, cum:0, fallen:false, day:0 }, listings:[], lastReport:null, listSeq:0 });
 function load(){
   try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.v === SAVE_VERSION) return s; }catch(e){}
   return DEFAULT();
@@ -461,7 +589,7 @@ function roundedSlab(w,len,thick,r){
   geo.center(); geo.rotateX(-Math.PI/2); geo.computeVertexNormals(); return geo;
 }
 
-function makeProduct(family, pct, form){
+function makeProduct(family, pct, form, kind){
   const q = qOf(pct), g = new THREE.Group();
   if(family === 'resine'){
     // plaque de hash pressée : slab arrondi + grain multi-échelle + bump + lustre.
@@ -496,6 +624,117 @@ function makeProduct(family, pct, form){
       const a = seeded(i*3)*6.283, rad = seeded(i*7)*0.5;
       m.position.set(Math.cos(a)*rad, -0.25 + seeded(i*5)*0.55, Math.sin(a)*rad);
       m.rotation.set(seeded(i)*3, seeded(i*2)*3, seeded(i*4)*3); g.add(m);
+    }
+  } else if(family === 'coke'){
+    // écailles / cailloux : blanc nacré « fish-scale » en haute qualité, terne et jauni (recoupé) en basse
+    const white = new THREE.Color().lerpColors(new THREE.Color('#c9c2b4'), new THREE.Color('#fdfdfb'), q);
+    const n = 9 + Math.round(q*9);
+    for(let i=0;i<n;i++){
+      const r = 0.17 + seeded(i*3)*0.18;
+      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r,0),
+        new THREE.MeshPhysicalMaterial({ color:white, roughness:0.55-0.34*q, metalness:0,
+          clearcoat:0.2+0.6*q, clearcoatRoughness:0.45-0.3*q, iridescence:0.55*q, iridescenceIOR:1.3,
+          sheen:0.4*q, sheenColor:new THREE.Color('#dfe8ff'), envMapIntensity:1.1, flatShading:true }));
+      const a = seeded(i*5)*6.283, rad = seeded(i*7)*0.55;
+      m.position.set(Math.cos(a)*rad, -0.30 + seeded(i*9)*0.5, Math.sin(a)*rad);
+      m.rotation.set(seeded(i)*3, seeded(i*2)*3, seeded(i*4)*3);
+      m.scale.set(1, 0.55 + seeded(i*6)*0.5, 1); g.add(m);
+    }
+  } else if(family === 'speed'){
+    // pâte d'amphét : galette grumeleuse, rosée/sale (street) -> beige base propre (haute)
+    const paste = new THREE.Color().lerpColors(new THREE.Color('#b79a92'), new THREE.Color('#ece0cf'), q);
+    const mat = new THREE.MeshPhysicalMaterial({ color:paste, roughness:0.6-0.15*q, metalness:0,
+      bumpMap:resinBump, bumpScale:0.7, clearcoat:0.15+0.35*q, clearcoatRoughness:0.65, sheen:0.25, envMapIntensity:0.7 });
+    const patty = new THREE.Mesh(new THREE.SphereGeometry(0.82,28,18), mat);
+    patty.scale.set(1, 0.45, 1); patty.position.y = -0.22; g.add(patty);
+    const lumps = 5 + Math.round((1-q)*6);
+    for(let i=0;i<lumps;i++){
+      const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11+seeded(i)*0.12,0), mat);
+      const a = seeded(i*3)*6.283, rad = 0.18 + seeded(i*7)*0.5;
+      c.position.set(Math.cos(a)*rad, -0.06 + seeded(i*5)*0.12, Math.sin(a)*rad);
+      c.rotation.set(seeded(i)*3, seeded(i*2)*3, 0); g.add(c);
+    }
+  } else if(family === 'mdma'){
+    // gros cristaux façon rock-candy : champagne translucide (haute) -> brun coupé (basse)
+    const col = new THREE.Color().lerpColors(new THREE.Color('#7a5a30'), new THREE.Color('#e9cd8e'), q);
+    const n = 5 + Math.round(q*6);
+    for(let i=0;i<n;i++){
+      const r = 0.22 + seeded(i*3)*0.2;
+      const geo = new THREE.BoxGeometry(r, r*(0.7+seeded(i)*0.7), r*(0.6+seeded(i*2)*0.5));
+      const m = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ color:col, roughness:0.14-0.07*q, metalness:0,
+        transmission:0.35+0.5*q, ior:1.5, thickness:0.8, attenuationColor:col.clone(), attenuationDistance:1.2,
+        envMapIntensity:1.4, transparent:true, flatShading:true }));
+      const a = seeded(i*5)*6.283, rad = seeded(i*7)*0.45;
+      m.position.set(Math.cos(a)*rad, -0.26 + seeded(i*9)*0.5, Math.sin(a)*rad);
+      m.rotation.set(seeded(i)*2, seeded(i*2)*3, seeded(i*4)*2); g.add(m);
+    }
+  } else if(family === 'cachets'){
+    // cachets pressés colorés avec logo embossé : press net + couleur vive (haute), ébréché/terne (basse)
+    const hues = ['#d96a6a','#6aa0d9','#7cc77c','#d9c46a','#b07cd9','#d98f5a'];   // couleurs bonbon (présentation)
+    const n = 5 + Math.round(q*4);
+    for(let i=0;i<n;i++){
+      const col = new THREE.Color(hues[i % hues.length]).lerp(new THREE.Color('#8a8278'), (1-q)*0.5);
+      const mat = new THREE.MeshPhysicalMaterial({ color:col, roughness:0.5-0.25*q, metalness:0,
+        clearcoat:0.4*q, clearcoatRoughness:0.4, envMapIntensity:0.8 });
+      const pill = new THREE.Mesh(new THREE.CylinderGeometry(0.27,0.29,0.15,22), mat);
+      const a = seeded(i*5)*6.283, rad = i===0 ? 0 : 0.3 + seeded(i*7)*0.42;
+      pill.position.set(Math.cos(a)*rad, -0.42 + i*0.015, Math.sin(a)*rad);
+      pill.rotation.set((seeded(i*2)-0.5)*0.5, seeded(i)*3, (seeded(i*3)-0.5)*0.5); g.add(pill);
+      // logo embossé (petit prisme) — d'autant plus net que la qualité est haute
+      const logo = new THREE.Mesh(new THREE.TetrahedronGeometry(0.07*(0.5+q*0.7)),
+        new THREE.MeshStandardMaterial({ color:col.clone().multiplyScalar(0.7), roughness:0.6 }));
+      logo.position.set(pill.position.x, pill.position.y + 0.085, pill.position.z);
+      logo.rotation.y = seeded(i)*3; g.add(logo);
+      // ébréchures en basse qualité
+      if(q < 0.4 && seeded(i*11) < 0.5){
+        const chip = new THREE.Mesh(new THREE.IcosahedronGeometry(0.05,0), mat);
+        chip.position.set(pill.position.x + 0.2, pill.position.y, pill.position.z); g.add(chip);
+      }
+    }
+  } else if(family === 'fournitures'){
+    // intrants de l'atelier : modèle selon le sous-type (kind). « Qualité » = propreté/discrétion.
+    if(kind === 'precursor'){
+      // bidon scellé d'intrant de production
+      const drumMat = new THREE.MeshPhysicalMaterial({ color:new THREE.Color().lerpColors(new THREE.Color('#3a5a8a'), new THREE.Color('#5b86c4'), q),
+        roughness:0.4-0.1*q, metalness:0.1, clearcoat:0.5, envMapIntensity:1.0 });
+      g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.62,0.62,1.25,30), drumMat));
+      for(const yy of [-0.4,0.4]){ const ring=new THREE.Mesh(new THREE.TorusGeometry(0.62,0.05,8,30), drumMat); ring.rotation.x=Math.PI/2; ring.position.y=yy; g.add(ring); }
+      const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.18,16), new THREE.MeshStandardMaterial({ color:0x222a33, roughness:0.6 }));
+      cap.position.set(0.26,0.68,0); g.add(cap);
+    } else if(kind === 'press'){
+      // presse de producteur (matériel métallique) + matrice dorée
+      const metal = new THREE.MeshStandardMaterial({ color:0x8a9299, roughness:0.35-0.15*q, metalness:0.85, envMapIntensity:1.2 });
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(0.95,1.2,0.72), metal));
+      const piston=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.7,16), metal); piston.position.y=0.52; g.add(piston);
+      const die=new THREE.Mesh(new THREE.CylinderGeometry(0.33,0.33,0.18,22),
+        new THREE.MeshStandardMaterial({ color:0xb8893f, roughness:0.35, metalness:0.9, envMapIntensity:1.2 })); die.position.y=-0.46; g.add(die);
+      const base=new THREE.Mesh(new THREE.BoxGeometry(1.15,0.18,0.9), metal); base.position.y=-0.64; g.add(base);
+    } else if(kind === 'pack'){
+      // pile de sachets translucides
+      for(let i=0;i<5;i++){
+        const sq=new THREE.Mesh(new THREE.BoxGeometry(0.95,0.04,0.95),
+          new THREE.MeshPhysicalMaterial({ color:0xdfe7ea, roughness:0.2, metalness:0, transmission:0.5, thickness:0.2, transparent:true, clearcoat:0.6, envMapIntensity:1.0 }));
+        sq.position.set((seeded(i*3)-0.5)*0.2, -0.4+i*0.13, (seeded(i*5)-0.5)*0.2); sq.rotation.y=seeded(i)*0.6; g.add(sq);
+      }
+    } else if(kind === 'reagent'){
+      // flacons de réactifs de test
+      const cols=['#8a3030','#2f5a7a','#6a2f7a'];
+      for(let i=0;i<3;i++){ const x=(i-1)*0.44;
+        const glass=new THREE.MeshPhysicalMaterial({ color:new THREE.Color(cols[i]), roughness:0.1, metalness:0,
+          transmission:0.7, ior:1.5, thickness:0.4, attenuationColor:new THREE.Color(cols[i]), attenuationDistance:0.6, transparent:true, envMapIntensity:1.2 });
+        const bottle=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.17,0.72,18), glass); bottle.position.set(x,-0.08,0); g.add(bottle);
+        const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.18,12), new THREE.MeshStandardMaterial({ color:0x14181d, roughness:0.7 })); cap.position.set(x,0.36,0); g.add(cap);
+        const tip=new THREE.Mesh(new THREE.ConeGeometry(0.09,0.16,12), new THREE.MeshStandardMaterial({ color:0x202830, roughness:0.6 })); tip.position.set(x,0.52,0); g.add(tip);
+      }
+    } else { // 'cut' (agents de coupe) — sachet de poudre sous vide
+      const powder=new THREE.Mesh(new THREE.BoxGeometry(1.42,0.44,0.96),
+        new THREE.MeshStandardMaterial({ color:new THREE.Color().lerpColors(new THREE.Color('#cdc8bd'), new THREE.Color('#fbfbf8'), q), roughness:0.95 }));
+      g.add(powder);
+      const bag=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.52,1.04),
+        new THREE.MeshPhysicalMaterial({ color:0xe9eef0, roughness:0.22, metalness:0, transmission:0.28, thickness:0.4, transparent:true, clearcoat:0.6, envMapIntensity:1.0 }));
+      g.add(bag);
+      const seal=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.09,0.16), new THREE.MeshStandardMaterial({ color:0xbfc6c9, roughness:0.5, metalness:0.2 }));
+      seal.position.z=0.5; g.add(seal);
     }
   } else { // weed
     const branch = (form === 'branchage');     // brut (tiges + feuilles) vs paquet manucuré
@@ -587,8 +826,8 @@ function tuneRenderer(r){ r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMap
 // ---- vignettes baked (cache par famille+qualité) ----
 const thumbCache = {};
 let thumbR = null, thumbStage = null;
-function bakeThumb(family, pct){
-  const key = family + '_' + pct;
+function bakeThumb(family, pct, kind){
+  const key = family + '_' + pct + '_' + (kind || '');
   if(thumbCache[key]) return thumbCache[key];
   try{
     if(!thumbR){
@@ -597,7 +836,7 @@ function bakeThumb(family, pct){
       thumbStage = makeStage(); thumbStage.scene.environment = buildEnv(thumbR);
     }
     const old = thumbStage.scene.getObjectByName('product'); if(old) thumbStage.scene.remove(old);
-    const p = makeProduct(family, pct); p.name = 'product'; p.rotation.y = 0.7; thumbStage.scene.add(p);
+    const p = makeProduct(family, pct, undefined, kind); p.name = 'product'; p.rotation.y = 0.7; thumbStage.scene.add(p);
     thumbR.render(thumbStage.scene, thumbStage.camera);
     const url = thumbR.domElement.toDataURL('image/png');
     thumbCache[key] = url; return url;
@@ -615,7 +854,7 @@ function disposeViewer(){
   if(live.dom && live.dom.parentNode) live.dom.parentNode.removeChild(live.dom);
   live = null;
 }
-function mountViewer(el, family, pct, form){
+function mountViewer(el, family, pct, form, kind){
   disposeViewer();
   let renderer;
   try{ renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true }); }
@@ -625,7 +864,7 @@ function mountViewer(el, family, pct, form){
   renderer.setSize(w, h); tuneRenderer(renderer); el.appendChild(renderer.domElement);
   const stage = makeStage(); stage.scene.environment = buildEnv(renderer);
   stage.camera.aspect = w/h; stage.camera.updateProjectionMatrix();
-  const group = makeProduct(family, pct, form); stage.scene.add(group);
+  const group = makeProduct(family, pct, form, kind); stage.scene.add(group);
   let rot = 0.5, vel = 0.006, dragging = false, lastX = 0;
   const dom = renderer.domElement; dom.style.cursor = 'grab';
   const down = e => { dragging = true; lastX = (e.touches?e.touches[0].clientX:e.clientX); vel = 0; dom.style.cursor='grabbing'; };
@@ -649,6 +888,14 @@ const stars = r => { const f=Math.floor(r), h=r-f>=0.5; return '★'.repeat(f)+(
 
 let filter = 'all', sortBy = 'rating';
 
+function renderFilters(){
+  const chips = [`<div class="chip${filter==='all'?' on':''}" data-f="all">Tout</div>`]
+    .concat(Object.keys(FAMILIES).map(k =>
+      `<div class="chip${filter===k?' on':''}" data-f="${k}">${FAMILIES[k]}</div>`))
+    .concat([`<div class="chip fav${filter==='fav'?' on':''}" data-f="fav">★ Favoris</div>`]);
+  $('filters').innerHTML = chips.join('');
+}
+
 function renderWallet(){
   const segs = [
     `<div class="seg cash"><div class="k">Cash</div><b>${fmt(S.cash)}</b></div>`,
@@ -659,7 +906,7 @@ function renderWallet(){
   $('wallet').innerHTML = segs;
   const last = S.receipts[0];
   $('last').innerHTML = last
-    ? `Dernier : <b>${last.g} g</b> de ${last.handle} · qualité ${last.real}%`
+    ? `Dernier : <b>${labelAmt(last.g, last.unit)}</b> de ${last.handle} · qualité ${last.real}%`
     : "Aucune commande pour l'instant.";
 }
 
@@ -685,15 +932,15 @@ function renderFeed(){
     const fav = S.favs.includes(s.id);
     const showQ = r.sampled ? `<span class="pq">· réel ${realQual(s)}%</span>` : `<span class="pq">· ${s.annoncee}% annoncé</span>`;
     const priceBlock = st > 0
-      ? `<span class="was">${fmt1(s.eurG)}/g</span><b>${fmt1(s.eurG*(1-st/100))}</b><span class="u">/g</span>`
-      : `<b>${fmt1(s.eurG)}</b><span class="u">/g</span>`;
+      ? `<span class="was">${fmt1(s.eurG)}/${U(s)}</span><b>${fmt1(s.eurG*(1-st/100))}</b><span class="u">/${U(s)}</span>`
+      : `<b>${fmt1(s.eurG)}</b><span class="u">/${U(s)}</span>`;
     const badges = [
       `<span class="bdg fam">${FAMILIES[s.family]}</span>`,
       loy.pct > 0 ? `<span class="bdg loy">${loy.lvl} −${loy.pct}%</span>` : '',
       r.deal ? `<span class="bdg loy">remise négociée</span>` : '',
       r.sampled ? `<span class="bdg samp">échantillon vu</span>` : '',
     ].filter(Boolean).join('');
-    const thumb = bakeThumb(s.family, s.annoncee);   // photo du listing = qualité annoncée
+    const thumb = bakeThumb(s.family, s.annoncee, s.kind);   // photo du listing = qualité annoncée
     const thumbHTML = thumb
       ? `<div class="thumb"><img src="${thumb}" alt=""><span class="pe">${s.emoji}</span></div>`
       : `<div class="av">${s.emoji}</div>`;
@@ -769,7 +1016,7 @@ function openOrder(s){
     </div>
     <div class="specs">
       <div class="spec"><div class="k">Produit</div><div class="v" style="font-size:11px">${s.prod}</div></div>
-      <div class="spec"><div class="k">Prix base</div><div class="v" id="r-base">${basePrice}/g</div></div>
+      <div class="spec"><div class="k">Prix base</div><div class="v" id="r-base">${basePrice}/${U(s)}</div></div>
       <div class="spec q"><div class="k">Qualité ${r.sampled?'réelle':'annoncée'}</div><div class="v">${r.sampled?realQual(s):s.annoncee}%</div></div>
     </div>
     <div class="desc">${qInfo}</div>
@@ -790,7 +1037,7 @@ function openOrder(s){
     const o = e.target.closest('[data-form]'); if(!o) return; selForm = o.dataset.form; openOrder(s);
   });
   showSheet();
-  mountViewer($('viewer'), s.family, r.sampled ? realQual(s) : s.annoncee, selForm);
+  mountViewer($('viewer'), s.family, r.sampled ? realQual(s) : s.annoncee, selForm, s.kind);
 }
 function renderQtys(){
   const box = $('qtys'); box.innerHTML = '';
@@ -798,8 +1045,8 @@ function renderQtys(){
     const el = document.createElement('div');
     el.className = 'qty' + (o.g===selQty?' on':'') + (o.locked?' locked':'');
     el.innerHTML = o.locked
-      ? `<div class="g">${labelG(o.g)}</div><div class="e">🔒 ${repName(o.need)}</div>`
-      : `<div class="g">${labelG(o.g)}</div><div class="e">${fmt(o.g*effEurG(sel,o.g,selForm))}</div>`;
+      ? `<div class="g">${labelQ(sel,o.g)}</div><div class="e">🔒 ${repName(o.need)}</div>`
+      : `<div class="g">${labelQ(sel,o.g)}</div><div class="e">${fmt(o.g*effEurG(sel,o.g,selForm))}</div>`;
     el.addEventListener('click', () => {
       if(o.locked){ toast(`Quantité réservée : réputation « ${repName(o.need)} » requise chez ${sel.handle}.`, true); return; }
       selQty = o.g; renderQtys(); refreshRecap();
@@ -811,17 +1058,17 @@ function renderQtys(){
 function refreshRecap(){
   const s = sel, g = selQty, pct = orderPct(s,g), unit = effEurG(s,g,selForm), total = Math.round(g*unit);
   const full = s.eurG * formFactor(s, selForm) * g;
-  $('r-unit').textContent = fmt1(unit) + '/g';
+  $('r-unit').textContent = fmt1(unit) + '/' + U(s);
   $('r-disc').textContent = pct > 0 ? `−${pct}% (${fmt(full - total)})` : '—';
   $('r-total').textContent = fmt(total);
   const btn = $('buy');
   if(selCredit){
     btn.disabled = false;
-    btn.innerHTML = `Commander ${labelG(g)} à crédit · ${fmt(total)} <span class="sm">+${fmt(total)} de dette envers ${s.handle}</span>`;
+    btn.innerHTML = `Commander ${labelQ(s,g)} à crédit · ${fmt(total)} <span class="sm">+${fmt(total)} de dette envers ${s.handle}</span>`;
   } else {
     const ok = total <= S.cash; btn.disabled = !ok;
     btn.innerHTML = ok
-      ? `Commander ${labelG(g)} · ${fmt(total)} <span class="sm">paiement cash · escrow · livraison immédiate</span>`
+      ? `Commander ${labelQ(s,g)} · ${fmt(total)} <span class="sm">paiement cash · escrow · livraison immédiate</span>`
       : `Cash insuffisant <span class="sm">il manque ${fmt(total - S.cash)}</span>`;
   }
 }
@@ -844,10 +1091,10 @@ function doOrder(){
   ].filter(Boolean);
   const dcause = pct>0 ? ` · <span class="di">remise −${pct}% (${dparts.join(', ')})</span>` : '';
   const ccause = credit ? ` · <span class="lo">à crédit (+${fmt(total)} dette)</span>` : '';
-  S.receipts.unshift({ handle:s.handle, g, total, credit, annoncee:s.annoncee, real, cause:qcause + dcause + ccause });
+  S.receipts.unshift({ handle:s.handle, g, unit:U(s), total, credit, annoncee:s.annoncee, real, cause:qcause + dcause + ccause });
   if(S.receipts.length > 40) S.receipts.pop();
   save(); closeSheet(); renderWallet(); renderFeed();
-  toast(`${labelG(g)} ${credit?'à crédit ':''}reçus de ${s.handle} · qualité réelle ${real}%` + (gap>6?` (annoncé ${s.annoncee}%)`:''), gap>6);
+  toast(`${labelQ(s,g)} ${credit?'à crédit ':''}reçus de ${s.handle} · qualité réelle ${real}%` + (gap>6?` (annoncé ${s.annoncee}%)`:''), gap>6);
 }
 
 /* ===========================================================================
@@ -925,7 +1172,7 @@ function openReceipts(){
   } else {
     const rows = S.receipts.map(r => `
       <div class="rcpt">
-        <div class="r1"><span>${r.g} g · ${r.handle}</span><span class="amt">-${fmt(r.total)}</span></div>
+        <div class="r1"><span>${labelAmt(r.g, r.unit)} · ${r.handle}</span><span class="amt">-${fmt(r.total)}</span></div>
         <div class="cause">${r.cause}</div>
       </div>`).join('');
     $('sheet').innerHTML = `<div class="grab"></div>
@@ -933,6 +1180,171 @@ function openReceipts(){
       <div class="receipts">${rows}</div>`;
   }
   showSheet();
+}
+
+/* ===========================================================================
+   MODE VENDEUR (T2) — revendre son stock, écouler par cycle, rapport tracable
+   =========================================================================== */
+let view = 'buy';
+let selListQty = 0, selListAnnDelta = 0, selListPriceMode = 'market';
+const PRICE_MODE = { brade:0.82, market:1.0, premium:1.22 };
+
+function switchView(v){
+  view = v;
+  [...$('modebar').children].forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  const sell = v === 'sell';
+  ['filters','sortrow','feed'].forEach(id => $(id).hidden = sell);
+  $('sellview').hidden = !sell;
+  if(sell) renderSell(); else renderFeed();
+}
+
+// options de quantité à mettre en vente, bornées par le stock
+function sellQtyOptions(){
+  const opts = [50,100,250,500,1000].filter(g => g <= S.stockG);
+  if(S.stockG > 0 && !opts.includes(S.stockG)) opts.push(S.stockG);   // « tout »
+  return [...new Set(opts)].sort((a,b)=>a-b);
+}
+const annOf   = real => Math.min(98, real + selListAnnDelta);
+const priceOf = real => +(refEurG(annOf(real)) * PRICE_MODE[selListPriceMode]).toFixed(2);
+
+function renderSell(){
+  const sv = $('sellview'), real = avgQual(), sr = S.seller;
+  const head = `
+    <div class="scard">
+      <h3>Profil vendeur <span class="hint">jour ${sr.day}</span></h3>
+      <div class="specs">
+        <div class="spec"><div class="k">Note vendeur</div><div class="v" style="color:var(--gold)">${sr.rating>0?sr.rating.toFixed(1)+'★':'—'}</div></div>
+        <div class="spec"><div class="k">Réputation</div><div class="v" style="font-size:12px">${sellerLvl(sr.rating)}</div></div>
+        <div class="spec"><div class="k">Unités vendues</div><div class="v">${sr.sales}</div></div>
+      </div>
+    </div>`;
+
+  // formulaire de mise en vente
+  let form;
+  if(S.stockG <= 0){
+    form = `<div class="scard"><h3>Mettre en vente</h3>
+      <div class="sellempty">Ton stock est vide.<br>Passe en <b>🛒 Acheter</b> pour t'approvisionner, puis reviens revendre.</div></div>`;
+  } else {
+    const opts = sellQtyOptions();
+    if(!opts.includes(selListQty)) selListQty = opts[0];
+    const qtyTiles = opts.map(g => `<div class="qty${g===selListQty?' on':''}" data-sq="${g}">
+        <div class="g">${g===S.stockG?'tout':labelAmt(g,'g')}</div><div class="e">${g} u</div></div>`).join('');
+    const annTiles = [[0,'honnête'],[10,'gonflé +10'],[20,'gonflé +20']].map(([d,lab])=>{
+      const a = Math.min(98, real + d), gap = a - real;
+      return `<div class="qty${d>0?' lie':''}${d===selListAnnDelta?' on':''}" data-ann="${d}">
+        <div class="g">${a}%</div><div class="e ${gap>SELL.TOL?'warn':'good'}">${lab}</div></div>`;
+    }).join('');
+    const priceTiles = Object.keys(PRICE_MODE).map(m => {
+      const saved = selListPriceMode; selListPriceMode = m; const p = priceOf(real); selListPriceMode = saved;
+      const pct = Math.round((PRICE_MODE[m]-1)*100);
+      const lab = m==='brade'?`${pct}% (brade)`:m==='premium'?`+${pct}% (premium)`:'marché';
+      return `<div class="qty${m===selListPriceMode?' on':''}" data-pm="${m}">
+        <div class="g">${fmt1(p)}<span style="font-size:9px">/g</span></div><div class="e">${lab}</div></div>`;
+    }).join('');
+    const ann = annOf(real), price = priceOf(real);
+    const dem = Math.min(selListQty, cycleDemand(price, ann, sr.rating));
+    const gap = ann - real;
+    const riskTxt = gap > SELL.TOL
+      ? `<span style="color:var(--gold)">⚠ annonce gonflée (+${gap}%) : ça vend plus, mais la tromperie s'accumule</span>`
+      : `<span style="color:var(--onion)">annonce honnête : ta note grimpe à chaque livraison</span>`;
+    form = `<div class="scard">
+      <h3>Mettre en vente <span class="hint">stock ${S.stockG} u · réel ${real}%</span></h3>
+      <div class="qtitle">Quantité</div><div class="qtys" id="sq">${qtyTiles}</div>
+      <div class="qtitle">Qualité annoncée</div><div class="qtys annrow" id="sa">${annTiles}</div>
+      <div class="qtitle">Prix</div><div class="qtys" id="sp">${priceTiles}</div>
+      <div class="estim"><span>Demande estimée</span><b>≈ ${dem} u / jour</b></div>
+      <div class="estim"><span>Revenu / jour</span><b>≈ ${fmt(dem*price)}</b></div>
+      <div class="desc" style="margin:6px 0 0">${riskTxt}</div>
+      <button class="buy" id="post-btn">Mettre en vente · ${selListQty} u @ ${fmt1(price)}/g</button>
+    </div>`;
+  }
+
+  // annonces actives
+  let actives = '';
+  if(S.listings.length){
+    const rows = S.listings.map(L => {
+      const gap = L.annoncee - L.real, pct = Math.round(L.sold/L.qty*100);
+      return `<div class="lrow">
+        <div class="li">
+          <div class="lt">${L.qty} u @ ${fmt1(L.eurG)}/g
+            <span class="bdg ${gap>SELL.TOL?'lie':'honest'}">${L.annoncee}%${gap>SELL.TOL?` (réel ${L.real}%)`:''}</span></div>
+          <div class="ls">${L.sold}/${L.qty} vendues · encaissé ${fmt(L.revenue)}</div>
+          <div class="bar"><i style="width:${pct}%"></i></div>
+        </div></div>`;
+    }).join('');
+    actives = `<div class="scard"><h3>Annonces en ligne <span class="hint">${S.listings.length}</span></h3>
+      <div style="display:flex;flex-direction:column;gap:8px">${rows}</div>
+      <button class="buy" id="day-btn" style="margin-top:11px">⏭ Écouler — jour suivant</button></div>`;
+  }
+
+  // rapport du dernier cycle
+  let report = '';
+  if(S.lastReport){
+    const R = S.lastReport;
+    const rrows = R.rows.map(r => `<div class="rrow">${r.cause}</div>`).join('');
+    report = `<div class="scard report"><h3>Rapport — jour ${R.day} <span class="hint">+${fmt(R.totRev)} · ${R.anySold} u</span></h3>
+      ${rrows}${R.falaise?`<div class="falaise">${R.falaise}</div>`:''}</div>`;
+  }
+
+  sv.innerHTML = head + form + actives + report;
+  const sq = $('sq'); if(sq) sq.onclick = e => { const t=e.target.closest('[data-sq]'); if(t){ selListQty=+t.dataset.sq; renderSell(); } };
+  const sa = $('sa'); if(sa) sa.onclick = e => { const t=e.target.closest('[data-ann]'); if(t){ selListAnnDelta=+t.dataset.ann; renderSell(); } };
+  const sp = $('sp'); if(sp) sp.onclick = e => { const t=e.target.closest('[data-pm]'); if(t){ selListPriceMode=t.dataset.pm; renderSell(); } };
+  const pb = $('post-btn'); if(pb) pb.onclick = postListing;
+  const db = $('day-btn'); if(db) db.onclick = resolveDay;
+}
+
+function postListing(){
+  const real = avgQual(), qty = Math.min(selListQty, S.stockG);
+  if(qty <= 0) return;
+  const ann = annOf(real), eurG = priceOf(real);
+  S.stockG -= qty; S.qualSum -= qty*real;                    // sort le lot du stock (qualité moyenne inchangée)
+  if(S.stockG <= 0) S.qualSum = 0;
+  S.listings.push({ id:++S.listSeq, qty, sold:0, eurG, annoncee:ann, real, revenue:0 });
+  selListQty = 0; selListAnnDelta = 0; selListPriceMode = 'market';
+  save(); renderWallet(); renderSell();
+  toast(`Annonce en ligne : ${qty} u @ ${fmt1(eurG)}/g · annoncé ${ann}%`);
+}
+
+function resolveDay(){
+  if(!S.listings.length) return;
+  const sr = S.seller; sr.day += 1;
+  const rows = []; let totRev = 0, anySold = 0;
+  for(const L of S.listings){
+    const remain = L.qty - L.sold;
+    if(remain <= 0) continue;
+    const want = cycleDemand(L.eurG, L.annoncee, sr.rating);
+    const sold = Math.min(remain, want);
+    const ref = refEurG(L.annoncee);
+    const priceTxt = L.eurG < ref ? `prix sous le marché <span class="ok">(+demande)</span>`
+                   : L.eurG > ref ? `prix premium <span class="gd">(−demande)</span>` : `au prix du marché`;
+    if(sold <= 0){
+      rows.push({ cause:`<b>${L.annoncee}% @ ${fmt1(L.eurG)}/g</b> — aucune vente · ${priceTxt}, note ${sellerLvl(sr.rating)}` });
+      continue;
+    }
+    const rev = Math.round(sold * L.eurG);
+    L.sold += sold; L.revenue += rev; S.cash += rev; sr.sales += sold;
+    totRev += rev; anySold += sold;
+    const gap = L.annoncee - L.real;
+    let honTxt;
+    if(gap > SELL.TOL){
+      const add = sold/100 * (gap - SELL.TOL); sr.cum += add;
+      honTxt = `<span class="lo">tromperie +${add.toFixed(1)} (annoncé ${L.annoncee}% vs réel ${L.real}%)</span>`;
+    } else {
+      sr.rating = Math.min(5, sr.rating + SELL.GAIN);
+      honTxt = `<span class="ok">livraison conforme (note +${SELL.GAIN})</span>`;
+    }
+    rows.push({ cause:`<b>${sold} u</b> @ ${fmt1(L.eurG)}/g = ${fmt(rev)} · ${priceTxt} · ${honTxt}` });
+  }
+  let falaise = null;
+  if(!sr.fallen && sr.cum >= SELL.SEUIL){
+    sr.fallen = true; sr.rating = Math.max(0, sr.rating - SELL.FALAISE);
+    falaise = `⚠ FALAISE — la rue a recoupé tes lots : tes annonces gonflées se sont sues. Note −${SELL.FALAISE.toFixed(1)}. La confiance, une fois cassée, ne revient pas en un jour.`;
+  }
+  S.listings = S.listings.filter(L => L.sold < L.qty);       // purge des annonces écoulées
+  S.lastReport = { day:sr.day, rows, totRev, anySold, falaise };
+  save(); renderWallet(); renderSell();
+  toast(falaise ? `Jour ${sr.day} : la confiance s'est effondrée.` : `Jour ${sr.day} : ${anySold} u vendues · +${fmt(totRev)}`, !!falaise);
 }
 
 /* ===========================================================================
@@ -970,11 +1382,14 @@ $('sort').addEventListener('click', e => {
   [...$('sort').children].forEach(x => x.classList.toggle('on', x===b));
   renderFeed();
 });
+$('modebar').addEventListener('click', e => {
+  const b = e.target.closest('[data-v]'); if(b) switchView(b.dataset.v);
+});
 $('scrim').addEventListener('click', closeSheet);
 $('receipts-btn').addEventListener('click', openReceipts);
 $('reset-btn').addEventListener('click', () => {
   if(confirm('Repartir de zéro (cash, stock, relations, favoris) ?')){
-    S = DEFAULT(); save(); renderWallet(); renderFeed(); toast('Compte réinitialisé.');
+    S = DEFAULT(); save(); renderWallet(); renderFeed(); if(view==='sell') renderSell(); toast('Compte réinitialisé.');
   }
 });
 
@@ -982,7 +1397,7 @@ function tick(){ const d=new Date();
   $('clock').textContent = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
 setInterval(tick, 10000); tick();
 
-renderWallet(); renderFeed();
+renderFilters(); renderWallet(); renderFeed();
 </script>
 </body>
 </html>
