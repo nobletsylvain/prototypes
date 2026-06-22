@@ -111,6 +111,7 @@
   .dm .vide{font:600 10px var(--mono);color:var(--faint);text-align:center}
   .nego{background:#16120e;border:1px solid var(--border);border-radius:12px;margin-top:-3px;padding:10px 11px;display:flex;flex-direction:column;gap:9px;animation:pop .15s ease}
   .nego .of{font:600 12px var(--sans);color:var(--text);line-height:1.4} .nego .of b{color:var(--sodium)}
+  .nego .qline{font:600 10px var(--mono);color:var(--muted)} .nego .qline.down{color:var(--rust)}
   .nego .pr{display:flex;align-items:center;gap:7px;font:700 11px var(--sans);color:var(--muted)}
   .nego .pbtn{width:26px;height:26px;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font:800 16px var(--sans);cursor:pointer;padding:0;line-height:1}
   .nego .pv{font:800 14px var(--mono);color:var(--green);min-width:46px;text-align:center}
@@ -348,7 +349,7 @@ function bestFill(want, st){
   return { offre, g: C.FORMATS.reduce((a,f)=>a+offre[f]*f,0) };
 }
 // qualité (la moins bonne acceptable, dispo) qui serait servie pour CE format → pour estimer le prix
-function qFmt(produit,f,qMin){ const acc=C.QUALITES.filter(q=>C.QRANK[q]>=C.QRANK[qMin]).sort((a,b)=>C.QRANK[a]-C.QRANK[b]); for(const q of acc) if(sim.state.stock[produit][q][f]>0) return q; return acc[0]; }
+function qFmt(produit,f,qMin){ const ord=sim.negPool(qMin); for(const q of ord) if(sim.state.stock[produit][q][f]>0) return q; return ord[0]; }
 const prixUnit=(produit,f,qMin)=>{ const q=qFmt(produit,f,qMin); return q?sim.state.prix[produit][q][f]:0; };
 const prixDefaut=(produit,offre,qMin)=>C.FORMATS.reduce((a,f)=>a+(offre[f]||0)*prixUnit(produit,f,qMin),0);
 
@@ -366,10 +367,12 @@ function renderDMs(){
   for(const c of dms){
     if(!dmProfile.has(c.id)) dmProfile.set(c.id,{nm:pick(CM_PRE)+pick(CM_SUF),av:pick(CM_AV),msg:pick(MSGS)});
     const p=dmProfile.get(c.id);
-    const acc=C.QUALITES.filter(q=>C.QRANK[q]>=C.QRANK[c.qMin]);   // qualités acceptables par ce client
-    const st={}; let stockTot=0;                                    // stock ACCEPTABLE par format (toutes qualités OK confondues)
-    for(const f of C.FORMATS){ st[f]=acc.reduce((s,q)=>s+sim.state.stock[c.produit][q][f],0); stockTot+=st[f]; }
-    const stockExact=st[c.format], qServ=sim.qualiteServie(c);
+    const accept=C.QUALITES.filter(q=>C.QRANK[q]>=C.QRANK[c.qMin]);   // qualités acceptables (Servir auto)
+    const pool=sim.negPool(c.qMin);                                   // acceptable + downsell (≤1 cran sous)
+    const st={}; let negoTot=0;                                        // stock NÉGOCIABLE par format (Proposer/chips)
+    for(const f of C.FORMATS){ st[f]=pool.reduce((s,q)=>s+sim.state.stock[c.produit][q][f],0); negoTot+=st[f]; }
+    const stockExact=accept.reduce((s,q)=>s+sim.state.stock[c.produit][q][c.format],0);   // acceptable du format demandé
+    const qServ=sim.qualiteServie(c);
     const dm=el('div','dm');
     dm.appendChild(el('div','av',p.av));
     const col=el('div','col');
@@ -384,7 +387,7 @@ function renderDMs(){
       serve.addEventListener('click',()=>{ const g=sim.servir(c.id); if(g>0){toast('+'+g+'€');dmProfile.delete(c.id);} nego=null; renderDMs(); updateHUD(); });
       acts.appendChild(serve);
     }
-    if(stockTot>0){
+    if(negoTot>0){
       const prop=el('button','prop',null); prop.textContent=(nego&&nego.id===c.id)?'Fermer':'Proposer';
       prop.addEventListener('click',()=>{
         if(nego&&nego.id===c.id){ nego=null; }
@@ -393,15 +396,17 @@ function renderDMs(){
       });
       acts.appendChild(prop);
     }
-    if(stockExact<=0 && stockTot<=0) acts.appendChild(el('div','vide','produis ⚗️'));
+    if(stockExact<=0 && negoTot<=0) acts.appendChild(el('div','vide','produis ⚗️'));
     dm.appendChild(acts);
     list.appendChild(dm);
 
-    if(nego && nego.id===c.id && stockTot>0){
+    if(nego && nego.id===c.id && negoTot>0){
       const np=el('div','nego');
       const gDonne=C.FORMATS.reduce((a,f)=>a+nego.offre[f]*f,0);
       const detail=C.FORMATS.filter(f=>nego.offre[f]>0).map(f=>nego.offre[f]+'×'+f+'g').join(' + ')||'—';
       const of=el('div','of'); of.append('Tu proposes '); of.appendChild(el('b',null,detail)); of.append(' = '+gDonne+'g  (il voulait '+c.format+'g)'); np.appendChild(of);
+      const ap=sim.apercuNego(c.id,nego.offre);   // quelle qualité tu donnerais + downsell ?
+      if(ap){ const ql=el('div','qline'+(ap.downsell?' down':'')); ql.textContent=(ap.downsell?'⚠️ tu refiles du ':'tu donnes du ')+C.QUALITE_NOM[ap.qLow]+' ('+ap.qLow+')'+(ap.downsell?' — sous son standard, réput ↓':''); np.appendChild(ql); }
       // conditionnement au choix : on assemble les sachets à la main (par format dispo)
       const chips=el('div','chips');
       for(const f of C.FORMATS){
@@ -422,7 +427,7 @@ function renderDMs(){
       pr.append('Prix',m,pv,pl); np.appendChild(pr);
       const act=el('div','act');
       const send=el('button','send',null); send.textContent='Envoyer l’offre'; if(gDonne<=0) send.disabled=true;
-      send.addEventListener('click',()=>{ const r=sim.negocier(c.id,nego.offre,nego.prix); if(r.ok){toast('Deal ✓ +'+r.prix+'€');dmProfile.delete(c.id);nego=null;} else {toast('Refus : '+r.raison);} renderDMs(); updateHUD(); });
+      send.addEventListener('click',()=>{ const r=sim.negocier(c.id,nego.offre,nego.prix); if(r.ok){toast(r.downsell?'Refilé ✓ +'+r.prix+'€ (réput ↓)':'Deal ✓ +'+r.prix+'€');dmProfile.delete(c.id);nego=null;} else {toast('Refus : '+r.raison);} renderDMs(); updateHUD(); });
       const cancel=el('button','cancel',null); cancel.textContent='Annuler';
       cancel.addEventListener('click',()=>{ nego=null; renderDMs(); });
       act.append(send,cancel); np.appendChild(act);

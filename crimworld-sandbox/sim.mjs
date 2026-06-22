@@ -45,6 +45,8 @@ export const C = {
   DROP_REPUT: 4,             // poster un "drop" : coup de buzz social (1×/j, tracé)
   PRIX_MAX_G: { A: 20, B: 12, C: 8 },   // négo : €/g toléré au max, PAR QUALITÉ (l'élite tolère plus cher)
   UPSELL_MAX: 3,             // négo : pas plus de 3× la quantité voulue
+  DOWNSELL_TIERS: 1,         // négo : on peut refiler jusqu'à 1 cran SOUS le standard du client
+  DECEPTION_REPUT: 5,        // refiler du sous-standard : le client est déçu → réput ↓
 };
 
 export const DISCERNEMENT = { C: 'schlag', B: 'habitué', A: 'connaisseur' };   // libellé (présentation)
@@ -91,6 +93,25 @@ export function createSim(){
   function qServie(produit, format, qMin){
     for (const q of qualitesAcceptables(qMin)) if (state.stock[produit][q][format] > 0) return q;
     return null;
+  }
+  // ordre de service en NÉGO : d'abord acceptable (>=qMin, du moins cher au plus cher), puis SOUS
+  // le standard (downsell, jusqu'à DOWNSELL_TIERS crans en dessous, du plus haut au plus bas).
+  function ordreNego(qMin){
+    const acc = qualitesAcceptables(qMin);
+    const bas = C.QUALITES.filter(q => C.QRANK[q] < C.QRANK[qMin] && C.QRANK[q] >= C.QRANK[qMin] - C.DOWNSELL_TIERS).sort((a, b) => C.QRANK[b] - C.QRANK[a]);
+    return [...acc, ...bas];
+  }
+  // planifie le débit d'un lot {format:count} SANS muter : renvoie le plan {q,f} et la qualité
+  // la moins bonne effectivement servie (qLow).
+  function planNego(c, lot){
+    const ordre = ordreNego(c.qMin);
+    const tmp = {}; for (const q of ordre){ tmp[q] = {}; for (const f of C.FORMATS) tmp[q][f] = state.stock[c.produit][q][f]; }
+    const plan = []; let qLow = 'A';
+    for (const f of C.FORMATS){
+      let need = lot[f] || 0;
+      for (const q of ordre){ while (need > 0 && tmp[q][f] > 0){ tmp[q][f]--; plan.push({ q, f }); if (C.QRANK[q] < C.QRANK[qLow]) qLow = q; need--; } }
+    }
+    return { plan, qLow };
   }
   // programme les DM du jour (déterministe) : chaque client veut un FORMAT + a un DISCERNEMENT.
   function programmerJour(debut){
@@ -190,18 +211,29 @@ export function createSim(){
       return montant;
     },
 
-    // NÉGOCIER : lot `offre` ({2,5,10} counts) à `prix`. Sert la moins bonne qualité acceptable
-    // par format (déterministe). Accepte si ~ce qu'il voulait (½..UPSELL_MAX×) à ≤ PRIX_MAX_G €/g.
+    // pool des qualités négociables (acceptable + downsell), et aperçu (qLow/downsell) — pour l'UI
+    negPool(qMin){ return ordreNego(qMin); },
+    apercuNego(id, offre){
+      const c = state.clientsJour.find(x => x.id === id && x.arrive && !x.servi);
+      if (!c) return null;
+      const lot = {}; for (const f of C.FORMATS) lot[f] = Math.max(0, Math.round((offre || {})[f] || 0));
+      const { qLow } = planNego(c, lot);
+      return { qLow, downsell: C.QRANK[qLow] < C.QRANK[c.qMin] };
+    },
+
+    // NÉGOCIER : lot `offre` ({2,5,10} counts) à `prix`. Sert la moins bonne qualité ACCEPTABLE
+    // d'abord, puis (si tu étires l'offre) DESCEND sous le standard = downsell (réput ↓, plafond
+    // €/g de la qualité réellement servie). Accepte si ~ce qu'il voulait (½..UPSELL_MAX×).
     negocier(id, offre, prix){
       const c = state.clientsJour.find(x => x.id === id && x.arrive && !x.servi);
       if (!c) return { ok: false, raison: 'parti' };
       offre = offre || {};
-      const acc = qualitesAcceptables(c.qMin);
+      const pool = ordreNego(c.qMin);
       const lot = {}; let gDonne = 0, nS = 0;
       for (const f of C.FORMATS){
         const k = Math.max(0, Math.round(offre[f] || 0));
-        const dispo = acc.reduce((s, q) => s + state.stock[c.produit][q][f], 0);   // toutes qualités acceptables
-        if (k > dispo) return { ok: false, raison: 'pas assez de stock (qualité acceptable)' };
+        const dispo = pool.reduce((s, q) => s + state.stock[c.produit][q][f], 0);   // acceptable + downsell
+        if (k > dispo) return { ok: false, raison: 'pas assez de stock' };
         lot[f] = k; gDonne += k * f; nS += k;
       }
       if (nS <= 0) return { ok: false, raison: 'offre vide' };
@@ -209,24 +241,19 @@ export function createSim(){
       const want = c.format;
       if (gDonne < Math.ceil(want * 0.5)) return { ok: false, raison: `pas assez (il voulait ~${want}g)` };
       if (gDonne > want * C.UPSELL_MAX)    return { ok: false, raison: 'il en veut pas autant' };
-      // dry-run : on planifie le débit (moins bonne qualité acceptable d'abord) SANS muter,
-      // pour connaître la qualité la moins bonne servie → son plafond €/g.
-      const tmp = {}; for (const q of acc){ tmp[q] = {}; for (const f of C.FORMATS) tmp[q][f] = state.stock[c.produit][q][f]; }
-      const plan = []; let qLow = 'A';
-      for (const f of C.FORMATS){
-        let need = lot[f];
-        for (const q of acc){ while (need > 0 && tmp[q][f] > 0){ tmp[q][f]--; plan.push({ q, f }); if (C.QRANK[q] < C.QRANK[qLow]) qLow = q; need--; } }
-      }
+      const { plan, qLow } = planNego(c, lot);
       if (prix > gDonne * C.PRIX_MAX_G[qLow]) return { ok: false, raison: 'trop cher pour lui' };
       for (const pl of plan) state.stock[c.produit][pl.q][pl.f]--;   // applique le plan
       state.cash += prix; c.servi = true;
-      state.reput = clamp(state.reput + C.REPUT_SERVI[qLow]);
+      const downsell = C.QRANK[qLow] < C.QRANK[c.qMin];
+      state.reput = clamp(state.reput + (downsell ? -C.DECEPTION_REPUT : C.REPUT_SERVI[qLow]));
       state.metricsJour.sachetsVendus += nS;
       state.metricsJour.ventesEUR += prix;
       state.metricsJour.clientsServis++;
       const detail = C.FORMATS.filter(f => lot[f] > 0).map(f => `${lot[f]}×${f}g`).join('+');
-      ligne({ ic: '🤝', label: `Négocié : ${detail} (${C.QUALITE_NOM[qLow]}) → ${DISCERNEMENT[c.qMin]}`, montant: prix, cause: 'deal négocié via Snap' });
-      return { ok: true, gDonne, prix };
+      ligne({ ic: downsell ? '🥴' : '🤝', label: `${downsell ? 'Refilé (sous standard)' : 'Négocié'} : ${detail} (${C.QUALITE_NOM[qLow]}) → ${DISCERNEMENT[c.qMin]}`,
+        montant: prix, cause: downsell ? 'tu lui as refilé du moins bon — déçu (réput ↓)' : 'deal négocié via Snap' });
+      return { ok: true, gDonne, prix, downsell };
     },
 
     tick(dtMs){
