@@ -171,7 +171,7 @@
 <div class="hud" id="stepper">
   <span class="step" data-step="effeuille">1·Effeuille</span>
   <span class="step" data-step="tri">2·Tri</span>
-  <span class="step" data-step="mix">3·Coupe</span>
+  <span class="step" data-step="mix">3·Mix</span>
   <span class="step" data-step="pots">4·Pots</span>
   <span class="step" data-step="stock">5·Stock</span>
 </div>
@@ -201,7 +201,7 @@
 <div class="panel" id="triui">
   <div class="card" id="tricard"></div>
   <div style="text-align:center;font-size:12.5px;font-weight:800;color:rgba(173,224,140,.85);padding:5px 0 2px;pointer-events:none" id="triswipe">👆 Frotte le tas — les têtes filent dans leur bac</div>
-  <div class="row"><button class="btn" id="triNext">Coupe ▸</button></div>
+  <div class="row"><button class="btn" id="triNext">Mix ▸</button></div>
 </div>
 
 <!-- Phase 3 : Mix / Dilution -->
@@ -510,31 +510,48 @@ scene.add(dryLine);
 
 const colasGrp = new THREE.Group();
 scene.add(colasGrp);
-// Une cola = tige longue + ~14 tetes (le long du stem) + feuilles deco. Pool
-// reutilisable : la variete (couleur des tetes) est (re)assignee a chaque recolte.
+// Une cola = tige COURBEE (chaque cola a sa propre courbure -> moins rectiligne,
+// plus naturel) + ~14 tetes le long de la courbe + feuilles deco. Pool reutilisable :
+// la variete (couleur des tetes) est (re)assignee a chaque recolte.
 function buildCola() {
   const grp = new THREE.Group();
-  const len = COLA_TOP - COLA_BOT, midY = (COLA_TOP + COLA_BOT) / 2;
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.05, len, 6), matBranch);
-  stem.position.y = midY; stem.castShadow = true; grp.add(stem);
+  const len = COLA_TOP - COLA_BOT;
+  // Courbe de la tige : dérive latérale + cambrure douce, signées au hasard.
+  const bend = (Math.random() - 0.5) * 0.8;     // amplitude de la courbure
+  const lean = (Math.random() - 0.5) * 0.5;     // inclinaison générale
+  const phase = Math.random() * 0.6;
+  const zb = (Math.random() - 0.5) * 0.5;
+  const curveX = (u) => Math.sin(u * (2.0 + phase)) * bend * (0.4 + u) + u * lean;
+  const curveZ = (u) => Math.sin(u * 1.6 + 1) * zb * (0.3 + u * 0.7);
+  const pts = [];
+  const SEG = 8;
+  for (let i = 0; i <= SEG; i++) {
+    const u = i / SEG;
+    pts.push(new THREE.Vector3(curveX(u), COLA_TOP - u * len, curveZ(u)));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.045, 6, false), matBranch);
+  tube.castShadow = true; grp.add(tube);
+  const tip = curve.getPoint(0);
   const hook = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.016, 6, 10),
     new THREE.MeshStandardMaterial({ color: 0x8a8f95, metalness: 0.5, roughness: 0.5 }));
-  hook.position.y = COLA_TOP; hook.rotation.x = Math.PI / 2; grp.add(hook);
-  const buds = [], n = 14;                              // plus de tetes sur la tige longue
+  hook.position.set(tip.x, COLA_TOP + 0.02, tip.z); hook.rotation.x = Math.PI / 2; grp.add(hook);
+  // Tetes accrochees le long de la courbe (alternees gauche/droite, serrees vers le bas).
+  const buds = [], n = 14;
   for (let i = 0; i < n; i++) {
-    const u = i / (n - 1);
-    const y = COLA_TOP - 0.16 - u * (len - 0.26);
-    const side = i % 2 ? 1 : -1;
+    const u = 0.05 + 0.92 * (i / (n - 1));
+    const p = curve.getPoint(u);
+    const side = i % 2 ? 1 : -1, off = 0.05 + Math.random() * 0.09 + u * 0.05;
     const m = makeNug(matStrain.skunk, i % 3 === 0);
-    m.position.set(side * (0.05 + Math.random() * 0.1), y, (Math.random() - 0.5) * 0.12);
+    m.position.set(p.x + side * off, p.y, p.z + (Math.random() - 0.5) * 0.12);
     grp.add(m);
     buds.push({ mesh: m, mass: 0, leafFrac: 0, on: true });
   }
   const leaves = [];
   for (let i = 0; i < 7; i++) {
-    const u = (i + 0.5) / 7, y = COLA_TOP - 0.2 - u * (len - 0.3), side = i % 2 ? 1 : -1;
+    const u = 0.1 + 0.85 * ((i + 0.5) / 7), p = curve.getPoint(u), side = i % 2 ? 1 : -1;
     const lf = makeLeaf();
-    lf.position.set(side * 0.12, y, 0.04);
+    lf.position.set(p.x + side * 0.12, p.y, p.z + 0.04);
     lf.rotation.z = side > 0 ? -1.1 : 1.1; lf.rotation.x = 0.4;
     grp.add(lf); leaves.push(lf);
   }
@@ -589,12 +606,16 @@ freshGrp.position.set(0, 0, 0.2);
 scene.add(freshGrp);
 const FRESH_MAX = 52;
 const FRESH_GPN = 22;             // grammes par tete affichee
+// Monticule PLEIN (sunflower) : i=0 au centre, i croissant vers l'exterieur.
+// Quand on trie, on cache les indices hauts -> le tas retrecit du bord vers le
+// centre en restant un dome compact (pas d'anneau vide).
 for (let i = 0; i < FRESH_MAX; i++) {
-  const m = makeNug(i % 5 === 0 ? matLeaf : matStrain[STR_IDS[i % STR_IDS.length]], i % 4 === 0);
+  const m = makeNug(i % 5 === 1 ? matLeaf : matStrain[STR_IDS[i % STR_IDS.length]], i % 4 === 0);
   const t = i / (FRESH_MAX - 1);
-  const r = Math.sqrt(1 - t) * 1.15 + (Math.random() - 0.5) * 0.06;   // i petit = base large, i grand = centre
+  const r = Math.sqrt(t) * 1.15;                                      // i=0 centre, i=max bord
   const a = i * 2.39996;                                              // angle d'or -> remplissage regulier
-  m.position.set(Math.cos(a) * r, 0.16 + t * 0.62 + (Math.random() - 0.5) * 0.04, Math.sin(a) * r * 0.72);
+  const y = 0.15 + (1 - t) * 0.5 + (Math.random() - 0.5) * 0.04;      // dome : centre haut, bord bas
+  m.position.set(Math.cos(a) * r + (Math.random() - 0.5) * 0.05, y, Math.sin(a) * r * 0.72);
   freshGrp.add(m);
 }
 // (la "tete active" n'existe plus depuis le tri au geste ; mesh conserve mais cache)
@@ -990,7 +1011,7 @@ function setPhase(p) {
 // Effeuillage au GLISSE (feel green-front-v2) : on passe le doigt sur une cola,
 // toute tete croisee (test en pixels ecran) se detache et tombe MELEE dans le
 // panier. Pas de timing/skill — geste libre. Le tri par variete vient apres.
-const eff = { dragging: false, prev: null, flash: 0 };
+const eff = { dragging: false, prev: null, lastT: 0, flash: 0, hasty: 0 };
 
 function maxDebt() { return 800 + rep * 24 + level * 200; }
 
@@ -1102,9 +1123,13 @@ function refreshEffCard() {
     "<br>Panier : <b>" + Math.round(freshBud()) + " g</b> têtes · " + Math.round(fresh.leaf) + " g feuilles";
 }
 // Détache toute tete croisee par le segment de glisse (a->b en pixels ecran).
-function effStripSeg(a, b) {
+// Geste RAPIDE = tetes arrachees/abimees : une part part en dechet au lieu du
+// panier. Effeuiller proprement (lent, le long de la tige) = meilleur rendement.
+function effStripSeg(a, b, speed) {
   if (phase !== "effeuille") return;
-  let any = false;
+  const hasty = Math.max(0, Math.min(1, ((speed || 0) - 0.7) / 1.4));    // px/ms -> 0..1 (tolérant)
+  const loss = hasty * 0.35;                                             // jusqu'a 35% perdu si vraiment trop vif
+  let any = false, lost = false;
   const _from = new THREE.Vector3();
   for (const c of activeColas) {
     const id = c.variety;
@@ -1112,12 +1137,13 @@ function effStripSeg(a, b) {
       if (!bd.on) continue;
       const s = toScreen(bd.mesh);
       if (s.z > 1) continue;
-      if (distSeg(s.x, s.y, a.x, a.y, b.x, b.y) < 38) {
+      if (distSeg(s.x, s.y, a.x, a.y, b.x, b.y) < 34) {
         bd.on = false; bd.mesh.visible = false;
-        fresh[id] += bd.mass;
+        fresh[id] += bd.mass * (1 - loss);
         fresh.leaf += bd.mass * bd.leafFrac;
+        if (loss > 0.01) { waste += bd.mass * loss; lost = true; }       // tete abimee -> dechet
         bd.mesh.getWorldPosition(_from);
-        dropBud(matStrain[id], _from);                 // la tete TOMBE dans le panier
+        dropBud(loss > 0.25 ? matLeaf : matStrain[id], _from);          // tete abimee = chute brunatre
         if (Math.random() < 0.4) flyNugFrom(matLeaf, _from, new THREE.Vector3(_bw.x + 1.3, 0.42, _bw.z), true);
         any = true;
       }
@@ -1128,6 +1154,7 @@ function effStripSeg(a, b) {
   }
   if (any) {
     eff.flash = 0.16; addShake(0.04); playSnip();
+    if (lost) { eff.hasty = 0.6; if (Math.random() < 0.5) playBad(); }
     refreshBasket(freshBud() + fresh.leaf, harvest.total);
     refreshEffCard();
     if (colaBudsLeft() === 0 && !harvest._done) {
@@ -1209,7 +1236,7 @@ function triCommitUI() {
     tri._done = true;
     for (const id of STR_IDS) fresh[id] = 0; fresh.leaf = 0;
     updateBinsUI();
-    setHint("Tas trié ! Passe à la coupe ▸");
+    setHint("Tas trié ! Passe au mix ▸");
     showToast("Tri terminé 🌿", "#9be37d");
     addShake(0.12); addXP(3);
   }
@@ -1254,7 +1281,7 @@ function setBowlByMix() {
 function qColor(q) { return q >= 0.62 ? "#9be37d" : q >= 0.42 ? "#ffd166" : "#ff6b6b"; }
 function refreshMixCard() {
   const p = projectMix();
-  if (p.g < 1) { ui.mixcard.innerHTML = '<div class="ttl">⚗️ Coupe</div><div class="sub2">Sélectionne une variété ci-dessous.</div>'; return; }
+  if (p.g < 1) { ui.mixcard.innerHTML = '<div class="ttl">⚗️ Mix</div><div class="sub2">Sélectionne une variété ci-dessous.</div>'; return; }
   const name = p.ids.length > 1 ? "🧬 Blend maison · " + p.ids.length + " var." : STRAINS[p.ids[0]].emoji + " " + STRAINS[p.ids[0]].name;
   ui.mixcard.innerHTML =
     '<div class="ttl">' + name + '</div>' +
@@ -1513,8 +1540,8 @@ el.addEventListener("pointerdown", (e) => {
   ensureAudio();
   if (phase === "effeuille") {
     eff.dragging = true;
-    eff.prev = { x: e.clientX, y: e.clientY };
-    effStripSeg(eff.prev, eff.prev);             // un simple tap detache la tete touchee
+    eff.prev = { x: e.clientX, y: e.clientY }; eff.lastT = performance.now();
+    effStripSeg(eff.prev, eff.prev, 0);          // un simple tap detache proprement
   } else if (phase === "tri") {
     tri.dragging = true; tri.lastX = e.clientX; tri.lastY = e.clientY; tri.acc = 0;
     if (sortHandful(triPerStride())) triCommitUI();   // tap = une poignee
@@ -1529,11 +1556,13 @@ el.addEventListener("pointermove", (e) => {
     localStorage.setItem("rc_zoom", zoom.toFixed(3));
     fitView();
   } else if (phase === "effeuille" && eff.dragging && eff.prev && pointers.size < 2) {
-    // Effeuillage au glisse : on detache toute tete croisee par le segment.
+    // Effeuillage au glisse : vitesse instantanee (px/ms) -> rendement.
     e.preventDefault();
-    const cur = { x: e.clientX, y: e.clientY };
-    effStripSeg(eff.prev, cur);
-    eff.prev = cur;
+    const cur = { x: e.clientX, y: e.clientY }, now = performance.now();
+    const dist = Math.hypot(cur.x - eff.prev.x, cur.y - eff.prev.y);
+    const speed = dist / Math.max(8, now - eff.lastT);
+    effStripSeg(eff.prev, cur, speed);
+    eff.prev = cur; eff.lastT = now;
   } else if (phase === "tri" && tri.dragging && pointers.size < 2) {
     // Tri au frotte : chaque TRI_STRIDE px glisses trie une poignee (auto, sans erreur).
     e.preventDefault();
@@ -1586,7 +1615,11 @@ ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.cla
    ------------------------------------------------------------------------- */
 function updateGauges(dt) {
   if (phase === "effeuille") {
-    if (ui.effswipe) ui.effswipe.style.color = "rgba(173,224,140," + (0.6 + eff.flash * 2).toFixed(2) + ")";
+    if (eff.hasty > 0) eff.hasty = Math.max(0, eff.hasty - dt);
+    if (ui.effswipe) {
+      if (eff.hasty > 0.05) { ui.effswipe.style.color = "#ffae6b"; ui.effswipe.textContent = "⚠ Trop vif — tu abîmes des têtes ! Effeuille plus doucement"; }
+      else { ui.effswipe.style.color = "rgba(173,224,140," + (0.6 + eff.flash * 2).toFixed(2) + ")"; ui.effswipe.textContent = "👆 Glisse doucement le long des colas"; }
+    }
   }
   if (phase === "pots" && seal.active) {
     seal.cursor += seal.dir * (1.25 - owned.sealer * 0.08) * dt;
@@ -1601,17 +1634,17 @@ function loop(t) {
   const dt = Math.min((t - last) / 1000 || 0, 0.05);
   last = t;
 
-  // Colas qui se balancent doucement au fil de sechage.
+  // Colas qui se balancent TRES doucement au fil de sechage (amplitude réduite).
   if (phase === "effeuille") {
     for (const c of activeColas) {
-      c.grp.rotation.z = Math.sin(t * 0.0011 + c.grp.position.x) * 0.045;
+      c.grp.rotation.z = Math.sin(t * 0.0008 + c.grp.position.x) * 0.016;
     }
     if (eff.flash > 0) eff.flash = Math.max(0, eff.flash - dt);
   }
-  // Tas frais qui fremit quand on le frotte (tri au geste).
+  // Tas frais : petit frémissement vertical quand on le frotte (PAS de rotation).
   if (phase === "tri") {
     if (tri.flash > 0) tri.flash = Math.max(0, tri.flash - dt);
-    freshGrp.rotation.y += dt * (0.3 + tri.flash * 4);
+    freshGrp.position.y = Math.sin(t * 0.02) * tri.flash * 0.04;
     if (ui.triswipe) ui.triswipe.style.color = "rgba(173,224,140," + (0.6 + tri.flash * 2).toFixed(2) + ")";
   }
   if (phase === "mix") bowlFill.rotation.y += dt * 0.8;
