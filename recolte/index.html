@@ -482,20 +482,22 @@ scene.add(dryLine);
 
 const colasGrp = new THREE.Group();
 scene.add(colasGrp);
-function buildCola(variety) {
+// Une cola = tige + ~10 tetes + feuilles deco. Pool reutilisable : la variete
+// (couleur des tetes) est (re)assignee a chaque recolte. On en montre 3 a 8.
+function buildCola() {
   const grp = new THREE.Group();
   const len = COLA_TOP - COLA_BOT, midY = (COLA_TOP + COLA_BOT) / 2;
   const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.05, len, 6), matBranch);
   stem.position.y = midY; stem.castShadow = true; grp.add(stem);
-  const hook = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.018, 6, 10),
+  const hook = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.016, 6, 10),
     new THREE.MeshStandardMaterial({ color: 0x8a8f95, metalness: 0.5, roughness: 0.5 }));
   hook.position.y = COLA_TOP; hook.rotation.x = Math.PI / 2; grp.add(hook);
-  const buds = [], n = 9;
+  const buds = [], n = 10;
   for (let i = 0; i < n; i++) {
     const u = i / (n - 1);
-    const y = COLA_TOP - 0.18 - u * (len - 0.3);
+    const y = COLA_TOP - 0.16 - u * (len - 0.26);
     const side = i % 2 ? 1 : -1;
-    const m = makeNug(matStrain[variety], i % 3 === 0);
+    const m = makeNug(matStrain.skunk, i % 3 === 0);
     m.position.set(side * (0.05 + Math.random() * 0.1), y, (Math.random() - 0.5) * 0.12);
     grp.add(m);
     buds.push({ mesh: m, mass: 0, leafFrac: 0, on: true });
@@ -504,15 +506,22 @@ function buildCola(variety) {
   for (let i = 0; i < 5; i++) {
     const u = (i + 0.5) / 5, y = COLA_TOP - 0.2 - u * (len - 0.3), side = i % 2 ? 1 : -1;
     const lf = makeLeaf();
-    lf.position.set(side * 0.13, y, 0.04);
+    lf.position.set(side * 0.12, y, 0.04);
     lf.rotation.z = side > 0 ? -1.1 : 1.1; lf.rotation.x = 0.4;
     grp.add(lf); leaves.push(lf);
   }
+  grp.visible = false;
   colasGrp.add(grp);
-  return { grp, variety, buds, leaves };
+  return { grp, variety: null, buds, leaves };
 }
-const colaByVar = {};
-for (const id of STR_IDS) colaByVar[id] = buildCola(id);
+const COLA_POOL = 8;
+const colaPool = [];
+for (let i = 0; i < COLA_POOL; i++) colaPool.push(buildCola());
+let activeColas = [];                          // colas montrees pour la recolte courante
+function setColaVariety(c, v) {
+  c.variety = v;
+  for (const b of c.buds) b.mesh.material = matStrain[v];
+}
 
 // Panier de reception sous les colas : les tetes effeuillees y tombent (melees).
 const basket = new THREE.Group();
@@ -706,6 +715,43 @@ function updateFlyers(dt) {
     if (f.mesh.position.distanceTo(f.target) < 0.12 || f.t > 1.2) {
       scene.remove(f.mesh); flyers.splice(i, 1);
     }
+  }
+}
+
+// TETES QUI TOMBENT (effeuillage) : vraie gravite + rebond dans le panier, pour
+// "sentir les buds tomber". Une tete detachee chute, derive vers le panier, rebondit
+// une fois puis se pose ; un petit "toc" sourd a l'atterrissage (throttle).
+const fallers = [];
+const FALL_FLOOR = 0.46;       // hauteur monde du dessus du panier
+let landCd = 0;
+function playDrop() { noiseBurst(0.06, 360, 110, 0.13, "lowpass", 0.8); }
+function dropBud(mat, from) {
+  const m = makeNug(mat, true);
+  m.position.copy(from); scene.add(m);
+  fallers.push({
+    mesh: m, vy: 0.2 + Math.random() * 0.4,
+    tx: (Math.random() - 0.5) * 2.4, tz: 0.55 + (Math.random() - 0.5) * 0.5,
+    spin: (Math.random() - 0.5) * 12, t: 0, bounced: false, rest: 0,
+  });
+  while (fallers.length > 70) { const f = fallers.shift(); scene.remove(f.mesh); }
+}
+function updateFallers(dt) {
+  if (landCd > 0) landCd = Math.max(0, landCd - dt);
+  for (let i = fallers.length - 1; i >= 0; i--) {
+    const f = fallers[i], p = f.mesh.position;
+    f.t += dt;
+    if (f.rest > 0) { f.rest -= dt; if (f.rest <= 0) { scene.remove(f.mesh); fallers.splice(i, 1); } continue; }
+    f.vy += -8.2 * dt;                                  // gravite
+    p.y += f.vy * dt;
+    p.x += (f.tx - p.x) * Math.min(1, dt * 1.4);        // derive vers le panier
+    p.z += (f.tz - p.z) * Math.min(1, dt * 1.4);
+    f.mesh.rotation.x += f.spin * dt; f.mesh.rotation.z += f.spin * 0.7 * dt;
+    if (p.y <= FALL_FLOOR) {
+      p.y = FALL_FLOOR;
+      if (!f.bounced && f.vy < -1.2) { f.bounced = true; f.vy = -f.vy * 0.34; if (landCd <= 0) { playDrop(); landCd = 0.04; addShake(0.012); } }
+      else { f.rest = 0.5 + Math.random() * 0.4; f.vy = 0; }   // se pose puis fond
+    }
+    if (f.t > 3) { scene.remove(f.mesh); fallers.splice(i, 1); }
   }
 }
 
@@ -927,22 +973,38 @@ function newHarvest() {
   setDebt(debt + cost);                                // recolte prise a credit -> dette
   showToast("Récolte prise à crédit", "#bdf0a3");
 }
-// Prepare les colas : montre une cola par variete presente, repartie a l'ecran,
-// et charge ses tetes (masse = part de la recolte / nb de tetes).
+// Prepare les colas : on en montre PLUSIEURS (3 a 8 selon la recolte), reparties
+// entre les varietes au prorata de la recolte. Plus de branches a effeuiller =
+// plus de tetes a faire tomber.
 function setupColas() {
-  for (const id of STR_IDS) colaByVar[id].grp.visible = false;
+  for (const c of colaPool) c.grp.visible = false;
+  activeColas = [];
   const vs = harvest.varieties;
+  const nCol = Math.min(COLA_POOL, harvest.key === "plant" ? 3 : harvest.key === "crop" ? 5 : 8);
   // Sécateur (boutique) : reduit la part de feuille arrachee.
   const leafFr = Math.max(0.04, harvest.leafFr - owned.secateur * 0.02);
-  // Ecartement selon le nombre de colas (2 -> resserrees, 4 -> pleine largeur).
-  const span = vs.length <= 1 ? 0 : vs.length === 2 ? 1.5 : vs.length === 3 ? 2.1 : 2.4;
-  vs.forEach((v, i) => {
-    const c = colaByVar[v]; c.grp.visible = true;
-    c.grp.position.x = vs.length === 1 ? 0 : -span + 2 * span * (i / (vs.length - 1));
-    const target = harvest.total * harvest.fr[v], per = target / c.buds.length;
+  // Nb de colas par variete ~ proportionnel a sa part (au moins 1), ajuste a nCol.
+  const counts = {}; let assigned = 0;
+  for (const v of vs) { counts[v] = Math.max(1, Math.round(harvest.fr[v] * nCol)); assigned += counts[v]; }
+  while (assigned > nCol) { const v = vs.reduce((a, b) => (counts[b] > counts[a] ? b : a), vs[0]); if (counts[v] > 1) { counts[v]--; assigned--; } else break; }
+  while (assigned < nCol) { const v = vs.reduce((a, b) => (counts[b] < counts[a] ? b : a), vs[0]); counts[v]++; assigned++; }
+  // Liste des varietes, cola par cola (groupees par variete).
+  const list = []; for (const v of vs) for (let k = 0; k < counts[v]; k++) list.push(v);
+  // Ecartement : pleine largeur, 1 rangee. Le cadrage "eff" s'adapte au nombre.
+  const span = list.length <= 1 ? 0 : Math.min(2.7, 0.42 * (list.length - 1));
+  list.forEach((v, i) => {
+    const c = colaPool[i]; c.grp.visible = true;
+    setColaVariety(c, v);
+    c.grp.position.x = list.length === 1 ? 0 : -span + 2 * span * (i / (list.length - 1));
+    c.grp.position.z = (i % 2) * 0.18 - 0.09;          // leger decalage avant/arriere
+    const per = (harvest.total * harvest.fr[v]) / counts[v] / c.buds.length;
     for (const b of c.buds) { b.on = true; b.mesh.visible = true; b.mass = per; b.leafFrac = leafFr * (0.7 + Math.random() * 0.6); }
     for (const lf of c.leaves) { lf.visible = true; lf.material = matLeafSolid; }
+    activeColas.push(c);
   });
+  // Adapte le cadrage frontal a la largeur des colas.
+  VIEWS.eff.radius = Math.hypot(span + 0.9, 1.15, 0.4);
+  if (phase === "effeuille") fitView();
 }
 function gotoEffeuille() {
   setPhase("effeuille");
@@ -957,7 +1019,7 @@ function gotoEffeuille() {
 function freshBud() { return STR_IDS.reduce((s, id) => s + fresh[id], 0); }
 function colaBudsLeft() {
   let n = 0;
-  for (const id of harvest.varieties) for (const b of colaByVar[id].buds) if (b.on) n++;
+  for (const c of activeColas) for (const b of c.buds) if (b.on) n++;
   return n;
 }
 function refreshEffCard() {
@@ -970,8 +1032,9 @@ function refreshEffCard() {
 function effStripSeg(a, b) {
   if (phase !== "effeuille") return;
   let any = false;
-  for (const id of harvest.varieties) {
-    const c = colaByVar[id];
+  const _from = new THREE.Vector3();
+  for (const c of activeColas) {
+    const id = c.variety;
     for (const bd of c.buds) {
       if (!bd.on) continue;
       const s = toScreen(bd.mesh);
@@ -980,9 +1043,9 @@ function effStripSeg(a, b) {
         bd.on = false; bd.mesh.visible = false;
         fresh[id] += bd.mass;
         fresh.leaf += bd.mass * bd.leafFrac;
-        const from = new THREE.Vector3(); bd.mesh.getWorldPosition(from);
-        flyNugFrom(matStrain[id], from, _bw, true);
-        if (Math.random() < 0.4) flyNugFrom(matLeaf, from, new THREE.Vector3(_bw.x + 1.2, 0.4, _bw.z), true);
+        bd.mesh.getWorldPosition(_from);
+        dropBud(matStrain[id], _from);                 // la tete TOMBE dans le panier
+        if (Math.random() < 0.4) flyNugFrom(matLeaf, _from, new THREE.Vector3(_bw.x + 1.3, 0.42, _bw.z), true);
         any = true;
       }
     }
@@ -1009,11 +1072,9 @@ function gotoTri() {
   setPhase("tri");
   triStreak = 0;
   // Effeuillage incomplet : on bascule les tetes encore sur les colas dans le tas frais.
-  if (harvest) {
-    for (const id of harvest.varieties) {
-      for (const b of colaByVar[id].buds) {
-        if (b.on) { b.on = false; b.mesh.visible = false; fresh[id] += b.mass; fresh.leaf += b.mass * b.leafFrac; }
-      }
+  for (const c of activeColas) {
+    for (const b of c.buds) {
+      if (b.on) { b.on = false; b.mesh.visible = false; fresh[c.variety] += b.mass; fresh.leaf += b.mass * b.leafFrac; }
     }
   }
   fresh._total = freshBud() + fresh.leaf;
@@ -1483,8 +1544,7 @@ function loop(t) {
 
   // Colas qui se balancent doucement au fil de sechage.
   if (phase === "effeuille") {
-    for (const id of harvest ? harvest.varieties : []) {
-      const c = colaByVar[id];
+    for (const c of activeColas) {
       c.grp.rotation.z = Math.sin(t * 0.0011 + c.grp.position.x) * 0.045;
     }
     if (eff.flash > 0) eff.flash = Math.max(0, eff.flash - dt);
@@ -1499,6 +1559,7 @@ function loop(t) {
 
   updateGauges(dt);
   updateFlyers(dt);
+  updateFallers(dt);
   updateAutoSort(dt);
 
   if (shake > 0) { shake *= Math.pow(0.0009, dt); if (shake < 0.002) shake = 0; }
