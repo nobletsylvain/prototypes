@@ -255,7 +255,7 @@ function makeNugSprite(mid, pistil) {
   sg.addColorStop(0, "rgba(235,255,225,.26)"); sg.addColorStop(1, "rgba(235,255,225,0)");
   g.fillStyle = sg; g.beginPath(); g.arc(cx, cy, S*0.42, 0, 7); g.fill();
   // givre (trichomes) : points clairs
-  for (let i = 0; i < 46; i++) {
+  for (let i = 0; i < 58; i++) {
     const a = Math.random() * 6.28, rr = Math.sqrt(Math.random()) * S * 0.34;
     g.fillStyle = "rgba(232,255,224," + (0.12 + Math.random() * 0.3) + ")";
     g.beginPath(); g.arc(cx + Math.cos(a)*rr, cy + Math.sin(a)*rr*0.92 - S*0.03, 0.6 + Math.random()*1.2, 0, 7); g.fill();
@@ -435,19 +435,21 @@ G1.start = function () {
     const leafFrac = 0.08 + Math.random() * 0.1;           // part feuille/trim de CETTE branche (8-18 %)
     const variety = VARIETIES[Math.floor(Math.random() * VARIETIES.length)];   // 1 variété par branche
     this.branches.push({ pts, leafFrac, variety: variety.id });
-    const k = 8 + Math.floor(Math.random() * 3);            // ≥ double : 8-10 têtes par branche
+    const k = 18 + Math.floor(Math.random() * 5);          // COLA dense : 18-22 têtes qui se chevauchent
     for (let j = 0; j < k; j++) {
-      const u = 0.1 + 0.86 * (j / (k - 1));
+      const u = 0.05 + 0.95 * (j / (k - 1));               // du haut de la tige -> pointe
       const idx = u * steps, i0 = Math.min(steps - 1, Math.floor(idx)), f = idx - i0;
       const p0 = pts[i0], p1 = pts[i0 + 1];
       const sx = p0.x + (p1.x - p0.x) * f, sy = p0.y + (p1.y - p0.y) * f;
-      const side = j % 2 ? 1 : -1, r = 9 + Math.random() * 13;
-      this.buds.push({ x: sx + side * (5 + Math.random() * 7), y: sy + (Math.random() - 0.5) * 6,
+      const taper = 0.62 + (1 - u) * 0.85;                 // plus gros en haut, effilé vers la pointe
+      const r = (7 + Math.random() * 6) * taper;
+      const off = (Math.random() - 0.5) * (5 + (1 - u) * 12);   // colonne : large en haut, serrée en bas
+      this.buds.push({ x: sx + off, y: sy + (Math.random() - 0.5) * 4,
         r, leafFrac, variety: variety.id, thc: variety.thc, on: true, pop: 0, landed: false, tx: 0, ty: 0,
         spr: Math.floor(Math.random() * BUDS[variety.id].length), rot: Math.random() * 6.28 });
       this.totalMass += r;
-      if (Math.random() < 0.7) this.leaves.push({ x: sx - side * (5 + Math.random() * 6), y: sy + (Math.random() - 0.5) * 8,
-        ang: (side > 0 ? 0.5 : Math.PI - 0.5) + (Math.random() - 0.5) * 0.7, len: 9 + Math.random() * 7 });
+      if (Math.random() < 0.32) this.leaves.push({ x: sx + (Math.random() - 0.5) * 14, y: sy + (Math.random() - 0.5) * 8,
+        ang: (Math.random() < 0.5 ? 0.6 : Math.PI - 0.6) + (Math.random() - 0.5) * 0.7, len: 8 + Math.random() * 6 });
     }
   }
   // (le trim collecté est calculé par branche au détachement, cf. G1.strip)
