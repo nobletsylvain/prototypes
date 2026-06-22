@@ -63,7 +63,7 @@ Un **halo lumineux** pulse sous la station à utiliser et un **bandeau de consig
 - **Formes** inspirées de *Drug Dealer Simulator* : briques pressées empilées, pots de coupe cylindriques, **pochons** (sachets zip carrés plats) qui s'alignent sur la table, **2 tailles** selon le format (1 g / 5 g).
 - **Niveaux (XP)** : chaque vente donne de l'XP ; +2,5 % de revenus par niveau.
 
-**Feedback juteux** : sons synthétisés (WebAudio, zéro fichier — flux de poudre, raclage du mix, zip, cha-ching), puffs de poudre, sachets qui s'envolent, secousse de caméra.
+**Feedback juteux** : sons synthétisés (WebAudio, zéro fichier — flux de poudre, raclage du mix, zip, cha-ching), puffs de poudre, pochons qui s'empilent en tas, **« +€ » flottant** à chaque vente, **réputation qui flashe** vert/rouge, cash formaté qui défile, secousse de caméra.
 
 > Prototype de jeu, habillage purement visuel/stylisé.
 
