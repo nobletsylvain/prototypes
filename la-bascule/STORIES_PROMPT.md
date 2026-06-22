@@ -188,8 +188,13 @@ SORTIE
 
 ## 4) Brancher dans le proto
 
-Le tray (`#tray`) et le viewer sont aujourd'hui **hardcodés** dans
-`la-bascule/index.html`. Pour utiliser ce JSON :
+> ✅ **Déjà câblé** : les stories NPC (Comptoir, Campus, Arrivage, Ruelle, Momo)
+> sont désormais embarquées dans `la-bascule/index.html` (const `STORIES` +
+> viewer `#npcviewer`). Taper une story du tray l'ouvre, tap = slide suivante.
+> Le bloc ci-dessous décrit le câblage, pour **étendre** avec du contenu Grok.
+
+Pour ajouter/remplacer des stories : enrichis la const `STORIES` au schéma
+ci-dessus (clés `comptoir/campus/arrivage/ruelle/momo`). Le viewer reprend :
 
 1. Coller l'objet dans une constante `const STORIES = { ... }` du module.
 2. Générer les `.story`/`.ring` du tray à partir de `stories` (avatar + ring +

@@ -284,10 +284,11 @@
       <div class="ring mine" id="ring-mine"><div class="inner"><span class="ph">+ TOI</span></div></div>
       <div class="cap">Ta vitrine</div>
     </div>
-    <div class="story"><div class="ring seen"><div class="inner">🏪</div></div><div class="cap">Le Comptoir</div></div>
-    <div class="story"><div class="ring seen"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
-    <div class="story"><div class="ring"><div class="inner">🌃</div></div><div class="cap"><span class="live">● ARRIVAGE</span></div></div>
-    <div class="story"><div class="ring seen"><div class="inner">🚬</div></div><div class="cap">La Ruelle</div></div>
+    <div class="story" data-story="comptoir"><div class="ring seen"><div class="inner">🏪</div></div><div class="cap">Le Comptoir</div></div>
+    <div class="story" data-story="campus"><div class="ring seen"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
+    <div class="story" data-story="arrivage"><div class="ring"><div class="inner">🌃</div></div><div class="cap"><span class="live">● ARRIVAGE</span></div></div>
+    <div class="story" data-story="ruelle"><div class="ring seen"><div class="inner">🚬</div></div><div class="cap">La Ruelle</div></div>
+    <div class="story" data-story="momo"><div class="ring"><div class="inner">💀</div></div><div class="cap">Momo</div></div>
   </div>
 
   <!-- corps : accueil (liste) OU fil -->
@@ -340,6 +341,9 @@
       <div class="vreply"><span>Répondre…</span><span class="emojis">❄️ 🌿 💸</span></div>
     </div>
   </div>
+
+  <!-- viewer des stories NPC (ambiance) — peuple depuis STORIES, tap = slide suivante -->
+  <div class="viewer" id="npcviewer"></div>
 
   <!-- toast / coach -->
   <div class="toast" id="toast"></div>
@@ -676,6 +680,89 @@ els.viewer.addEventListener("click", () => {
   els.viewer.classList.remove("show");
   const cb = pendingStory; pendingStory = null; cb();
 });
+
+/* =========================================================================
+   STORIES D'AMBIANCE (NPC) — les "fake stories" du quartier.
+   Purement cosmetique : enrichit le decor, n'affecte pas la simu scriptee.
+   Schema par slide : { ts, clip, caption, views, emojis } (cf. STORIES_PROMPT.md).
+   Les vues restent OPAQUES (invariant CrimWorld) : jamais de chiffre exact.
+   ========================================================================= */
+const STORIES = {
+  comptoir: { nm:"Le Comptoir", av:"🏪", slides:[
+    { ts:"il y a 2 h", clip:"STORY 9:16 — comptoir du tabac, néon qui grésille, sous la pluie",
+      caption:"ça remonte sec en ce moment 📈", views:"— vu par les habitués du coin (opaque)", emojis:["👀","💸","🔥"] },
+    { ts:"il y a 2 h", clip:"STORY 9:16 — une main glisse un sachet sous le comptoir",
+      caption:"qui livre propre mange 🤝", views:"— vu par le quartier (opaque)", emojis:["🤝","🧊","👀"] },
+  ]},
+  campus: { nm:"Le Campus", av:"🎓", slides:[
+    { ts:"il y a 5 h", clip:"STORY 9:16 — amphi vide la nuit, néons blafards",
+      caption:"semaine d'exams = ça consomme 🎓💨", views:"— vu par tout le campus (opaque)", emojis:["💨","😵","🔥"] },
+    { ts:"il y a 5 h", clip:"STORY 9:16 — file de mecs qui patientent près du distributeur de la fac",
+      caption:"faut un bon plan, et vite 👀", views:"— vu par les fauchés (opaque)", emojis:["👀","💸","🌿"] },
+  ]},
+  arrivage: { nm:"Arrivage", av:"🌃", slides:[
+    { ts:"live", clip:"STORY 9:16 — un coffre qui s'ouvre, cartons scellés, parking sombre",
+      caption:"ÇA VIENT DE TOMBER 🌃🔥", views:"— le quartier est déjà au courant (opaque)", emojis:["🔥","👀","🤝"] },
+    { ts:"live", clip:"STORY 9:16 — gros plan d'une brique sous lampe torche, grain de nuit",
+      caption:"premier arrivé, premier servi 💨", views:"— vu par les rapides (opaque)", emojis:["💨","💸","🥶"] },
+  ]},
+  ruelle: { nm:"La Ruelle", av:"🚬", slides:[
+    { ts:"hier", clip:"STORY 9:16 — ruelle sombre, fumée de clope, silhouettes adossées au mur",
+      caption:"c'est NOTRE coin ici 🚬", views:"— vu par ceux qui savent (opaque)", emojis:["🚬","💀","👀"] },
+    { ts:"hier", clip:"STORY 9:16 — mur tagué, capuche, visage hors-champ",
+      caption:"les touristes on les calcule pas 😤", views:"— vu par la concurrence (opaque)", emojis:["😤","💀","🥶"] },
+  ]},
+  momo: { nm:"Momo", av:"💀", slides:[
+    { ts:"à l'instant", clip:"STORY 9:16 — Momo sur SON corner, liasse au poing, grain de nuit",
+      caption:"le block C, c'est MOI 💀", views:"— vu par tout le quartier (opaque)", emojis:["💀","💸","🥶"] },
+    { ts:"à l'instant", clip:"STORY 9:16 — un doigt tape une montre clinquante, fond noir",
+      caption:"ceux qui me doivent… tic tac ⏳", views:"— vu par les mauvais payeurs (opaque)", emojis:["⏳","💀","😬"] },
+  ]},
+};
+
+const npcViewer = $("npcviewer");
+let curStory = null;   // { key, slides, idx }
+
+function renderStorySlide(){
+  const { slides, idx, key } = curStory;
+  const s = slides[idx];
+  const meta = STORIES[key];
+  const segs = slides.map((_, i) =>
+    `<span class="${i===idx?"on":""}"><b style="width:${i<idx?"100%":"0"}"></b></span>`).join("");
+  npcViewer.innerHTML =
+    `<div class="vclip">`+
+      `<div class="progress">${segs}</div>`+
+      `<div class="vhdr"><div class="av">${meta.av}</div><div>`+
+        `<div class="nm">${meta.nm}</div><div class="tm">${s.ts}</div></div></div>`+
+      `<div class="badge">CLIP IA · placeholder</div>`+
+      `<span class="ico">📦</span>`+
+      `<span class="txt">${s.clip}</span>`+
+      `<div class="vcap"><div class="big">${s.caption}</div>`+
+        `<div class="sub">${s.views}</div></div>`+
+      `<div class="vreply"><span>Répondre…</span>`+
+        `<span class="emojis">${s.emojis.join(" ")}</span></div>`+
+    `</div>`;
+}
+
+function openStory(key){
+  if (!STORIES[key]) return;
+  curStory = { key, slides: STORIES[key].slides, idx:0 };
+  renderStorySlide();
+  npcViewer.classList.add("show");
+}
+
+function advanceStory(){
+  if (!curStory) return;
+  if (curStory.idx < curStory.slides.length - 1){ curStory.idx++; renderStorySlide(); return; }
+  npcViewer.classList.remove("show");                       // derniere slide -> ferme
+  const ring = document.querySelector(`.story[data-story="${curStory.key}"] .ring`);
+  if (ring) ring.classList.add("seen");                     // marque la story comme vue
+  curStory = null;
+}
+
+npcViewer.addEventListener("click", advanceStory);
+document.querySelectorAll(".story[data-story]").forEach((el) =>
+  el.addEventListener("click", () => openStory(el.dataset.story)));
 
 /* Tap global = accelerer la frappe en cours. */
 els.body.addEventListener("click", () => { if (fastFwd) fastFwd(); });
