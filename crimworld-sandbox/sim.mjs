@@ -31,7 +31,11 @@ export const C = {
     { q: 'B', nom: 'Pollen jaune',                   g: 100, px: 340, gate: 55, ds: 'milieu de gamme' },
     { q: 'A', nom: 'Népalais (carambar)',            g: 50,  px: 520, gate: 75, ds: 'haut de gamme · connaisseurs' },
   ],
-  PRIX_DEFAUT: { 2: 16, 5: 30, 10: 50 },   // € / sachet par défaut (réglable joueur)
+  PRIX_DEFAUT: {                            // € / sachet par défaut (réglable joueur), PAR QUALITÉ
+    C: { 2: 16, 5: 30, 10: 50 },            // savonnette : ~6-8 €/g
+    B: { 2: 24, 5: 45, 10: 75 },            // pollen : ~7,5-12 €/g
+    A: { 2: 40, 5: 75, 10: 130 },           // népalais : ~13-20 €/g (l'élite paie le prix)
+  },
   DEMANDE_FORMAT: [10, 5, 2, 5, 10, 2, 5, 10],     // format voulu (cyclique)
   DEMANDE_QMIN:   ['C', 'C', 'B', 'C', 'A', 'C', 'B', 'C'], // discernement (qualité MINI acceptée)
   CLIENTS_BASE: 12,          // nb de clients/jour à réput 100
@@ -39,7 +43,7 @@ export const C = {
   CADENCE_JITTER: [0, 0.7, -0.45, 1.0, -0.6, 0.4, -0.3, 0.8],
   REPUT_SERVI: { A: 3, B: 2, C: 1 },   // servir de la qualité fait monter la réput (A > C)
   DROP_REPUT: 4,             // poster un "drop" : coup de buzz social (1×/j, tracé)
-  PRIX_MAX_G: 8,             // négo : €/g toléré au max
+  PRIX_MAX_G: { A: 20, B: 12, C: 8 },   // négo : €/g toléré au max, PAR QUALITÉ (l'élite tolère plus cher)
   UPSELL_MAX: 3,             // négo : pas plus de 3× la quantité voulue
 };
 
@@ -56,7 +60,8 @@ export function createSim(){
   const gQual   = () => C.QUALITES.reduce((o, q) => (o[q] = 0, o), {});            // matière (g) par qualité
   const matZ    = () => ({ hash: gQual(), weed: gQual(), neige: gQual() });
   const stockZ  = () => ({ hash: parQual(), weed: parQual(), neige: parQual() });
-  const prixZ   = () => ({ hash: { ...C.PRIX_DEFAUT }, weed: { ...C.PRIX_DEFAUT }, neige: { ...C.PRIX_DEFAUT } });
+  const prixPer = () => C.QUALITES.reduce((o, q) => (o[q] = { ...C.PRIX_DEFAUT[q] }, o), {});  // prix par qualité×format
+  const prixZ   = () => ({ hash: prixPer(), weed: prixPer(), neige: prixPer() });
 
   const state = {
     jour: 1, heure: 0, cash: 0, loyerDu: 0,
@@ -112,9 +117,10 @@ export function createSim(){
     debloquer(produit){ state.debloques[produit] = true; return api; },
     tiersReassort(){ return C.REASSORT_TIERS.map(t => ({ ...t, dispo: state.reput >= t.gate })); },
 
-    setPrix(produit, format, px){
-      if (!state.prix[produit] || !(format in state.prix[produit])) return api;
-      state.prix[produit][format] = Math.max(0, Math.round(px));
+    setPrix(produit, qualite, format, px){
+      const t = state.prix[produit] && state.prix[produit][qualite];
+      if (!t || !(format in t)) return api;
+      t[format] = Math.max(0, Math.round(px));
       return api;
     },
 
@@ -174,7 +180,7 @@ export function createSim(){
       const q = qServie(c.produit, c.format, c.qMin);
       if (!q) return 0;                                  // rupture sur son standard (rien d'acceptable dans ce format)
       state.stock[c.produit][q][c.format] -= 1;
-      const montant = state.prix[c.produit][c.format];
+      const montant = state.prix[c.produit][q][c.format];   // prix de la QUALITÉ servie
       state.cash += montant; c.servi = true;
       state.reput = clamp(state.reput + C.REPUT_SERVI[q]);
       state.metricsJour.sachetsVendus += 1;
@@ -203,13 +209,16 @@ export function createSim(){
       const want = c.format;
       if (gDonne < Math.ceil(want * 0.5)) return { ok: false, raison: `pas assez (il voulait ~${want}g)` };
       if (gDonne > want * C.UPSELL_MAX)    return { ok: false, raison: 'il en veut pas autant' };
-      if (prix > gDonne * C.PRIX_MAX_G)    return { ok: false, raison: 'trop cher pour lui' };
-      // débit : pour chaque format, on pioche la moins bonne qualité acceptable d'abord.
-      let qLow = 'A';
+      // dry-run : on planifie le débit (moins bonne qualité acceptable d'abord) SANS muter,
+      // pour connaître la qualité la moins bonne servie → son plafond €/g.
+      const tmp = {}; for (const q of acc){ tmp[q] = {}; for (const f of C.FORMATS) tmp[q][f] = state.stock[c.produit][q][f]; }
+      const plan = []; let qLow = 'A';
       for (const f of C.FORMATS){
         let need = lot[f];
-        for (const q of acc){ while (need > 0 && state.stock[c.produit][q][f] > 0){ state.stock[c.produit][q][f]--; need--; if (C.QRANK[q] < C.QRANK[qLow]) qLow = q; } }
+        for (const q of acc){ while (need > 0 && tmp[q][f] > 0){ tmp[q][f]--; plan.push({ q, f }); if (C.QRANK[q] < C.QRANK[qLow]) qLow = q; need--; } }
       }
+      if (prix > gDonne * C.PRIX_MAX_G[qLow]) return { ok: false, raison: 'trop cher pour lui' };
+      for (const pl of plan) state.stock[c.produit][pl.q][pl.f]--;   // applique le plan
       state.cash += prix; c.servi = true;
       state.reput = clamp(state.reput + C.REPUT_SERVI[qLow]);
       state.metricsJour.sachetsVendus += nS;

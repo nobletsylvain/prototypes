@@ -77,6 +77,11 @@
   /* tarifs vitrine : prix par format (levier joueur) */
   .tarifs{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:9px 11px;margin-top:8px}
   .tarifs .tarh{font:700 11px var(--sans);color:var(--muted);margin-bottom:7px}
+  .qsel{display:flex;gap:6px;margin-bottom:8px}
+  .qsel .qbtn{flex:1;border:1px solid var(--border);background:#1a1511;color:var(--muted);border-radius:8px;padding:6px 4px;font:700 10px var(--sans);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .qsel .qbtn.on{border-color:var(--sodium);color:var(--sodium);background:var(--surface2)}
+  .tcell .mk{font:600 9px var(--mono);margin-top:4px}
+  .tcell .mk.eq{color:var(--muted)} .tcell .mk.lo{color:var(--green)} .tcell .mk.hi{color:var(--sodium)}
   .trow{display:flex;gap:8px}
   .tcell{flex:1;background:#1a1511;border:1px solid #241d17;border-radius:9px;padding:6px 4px;text-align:center}
   .tcell .tf{font:700 11px var(--mono);color:var(--text)}
@@ -219,7 +224,7 @@
 <script type="module">
 import { createSim, C, jaugeOpaque, DISCERNEMENT } from './sim.mjs';
 
-const SAVE_VERSION = '10';
+const SAVE_VERSION = '11';
 if (localStorage.getItem('sbx_ver') !== SAVE_VERSION){
   for (const k of Object.keys(localStorage)) if (k.startsWith('sbx_')) localStorage.removeItem(k);
   localStorage.setItem('sbx_ver', SAVE_VERSION);
@@ -241,7 +246,7 @@ const CM_AV=['🦅','🐍','🦊','👹','🐺','🥷','🎭','🪙','😶‍�
 const MSGS=['yo tu dépanne ?','besoin vite frère 🙏','t’as de quoi ?','wesh dispo ?','un petit truc stp','tu peux me sortir ça ?'];
 const pick = a => a[(Math.random()*a.length)|0];
 
-let view = 'snap', lastJour = sim.state.jour, lastDmKey = '', nego = null;
+let view = 'snap', lastJour = sim.state.jour, lastDmKey = '', nego = null, tarifQ = 'C';
 let _reputLast = null, _reputNoise = '';
 const dmProfile = new Map();   // profil stable par id de client (présentation)
 
@@ -299,20 +304,29 @@ function renderSnap(){
   tray.appendChild(story);
   v.appendChild(tray);
 
-  // tarifs : prix par format (ta marge) — modifiables à tout moment
+  // tarifs : prix par QUALITÉ × format + repère marché — modifiables à tout moment
   const tar=el('div','tarifs');
-  tar.appendChild(el('div','tarh','💶 Tes prix — hash (par sachet)'));
+  tar.appendChild(el('div','tarh','💶 Tes prix — '+C.QUALITE_NOM[tarifQ]+' ('+tarifQ+') / sachet'));
+  const qsel=el('div','qsel');
+  for(const q of C.QUALITES){
+    const qb=el('button','qbtn'+(q===tarifQ?' on':''),null); qb.textContent=C.QUALITE_NOM[q]+' ('+q+')';
+    qb.addEventListener('click',()=>{ tarifQ=q; renderSnap(); });
+    qsel.appendChild(qb);
+  }
+  tar.appendChild(qsel);
   const trow=el('div','trow');
   for(const f of C.FORMATS){
     const cell=el('div','tcell'); cell.appendChild(el('div','tf',f+'g'));
     const ctr=el('div','tctr');
     const minus=el('button','tbtn',null); minus.textContent='−';
-    const val=el('span','tval',sim.state.prix.hash[f]+'€');
+    const val=el('span','tval',sim.state.prix.hash[tarifQ][f]+'€');
     const plus=el('button','tbtn',null); plus.textContent='+';
-    const maj=()=>{ val.textContent=sim.state.prix.hash[f]+'€'; renderDMs(); };
-    minus.addEventListener('click',()=>{ sim.setPrix('hash',f,sim.state.prix.hash[f]-2); maj(); });
-    plus .addEventListener('click',()=>{ sim.setPrix('hash',f,sim.state.prix.hash[f]+2); maj(); });
-    ctr.append(minus,val,plus); cell.appendChild(ctr); trow.appendChild(cell);
+    const marche=C.PRIX_DEFAUT[tarifQ][f], mk=el('div',null,null);
+    const setMk=()=>{ const my=sim.state.prix.hash[tarifQ][f]; mk.textContent='marché ~'+marche+'€'; mk.className='mk '+(my>marche?'hi':my<marche?'lo':'eq'); };
+    const maj=()=>{ val.textContent=sim.state.prix.hash[tarifQ][f]+'€'; setMk(); renderDMs(); };
+    minus.addEventListener('click',()=>{ sim.setPrix('hash',tarifQ,f,sim.state.prix.hash[tarifQ][f]-2); maj(); });
+    plus .addEventListener('click',()=>{ sim.setPrix('hash',tarifQ,f,sim.state.prix.hash[tarifQ][f]+2); maj(); });
+    ctr.append(minus,val,plus); cell.appendChild(ctr); setMk(); cell.appendChild(mk); trow.appendChild(cell);
   }
   tar.appendChild(trow);
   v.appendChild(tar);
@@ -333,7 +347,10 @@ function bestFill(want, st){
   for(const f of [...C.FORMATS].sort((a,b)=>b-a)){ while(need>0 && avail[f]>0){ offre[f]++; avail[f]--; need-=f; } }
   return { offre, g: C.FORMATS.reduce((a,f)=>a+offre[f]*f,0) };
 }
-const prixDefaut=(produit,offre)=>C.FORMATS.reduce((a,f)=>a+offre[f]*sim.state.prix[produit][f],0);
+// qualité (la moins bonne acceptable, dispo) qui serait servie pour CE format → pour estimer le prix
+function qFmt(produit,f,qMin){ const acc=C.QUALITES.filter(q=>C.QRANK[q]>=C.QRANK[qMin]).sort((a,b)=>C.QRANK[a]-C.QRANK[b]); for(const q of acc) if(sim.state.stock[produit][q][f]>0) return q; return acc[0]; }
+const prixUnit=(produit,f,qMin)=>{ const q=qFmt(produit,f,qMin); return q?sim.state.prix[produit][q][f]:0; };
+const prixDefaut=(produit,offre,qMin)=>C.FORMATS.reduce((a,f)=>a+(offre[f]||0)*prixUnit(produit,f,qMin),0);
 
 function renderDMs(){
   const list=$('dmlist'); if(!list) return;
@@ -363,7 +380,7 @@ function renderDMs(){
     const acts=el('div','acts');
     if(stockExact>0){
       const serve=el('button','serve'); serve.appendChild(el('span',null,'Servir'));
-      serve.appendChild(el('span','px',sim.state.prix[c.produit][c.format]+'€'));
+      serve.appendChild(el('span','px',sim.state.prix[c.produit][qServ][c.format]+'€'));   // prix de la qualité servie
       serve.addEventListener('click',()=>{ const g=sim.servir(c.id); if(g>0){toast('+'+g+'€');dmProfile.delete(c.id);} nego=null; renderDMs(); updateHUD(); });
       acts.appendChild(serve);
     }
@@ -371,7 +388,7 @@ function renderDMs(){
       const prop=el('button','prop',null); prop.textContent=(nego&&nego.id===c.id)?'Fermer':'Proposer';
       prop.addEventListener('click',()=>{
         if(nego&&nego.id===c.id){ nego=null; }
-        else { const o=bestFill(c.format,st); nego={ id:c.id, offre:o.offre, gDonne:o.g, prix:prixDefaut(c.produit,o.offre) }; }
+        else { const o=bestFill(c.format,st); nego={ id:c.id, offre:o.offre, gDonne:o.g, prix:prixDefaut(c.produit,o.offre,c.qMin) }; }
         renderDMs();
       });
       acts.appendChild(prop);
@@ -393,8 +410,8 @@ function renderDMs(){
         const mm=el('button','cbtn',null); mm.textContent='−'; if(nego.offre[f]<=0) mm.disabled=true;
         const cn=el('span','cn',nego.offre[f]+'/'+st[f]);
         const pp=el('button','cbtn',null); pp.textContent='+'; if(nego.offre[f]>=st[f]) pp.disabled=true;
-        mm.addEventListener('click',()=>{ if(nego.offre[f]>0){ nego.offre[f]--; nego.prix=Math.max(0,nego.prix-sim.state.prix[c.produit][f]); renderDMs(); } });
-        pp.addEventListener('click',()=>{ if(nego.offre[f]<st[f]){ nego.offre[f]++; nego.prix+=sim.state.prix[c.produit][f]; renderDMs(); } });
+        mm.addEventListener('click',()=>{ if(nego.offre[f]>0){ nego.offre[f]--; nego.prix=Math.max(0,nego.prix-prixUnit(c.produit,f,c.qMin)); renderDMs(); } });
+        pp.addEventListener('click',()=>{ if(nego.offre[f]<st[f]){ nego.offre[f]++; nego.prix+=prixUnit(c.produit,f,c.qMin); renderDMs(); } });
         ch.append(mm,cn,pp); chips.appendChild(ch);
       }
       np.appendChild(chips);
