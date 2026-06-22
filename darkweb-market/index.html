@@ -291,15 +291,16 @@
 import * as THREE from 'three';
 /* ===========================================================================
    DONNÉES — roster FIXE (constantes nommées). Aucun tirage ne pilote l'état.
-   family : resine | extraction | weed | coke | speed | mdma | cachets
-   tier   : cheap | mid | premium
+   family : resine | extraction | weed | coke | speed | mdma | cachets | fournitures
+   tier   : cheap | mid | premium     ·     kind (fournitures) : cut|reagent|pack|press|precursor
    =========================================================================== */
-const SAVE_VERSION = 4;
+const SAVE_VERSION = 5;
 const KEY = 'dw_state';
 const START_CASH = 1600;
 
 const FAMILIES = { resine:'Résine', extraction:'Concentrés', weed:'Weed',
-                   coke:'Coke', speed:'Speed', mdma:'MDMA', cachets:'Cachets' };
+                   coke:'Coke', speed:'Speed', mdma:'MDMA', cachets:'Cachets',
+                   fournitures:'Fournitures' };
 
 const SUPPLIERS = [
   // ---- Résine (hash pressé) ----
@@ -372,6 +373,29 @@ const SUPPLIERS = [
   { id:'smiley',handle:'SmileyCheap', emoji:'🙂', family:'cachets', tier:'cheap', rating:2.5, sales:600,
     prod:'Smiley dosage faible', eurG:1.7, annoncee:66, unit:'u', qtys:[100,250,500,1000],
     desc:"Press grossier, dosage faible et inégal — l'annonce gonfle le mg. Prix au cachet imbattable, en gros." },
+  // ---- Fournitures : coupe + matériel + ressources de production (l'atelier du top boy) ----
+  // « qualité » = pureté/discrétion de la coupe, propreté du matériel, rendement de la ressource.
+  { id:'pharmacut', handle:'PharmaGradeCut', emoji:'⚗️', family:'fournitures', tier:'premium', rating:4.7, sales:382,
+    prod:'Agent de coupe pharma', eurG:9, annoncee:96, kind:'cut', qtys:[100,250,500,1000],
+    desc:"Diluant qualité pharma, inodore, passe les réactifs de rue. Cher mais ta came ne trahit pas la coupe." },
+  { id:'cleancut',  handle:'CleanCutCo', emoji:'🥛', family:'fournitures', tier:'mid', rating:3.7, sales:441,
+    prod:'Coupe fine inodore', eurG:4.5, annoncee:80, kind:'cut', qtys:[100,250,500,1000],
+    desc:"Diluant fin sans goût, se lie bien. Le compromis discrétion/prix pour gonfler sans casser la réput." },
+  { id:'bulkcut',   handle:'BulkFillers', emoji:'🧂', family:'fournitures', tier:'cheap', rating:2.6, sales:914,
+    prod:'Coupe générique (vrac)', eurG:2.2, annoncee:60, kind:'cut', qtys:[250,500,1000,2000],
+    desc:"Lactose/créatine en gros sacs, prix au sol. Grossier — un nez averti le sent. Pour gonfler vite fait." },
+  { id:'reagent',   handle:'ReagentLab', emoji:'🧪', family:'fournitures', tier:'mid', rating:4.0, sales:560,
+    prod:'Kits de test réactifs', eurG:6, annoncee:88, kind:'reagent', unit:'u', qtys:[10,25,50,100],
+    desc:"Marquis / Mecke / Mandelin. Pour vérifier ce que tu reçois — ou ce que tu vends. L'outil de prudence." },
+  { id:'vacpack',   handle:'VacPackSupply', emoji:'🧰', family:'fournitures', tier:'cheap', rating:3.1, sales:1322,
+    prod:'Sachets + scelleuse (lot)', eurG:0.6, annoncee:72, kind:'pack', unit:'u', qtys:[100,250,500,1000],
+    desc:"Baggies zip, mylar, sous-vide. Conditionnement discret en gros. Le consommable de base de l'atelier." },
+  { id:'press',     handle:'PressMasters', emoji:'🛠️', family:'fournitures', tier:'premium', rating:4.4, sales:121,
+    prod:'Presse + matrice custom', eurG:850, annoncee:92, kind:'press', unit:'u', qtys:[1,2,5],
+    desc:"Presse hydraulique et matrice de logo sur mesure. L'investissement qui te fait passer producteur." },
+  { id:'base',      handle:'SealedBase', emoji:'🛢️', family:'fournitures', tier:'premium', rating:4.6, sales:88,
+    prod:'Base de synthèse (lot scellé)', eurG:42, annoncee:94, kind:'precursor', qtys:[100,250,500],
+    desc:"Intrant de production scellé et lab-testé, pour qui fabrique au lieu d'acheter. Réservé aux relations établies." },
 ];
 const byId = id => SUPPLIERS.find(s => s.id === id);
 
@@ -401,6 +425,7 @@ function repRank(s){ const c = rel(s.id).count; return c>=10?3 : c>=5?2 : c>=2?1
 // gros (250 g→2 kg) ; la weed part de 250 g ; les très grosses quantités
 // exigent de la réputation.
 function qtyBase(s){
+  if(s.family === 'fournitures') return s.qtys;                   // paliers hétérogènes par item (coupe/matériel/ressource)
   if(s.family === 'cachets') return [50,100,250,500,1000];        // à l'unité
   if(s.family === 'coke')    return [10,25,50,100,250];           // cher, petits paliers
   if(s.family === 'mdma')    return [25,50,100,250,500];
@@ -502,7 +527,7 @@ function roundedSlab(w,len,thick,r){
   geo.center(); geo.rotateX(-Math.PI/2); geo.computeVertexNormals(); return geo;
 }
 
-function makeProduct(family, pct, form){
+function makeProduct(family, pct, form, kind){
   const q = qOf(pct), g = new THREE.Group();
   if(family === 'resine'){
     // plaque de hash pressée : slab arrondi + grain multi-échelle + bump + lustre.
@@ -604,6 +629,51 @@ function makeProduct(family, pct, form){
         chip.position.set(pill.position.x + 0.2, pill.position.y, pill.position.z); g.add(chip);
       }
     }
+  } else if(family === 'fournitures'){
+    // intrants de l'atelier : modèle selon le sous-type (kind). « Qualité » = propreté/discrétion.
+    if(kind === 'precursor'){
+      // bidon scellé d'intrant de production
+      const drumMat = new THREE.MeshPhysicalMaterial({ color:new THREE.Color().lerpColors(new THREE.Color('#3a5a8a'), new THREE.Color('#5b86c4'), q),
+        roughness:0.4-0.1*q, metalness:0.1, clearcoat:0.5, envMapIntensity:1.0 });
+      g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.62,0.62,1.25,30), drumMat));
+      for(const yy of [-0.4,0.4]){ const ring=new THREE.Mesh(new THREE.TorusGeometry(0.62,0.05,8,30), drumMat); ring.rotation.x=Math.PI/2; ring.position.y=yy; g.add(ring); }
+      const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.18,16), new THREE.MeshStandardMaterial({ color:0x222a33, roughness:0.6 }));
+      cap.position.set(0.26,0.68,0); g.add(cap);
+    } else if(kind === 'press'){
+      // presse de producteur (matériel métallique) + matrice dorée
+      const metal = new THREE.MeshStandardMaterial({ color:0x8a9299, roughness:0.35-0.15*q, metalness:0.85, envMapIntensity:1.2 });
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(0.95,1.2,0.72), metal));
+      const piston=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.7,16), metal); piston.position.y=0.52; g.add(piston);
+      const die=new THREE.Mesh(new THREE.CylinderGeometry(0.33,0.33,0.18,22),
+        new THREE.MeshStandardMaterial({ color:0xb8893f, roughness:0.35, metalness:0.9, envMapIntensity:1.2 })); die.position.y=-0.46; g.add(die);
+      const base=new THREE.Mesh(new THREE.BoxGeometry(1.15,0.18,0.9), metal); base.position.y=-0.64; g.add(base);
+    } else if(kind === 'pack'){
+      // pile de sachets translucides
+      for(let i=0;i<5;i++){
+        const sq=new THREE.Mesh(new THREE.BoxGeometry(0.95,0.04,0.95),
+          new THREE.MeshPhysicalMaterial({ color:0xdfe7ea, roughness:0.2, metalness:0, transmission:0.5, thickness:0.2, transparent:true, clearcoat:0.6, envMapIntensity:1.0 }));
+        sq.position.set((seeded(i*3)-0.5)*0.2, -0.4+i*0.13, (seeded(i*5)-0.5)*0.2); sq.rotation.y=seeded(i)*0.6; g.add(sq);
+      }
+    } else if(kind === 'reagent'){
+      // flacons de réactifs de test
+      const cols=['#8a3030','#2f5a7a','#6a2f7a'];
+      for(let i=0;i<3;i++){ const x=(i-1)*0.44;
+        const glass=new THREE.MeshPhysicalMaterial({ color:new THREE.Color(cols[i]), roughness:0.1, metalness:0,
+          transmission:0.7, ior:1.5, thickness:0.4, attenuationColor:new THREE.Color(cols[i]), attenuationDistance:0.6, transparent:true, envMapIntensity:1.2 });
+        const bottle=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.17,0.72,18), glass); bottle.position.set(x,-0.08,0); g.add(bottle);
+        const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.18,12), new THREE.MeshStandardMaterial({ color:0x14181d, roughness:0.7 })); cap.position.set(x,0.36,0); g.add(cap);
+        const tip=new THREE.Mesh(new THREE.ConeGeometry(0.09,0.16,12), new THREE.MeshStandardMaterial({ color:0x202830, roughness:0.6 })); tip.position.set(x,0.52,0); g.add(tip);
+      }
+    } else { // 'cut' (agents de coupe) — sachet de poudre sous vide
+      const powder=new THREE.Mesh(new THREE.BoxGeometry(1.42,0.44,0.96),
+        new THREE.MeshStandardMaterial({ color:new THREE.Color().lerpColors(new THREE.Color('#cdc8bd'), new THREE.Color('#fbfbf8'), q), roughness:0.95 }));
+      g.add(powder);
+      const bag=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.52,1.04),
+        new THREE.MeshPhysicalMaterial({ color:0xe9eef0, roughness:0.22, metalness:0, transmission:0.28, thickness:0.4, transparent:true, clearcoat:0.6, envMapIntensity:1.0 }));
+      g.add(bag);
+      const seal=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.09,0.16), new THREE.MeshStandardMaterial({ color:0xbfc6c9, roughness:0.5, metalness:0.2 }));
+      seal.position.z=0.5; g.add(seal);
+    }
   } else { // weed
     const branch = (form === 'branchage');     // brut (tiges + feuilles) vs paquet manucuré
     const green = new THREE.Color().lerpColors(new THREE.Color('#56602c'), new THREE.Color('#5f9230'), q);
@@ -694,8 +764,8 @@ function tuneRenderer(r){ r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMap
 // ---- vignettes baked (cache par famille+qualité) ----
 const thumbCache = {};
 let thumbR = null, thumbStage = null;
-function bakeThumb(family, pct){
-  const key = family + '_' + pct;
+function bakeThumb(family, pct, kind){
+  const key = family + '_' + pct + '_' + (kind || '');
   if(thumbCache[key]) return thumbCache[key];
   try{
     if(!thumbR){
@@ -704,7 +774,7 @@ function bakeThumb(family, pct){
       thumbStage = makeStage(); thumbStage.scene.environment = buildEnv(thumbR);
     }
     const old = thumbStage.scene.getObjectByName('product'); if(old) thumbStage.scene.remove(old);
-    const p = makeProduct(family, pct); p.name = 'product'; p.rotation.y = 0.7; thumbStage.scene.add(p);
+    const p = makeProduct(family, pct, undefined, kind); p.name = 'product'; p.rotation.y = 0.7; thumbStage.scene.add(p);
     thumbR.render(thumbStage.scene, thumbStage.camera);
     const url = thumbR.domElement.toDataURL('image/png');
     thumbCache[key] = url; return url;
@@ -722,7 +792,7 @@ function disposeViewer(){
   if(live.dom && live.dom.parentNode) live.dom.parentNode.removeChild(live.dom);
   live = null;
 }
-function mountViewer(el, family, pct, form){
+function mountViewer(el, family, pct, form, kind){
   disposeViewer();
   let renderer;
   try{ renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true }); }
@@ -732,7 +802,7 @@ function mountViewer(el, family, pct, form){
   renderer.setSize(w, h); tuneRenderer(renderer); el.appendChild(renderer.domElement);
   const stage = makeStage(); stage.scene.environment = buildEnv(renderer);
   stage.camera.aspect = w/h; stage.camera.updateProjectionMatrix();
-  const group = makeProduct(family, pct, form); stage.scene.add(group);
+  const group = makeProduct(family, pct, form, kind); stage.scene.add(group);
   let rot = 0.5, vel = 0.006, dragging = false, lastX = 0;
   const dom = renderer.domElement; dom.style.cursor = 'grab';
   const down = e => { dragging = true; lastX = (e.touches?e.touches[0].clientX:e.clientX); vel = 0; dom.style.cursor='grabbing'; };
@@ -808,7 +878,7 @@ function renderFeed(){
       r.deal ? `<span class="bdg loy">remise négociée</span>` : '',
       r.sampled ? `<span class="bdg samp">échantillon vu</span>` : '',
     ].filter(Boolean).join('');
-    const thumb = bakeThumb(s.family, s.annoncee);   // photo du listing = qualité annoncée
+    const thumb = bakeThumb(s.family, s.annoncee, s.kind);   // photo du listing = qualité annoncée
     const thumbHTML = thumb
       ? `<div class="thumb"><img src="${thumb}" alt=""><span class="pe">${s.emoji}</span></div>`
       : `<div class="av">${s.emoji}</div>`;
@@ -905,7 +975,7 @@ function openOrder(s){
     const o = e.target.closest('[data-form]'); if(!o) return; selForm = o.dataset.form; openOrder(s);
   });
   showSheet();
-  mountViewer($('viewer'), s.family, r.sampled ? realQual(s) : s.annoncee, selForm);
+  mountViewer($('viewer'), s.family, r.sampled ? realQual(s) : s.annoncee, selForm, s.kind);
 }
 function renderQtys(){
   const box = $('qtys'); box.innerHTML = '';
