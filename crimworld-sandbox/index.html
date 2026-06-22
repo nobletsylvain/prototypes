@@ -82,6 +82,10 @@
   .qsel .qbtn.on{border-color:var(--sodium);color:var(--sodium);background:var(--surface2)}
   .tcell .mk{font:600 9px var(--mono);margin-top:4px}
   .tcell .mk.eq{color:var(--muted)} .tcell .mk.lo{color:var(--green)} .tcell .mk.hi{color:var(--sodium)}
+  .poshint{margin-top:9px;border-radius:8px;padding:7px 9px;font:600 10px var(--sans);line-height:1.35;border:1px solid var(--border)}
+  .poshint.eq{color:var(--muted);background:#1a1511}
+  .poshint.lo{color:var(--green);background:rgba(60,160,90,.10);border-color:rgba(60,160,90,.35)}
+  .poshint.hi{color:var(--sodium);background:rgba(210,120,40,.10);border-color:rgba(210,120,40,.35)}
   .trow{display:flex;gap:8px}
   .tcell{flex:1;background:#1a1511;border:1px solid #241d17;border-radius:9px;padding:6px 4px;text-align:center}
   .tcell .tf{font:700 11px var(--mono);color:var(--text)}
@@ -225,7 +229,7 @@
 <script type="module">
 import { createSim, C, jaugeOpaque, DISCERNEMENT } from './sim.mjs';
 
-const SAVE_VERSION = '11';
+const SAVE_VERSION = '12';
 if (localStorage.getItem('sbx_ver') !== SAVE_VERSION){
   for (const k of Object.keys(localStorage)) if (k.startsWith('sbx_')) localStorage.removeItem(k);
   localStorage.setItem('sbx_ver', SAVE_VERSION);
@@ -315,6 +319,15 @@ function renderSnap(){
     qsel.appendChild(qb);
   }
   tar.appendChild(qsel);
+  // positionnement GLOBAL vs marché → effet (avec retard) sur la demande. Demande tenue opaque
+  // (cue qualitatif, pas de multiplicateur brut).
+  const posHint=el('div','poshint');
+  const setPos=()=>{
+    const e=sim.positionPrix().ecart, pct=Math.round(e*100), tol=C.TOLERANCE_PRIX;
+    if(e>tol){ posHint.className='poshint hi'; posHint.textContent='📉 ~+'+pct+'% au-dessus du marché — tu fais fuir des clients (la demande baisse avec retard).'; }
+    else if(e<-tol){ posHint.className='poshint lo'; posHint.textContent='📈 ~'+pct+'% sous le marché — tu casses les prix, l’undercut ramène du monde (avec retard).'; }
+    else { posHint.className='poshint eq'; posHint.textContent='⚖️ Aligné sur le marché — demande stable.'; }
+  };
   const trow=el('div','trow');
   for(const f of C.FORMATS){
     const cell=el('div','tcell'); cell.appendChild(el('div','tf',f+'g'));
@@ -324,12 +337,13 @@ function renderSnap(){
     const plus=el('button','tbtn',null); plus.textContent='+';
     const marche=C.PRIX_DEFAUT[tarifQ][f], mk=el('div',null,null);
     const setMk=()=>{ const my=sim.state.prix.hash[tarifQ][f]; mk.textContent='marché ~'+marche+'€'; mk.className='mk '+(my>marche?'hi':my<marche?'lo':'eq'); };
-    const maj=()=>{ val.textContent=sim.state.prix.hash[tarifQ][f]+'€'; setMk(); renderDMs(); };
+    const maj=()=>{ val.textContent=sim.state.prix.hash[tarifQ][f]+'€'; setMk(); setPos(); renderDMs(); };
     minus.addEventListener('click',()=>{ sim.setPrix('hash',tarifQ,f,sim.state.prix.hash[tarifQ][f]-2); maj(); });
     plus .addEventListener('click',()=>{ sim.setPrix('hash',tarifQ,f,sim.state.prix.hash[tarifQ][f]+2); maj(); });
     ctr.append(minus,val,plus); cell.appendChild(ctr); setMk(); cell.appendChild(mk); trow.appendChild(cell);
   }
   tar.appendChild(trow);
+  setPos(); tar.appendChild(posHint);
   v.appendChild(tar);
 
   const list=el('div',null); list.id='dmlist'; list.style.cssText='display:flex;flex-direction:column;gap:8px;margin-top:6px';

@@ -47,6 +47,15 @@ export const C = {
   UPSELL_MAX: 3,             // négo : pas plus de 3× la quantité voulue
   DOWNSELL_TIERS: 1,         // négo : on peut refiler jusqu'à 1 cran SOUS le standard du client
   DECEPTION_REPUT: 5,        // refiler du sous-standard : le client est déçu → réput ↓
+  // SENSIBILITÉ AU PRIX — ton positionnement (prix affichés vs marché = PRIX_DEFAUT) pilote la
+  // DEMANDE, avec retard. Surcoter = cash tout de suite, mais la clientèle s'effrite (ils vont
+  // voir ailleurs) ; casser les prix = moins de marge, mais l'undercut ramène du monde.
+  TOLERANCE_PRIX: 0.15,      // ±15 % autour du marché = "au prix du marché" (zone neutre)
+  SENS_SURCOTE: 0.8,         // pente de l'érosion de demande au-dessus du marché
+  SENS_DECOTE: 0.5,          // pente du gain de demande sous le marché (undercut, rendement < surcote)
+  DEMANDE_MOD_MIN: 0.30,     // plancher du multiplicateur de demande (surcote extrême)
+  DEMANDE_MOD_MAX: 1.60,     // plafond (l'undercut a un rendement décroissant)
+  DEMANDE_INERTIE: 0.5,      // fraction du chemin parcourue/jour vers la cible → "avec retard"
 };
 
 export const DISCERNEMENT = { C: 'schlag', B: 'habitué', A: 'connaisseur' };   // libellé (présentation)
@@ -75,6 +84,8 @@ export function createSim(){
     debloques: { hash: true, weed: false, neige: false },
     vitrine: false,
     dropAujourdhui: false,
+    demandeMod: 1,                 // multiplicateur de demande (sensibilité prix), dérive avec retard
+    posPrixJour: 0,                // positionnement prix vs marché du menu du jour (écart moyen, ratio)
     clientsJour: [],
     clientSeq: 0,
     metricsJour: newJour(),
@@ -113,9 +124,46 @@ export function createSim(){
     }
     return { plan, qLow };
   }
+  // POSITIONNEMENT PRIX : écart moyen (ratio) de tes prix affichés vs le marché (PRIX_DEFAUT),
+  // pondéré par les sachets EN STOCK (= ton offre visible). +0,20 = 20 % au-dessus du marché.
+  function positionPrix(){
+    let wSum = 0, rSum = 0;
+    for (const p of C.PRODUITS){
+      if (!state.debloques[p]) continue;
+      for (const q of C.QUALITES) for (const f of C.FORMATS){
+        const n = state.stock[p][q][f]; if (!n) continue;
+        const marche = C.PRIX_DEFAUT[q][f]; if (!marche) continue;
+        rSum += ((state.prix[p][q][f] - marche) / marche) * n; wSum += n;
+      }
+    }
+    return wSum ? rSum / wSum : 0;
+  }
+  // cible du multiplicateur de demande selon l'écart `e` (au-delà de la zone neutre).
+  // `eff` est SIGNÉ : >0 = surcote (au-dessus du marché) ⇒ demande < 1 ; <0 = décote (sous le
+  // marché) ⇒ demande > 1 (le terme `-SENS_DECOTE*eff` ajoute, car eff est négatif).
+  function cibleDemande(e){
+    const band = C.TOLERANCE_PRIX;
+    let eff = 0;
+    if (e > band) eff = e - band; else if (e < -band) eff = e + band;   // part au-delà de la tolérance
+    const cible = eff > 0 ? 1 - C.SENS_SURCOTE * eff      // surcote → demande < 1
+                : eff < 0 ? 1 - C.SENS_DECOTE * eff       // décote → demande > 1
+                : 1;
+    return { eff, cible: Math.max(C.DEMANDE_MOD_MIN, Math.min(C.DEMANDE_MOD_MAX, cible)) };
+  }
+  // fait dériver demandeMod vers la cible du jour AVEC RETARD (inertie) ; renvoie de quoi tracer.
+  function majDemande(){
+    const e = state.posPrixJour;
+    const { eff, cible } = cibleDemande(e);
+    state.demandeMod += C.DEMANDE_INERTIE * (cible - state.demandeMod);
+    state.demandeMod = Math.max(C.DEMANDE_MOD_MIN, Math.min(C.DEMANDE_MOD_MAX, state.demandeMod));  // borne (sûreté)
+    return { e, eff };
+  }
+
   // programme les DM du jour (déterministe) : chaque client veut un FORMAT + a un DISCERNEMENT.
+  // La DEMANDE = réput (qualité/standing) × demandeMod (positionnement prix). Capture le menu du jour.
   function programmerJour(debut){
-    const n = Math.round(C.CLIENTS_BASE * state.reput / 100);
+    state.posPrixJour = positionPrix();
+    const n = Math.max(0, Math.round(C.CLIENTS_BASE * state.reput / 100 * state.demandeMod));
     const first = debut + C.PREMIER_DM_H;
     const last  = Math.max(first, C.DAY_HOURS - C.MARGE_FIN_H);
     for (let i = 0; i < n; i++){
@@ -137,6 +185,10 @@ export function createSim(){
     state,
     debloquer(produit){ state.debloques[produit] = true; return api; },
     tiersReassort(){ return C.REASSORT_TIERS.map(t => ({ ...t, dispo: state.reput >= t.gate })); },
+
+    // POSITIONNEMENT PRIX (UI) : écart moyen vs marché (ratio) de ton offre en stock, + l'effet
+    // de demande visé (cible) et l'effet en cours (demandeMod). Demande affichée OPAQUE côté UI.
+    positionPrix(){ const e = positionPrix(); return { ecart: e, cible: cibleDemande(e).cible, demandeMod: state.demandeMod }; },
 
     setPrix(produit, qualite, format, px){
       const t = state.prix[produit] && state.prix[produit][qualite];
@@ -275,6 +327,18 @@ export function createSim(){
       ligne({ ic: '📭', label: `${ignores.length} DM ignorés`, cause: 'tu avais de quoi les servir — pas répondu' });
     if (ruptures.length)
       ligne({ ic: '📉', label: `${ruptures.length} clients non servis`, cause: 'rupture — rien d’assez bien dans le format demandé' });
+    // SENSIBILITÉ AU PRIX : le positionnement du menu d'aujourd'hui fait dériver la demande de demain.
+    const { e, eff } = majDemande();
+    if (eff > 0)
+      ligne({ ic: '📉', label: `Tes prix ~${Math.round(e * 100)}% au-dessus du marché`,
+        cause: 'des clients sont allés voir un autre plug — la demande s’érode (avec retard)' });
+    else if (eff < 0)
+      ligne({ ic: '📈', label: `Tu casses les prix (~${Math.round(e * 100)}% sous le marché)`,
+        cause: 'le bouche-à-oreille ramène du monde — la demande monte (avec retard)' });
+    else if (Math.abs(state.demandeMod - 1) > 0.05)   // au marché, mais l'effet d'anciens prix s'estompe encore
+      ligne({ ic: '↩️', label: 'La demande se renormalise',
+        cause: state.demandeMod < 1 ? 'tu es revenu au prix du marché — la clientèle perdue revient peu à peu'
+                                    : 'tu es revenu au prix du marché — l’afflux d’undercut retombe peu à peu' });
     state.cash    -= C.LOYER_JOUR;
     state.loyerDu += C.LOYER_JOUR;
     ligne({ ic: '💸', label: 'Frais du block', montant: -C.LOYER_JOUR, cause: 'faut graisser pour bosser sur le block' });
@@ -303,6 +367,7 @@ export function createSim(){
       cash: state.cash, loyerDu: state.loyerDu,
       stock: stockCopy, matiere: matCopy,
       reputOpaque: jaugeOpaque(state.reput, 100),
+      demandeMod: state.demandeMod, posPrix: state.posPrixJour,
       lignes: m.lignes.slice(),
     };
   }
@@ -323,6 +388,7 @@ function printJour(s){
   }
   const st = q => C.FORMATS.map(f => `${f}g·${s.stock.hash[q][f]}`).join(' ');
   console.log(`  — net ${s.net >= 0 ? '+' : ''}${s.net}€ · caisse ${s.cash}€ · sachets ${s.sachetsVendus} · réput ${s.reputOpaque}`);
+  console.log(`  — demande ×${s.demandeMod.toFixed(2)} · positionnement prix ${s.posPrix >= 0 ? '+' : ''}${Math.round(s.posPrix * 100)}% vs marché`);
   console.log(`  — stock A[${st('A')}] B[${st('B')}] C[${st('C')}]`);
 }
 
@@ -348,6 +414,26 @@ export function demo(){
     sim.produireBatch({ produit: 'hash', qualite: 'B', grammesRaw: 100, formats: { 2: 6, 5: 6, 10: 4 } });
     sim.posterDrop(); jouerJournee();
     printJour(sim.state.dernierMetrics);
+  }
+
+  // SENSIBILITÉ AU PRIX — on double les prix C : la demande doit s'éroder AVEC RETARD.
+  console.log('\n### Test sensibilité : on SURCOTE (×2 sur le C) — la demande doit s’effriter sur plusieurs jours ###');
+  for (const f of C.FORMATS) sim.setPrix('hash', 'C', f, C.PRIX_DEFAUT.C[f] * 2);
+  for (let d = 0; d < 4; d++){
+    sim.acheterMatiere('hash', 'C', 100, 180).produireBatch({ produit: 'hash', qualite: 'C', grammesRaw: 100, formats: { 2: 8, 5: 6, 10: 3 } });
+    jouerJournee();
+    const m = sim.state.dernierMetrics;
+    console.log(`  J${m.jour - 1} : demande ×${m.demandeMod.toFixed(2)} · servis ${m.clientsServis} · pos ${m.posPrix >= 0 ? '+' : ''}${Math.round(m.posPrix * 100)}%`);
+  }
+
+  // ...puis on CASSE les prix (−40 % sur le C) : la demande doit remonter, AVEC RETARD.
+  console.log('\n### Test sensibilité : on CASSE les prix (−40 % sur le C) — la demande doit remonter ###');
+  for (const f of C.FORMATS) sim.setPrix('hash', 'C', f, Math.round(C.PRIX_DEFAUT.C[f] * 0.6));
+  for (let d = 0; d < 4; d++){
+    sim.acheterMatiere('hash', 'C', 100, 180).produireBatch({ produit: 'hash', qualite: 'C', grammesRaw: 100, formats: { 2: 8, 5: 6, 10: 3 } });
+    jouerJournee();
+    const m = sim.state.dernierMetrics;
+    console.log(`  J${m.jour - 1} : demande ×${m.demandeMod.toFixed(2)} · servis ${m.clientsServis} · pos ${m.posPrix >= 0 ? '+' : ''}${Math.round(m.posPrix * 100)}%`);
   }
 }
 
