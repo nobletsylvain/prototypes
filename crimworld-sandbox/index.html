@@ -98,6 +98,21 @@
   .cmt .nm{font:700 11px var(--sans)} .cmt .tx{font:400 12px var(--sans);color:var(--text);margin-top:1px}
   .cmt .lk{font:600 10px var(--mono);color:var(--faint);flex:none;align-self:center}
 
+  /* DM : actions (servir / proposer) + panneau de négociation */
+  .dm .acts{display:flex;flex-direction:column;gap:5px;flex:none;align-items:stretch}
+  .dm .prop{border:1px solid var(--sodium);color:#f0d3a3;background:var(--surface2);border-radius:10px;padding:7px 11px;font:800 11px var(--sans);cursor:pointer}
+  .dm .prop:active{transform:scale(.97)}
+  .dm .vide{font:600 10px var(--mono);color:var(--faint);text-align:center}
+  .nego{background:#16120e;border:1px solid var(--border);border-radius:12px;margin-top:-3px;padding:10px 11px;display:flex;flex-direction:column;gap:9px;animation:pop .15s ease}
+  .nego .of{font:600 12px var(--sans);color:var(--text);line-height:1.4} .nego .of b{color:var(--sodium)}
+  .nego .pr{display:flex;align-items:center;gap:7px;font:700 11px var(--sans);color:var(--muted)}
+  .nego .pbtn{width:26px;height:26px;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font:800 16px var(--sans);cursor:pointer;padding:0;line-height:1}
+  .nego .pv{font:800 14px var(--mono);color:var(--green);min-width:46px;text-align:center}
+  .nego .act{display:flex;gap:8px}
+  .nego .send{flex:1;border:1px solid var(--green);color:#cfe3cf;background:var(--surface2);border-radius:10px;padding:10px;font:800 12px var(--sans);cursor:pointer}
+  .nego .send:active{transform:scale(.99)}
+  .nego .cancel{border:1px solid var(--border);color:var(--muted);background:none;border-radius:10px;padding:10px 13px;font:700 12px var(--sans);cursor:pointer}
+
   /* cartes produit (labo) + offres (darkweb) */
   .card{border-radius:13px;border:1px solid var(--border);background:var(--surface);padding:11px 13px;display:flex;flex-direction:column;gap:9px}
   .card.lock{opacity:.5}
@@ -222,7 +237,7 @@ const CM_AV=['🦅','🐍','🦊','👹','🐺','🥷','🎭','🪙','😶‍�
 const MSGS=['yo tu dépanne ?','besoin vite frère 🙏','t’as de quoi ?','wesh dispo ?','un petit truc stp','tu peux me sortir ça ?'];
 const pick = a => a[(Math.random()*a.length)|0];
 
-let view = 'snap', lastJour = sim.state.jour, lastDmKey = '';
+let view = 'snap', lastJour = sim.state.jour, lastDmKey = '', nego = null;
 let _reputLast = null, _reputNoise = '';
 const dmProfile = new Map();   // profil stable par id de client (présentation)
 
@@ -302,10 +317,21 @@ function renderSnap(){
   v.appendChild(list);
   renderDMs();
 }
+// construit le meilleur lot ≥ want depuis le stock (gloutons du plus grand au plus petit ;
+// si le stock total < want, donne ce qu'il reste). Pour les contre-offres.
+function bestFill(want, st){
+  const offre={}, avail={}; C.FORMATS.forEach(f=>{ offre[f]=0; avail[f]=st[f]; });
+  let need=want;
+  for(const f of [...C.FORMATS].sort((a,b)=>b-a)){ while(need>0 && avail[f]>0){ offre[f]++; avail[f]--; need-=f; } }
+  return { offre, g: C.FORMATS.reduce((a,f)=>a+offre[f]*f,0) };
+}
+const prixDefaut=(produit,offre)=>C.FORMATS.reduce((a,f)=>a+offre[f]*sim.state.prix[produit][f],0);
+
 function renderDMs(){
   const list=$('dmlist'); if(!list) return;
   list.replaceChildren();
   const dms=sim.dmEnAttente();
+  if(nego && !dms.some(c=>c.id===nego.id)) nego=null;   // le client négocié est parti
   if(!sim.state.vitrine){
     list.appendChild(el('div','dmempty','Mets ta vitrine en vente 👆 — ton stock partira jusqu’à épuisement.')); return;
   }
@@ -315,22 +341,51 @@ function renderDMs(){
   for(const c of dms){
     if(!dmProfile.has(c.id)) dmProfile.set(c.id,{nm:pick(CM_PRE)+pick(CM_SUF),av:pick(CM_AV),msg:pick(MSGS)});
     const p=dmProfile.get(c.id);
+    const st=sim.state.stock[c.produit];
+    const stockExact=st[c.format], stockTot=C.FORMATS.reduce((a,f)=>a+st[f],0);
     const dm=el('div','dm');
     dm.appendChild(el('div','av',p.av));
     const col=el('div','col');
     col.appendChild(el('div','nm',p.nm));
     col.appendChild(el('div','msg',p.msg+' (un '+c.format+'g '+META[c.produit].nm+')'));
     dm.appendChild(col);
-    const serve=el('button','serve'); serve.appendChild(el('span',null,'Servir'));
-    serve.appendChild(el('span','px',sim.state.prix[c.produit][c.format]+'€'));
-    serve.addEventListener('click',()=>{
-      const g=sim.servir(c.id);
-      if(g>0){ toast('+'+g+'€'); dmProfile.delete(c.id); }   // servi : on oublie son profil
-      else { toast('rupture sur le '+c.format+'g — produis-en au labo ⚗️'); }   // reste en DM (sers-le après resto)
-      renderDMs(); updateHUD();
-    });
-    dm.appendChild(serve);
+    const acts=el('div','acts');
+    if(stockExact>0){
+      const serve=el('button','serve'); serve.appendChild(el('span',null,'Servir'));
+      serve.appendChild(el('span','px',sim.state.prix[c.produit][c.format]+'€'));
+      serve.addEventListener('click',()=>{ const g=sim.servir(c.id); if(g>0){toast('+'+g+'€');dmProfile.delete(c.id);} nego=null; renderDMs(); updateHUD(); });
+      acts.appendChild(serve);
+    }
+    if(stockTot>0){
+      const prop=el('button','prop',null); prop.textContent=(nego&&nego.id===c.id)?'Fermer':'Proposer';
+      prop.addEventListener('click',()=>{
+        if(nego&&nego.id===c.id){ nego=null; }
+        else { const o=bestFill(c.format,st); nego={ id:c.id, offre:o.offre, gDonne:o.g, prix:prixDefaut(c.produit,o.offre) }; }
+        renderDMs();
+      });
+      acts.appendChild(prop);
+    }
+    if(stockExact<=0 && stockTot<=0) acts.appendChild(el('div','vide','produis ⚗️'));
+    dm.appendChild(acts);
     list.appendChild(dm);
+
+    if(nego && nego.id===c.id && stockTot>0){
+      const np=el('div','nego');
+      const detail=C.FORMATS.filter(f=>nego.offre[f]>0).map(f=>nego.offre[f]+'×'+f+'g').join(' + ')||'—';
+      const of=el('div','of'); of.append('Tu proposes '); of.appendChild(el('b',null,detail)); of.append(' = '+nego.gDonne+'g  (il voulait '+c.format+'g)'); np.appendChild(of);
+      const pr=el('div','pr');
+      const m=el('button','pbtn',null); m.textContent='−'; const pv=el('span','pv',nego.prix+'€'); const pl=el('button','pbtn',null); pl.textContent='+';
+      m.addEventListener('click',()=>{ nego.prix=Math.max(0,nego.prix-5); pv.textContent=nego.prix+'€'; });
+      pl.addEventListener('click',()=>{ nego.prix+=5; pv.textContent=nego.prix+'€'; });
+      pr.append('Prix',m,pv,pl); np.appendChild(pr);
+      const act=el('div','act');
+      const send=el('button','send',null); send.textContent='Envoyer l’offre';
+      send.addEventListener('click',()=>{ const r=sim.negocier(c.id,nego.offre,nego.prix); if(r.ok){toast('Deal ✓ +'+r.prix+'€');dmProfile.delete(c.id);nego=null;} else {toast('Refus : '+r.raison);} renderDMs(); updateHUD(); });
+      const cancel=el('button','cancel',null); cancel.textContent='Annuler';
+      cancel.addEventListener('click',()=>{ nego=null; renderDMs(); });
+      act.append(send,cancel); np.appendChild(act);
+      list.appendChild(np);
+    }
   }
 }
 

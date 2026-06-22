@@ -61,6 +61,20 @@ sandbox : remplacer l'écran Labo placeholder par un **lanceur d'iframe** (par p
   (déblocage du tier). ⚠️ standing = une réput DE RELATION (hors périmètre d'origine,
   ajout assumé pour la sandbox).
 
+### Vente : négociation / contre-offre (Snap, FAIT en v1 ; suite à venir)
+- **Stock = sachets par format** (2/5/10g) + **prix par format** réglable (ta marge).
+- **Servir** : le client veut un format → 1 sachet à ton prix listé.
+- **Proposer** (FAIT) : contre-offre déterministe → substitut (2×5g pour un 10g),
+  upsell (5g à un client qui voulait 2g), prix ajustable. Le client accepte si
+  ~ce qu'il voulait (½ à `UPSELL_MAX`× ses g) à un €/g ≤ `PRIX_MAX_G` (plafond).
+- **À VENIR — substitution de QUALITÉ** : stock aussi par **qualité** (propre/arrache),
+  et clients à **discernement** variable. Refiler du « **pneu** » (arrache) à un
+  **schlag** peu regardant pendant que le « **popo** » (propre) reste pour les
+  connaisseurs → l'arrache devient une **gamme bas de gamme** (un débouché), plus
+  seulement une pénalité de réput. Acceptation déterministe (discernement vs qualité/prix).
+- **À VENIR — substitution de PRODUIT** (hash/weed/neige) quand le multi-produit
+  sera débloqué. + sensibilité au prix (trop cher → les clients filent, avec retard).
+
 ### Chaîne d'approvisionnement (2 paliers)
 **Palier 1 — solo (en cours).** `semi-grossiste (Darkweb) → Labo (toi) → Snap
 (vente directe, petites quantités)`. La vente passe par TA vitrine ; tu écoules
