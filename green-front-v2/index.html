@@ -424,7 +424,7 @@ G1.start = function () {
   this.over = false; this.dragging = false; this.prev = null;
   // récolte libre : pas de timer
   this.buds = []; this.branches = []; this.leaves = [];
-  this.pileT = []; this.pileD = [];
+  this.pileT = [];
   this.tAssigned = 0; this.dAssigned = 0; this.tetesMass = 0; this.totalMass = 0; this.feuillesMass = 0; this.thcMass = 0;
   this.binT = { x: W * 0.28, y: H * 0.85, w: W * 0.4, h: H * 0.11, label: "🌿 Têtes" };
   this.binD = { x: W * 0.74, y: H * 0.85, w: W * 0.34, h: H * 0.11, label: "🍂 Feuilles" };
@@ -456,7 +456,8 @@ G1.start = function () {
         const side = Math.random() < 0.5 ? 1 : -1;
         this.leaves.push({ x: sx, y: sy + (Math.random() - 0.5) * 6,
           ang: (side > 0 ? 0 : Math.PI) + (Math.random() - 0.5) * 1.3,     // éventail vers l'extérieur de la colonne
-          len: 24 + Math.random() * 20, tone: Math.floor(Math.random() * 3) });
+          len: 24 + Math.random() * 20, tone: Math.floor(Math.random() * 3),
+          on: true, pop: 0, landed: false, tx: 0, ty: 0, spin: (Math.random() - 0.5) * 1.6 });
       }
     }
   }
@@ -472,9 +473,17 @@ G1.strip = function (a, b) {
       const s = slotPos(this.binT, this.tAssigned++, 7);
       bud.tx = s.x; bud.ty = s.y;
       this.tetesMass += bud.r;
+      this.thcMass += bud.r * bud.thc;                            // qualité pondérée par la masse
       this.feuillesMass += bud.r * bud.leafFrac;                  // trim (part variable de la branche) -> bac feuilles
-      while (this.pileD.length * 4 < this.feuillesMass) this.pileD.push(slotPos(this.binD, this.pileD.length, 9));
       playSnip();
+    }
+  }
+  for (const lf of this.leaves) {                                 // les feuilles tombent avec le geste -> bac feuilles
+    if (!lf.on) continue;
+    if (distSeg(lf.x, lf.y, a.x, a.y, b.x, b.y) < 22) {
+      lf.on = false; lf.pop = 1;
+      const s = slotPos(this.binD, this.dAssigned++, 9);
+      lf.tx = s.x; lf.ty = s.y;
     }
   }
 };
@@ -494,6 +503,15 @@ G1.update = function (dt) {
       }
     }
   }
+  for (const lf of this.leaves) {                          // feuilles qui tombent dans le bac
+    if (lf.on || lf.landed) continue;
+    lf.pop = Math.max(0, lf.pop - dt * 1.8);
+    lf.x += (lf.tx - lf.x) * Math.min(1, dt * 7);
+    lf.y += (lf.ty - lf.y) * Math.min(1, dt * 7);
+    lf.len += (12 - lf.len) * Math.min(1, dt * 7);         // rapetisse en tombant
+    lf.ang += lf.spin * dt * 3;                            // virevolte
+    if (Math.abs(lf.x - lf.tx) < 3 && Math.abs(lf.y - lf.ty) < 3) lf.landed = true;
+  }
   if (onCount === 0) this.finish();
 };
 G1.draw = function (c) {
@@ -506,16 +524,16 @@ G1.draw = function (c) {
     c.stroke();
     c.fillStyle = "#586a2c"; c.beginPath(); c.arc(br.pts[0].x, br.pts[0].y, 3.5, 0, 7); c.fill();
   }
-  for (const lf of this.leaves) drawWasteLeaf(c, lf);        // feuilles (déchet visuel)
+  for (const lf of this.leaves) { if (lf.on) drawWasteLeaf(c, lf); }   // feuilles encore sur la branche (derrière les têtes)
   for (const bud of this.buds) { if (bud.on) drawSprite(c, BUDS[bud.variety][bud.spr], bud.x, bud.y, bud.r * 3.1, bud.rot); }  // têtes attachées
   for (const bud of this.buds) {                            // têtes en vol vers le bac
     if (bud.on || bud.landed) continue;
     drawSprite(c, BUDS[bud.variety][bud.spr], bud.x, bud.y, bud.r * 3.1 * (0.75 + bud.pop * 0.35), bud.rot + (1 - bud.pop) * 3);
   }
+  for (const lf of this.leaves) { if (!lf.on && !lf.landed) drawWasteLeaf(c, lf); }   // feuilles en vol vers le bac
   drawBin(c, this.binT, "#7ad17a"); drawBin(c, this.binD, "#caa15f");   // bacs
   for (const it of this.pileT) drawSprite(c, BUDS[it.variety][it.spr], it.x, it.y, it.r * 2.0, 0);   // pile de têtes
-  c.fillStyle = "#8a7440";
-  for (const it of this.pileD) { c.beginPath(); c.arc(it.x, it.y, 3, 0, 7); c.fill(); }          // pile de feuilles
+  for (const lf of this.leaves) { if (lf.landed) drawWasteLeaf(c, lf); }   // feuilles posées : remplissent le bac
 };
 G1.hud = function () { return "🌿 Rendement <b>" + Math.round(this.yieldPct() * 100) + "%</b> · 🍂 " + Math.round(this.feuillesMass) + " g trim"; };
 G1.finish = function () {
