@@ -84,6 +84,20 @@
   .tctr .tbtn:active{transform:scale(.94)}
   .tctr .tval{font:800 12px var(--mono);color:var(--green);min-width:34px}
 
+  /* feed : vitrine sociale (preuve sociale) */
+  .post{border:1px solid var(--border);background:var(--surface);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:9px}
+  .post .ph{display:flex;align-items:center;gap:10px}
+  .post .ph .av{width:40px;height:40px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:19px;background:linear-gradient(135deg,#3a322b,#181410);border:1px solid var(--border)}
+  .post .nm{font:800 13px var(--sans)} .post .meta{font:600 10px var(--mono);color:var(--muted);margin-top:1px}
+  .post .stat{font:700 12px var(--mono);color:var(--muted)}
+  .drop{align-self:flex-start;border:1px solid var(--sodium);color:var(--sodium);background:var(--surface2);border-radius:11px;padding:9px 15px;font:800 12px var(--sans);cursor:pointer}
+  .drop:active{transform:scale(.98)} .drop:disabled{opacity:.45;cursor:default;border-color:var(--border);color:var(--muted)}
+  .cmt{display:flex;gap:9px;align-items:flex-start;padding:8px 2px;border-bottom:1px solid #241d17;animation:pop .2s ease}
+  .cmt .av{width:30px;height:30px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:15px;background:linear-gradient(135deg,#322b25,#16120e);border:1px solid var(--border)}
+  .cmt .col{flex:1;min-width:0}
+  .cmt .nm{font:700 11px var(--sans)} .cmt .tx{font:400 12px var(--sans);color:var(--text);margin-top:1px}
+  .cmt .lk{font:600 10px var(--mono);color:var(--faint);flex:none;align-self:center}
+
   /* cartes produit (labo) + offres (darkweb) */
   .card{border-radius:13px;border:1px solid var(--border);background:var(--surface);padding:11px 13px;display:flex;flex-direction:column;gap:9px}
   .card.lock{opacity:.5}
@@ -155,6 +169,7 @@
 
   <div class="body">
     <div class="view show" id="view-snap"></div>
+    <div class="view" id="view-feed"></div>
     <div class="view" id="view-dark"></div>
     <div class="view" id="view-labo"></div>
     <div class="view" id="view-metrics"></div>
@@ -162,6 +177,7 @@
 
   <div class="nav" id="nav">
     <button class="navbtn on" data-v="snap"><span class="ic">⚡</span>Snap</button>
+    <button class="navbtn" data-v="feed"><span class="ic">📣</span>Feed</button>
     <button class="navbtn" data-v="dark"><span class="ic">🧅</span>Darkweb</button>
     <button class="navbtn" data-v="labo"><span class="ic">⚗️</span>Labo</button>
     <button class="navbtn" data-v="metrics"><span class="ic">📊</span>Metrics</button>
@@ -180,7 +196,7 @@
 <script type="module">
 import { createSim, C, jaugeOpaque } from './sim.mjs';
 
-const SAVE_VERSION = '8';
+const SAVE_VERSION = '9';
 if (localStorage.getItem('sbx_ver') !== SAVE_VERSION){
   for (const k of Object.keys(localStorage)) if (k.startsWith('sbx_')) localStorage.removeItem(k);
   localStorage.setItem('sbx_ver', SAVE_VERSION);
@@ -422,8 +438,67 @@ function renderMetrics(){
   for(const s of past) v.appendChild(mkDay(s));
 }
 
+/* ===================== FEED : vitrine sociale (preuve sociale) ===================== */
+/* le TEXTE des commentaires = présentation (pools combinés) ; le ton est pondéré par
+   ta réput/qualité/service. Le lien réput→demande reste la seule courbe (sim). */
+const FB_HYPE=['frappe de ouf 🔥','best plug du tieks','qualité au top frérot','jamais déçu 🙌','c’est de la bombe 💣','propre comme d’hab','le S assure'];
+const FB_SERVICE=['nickel merci 🙏','rapide en plus','toujours dispo lui','réglo le sang','service au top'];
+const FB_DECU=['c’est coupé ton truc 😤','déçu là franchement','pas comme avant ça','bof la came','ça pique les yeux'];
+const FB_RUPT=['jamais dispo ce sang 😩','t’as plus rien ?','réassort quand ?','en rupture h24','toujours à sec'];
+const FB_DROP=['ça drop 🔥🔥','vasy je fonce','je te DM direct','arrivage de fou','enfin du frais'];
+const FB_NEUTRE=['tu livres ?','t’es où ?','dispo ?','des news ?','tu fais quoi en prix ?'];
+function feedPool(){
+  const s=sim.state, pool=[];
+  const pos=Math.round(s.reput/16);                          // 0..6 selon réput
+  const last=s.batches[s.batches.length-1];
+  const stockTot=C.FORMATS.reduce((a,f)=>a+s.stock.hash[f],0);
+  for(let i=0;i<pos;i++) pool.push(...FB_HYPE);
+  for(let i=0;i<Math.max(0,3-pos);i++) pool.push(...FB_DECU);
+  if(last&&last.qualite==='C') pool.push(...FB_DECU,...FB_DECU); // dernier batch à l'arrache
+  if(s.vitrine&&stockTot===0) pool.push(...FB_RUPT,...FB_RUPT); // à sec
+  if(sim.metricsDuJour().sachetsVendus>0) pool.push(...FB_SERVICE);
+  if(s.dropAujourdhui) pool.push(...FB_DROP,...FB_DROP);
+  pool.push(...FB_NEUTRE);
+  return pool;
+}
+function mkCmt(){
+  const d=el('div','cmt');
+  d.appendChild(el('div','av',pick(CM_AV)));
+  const col=el('div','col');
+  col.appendChild(el('div','nm',pick(CM_PRE)+pick(CM_SUF)));
+  col.appendChild(el('div','tx',pick(feedPool())));
+  d.appendChild(col);
+  d.appendChild(el('div','lk','♥ '+((Math.random()*40)|0)));
+  return d;
+}
+function pushFeedComment(){
+  const list=$('feedlist'); if(!list) return;
+  list.insertBefore(mkCmt(), list.firstChild);
+  while(list.children.length>24) list.removeChild(list.lastChild);
+}
+function renderFeed(){
+  const v=$('view-feed'); v.replaceChildren();
+  v.appendChild(el('div','vtitle','📣 Feed — ta vitrine sociale'));
+  v.appendChild(el('div','vsub','Les retours des clients reflètent ta came et ton service : c’est ta preuve sociale (et ta demande).'));
+  const post=el('div','post');
+  const ph=el('div','ph'); ph.appendChild(el('div','av','🧢'));
+  const pc=el('div','col'); pc.appendChild(el('div','nm','Toi — @le_plug'));
+  pc.appendChild(el('div','meta',sim.state.vitrine?'🟢 vitrine en vente':'vitrine fermée')); ph.appendChild(pc);
+  post.appendChild(ph);
+  post.appendChild(el('div','stat','👥 '+(40+Math.round(sim.state.reput*6))+' followers'));
+  const drop=el('button','drop'); drop.textContent=sim.state.dropAujourdhui?'✅ drop posté aujourd’hui':'🔥 Poster un drop';
+  if(sim.state.dropAujourdhui) drop.disabled=true;
+  else drop.addEventListener('click',()=>{ sim.posterDrop(); toast('Drop posté 🔥 — ça buzze (+demande)'); renderFeed(); updateHUD(); });
+  post.appendChild(drop);
+  v.appendChild(post);
+  const list=el('div',null); list.id='feedlist'; list.style.cssText='display:flex;flex-direction:column;margin-top:6px';
+  v.appendChild(list);
+  for(let i=0;i<9;i++) list.appendChild(mkCmt());
+}
+
 function renderActive(){
   if(view==='snap') renderSnap();
+  else if(view==='feed') renderFeed();
   else if(view==='dark') renderDark();
   else if(view==='labo') renderLabo();
   else renderMetrics();
@@ -433,19 +508,21 @@ $('nav').addEventListener('click',e=>{
   const b=e.target.closest('[data-v]'); if(!b) return;
   view=b.dataset.v;
   for(const btn of $('nav').children) btn.classList.toggle('on',btn===b);
-  for(const id of ['snap','dark','labo','metrics']) $('view-'+id).classList.toggle('show',id===view);
+  for(const id of ['snap','feed','dark','labo','metrics']) $('view-'+id).classList.toggle('show',id===view);
   renderActive();
 });
 
 /* ---- boucle TEMPS RÉEL (vitesse unique, pas de popup) ---- */
-let lastTs=null;
+let lastTs=null, feedTs=0;
 function loop(ts){
   if(lastTs===null) lastTs=ts;
   const dt=Math.min(ts-lastTs,100); lastTs=ts;
   sim.tick(dt);
-  if(sim.state.jour!==lastJour){ lastJour=sim.state.jour; dmProfile.clear(); toast('Jour '+sim.state.jour+' — bilan dans 📊 Metrics'); if(view==='snap'||view==='metrics') renderActive(); }
+  if(sim.state.jour!==lastJour){ lastJour=sim.state.jour; dmProfile.clear(); toast('Jour '+sim.state.jour+' — bilan dans 📊 Metrics'); if(view==='snap'||view==='metrics'||view==='feed') renderActive(); }
   // rafraîchir la liste de DM quand l'ensemble change (clients qui arrivent)
   if(view==='snap'){ const key=sim.dmEnAttente().map(c=>c.id).join(','); if(key!==lastDmKey){ lastDmKey=key; renderDMs(); } }
+  // feed vivant : un nouveau commentaire toutes les ~3,5 s
+  if(view==='feed' && ts-feedTs>3500){ feedTs=ts; pushFeedComment(); }
   updateHUD();
   requestAnimationFrame(loop);
 }
