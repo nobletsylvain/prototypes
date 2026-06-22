@@ -87,7 +87,7 @@
   .toggle.on { background:#7aa0ff; border-color:#7aa0ff; color:#0c142a; }
 
   /* --- Stretch : curseur de coupe (slider) + jauge de satisfaction --- */
-  #strack { position:relative; width:80%; max-width:360px; height:30px; pointer-events:none;
+  #strack { position:relative; width:80%; max-width:360px; height:30px; pointer-events:auto;
     display:flex; align-items:center; }
   #strail { position:absolute; left:0; right:0; height:10px; border-radius:999px;
     background:linear-gradient(90deg,#7ad17a,#ffd166 55%,#ff6b6b); opacity:.85; }
@@ -402,7 +402,6 @@ const BIN_A = new THREE.Vector3(-2.25, 0, -1.55);
 const BIN_B = new THREE.Vector3(0,     0, -2.0);
 const BIN_S = new THREE.Vector3(2.25,  0, -1.55);
 const binA = makeBin(BIN_A, 0x2f5a31);
-const binB = makeBin(BIN_B, 0x4a5232);
 const binS = makeBin(BIN_S, 0x55504a);
 
 function refreshPile(bin, grams, perNug) {
@@ -485,19 +484,47 @@ const packMat = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.05, 1.6),
 packMat.position.set(0.55, 0.03, 1.75);
 packMat.receiveShadow = true;
 scene.add(packMat);
-const packPile = new THREE.Group(); packMat.add(packPile);   // pochons scellés empilés
-const bagGeo = new THREE.BoxGeometry(0.34, 0.06, 0.26);
-const bagMat = new THREE.MeshStandardMaterial({ color: 0x2b2b30, transparent: true, opacity: 0.85, roughness: 0.4, metalness: 0.2 });
-for (let i = 0; i < 18; i++) {
-  const m = new THREE.Mesh(bagGeo, bagMat);
-  const layer = Math.floor(i / 6), idx = i % 6;
-  m.position.set(-0.85 + idx * 0.34, 0.06 + layer * 0.07, -0.3 + (i % 2) * 0.32);
-  m.rotation.y = (Math.random() - 0.5) * 0.4;
-  m.castShadow = true; m.visible = false; packPile.add(m);
+const packPile = new THREE.Group(); packMat.add(packPile);   // paquets scellés empilés
+// Materiaux : brique pressee sous film plastique + bandes de scotch (gros formats) / baggie translucide (detail).
+const packBrickMat = new THREE.MeshStandardMaterial({ color: 0x586b32, roughness: 0.85 });            // fleur pressee
+const packWrapMat  = new THREE.MeshStandardMaterial({ color: 0xcfe0d2, transparent: true, opacity: 0.2, roughness: 0.08, metalness: 0.45, side: THREE.DoubleSide });
+const packTapeMat  = new THREE.MeshStandardMaterial({ color: 0x8a6a39, roughness: 0.7 });             // scotch d'emballage
+const packBagMat   = new THREE.MeshStandardMaterial({ color: 0xdfeaf0, transparent: true, opacity: 0.26, roughness: 0.12, metalness: 0.3, side: THREE.DoubleSide });
+const packBudMat   = new THREE.MeshStandardMaterial({ color: 0x6ea04e, roughness: 0.9 });             // tetes visibles dans le baggie
+// Gabarit du paquet selon la quantite : petit baggie -> grosse brique.
+function packSpec(g) {
+  if (g <= 2)   return { w: 0.22, h: 0.05, d: 0.16, brick: false };  // 1 g
+  if (g <= 10)  return { w: 0.30, h: 0.07, d: 0.22, brick: false };  // 3.5-7 g
+  if (g <= 40)  return { w: 0.42, h: 0.11, d: 0.30, brick: false };  // 28 g
+  if (g <= 250) return { w: 0.62, h: 0.20, d: 0.44, brick: true };   // ½ lb
+  return                { w: 0.84, h: 0.26, d: 0.56, brick: true };  // 1 lb
+}
+function makePack(f) {
+  const sp = packSpec(f.g), grp = new THREE.Group();
+  if (sp.brick) {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(sp.w, sp.h, sp.d), packBrickMat); body.castShadow = true; grp.add(body);
+    grp.add(new THREE.Mesh(new THREE.BoxGeometry(sp.w * 1.05, sp.h * 1.1, sp.d * 1.05), packWrapMat));    // film plastique
+    for (const zz of [-sp.d * 0.24, sp.d * 0.24]) {                                                        // 2 bandes de scotch
+      const tape = new THREE.Mesh(new THREE.BoxGeometry(sp.w * 1.07, sp.h * 1.14, sp.d * 0.17), packTapeMat);
+      tape.position.z = zz; grp.add(tape);
+    }
+  } else {
+    const bag = new THREE.Mesh(new THREE.BoxGeometry(sp.w, sp.h, sp.d), packBagMat); bag.castShadow = true; grp.add(bag);
+    grp.add(new THREE.Mesh(new THREE.BoxGeometry(sp.w * 0.82, sp.h * 0.72, sp.d * 0.82), packBudMat));      // tetes dedans
+  }
+  grp.userData.h = sp.h;
+  return grp;
 }
 let packShown = 0;
-function showPack() { if (packShown < packPile.children.length) packPile.children[packShown++].visible = true; }
-function clearPacks() { packShown = 0; for (const c of packPile.children) c.visible = false; }
+function addPack(f) {                                          // cree un paquet (taille = quantite) et l'empile
+  const m = makePack(f), slot = packShown++ % 10;
+  const col = slot % 2, row = Math.floor(slot / 2);
+  m.position.set(-0.5 + col * 1.0, m.userData.h / 2 + 0.02, -0.42 + row * 0.3);
+  m.rotation.y = (Math.random() - 0.5) * 0.5;
+  packPile.add(m);
+  while (packPile.children.length > 10) packPile.remove(packPile.children[0]);
+}
+function clearPacks() { packShown = 0; while (packPile.children.length) packPile.remove(packPile.children[0]); }
 
 /* -------------------------------------------------------------------------
    8) MIETTES / SECOUSSE / AUDIO (juice synthetise, zero fichier)
@@ -685,8 +712,8 @@ function makeLabel(text, color) {
   d.textContent = text; d.style.color = color; labelsEl.appendChild(d); return d;
 }
 const labA = makeLabel("A 0 g", "#9be37d");
-const labB = makeLabel("B 0 g", "#d9e6a0");
 const labS = makeLabel("Trim 0 g", "#caa15f");
+const labBlend = makeLabel("Blend", "#bdf0a3");   // etiquette du bocal de blend (quantite + qualite)
 const _lv = new THREE.Vector3();
 function placeLabel(div, pos, y) {
   _lv.set(pos.x, y, pos.z).project(camera);
@@ -698,10 +725,8 @@ function placeLabel(div, pos, y) {
 function thcOf(b) { return b.g > 0.01 ? b.ts / b.g : 0; }
 function updateStockUI() {
   labA.textContent = "A " + Math.round(stocks.A.g) + " g";
-  labB.textContent = "B " + Math.round(stocks.B.g) + " g";
   labS.textContent = "Trim " + Math.round(stocks.S.g) + " g";
   refreshPile(binA, stocks.A.g, 26);
-  refreshPile(binB, stocks.B.g, 26);
   refreshPile(binS, stocks.S.g, 26);
 }
 
@@ -845,8 +870,7 @@ function gotoBuck() {
 function refreshBuckCard() {
   ui.buckcard.innerHTML =
     "🌿 Brut restant : <b>" + Math.round(lot.raw) + " g</b> / " + lot.total + " g<br>" +
-    "Stock — A <b>" + Math.round(stocks.A.g) + "</b> · B <b>" + Math.round(stocks.B.g) +
-    "</b> · Trim <b>" + Math.round(stocks.S.g) + "</b> g";
+    "Stock — A <b>" + Math.round(stocks.A.g) + "</b> · Trim <b>" + Math.round(stocks.S.g) + "</b> g";
 }
 function setTrim(m) {
   trimMode = m; localStorage.setItem("gf3_trim", m);
@@ -863,24 +887,17 @@ function buckStrip(speed) {
   const clean = Math.max(0, Math.min(1, 1 - (speed - 0.15) / 0.9));  // 1 = geste lent et net
 
   // Repartition de base par methode, modulee par geste + qualite du lot.
-  let aShare = (machine ? 0.34 + owned.machine * 0.02 : 0.50 + owned.hands * 0.035);
-  aShare += clean * 0.16;                              // geste propre -> plus de A
-  aShare -= lot.trim * 0.25;                           // lot plein de stems -> moins de A
-  if (lot.hum > 14) aShare -= 0.05;                   // humide -> trim collant
-  aShare = Math.max(0.12, Math.min(0.72, aShare));
-  let sShare = (machine ? 0.30 - owned.machine * 0.03 : 0.16) + lot.trim * 0.5 + (1 - clean) * 0.1;
-  sShare = Math.max(0.08, Math.min(0.6, sShare));
-  let bShare = Math.max(0.05, 1 - aShare - sShare);
-
-  const gA = batch * aShare, gB = batch * bShare, gS = batch * sShare;
-  stocks.A.g += gA; stocks.A.ts += gA * (lot.thc * 1.06);
-  stocks.B.g += gB; stocks.B.ts += gB * (lot.thc * 0.9);
+  // Part de trim (smalls/feuilles) : geste vif + lot riche en stems + humide -> plus de trim.
+  let sShare = (machine ? 0.30 - owned.machine * 0.03 : 0.16 - owned.hands * 0.025) + lot.trim * 0.5 + (1 - clean) * 0.1;
+  if (lot.hum > 14) sShare += 0.05;                   // humide -> trim collant
+  sShare = Math.max(0.06, Math.min(0.55, sShare));
+  const gA = batch * (1 - sShare), gS = batch * sShare;   // plus de bac B : fleur (A) + trim
+  stocks.A.g += gA; stocks.A.ts += gA * (lot.thc * 1.02);
   stocks.S.g += gS; stocks.S.ts += gS * (lot.thc * TRIM_THC_FACTOR);
   lot.raw -= batch;
 
-  // Juice : nugs qui filent vers chaque bac + ciseaux (allege pour le drag).
+  // Juice : nugs qui filent vers les bacs + ciseaux (allege pour le drag).
   flyNug(matBudA, 0.5, BIN_A);
-  if (Math.random() < 0.6) flyNug(matBudB, 0.5, BIN_B);
   if (sShare > 0.18 && Math.random() < 0.7) flyNug(matTrim, 0.45, BIN_S);
   buck.flash = 0.16;
   if (Math.random() < 0.4) addShake(0.06);
@@ -911,12 +928,10 @@ const pour = { active: false, holdT: 0, rate: 0, trickle: 0, g: 0, sndCd: 0, max
 function stretchFlowerG() { return stocks.A.g + stocks.B.g; }
 function gotoStretch() {
   setPhase("stretch");
-  pour.active = false; pour.holdT = 0; pour.rate = 0; pour.trickle = 0; pour.g = 0; pour.sndCd = 0;
-  pour.maxG = Math.min(stocks.S.g, stretchFlowerG());   // borne : coupe <= 50 %
-  stretch = 0;
+  stretch = 0.15;                         // coupe RÉVERSIBLE : on glisse le curseur dans les deux sens
   setKnob();
   refreshStretch();
-  setHint("Maintiens sur le bol pour verser le trim — lâche au bon dosage. Trop coupé = clients fâchés.");
+  setHint("Glisse le curseur (réversible) pour doser la coupe au trim : aperçu live, puis Mélanger.");
 }
 // Verser : maintien -> debit qui s'emballe ; relache -> inertie ; borne par le trim dispo.
 function startPour() {
@@ -1038,6 +1053,7 @@ function refreshPackCard() {
   const fill = jar.userData.fill;
   const k = Math.max(0.02, Math.min(1, blend.g / 500));
   fill.scale.y = k; fill.position.y = 0.05 + 0.4 * k;
+  labBlend.textContent = "Blend " + Math.round(blend.g) + " g · " + thc.toFixed(1) + "%";
 }
 function qualMult(thc) { return Math.max(0.7, Math.min(1.45, 0.7 + (thc - 12) / 14 * 0.75)); }
 function renderFormats() {
@@ -1084,7 +1100,7 @@ function resolveSeal() {
   addXP(Math.max(1, Math.round(price * 0.05)));
   if (opts.humid) setRep(rep + 0.2);
 
-  showPack(); playSeal(); playSale(); addShake(0.12);
+  addPack(f); playSeal(); playSale(); addShake(0.12);
   showToast("+" + Math.round(price) + " € · " + f.name, "#9be37d");
 
   // Risque police si etiquette fake trop visible.
@@ -1110,9 +1126,8 @@ function updateAutoBuck(dt) {
   if (autoBuckTimer >= 1.6) {
     autoBuckTimer = 0;
     const batch = Math.min(lot.raw, 18);
-    const gA = batch * 0.4, gB = batch * 0.3, gS = batch * 0.3;
+    const gA = batch * 0.7, gS = batch * 0.3;
     stocks.A.g += gA; stocks.A.ts += gA * lot.thc;
-    stocks.B.g += gB; stocks.B.ts += gB * lot.thc * 0.9;
     stocks.S.g += gS; stocks.S.ts += gS * lot.thc * TRIM_THC_FACTOR;
     lot.raw -= batch;
     saveStocks(); updateStockUI();
@@ -1190,8 +1205,16 @@ const pointers = new Map();
 let pinching = false, pinchStartDist = 0, pinchStartZoom = 1;
 function pinchDist() { const a = [...pointers.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
 
-// La coupe se fait au DOSAGE (maintenir sur le bol pour verser), plus au slider :
-// le curseur #sknob n'est qu'un repere visuel pilote par updatePour().
+// Coupe RÉVERSIBLE : le curseur #strack se glisse dans les deux sens (aperçu live).
+let sliderDrag = false;
+function setStretchFromX(clientX) {
+  const r = ui.strack.getBoundingClientRect();
+  stretch = Math.max(0, Math.min(STRETCH_MAX, ((clientX - r.left) / r.width) * STRETCH_MAX));
+  setKnob(); refreshStretch();
+}
+ui.strack.addEventListener("pointerdown", (e) => { e.stopPropagation(); sliderDrag = true; setStretchFromX(e.clientX); });
+window.addEventListener("pointermove", (e) => { if (sliderDrag) setStretchFromX(e.clientX); });
+window.addEventListener("pointerup", () => { sliderDrag = false; });
 
 el.addEventListener("pointerdown", (e) => {
   e.preventDefault();
@@ -1205,7 +1228,6 @@ el.addEventListener("pointerdown", (e) => {
     buck.lastT = performance.now(); buck.acc = 0; buck.speed = 0;
     if (buck.cd <= 0 && buckStrip(0)) { buck.cd = 0.28; buckCommitUI(); }   // tap = poignee propre
   }
-  else if (phase === "stretch") { startPour(); }
   else if (phase === "pack") { if (seal.active) resolveSeal(); }
 }, { passive: false });
 
@@ -1237,7 +1259,7 @@ el.addEventListener("pointermove", (e) => {
 function onUp(e) {
   pointers.delete(e.pointerId);
   if (pinching && pointers.size < 2) pinching = false;
-  if (pointers.size === 0) { buck.dragging = false; if (phase === "stretch") stopPour(); }
+  if (pointers.size === 0) buck.dragging = false;
 }
 el.addEventListener("pointerup", onUp, { passive: false });
 el.addEventListener("pointercancel", onUp, { passive: false });
@@ -1311,7 +1333,7 @@ function loop(t) {
   // Petite rotation de presentation du bocal.
   if (phase === "pack") jar.rotation.y += dt * 0.4;
   // Bol qui frémit pendant le mélange.
-  if (phase === "stretch") { bowlFill.rotation.y += dt * 0.8; updatePour(dt); }
+  if (phase === "stretch") bowlFill.rotation.y += dt * 0.8;
 
   updateGauges(dt);
   updateFlyers(dt);
@@ -1328,8 +1350,8 @@ function loop(t) {
 
   // Etiquettes des bacs.
   placeLabel(labA, BIN_A, 0.7);
-  placeLabel(labB, BIN_B, 0.7);
   placeLabel(labS, BIN_S, 0.7);
+  if (phase === "pack") placeLabel(labBlend, jar.position, 1.25); else labBlend.style.display = "none";
 
   renderer.render(scene, camera);
   requestAnimationFrame(loop);

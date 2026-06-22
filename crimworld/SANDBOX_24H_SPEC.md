@@ -1,0 +1,291 @@
+# CrimWorld — Sandbox 24h (mini-spec, à valider AVANT tout code)
+
+> Statut : **validé (2026-06-21) — décisions §8 tranchées**. Le lot 1 (cœur de
+> sim, JS pur, inspectable en console) peut démarrer ; on STOPpe AVANT l'UI
+> (checkpoint 2 de la DNA CrimWorld).
+
+## v2 — nouvelle approche (pivot 2026-06-21)
+
+On teste une approche **production/réassort** plutôt que la tension concurrence.
+Changements actés :
+- **Heat/concurrence DÉSACTIVÉ** comme métrique (plus de pression ni de « corner
+  contesté »). La tension §2 est mise en pause ; la **réput (demande)** reste le
+  levier — l'équilibre vit dans UNE courbe `demande ∝ réput`.
+- **Pas de bilan popup** en fin de jour → une **page Metrics** consultable
+  (données de chaque jour). L'horloge ne s'arrête plus à minuit.
+- **Horloge** : 1 min de jeu = 1 s réelle (1 h = 60 s ; journée ≈ 24 min), à affiner.
+- **Vitesse unique** (plus de toggle).
+- **Nouvelle boucle** : RÉASSORT (darkweb, semi-grossistes) → **LABO** (un proto
+  produit un BATCH) → **INVENTAIRE** → **VENTE en petites quantités**.
+- **Le labo** = les protos existants intégrés en **iframe « mode embed »**
+  (comme l'établi → coupe.html) : hash-slicer-v2 (sans la vente auto), green-front-v3
+  (sans la Réception : tri→coupe→pack), neige — chacun renvoie son batch via
+  `postMessage` → inventaire. Mécanisme commun aux 3 : batch → inventaire → doses.
+- **Priorité de build** : l'app **darkweb TOR/Silk Road** (réassort) en premier.
+
+### Contrat d'embed du Labo (P3) — DÉCIDÉ
+**Mode retenu : « pur mini-jeu ».** En embed, chaque proto PERD son économie propre
+(cash, boutique, XP, vente au détail) : il ne reste que le **craft**, nourri par la
+**matière fournie par le sandbox**, et il **émet un batch**. Une seule économie (le
+sandbox). Les protos gardent leur version standalone intacte hors embed.
+
+Protocole (sur le modèle `coupe.html#embed=prologue` de la slice) :
+1. iframe ouverte avec `…/<proto>/#embed=lab&produit=<p>&matiere=<g>` → mode labo.
+2. Le proto masque cash/boutique/XP/vente, garde le mini-jeu, consomme `matiere`
+   (pas de rachat dans le proto), et expose un bouton **« Envoyer au stock 📦 »**.
+3. `parent.postMessage({type:'crimworld-lab-batch', produit, grammesRaw, grammesFinis, qualite}, '*')`.
+4. Le sandbox écoute → `sim.produireBatch(...)` → ferme l'iframe. Le Snap gère la vente.
+
+Mapping par proto (préfixes localStorage disjoints : `hsv2_`/`gf3_`/`neige_`, pas de
+collision avec `sbx_`) :
+- **hash-slicer-v2** (hash) : garde *acheter savonnette (fournie) → couper (timing) →
+  bacs STOCK* ; retire dosage/emballage-vente, boutique, XP, déchets. Batch = g coupés,
+  qualité depuis le grade des barrettes (A/B/C → propre/arrache).
+- **green-front-v3** (weed) : démarre à *2·Tri → 3·Coupe → 4·Pack* (saute 1·Réception) ;
+  retire cash/boutique/vente. Batch = g packés + qualité.
+- **neige** (neige) : garde la *coupe/dilution* (lacto, format) ; retire cash/boutique/
+  vente. Batch = g produits + pureté.
+
+**Ordre de build P3** : hash-slicer-v2 (référence) → green-front-v3 → neige. Côté
+sandbox : remplacer l'écran Labo placeholder par un **lanceur d'iframe** (par produit)
++ **listener postMessage** → `produireBatch`.
+
+### Messagerie — tout passe par les DM (Snap + Darkweb)
+- **Snap (aval)** : tu postes ta **story** (vitrine) → les clients te **DM** au fil
+  de la journée pour acheter → tu sers depuis ton stock. La demande = des
+  ÉVÉNEMENTS DM étalés (pilotés par réput/expo), pas un plafond vidable d'un coup
+  → corrige le temps mort. Rupture = clients non servis (tracé dans Metrics).
+- **Darkweb (amont)** : mise en relation + **négociation** avec les semi-grossistes
+  par messages (envoyer / répondre / négocier). Accès **GATÉ par réput/standing** :
+  trop bas → tu te fais **basher** ; au niveau requis → **invitation à te connecter**
+  (déblocage du tier). ⚠️ standing = une réput DE RELATION (hors périmètre d'origine,
+  ajout assumé pour la sandbox).
+
+### Vente : négociation / contre-offre (Snap, FAIT en v1 ; suite à venir)
+- **Stock = sachets par format** (2/5/10g) + **prix par format** réglable (ta marge).
+- **Servir** : le client veut un format → 1 sachet à ton prix listé.
+- **Proposer** (FAIT) : contre-offre déterministe → substitut (2×5g pour un 10g),
+  upsell (5g à un client qui voulait 2g), prix ajustable. Le client accepte si
+  ~ce qu'il voulait (½ à `UPSELL_MAX`× ses g) à un €/g ≤ `PRIX_MAX_G` (plafond).
+- **À VENIR — substitution de QUALITÉ** : stock aussi par **qualité** (propre/arrache),
+  et clients à **discernement** variable. Refiler du « **pneu** » (arrache) à un
+  **schlag** peu regardant pendant que le « **popo** » (propre) reste pour les
+  connaisseurs → l'arrache devient une **gamme bas de gamme** (un débouché), plus
+  seulement une pénalité de réput. Acceptation déterministe (discernement vs qualité/prix).
+- **À VENIR — substitution de PRODUIT** (hash/weed/neige) quand le multi-produit
+  sera débloqué. + sensibilité au prix (trop cher → les clients filent, avec retard).
+
+### Chaîne d'approvisionnement (2 paliers)
+**Palier 1 — solo (en cours).** `semi-grossiste (Darkweb) → Labo (toi) → Snap
+(vente directe, petites quantités)`. La vente passe par TA vitrine ; tu écoules
+toi-même. C'est le périmètre actuel.
+
+**Palier 2 — patron / scaling (vision, plus tard).** `Grossiste (gros volumes)
+→ Vbeur → nourrice → fours + corners`.
+- **corner** : spot simple, un dealer y bosse pour toi (dispatch).
+- **four** : point de vente STRUCTURÉ et hiérarchisé (hall/appart/cave/rue),
+  staffé — **guetteurs / vendeurs / gérants** — gros volume. **Deux usages au
+  choix** (levier marge vs volume/expo) :
+  - *détail au four* : tu fournis du produit FINI, le four l'écoule au détail
+    pour toi → marge détail, délégué.
+  - *semi-gros au four* : tu envoies du produit en gros, ILS le transforment sur
+    place et l'écoulent → marge de gros, volume, moins d'expo. ⇒ tu deviens
+    toi-même semi-grossiste : l'inversion de la chaîne.
+- **nourrice** : planque/entrepôt où dort le gros stock.
+- **Vbeur** : l'app de dispatch/logistique (Ubeur, rôle inversé, §3c) — suit les
+  livraisons des grosses quantités : Grossiste → nourrice → fours/corners.
+- ⚠️ **Périmètre** : les guetteurs (anti-police) réintroduisent le **heat
+  autorités**, HORS périmètre de la DNA d'origine. À acter consciemment avant de
+  coder le palier 2 ; non codé pour l'instant.
+
+Cœur de sim v2 : `crimworld-sandbox/sim.mjs` (acheterMatiere / produireBatch /
+vendre / tick / metrics). Le reste du document décrit la vision d'origine (v1).
+> Suite logique de la slice scriptée « La Bascule » (FTUE sur rails) : la
+> sandbox laisse le joueur **rejouer la boucle SANS script**.
+
+---
+
+## 0. Ce que la sandbox doit prouver
+
+La slice prouvait deux choses sur rails. La sandbox doit prouver qu'elles
+**tiennent sans rails** :
+
+1. **La boucle survit sans script.** Sortie de la FTUE, le joueur continue à
+   arbitrer (cupidité ↔ prudence) jour après jour, de lui-même.
+2. **La trace tient dans la durée.** Le problème d'aujourd'hui se lit jusqu'à
+   une décision d'un jour PASSÉ, sans explication — le rapport de fin de jour
+   reste la pièce maîtresse, mais devient **récurrent et cumulatif**.
+
+Critère d'échec : si le joueur « optimise » mécaniquement sans ressentir
+d'arbitrage, ou si une conséquence semble tomber « par malchance », c'est raté.
+
+---
+
+## 1. La boucle revue — le cycle 24h
+
+Une journée = une **horloge TEMPS RÉEL** (cœur `tick(dt)`, testable) qui avance ; des événements tombent à des heures
+précises ; à minuit, le **rapport de jour**. Phases d'une journée (non
+strictement séquentielles — elles se chevauchent via l'horloge) :
+
+| Phase | Action joueur | App / écran | Levier |
+|---|---|---|---|
+| **S'approvisionner** | commander la matière | 🧅 Marché darkweb + 🚗 Ubeur | tier/rating fournisseur |
+| **Couper** | mini-jeu de coupe | 🔪 Établi (hash-slicer 3D) | **qualité (levier UNIQUE)** |
+| **Vitriner** | poster la vitrine | ⚡ Snapshit (story) | exposition |
+| **Vendre** | répondre aux DM des acheteurs générés | Snapshit (fils) | accepter/refuser |
+| **Subir** | la heat de rue monte, la réput bouge | HUD + commentaires | (co-effets) |
+| **Minuit** | bilan + dette/loyer qui tourne | 📊 Rapport de jour | la trace |
+
+Réemploi maximal de l'existant : établi, messagerie, stories+commentaires
+(brique posée au lot « respiration »), écran de rapport. Nouveautés : horloge,
+acheteurs générés, marché darkweb + Ubeur, heat en moteur, rapport cumulatif.
+
+---
+
+## 2. Le moteur de tension — la concurrence pour le corner
+
+**Prémisse (tension primaire, validée).** Le joueur a fait disparaître Momo pour
+sortir du piège — mais le corner du dealer est la position la PLUS convoitée du
+block, jamais vacante longtemps. « L'argent facile attire les plus mauvaises
+intentions » : plus le joueur réussit *visiblement*, plus vite et plus fort **la
+concurrence** vient lui disputer le corner. Le succès est l'appât ; on ne se
+relâche jamais parce qu'on EST devenu la cible. La dette/loyer reste un compteur
+de fond, pas l'antagoniste.
+
+Deux jauges, **co-effets PARALLÈLES** du levier unique (qualité), jamais en
+chaîne — l'invariant le plus délicat à coder :
+
+### 2a. Réputation conso (la demande)
+- Pilote **qui** et **combien** d'acheteurs te DM (la courbe demande↔qualité).
+- Coupe propre → réput monte → bassin d'acheteurs plus large et plus fiable.
+  Arrache → réput baisse → flakes, lowballers, moins de monde.
+- **Affichée OPAQUE** (brouillage de présentation autorisé : `🔥 ••• `, comme
+  les vues de la vitrine). Le joueur sent la tendance, ne lit pas un chiffre.
+
+### 2b. Concurrence / pression sur le corner (l'attention)
+- Monte comme **co-effet** de la **visibilité du succès** : exposition (vitrine),
+  volume écoulé, coupe à l'arrache. Chaque contribution est **traçable** (cause).
+- ⚠️ JAMAIS « moins de ventes → pression ». Volume et pression sont deux sorties
+  parallèles de la même cause, pas une chaîne.
+- Conséquences (déterministes, traçables) : un **rival** se pointe sur ton
+  corner, tague ton spot, casse tes prix, débauche un acheteur. À pression
+  haute le corner devient **contesté** → tenir/défendre ou bouger. **Tout trace
+  à une décision** (trop exposé, trop écoulé, coupé sale).
+
+### 2c. Garde-fou périmètre
+La heat reste **rue** (rivaux, block, Momo). La **heat autorités est HORS
+périmètre** — à ne pas coder. Le risque de transit darkweb (§3) doit donc être
+cadré côté **rue/rival**, jamais police, sous peine de sortir du périmètre.
+
+### 2d. Prix — levier DIFFÉRÉ (lot ultérieur, validé)
+Quand le joueur pourra **fixer ses prix**, le prix devient un **second levier**
+au-delà de la qualité — **extension assumée pour la sandbox** (la slice prouvait
+UN levier unique ; la sandbox gagne en profondeur). Règle clé : la sanction est
+**différée et silencieuse**. Trop cher → les clients ne râlent pas, ils **partent
+chez un autre supplier** ; le joueur ne le comprend qu'**avec un temps de retard**,
+au rapport (« 4 clients perdus ↩ prix trop haut il y a N jours »). C'est la trace
+inter-jours appliquée au prix, et un autre visage de la concurrence (§2 : le rival
+absorbe ta clientèle).
+- **Déterministe** : churn = f(prix vs prix « juste » lié à qualité/réput) + délai
+  fixe, JAMAIS un tirage. Cause traçable.
+- **Co-effet parallèle, pas une chaîne** : le prix agit sur la **demande** (churn),
+  en parallèle de la qualité ; il ne « cause » pas la pression via les ventes.
+
+---
+
+## 3. La couche darkweb + Ubeur (sourcing & logistique)
+
+L'idée : l'appro et la logistique vivent dans deux apps de l'OS du téléphone.
+
+### 3a. Marché darkweb (façon Silk Road / TOR)
+- Listings de fournisseurs : **tier** (cheap/pneu ↔ premium) avec **ratings**
+  → c'est le **levier qualité côté matière première**.
+- Commande payée en cash. **Déterministe** : ce que tu commandes arrive.
+
+### 3b. Ubeur (suivi de livraison)
+- « Court instant d'attente » + **ETA qui tourne sur l'horloge du jour** = la
+  texture temps réel du cycle 24h.
+- **Présentation** : avatar/position du driver, animation. **Déterministe** :
+  contenu et délai de livraison = f(tier/distance), pas un dé.
+- **Surface de risque (où vit la tension d'appro)** : une livraison en transit
+  = **exposition**. Une interception trace à une **décision** — sur-commander,
+  fournisseur cheap mal noté, mauvais créneau du cycle, trop de mouvements —
+  **jamais un tirage**. Contribution heat traçable. (Rue/rival, pas police.)
+
+### 3c. Symétrie — INCLUSE en v1 (validé)
+Même UI dans les deux sens. Acheteur : tu commandes + tu suis. Patron : tu
+**dispatches des drivers vers tes points de deal** (même vue Ubeur, rôle
+inversé). Les drivers en mouvement = **exposition supplémentaire** → nourrissent
+la pression concurrence (§2b). Construit au lot 4 (avec darkweb/Ubeur).
+
+---
+
+## 4. Acheteurs générés
+
+- **Génération = présentation** : `genProfile()` (déjà posé) fournit pseudo +
+  avatar + flavor. Aléatoire de présentation **autorisé**.
+- **Comportement = déterministe** : qu'un acheteur paie / revienne / lowball
+  découle de **TON état** (ta qualité, ta réput, ton prix), pas d'un roll.
+  - La **composition du bassin** = f(réputation) : réput haute → plus de
+    fiables ; arrache → plus de flakes. Courbe déterministe.
+  - « Revient-il demain ? » = f(qualité de la dose qu'il a reçue), pas hasard.
+- Chaque vente/non-vente porte sa **cause** (contrat de données) pour le rapport.
+
+---
+
+## 5. Le rapport de jour (pièce maîtresse, récurrente)
+
+- Même promesse que la slice : **nomme la cause**, ne narre pas.
+- Nouveau : **trace inter-jours**. « Aujourd'hui : 3 acheteurs t'ont lâché ↩
+  coupe à l'arrache d'avant-hier (réput) ». Le joueur relie son problème
+  présent à une décision passée — sur plusieurs jours, sans explication.
+- Dette Momo / loyer du corner qui **tourne chaque jour** (l'horloge de §1).
+
+---
+
+## 6. Invariants (rappel — la sandbox les respecte)
+
+- **Aucun aléatoire pilotant l'ÉTAT ou les CONSÉQUENCES.** Seul l'aléatoire de
+  **présentation** est permis (qui commente, pseudo/avatar, position du driver,
+  brouillage de la réput).
+- **Qualité = levier UNIQUE.** Heat de rue et volume écoulé = **co-effets
+  parallèles**, jamais une chaîne.
+- **Une seule courbe** (demande ↔ qualité) ; réglée par un humain au checkpoint,
+  pas par le code ; nombres en constantes nommées.
+- **Contrat `cause`** sur chaque conséquence ; l'UI rend le label, n'invente rien.
+- **Périmètre** — DANS : dette/loyer, coupe, heat de rue, réput conso,
+  délégation via exposition (+ sourcing/logistique = nouvelle exposition).
+  HORS (ne pas coder, signaler) : heat autorités, pureté, réput de relation,
+  violence, branding, blanchiment.
+
+---
+
+## 7. Ordre de construction (simulation d'abord, UI ensuite)
+
+Chaque lot : sim JS pur testable en **console** → UI → **reviewer** → commit.
+
+- **CP-1** ← *tu es ici* : valider CE document.
+- **Lot 1 — Horloge & rapport récurrent.** Cycle 24h nu, avance de l'horloge,
+  rapport de jour qui nomme les causes. Console-testable, sans UI.
+- **Lot 2 — Bassin d'acheteurs.** Génération (présentation) + comportement
+  déterministe piloté par la courbe réput/qualité.
+- **Lot 3 — Moteur heat + prix.** Co-effets parallèles + conséquences traçables
+  (rue) ; **prix fixé par le joueur → churn différé vers la concurrence (§2d)**.
+- **Lot 4 — Darkweb + Ubeur.** UI de présentation par-dessus une sim
+  déterministe (commande → ETA → livraison).
+- **Lot 5 — Intégration & trace inter-jours** dans le rapport.
+
+---
+
+## 8. Décisions (validées le 2026-06-21)
+
+1. **Tension primaire** : **la concurrence pour le corner**. Le succès *visible*
+   attire les rivaux (vacuum laissé par Momo) ; la dette/loyer n'est qu'un
+   compteur de fond. → moteur §2.
+2. **Horloge** : **temps réel** (cœur de sim `tick(dt)` pour rester déterministe
+   et inspectable en console).
+3. **Risque de transit darkweb** : **rue/rival** (dans le périmètre ; heat
+   autorités = hors, on n'y touche pas).
+4. **Opacité réput** : **totalement opaque** (comme les vues de la vitrine).
+5. **Périmètre v1** : **inclut le dispatch** de drivers (l'inversion §3c, au
+   lot 4).

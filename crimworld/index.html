@@ -37,13 +37,17 @@
   .statusbar{height:38px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
        padding:0 22px 6px;font:600 12px var(--sans);color:var(--muted)}
 
-  /* ---- enjeu (dette Momo + cash) : barre fine sous la statusbar ---- */
-  .stake{flex:none;display:flex;align-items:center;gap:8px;padding:5px 14px;
-       border-bottom:1px solid var(--border);background:#120f0c;font:700 11px var(--mono)}
-  .stake .dette{color:var(--rust);display:flex;align-items:center;gap:5px}
-  .stake .clock{color:var(--sodium)}
-  .stake .spacer{flex:1}
-  .stake .cash{color:var(--green)}
+  /* ---- enjeu : 3 segments lisibles (dette Momo · délai · caisse) ---- */
+  .stake{flex:none;display:flex;gap:7px;padding:7px 11px;
+       border-bottom:1px solid var(--border);background:#120f0c}
+  .stake .seg{flex:1;display:flex;flex-direction:column;gap:1px;padding:5px 9px;min-width:0;
+       border-radius:9px;background:#1a1511;border:1px solid #241d17}
+  .stake .seg .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);
+       text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stake .seg b{font:800 15px var(--mono);line-height:1.1}
+  .stake .dette b{color:var(--rust)}
+  .stake .clock b{color:var(--sodium)}
+  .stake .cash b{color:var(--green)}
 
   /* ---- header ---- */
   .hdr{flex:none;display:flex;align-items:center;gap:11px;padding:8px 14px 12px;
@@ -207,6 +211,20 @@
        border:1.5px solid rgba(255,255,255,.4);display:flex;align-items:center;padding:0 18px;
        font:500 13px var(--sans);color:rgba(255,255,255,.6);justify-content:space-between}
   .vreply .emojis{display:flex;gap:14px;font-size:18px}
+  /* commentaires qui tombent sur une story (profils générés — présentation) */
+  .vcomments{position:absolute;left:12px;right:12px;bottom:80px;z-index:6;display:flex;
+       flex-direction:column;gap:8px;justify-content:flex-end;pointer-events:none}
+  .vcm{display:flex;align-items:flex-start;gap:8px;animation:cmIn .35s ease}
+  .vcm .a{width:24px;height:24px;border-radius:50%;flex:none;display:flex;align-items:center;
+       justify-content:center;font-size:13px;background:linear-gradient(135deg,#3a322b,#181410);
+       border:1px solid rgba(255,255,255,.18)}
+  .vcm .b{font:500 12.5px var(--sans);color:#fff;text-shadow:0 1px 8px #000;line-height:1.35}
+  .vcm .b .u{font-weight:800;margin-right:6px;color:rgba(255,255,255,.95)}
+  @keyframes cmIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  /* mode « commentaires » : titre en haut, le bas reste libre pour le flux */
+  .viewer.cmode .vcap{bottom:auto;top:92px;text-align:left;padding:0 16px}
+  .viewer.cmode .vcap .big{font-size:17px}
+  .viewer.cmode .vcap .sub{margin-top:4px}
 
   /* composer de story (avant de poster) */
   .scompose{position:absolute;inset:0;background:rgba(10,9,8,.92);display:none;flex-direction:column;
@@ -260,10 +278,9 @@
 
   <!-- enjeu : dette Momo + horloge + cash (scriptes, cosmetiques) -->
   <div class="stake">
-    <span class="dette">💀 Momo <span id="s-dette">200€</span></span>
-    <span class="clock" id="s-clock">⏳ 2 jours</span>
-    <span class="spacer"></span>
-    <span class="cash">💶 <span id="s-cash">0</span>€</span>
+    <span class="seg dette"><span class="k">💀 Momo</span><b id="s-dette">200€</b></span>
+    <span class="seg clock"><span class="k">⏳ Délai</span><b id="s-clock">2 jours</b></span>
+    <span class="seg cash"><span class="k">💶 Caisse</span><b id="s-cash">0€</b></span>
   </div>
 
   <!-- header (devient header de fil quand on ouvre une conv) -->
@@ -283,6 +300,10 @@
     <div class="story" id="story-mine">
       <div class="ring mine" id="ring-mine"><div class="inner"><span class="ph">+ TOI</span></div></div>
       <div class="cap">Ta vitrine</div>
+    </div>
+    <div class="story" id="story-momo" style="display:none">
+      <div class="ring" id="ring-momo"><div class="inner">💀</div></div>
+      <div class="cap">Momo</div>
     </div>
     <div class="story"><div class="ring seen"><div class="inner">🏪</div></div><div class="cap">Le Comptoir</div></div>
     <div class="story"><div class="ring seen"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
@@ -329,14 +350,15 @@
   <div class="viewer" id="viewer">
     <div class="vclip">
       <div class="progress"><span class="on"><b></b></span><span><b></b></span></div>
-      <div class="vhdr"><div class="av">⚡</div><div><div class="nm">Ta vitrine</div><div class="tm">à l'instant</div></div></div>
-      <div class="badge">CLIP IA · placeholder</div>
+      <div class="vhdr"><div class="av" id="vhdr-av">⚡</div><div><div class="nm" id="vhdr-nm">Ta vitrine</div><div class="tm" id="vhdr-tm">à l'instant</div></div></div>
+      <div class="badge" id="vhdr-badge">CLIP IA · placeholder</div>
       <span class="ico">📦</span>
-      <span class="txt">VIDÉO 9:16 — ta came, grain de nuit<br>(générée hors-ligne → bakée .mp4)</span>
+      <span class="txt" id="vclip-txt">VIDÉO 9:16 — ta came, grain de nuit<br>(générée hors-ligne → bakée .mp4)</span>
       <div class="vcap">
-        <div class="big">fraîchement coupé 🔥💨</div>
+        <div class="big" id="viewer-cap">fraîchement coupé 🔥💨</div>
         <div class="sub" id="viewer-views">— vu par 🔥 •••• (opaque)</div>
       </div>
+      <div class="vcomments" id="vcomments"></div>
       <div class="vreply"><span>Répondre…</span><span class="emojis">❄️ 🌿 💸</span></div>
     </div>
   </div>
@@ -400,14 +422,18 @@ const els = {
   etabli:$("etabli"), etabliBack:$("etabli-back"), etabliFrame:$("etabli-frame"),
   etabliFallback:$("etabli-fallback"), fallbackLink:$("fallback-link"),
   scompose:$("scompose"), postBtn:$("post-btn"), viewer:$("viewer"), viewerViews:$("viewer-views"),
+  viewerCap:$("viewer-cap"), vcomments:$("vcomments"),
+  vhdrAv:$("vhdr-av"), vhdrNm:$("vhdr-nm"), vhdrTm:$("vhdr-tm"),
+  vhdrBadge:$("vhdr-badge"), vclipTxt:$("vclip-txt"),
   toast:$("toast"), endscreen:$("endscreen"),
   sDette:$("s-dette"), sClock:$("s-clock"), sCash:$("s-cash"), ringMine:$("ring-mine"), storyMine:$("story-mine"),
+  ringMomo:$("ring-momo"), storyMomo:$("story-momo"),
 };
 
 function refreshStake(){
-  els.sDette.textContent = state.dette + "€";
-  els.sClock.textContent = "⏳ " + state.jours + " jour" + (state.jours>1?"s":"");
-  els.sCash.textContent = state.cash;
+  els.sDette.textContent = state.dette > 0 ? state.dette + "€" : "réglé";
+  els.sClock.textContent = state.jours + " jour" + (state.jours>1?"s":"");
+  els.sCash.textContent = state.cash + "€";
 }
 
 /* =========================================================================
@@ -482,6 +508,9 @@ function buildBubble(m){
     if (m.card.action === "etabli"){          // la carte du Pote ouvre l'etabli
       card.style.cursor = "pointer";
       card.addEventListener("click", (e) => { e.stopPropagation(); openEtabli(); });
+    } else if (m.card.action === "momostory") {   // la carte de la story de Momo
+      card.style.cursor = "pointer";
+      card.addEventListener("click", (e) => { e.stopPropagation(); openMomoStory(); });
     }
     wrap.appendChild(card); return wrap;
   }
@@ -554,6 +583,14 @@ function exec(cmd, next){
       break;
     }
 
+    case "momostory": {              // arme la gate story de Momo (carte inline OU pastille du tray)
+      pendingMomoStoryData = cmd;
+      pendingMomoStory = next;
+      if (cmd.tray){ els.storyMomo.style.display = ""; els.ringMomo.classList.remove("seen"); }
+      coach(cmd.coach || "Momo a posté une story 👀 — tape la carte pour voir");
+      break;
+    }
+
     case "etabli": {                 // attend l'ouverture de l'etabli + le choix de coupe
       pendingEtabli = next;
       coach("Va à l'établi 🔪 (sur le message du Pote) pour couper.");
@@ -565,6 +602,11 @@ function exec(cmd, next){
       els.ringMine.classList.remove("seen");   // re-arme la vitrine au tour 2
       els.ringMine.classList.add("ready");
       coach("Poste ta vitrine ⚡ (en haut à gauche) pour appâter les clients.");
+      break;
+    }
+
+    case "storycomments": {          // story « le block réagit » : commentaires qui tombent
+      showStoryComments(cmd, next);
       break;
     }
 
@@ -588,9 +630,14 @@ function typeThen(cmd, next){
   const dots = document.createElement("div"); dots.className = "typing";
   dots.innerHTML = "<i></i><i></i><i></i>";
   els.thread.appendChild(dots); scrollDown();
-  const delay = cmd.card ? 700 : Math.min(1100, 350 + (cmd.text||"").length * 16);
-  const finish = () => {
-    fastFwd = null; clearTimeout(timer);
+  const typeMs = (cmd.card ? 820 : Math.min(T_TYPE_MAX, T_TYPE_MIN + (cmd.text||"").length * T_TYPE_PER)) * PACE;
+
+  // Phase 2 : l'air avant la bulle suivante (accélérable au tap).
+  let gap;
+  const advance = () => { clearTimeout(gap); fastFwd = null; next(); };
+  // Phase 1 : la frappe « … » puis la bulle (accélérable au tap).
+  const reveal = () => {
+    clearTimeout(timer);
     if (dots.parentNode) dots.remove();
     const m = cmd.card ? { type:"card", card:cmd.card } : { type:"msg", dir:"in", text:cmd.text };
     if (cmd.ephem) { m.type = "ephem"; m.text = cmd.text; }
@@ -600,10 +647,53 @@ function typeThen(cmd, next){
     } else {
       showThreadView(state.scriptThread);   // ramène le joueur ; paintThread inclut déjà m
     }
+    gap = setTimeout(advance, T_GAP * PACE);   // ← l'air entre messages
+    fastFwd = advance;
+  };
+  const timer = setTimeout(reveal, typeMs);
+  fastFwd = reveal;
+}
+
+/* Story « le block réagit » : commentaires de profils générés qui tombent un à
+   un, puis tap pour continuer. Brique réutilisable pour le sandbox (stories +
+   commentaires). Présentation aléatoire (qui commente) — jamais une conséquence. */
+function showStoryComments(cmd, next){
+  els.viewerCap.textContent = cmd.cap || "le block réagit";
+  els.viewerViews.textContent = cmd.sub || "";
+  els.vcomments.innerHTML = "";
+  els.viewer.classList.add("show", "cmode");
+  const list = cmd.comments || [];
+  let i = 0, done = false, timer = null;
+  const addOne = (txt) => {
+    const p = genProfile();
+    // textContent (pas innerHTML) : la brique reste sûre quand les textes
+    // de commentaires deviendront dynamiques/templatisés dans le sandbox.
+    const el = document.createElement("div"); el.className = "vcm";
+    const a = document.createElement("div"); a.className = "a"; a.textContent = p.av;
+    const b = document.createElement("div"); b.className = "b";
+    const u = document.createElement("span"); u.className = "u"; u.textContent = p.nm;
+    b.appendChild(u); b.appendChild(document.createTextNode(txt));
+    el.appendChild(a); el.appendChild(b);
+    els.vcomments.appendChild(el);
+    while (els.vcomments.children.length > 5) els.vcomments.removeChild(els.vcomments.firstChild);
+  };
+  const pump = () => {
+    if (i >= list.length){ done = true; return; }
+    const txt = list[i++]; addOne(txt);
+    timer = setTimeout(pump, Math.min(1600, 700 + txt.length * 16) * PACE);
+  };
+  const dumpRest = () => { clearTimeout(timer); while (i < list.length) addOne(list[i++]); done = true; };
+  const onTap = (e) => {
+    e.stopPropagation();
+    if (!done){ dumpRest(); return; }          // 1er tap : tout afficher d'un coup
+    els.viewer.removeEventListener("click", onTap);
+    els.viewer.classList.remove("show", "cmode");
+    els.vcomments.innerHTML = "";
+    els.viewerCap.textContent = "fraîchement coupé 🔥💨";   // reset pour une réutilisation
     next();
   };
-  const timer = setTimeout(finish, delay);
-  fastFwd = finish;
+  els.viewer.addEventListener("click", onTap);
+  timer = setTimeout(pump, 500 * PACE);
 }
 
 /* Boutons de choix dans le fil courant. */
@@ -643,7 +733,37 @@ function coach(text, sticky){
    GATES JOUEUR (ouverture de fil, etabli, story)
    ========================================================================= */
 let pendingOpen = null, pendingEtabli = null, pendingStory = null;
+let pendingMomoStory = null, pendingMomoStoryData = null;
 let pendingGateRender = null;   // re-rend les boutons de choix si on revient sur le fil
+
+/* Valeurs PAR DÉFAUT du viewer (vitrine du joueur) — capturées une seule fois au chargement. */
+const VIEWER_DEFAULT = {
+  av:    "⚡",
+  nm:    "Ta vitrine",
+  tm:    "à l'instant",
+  badge: "CLIP IA · placeholder",
+  clip:  "VIDÉO 9:16 — ta came, grain de nuit\n(générée hors-ligne → bakée .mp4)",
+};
+
+function setViewerStory({ av, nm, tm, badge, clip, cap, views }) {
+  els.vhdrAv.textContent    = av;
+  els.vhdrNm.textContent    = nm;
+  els.vhdrTm.textContent    = tm;
+  els.vhdrBadge.textContent = badge || "";
+  els.vclipTxt.textContent  = clip;
+  els.viewerCap.textContent = cap  || "";
+  els.viewerViews.textContent = views || "";
+}
+
+function resetViewerStory() {
+  els.vhdrAv.textContent    = VIEWER_DEFAULT.av;
+  els.vhdrNm.textContent    = VIEWER_DEFAULT.nm;
+  els.vhdrTm.textContent    = VIEWER_DEFAULT.tm;
+  els.vhdrBadge.textContent = VIEWER_DEFAULT.badge;
+  els.vclipTxt.textContent  = VIEWER_DEFAULT.clip;
+  els.viewerCap.textContent = "fraîchement coupé 🔥💨";
+  els.viewerViews.textContent = "";
+}
 
 function openThread(key){
   showThreadView(key);
@@ -721,6 +841,34 @@ els.viewer.addEventListener("click", () => {
   els.viewer.classList.remove("show");
   const cb = pendingStory; pendingStory = null; cb();
 });
+
+/* Pastille de Momo dans le tray (gate « va voir Snap ») → ouvre sa story. */
+els.ringMomo.addEventListener("click", () => { if (pendingMomoStory) openMomoStory(); });
+
+function openMomoStory() {
+  if (!pendingMomoStory) return;
+  const d = pendingMomoStoryData;
+  els.toast.classList.remove("show");
+  if (d.tray){ els.ringMomo.classList.add("seen"); }
+  setViewerStory({ av: d.av, nm: d.nm, tm: d.tm, badge: d.badge, clip: d.clip, cap: d.cap, views: d.views });
+  const finish = () => {
+    resetViewerStory();
+    if (d.tray){ els.storyMomo.style.display = "none"; }
+    const cb = pendingMomoStory; pendingMomoStory = null; cb();
+  };
+  if (d.comments && d.comments.length){
+    showStoryComments(d, finish);   // la story de Momo AVEC les commentaires qui tombent dessus
+  } else {
+    els.viewer.classList.add("show");
+    const onTap = (e) => {
+      e.stopPropagation();
+      els.viewer.removeEventListener("click", onTap);
+      els.viewer.classList.remove("show");
+      finish();
+    };
+    els.viewer.addEventListener("click", onTap);
+  }
+}
 
 /* Tap global = accelerer la frappe en cours. */
 els.body.addEventListener("click", () => { if (fastFwd) fastFwd(); });
@@ -866,6 +1014,24 @@ const ARRIERE_T1 = LOYER * JOURS_SQUAT_T1;             // 350€ d'arriéré ré
 const ARDOISE_T2 = LOYER * (JOURS_SQUAT_T1 + JOURS_T2); // 700€ à éponger en fin de tour 2
 const PRIX_CONTRAT = 400;                              // ch.2 : coût du contrat pour faire disparaître Momo — réglage FTUE
 
+/* Respiration des messages (pacing). PACE = multiplicateur global (>1 = plus lent).
+   Mode test ?fast (captures headless) : tout devient quasi-instantané. */
+const FAST = typeof location !== "undefined" && /[?&]fast\b/.test(location.search);
+const PACE = FAST ? 0.15 : 1.3;
+const T_TYPE_MIN = FAST ? 40  : 520;   // dwell minimum de l'indicateur « … »
+const T_TYPE_PER = FAST ? 2   : 24;    // ms par caractère pendant la frappe
+const T_TYPE_MAX = FAST ? 120 : 1900;  // plafond de frappe
+const T_GAP      = FAST ? 30  : 540;   // pause APRÈS une bulle, avant la suivante (l'air)
+
+/* Profils générés — PRÉSENTATION aléatoire (pseudo + avatar), jamais une conséquence. */
+const CM_PRE = ["Pay","Hedge","Krilo","Naps","Vex","Zko","Brth","Lome","Saff","Dru","Niko","Ylw","Mok","Ras"];
+const CM_SUF = ["Li","45","_","xx","02","tn","99","z","_b","77","ka","23","oo","37"];
+const CM_AV  = ["🦅","🐍","🦊","👹","🐉","🦂","🌒","🥷","🦍","🐺","🎭","💉","🪙","🔥"];
+function genProfile(){
+  const pick = a => a[(Math.random()*a.length)|0];
+  return { nm: pick(CM_PRE) + pick(CM_SUF), av: pick(CM_AV) };
+}
+
 function* prologue(){
   yield* round1();          // Beats 1-5 : Momo, le Pote, l'établi, la vitrine, clients
   yield* momoTour1();       // Beat 6 : payer les 200€ (tu CROIS être quitte)
@@ -904,6 +1070,16 @@ function* round1(){
   yield { t:"open", thread:"pote", coach:"Le Pote t'a écrit — reviens à l'accueil (‹) et ouvre-le 👆" };
   yield { t:"recv", text:"yo mec ça va ? 😬" };
   yield { t:"recv", text:"j'ai entendu que Momo est vener de pas avoir reçu sa thune" };
+  yield { t:"recv", text:"tiens regarde, il vient de poster ça 👀" };
+  yield { t:"recv", card:{ title:"Story de Momo", tag:"VOIR", badge:"💀 éphémère",
+          ico:"💀", cliptxt:"story 9:16 — Momo sur son corner", specs:["le block C, c'est moi"],
+          action:"momostory" } };
+  yield { t:"momostory", av:"💀", nm:"Momo", tm:"story · éphémère",
+          clip:"STORY 9:16 — Momo sur SON corner, liasse au poing, grain de nuit",
+          cap:"le block C, c'est MOI 💀", views:"— vu par tout le quartier (opaque)",
+          badge:"STORY · éphémère",
+          coach:"Momo a posté une story 👀 — tape la carte pour voir" };
+  yield { t:"recv", text:"tu vois le bonhomme. faut éponger vite frère 😬" };
   yield { t:"recv", text:"j'ai un plan. c'est pas grand-chose mais ça peut t'aider à éponger 👇" };
   yield { t:"recv", card:{ title:"🧼 Savonnette 100g", tag:"CADEAU", badge:"de la part du Pote",
           ico:"🧼", cliptxt:"matière première — offerte", specs:["levier : fraude","100 g brut"], price:"gratos" } };
@@ -1070,10 +1246,33 @@ function* chapitre2(){
     yield { t:"choice", options:[ { k:"🎯", cls:"go", label:"Payer le contrat ("+PRIX_CONTRAT+"€)", echo:"tiens. fais-le. 🤫" } ] };
     yield { t:"set", fn:()=>{ state.cash -= PRIX_CONTRAT; state.contratPaid = true;
             CONV.momo.st = "hors ligne"; CONV.momo.stcol = "var(--faint)"; } };
+    // TEMPS 1 — c'est posté, et on attend. Le Pote ne narre PAS la disparition :
+    // un vrai blanc, et il te renvoie sur Snap pour que tu découvres par toi-même.
     yield { t:"recv", text:"c'est posté. 🤫 maintenant on attend." };
-    yield { t:"wait", ms:900 };
-    yield { t:"recv", text:"disparaît dans 9 s", ephem:true };
-    yield { t:"recv", text:"…c'est fait. Momo a disparu. 💀 le block respire." };
+    yield { t:"recv", text:"va voir Snap tout à l'heure. tu comprendras. 👀" };
+    yield { t:"wait", ms:1400 };
+    yield { t:"home" };
+    yield { t:"toast", text:"Plus tard ce soir-là…", ms:1700 };
+    // TEMPS 2 — tu vas sur Snap et tu DÉCOUVRES par le feed : la dernière story de
+    // Momo (le corner vide) avec les commentaires du block qui tombent dessus.
+    yield { t:"momostory", tray:true, av:"💀", nm:"Momo", tm:"story · il y a 2 h",
+            clip:"STORY 9:16 — le corner du block C au petit matin. vide. la dernière de Momo.",
+            badge:"STORY · éphémère",
+            cap:"le block réagit ⚡", sub:"— Momo a disparu du C",
+            coach:"Une story de Momo 👀 — ouvre-la (en haut)",
+            comments:[
+              "Momo plus là ?? 👀",
+              "le block est calme d'un coup…",
+              "RIP Momo 💀 personne va le pleurer",
+              "c'est qui le patron du C maintenant ?",
+              "ta vitrine tourne fort frérot 🔥",
+              "tranquille le quartier ce soir 🌙",
+            ] };
+    // ENSUITE seulement — le Pote réagit, une fois que tu as vu par toi-même.
+    yield { t:"unread", thread:"pote", preview:"t'as vu ?…" };
+    yield { t:"home" };
+    yield { t:"open", thread:"pote", coach:"Le Pote te recontacte 👆" };
+    yield { t:"recv", text:"…t'as vu ? c'est fait. Momo a disparu. 💀 le block respire." };
     yield { t:"recv", text:"mais frère… un truc pareil, ça fait du bruit. la foudre va tomber. ⚡" };
   } else {
     yield { t:"recv", text:"…t'as pas la thune ?! 😤 il manque "+(PRIX_CONTRAT - state.cash)+"€." };
