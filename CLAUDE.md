@@ -38,6 +38,25 @@ fichier `index.html` (HTML + CSS + un module JS), Three.js chargé via import-ma
   force un reset propre : **bumper `SAVE_VERSION`** dans
   `hash-slicer/index.html` après un gros rééquilibrage.
 
+## Notes & règles vivantes
+
+Suivi mis en place le 2026-06-22. Deux supports complémentaires :
+
+- **Notes** — journal chronologique (décisions, idées, écarts constatés,
+  questions ouvertes) dans `NOTES.md`. On y écrit ce qui s'est passé et
+  *pourquoi*, pour pouvoir y revenir sans se fier à la mémoire.
+- **Règles** — engagements stables qu'on s'impose, consignés ici-même
+  ci-dessous. Les *conventions* plus haut restent valables ; cette section
+  recueille les règles **ajoutées au fil du projet**.
+
+Tenue des règles : une règle = une ligne claire **avec sa raison d'être**,
+datée et numérotée (`R1`, `R2`, …). On n'efface jamais une règle : on la
+marque *abrogée* (date + motif) pour garder la trace de la décision.
+
+### Règles ajoutées
+
+_(Aucune pour l'instant — les conventions ci-dessus font foi.)_
+
 ## Ajouter un nouveau core loop (checklist)
 
 À suivre dans l'ordre pour rester cohérent avec la structure :
