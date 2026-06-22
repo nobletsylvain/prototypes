@@ -65,6 +65,8 @@ Un **halo lumineux** pulse sous la station à utiliser et un **bandeau de consig
 
 **Feedback juteux** : sons synthétisés (WebAudio, zéro fichier — flux de poudre, raclage du mix, zip, cha-ching), puffs de poudre, pochons qui s'empilent en tas, **« +€ » flottant** à chaque vente, **réputation qui flashe** vert/rouge, cash formaté qui défile, secousse de caméra.
 
+**Rendu** : textures **procédurales** (établi bois, poudre cristalline à paillettes, cellophane froissée) + **reflets doux** (env map) sur le verre / métal / plastique — 100 % canvas, aucun fichier externe.
+
 > Prototype de jeu, habillage purement visuel/stylisé.
 
 ### Jouer
