@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Onion Market — appro darkweb</title>
+<style>
+  /* =========================================================================
+     Onion Market — prototype « fournisseur » (façon Silk Road / TOR).
+     Périmètre v1 : MARCHÉ SEUL (listings, tiers, ratings, commande cash).
+     Pas d'Ubeur / pas de transit ici (lot ultérieur).
+     Invariant repris de CrimWorld : DÉTERMINISTE. Aucun Math.random ne pilote
+     une conséquence. Le tier + le RATING du fournisseur = levier qualité de la
+     matière première (qualité RÉELLE = annoncée × fiabilité(rating)). Tout se
+     trace au listing choisi. Persistance localStorage préfixe `dw_`.
+     ========================================================================= */
+  :root{
+    --bg:#0B0E0B; --surface:#11160F; --surface2:#161C13; --border:#243121;
+    --text:#D7E4CF; --muted:#7E8C77; --faint:#566150;
+    --onion:#7FBF4D; --onion-d:#4f7d2e; --neon:#46c2a0; --rust:#C8442F;
+    --gold:#E8B84B; --star:#E8B84B;
+    --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
+    --sans:-apple-system,"Segoe UI","Roboto","Helvetica Neue",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none;user-select:none}
+  html,body{height:100%}
+  body{background:radial-gradient(1100px 650px at 70% -10%,#13180f 0,var(--bg) 60%);
+       font-family:var(--sans);color:var(--text);min-height:100vh;
+       display:flex;align-items:center;justify-content:center;padding:16px 10px}
+
+  /* ---- coque téléphone ---- */
+  .phone{position:relative;width:min(390px,96vw);height:min(820px,94vh);border-radius:38px;
+       background:var(--bg);border:1px solid var(--border);overflow:hidden;
+       box-shadow:0 30px 80px -20px #000,0 0 0 8px #070907;display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);
+       width:130px;height:26px;background:#070907;border-radius:0 0 16px 16px;z-index:60}
+  .statusbar{height:38px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
+       padding:0 22px 6px;font:600 12px var(--sans);color:var(--muted)}
+  .statusbar #clock{font:700 12px var(--mono);color:var(--text)}
+  .statusbar .tor{color:var(--onion);display:flex;align-items:center;gap:4px}
+
+  /* ---- en-tête de l'app : marque .onion + wallet ---- */
+  .appbar{flex:none;padding:8px 14px 10px;border-bottom:1px solid var(--border);background:#0d110c}
+  .brand{display:flex;align-items:center;gap:9px}
+  .brand .logo{width:34px;height:34px;border-radius:10px;flex:none;display:flex;align-items:center;
+       justify-content:center;font-size:20px;background:rgba(127,191,77,.12);
+       border:1px solid rgba(127,191,77,.35)}
+  .brand .nm{font:800 16px var(--sans);letter-spacing:.2px}
+  .brand .nm b{color:var(--onion)}
+  .brand .url{font:600 10px var(--mono);color:var(--faint);margin-top:1px}
+  .brand .lock{margin-left:auto;font:700 10px var(--mono);color:var(--onion);
+       border:1px solid var(--onion-d);border-radius:6px;padding:3px 7px}
+
+  /* ---- bandeau wallet / stock ---- */
+  .wallet{flex:none;display:flex;gap:7px;padding:9px 12px;border-bottom:1px solid var(--border);background:#0e120d}
+  .wallet .seg{flex:1;min-width:0;border-radius:10px;background:var(--surface);border:1px solid var(--border);
+       padding:6px 9px;display:flex;flex-direction:column;gap:1px}
+  .wallet .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wallet b{font:800 15px var(--mono);line-height:1.1}
+  .wallet .cash b{color:var(--onion)}
+  .wallet .stock b{color:var(--text)}
+  .wallet .qual b{color:var(--gold)}
+
+  /* ---- filtres tier ---- */
+  .filters{flex:none;display:flex;gap:6px;padding:9px 12px 4px;overflow-x:auto}
+  .chip{flex:none;font:700 11px var(--sans);color:var(--muted);background:var(--surface);
+       border:1px solid var(--border);border-radius:999px;padding:5px 11px;cursor:pointer}
+  .chip.on{color:var(--bg);background:var(--onion);border-color:var(--onion)}
+
+  /* ---- liste des listings ---- */
+  .feed{flex:1;overflow-y:auto;padding:6px 12px 14px;display:flex;flex-direction:column;gap:9px}
+  .listing{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:11px 12px;
+       cursor:pointer;transition:border-color .15s,transform .05s;position:relative}
+  .listing:active{transform:scale(.992)}
+  .listing.sold{opacity:.45;pointer-events:none}
+  .lhead{display:flex;align-items:center;gap:9px}
+  .av{width:38px;height:38px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;
+       font-size:20px;background:var(--surface2);border:1px solid var(--border)}
+  .who{min-width:0;flex:1}
+  .handle{font:800 14px var(--sans);display:flex;align-items:center;gap:6px}
+  .verif{color:var(--onion);font-size:12px}
+  .sub{font:600 10px var(--mono);color:var(--faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tier{flex:none;font:800 9px var(--mono);letter-spacing:.04em;text-transform:uppercase;
+       border-radius:6px;padding:3px 7px;align-self:flex-start}
+  .tier.cheap{color:#c9a06a;background:rgba(201,160,106,.12);border:1px solid rgba(201,160,106,.35)}
+  .tier.mid{color:#7bbfe0;background:rgba(123,191,224,.12);border:1px solid rgba(123,191,224,.35)}
+  .tier.premium{color:var(--gold);background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.4)}
+  .lbody{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-top:9px}
+  .prod{font:600 12px var(--sans);color:var(--text)}
+  .prod .pq{color:var(--muted);font:600 11px var(--mono)}
+  .stars{font:700 11px var(--mono);color:var(--star);margin-top:3px;letter-spacing:.5px}
+  .stars .cnt{color:var(--faint)}
+  .price{text-align:right;flex:none}
+  .price b{font:800 16px var(--mono);color:var(--onion)}
+  .price .u{font:600 10px var(--mono);color:var(--faint)}
+  .dispo{font:600 9px var(--mono);color:var(--faint);margin-top:2px}
+
+  /* ---- fiche fournisseur (bottom-sheet) ---- */
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;
+       transition:opacity .2s;z-index:40}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:50;background:var(--surface);
+       border-top:1px solid var(--border);border-radius:22px 22px 0 0;padding:8px 16px 18px;
+       transform:translateY(102%);transition:transform .26s cubic-bezier(.2,.8,.2,1);
+       max-height:84%;overflow-y:auto}
+  .sheet.show{transform:translateY(0)}
+  .grab{width:42px;height:4px;border-radius:99px;background:var(--border);margin:4px auto 12px}
+  .shead{display:flex;align-items:center;gap:11px;margin-bottom:10px}
+  .shead .av{width:46px;height:46px;font-size:24px}
+  .shead .handle{font-size:16px}
+  .specs{display:flex;gap:7px;margin:4px 0 12px}
+  .spec{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 9px;text-align:center}
+  .spec .k{font:600 8px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase}
+  .spec .v{font:800 14px var(--mono);margin-top:2px}
+  .spec.q .v{color:var(--gold)}
+  .desc{font:400 12px/1.5 var(--sans);color:var(--muted);background:var(--surface2);border:1px solid var(--border);
+       border-radius:10px;padding:10px 11px;margin-bottom:12px}
+  .desc .warn{color:var(--gold)}
+  /* sélecteur de quantité */
+  .qtitle{font:700 11px var(--sans);color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px}
+  .qtys{display:flex;gap:7px;margin-bottom:13px}
+  .qty{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:9px 4px;
+       text-align:center;cursor:pointer;transition:border-color .12s}
+  .qty.on{border-color:var(--onion);background:rgba(127,191,77,.1)}
+  .qty .g{font:800 14px var(--mono)}
+  .qty .e{font:600 10px var(--mono);color:var(--faint);margin-top:2px}
+  /* récap + bouton commander */
+  .recap{display:flex;justify-content:space-between;align-items:baseline;font:600 12px var(--sans);
+       color:var(--muted);margin-bottom:4px}
+  .recap b{font:800 15px var(--mono);color:var(--text)}
+  .recap.tot b{color:var(--onion);font-size:19px}
+  .buy{margin-top:12px;width:100%;border:none;border-radius:14px;padding:14px;cursor:pointer;
+       font:800 15px var(--sans);color:var(--bg);background:var(--onion);transition:transform .05s,opacity .15s}
+  .buy:active{transform:scale(.99)}
+  .buy:disabled{opacity:.4;cursor:not-allowed}
+  .buy .sm{display:block;font:600 10px var(--mono);opacity:.8;margin-top:2px}
+
+  /* ---- toast ---- */
+  .toast{position:absolute;left:50%;bottom:96px;transform:translateX(-50%) translateY(10px);
+       background:#070907;border:1px solid var(--onion);color:var(--onion);font:600 12px var(--sans);
+       padding:10px 15px;border-radius:12px;max-width:84%;text-align:center;opacity:0;pointer-events:none;
+       transition:opacity .25s,transform .25s;z-index:58;line-height:1.4}
+  .toast.bad{border-color:var(--rust);color:var(--rust)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* ---- barre du bas : reçus + reset ---- */
+  .tabbar{flex:none;border-top:1px solid var(--border);background:#0d110c;padding:7px 12px 10px;
+       display:flex;align-items:center;gap:10px}
+  .tabbar .last{flex:1;min-width:0;font:600 11px var(--mono);color:var(--muted);
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tabbar .last b{color:var(--text)}
+  .reset{flex:none;font:700 11px var(--sans);color:var(--faint);background:none;border:1px solid var(--border);
+       border-radius:8px;padding:5px 9px;cursor:pointer}
+
+  /* ---- panneau reçus (réutilise le scrim) ---- */
+  .receipts{display:flex;flex-direction:column;gap:8px}
+  .rcpt{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;
+       font:600 12px var(--sans)}
+  .rcpt .r1{display:flex;justify-content:space-between}
+  .rcpt .amt{font:800 13px var(--mono);color:var(--rust)}
+  .rcpt .cause{font:500 11px/1.4 var(--mono);color:var(--muted);margin-top:4px}
+  .rcpt .cause .ok{color:var(--onion)} .rcpt .cause .lo{color:var(--rust)}
+  .empty{font:600 12px var(--sans);color:var(--faint);text-align:center;padding:24px 0}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="statusbar">
+    <span id="clock">23:14</span>
+    <span class="tor">🧅 TOR · <span id="ping">relayé</span></span>
+  </div>
+
+  <div class="appbar">
+    <div class="brand">
+      <div class="logo">🧅</div>
+      <div>
+        <div class="nm">Onion<b>Market</b></div>
+        <div class="url">onionmkt7r…xq.onion · place de marché</div>
+      </div>
+      <div class="lock">🔒 PGP</div>
+    </div>
+  </div>
+
+  <div class="wallet">
+    <div class="seg cash"><div class="k">Cash</div><b id="w-cash">—</b></div>
+    <div class="seg stock"><div class="k">Stock brut</div><b id="w-stock">—</b></div>
+    <div class="seg qual"><div class="k">Qualité moy.</div><b id="w-qual">—</b></div>
+  </div>
+
+  <div class="filters" id="filters">
+    <div class="chip on" data-f="all">Tout</div>
+    <div class="chip" data-f="cheap">Cheap</div>
+    <div class="chip" data-f="mid">Milieu</div>
+    <div class="chip" data-f="premium">Premium</div>
+  </div>
+
+  <div class="feed" id="feed"></div>
+
+  <div class="tabbar">
+    <div class="last" id="last">Aucune commande pour l'instant.</div>
+    <button class="reset" id="receipts-btn">Reçus</button>
+    <button class="reset" id="reset-btn">⟲</button>
+  </div>
+
+  <!-- bottom-sheet fiche fournisseur -->
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet" id="sheet"></div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script type="module">
+/* ===========================================================================
+   ÉTAT & DONNÉES
+   - Roster de fournisseurs FIXE (constantes nommées) : pas de tirage qui pilote
+     une conséquence. Le marché est le même à chaque ouverture → lisible.
+   - Levier qualité : qualité RÉELLE livrée = annoncée × fiabilité(rating).
+     fiab = 0.5 + 0.1×rating (rating/5). Un 5★ livre ce qu'il annonce ;
+     un 2★ livre nettement en-dessous. Déterministe, traçable au listing.
+   =========================================================================== */
+const SAVE_VERSION = 1;
+const KEY = 'dw_state';
+
+const START_CASH = 1200;
+
+// fiabilité déterministe à partir du rating (0..5)
+const reliab = r => Math.min(1, 0.5 + 0.1 * r);
+// qualité réelle livrée (entier %)
+const realQual = (annoncee, rating) => Math.round(annoncee * reliab(rating));
+
+const SUPPLIERS = [
+  { id:'pneu',   handle:'PneuDeSecours',  emoji:'🛞', tier:'cheap',   rating:2.1, sales:418,
+    prod:'Hash marocain', eurG:4.2,  annoncee:74, qtys:[25,50,100,250],
+    desc:"Gros volumes, prix planché. Beaucoup d'avis tièdes : « pas ce qui est sur la photo ». Tu sais à quoi t'attendre." },
+  { id:'bazar',  handle:'BazarDuBled',    emoji:'🐫', tier:'cheap',   rating:3.0, sales:1102,
+    prod:'Hash pollen', eurG:5.0,  annoncee:78, qtys:[25,50,100,250],
+    desc:"Le volume du marché. Correct sans plus, livre à peu près ce qu'il annonce. Vendeur historique." },
+  { id:'atlas',  handle:'AtlasFinest',    emoji:'⛰️', tier:'mid',     rating:4.2, sales:734,
+    prod:'Hash Ketama', eurG:7.5,  annoncee:85, qtys:[10,25,50,100],
+    desc:"Bonne réput, peu de litiges. Un cran au-dessus en propreté. Le rapport qualité/prix de référence." },
+  { id:'camo',   handle:'CaramelBeldia',  emoji:'🍯', tier:'mid',     rating:3.7, sales:289,
+    prod:'Beldia artisanal', eurG:6.8,  annoncee:82, qtys:[10,25,50,100],
+    desc:"Petit producteur, lots irréguliers mais honnêtes. Note moyenne : parfois en-dessous de l'annonce." },
+  { id:'frost',  handle:'FrostbiteLab',   emoji:'❄️', tier:'premium', rating:4.8, sales:512,
+    prod:'Ice-o-lator 1ère coulée', eurG:14.0, annoncee:94, qtys:[10,25,50],
+    desc:"Top du marché. PGP signé, escrow, lab-tested. Cher, mais ce que tu commandes EST ce qui arrive." },
+  { id:'verde',  handle:'VerdeReserva',   emoji:'🫒', tier:'premium', rating:4.5, sales:201,
+    prod:'Dry-sift 120µ', eurG:12.0, annoncee:90, qtys:[10,25,50],
+    desc:"Réserve haut de gamme, stock limité. Très peu d'avis négatifs. Min. de commande bas, idéal pour tester." },
+];
+
+const DEFAULT = () => ({ v:SAVE_VERSION, cash:START_CASH, stockG:0, qualSum:0, receipts:[] });
+
+function load(){
+  try{
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if(s && s.v === SAVE_VERSION) return s;
+  }catch(e){}
+  return DEFAULT();
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+let S = load();
+
+// qualité moyenne pondérée du stock (qualSum = Σ grammes×qualité)
+const avgQual = () => S.stockG > 0 ? Math.round(S.qualSum / S.stockG) : 0;
+
+/* ===========================================================================
+   RENDU
+   =========================================================================== */
+const $ = id => document.getElementById(id);
+const fmt = n => '€' + Math.round(n).toLocaleString('fr-FR');
+const stars = r => {
+  const full = Math.floor(r), half = r - full >= 0.5;
+  return '★'.repeat(full) + (half?'⯨':'') + '☆'.repeat(5 - full - (half?1:0));
+};
+
+let filter = 'all';
+
+function renderWallet(){
+  $('w-cash').textContent  = fmt(S.cash);
+  $('w-stock').textContent = S.stockG + ' g';
+  $('w-qual').textContent  = S.stockG > 0 ? avgQual() + '%' : '—';
+  const last = S.receipts[0];
+  $('last').innerHTML = last
+    ? `Dernier : <b>${last.g} g</b> de ${last.handle} · qualité ${last.real}%`
+    : "Aucune commande pour l'instant.";
+}
+
+function renderFeed(){
+  const feed = $('feed');
+  feed.innerHTML = '';
+  SUPPLIERS
+    .filter(s => filter==='all' || s.tier===filter)
+    .forEach(s => {
+      const el = document.createElement('div');
+      el.className = 'listing';
+      el.innerHTML = `
+        <div class="lhead">
+          <div class="av">${s.emoji}</div>
+          <div class="who">
+            <div class="handle">${s.handle}${s.rating>=4.5?'<span class="verif">✔︎</span>':''}</div>
+            <div class="sub">${s.id}@onion · PGP ✓ · escrow</div>
+          </div>
+          <div class="tier ${s.tier}">${s.tier}</div>
+        </div>
+        <div class="lbody">
+          <div>
+            <div class="prod">${s.prod} <span class="pq">· ${s.annoncee}% annoncé</span></div>
+            <div class="stars">${stars(s.rating)} <span class="cnt">${s.rating.toFixed(1)} · ${s.sales} ventes</span></div>
+          </div>
+          <div class="price">
+            <b>€${s.eurG.toFixed(1)}</b><span class="u">/g</span>
+            <div class="dispo">dès ${s.qtys[0]} g</div>
+          </div>
+        </div>`;
+      el.addEventListener('click', () => openSheet(s));
+      feed.appendChild(el);
+    });
+}
+
+/* ---- fiche fournisseur + commande ---- */
+let sel = null;       // fournisseur ouvert
+let selQty = 0;       // grammes sélectionnés
+
+function openSheet(s){
+  sel = s; selQty = s.qtys[0];
+  const real = realQual(s.annoncee, s.rating);
+  const gap = s.annoncee - real;
+  const fiabPct = Math.round(reliab(s.rating)*100);
+  const warn = gap > 6
+    ? `<span class="warn">⚠ Note basse (${s.rating.toFixed(1)}★) : la qualité réelle tombe souvent sous l'annonce.</span>`
+    : `Note solide : livre au niveau annoncé.`;
+  $('sheet').innerHTML = `
+    <div class="grab"></div>
+    <div class="shead">
+      <div class="av">${s.emoji}</div>
+      <div class="who">
+        <div class="handle">${s.handle}</div>
+        <div class="sub">${stars(s.rating)} ${s.rating.toFixed(1)} · ${s.sales} ventes · fiabilité ${fiabPct}%</div>
+      </div>
+      <div class="tier ${s.tier}">${s.tier}</div>
+    </div>
+    <div class="specs">
+      <div class="spec"><div class="k">Produit</div><div class="v" style="font-size:11px">${s.prod}</div></div>
+      <div class="spec"><div class="k">Prix</div><div class="v">€${s.eurG.toFixed(1)}/g</div></div>
+      <div class="spec q"><div class="k">Qualité annoncée</div><div class="v">${s.annoncee}%</div></div>
+    </div>
+    <div class="desc">${s.desc}<br><br>${warn}</div>
+    <div class="qtitle">Quantité</div>
+    <div class="qtys" id="qtys"></div>
+    <div class="recap"><span>Prix unitaire</span><b>€${s.eurG.toFixed(1)}/g</b></div>
+    <div class="recap tot"><span>Total</span><b id="r-total">—</b></div>
+    <button class="buy" id="buy"></button>`;
+  renderQtys();
+  $('buy').addEventListener('click', doOrder);
+  $('scrim').classList.add('show');
+  $('sheet').classList.add('show');
+}
+
+function renderQtys(){
+  const box = $('qtys'); box.innerHTML = '';
+  sel.qtys.forEach(g => {
+    const el = document.createElement('div');
+    el.className = 'qty' + (g===selQty?' on':'');
+    el.innerHTML = `<div class="g">${g} g</div><div class="e">${fmt(g*sel.eurG)}</div>`;
+    el.addEventListener('click', () => { selQty = g; renderQtys(); refreshRecap(); });
+    box.appendChild(el);
+  });
+  refreshRecap();
+}
+function refreshRecap(){
+  const total = selQty * sel.eurG;
+  $('r-total').textContent = fmt(total);
+  const btn = $('buy');
+  const ok = total <= S.cash;
+  btn.disabled = !ok;
+  btn.innerHTML = ok
+    ? `Commander ${selQty} g <span class="sm">paiement cash · escrow · livraison immédiate</span>`
+    : `Cash insuffisant <span class="sm">il manque ${fmt(total - S.cash)}</span>`;
+}
+
+function closeSheet(){
+  $('scrim').classList.remove('show');
+  $('sheet').classList.remove('show');
+  sel = null;
+}
+
+/* ---- LA conséquence : commande déterministe ---- */
+function doOrder(){
+  const s = sel, g = selQty;
+  const total = g * s.eurG;
+  if(total > S.cash) return;
+  const real = realQual(s.annoncee, s.rating);      // qualité RÉELLE livrée
+
+  S.cash   -= total;
+  S.stockG += g;
+  S.qualSum += g * real;                            // pondération pour la moyenne
+  s.sales  += 1;                                    // présentation : ventes++
+
+  const gap = s.annoncee - real;
+  const cause = gap <= 2
+    ? `<span class="ok">qualité tenue (${real}%)</span> — fournisseur fiable ${s.rating.toFixed(1)}★`
+    : `<span class="lo">qualité réelle ${real}% &lt; ${s.annoncee}% annoncé</span> — note basse ${s.rating.toFixed(1)}★`;
+  S.receipts.unshift({ handle:s.handle, g, total:Math.round(total), annoncee:s.annoncee, real, cause });
+  if(S.receipts.length > 30) S.receipts.pop();
+  save();
+
+  closeSheet();
+  renderWallet(); renderFeed();
+  const bad = gap > 6;
+  toast(`${g} g reçus de ${s.handle} · qualité réelle ${real}%` + (bad?` (annoncé ${s.annoncee}%)`:''), bad);
+}
+
+/* ---- toast ---- */
+let toastT = null;
+function toast(msg, bad=false){
+  const t = $('toast');
+  t.className = 'toast show' + (bad?' bad':'');
+  t.innerHTML = msg;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.className = 'toast' + (bad?' bad':''), 2600);
+}
+
+/* ---- panneau reçus (réutilise scrim+sheet) ---- */
+function openReceipts(){
+  if(!S.receipts.length){
+    $('sheet').innerHTML = `<div class="grab"></div><div class="empty">Pas encore de reçu.<br>Passe une commande sur le marché.</div>`;
+  }else{
+    const rows = S.receipts.map(r => `
+      <div class="rcpt">
+        <div class="r1"><span>${r.g} g · ${r.handle}</span><span class="amt">-${fmt(r.total)}</span></div>
+        <div class="cause">${r.cause}</div>
+      </div>`).join('');
+    $('sheet').innerHTML = `<div class="grab"></div>
+      <div class="qtitle" style="margin-bottom:10px">Reçus · ${S.receipts.length}</div>
+      <div class="receipts">${rows}</div>`;
+  }
+  $('scrim').classList.add('show');
+  $('sheet').classList.add('show');
+}
+
+/* ===========================================================================
+   FILTRES, RESET, HORLOGE, INIT
+   =========================================================================== */
+$('filters').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if(!c) return;
+  filter = c.dataset.f;
+  [...$('filters').children].forEach(x => x.classList.toggle('on', x===c));
+  renderFeed();
+});
+$('scrim').addEventListener('click', closeSheet);
+$('receipts-btn').addEventListener('click', openReceipts);
+$('reset-btn').addEventListener('click', () => {
+  if(confirm('Repartir de zéro (cash, stock, reçus) ?')){
+    S = DEFAULT();
+    // restaure les ventes du roster (présentation) — pas critique
+    save(); renderWallet(); renderFeed(); toast('Compte réinitialisé.');
+  }
+});
+
+// horloge cosmétique (présentation uniquement)
+function tick(){
+  const d = new Date();
+  $('clock').textContent = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+setInterval(tick, 10000); tick();
+
+renderWallet();
+renderFeed();
+</script>
+</body>
+</html>
