@@ -609,6 +609,7 @@ function updateCrumbs(dt) {
 const flyers = [];
 function flyBarrette(fromX, fromZ, grams, q) {
   const m = new THREE.Mesh(slabGeo, [matSponge, matCrust]);   // même bâton arrondi que le stock
+  m.scale.setScalar(Math.max(0.7, Math.min(1.5, Math.cbrt(grams / 10))));   // taille ∝ ∛grammage
   m.position.set(fromX, 0.4, fromZ); m.castShadow = true;
   scene.add(m);
   flyers.push({ mesh: m, grams, q, t: 0 });
@@ -903,10 +904,17 @@ function setFmt(f) {
    ------------------------------------------------------------------------- */
 const ENDS = 2;
 const wrapS = { i: 0, melt: 0, holding: false, sealed: false, seals: [], sizzleT: 0 };
+// Taille du pochon selon le format : volume ∝ grammage -> dimension ∝ ∛g (réf 10 g = 1).
+// L'épaisseur grossit un peu plus que la longueur (gros format = barre trapue, pas un long bâton).
+function applyPackSize() {
+  const f = PACK_FORMATS.find(x => x.id === packFmt) || { g: 10 };
+  const s = Math.max(0.72, Math.min(1.95, Math.cbrt(f.g / 10)));
+  packSlab.scale.set(1 + (s - 1) * 0.7, s * 1.08, s * 1.08);
+}
 function gotoWrap() {
   setPhase("wrap");
   wrapS.i = 0; wrapS.melt = 0; wrapS.holding = false; wrapS.sealed = false; wrapS.seals = []; wrapS.sizzleT = 0;
-  packSlab.scale.set(1, 1, 1); packSlab.rotation.set(0, 0, 0); packSlab.position.y = 0.5;
+  packSlab.rotation.set(0, 0, 0); packSlab.position.y = 0.5; applyPackSize();
   briquetFlame.visible = false;
   for (const e of ends) {                              // bouts de cellophane "neufs"
     e.sealing = false; e.sealT = 0; e.mesh.visible = true; e.mesh.scale.set(1, 1, 1);
@@ -942,7 +950,7 @@ function renderPackGrid() {
     b.dataset.fmt = f.id;
     b.disabled = stock.g < f.g;
     b.innerHTML = '<div class="fn">' + f.emoji + " " + f.name + '</div><div class="fp">~' + unit + " €</div>";
-    b.addEventListener("click", () => { packFmt = f.id; localStorage.setItem("gs_packfmt", f.id); setPackButtons(); refreshWrapCard(); });
+    b.addEventListener("click", () => { packFmt = f.id; localStorage.setItem("gs_packfmt", f.id); setPackButtons(); refreshWrapCard(); applyPackSize(); });
     ui.packgrid.appendChild(b);
   }
 }
