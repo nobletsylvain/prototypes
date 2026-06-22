@@ -441,9 +441,9 @@ G1.start = function () {
       const idx = u * steps, i0 = Math.min(steps - 1, Math.floor(idx)), f = idx - i0;
       const p0 = pts[i0], p1 = pts[i0 + 1];
       const sx = p0.x + (p1.x - p0.x) * f, sy = p0.y + (p1.y - p0.y) * f;
-      const taper = 0.62 + (1 - u) * 0.85;                 // plus gros en haut, effilé vers la pointe
-      const r = (10 + Math.random() * 7) * taper;               // têtes plus grosses (volume)
-      const off = (Math.random() - 0.5) * (8 + (1 - u) * 22);   // colonne plus épaisse, large en haut
+      const taper = 1.2 + (1 - u) * 0.15;                  // volume quasi constant, à peine plus gros en haut
+      const r = (13 + Math.random() * 6) * taper;               // têtes plus grosses (volume)
+      const off = (Math.random() - 0.5) * 26;                   // colonne d'épaisseur constante (peu effilée en bas)
       this.buds.push({ x: sx + off, y: sy + (Math.random() - 0.5) * 4,
         r, leafFrac, variety: variety.id, thc: variety.thc, on: true, pop: 0, landed: false, tx: 0, ty: 0,
         spr: Math.floor(Math.random() * BUDS[variety.id].length), rot: Math.random() * 6.28 });
@@ -499,13 +499,13 @@ G1.draw = function (c) {
     c.fillStyle = "#586a2c"; c.beginPath(); c.arc(br.pts[0].x, br.pts[0].y, 3.5, 0, 7); c.fill();
   }
   for (const lf of this.leaves) drawWasteLeaf(c, lf);        // feuilles (déchet visuel)
-  for (const bud of this.buds) { if (bud.on) drawSprite(c, BUDS[bud.variety][bud.spr], bud.x, bud.y, bud.r * 2.9, bud.rot); }  // têtes attachées
+  for (const bud of this.buds) { if (bud.on) drawSprite(c, BUDS[bud.variety][bud.spr], bud.x, bud.y, bud.r * 3.1, bud.rot); }  // têtes attachées
   for (const bud of this.buds) {                            // têtes en vol vers le bac
     if (bud.on || bud.landed) continue;
-    drawSprite(c, BUDS[bud.variety][bud.spr], bud.x, bud.y, bud.r * 2.9 * (0.75 + bud.pop * 0.35), bud.rot + (1 - bud.pop) * 3);
+    drawSprite(c, BUDS[bud.variety][bud.spr], bud.x, bud.y, bud.r * 3.1 * (0.75 + bud.pop * 0.35), bud.rot + (1 - bud.pop) * 3);
   }
   drawBin(c, this.binT, "#7ad17a"); drawBin(c, this.binD, "#caa15f");   // bacs
-  for (const it of this.pileT) drawSprite(c, BUDS[it.variety][it.spr], it.x, it.y, it.r * 1.9, 0);   // pile de têtes
+  for (const it of this.pileT) drawSprite(c, BUDS[it.variety][it.spr], it.x, it.y, it.r * 2.0, 0);   // pile de têtes
   c.fillStyle = "#8a7440";
   for (const it of this.pileD) { c.beginPath(); c.arc(it.x, it.y, 3, 0, 7); c.fill(); }          // pile de feuilles
 };
