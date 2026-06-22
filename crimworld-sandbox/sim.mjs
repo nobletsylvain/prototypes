@@ -29,6 +29,8 @@ export const C = {
   REPUT_PROPRE: 6,           // une coupe propre fait monter la demande
   REPUT_ARRACHE: -25,        // une coupe à l'arrache la fait fuir
   DROP_REPUT: 4,             // poster un "drop" (arrivage) : petit coup de buzz social (≤ qualité, tracé, 1×/j)
+  PRIX_MAX_G: 8,             // négo : €/g que le client tolère au max (plafond, déterministe)
+  UPSELL_MAX: 3,             // négo : il ne prend pas plus de 3× la quantité voulue
 };
 
 export function jaugeOpaque(v, max, sym = '•', plein = '🔥'){
@@ -163,6 +165,37 @@ export function createSim(){
       state.metricsJour.clientsServis++;
       ligne({ ic: '🤝', label: `1× ${c.format}g ${c.produit} vendu`, montant, cause: 'client servi via Snap' });
       return montant;
+    },
+
+    // NÉGOCIER : proposer un LOT de sachets `offre` ({2,5,10} counts) à `prix` au client.
+    // Accepte de façon DÉTERMINISTE : ~ce qu'il voulait (de la moitié à UPSELL_MAX× ses
+    // grammes) à un €/g ≤ PRIX_MAX_G. Permet substituts (2×5g pour un 10g) et upsell.
+    // Renvoie { ok, raison?, gDonne?, prix? }.
+    negocier(id, offre, prix){
+      const c = state.clientsJour.find(x => x.id === id && x.arrive && !x.servi);
+      if (!c) return { ok: false, raison: 'parti' };
+      offre = offre || {};
+      // une seule passe : on sanitise l'offre en `lot`, on vérifie le stock, on calcule.
+      const lot = {}; let gDonne = 0, nS = 0;
+      for (const f of C.FORMATS){
+        const k = Math.max(0, Math.round(offre[f] || 0));
+        if (k > state.stock[c.produit][f]) return { ok: false, raison: 'pas assez de stock' };
+        lot[f] = k; gDonne += k * f; nS += k;
+      }
+      if (nS <= 0) return { ok: false, raison: 'offre vide' };
+      prix = Math.max(0, Math.round(prix));
+      const want = c.format;
+      if (gDonne < Math.ceil(want * 0.5)) return { ok: false, raison: `pas assez (il voulait ~${want}g)` };
+      if (gDonne > want * C.UPSELL_MAX)    return { ok: false, raison: 'il en veut pas autant' };
+      if (prix > gDonne * C.PRIX_MAX_G)    return { ok: false, raison: 'trop cher pour lui' };
+      for (const f of C.FORMATS) state.stock[c.produit][f] -= lot[f];   // débit depuis le lot sanitisé
+      state.cash += prix; c.servi = true;
+      state.metricsJour.sachetsVendus += nS;
+      state.metricsJour.ventesEUR += prix;
+      state.metricsJour.clientsServis++;
+      const detail = C.FORMATS.filter(f => lot[f] > 0).map(f => `${lot[f]}×${f}g`).join('+');
+      ligne({ ic: '🤝', label: `Négocié : ${detail} pour un ${want}g`, montant: prix, cause: 'deal négocié via Snap' });
+      return { ok: true, gDonne, prix };
     },
 
     // HORLOGE temps réel : avance dtMs ; fait arriver les DM ; clôt le jour à 24 h.
