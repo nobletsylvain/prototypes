@@ -60,6 +60,15 @@
     backdrop-filter:blur(6px); max-width:440px; line-height:1.5; }
   .card b { color:#bdf0a3; }
   .card .q { color:#ffd166; }
+  .card .ttl { font-size:15px; font-weight:800; color:#fff; }
+  .card .sub2 { font-size:12px; color:rgba(255,255,255,.62); margin-top:1px; }
+  .card .qbig { font-weight:800; }
+  /* Pastilles colorees par variete (lecture des bacs, en tri et coupe) */
+  .binsline { display:flex; gap:5px; flex-wrap:wrap; justify-content:center; margin-top:7px; }
+  .bpill { font-size:12px; font-weight:800; color:#fff; padding:2px 8px; border-radius:999px; border:1.5px solid; white-space:nowrap; }
+  /* Mini barre de progression (tri) */
+  .pbar { width:100%; max-width:300px; height:6px; margin:7px auto 1px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
+  .pbar > i { display:block; height:100%; background:linear-gradient(90deg,#7ad17a,#bdf0a3); border-radius:999px; transition:width .12s; }
   .btn { pointer-events:auto; border:none; border-radius:13px; font-weight:800; font-size:15px;
     padding:11px 18px; color:#10210f; background:#7ad17a; box-shadow:0 4px 14px rgba(122,209,122,.35); }
   .btn:active { transform:scale(.98); }
@@ -559,24 +568,29 @@ function refreshBasket(strippedG, totalG) {
   for (let i = 0; i < BASKET_MAX; i++) basketPile.children[i].visible = i < n;
 }
 
-// 7b) Le TAS FRAIS mele a trier (phase 2).
+// 7b) Le TAS FRAIS mele a trier (phase 2). Le nombre de tetes visibles suit le
+// POIDS ABSOLU restant (~1 tete / 22 g) -> un tas de 1 kg est nettement plus gros
+// qu'un tas de 250 g. Empile en monticule (base large, sommet central) : on
+// "racle" le sommet au fil du tri.
 const freshGrp = new THREE.Group();
 freshGrp.position.set(0, 0, 0.2);
 scene.add(freshGrp);
-const FRESH_MAX = 22;
+const FRESH_MAX = 52;
+const FRESH_GPN = 22;             // grammes par tete affichee
 for (let i = 0; i < FRESH_MAX; i++) {
-  const m = makeNug(i % 5 === 0 ? matLeaf : matStrain[STR_IDS[i % STR_IDS.length]], false);
-  const a = (i / FRESH_MAX) * Math.PI * 2, r = 0.16 + (i % 5) * 0.14;
-  m.position.set(Math.cos(a) * r, 0.16 + (i % 3) * 0.12, Math.sin(a) * r * 0.7);
+  const m = makeNug(i % 5 === 0 ? matLeaf : matStrain[STR_IDS[i % STR_IDS.length]], i % 4 === 0);
+  const t = i / (FRESH_MAX - 1);
+  const r = Math.sqrt(1 - t) * 1.15 + (Math.random() - 0.5) * 0.06;   // i petit = base large, i grand = centre
+  const a = i * 2.39996;                                              // angle d'or -> remplissage regulier
+  m.position.set(Math.cos(a) * r, 0.16 + t * 0.62 + (Math.random() - 0.5) * 0.04, Math.sin(a) * r * 0.72);
   freshGrp.add(m);
 }
-// La tete "active" en cours de tri, qui flotte au dessus du tas.
+// (la "tete active" n'existe plus depuis le tri au geste ; mesh conserve mais cache)
 const activeNug = makeNug(matStrain.skunk, false);
-activeNug.scale.setScalar(1.35);
-activeNug.position.set(0, 0.85, 0.2);
+activeNug.visible = false;
 scene.add(activeNug);
-function refreshFreshPile(grams, total) {
-  const n = total > 0 ? Math.max(0, Math.min(FRESH_MAX, Math.round((grams / total) * FRESH_MAX))) : 0;
+function refreshFreshPile(grams) {
+  const n = Math.max(0, Math.min(FRESH_MAX, Math.round(grams / FRESH_GPN)));
   for (let i = 0; i < FRESH_MAX; i++) freshGrp.children[i].visible = i < n;
 }
 
@@ -893,9 +907,11 @@ function makeLabel(html, color) {
   const d = document.createElement("div"); d.className = "blabel";
   d.innerHTML = html; d.style.color = color; labelsEl.appendChild(d); return d;
 }
+// Marqueur 3D minimal sur chaque bac : juste l'emoji de la variete (les grammes
+// et la qualite vont dans la carte du bas, plus lisible).
 const binLabels = {};
-for (const id of STR_IDS) binLabels[id] = makeLabel(STRAINS[id].emoji + " 0 g", STRAINS[id].lbl);
-binLabels.waste = makeLabel("🍂 Déchet 0 g", "#caa15f");
+for (const id of STR_IDS) binLabels[id] = makeLabel(STRAINS[id].emoji, STRAINS[id].lbl);
+binLabels.waste = makeLabel("🍂", "#caa15f");
 const _lv = new THREE.Vector3();
 function placeLabel(div, pos, y) {
   _lv.set(pos.x, y, pos.z).project(camera);
@@ -905,13 +921,20 @@ function placeLabel(div, pos, y) {
   div.style.top  = ((-_lv.y * 0.5 + 0.5) * window.innerHeight) + "px";
 }
 function updateBinsUI() {
-  for (const id of STR_IDS) {
-    binLabels[id].innerHTML = STRAINS[id].emoji + " " + Math.round(bins[id].g) + " g" +
-      (bins[id].g > 1 ? " <span class=\"qd\">" + gradeOf(binQ(id)) + "</span>" : "");
-    refreshPile(bins3d[id], bins[id].g, 24);
-  }
-  binLabels.waste.innerHTML = "🍂 Déchet " + Math.round(waste) + " g";
+  for (const id of STR_IDS) refreshPile(bins3d[id], bins[id].g, 24);
   refreshPile(bins3d.waste, waste, 24);
+}
+// Rangee de pastilles colorees (variete -> grammes) reutilisee par tri et coupe.
+function binsPills(opts) {
+  opts = opts || {};
+  const cells = STR_IDS.map(id => {
+    const sel = opts.selected && opts.selected[id];
+    const c = STRAINS[id].col.join(",");
+    return '<span class="bpill" style="border-color:rgba(' + c + ',.9);background:rgba(' + c + (sel ? ',.30' : ',.10') + ')">' +
+      STRAINS[id].emoji + " " + Math.round(bins[id].g) + (opts.grade && bins[id].g > 1 ? " · " + gradeOf(binQ(id)) : "") + "</span>";
+  });
+  if (opts.waste !== false) cells.push('<span class="bpill" style="border-color:rgba(202,161,95,.7);background:rgba(202,161,95,.12)">🍂 ' + Math.round(waste) + "</span>");
+  return '<div class="binsline">' + cells.join("") + "</div>";
 }
 
 /* -------------------------------------------------------------------------
@@ -1127,7 +1150,7 @@ function gotoTri() {
   }
   tri.acc = 0; tri.flash = 0; tri._done = false;
   tri.total = Math.max(1, freshTotal());
-  refreshFreshPile(freshTotal(), tri.total);
+  refreshFreshPile(freshTotal());
   refreshTriCard();
   updateBinsUI();
   setHint(owned.autosort
@@ -1137,10 +1160,11 @@ function gotoTri() {
 function freshTotal() { return freshBud() + fresh.leaf; }
 function triPerStride() { return (8 + Math.random() * 4) * (1 + owned.tray * 0.7); }   // tapis = poignee + grosse
 function refreshTriCard() {
+  const left = freshTotal(), pct = Math.max(0, Math.min(100, (1 - left / (tri.total || 1)) * 100));
   ui.tricard.innerHTML =
-    "🌿 Tas frais : <b>" + Math.round(freshTotal()) + " g</b> à trier" +
-    "<br>Bacs — " + STR_IDS.map(id => STRAINS[id].emoji + " " + Math.round(bins[id].g)).join(" · ") +
-    " · 🍂 " + Math.round(waste) + " g";
+    '<div class="ttl">🌿 Tri — <b>' + Math.round(left) + ' g</b> à trier</div>' +
+    '<div class="pbar"><i style="width:' + pct.toFixed(0) + '%"></i></div>' +
+    binsPills({ grade: true });
 }
 // Trie une poignee : retire `amount` g du tas et repartit vers les BONS bacs
 // (auto, sans erreur), qualite pleine. Renvoie true si quelque chose a ete trie.
@@ -1168,7 +1192,7 @@ function sortHandful(amount) {
 // Regroupe save + rendu apres une rafale de tri (perf), + fin de tri.
 function triCommitUI() {
   saveBins(); updateBinsUI(); refreshTriCard();
-  refreshFreshPile(freshTotal(), tri.total);
+  refreshFreshPile(freshTotal());
   if (freshTotal() <= 0.2 && !tri._done) {
     tri._done = true;
     for (const id of STR_IDS) fresh[id] = 0; fresh.leaf = 0;
@@ -1194,7 +1218,7 @@ function gotoMix() {
   if (best) mixSel[best] = true;
   setBowlByMix();
   setDKnob(); renderMixChips(); refreshMixCard();
-  setHint("Choisis une variété (pure) ou active 🧬 Blend pour en mêler plusieurs. Le curseur dilue au déchet (volume +, qualité −).");
+  setHint("Curseur = dilution au déchet (volume +, qualité −).");
 }
 function selectedIds() { return STR_IDS.filter(id => mixSel[id] && bins[id].g > 0.5); }
 // Projette le lot sans rien consommer.
@@ -1215,15 +1239,16 @@ function setBowlByMix() {
   const ids = selectedIds();
   setBowlMat(ids.length ? matStrain[ids[0]] : matLeaf);
 }
+function qColor(q) { return q >= 0.62 ? "#9be37d" : q >= 0.42 ? "#ffd166" : "#ff6b6b"; }
 function refreshMixCard() {
   const p = projectMix();
-  if (p.g < 1) { ui.mixcard.innerHTML = "Sélectionne au moins une variété triée."; return; }
-  const name = p.ids.length > 1 ? "Blend maison (" + p.ids.length + " var.)" : STRAINS[p.ids[0]].name;
+  if (p.g < 1) { ui.mixcard.innerHTML = '<div class="ttl">⚗️ Coupe</div><div class="sub2">Sélectionne une variété ci-dessous.</div>'; return; }
+  const name = p.ids.length > 1 ? "🧬 Blend maison · " + p.ids.length + " var." : STRAINS[p.ids[0]].emoji + " " + STRAINS[p.ids[0]].name;
   ui.mixcard.innerHTML =
-    "⚗️ <b>" + name + "</b><br>" +
-    "Fleur " + Math.round(p.g) + " g + Déchet " + Math.round(p.add) + " g ➜ <b>" + Math.round(p.outG) + " g</b><br>" +
-    "Qualité <b>" + gradeOf(p.outQ) + "</b> (" + Math.round(p.outQ * 100) + " %)" +
-    (p.effDil > 0.25 ? " · <span class=\"q\">⚠ très coupé</span>" : "");
+    '<div class="ttl">' + name + '</div>' +
+    '<div class="sub2">Fleur ' + Math.round(p.g) + ' g' + (p.add >= 1 ? ' + déchet ' + Math.round(p.add) + ' g' : '') + ' → <b style="color:#fff">' + Math.round(p.outG) + ' g</b></div>' +
+    '<div style="margin-top:3px">Qualité <span class="qbig" style="color:' + qColor(p.outQ) + '">' + gradeOf(p.outQ) + ' · ' + Math.round(p.outQ * 100) + ' %</span>' +
+    (p.effDil > 0.25 ? ' <span class="q">⚠ très coupé</span>' : '') + '</div>';
 }
 function setDKnob() { ui.dknob.style.left = (dilute / DILUTE_MAX * 100) + "%"; }
 function renderMixChips() {
