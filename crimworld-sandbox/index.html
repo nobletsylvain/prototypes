@@ -112,6 +112,13 @@
   .nego .send{flex:1;border:1px solid var(--green);color:#cfe3cf;background:var(--surface2);border-radius:10px;padding:10px;font:800 12px var(--sans);cursor:pointer}
   .nego .send:active{transform:scale(.99)}
   .nego .cancel{border:1px solid var(--border);color:var(--muted);background:none;border-radius:10px;padding:10px 13px;font:700 12px var(--sans);cursor:pointer}
+  .nego .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .nego .chip{display:flex;align-items:center;gap:6px;background:#1a1511;border:1px solid #241d17;border-radius:9px;padding:5px 7px}
+  .nego .chip .cf{font:700 11px var(--mono);color:var(--text)}
+  .nego .chip .cbtn{width:22px;height:22px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font:800 13px var(--sans);cursor:pointer;padding:0;line-height:1}
+  .nego .chip .cbtn:disabled{opacity:.35;cursor:default}
+  .nego .chip .cn{font:700 11px var(--mono);color:var(--muted);min-width:32px;text-align:center}
+  .nego .send:disabled{opacity:.4;cursor:default}
 
   /* cartes produit (labo) + offres (darkweb) */
   .card{border-radius:13px;border:1px solid var(--border);background:var(--surface);padding:11px 13px;display:flex;flex-direction:column;gap:9px}
@@ -320,8 +327,12 @@ function renderSnap(){
 // construit le meilleur lot ≥ want depuis le stock (gloutons du plus grand au plus petit ;
 // si le stock total < want, donne ce qu'il reste). Pour les contre-offres.
 function bestFill(want, st){
-  const offre={}, avail={}; C.FORMATS.forEach(f=>{ offre[f]=0; avail[f]=st[f]; });
-  let need=want;
+  const offre={}; C.FORMATS.forEach(f=>offre[f]=0);
+  // 1) un seul sachet du plus PETIT format ≥ want (évite de sur-servir : 10g pour un 2g)
+  const single=C.FORMATS.filter(f=>f>=want && st[f]>0).sort((a,b)=>a-b)[0];
+  if(single){ offre[single]=1; return { offre, g:single }; }
+  // 2) sinon, combine du plus grand au plus petit (gros besoin, ou stock partiel)
+  const avail={}; C.FORMATS.forEach(f=>avail[f]=st[f]); let need=want;
   for(const f of [...C.FORMATS].sort((a,b)=>b-a)){ while(need>0 && avail[f]>0){ offre[f]++; avail[f]--; need-=f; } }
   return { offre, g: C.FORMATS.reduce((a,f)=>a+offre[f]*f,0) };
 }
@@ -371,15 +382,29 @@ function renderDMs(){
 
     if(nego && nego.id===c.id && stockTot>0){
       const np=el('div','nego');
+      const gDonne=C.FORMATS.reduce((a,f)=>a+nego.offre[f]*f,0);
       const detail=C.FORMATS.filter(f=>nego.offre[f]>0).map(f=>nego.offre[f]+'×'+f+'g').join(' + ')||'—';
-      const of=el('div','of'); of.append('Tu proposes '); of.appendChild(el('b',null,detail)); of.append(' = '+nego.gDonne+'g  (il voulait '+c.format+'g)'); np.appendChild(of);
+      const of=el('div','of'); of.append('Tu proposes '); of.appendChild(el('b',null,detail)); of.append(' = '+gDonne+'g  (il voulait '+c.format+'g)'); np.appendChild(of);
+      // conditionnement au choix : on assemble les sachets à la main (par format dispo)
+      const chips=el('div','chips');
+      for(const f of C.FORMATS){
+        if(st[f]<=0) continue;
+        const ch=el('div','chip'); ch.appendChild(el('span','cf',f+'g'));
+        const mm=el('button','cbtn',null); mm.textContent='−'; if(nego.offre[f]<=0) mm.disabled=true;
+        const cn=el('span','cn',nego.offre[f]+'/'+st[f]);
+        const pp=el('button','cbtn',null); pp.textContent='+'; if(nego.offre[f]>=st[f]) pp.disabled=true;
+        mm.addEventListener('click',()=>{ if(nego.offre[f]>0){ nego.offre[f]--; nego.prix=Math.max(0,nego.prix-sim.state.prix[c.produit][f]); renderDMs(); } });
+        pp.addEventListener('click',()=>{ if(nego.offre[f]<st[f]){ nego.offre[f]++; nego.prix+=sim.state.prix[c.produit][f]; renderDMs(); } });
+        ch.append(mm,cn,pp); chips.appendChild(ch);
+      }
+      np.appendChild(chips);
       const pr=el('div','pr');
       const m=el('button','pbtn',null); m.textContent='−'; const pv=el('span','pv',nego.prix+'€'); const pl=el('button','pbtn',null); pl.textContent='+';
       m.addEventListener('click',()=>{ nego.prix=Math.max(0,nego.prix-5); pv.textContent=nego.prix+'€'; });
       pl.addEventListener('click',()=>{ nego.prix+=5; pv.textContent=nego.prix+'€'; });
       pr.append('Prix',m,pv,pl); np.appendChild(pr);
       const act=el('div','act');
-      const send=el('button','send',null); send.textContent='Envoyer l’offre';
+      const send=el('button','send',null); send.textContent='Envoyer l’offre'; if(gDonne<=0) send.disabled=true;
       send.addEventListener('click',()=>{ const r=sim.negocier(c.id,nego.offre,nego.prix); if(r.ok){toast('Deal ✓ +'+r.prix+'€');dmProfile.delete(c.id);nego=null;} else {toast('Refus : '+r.raison);} renderDMs(); updateHUD(); });
       const cancel=el('button','cancel',null); cancel.textContent='Annuler';
       cancel.addEventListener('click',()=>{ nego=null; renderDMs(); });
