@@ -69,6 +69,7 @@
   .dm .col{flex:1;min-width:0}
   .dm .nm{font:700 12px var(--sans);display:flex;align-items:center;gap:6px}
   .dm .msg{font:400 12px var(--sans);color:var(--muted);margin-top:1px}
+  .dm .disc{font:600 10px var(--mono);color:var(--faint);margin-top:2px}
   .dm .serve{flex:none;border:1px solid var(--neon);color:#bcd6f0;background:var(--surface2);border-radius:11px;padding:8px 11px;font:800 12px var(--sans);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px}
   .dm .serve .px{font:600 9px var(--mono);color:var(--muted)}
   .dm .serve:active{transform:scale(.97)}
@@ -216,9 +217,9 @@
 <div class="devnote">Sandbox v2.1 — mets ta vitrine en vente, sers les clients qui te DM (jusqu’à épuisement du stock). Horloge temps réel, données dans Metrics.</div>
 
 <script type="module">
-import { createSim, C, jaugeOpaque } from './sim.mjs';
+import { createSim, C, jaugeOpaque, DISCERNEMENT } from './sim.mjs';
 
-const SAVE_VERSION = '9';
+const SAVE_VERSION = '10';
 if (localStorage.getItem('sbx_ver') !== SAVE_VERSION){
   for (const k of Object.keys(localStorage)) if (k.startsWith('sbx_')) localStorage.removeItem(k);
   localStorage.setItem('sbx_ver', SAVE_VERSION);
@@ -229,12 +230,8 @@ window.sim = sim;          // inspection en console (DNA : « inspectable en con
 const $ = id => document.getElementById(id);
 
 const META = { hash:{nm:'Hash',ic:'🟫'}, weed:{nm:'Weed',ic:'🌿'}, neige:{nm:'Neige',ic:'❄️'} };
-const REASSORT = {
-  hash:  [ { av:'🐍', nm:'ParraLi', g:100, px:250, ds:'savonnette 100g' },
-           { av:'🦂', nm:'Vex_02',  g:250, px:560, ds:'plaque 250g (gros)' } ],
-  weed:  [ { av:'🌒', nm:'Niko_tn', g:100, px:300, ds:'beuh 100g' } ],
-  neige: [ { av:'❄️', nm:'Saff99',  g:50,  px:1800, ds:'coke 50g' } ],
-};
+const QMETA = { A:{ic:'🟢',cl:'qa'}, B:{ic:'🟡',cl:'qb'}, C:{ic:'🟤',cl:'qc'} };  // présentation qualité
+const QAVATAR = { A:'🏔️', B:'🟡', C:'🧱' };
 /* labo : chaque produit ouvre SON proto en mode atelier (embed) */
 const LABO_PROTO = { hash:'../hash-slicer-v2/', weed:'../green-front-v3/', neige:'../neige/' };
 /* présentation des DM (pseudo/avatar aléatoires = présentation autorisée) */
@@ -275,10 +272,10 @@ function renderInv(){
   for(const p of C.PRODUITS){
     const c=el('div','invc'+(sim.state.debloques[p]?'':' lock'));
     c.appendChild(el('div','nm',META[p].ic+' '+META[p].nm));
-    const st=sim.state.stock[p];
-    const g=el('div','g'); g.append('brut '); g.appendChild(el('b',null,sim.state.matiere[p]+'g')); c.appendChild(g);
-    const sa=el('div','g');
-    C.FORMATS.forEach((f,i)=>{ if(i) sa.append(' '); sa.append(f+'g·'); sa.appendChild(el('b',null,String(st[f]))); });
+    const matTot=C.QUALITES.reduce((a,q)=>a+sim.state.matiere[p][q],0);
+    const g=el('div','g'); g.append('brut '); g.appendChild(el('b',null,matTot+'g')); c.appendChild(g);
+    const sa=el('div','g');     // sachets par qualité (total tous formats)
+    C.QUALITES.forEach((q,i)=>{ if(i) sa.append(' '); sa.append(q+'·'); const tot=C.FORMATS.reduce((a,f)=>a+sim.state.stock[p][q][f],0); sa.appendChild(el('b',null,String(tot))); });
     c.appendChild(sa);
     box.appendChild(c);
   }
@@ -352,13 +349,16 @@ function renderDMs(){
   for(const c of dms){
     if(!dmProfile.has(c.id)) dmProfile.set(c.id,{nm:pick(CM_PRE)+pick(CM_SUF),av:pick(CM_AV),msg:pick(MSGS)});
     const p=dmProfile.get(c.id);
-    const st=sim.state.stock[c.produit];
-    const stockExact=st[c.format], stockTot=C.FORMATS.reduce((a,f)=>a+st[f],0);
+    const acc=C.QUALITES.filter(q=>C.QRANK[q]>=C.QRANK[c.qMin]);   // qualités acceptables par ce client
+    const st={}; let stockTot=0;                                    // stock ACCEPTABLE par format (toutes qualités OK confondues)
+    for(const f of C.FORMATS){ st[f]=acc.reduce((s,q)=>s+sim.state.stock[c.produit][q][f],0); stockTot+=st[f]; }
+    const stockExact=st[c.format], qServ=sim.qualiteServie(c);
     const dm=el('div','dm');
     dm.appendChild(el('div','av',p.av));
     const col=el('div','col');
     col.appendChild(el('div','nm',p.nm));
-    col.appendChild(el('div','msg',p.msg+' (un '+c.format+'g '+META[c.produit].nm+')'));
+    col.appendChild(el('div','msg',p.msg+' · veut un '+c.format+'g'));
+    col.appendChild(el('div','disc',DISCERNEMENT[c.qMin]+(qServ?' · tu files du '+C.QUALITE_NOM[qServ]+' ('+qServ+')':' · rien d’assez bien')));
     dm.appendChild(col);
     const acts=el('div','acts');
     if(stockExact>0){
@@ -420,54 +420,54 @@ function renderDark(){
   v.appendChild(el('div','vtitle','🧅 Réassort — réseau oignon'));
   const head=el('div','torhead');
   head.appendChild(el('div','t','🧅 SilkRoad — semi-grossistes'));
-  head.appendChild(el('div','s','matière première · livraison discrète · paiement crypto'));
+  head.appendChild(el('div','s','la qualité se débloque avec ton standing · paiement crypto'));
   v.appendChild(head);
-  for(const p of C.PRODUITS){
-    const unlocked=sim.state.debloques[p];
-    for(const o of (REASSORT[p]||[])){
-      const off=el('div','offer'); if(!unlocked) off.style.opacity='.5';
-      off.appendChild(el('div','av',o.av));
-      const col=el('div','col');
-      col.appendChild(el('div','nm',META[p].ic+' '+o.nm+' — '+META[p].nm));
-      col.appendChild(el('div','ds',o.ds+' · '+o.g+'g'));
-      off.appendChild(col);
-      if(unlocked){
-        const buy=el('button','btn buy'); buy.appendChild(el('span',null,o.px+'€')); buy.appendChild(el('span','es','acheter'));
-        buy.addEventListener('click',()=>{ sim.acheterMatiere(p,o.g,o.px,'acheté à '+o.nm+' (darkweb)'); toast('+'+o.g+'g '+META[p].nm+' (−'+o.px+'€)'); updateHUD(); });
-        off.appendChild(buy);
-      } else off.appendChild(el('div','px','🔒'));
-      v.appendChild(off);
-    }
+  for(const t of sim.tiersReassort()){
+    const off=el('div','offer'); if(!t.dispo) off.style.opacity='.5';
+    off.appendChild(el('div','av',QAVATAR[t.q]||'📦'));
+    const col=el('div','col');
+    col.appendChild(el('div','nm','🟫 '+t.nom+' ('+t.q+')'));
+    col.appendChild(el('div','ds',t.ds+' · '+t.g+'g'));
+    off.appendChild(col);
+    if(t.dispo){
+      const buy=el('button','btn buy'); buy.appendChild(el('span',null,t.px+'€')); buy.appendChild(el('span','es','acheter'));
+      buy.addEventListener('click',()=>{ sim.acheterMatiere('hash',t.q,t.g,t.px,'acheté au réseau (darkweb)'); toast('+'+t.g+'g '+C.QUALITE_NOM[t.q]+' (−'+t.px+'€)'); updateHUD(); if(view==='dark') renderDark(); });
+      off.appendChild(buy);
+    } else { off.appendChild(el('div','px','🔒')); }
+    v.appendChild(off);
   }
-  v.appendChild(el('div','vsub','Weed / Neige : leurs vendeurs ouvriront avec leur labo (P3). La négo arrive ensuite.'));
+  v.appendChild(el('div','vsub','Monte ton standing (sers de la qualité, poste des drops) → pollen puis népalais se débloquent. Weed / Neige : plus tard.'));
 }
 
 /* ===================== LABO : atelier (proto en iframe, mode embed) ===================== */
 function renderLabo(){
   const v=$('view-labo'); v.replaceChildren();
   v.appendChild(el('div','vtitle','⚗️ Le labo'));
-  v.appendChild(el('div','vsub','Ouvre l’atelier, coupe ta matière à la main, puis renvoie le batch au stock. Tu peux bosser ton labo pendant que les clients te DM.'));
+  v.appendChild(el('div','vsub','Choisis une matière à transformer : ouvre l’atelier, coupe à la main, renvoie le batch (il garde sa qualité). Tu peux bosser pendant que les clients te DM.'));
+  let any=false;
   for(const p of C.PRODUITS){
     if(!sim.state.debloques[p]) continue;
-    const raw=sim.state.matiere[p];
-    const card=el('div','card');
-    const hd=el('div','hd'); hd.appendChild(el('div','nm',META[p].ic+' '+META[p].nm));
-    const meta=el('div','meta'); const m=el('div'); m.append('matière '); m.appendChild(el('b',null,raw+'g')); meta.appendChild(m);
-    hd.appendChild(meta); card.appendChild(hd);
-    card.appendChild(el('div','vsub',raw>0?('jusqu’à 250g par fournée — tu coupes, le reste part en perte'):'pas de matière — passe par le Darkweb'));
-    const row=el('div','row');
-    const open=el('button','btn clean'); open.appendChild(el('span',null,'⚗️ Ouvrir l’atelier')); open.appendChild(el('span','es',raw>0?('couper '+Math.min(250,raw)+'g'):'—'));
-    if(raw<=0) open.disabled=true; else open.addEventListener('click',()=>openLabo(p));
-    row.appendChild(open); card.appendChild(row);
-    v.appendChild(card);
+    for(const q of C.QUALITES){
+      const raw=sim.state.matiere[p][q]; if(raw<=0) continue; any=true;
+      const card=el('div','card');
+      const hd=el('div','hd'); hd.appendChild(el('div','nm',META[p].ic+' '+C.QUALITE_NOM[q]+' ('+q+')'));
+      const meta=el('div','meta'); const m=el('div'); m.append('matière '); m.appendChild(el('b',null,raw+'g')); meta.appendChild(m);
+      hd.appendChild(meta); card.appendChild(hd);
+      const row=el('div','row');
+      const open=el('button','btn clean'); open.appendChild(el('span',null,'⚗️ Ouvrir l’atelier')); open.appendChild(el('span','es','couper '+Math.min(250,raw)+'g'));
+      open.addEventListener('click',()=>openLabo(p,q));
+      row.appendChild(open); card.appendChild(row);
+      v.appendChild(card);
+    }
   }
+  if(!any) v.appendChild(el('div','empty','Pas de matière. Va au 🧅 Darkweb sourcer de la came.'));
 }
-function openLabo(produit){
+function openLabo(produit, qualite){
   const path=LABO_PROTO[produit]; if(!path){toast('atelier indisponible');return;}
-  const g=sim.state.matiere[produit];
+  const g=sim.state.matiere[produit][qualite]||0;
   if(g<=0){toast('pas de matière — passe au Darkweb');return;}
-  $('labotitle').textContent='⚗️ Atelier — '+META[produit].nm;
-  $('laboframe').src=path+'#embed=lab&produit='+encodeURIComponent(produit)+'&matiere='+Math.round(g);
+  $('labotitle').textContent='⚗️ Atelier — '+C.QUALITE_NOM[qualite]+' ('+qualite+')';
+  $('laboframe').src=path+'#embed=lab&produit='+encodeURIComponent(produit)+'&qualite='+qualite+'&matiere='+Math.round(g);
   $('labov').classList.add('show');
 }
 function closeLabo(){ $('labov').classList.remove('show'); $('laboframe').src='about:blank'; renderLabo(); }
@@ -478,13 +478,14 @@ window.addEventListener('message',e=>{
   const d=e.data;
   if(!d||d.type!=='crimworld-lab-batch') return;
   const produit=C.PRODUITS.includes(d.produit)?d.produit:null;
+  const qualite=C.QUALITES.includes(d.qualite)?d.qualite:null;
   const raw=Math.max(0,Math.round(+d.grammesRaw||0));
   const formats={}; let nSach=0;
   for(const f of C.FORMATS){ const k=Math.max(0,Math.round(+((d.formats||{})[f])||0)); formats[f]=k; nSach+=k; }
   try{
-    if(produit&&raw>0&&nSach>0){
-      sim.produireBatch({produit,grammesRaw:raw,qualite:d.qualite==='A'?'A':'C',formats});
-      toast('📦 +'+nSach+' sachets '+META[produit].nm+' au stock');
+    if(produit&&qualite&&raw>0&&nSach>0){
+      sim.produireBatch({produit,qualite,grammesRaw:raw,formats});
+      toast('📦 +'+nSach+' sachets '+C.QUALITE_NOM[qualite]+' au stock');
     } else { toast('atelier fermé — rien produit'); }
   } finally { closeLabo(); updateHUD(); }
 });
@@ -503,7 +504,8 @@ function mkDay(s,label){
   const hd=el('div','hd'); hd.appendChild(el('span',null,label||('Jour '+s.jour)));
   hd.appendChild(el('span','net '+(s.net>=0?'pos':'neg'),(s.net>=0?'+':'')+s.net+'€')); d.appendChild(hd);
   const nums=el('div','nums');
-  nums.textContent='ventes '+s.ventesEUR+'€ · achats '+s.achatsEUR+'€ · caisse '+s.cash+'€ · '+s.sachetsVendus+' sachets vendus · stock hash 2g·'+s.stock.hash[2]+' 5g·'+s.stock.hash[5]+' 10g·'+s.stock.hash[10]+' · réput '+s.reputOpaque;
+  const sTot=q=>C.FORMATS.reduce((a,f)=>a+s.stock.hash[q][f],0);
+  nums.textContent='ventes '+s.ventesEUR+'€ · achats '+s.achatsEUR+'€ · caisse '+s.cash+'€ · '+s.sachetsVendus+' sachets · stock A·'+sTot('A')+' B·'+sTot('B')+' C·'+sTot('C')+' · réput '+s.reputOpaque;
   d.appendChild(nums);
   for(const l of s.lignes) d.appendChild(mkLigne(l));
   return d;
@@ -531,7 +533,7 @@ function feedPool(){
   const s=sim.state, pool=[];
   const pos=Math.round(s.reput/16);                          // 0..6 selon réput
   const last=s.batches[s.batches.length-1];
-  const stockTot=C.FORMATS.reduce((a,f)=>a+s.stock.hash[f],0);
+  const stockTot=C.QUALITES.reduce((a,q)=>a+C.FORMATS.reduce((b,f)=>b+s.stock.hash[q][f],0),0);
   for(let i=0;i<pos;i++) pool.push(...FB_HYPE);
   for(let i=0;i<Math.max(0,3-pos);i++) pool.push(...FB_DECU);
   if(last&&last.qualite==='C') pool.push(...FB_DECU,...FB_DECU); // dernier batch à l'arrache

@@ -450,11 +450,10 @@ const game = { cursor:0, dir:1, flash:0 };   // mini-jeu de coupe : curseur 0..1
 const EMBED = (() => {
   const p = new URLSearchParams(location.hash.replace(/^#/, ""));
   return p.get("embed") === "lab"
-    ? { produit: p.get("produit") || "hash", matiere: Math.max(0, Math.round(+p.get("matiere") || 0)) }
+    ? { produit: p.get("produit") || "hash", qualite: p.get("qualite") || "C", matiere: Math.max(0, Math.round(+p.get("matiere") || 0)) }
     : null;
 })();
-let embProduced = 0, embQ = 0, embLoaf = 0;   // batch en cours : g finis, qualité pondérée, savonnette engagée
-const EMB_QUALITE_A_SEUIL = 0.85;             // qualité moyenne ≥ ce seuil → batch propre (A), sinon arrache (C)
+let embLoaf = 0;   // g de matière (savonnette) engagée dans la fournée en cours
 
 const PER_LEN = W * H * DENS;            // grammes par unite de longueur (x)
 function gramsLeft() { return Math.max(0, ((rightNeg + rightPos) / 2) * PER_LEN); }
@@ -520,7 +519,6 @@ function pointOnTop(clientX, clientY) {
    - manualChop    : coupe MANUELLE = mini-jeu de jauge (vise ~10 g)
    ------------------------------------------------------------------------- */
 function spawnBarrette(cutNeg, cutPos, grams, grade, keep = 1, size = 5) {
-  if (EMBED) { embProduced += grams; embQ += grams * (grade === "A" ? 1 : grade === "B" ? 0.75 : 0.55); }
   const geo = makePrism(cutNeg, cutPos, rightNeg, rightPos);
   geo.computeBoundingBox();
   const c = new THREE.Vector3();
@@ -1303,8 +1301,7 @@ if (EMBED) {
   }
   embLoaf = Math.min(EMBED.matiere, 250);     // on traite jusqu'à 250 g par fournée
   loadLoaf(embLoaf);
-  embProduced = 0; embQ = 0;
-  if (ui.title) ui.title.textContent = "MATIÈRE " + Math.round(embLoaf) + "g";
+  if (ui.title) ui.title.textContent = "MATIÈRE " + Math.round(embLoaf) + "g · " + EMBED.qualite;
   if (ui.hint) { ui.hint.style.opacity = "1"; ui.hint.textContent = "Maintiens pour couper · tape un bac 📦 · puis Envoyer au stock"; }
 
   const send = document.createElement("button");
@@ -1316,10 +1313,9 @@ if (EMBED) {
     const raw = Math.max(0, Math.round(embLoaf - gramsLeft()));        // matière réellement coupée
     const formats = {}; let nSach = 0;                                 // sachets conditionnés par format (bacs)
     for (const s of SIZES) { const k = (bins[s].n || 0) + (bins[s].packed || 0); formats[s] = k; nSach += k; }
-    const qualite = (embProduced > 0 && embQ / embProduced >= EMB_QUALITE_A_SEUIL) ? "A" : "C";
     if (raw <= 0 || nSach <= 0) { showToast("Rien à envoyer — coupe des barrettes", "#caa15f"); return; }
     send.disabled = true;
-    parent.postMessage({ type: "crimworld-lab-batch", produit: EMBED.produit, grammesRaw: raw, qualite, formats }, location.origin);
+    parent.postMessage({ type: "crimworld-lab-batch", produit: EMBED.produit, qualite: EMBED.qualite, grammesRaw: raw, formats }, location.origin);
   });
   document.body.appendChild(send);
 }
