@@ -94,6 +94,12 @@
     font-weight:700; font-size:13px; padding:8px 12px; border-radius:11px; }
   .toggle.on { background:#7aa0ff; border-color:#7aa0ff; color:#0c142a; }
 
+  /* --- Choix de la quantite de branchage (250/500/750/1000 g) --- */
+  #qtyrow .qbtn { pointer-events:auto; background:rgba(255,255,255,.08); border:1.5px solid rgba(255,255,255,.2);
+    color:#fff; font-weight:800; font-size:13px; padding:7px 11px; border-radius:11px; }
+  #qtyrow .qbtn.on { background:rgba(155,227,125,.22); border-color:#7ad17a; color:#d6f7c2; }
+  #qtyrow .qbtn:active { transform:scale(.96); }
+
   /* --- Mix : chips de selection de variete --- */
   #mixchips { display:flex; gap:7px; flex-wrap:wrap; justify-content:center; width:96%; max-width:460px; pointer-events:auto; }
   .chip { pointer-events:auto; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.18);
@@ -169,7 +175,14 @@
 <!-- Phase 1 : Effeuillage -->
 <div class="panel" id="effui">
   <div class="card" id="effcard"></div>
-  <div style="text-align:center;font-size:12.5px;font-weight:800;color:rgba(173,224,140,.85);padding:5px 0 2px;pointer-events:none" id="effswipe">👆 Glisse le long des colas pour détacher les têtes</div>
+  <div class="row" id="qtyrow">
+    <span style="color:rgba(255,255,255,.55);font-size:12px;font-weight:700;pointer-events:none">Branchage</span>
+    <button class="qbtn" data-q="250">250 g</button>
+    <button class="qbtn" data-q="500">500 g</button>
+    <button class="qbtn" data-q="750">750 g</button>
+    <button class="qbtn" data-q="1000">1 kg</button>
+  </div>
+  <div style="text-align:center;font-size:12.5px;font-weight:800;color:rgba(173,224,140,.85);padding:3px 0 2px;pointer-events:none" id="effswipe">👆 Glisse le long des colas pour détacher les têtes</div>
   <div class="row">
     <button class="btn" id="effNext">Trier ▸</button>
   </div>
@@ -260,12 +273,7 @@ const STRAINS = {
 const STR_IDS = ["skunk", "widow", "lemon", "purple"];
 
 // Recoltes prises a credit. €/g de gros baisse avec le volume. nbVar = nb de
-// varietes presentes dans la recolte. leaf = part de feuilles/dechet (a effeuiller).
-const HARVESTS = {
-  plant:  { g: 140, name: "Plant (≈140 g)",   wholesale: 2.6, nbVar: 2, leaf: 0.30 },
-  crop:   { g: 320, name: "Récolte (≈320 g)", wholesale: 2.3, nbVar: 3, leaf: 0.26 },
-  room:   { g: 640, name: "Chambre (≈640 g)", wholesale: 2.0, nbVar: 4, leaf: 0.22 },
-};
+// varietes presentes dans la recolte. (La quantite est choisie a la main, cf. QUANTITIES.)
 
 // Formats de pots : petite quantite = €/g plus eleve (retail).
 const JARS = [
@@ -514,7 +522,7 @@ function buildCola() {
   colasGrp.add(grp);
   return { grp, variety: null, buds, leaves };
 }
-const COLA_POOL = 8;
+const COLA_POOL = 14;
 const colaPool = [];
 for (let i = 0; i < COLA_POOL; i++) colaPool.push(buildCola());
 let activeColas = [];                          // colas montrees pour la recolte courante
@@ -954,33 +962,57 @@ const eff = { dragging: false, prev: null, flash: 0 };
 
 function maxDebt() { return 800 + rep * 24 + level * 200; }
 
-// Compose une nouvelle recolte : choisit nbVar varietes et leurs parts.
-function newHarvest() {
-  let key = "plant";
-  if (level >= 2) key = "crop";
-  if (owned.room) key = "room";
-  const h = HARVESTS[key];
-  const pool = STR_IDS.slice().sort(() => Math.random() - 0.5).slice(0, h.nbVar);
+// Quantite de branchage brut "achetee" (g). Dans le vrai jeu elle vient du proto
+// d'appro (branchage brut -30%) ; ici on la choisit a la main pour TESTER l'affichage.
+const QUANTITIES = [250, 500, 750, 1000];
+let qtyChoice = +(localStorage.getItem("rc_qty") || 500);
+// Parametres derives de la quantite : €/g de gros (gros volume = moins cher),
+// nb de varietes presentes, part de feuille.
+function qtyParams(g) {
+  const wholesale = g >= 1000 ? 1.7 : g >= 750 ? 1.9 : g >= 500 ? 2.1 : 2.4;
+  const nbVar = g >= 1000 ? 4 : g >= 500 ? 3 : 2;
+  return { wholesale, nbVar, leaf: 0.26 };
+}
+// Nb de colas affichees ~ 1 pour 85 g (3 / 6 / 9 / 12 pour 250 / 500 / 750 / 1000 g).
+function colaCount(g) { return Math.max(2, Math.min(COLA_POOL, Math.round(g / 85))); }
+
+// Compose une nouvelle recolte de `grams` g : varietes + parts. Pas de dette ici
+// (on credite seulement au passage au tri) pour pouvoir re-tester l'affichage.
+function newHarvest(grams) {
+  const p = qtyParams(grams);
+  const pool = STR_IDS.slice().sort(() => Math.random() - 0.5).slice(0, p.nbVar);
   const fr = {}; let s = 0;
   for (const id of pool) { const w = 0.5 + Math.random(); fr[id] = w; s += w; }
   for (const id of pool) fr[id] /= s;                  // normalise a 1
   harvest = {
-    raw: h.g, total: h.g, key,
-    wholesale: +(h.wholesale * (1 - rep / 600)).toFixed(2),
-    fr, leafFr: h.leaf, varieties: pool,
+    raw: grams, total: grams,
+    wholesale: +(p.wholesale * (1 - rep / 600)).toFixed(2),
+    fr, leafFr: p.leaf, varieties: pool, credited: false,
   };
-  const cost = Math.round(h.g * harvest.wholesale);
-  setDebt(debt + cost);                                // recolte prise a credit -> dette
-  showToast("Récolte prise à crédit", "#bdf0a3");
 }
 // Prepare les colas : on en montre PLUSIEURS (3 a 8 selon la recolte), reparties
 // entre les varietes au prorata de la recolte. Plus de branches a effeuiller =
 // plus de tetes a faire tomber.
+// Calcule la position (x,z) de chaque cola : 1 rangee jusqu'a 7, sinon 2 rangees
+// (avant/arriere, decalees) pour un effet "full feuillage" sans trop serrer.
+function colaLayout(n) {
+  const pos = [];
+  if (n <= 7) {
+    const span = n <= 1 ? 0 : Math.min(2.8, 0.45 * (n - 1));
+    for (let i = 0; i < n; i++) pos.push({ x: n === 1 ? 0 : -span + 2 * span * (i / (n - 1)), z: (i % 2) * 0.16 - 0.08 });
+    return { pos, radius: Math.hypot(span + 0.9, 1.15, 0.45), targetZ: 0 };
+  }
+  const back = Math.ceil(n / 2), front = n - back;
+  const spanB = Math.min(3.2, 0.52 * (back - 1)), spanF = Math.min(3.2, 0.52 * (front - 1));
+  for (let i = 0; i < back; i++)  pos.push({ x: back === 1 ? 0 : -spanB + 2 * spanB * (i / (back - 1)), z: -0.5 });
+  for (let i = 0; i < front; i++) pos.push({ x: (front === 1 ? 0 : -spanF + 2 * spanF * (i / (front - 1))) + 0.26, z: 0.4 });
+  return { pos, radius: Math.hypot(Math.max(spanB, spanF) + 1.0, 1.4, 1.0), targetZ: -0.05 };
+}
 function setupColas() {
   for (const c of colaPool) c.grp.visible = false;
   activeColas = [];
   const vs = harvest.varieties;
-  const nCol = Math.min(COLA_POOL, harvest.key === "plant" ? 3 : harvest.key === "crop" ? 5 : 8);
+  const nCol = colaCount(harvest.total);
   // Sécateur (boutique) : reduit la part de feuille arrachee.
   const leafFr = Math.max(0.04, harvest.leafFr - owned.secateur * 0.02);
   // Nb de colas par variete ~ proportionnel a sa part (au moins 1), ajuste a nCol.
@@ -990,31 +1022,45 @@ function setupColas() {
   while (assigned < nCol) { const v = vs.reduce((a, b) => (counts[b] < counts[a] ? b : a), vs[0]); counts[v]++; assigned++; }
   // Liste des varietes, cola par cola (groupees par variete).
   const list = []; for (const v of vs) for (let k = 0; k < counts[v]; k++) list.push(v);
-  // Ecartement : pleine largeur, 1 rangee. Le cadrage "eff" s'adapte au nombre.
-  const span = list.length <= 1 ? 0 : Math.min(2.7, 0.42 * (list.length - 1));
+  const layout = colaLayout(list.length);
   list.forEach((v, i) => {
     const c = colaPool[i]; c.grp.visible = true;
     setColaVariety(c, v);
-    c.grp.position.x = list.length === 1 ? 0 : -span + 2 * span * (i / (list.length - 1));
-    c.grp.position.z = (i % 2) * 0.18 - 0.09;          // leger decalage avant/arriere
+    c.grp.position.x = layout.pos[i].x;
+    c.grp.position.z = layout.pos[i].z;
     const per = (harvest.total * harvest.fr[v]) / counts[v] / c.buds.length;
     for (const b of c.buds) { b.on = true; b.mesh.visible = true; b.mass = per; b.leafFrac = leafFr * (0.7 + Math.random() * 0.6); }
     for (const lf of c.leaves) { lf.visible = true; lf.material = matLeafSolid; }
     activeColas.push(c);
   });
-  // Adapte le cadrage frontal a la largeur des colas.
-  VIEWS.eff.radius = Math.hypot(span + 0.9, 1.15, 0.4);
+  // Adapte le cadrage frontal a la largeur / profondeur des colas.
+  VIEWS.eff.radius = layout.radius;
+  VIEWS.eff.target.z = layout.targetZ;
   if (phase === "effeuille") fitView();
 }
 function gotoEffeuille() {
   setPhase("effeuille");
-  newHarvest();
+  newHarvest(qtyChoice);
   fresh = { skunk: 0, widow: 0, lemon: 0, purple: 0, leaf: 0 };
   eff.dragging = false; eff.prev = null; eff.flash = 0;
   setupColas();
   refreshBasket(0, harvest.total);
+  setQtyUI();
   refreshEffCard();
-  setHint("Glisse le doigt le long des colas pour détacher les têtes. Tout tombe mêlé dans le panier — tu trieras après.");
+  setHint("Choisis la quantité de branchage, puis glisse le long des colas pour détacher les têtes.");
+}
+// Rejoue une recolte a la quantite choisie (boutons 250/500/750/1000) — affichage seul.
+function chooseQty(g) {
+  qtyChoice = g; localStorage.setItem("rc_qty", String(g));
+  newHarvest(g);
+  fresh = { skunk: 0, widow: 0, lemon: 0, purple: 0, leaf: 0 };
+  setupColas();
+  refreshBasket(0, harvest.total);
+  setQtyUI();
+  refreshEffCard();
+}
+function setQtyUI() {
+  document.querySelectorAll(".qbtn").forEach(b => b.classList.toggle("on", +b.dataset.q === qtyChoice));
 }
 function freshBud() { return STR_IDS.reduce((s, id) => s + fresh[id], 0); }
 function colaBudsLeft() {
@@ -1025,7 +1071,8 @@ function colaBudsLeft() {
 function refreshEffCard() {
   const names = harvest.varieties.map(id => STRAINS[id].emoji + " " + STRAINS[id].name.split(" ")[0]).join(" · ");
   ui.effcard.innerHTML =
-    "🌿 Récolte : <b>" + HARVESTS[harvest.key].name + "</b><br>" + names +
+    "🌿 Branchage brut : <b>" + harvest.total + " g</b> · " + activeColas.length + " colas · crédit " +
+    Math.round(harvest.total * harvest.wholesale) + " €<br>" + names +
     "<br>Panier : <b>" + Math.round(freshBud()) + " g</b> têtes · " + Math.round(fresh.leaf) + " g feuilles";
 }
 // Détache toute tete croisee par le segment de glisse (a->b en pixels ecran).
@@ -1069,6 +1116,12 @@ function effStripSeg(a, b) {
    13) PHASE 2 — TRI PAR VARIETE
    ------------------------------------------------------------------------- */
 function gotoTri() {
+  // On valide la quantite choisie -> le branchage est pris a credit (une seule fois).
+  if (harvest && !harvest.credited) {
+    harvest.credited = true;
+    setDebt(debt + Math.round(harvest.total * harvest.wholesale));
+    showToast("Branchage pris à crédit", "#bdf0a3");
+  }
   setPhase("tri");
   triStreak = 0;
   // Effeuillage incomplet : on bascule les tetes encore sur les colas dans le tas frais.
@@ -1383,10 +1436,6 @@ function updateAutoSort(dt) {
    18) BOUTIQUE (data-driven)
    ------------------------------------------------------------------------- */
 const SHOP = [
-  { id: "room", icon: "🏠", name: "Chambre de culture",
-    desc: () => "Débloque la récolte Chambre (4 variétés, gros volume).",
-    cost: () => 1800, can: () => owned.room < 1, maxed: () => owned.room >= 1,
-    buy: () => { owned.room = 1; } },
   { id: "secateur", icon: "✂️", name: "Sécateur pro",
     desc: () => "Moins de feuille/déchet à l'effeuillage (+" + ((owned.secateur + 1) * 1.5).toFixed(1) + "%).",
     cost: () => Math.round(280 * Math.pow(1.6, owned.secateur)),
@@ -1497,6 +1546,7 @@ el.addEventListener("pointercancel", onUp, { passive: false });
 
 // Boutons des overlays.
 ui.effNext.addEventListener("click", () => { gotoTri(); });   // le restant non effeuillé bascule dans le tas frais
+document.querySelectorAll(".qbtn").forEach(b => b.addEventListener("click", () => chooseQty(+b.dataset.q)));
 ui.triNext.addEventListener("click", () => {
   if (STR_IDS.every(id => bins[id].g < 1)) { showToast("Trie d'abord de la fleur", "#caa15f"); return; }
   // Restant non trie -> dechet.
