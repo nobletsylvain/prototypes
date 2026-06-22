@@ -55,7 +55,21 @@ marque *abrogée* (date + motif) pour garder la trace de la décision.
 
 ### Règles ajoutées
 
-_(Aucune pour l'instant — les conventions ci-dessus font foi.)_
+- **R1 — Les mini-jeux servent le ressenti, pas la punition** _(2026-06-22)_.
+  Un mini-jeu existe pour faire **sentir** l'action en l'exécutant à la main ;
+  ce n'est **pas** un test d'adresse. **Rater n'inflige aucun malus** — au pire
+  une frustration légère (refaire, un peu de temps), jamais une perte sèche.
+  Seule exception : un proto où l'adresse est explicitement le sujet. La tâche
+  manuelle doit rester ludique et donner le sentiment de récompense une fois
+  finie. *Raison* : le plaisir vient de l'action accomplie, pas de la peur de
+  l'échec.
+- **R2 — La progression adoucit le travail manuel, par étapes** _(2026-06-22)_.
+  Chaque palier doit offrir des outils qui **allègent** la tâche manuelle (plus
+  rapide, plus tolérante, moins frustrante), jusqu'à pouvoir l'**automatiser**
+  ou l'**externaliser** et laisser le joueur se concentrer sur la big picture.
+  *Raison* : la frustration résiduelle est un moteur d'achat d'outils et un fil
+  de progression — du « faire à la main » vers le « piloter » —, jamais une
+  punition.
 
 ## Ajouter un nouveau core loop (checklist)
 
