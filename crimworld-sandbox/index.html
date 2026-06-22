@@ -73,6 +73,17 @@
   .dm .serve .px{font:600 9px var(--mono);color:var(--muted)}
   .dm .serve:active{transform:scale(.97)}
 
+  /* tarifs vitrine : prix par format (levier joueur) */
+  .tarifs{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:9px 11px;margin-top:8px}
+  .tarifs .tarh{font:700 11px var(--sans);color:var(--muted);margin-bottom:7px}
+  .trow{display:flex;gap:8px}
+  .tcell{flex:1;background:#1a1511;border:1px solid #241d17;border-radius:9px;padding:6px 4px;text-align:center}
+  .tcell .tf{font:700 11px var(--mono);color:var(--text)}
+  .tctr{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:4px}
+  .tctr .tbtn{width:22px;height:22px;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font:800 14px var(--sans);cursor:pointer;line-height:1;padding:0}
+  .tctr .tbtn:active{transform:scale(.94)}
+  .tctr .tval{font:800 12px var(--mono);color:var(--green);min-width:34px}
+
   /* cartes produit (labo) + offres (darkweb) */
   .card{border-radius:13px;border:1px solid var(--border);background:var(--surface);padding:11px 13px;display:flex;flex-direction:column;gap:9px}
   .card.lock{opacity:.5}
@@ -169,7 +180,7 @@
 <script type="module">
 import { createSim, C, jaugeOpaque } from './sim.mjs';
 
-const SAVE_VERSION = '7';
+const SAVE_VERSION = '8';
 if (localStorage.getItem('sbx_ver') !== SAVE_VERSION){
   for (const k of Object.keys(localStorage)) if (k.startsWith('sbx_')) localStorage.removeItem(k);
   localStorage.setItem('sbx_ver', SAVE_VERSION);
@@ -226,8 +237,11 @@ function renderInv(){
   for(const p of C.PRODUITS){
     const c=el('div','invc'+(sim.state.debloques[p]?'':' lock'));
     c.appendChild(el('div','nm',META[p].ic+' '+META[p].nm));
-    const g=el('div','g'); g.append('brut '); g.appendChild(el('b',null,sim.state.matiere[p]+'g'));
-    g.append(' · prêt '); g.appendChild(el('b',null,sim.state.stock[p]+'g')); c.appendChild(g);
+    const st=sim.state.stock[p];
+    const g=el('div','g'); g.append('brut '); g.appendChild(el('b',null,sim.state.matiere[p]+'g')); c.appendChild(g);
+    const sa=el('div','g');
+    C.FORMATS.forEach((f,i)=>{ if(i) sa.append(' '); sa.append(f+'g·'); sa.appendChild(el('b',null,String(st[f]))); });
+    c.appendChild(sa);
     box.appendChild(c);
   }
 }
@@ -250,6 +264,24 @@ function renderSnap(){
   tray.appendChild(story);
   v.appendChild(tray);
 
+  // tarifs : prix par format (ta marge) — modifiables à tout moment
+  const tar=el('div','tarifs');
+  tar.appendChild(el('div','tarh','💶 Tes prix — hash (par sachet)'));
+  const trow=el('div','trow');
+  for(const f of C.FORMATS){
+    const cell=el('div','tcell'); cell.appendChild(el('div','tf',f+'g'));
+    const ctr=el('div','tctr');
+    const minus=el('button','tbtn',null); minus.textContent='−';
+    const val=el('span','tval',sim.state.prix.hash[f]+'€');
+    const plus=el('button','tbtn',null); plus.textContent='+';
+    const maj=()=>{ val.textContent=sim.state.prix.hash[f]+'€'; renderDMs(); };
+    minus.addEventListener('click',()=>{ sim.setPrix('hash',f,sim.state.prix.hash[f]-2); maj(); });
+    plus .addEventListener('click',()=>{ sim.setPrix('hash',f,sim.state.prix.hash[f]+2); maj(); });
+    ctr.append(minus,val,plus); cell.appendChild(ctr); trow.appendChild(cell);
+  }
+  tar.appendChild(trow);
+  v.appendChild(tar);
+
   const list=el('div',null); list.id='dmlist'; list.style.cssText='display:flex;flex-direction:column;gap:8px;margin-top:6px';
   v.appendChild(list);
   renderDMs();
@@ -271,14 +303,14 @@ function renderDMs(){
     dm.appendChild(el('div','av',p.av));
     const col=el('div','col');
     col.appendChild(el('div','nm',p.nm));
-    col.appendChild(el('div','msg',p.msg+' ('+c.grammes+'g '+META[c.produit].nm+')'));
+    col.appendChild(el('div','msg',p.msg+' (un '+c.format+'g '+META[c.produit].nm+')'));
     dm.appendChild(col);
     const serve=el('button','serve'); serve.appendChild(el('span',null,'Servir'));
-    serve.appendChild(el('span','px',(c.grammes*C.PRIX_GRAMME[c.produit])+'€'));
+    serve.appendChild(el('span','px',sim.state.prix[c.produit][c.format]+'€'));
     serve.addEventListener('click',()=>{
       const g=sim.servir(c.id);
       if(g>0){ toast('+'+g+'€'); dmProfile.delete(c.id); }   // servi : on oublie son profil
-      else { toast('rupture — produis au labo ⚗️'); }        // rupture : il reste en DM (sers-le après resto)
+      else { toast('rupture sur le '+c.format+'g — produis-en au labo ⚗️'); }   // reste en DM (sers-le après resto)
       renderDMs(); updateHUD();
     });
     dm.appendChild(serve);
@@ -350,11 +382,13 @@ window.addEventListener('message',e=>{
   const d=e.data;
   if(!d||d.type!=='crimworld-lab-batch') return;
   const produit=C.PRODUITS.includes(d.produit)?d.produit:null;
-  const raw=Math.max(0,Math.round(+d.grammesRaw||0)), finis=Math.max(0,Math.round(+d.grammesFinis||0));
+  const raw=Math.max(0,Math.round(+d.grammesRaw||0));
+  const formats={}; let nSach=0;
+  for(const f of C.FORMATS){ const k=Math.max(0,Math.round(+((d.formats||{})[f])||0)); formats[f]=k; nSach+=k; }
   try{
-    if(produit&&raw>0&&finis>0){
-      sim.produireBatch({produit,grammesRaw:raw,grammesFinis:finis,qualite:d.qualite==='A'?'A':'C'});
-      toast('📦 +'+finis+'g '+META[produit].nm+' au stock');
+    if(produit&&raw>0&&nSach>0){
+      sim.produireBatch({produit,grammesRaw:raw,qualite:d.qualite==='A'?'A':'C',formats});
+      toast('📦 +'+nSach+' sachets '+META[produit].nm+' au stock');
     } else { toast('atelier fermé — rien produit'); }
   } finally { closeLabo(); updateHUD(); }
 });
@@ -373,7 +407,7 @@ function mkDay(s,label){
   const hd=el('div','hd'); hd.appendChild(el('span',null,label||('Jour '+s.jour)));
   hd.appendChild(el('span','net '+(s.net>=0?'pos':'neg'),(s.net>=0?'+':'')+s.net+'€')); d.appendChild(hd);
   const nums=el('div','nums');
-  nums.textContent='ventes '+s.ventesEUR+'€ · achats '+s.achatsEUR+'€ · caisse '+s.cash+'€ · '+s.clientsServis+' clients servis · stock hash '+s.stock.hash+'g · réput '+s.reputOpaque;
+  nums.textContent='ventes '+s.ventesEUR+'€ · achats '+s.achatsEUR+'€ · caisse '+s.cash+'€ · '+s.sachetsVendus+' sachets vendus · stock hash 2g·'+s.stock.hash[2]+' 5g·'+s.stock.hash[5]+' 10g·'+s.stock.hash[10]+' · réput '+s.reputOpaque;
   d.appendChild(nums);
   for(const l of s.lignes) d.appendChild(mkLigne(l));
   return d;
