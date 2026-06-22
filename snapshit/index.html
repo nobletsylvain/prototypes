@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Snapshit — hub social (proto)</title>
+<!--
+  Snapshit — PROTOTYPE AUTONOME du hub social CrimWorld.
+  Aucune connexion aux autres boucles : la qualité du batch et la réputation
+  (qui viendraient de la sim) sont STUBBÉES ici pour explorer l'EXPÉRIENCE sociale.
+  Spec : crimworld/FEATURES_HUB_SOCIAL.md (3 piliers : EXPO, DROP-PROMESSE, VOIX).
+
+  Invariants DNA tenus même en proto :
+   - AUCUN aléatoire ne pilote l'ÉTAT/les CONSÉQUENCES (spike, cry-wolf, mauvais
+     public, dérive réput = déterministes). Math.random = PRÉSENTATION seule
+     (quelle voix parle, quelle variante de phrase, quel avatar).
+   - Réput OPAQUE : jamais de chiffre, lue dans le TON des réactions.
+   - Chaque conséquence porte une CAUSE lisible (contrat `cause`), rendue au rapport.
+-->
+<style>
+  :root{
+    --bg:#0E0D0C; --surface:#1A1714; --surface2:#221E1A; --border:#352E28;
+    --text:#E4DED5; --muted:#8C837B; --faint:#615951;
+    --sodium:#E8A33D; --neon:#3E7CC2; --rust:#C8442F; --green:#7FA37F;
+    --snap:#FFFC00; --warm:#7FA37F; --cold:#C8442F;
+    --sans:-apple-system,"Segoe UI","Roboto","Helvetica Neue",sans-serif;
+    --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{background:radial-gradient(1200px 700px at 30% -10%,#1b1714 0,var(--bg) 60%);
+       font-family:var(--sans);color:var(--text);min-height:100vh;
+       display:flex;align-items:center;justify-content:center;padding:14px}
+  .phone{position:relative;width:100%;max-width:392px;height:min(820px,94vh);
+         background:var(--bg);border:1px solid var(--border);border-radius:30px;
+         overflow:hidden;display:flex;flex-direction:column;box-shadow:0 30px 80px #000a}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);
+         width:130px;height:24px;background:#0a0908;border-radius:0 0 16px 16px;z-index:60}
+
+  /* ---- header ---- */
+  header{padding:30px 16px 10px;display:flex;align-items:center;gap:10px;
+         border-bottom:1px solid var(--border);background:var(--surface)}
+  .logo{font-weight:800;font-size:19px;letter-spacing:-.5px}
+  .logo b{color:var(--snap)}
+  .day{margin-left:auto;font:600 12px var(--mono);color:var(--muted)}
+
+  /* ---- HUD jauges (réput OPAQUE + buzz) ---- */
+  .hud{display:flex;gap:8px;padding:10px 14px;background:var(--surface);
+       border-bottom:1px solid var(--border)}
+  .gauge{flex:1;background:var(--surface2);border:1px solid var(--border);
+         border-radius:12px;padding:8px 10px}
+  .gauge .lbl{font:600 10px var(--sans);color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .gauge .val{font-size:15px;margin-top:3px;font-weight:700;letter-spacing:2px}
+  .buzzbar{height:6px;border-radius:3px;background:#000;margin-top:6px;overflow:hidden}
+  .buzzbar i{display:block;height:100%;background:linear-gradient(90deg,var(--neon),var(--snap));transition:width .5s}
+
+  /* ---- feed ---- */
+  .feed{flex:1;overflow-y:auto;padding:12px 12px 8px;display:flex;flex-direction:column;gap:9px}
+  .feed::-webkit-scrollbar{width:0}
+  .post{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+        padding:10px 12px;display:flex;gap:10px;animation:rise .35s ease both}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .av{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;
+      font-size:18px;background:var(--surface2);border:1px solid var(--border)}
+  .post .bod{flex:1;min-width:0}
+  .post .nm{font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px}
+  .post .tag{font:600 9px var(--mono);padding:1px 6px;border-radius:6px;color:#000}
+  .post .txt{font-size:13.5px;line-height:1.4;margin-top:2px;color:var(--text);word-wrap:break-word}
+  .post .meta{font:500 10px var(--mono);color:var(--faint);margin-top:5px}
+  .post.warm{border-color:#2f4030}
+  .post.cold{border-color:#4a2620}
+  .post.system{background:transparent;border-style:dashed;justify-content:center}
+  .post.system .txt{color:var(--muted);font-style:italic;text-align:center;font-size:12px}
+
+  /* ---- composer / actions ---- */
+  .dock{border-top:1px solid var(--border);background:var(--surface);padding:10px 12px;
+        display:flex;flex-direction:column;gap:9px}
+  .batch{display:flex;gap:7px}
+  .chip{flex:1;text-align:center;padding:8px 4px;border-radius:10px;border:1px solid var(--border);
+        background:var(--surface2);font:600 12px var(--sans);color:var(--muted);cursor:pointer;transition:.15s}
+  .chip small{display:block;font:500 9px var(--mono);margin-top:2px;opacity:.7}
+  .chip[data-on="1"]{color:var(--text)}
+  .chip.q-propre[data-on="1"]{border-color:var(--green);background:#1e2a1e}
+  .chip.q-standard[data-on="1"]{border-color:var(--sodium);background:#2a230f}
+  .chip.q-arrache[data-on="1"]{border-color:var(--rust);background:#2a1410}
+  .row{display:flex;gap:8px}
+  .btn{flex:1;padding:11px;border-radius:12px;border:1px solid var(--border);font:700 13px var(--sans);
+       cursor:pointer;background:var(--surface2);color:var(--text);transition:.15s}
+  .btn:active{transform:scale(.97)}
+  .btn.drop{background:var(--snap);color:#000;border-color:var(--snap)}
+  .btn.drop.armed{background:#3a3700;color:var(--snap);border-color:#5a5600}
+  .btn.go{background:var(--neon);color:#fff;border-color:var(--neon)}
+  .hint{font:500 11px var(--mono);color:var(--faint);text-align:center;min-height:14px}
+
+  /* ---- modale rapport / drop ---- */
+  .scrim{position:absolute;inset:0;background:#000b;z-index:80;display:none;
+         align-items:center;justify-content:center;padding:18px}
+  .scrim.on{display:flex}
+  .sheet{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:18px;
+         padding:16px;max-height:84%;overflow-y:auto}
+  .sheet h2{font-size:16px;margin-bottom:3px}
+  .sheet .sub{font:500 11px var(--mono);color:var(--muted);margin-bottom:12px}
+  .cons{border-left:3px solid var(--border);padding:7px 10px;margin:7px 0;background:var(--surface2);border-radius:0 8px 8px 0}
+  .cons .h{font-weight:700;font-size:12.5px;display:flex;gap:7px;align-items:center}
+  .cons .c{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4}
+  .cons.up{border-left-color:var(--green)} .cons.down{border-left-color:var(--rust)}
+  .cons.warn{border-left-color:var(--sodium)}
+  .dropopt{display:flex;gap:8px;margin:10px 0}
+  .dropopt .chip{flex:1}
+  .seg{display:flex;gap:8px;margin-bottom:12px}
+  .reset{position:absolute;bottom:6px;right:10px;z-index:70;font:500 10px var(--mono);
+         color:var(--faint);background:none;border:none;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="notch"></div>
+  <header>
+    <div class="logo">⚡ <b>Snapshit</b></div>
+    <div class="day" id="day">jour 1</div>
+  </header>
+
+  <div class="hud">
+    <div class="gauge">
+      <div class="lbl">🔥 le block te capte</div>
+      <div class="val" id="repGauge">• • •</div>
+    </div>
+    <div class="gauge">
+      <div class="lbl">📣 buzz (expo)</div>
+      <div class="val" id="expoVal" style="font-size:12px;letter-spacing:0">tranquille</div>
+      <div class="buzzbar"><i id="expoBar" style="width:10%"></i></div>
+    </div>
+  </div>
+
+  <div class="feed" id="feed"></div>
+
+  <div class="dock">
+    <div class="hint" id="hint">Coupe ton batch, poste (ou pas), puis passe la journée.</div>
+    <div class="batch" id="batch">
+      <div class="chip q-propre"   data-q="propre"   data-on="0">propre<small>qualité haute</small></div>
+      <div class="chip q-standard" data-q="standard" data-on="1">standard<small>correct</small></div>
+      <div class="chip q-arrache"  data-q="arrache"  data-on="0">à l'arrache<small>+ de poids</small></div>
+    </div>
+    <div class="row">
+      <button class="btn drop" id="btnDrop">📣 Poster un drop</button>
+      <button class="btn go" id="btnDay">Passer la journée →</button>
+    </div>
+  </div>
+
+  <button class="reset" id="btnReset">reset</button>
+</div>
+
+<!-- modale générique (drop composer + rapport de nuit) -->
+<div class="scrim" id="scrim"><div class="sheet" id="sheet"></div></div>
+
+<script type="module">
+'use strict';
+// ============================================================================
+// SNAPSHIT — proto autonome du hub social. Voir commentaire d'en-tête.
+// ============================================================================
+const SAVE_VERSION = 1;
+const KEY = 'snapshit_state', VKEY = 'snapshit_ver';
+
+// ---- Constantes nommées (PLACEHOLDERS — réglage humain plus tard) ----------
+const C = {
+  REPUT_INIT: 50, EXPO_INIT: 10,
+  // qualité livrée par choix de coupe (stub du levier amont)
+  QUAL: { propre: 90, standard: 65, arrache: 35 },
+  // EXPO
+  EXPO_PAR_DROP: 30, EXPO_PAR_VITRINE: 12, EXPO_PAR_VOLUME: 0, // (volume hors proto)
+  EXPO_DECAY: 0.72, EXPO_CAP: 100,
+  EXPO_SEUIL_MAUVAIS_PUBLIC: 60, EXPO_DELAI_MAUVAIS_PUBLIC: 2,
+  FLAKE_BASE: 0.10, FLAKE_PAR_SURuEXPO: 0.12, FLAKE_DECAY: 0.85,
+  // DROP-PROMESSE
+  DROP_QUAL_PROMISE: { premium: 88, normal: 66 },
+  DROP_SPIKE: 22,                 // boost de demande le jour du drop (×crédibilité)
+  CRY_WOLF_SEUIL_ECART: 18,       // écart qualité promise↔livrée déclenchant le cry-wolf
+  CRY_WOLF_DELAI: 2,              // jours avant l'effondrement différé
+  CRY_WOLF_AMPLEUR: 16,           // points de réput perdus d'un coup
+  CREDIBILITE_DECAY: 0.55,        // crédibilité ×0.55 par promesse trahie
+  CREDIBILITE_REGAIN: 0.12,       // +0.12 (clampé 1) par promesse tenue
+  // réput (la demande) dérive vers la qualité livrée
+  REPUT_PENTE_HAUSSE: 0.14, REPUT_PENTE_BAISSE: 0.30, REPUT_MAX: 100,
+};
+
+// ---- DICO d'argot (sous-ensemble embarqué ; le vrai slang/ peut l'écraser) -
+let DICO = {
+  SELL_POINT:   ['le four','le tieks','le block','le terrain'],
+  CUSTOMER:     ['les clients','les reufs','la clientèle','les habitués'],
+  DEALER_RETAIL:['le charbonneur','le bicraveur'],
+  CANNABIS_WEED:['la beuh','la frappe','la verte'],
+  QUALITY_GOOD: ['de la frappe','du haut de gamme','de la bonne'],
+  QUALITY_BAD:  ['du pneu','de la merde','du sale'],
+  MONEY:        ['la moula','les lovés','les bif'],
+};
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; } // PRÉSENTATION
+function termOf(concept){ const a = DICO[concept]; return a ? pick(a) : concept.toLowerCase(); }
+function fill(tpl){ return tpl.replace(/\{(\w+)\}/g, (_,k)=>termOf(k)); } // gabarits à trous
+// tentative d'override par le vrai dico (sur GitHub Pages : ../slang/dico-trafic.json)
+(async ()=>{ try{
+  const r = await fetch('../slang/dico-trafic.json'); if(!r.ok) return;
+  const j = await r.json(); const m = {};
+  const grab = (key,cc)=>{ const t=j.concepts?.[cc]?.terms?.fr; if(t&&t.length) m[key]=t.map(x=>x.term); };
+  grab('SELL_POINT','SELL_POINT'); grab('CUSTOMER','CUSTOMER'); grab('DEALER_RETAIL','DEALER_RETAIL');
+  grab('CANNABIS_WEED','CANNABIS_WEED'); grab('MONEY','MONEY');
+  DICO = Object.assign({}, DICO, m);
+}catch(e){/* proto reste autonome */} })();
+
+// ---- La TROUPE de voix récurrentes (présentation + mémoire) -----------------
+const VOICES = [
+  { id:'accro',    nm:"L'accro",      av:'😵', },
+  { id:'comtesse', nm:'La Comtesse',  av:'👑', },
+  { id:'lowball',  nm:'Kévin (lowball)', av:'🧃', },
+  { id:'petit',    nm:'Le petit du 4', av:'🧒', },
+  { id:'ancien',   nm:"L'ancien",     av:'🚬', },
+  { id:'condé',    nm:'@blockwatch',  av:'👁️', },
+];
+const voice = id => VOICES.find(v=>v.id===id);
+
+// ---- Banque de phrases : contexte × ton (gabarits {CONCEPT}) ----------------
+// ton ∈ chaleureux|neutre|méfiant|hostile (dérivé de la réput OPAQUE)
+const LINES = {
+  ambiant: {
+    chaleureux:["{SELL_POINT} tourne fort en ce moment 🔥","on sait où trouver {QUALITY_GOOD} maintenant 🙏","ça parle de toi dans le quartier frérot"],
+    neutre:   ["{SELL_POINT} fait son truc tranquille","rien à signaler ce soir","la night est calme 🌙"],
+    méfiant:  ["mouais… faut voir ce que ça donne 👀","j'attends de tester avant de dire","on verra bien"],
+    hostile:  ["{SELL_POINT} c'est devenu n'importe quoi","les {CUSTOMER} commencent à fuir…","ça craint là sérieux"],
+  },
+  drop: {
+    chaleureux:["AH il a drop !! je fonce 🏃","enfin {QUALITY_GOOD} qui arrive 🤤","premier sur le drop évidemment"],
+    neutre:   ["drop posté, on regarde","ok il annonce du lourd, à voir","noté le drop"],
+    méfiant:  ["encore un drop… on y croit à moitié","tu annonces mais bon 🤨","montre, parle moins"],
+    hostile:  ["ENCORE tu hype ? laisse tomber","drop de mytho oui","plus personne te calcule sur tes annonces"],
+  },
+  qualite_basse: {
+    neutre:  ["bon c'était pas fou ce soir","ça passe mais sans plus"],
+    méfiant: ["c'est {QUALITY_BAD} ça non ?","goût bizarre ton truc…","t'as coupé sévère là"],
+    hostile: ["c'est de la merde frérot, remboursé ⛔","du pneu pur, j'achète plus","tu sers {QUALITY_BAD} maintenant ?? 🤬"],
+  },
+  qualite_haute: {
+    chaleureux:["alors ÇA c'est {QUALITY_GOOD} 😮‍💨🔥","propre propre, respect","le plug a du bon, validé ✅"],
+    neutre:   ["correct ce soir, propre","rien à dire, ça tient"],
+  },
+  cry_wolf: { // mémoire : référence le drop trahi
+    méfiant:["t'avais promis {QUALITY_GOOD} y'a {DELAI}j… et là ?","l'annonce d'avant-hier c'était du vent 🤥"],
+    hostile:["t'as hypé {QUALITY_GOOD} y'a {DELAI}j puis servi {QUALITY_BAD} — mytho 🤬","on a tous vu ton drop. menteur. {CUSTOMER} se barrent"],
+  },
+  mauvais_public: {
+    méfiant:["y'a des reloux qui débarquent sur {SELL_POINT}…","ça attire n'importe qui ton buzz"],
+    hostile:["full lowballers ce soir, ça négocie {MONEY} pour rien","trop de bruit → que des emmerdeurs maintenant"],
+  },
+  promesse_tenue: {
+    chaleureux:["il avait dit premium, c'était premium 👑✅","quand il annonce, il assure. confiance 🤝"],
+  },
+};
+function lineFor(ctx, tone, extra){
+  const bank = LINES[ctx] || {};
+  let pool = bank[tone];
+  if(!pool){ // fallback vers le ton le plus proche dispo
+    const order=['chaleureux','neutre','méfiant','hostile'];
+    for(const t of order){ if(bank[t]){ pool=bank[t]; break; } }
+  }
+  if(!pool) return null;
+  let s = pick(pool);
+  if(extra) for(const k in extra) s = s.split('{'+k+'}').join(extra[k]); // extra AVANT fill()
+  return fill(s);                                                        // puis résout les {CONCEPT}
+}
+
+// ---- ÉTAT --------------------------------------------------------------------
+function freshState(){
+  return {
+    jour:1, reput:C.REPUT_INIT, expo:C.EXPO_INIT, credibilite:1, flake:C.FLAKE_BASE,
+    qualiteChoisie:'standard',
+    promesse:null,                 // { jour, niveau, qualPromise }
+    droppeAujourdhui:false,
+    pendingCryWolf:[],             // [{ due, ampleur, niveau, jourPromesse }]
+    pendingBadPublic:[],           // [{ due, ampleur }]
+    feed:[],                       // posts affichés (présentation, persistés)
+    repPrev:C.REPUT_INIT,
+  };
+}
+let S = load();
+function load(){
+  try{
+    if(localStorage.getItem(VKEY)!==String(SAVE_VERSION)){ throw 0; }
+    const s = JSON.parse(localStorage.getItem(KEY)); if(!s) throw 0; return s;
+  }catch(e){ const s=freshState(); persist(s); return s; }
+}
+function persist(s){ localStorage.setItem(KEY, JSON.stringify(s||S)); localStorage.setItem(VKEY,String(SAVE_VERSION)); }
+
+// ---- Outils ------------------------------------------------------------------
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function toneFromReput(r){ return r>=72?'chaleureux': r>=50?'neutre': r>=30?'méfiant':'hostile'; }
+
+// ---- MOTEUR (déterministe — aucune conséquence par hasard) -------------------
+// Poster un drop : promesse publique + spike d'expo (×crédibilité). Pas de hasard.
+function posterDrop(niveau){
+  if(S.droppeAujourdhui) return;
+  S.promesse = { jour:S.jour, niveau, qualPromise:C.DROP_QUAL_PROMISE[niveau] };
+  S.droppeAujourdhui = true;
+  S.expo = clamp(S.expo + C.EXPO_PAR_DROP, 0, C.EXPO_CAP);
+  pushFeed({ ctx:'drop', tone:toneFromReput(S.reput) });
+}
+function posterVitrine(){
+  S.expo = clamp(S.expo + C.EXPO_PAR_VITRINE, 0, C.EXPO_CAP);
+  pushFeed({ ctx:'ambiant', tone:toneFromReput(S.reput) });
+}
+
+// Passer la journée : résout tout déterministement et produit les CAUSES.
+function passerJournee(){
+  const conséquences = [];
+  const qLivree = C.QUAL[S.qualiteChoisie];
+  S.repPrev = S.reput;
+
+  // 1) Événements DIFFÉRÉS arrivés à échéance (tracés à une décision passée)
+  S.pendingCryWolf = S.pendingCryWolf.filter(ev=>{
+    if(ev.due!==S.jour) return true;
+    S.reput = clamp(S.reput - ev.ampleur, 0, C.REPUT_MAX);
+    conséquences.push({ k:'down', t:'RÉPUT — falaise (cry-wolf)',
+      c:`La confiance s'effondre : tu avais hypé un drop « ${ev.niveau} » au jour ${ev.jourPromesse} puis livré bien en dessous. Le mensonge a fini par se savoir (−réput d'un coup).` });
+    pushFeed({ ctx:'cry_wolf', tone:'hostile', extra:{ DELAI:String(S.jour-ev.jourPromesse) } });
+    return false;
+  });
+  S.pendingBadPublic = S.pendingBadPublic.filter(ev=>{
+    if(ev.due!==S.jour) return true;
+    S.flake = clamp(S.flake + ev.ampleur, 0, 0.9);
+    conséquences.push({ k:'warn', t:'BASSIN — mauvais public',
+      c:`Ton buzz d'il y a ${C.EXPO_DELAI_MAUVAIS_PUBLIC}j a attiré le mauvais monde : la part de flakes/lowballers monte. Co-effet PARALLÈLE de l'exposition (pas « moins de ventes »).` });
+    pushFeed({ ctx:'mauvais_public', tone:S.reput<50?'hostile':'méfiant' });
+    return false;
+  });
+
+  // 2) Jugement de la PROMESSE faite ce jour (qualité promise vs livrée)
+  if(S.promesse){
+    const ecart = S.promesse.qualPromise - qLivree;
+    if(ecart > C.CRY_WOLF_SEUIL_ECART){
+      S.pendingCryWolf.push({ due:S.jour + C.CRY_WOLF_DELAI, ampleur:C.CRY_WOLF_AMPLEUR,
+        niveau:S.promesse.niveau, jourPromesse:S.promesse.jour });
+      S.credibilite = clamp(S.credibilite * C.CREDIBILITE_DECAY, 0.05, 1);
+      conséquences.push({ k:'warn', t:'PROMESSE TRAHIE — bombe à retardement',
+        c:`Tu as promis « ${S.promesse.niveau} » mais livré de la qualité ${qLivree}. Personne ne réagit ce soir : le cry-wolf tombera au jour ${S.jour + C.CRY_WOLF_DELAI}. Ta crédibilité baisse (tes prochains drops feront moins d'effet).` });
+    } else {
+      S.credibilite = clamp(S.credibilite + C.CREDIBILITE_REGAIN, 0.05, 1);
+      conséquences.push({ k:'up', t:'PROMESSE TENUE',
+        c:`Promis « ${S.promesse.niveau} », livré à la hauteur (qualité ${qLivree}). Le spike se convertit, ta crédibilité remonte.` });
+      pushFeed({ ctx:'promesse_tenue', tone:'chaleureux' });
+    }
+    S.promesse = null;
+  }
+
+  // 3) EXPO : sur-exposition -> arme le mauvais public (différé), puis décroît
+  if(S.expo > C.EXPO_SEUIL_MAUVAIS_PUBLIC){
+    S.pendingBadPublic.push({ due:S.jour + C.EXPO_DELAI_MAUVAIS_PUBLIC, ampleur:C.FLAKE_PAR_SURuEXPO });
+    conséquences.push({ k:'warn', t:'EXPO — au-dessus du radar',
+      c:`Buzz élevé (${Math.round(S.expo)}/${C.EXPO_CAP}). Payoff immédiat (plus d'yeux, plus de demande) MAIS le mauvais public arrivera au jour ${S.jour + C.EXPO_DELAI_MAUVAIS_PUBLIC}. Deux sorties parallèles du même buzz.` });
+  }
+  const expoAvant = S.expo;
+  S.expo = clamp(S.expo * C.EXPO_DECAY, 0, C.EXPO_CAP);
+  S.flake = clamp(C.FLAKE_BASE + (S.flake - C.FLAKE_BASE) * C.FLAKE_DECAY, C.FLAKE_BASE, 0.9);
+
+  // 4) RÉPUT (la demande) dérive vers la qualité livrée — graduel
+  const ecartR = qLivree - S.reput;
+  const pente = ecartR >= 0 ? C.REPUT_PENTE_HAUSSE : C.REPUT_PENTE_BAISSE;
+  S.reput = clamp(S.reput + pente * ecartR, 0, C.REPUT_MAX);
+
+  // 5) Réactions du feed à la QUALITÉ livrée (ton = jauge réput opaque)
+  const tone = toneFromReput(S.reput);
+  if(qLivree <= C.QUAL.arrache + 5)      pushFeed({ ctx:'qualite_basse', tone: S.reput<45?'hostile':'méfiant' });
+  else if(qLivree >= C.QUAL.propre - 5)  pushFeed({ ctx:'qualite_haute', tone: S.reput>=72?'chaleureux':'neutre' });
+  else                                   pushFeed({ ctx:'ambiant', tone });
+
+  // 6) demande indicative (présentation au rapport) = f(réput, expo-spike, flake)
+  const spike = S.droppeAujourdhui ? Math.round(C.DROP_SPIKE * S.credibilite) : 0;
+  const dmGood = Math.max(0, Math.round((S.reput/8) + expoAvant/12 + spike));
+  const dmBad  = Math.round(dmGood * S.flake);
+  conséquences.push({ k: dmGood>0?'up':'warn', t:'DEMANDE du jour',
+    c:`${dmGood} acheteurs t'ont DM (${dmBad} flakes/lowballers, part ${Math.round(S.flake*100)}%).${spike?` Dont +${spike} de spike grâce à ton drop (×crédibilité ${S.credibilite.toFixed(2)}).`:''}` });
+
+  // clôture
+  S.droppeAujourdhui = false; S.qualiteChoisie = 'standard';
+  S.jour += 1;
+  trimFeed(); persist();
+  renderHUD(); renderFeed(); renderDock();
+  showRapport(conséquences);
+}
+
+// ---- FEED (présentation) -----------------------------------------------------
+function pushFeed({ctx,tone,extra}){
+  const txt = lineFor(ctx, tone, extra); if(!txt) return;
+  // choisir une voix : présentation. Le condé n'apparaît que sur mauvais public.
+  let pool = VOICES.filter(v=> ctx==='mauvais_public' ? true : v.id!=='condé');
+  if(ctx==='cry_wolf') pool = VOICES.filter(v=>['comtesse','ancien','accro'].includes(v.id));
+  const v = pick(pool);
+  S.feed.push({ vid:v.id, txt, tone, jour:S.jour, ctx });
+}
+function trimFeed(){ if(S.feed.length>40) S.feed = S.feed.slice(-40); }
+const $ = id => document.getElementById(id);
+function renderFeed(){
+  const f = $('feed'); f.innerHTML='';
+  if(S.feed.length===0){
+    f.innerHTML = '<div class="post system"><div class="txt">Le block est silencieux. Poste quelque chose, fais-toi un nom… ou pas.</div></div>';
+  }
+  for(const p of S.feed){
+    const v = voice(p.vid) || {nm:'?',av:'❓'};
+    const warm = p.tone==='chaleureux'?'warm': (p.tone==='hostile'?'cold':'');
+    const tagCol = p.tone==='chaleureux'?'var(--warm)': p.tone==='hostile'?'var(--cold)': p.tone==='méfiant'?'var(--sodium)':'var(--muted)';
+    const el = document.createElement('div'); el.className='post '+warm;
+    el.innerHTML = `<div class="av">${v.av}</div><div class="bod">
+      <div class="nm">${v.nm} <span class="tag" style="background:${tagCol}">${p.tone}</span></div>
+      <div class="txt">${escapeHtml(p.txt)}</div>
+      <div class="meta">jour ${p.jour} · ${p.ctx}</div></div>`;
+    f.appendChild(el);
+  }
+  f.scrollTop = f.scrollHeight;
+}
+function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+// ---- HUD : réput OPAQUE (jamais de chiffre) ----------------------------------
+function renderHUD(){
+  $('day').textContent = 'jour '+S.jour;
+  // jauge réput = blocs qualitatifs, couleur selon le ton (pas de nombre)
+  const tone = toneFromReput(S.reput);
+  const blocks = {hostile:'◦ ◦ ◦', 'méfiant':'● ◦ ◦', neutre:'● ● ◦', chaleureux:'● ● ●'}[tone];
+  const col = {hostile:'var(--cold)','méfiant':'var(--sodium)',neutre:'var(--muted)',chaleureux:'var(--warm)'}[tone];
+  const g=$('repGauge'); g.textContent=blocks; g.style.color=col;
+  // buzz : l'expo est ton action visible, on l'affiche (semi-)lisible
+  $('expoBar').style.width = Math.round(S.expo)+'%';
+  $('expoVal').textContent = S.expo>C.EXPO_SEUIL_MAUVAIS_PUBLIC?'au-dessus du radar ⚠️': S.expo>30?'ça parle de toi':'tranquille';
+}
+function renderDock(){
+  document.querySelectorAll('#batch .chip').forEach(c=> c.dataset.on = (c.dataset.q===S.qualiteChoisie)?'1':'0');
+  const b=$('btnDrop');
+  if(S.droppeAujourdhui){ b.classList.add('armed'); b.textContent='📣 drop armé ✓'; }
+  else{ b.classList.remove('armed'); b.textContent='📣 Poster un drop'; }
+}
+
+// ---- MODALES -----------------------------------------------------------------
+const scrim=$('scrim'), sheet=$('sheet');
+function openSheet(html){ sheet.innerHTML=html; scrim.classList.add('on'); }
+function closeSheet(){ scrim.classList.remove('on'); }
+scrim.addEventListener('click', e=>{ if(e.target===scrim) closeSheet(); });
+
+function openDropComposer(){
+  if(S.droppeAujourdhui){ flash("T'as déjà drop aujourd'hui."); return; }
+  openSheet(`
+    <h2>📣 Poster un drop</h2>
+    <div class="sub">Une promesse publique. Spike de demande maintenant — mais le block jugera ce que tu livres.</div>
+    <div class="dropopt">
+      <div class="chip" data-niv="premium" data-on="0" style="border-color:var(--green)">👑 PREMIUM<small>« du haut de gamme ce soir »</small></div>
+      <div class="chip" data-niv="normal"  data-on="0" style="border-color:var(--sodium)">🟡 NORMAL<small>« arrivage dispo »</small></div>
+    </div>
+    <div class="cons"><div class="c">⚠️ Si ton batch est en dessous de la promesse, <b>cry-wolf différé</b> (réput en falaise dans ${C.CRY_WOLF_DELAI}j) + crédibilité ↓. Crédibilité actuelle : <b>${S.credibilite.toFixed(2)}</b>.</div></div>
+    <div class="row"><button class="btn" id="dropCancel">Annuler</button></div>
+  `);
+  sheet.querySelectorAll('[data-niv]').forEach(c=> c.addEventListener('click',()=>{
+    posterDrop(c.dataset.niv); closeSheet(); persist(); renderHUD(); renderFeed(); renderDock();
+    flash(c.dataset.niv==='premium'?'Drop PREMIUM armé. Faut assurer derrière 👀':'Drop posté.');
+  }));
+  $('dropCancel').addEventListener('click', closeSheet);
+}
+
+function showRapport(cons){
+  const tone = toneFromReput(S.reput);
+  const trend = S.reput>S.repPrev+0.5?'↗ ça remonte': S.reput<S.repPrev-0.5?'↘ ça descend':'→ stable';
+  let body = `<h2>🌙 Rapport de nuit — jour ${S.jour-1}</h2>
+    <div class="sub">Le bilan nomme la cause. (le feed, lui, ne fait que la ressentir)</div>`;
+  if(cons.length===0) body += `<div class="cons"><div class="c">Rien de notable. Le block dort.</div></div>`;
+  for(const c of cons){
+    body += `<div class="cons ${c.k}"><div class="h">${c.t}</div><div class="c">${escapeHtml(c.c)}</div></div>`;
+  }
+  body += `<div class="cons"><div class="c">Tendance réput (opaque) : <b>${trend}</b> — lis-la dans le ton du feed, pas dans un chiffre.</div></div>
+    <div class="row" style="margin-top:12px"><button class="btn go" id="rapOk">Continuer</button></div>`;
+  openSheet(body);
+  $('rapOk').addEventListener('click', closeSheet);
+}
+
+let hintTimer=null;
+function flash(msg){ const h=$('hint'); h.textContent=msg; clearTimeout(hintTimer);
+  hintTimer=setTimeout(()=>{ h.textContent='Coupe ton batch, poste (ou pas), puis passe la journée.'; },2600); }
+
+// ---- WIRING ------------------------------------------------------------------
+document.querySelectorAll('#batch .chip').forEach(c=> c.addEventListener('click',()=>{
+  S.qualiteChoisie = c.dataset.q; renderDock(); persist();
+  flash(c.dataset.q==='arrache'?'À l\'arrache = + de poids vendable, mais ça se sent…': c.dataset.q==='propre'?'Propre : la qualité parle pour toi.':'Standard.');
+}));
+$('btnDrop').addEventListener('click', openDropComposer);
+$('btnDay').addEventListener('click', passerJournee);
+$('btnReset').addEventListener('click', ()=>{ if(confirm('Reset le proto ?')){ S=freshState(); persist(); renderHUD(); renderFeed(); renderDock(); flash('Reset.'); } });
+
+// ---- BOOT --------------------------------------------------------------------
+renderHUD(); renderFeed(); renderDock();
+</script>
+</body>
+</html>
