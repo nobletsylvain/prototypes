@@ -7,12 +7,16 @@
 <style>
   /* =========================================================================
      Onion Market — prototype « fournisseur » (façon Silk Road / TOR).
-     Périmètre v1 : MARCHÉ SEUL (listings, tiers, ratings, commande cash).
-     Pas d'Ubeur / pas de transit ici (lot ultérieur).
-     Invariant repris de CrimWorld : DÉTERMINISTE. Aucun Math.random ne pilote
-     une conséquence. Le tier + le RATING du fournisseur = levier qualité de la
-     matière première (qualité RÉELLE = annoncée × fiabilité(rating)). Tout se
-     trace au listing choisi. Persistance localStorage préfixe `dw_`.
+     Périmètre : marché + RELATION fournisseur (messagerie, négociation,
+     favoris, fidélité). Pas d'Ubeur / transit ici (lot ultérieur).
+
+     INVARIANT (repris de CrimWorld) : DÉTERMINISTE. Aucun Math.random ne pilote
+     une conséquence. Tout — qualité réelle, remise, réponse du fournisseur —
+     est fonction d'une DÉCISION traçable (tier choisi, historique, volume).
+       · qualité RÉELLE  = annoncée × fiabilité(rating)
+       · remise totale   = fidélité(historique) + négo(tier) + volume, plafond(tier)
+       · échantillon      = accordé si rating ≥ 3, sinon refusé (en personnage)
+     Persistance localStorage préfixe `dw_`.
      ========================================================================= */
   :root{
     --bg:#0B0E0B; --surface:#11160F; --surface2:#161C13; --border:#243121;
@@ -40,7 +44,7 @@
   .statusbar #clock{font:700 12px var(--mono);color:var(--text)}
   .statusbar .tor{color:var(--onion);display:flex;align-items:center;gap:4px}
 
-  /* ---- en-tête de l'app : marque .onion + wallet ---- */
+  /* ---- en-tête de l'app ---- */
   .appbar{flex:none;padding:8px 14px 10px;border-bottom:1px solid var(--border);background:#0d110c}
   .brand{display:flex;align-items:center;gap:9px}
   .brand .logo{width:34px;height:34px;border-radius:10px;flex:none;display:flex;align-items:center;
@@ -52,7 +56,7 @@
   .brand .lock{margin-left:auto;font:700 10px var(--mono);color:var(--onion);
        border:1px solid var(--onion-d);border-radius:6px;padding:3px 7px}
 
-  /* ---- bandeau wallet / stock ---- */
+  /* ---- bandeau wallet ---- */
   .wallet{flex:none;display:flex;gap:7px;padding:9px 12px;border-bottom:1px solid var(--border);background:#0e120d}
   .wallet .seg{flex:1;min-width:0;border-radius:10px;background:var(--surface);border:1px solid var(--border);
        padding:6px 9px;display:flex;flex-direction:column;gap:1px}
@@ -63,18 +67,24 @@
   .wallet .stock b{color:var(--text)}
   .wallet .qual b{color:var(--gold)}
 
-  /* ---- filtres tier ---- */
-  .filters{flex:none;display:flex;gap:6px;padding:9px 12px 4px;overflow-x:auto}
+  /* ---- filtres famille + tri ---- */
+  .filters{flex:none;display:flex;gap:6px;padding:9px 12px 3px;overflow-x:auto}
+  .filters::-webkit-scrollbar{display:none}
   .chip{flex:none;font:700 11px var(--sans);color:var(--muted);background:var(--surface);
-       border:1px solid var(--border);border-radius:999px;padding:5px 11px;cursor:pointer}
+       border:1px solid var(--border);border-radius:999px;padding:5px 11px;cursor:pointer;white-space:nowrap}
   .chip.on{color:var(--bg);background:var(--onion);border-color:var(--onion)}
+  .chip.fav.on{background:var(--gold);border-color:var(--gold)}
+  .sortrow{flex:none;display:flex;align-items:center;gap:7px;padding:4px 12px 6px}
+  .sortrow .lbl{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase}
+  .seg{display:flex;gap:0;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface)}
+  .seg button{font:700 10px var(--sans);color:var(--muted);background:none;border:none;padding:5px 10px;cursor:pointer}
+  .seg button.on{background:var(--surface2);color:var(--text)}
 
   /* ---- liste des listings ---- */
-  .feed{flex:1;overflow-y:auto;padding:6px 12px 14px;display:flex;flex-direction:column;gap:9px}
+  .feed{flex:1;overflow-y:auto;padding:4px 12px 14px;display:flex;flex-direction:column;gap:9px}
   .listing{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:11px 12px;
        cursor:pointer;transition:border-color .15s,transform .05s;position:relative}
   .listing:active{transform:scale(.992)}
-  .listing.sold{opacity:.45;pointer-events:none}
   .lhead{display:flex;align-items:center;gap:9px}
   .av{width:38px;height:38px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;
        font-size:20px;background:var(--surface2);border:1px solid var(--border)}
@@ -82,11 +92,19 @@
   .handle{font:800 14px var(--sans);display:flex;align-items:center;gap:6px}
   .verif{color:var(--onion);font-size:12px}
   .sub{font:600 10px var(--mono);color:var(--faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .favstar{flex:none;font-size:18px;color:var(--faint);cursor:pointer;padding:2px 2px 2px 6px;line-height:1}
+  .favstar.on{color:var(--gold)}
   .tier{flex:none;font:800 9px var(--mono);letter-spacing:.04em;text-transform:uppercase;
-       border-radius:6px;padding:3px 7px;align-self:flex-start}
+       border-radius:6px;padding:3px 7px}
   .tier.cheap{color:#c9a06a;background:rgba(201,160,106,.12);border:1px solid rgba(201,160,106,.35)}
   .tier.mid{color:#7bbfe0;background:rgba(123,191,224,.12);border:1px solid rgba(123,191,224,.35)}
   .tier.premium{color:var(--gold);background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.4)}
+  .badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+  .bdg{font:700 9px var(--mono);letter-spacing:.02em;border-radius:5px;padding:2px 6px;
+       border:1px solid var(--border);color:var(--muted);background:var(--surface2)}
+  .bdg.loy{color:var(--onion);border-color:var(--onion-d)}
+  .bdg.fam{color:var(--neon);border-color:#2c4a44}
+  .bdg.samp{color:var(--gold);border-color:rgba(232,184,75,.4)}
   .lbody{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-top:9px}
   .prod{font:600 12px var(--sans);color:var(--text)}
   .prod .pq{color:var(--muted);font:600 11px var(--mono)}
@@ -95,21 +113,29 @@
   .price{text-align:right;flex:none}
   .price b{font:800 16px var(--mono);color:var(--onion)}
   .price .u{font:600 10px var(--mono);color:var(--faint)}
-  .dispo{font:600 9px var(--mono);color:var(--faint);margin-top:2px}
+  .price .was{font:600 10px var(--mono);color:var(--faint);text-decoration:line-through;display:block}
+  .actrow{display:flex;gap:7px;margin-top:10px}
+  .mini{flex:1;font:700 11px var(--sans);text-align:center;border-radius:9px;padding:8px;cursor:pointer;
+       border:1px solid var(--border);background:var(--surface2);color:var(--text)}
+  .mini.msg{color:var(--neon);border-color:#2c4a44}
+  .mini.order{color:var(--bg);background:var(--onion);border-color:var(--onion)}
+  .mini .un{display:block;font:600 9px var(--mono);opacity:.7;margin-top:1px}
 
-  /* ---- fiche fournisseur (bottom-sheet) ---- */
+  /* ---- bottom-sheet générique ---- */
   .scrim{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;
        transition:opacity .2s;z-index:40}
   .scrim.show{opacity:1;pointer-events:auto}
   .sheet{position:absolute;left:0;right:0;bottom:0;z-index:50;background:var(--surface);
        border-top:1px solid var(--border);border-radius:22px 22px 0 0;padding:8px 16px 18px;
        transform:translateY(102%);transition:transform .26s cubic-bezier(.2,.8,.2,1);
-       max-height:84%;overflow-y:auto}
+       max-height:88%;overflow-y:auto;display:flex;flex-direction:column}
   .sheet.show{transform:translateY(0)}
-  .grab{width:42px;height:4px;border-radius:99px;background:var(--border);margin:4px auto 12px}
-  .shead{display:flex;align-items:center;gap:11px;margin-bottom:10px}
+  .grab{width:42px;height:4px;border-radius:99px;background:var(--border);margin:4px auto 12px;flex:none}
+  .shead{display:flex;align-items:center;gap:11px;margin-bottom:10px;flex:none}
   .shead .av{width:46px;height:46px;font-size:24px}
   .shead .handle{font-size:16px}
+
+  /* ---- fiche / commande ---- */
   .specs{display:flex;gap:7px;margin:4px 0 12px}
   .spec{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 9px;text-align:center}
   .spec .k{font:600 8px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase}
@@ -117,8 +143,7 @@
   .spec.q .v{color:var(--gold)}
   .desc{font:400 12px/1.5 var(--sans);color:var(--muted);background:var(--surface2);border:1px solid var(--border);
        border-radius:10px;padding:10px 11px;margin-bottom:12px}
-  .desc .warn{color:var(--gold)}
-  /* sélecteur de quantité */
+  .desc .warn{color:var(--gold)} .desc .good{color:var(--onion)}
   .qtitle{font:700 11px var(--sans);color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px}
   .qtys{display:flex;gap:7px;margin-bottom:13px}
   .qty{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:9px 4px;
@@ -126,16 +151,37 @@
   .qty.on{border-color:var(--onion);background:rgba(127,191,77,.1)}
   .qty .g{font:800 14px var(--mono)}
   .qty .e{font:600 10px var(--mono);color:var(--faint);margin-top:2px}
-  /* récap + bouton commander */
   .recap{display:flex;justify-content:space-between;align-items:baseline;font:600 12px var(--sans);
        color:var(--muted);margin-bottom:4px}
   .recap b{font:800 15px var(--mono);color:var(--text)}
+  .recap .disc{color:var(--onion)}
   .recap.tot b{color:var(--onion);font-size:19px}
   .buy{margin-top:12px;width:100%;border:none;border-radius:14px;padding:14px;cursor:pointer;
        font:800 15px var(--sans);color:var(--bg);background:var(--onion);transition:transform .05s,opacity .15s}
   .buy:active{transform:scale(.99)}
   .buy:disabled{opacity:.4;cursor:not-allowed}
   .buy .sm{display:block;font:600 10px var(--mono);opacity:.8;margin-top:2px}
+  .ghostbtn{margin-top:9px;width:100%;border:1px solid var(--border);border-radius:13px;padding:11px;cursor:pointer;
+       font:700 12px var(--sans);color:var(--neon);background:none}
+
+  /* ---- messagerie ---- */
+  .thread{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:2px 0 8px;min-height:160px}
+  .relline{align-self:center;font:600 9px var(--sans);color:var(--faint);letter-spacing:.06em;text-transform:uppercase;margin:2px 0}
+  .msg-b{max-width:82%;padding:9px 12px;border-radius:15px;font:400 13px/1.4 var(--sans);animation:pop .18s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  .msg-b.them{align-self:flex-start;background:var(--surface2);border:1px solid var(--border);border-bottom-left-radius:5px}
+  .msg-b.me{align-self:flex-end;background:var(--onion-d);color:#eaf6df;border-bottom-right-radius:5px}
+  .msg-b .meta{display:block;font:600 9px var(--mono);color:var(--faint);margin-top:3px}
+  .msg-b.them .num{color:var(--onion);font-weight:700}
+  .chatacts{flex:none;display:flex;flex-direction:column;gap:7px;padding-top:8px;border-top:1px solid var(--border)}
+  .chatrow{display:flex;gap:7px}
+  .cbtn{flex:1;border:1px solid var(--border);border-radius:12px;padding:10px;cursor:pointer;
+       font:700 12px var(--sans);background:var(--surface2);color:var(--text);text-align:center}
+  .cbtn:disabled{opacity:.4;cursor:default}
+  .cbtn.nego{color:var(--gold);border-color:rgba(232,184,75,.4)}
+  .cbtn.samp{color:var(--neon);border-color:#2c4a44}
+  .cbtn.order{color:var(--bg);background:var(--onion);border-color:var(--onion)}
+  .cbtn .un{display:block;font:600 9px var(--mono);opacity:.7;margin-top:1px}
 
   /* ---- toast ---- */
   .toast{position:absolute;left:50%;bottom:96px;transform:translateX(-50%) translateY(10px);
@@ -145,7 +191,7 @@
   .toast.bad{border-color:var(--rust);color:var(--rust)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-  /* ---- barre du bas : reçus + reset ---- */
+  /* ---- barre du bas ---- */
   .tabbar{flex:none;border-top:1px solid var(--border);background:#0d110c;padding:7px 12px 10px;
        display:flex;align-items:center;gap:10px}
   .tabbar .last{flex:1;min-width:0;font:600 11px var(--mono);color:var(--muted);
@@ -154,14 +200,13 @@
   .reset{flex:none;font:700 11px var(--sans);color:var(--faint);background:none;border:1px solid var(--border);
        border-radius:8px;padding:5px 9px;cursor:pointer}
 
-  /* ---- panneau reçus (réutilise le scrim) ---- */
+  /* ---- reçus ---- */
   .receipts{display:flex;flex-direction:column;gap:8px}
-  .rcpt{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;
-       font:600 12px var(--sans)}
+  .rcpt{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font:600 12px var(--sans)}
   .rcpt .r1{display:flex;justify-content:space-between}
   .rcpt .amt{font:800 13px var(--mono);color:var(--rust)}
   .rcpt .cause{font:500 11px/1.4 var(--mono);color:var(--muted);margin-top:4px}
-  .rcpt .cause .ok{color:var(--onion)} .rcpt .cause .lo{color:var(--rust)}
+  .rcpt .cause .ok{color:var(--onion)} .rcpt .cause .lo{color:var(--rust)} .rcpt .cause .di{color:var(--onion)}
   .empty{font:600 12px var(--sans);color:var(--faint);text-align:center;padding:24px 0}
 </style>
 </head>
@@ -192,9 +237,18 @@
 
   <div class="filters" id="filters">
     <div class="chip on" data-f="all">Tout</div>
-    <div class="chip" data-f="cheap">Cheap</div>
-    <div class="chip" data-f="mid">Milieu</div>
-    <div class="chip" data-f="premium">Premium</div>
+    <div class="chip" data-f="resine">Résine</div>
+    <div class="chip" data-f="extraction">Extraction</div>
+    <div class="chip" data-f="weed">Weed</div>
+    <div class="chip fav" data-f="fav">★ Favoris</div>
+  </div>
+  <div class="sortrow">
+    <span class="lbl">Trier</span>
+    <div class="seg" id="sort">
+      <button data-s="rating" class="on">Note ★</button>
+      <button data-s="qual">Qualité</button>
+      <button data-s="price">Prix ↑</button>
+    </div>
   </div>
 
   <div class="feed" id="feed"></div>
@@ -205,79 +259,109 @@
     <button class="reset" id="reset-btn">⟲</button>
   </div>
 
-  <!-- bottom-sheet fiche fournisseur -->
   <div class="scrim" id="scrim"></div>
   <div class="sheet" id="sheet"></div>
-
   <div class="toast" id="toast"></div>
 </div>
 
 <script type="module">
 /* ===========================================================================
-   ÉTAT & DONNÉES
-   - Roster de fournisseurs FIXE (constantes nommées) : pas de tirage qui pilote
-     une conséquence. Le marché est le même à chaque ouverture → lisible.
-   - Levier qualité : qualité RÉELLE livrée = annoncée × fiabilité(rating).
-     fiab = 0.5 + 0.1×rating (rating/5). Un 5★ livre ce qu'il annonce ;
-     un 2★ livre nettement en-dessous. Déterministe, traçable au listing.
+   DONNÉES — roster FIXE (constantes nommées). Aucun tirage ne pilote l'état.
+   family : resine | extraction | weed   ·   tier : cheap | mid | premium
    =========================================================================== */
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2;
 const KEY = 'dw_state';
+const START_CASH = 1600;
+const BULK_G = 100;              // volume à partir duquel s'ajoute la remise « gros volume »
 
-const START_CASH = 1200;
-
-// fiabilité déterministe à partir du rating (0..5)
-const reliab = r => Math.min(1, 0.5 + 0.1 * r);
-// qualité réelle livrée (entier %)
-const realQual = (annoncee, rating) => Math.round(annoncee * reliab(rating));
+const FAMILIES = { resine:'Résine', extraction:'Extraction', weed:'Weed' };
 
 const SUPPLIERS = [
-  { id:'pneu',   handle:'PneuDeSecours',  emoji:'🛞', tier:'cheap',   rating:2.1, sales:418,
-    prod:'Hash marocain', eurG:4.2,  annoncee:74, qtys:[25,50,100,250],
+  // ---- Résine (hash pressé) ----
+  { id:'pneu',  handle:'PneuDeSecours', emoji:'🛞', family:'resine', tier:'cheap',  rating:2.1, sales:418,
+    prod:'Hash marocain', eurG:4.2, annoncee:74, qtys:[25,50,100,250],
     desc:"Gros volumes, prix planché. Beaucoup d'avis tièdes : « pas ce qui est sur la photo ». Tu sais à quoi t'attendre." },
-  { id:'bazar',  handle:'BazarDuBled',    emoji:'🐫', tier:'cheap',   rating:3.0, sales:1102,
-    prod:'Hash pollen', eurG:5.0,  annoncee:78, qtys:[25,50,100,250],
+  { id:'bazar', handle:'BazarDuBled', emoji:'🐫', family:'resine', tier:'cheap',  rating:3.0, sales:1102,
+    prod:'Hash pollen', eurG:5.0, annoncee:78, qtys:[25,50,100,250],
     desc:"Le volume du marché. Correct sans plus, livre à peu près ce qu'il annonce. Vendeur historique." },
-  { id:'atlas',  handle:'AtlasFinest',    emoji:'⛰️', tier:'mid',     rating:4.2, sales:734,
-    prod:'Hash Ketama', eurG:7.5,  annoncee:85, qtys:[10,25,50,100],
+  { id:'atlas', handle:'AtlasFinest', emoji:'⛰️', family:'resine', tier:'mid',    rating:4.2, sales:734,
+    prod:'Hash Ketama', eurG:7.5, annoncee:85, qtys:[10,25,50,100],
     desc:"Bonne réput, peu de litiges. Un cran au-dessus en propreté. Le rapport qualité/prix de référence." },
-  { id:'camo',   handle:'CaramelBeldia',  emoji:'🍯', tier:'mid',     rating:3.7, sales:289,
-    prod:'Beldia artisanal', eurG:6.8,  annoncee:82, qtys:[10,25,50,100],
-    desc:"Petit producteur, lots irréguliers mais honnêtes. Note moyenne : parfois en-dessous de l'annonce." },
-  { id:'frost',  handle:'FrostbiteLab',   emoji:'❄️', tier:'premium', rating:4.8, sales:512,
+  { id:'camo',  handle:'CaramelBeldia', emoji:'🍯', family:'resine', tier:'mid',    rating:3.7, sales:289,
+    prod:'Beldia artisanal', eurG:6.8, annoncee:82, qtys:[10,25,50,100],
+    desc:"Petit producteur, lots irréguliers mais honnêtes. Parfois en-dessous de l'annonce." },
+  // ---- Extraction ----
+  { id:'frost', handle:'FrostbiteLab', emoji:'❄️', family:'extraction', tier:'premium', rating:4.8, sales:512,
     prod:'Ice-o-lator 1ère coulée', eurG:14.0, annoncee:94, qtys:[10,25,50],
     desc:"Top du marché. PGP signé, escrow, lab-tested. Cher, mais ce que tu commandes EST ce qui arrive." },
-  { id:'verde',  handle:'VerdeReserva',   emoji:'🫒', tier:'premium', rating:4.5, sales:201,
+  { id:'verde', handle:'VerdeReserva', emoji:'🫒', family:'extraction', tier:'premium', rating:4.5, sales:201,
     prod:'Dry-sift 120µ', eurG:12.0, annoncee:90, qtys:[10,25,50],
     desc:"Réserve haut de gamme, stock limité. Très peu d'avis négatifs. Min. de commande bas, idéal pour tester." },
+  { id:'rosin', handle:'RosinBros', emoji:'💧', family:'extraction', tier:'mid', rating:3.9, sales:158,
+    prod:'Live rosin 90µ', eurG:11.0, annoncee:88, qtys:[5,10,25],
+    desc:"Presse à chaud maison, petits lots. Sérieux mais jeune sur le marché — la note grimpe." },
+  // ---- Weed ----
+  { id:'gorilla', handle:'GorillaPlug', emoji:'🦍', family:'weed', tier:'premium', rating:4.4, sales:367,
+    prod:'Gorilla Glue (indoor)', eurG:11.0, annoncee:88, qtys:[10,25,50],
+    desc:"Indoor soigné, trim propre, photos macro réelles. Premium assumé, livre conforme." },
+  { id:'green', handle:'GreenHouseNL', emoji:'🏠', family:'weed', tier:'mid', rating:3.8, sales:640,
+    prod:'Amnesia greenhouse', eurG:8.0, annoncee:80, qtys:[10,25,50,100],
+    desc:"Serre néerlandaise, gros débit. Standard fiable, rien d'exceptionnel." },
+  { id:'paco',  handle:'OutdoorPaco', emoji:'🌳', family:'weed', tier:'cheap', rating:2.6, sales:233,
+    prod:'Outdoor OG', eurG:5.5, annoncee:70, qtys:[25,50,100,250],
+    desc:"Outdoor de plein champ, prix au plus bas. Annonce généreuse, réalité plus modeste. Avis partagés." },
 ];
+const byId = id => SUPPLIERS.find(s => s.id === id);
 
-const DEFAULT = () => ({ v:SAVE_VERSION, cash:START_CASH, stockG:0, qualSum:0, receipts:[] });
+/* ----- fonctions DÉTERMINISTES (cœur du design) ----- */
+const reliab   = r => Math.min(1, 0.5 + 0.1 * r);                 // fiabilité 0..1 depuis le rating
+const realQual = s => Math.round(s.annoncee * reliab(s.rating));  // qualité réelle livrée
+const negoCap  = { cheap:18, mid:12, premium:8 };                 // plafond de remise par tier
+const negoBonus= { cheap:8,  mid:5,  premium:2 };                 // remise débloquée par la négociation
+// palier de fidélité depuis le nombre de commandes passées chez ce fournisseur
+function loyalty(count){
+  if(count >= 10) return { lvl:'régulier', pct:8 };
+  if(count >= 5)  return { lvl:'habitué',  pct:5 };
+  if(count >= 2)  return { lvl:'connu',    pct:2 };
+  return { lvl:'nouveau', pct:0 };
+}
+// remise debout (hors volume) : fidélité + négo si débloquée, plafonnée par tier
+function standingPct(s){
+  const r = rel(s.id);
+  const raw = loyalty(r.count).pct + (r.deal ? negoBonus[s.tier] : 0);
+  return Math.min(negoCap[s.tier], raw);
+}
+// remise effective pour une commande de g grammes
+function orderPct(s, g){
+  const r = rel(s.id);
+  const raw = loyalty(r.count).pct + (r.deal ? negoBonus[s.tier] : 0) + (g >= BULK_G ? 3 : 0);
+  return Math.min(negoCap[s.tier], raw);
+}
+const effEurG = (s, g) => s.eurG * (1 - orderPct(s, g) / 100);
 
+/* ===========================================================================
+   ÉTAT + persistance
+   =========================================================================== */
+const DEFAULT = () => ({ v:SAVE_VERSION, cash:START_CASH, stockG:0, qualSum:0, receipts:[], favs:[], rel:{} });
 function load(){
-  try{
-    const s = JSON.parse(localStorage.getItem(KEY));
-    if(s && s.v === SAVE_VERSION) return s;
-  }catch(e){}
+  try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.v === SAVE_VERSION) return s; }catch(e){}
   return DEFAULT();
 }
 function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
 let S = load();
-
-// qualité moyenne pondérée du stock (qualSum = Σ grammes×qualité)
+// relation avec un fournisseur (créée à la volée)
+function rel(id){ return S.rel[id] || (S.rel[id] = { count:0, grams:0, deal:false, sampled:false }); }
 const avgQual = () => S.stockG > 0 ? Math.round(S.qualSum / S.stockG) : 0;
 
 /* ===========================================================================
-   RENDU
+   RENDU liste
    =========================================================================== */
 const $ = id => document.getElementById(id);
 const fmt = n => '€' + Math.round(n).toLocaleString('fr-FR');
-const stars = r => {
-  const full = Math.floor(r), half = r - full >= 0.5;
-  return '★'.repeat(full) + (half?'⯨':'') + '☆'.repeat(5 - full - (half?1:0));
-};
+const fmt1 = n => '€' + (Math.round(n*10)/10).toLocaleString('fr-FR');
+const stars = r => { const f=Math.floor(r), h=r-f>=0.5; return '★'.repeat(f)+(h?'⯨':'')+'☆'.repeat(5-f-(h?1:0)); };
 
-let filter = 'all';
+let filter = 'all', sortBy = 'rating';
 
 function renderWallet(){
   $('w-cash').textContent  = fmt(S.cash);
@@ -289,146 +373,218 @@ function renderWallet(){
     : "Aucune commande pour l'instant.";
 }
 
-function renderFeed(){
-  const feed = $('feed');
-  feed.innerHTML = '';
-  SUPPLIERS
-    .filter(s => filter==='all' || s.tier===filter)
-    .forEach(s => {
-      const el = document.createElement('div');
-      el.className = 'listing';
-      el.innerHTML = `
-        <div class="lhead">
-          <div class="av">${s.emoji}</div>
-          <div class="who">
-            <div class="handle">${s.handle}${s.rating>=4.5?'<span class="verif">✔︎</span>':''}</div>
-            <div class="sub">${s.id}@onion · PGP ✓ · escrow</div>
-          </div>
-          <div class="tier ${s.tier}">${s.tier}</div>
-        </div>
-        <div class="lbody">
-          <div>
-            <div class="prod">${s.prod} <span class="pq">· ${s.annoncee}% annoncé</span></div>
-            <div class="stars">${stars(s.rating)} <span class="cnt">${s.rating.toFixed(1)} · ${s.sales} ventes</span></div>
-          </div>
-          <div class="price">
-            <b>€${s.eurG.toFixed(1)}</b><span class="u">/g</span>
-            <div class="dispo">dès ${s.qtys[0]} g</div>
-          </div>
-        </div>`;
-      el.addEventListener('click', () => openSheet(s));
-      feed.appendChild(el);
-    });
+function visibleSuppliers(){
+  let list = SUPPLIERS.filter(s =>
+    filter === 'all' ? true :
+    filter === 'fav' ? S.favs.includes(s.id) :
+    s.family === filter);
+  const cmp = {
+    rating: (a,b) => b.rating - a.rating,
+    qual:   (a,b) => b.annoncee - a.annoncee,
+    price:  (a,b) => a.eurG - b.eurG,
+  }[sortBy];
+  return list.sort(cmp);
 }
 
-/* ---- fiche fournisseur + commande ---- */
-let sel = null;       // fournisseur ouvert
-let selQty = 0;       // grammes sélectionnés
+function renderFeed(){
+  const feed = $('feed'); feed.innerHTML = '';
+  const list = visibleSuppliers();
+  if(!list.length){ feed.innerHTML = `<div class="empty">Aucun fournisseur ici.<br>${filter==='fav'?'Ajoute des favoris avec ★.':''}</div>`; return; }
+  list.forEach(s => {
+    const r = rel(s.id), loy = loyalty(r.count), st = standingPct(s);
+    const fav = S.favs.includes(s.id);
+    const showQ = r.sampled ? `<span class="pq">· réel ${realQual(s)}%</span>` : `<span class="pq">· ${s.annoncee}% annoncé</span>`;
+    const priceBlock = st > 0
+      ? `<span class="was">${fmt1(s.eurG)}/g</span><b>${fmt1(s.eurG*(1-st/100))}</b><span class="u">/g</span>`
+      : `<b>${fmt1(s.eurG)}</b><span class="u">/g</span>`;
+    const badges = [
+      `<span class="bdg fam">${FAMILIES[s.family]}</span>`,
+      loy.pct > 0 ? `<span class="bdg loy">${loy.lvl} −${loy.pct}%</span>` : '',
+      r.deal ? `<span class="bdg loy">remise négociée</span>` : '',
+      r.sampled ? `<span class="bdg samp">échantillon vu</span>` : '',
+    ].filter(Boolean).join('');
+    const el = document.createElement('div');
+    el.className = 'listing';
+    el.innerHTML = `
+      <div class="lhead">
+        <div class="av">${s.emoji}</div>
+        <div class="who">
+          <div class="handle">${s.handle}${s.rating>=4.5?'<span class="verif">✔︎</span>':''}</div>
+          <div class="sub">${s.id}@onion · PGP ✓ · escrow</div>
+        </div>
+        <div class="favstar ${fav?'on':''}" data-fav="${s.id}">${fav?'★':'☆'}</div>
+        <div class="tier ${s.tier}">${s.tier}</div>
+      </div>
+      <div class="badges">${badges}</div>
+      <div class="lbody">
+        <div>
+          <div class="prod">${s.prod} ${showQ}</div>
+          <div class="stars">${stars(s.rating)} <span class="cnt">${s.rating.toFixed(1)} · ${s.sales} ventes</span></div>
+        </div>
+        <div class="price">${priceBlock}</div>
+      </div>
+      <div class="actrow">
+        <div class="mini msg" data-msg="${s.id}">💬 Contacter${r.count?`<span class="un">${r.count} cmd</span>`:''}</div>
+        <div class="mini order" data-order="${s.id}">Commander</div>
+      </div>`;
+    feed.appendChild(el);
+  });
+}
 
-function openSheet(s){
-  sel = s; selQty = s.qtys[0];
-  const real = realQual(s.annoncee, s.rating);
-  const gap = s.annoncee - real;
-  const fiabPct = Math.round(reliab(s.rating)*100);
-  const warn = gap > 6
-    ? `<span class="warn">⚠ Note basse (${s.rating.toFixed(1)}★) : la qualité réelle tombe souvent sous l'annonce.</span>`
-    : `Note solide : livre au niveau annoncé.`;
+/* ===========================================================================
+   COMMANDE (la conséquence)
+   =========================================================================== */
+let sel = null, selQty = 0;
+
+function openOrder(s){
+  sel = s; selQty = s.qtys.includes(selQty) ? selQty : s.qtys[0];
+  const r = rel(s.id), loy = loyalty(r.count);
+  const real = realQual(s), gap = s.annoncee - real;
+  const qInfo = r.sampled
+    ? `Échantillon vu : qualité réelle <span class="${gap>6?'warn':'good'}">${real}%</span> (annoncé ${s.annoncee}%).`
+    : (gap > 6
+        ? `<span class="warn">⚠ Note basse (${s.rating.toFixed(1)}★) : la qualité réelle tombe souvent sous l'annonce. Demande un échantillon en message.</span>`
+        : `<span class="good">Note solide : livre au niveau annoncé.</span>`);
+  const dealLines = [
+    loy.pct>0 ? `Fidélité « ${loy.lvl} » : −${loy.pct}%` : '',
+    r.deal ? `Remise négociée : −${negoBonus[s.tier]}%` : '',
+    `Gros volume (≥${BULK_G} g) : −3%`,
+  ].filter(Boolean).join(' · ');
   $('sheet').innerHTML = `
     <div class="grab"></div>
     <div class="shead">
       <div class="av">${s.emoji}</div>
-      <div class="who">
-        <div class="handle">${s.handle}</div>
-        <div class="sub">${stars(s.rating)} ${s.rating.toFixed(1)} · ${s.sales} ventes · fiabilité ${fiabPct}%</div>
-      </div>
+      <div class="who"><div class="handle">${s.handle}</div>
+        <div class="sub">${stars(s.rating)} ${s.rating.toFixed(1)} · ${s.sales} ventes · ${FAMILIES[s.family]}</div></div>
       <div class="tier ${s.tier}">${s.tier}</div>
     </div>
     <div class="specs">
       <div class="spec"><div class="k">Produit</div><div class="v" style="font-size:11px">${s.prod}</div></div>
-      <div class="spec"><div class="k">Prix</div><div class="v">€${s.eurG.toFixed(1)}/g</div></div>
-      <div class="spec q"><div class="k">Qualité annoncée</div><div class="v">${s.annoncee}%</div></div>
+      <div class="spec"><div class="k">Prix base</div><div class="v">${fmt1(s.eurG)}/g</div></div>
+      <div class="spec q"><div class="k">Qualité ${r.sampled?'réelle':'annoncée'}</div><div class="v">${r.sampled?realQual(s):s.annoncee}%</div></div>
     </div>
-    <div class="desc">${s.desc}<br><br>${warn}</div>
+    <div class="desc">${qInfo}<br><span style="color:var(--faint);font-size:11px">${dealLines}</span></div>
     <div class="qtitle">Quantité</div>
     <div class="qtys" id="qtys"></div>
-    <div class="recap"><span>Prix unitaire</span><b>€${s.eurG.toFixed(1)}/g</b></div>
+    <div class="recap"><span>Prix appliqué</span><b id="r-unit">—</b></div>
+    <div class="recap"><span id="r-disc-k">Remise</span><b class="disc" id="r-disc">—</b></div>
     <div class="recap tot"><span>Total</span><b id="r-total">—</b></div>
-    <button class="buy" id="buy"></button>`;
+    <button class="buy" id="buy"></button>
+    <button class="ghostbtn" id="to-chat">💬 Négocier / demander un échantillon</button>`;
   renderQtys();
   $('buy').addEventListener('click', doOrder);
-  $('scrim').classList.add('show');
-  $('sheet').classList.add('show');
+  $('to-chat').addEventListener('click', () => openChat(s));
+  showSheet();
 }
-
 function renderQtys(){
   const box = $('qtys'); box.innerHTML = '';
   sel.qtys.forEach(g => {
     const el = document.createElement('div');
     el.className = 'qty' + (g===selQty?' on':'');
-    el.innerHTML = `<div class="g">${g} g</div><div class="e">${fmt(g*sel.eurG)}</div>`;
+    el.innerHTML = `<div class="g">${g} g</div><div class="e">${fmt(g*effEurG(sel,g))}</div>`;
     el.addEventListener('click', () => { selQty = g; renderQtys(); refreshRecap(); });
     box.appendChild(el);
   });
   refreshRecap();
 }
 function refreshRecap(){
-  const total = selQty * sel.eurG;
+  const s = sel, g = selQty, pct = orderPct(s,g), unit = effEurG(s,g), total = g*unit;
+  $('r-unit').textContent = fmt1(unit) + '/g';
+  $('r-disc').textContent = pct > 0 ? `−${pct}% (${fmt(g*s.eurG - total)})` : '—';
   $('r-total').textContent = fmt(total);
-  const btn = $('buy');
-  const ok = total <= S.cash;
+  const btn = $('buy'), ok = total <= S.cash;
   btn.disabled = !ok;
   btn.innerHTML = ok
-    ? `Commander ${selQty} g <span class="sm">paiement cash · escrow · livraison immédiate</span>`
+    ? `Commander ${g} g · ${fmt(total)} <span class="sm">paiement cash · escrow · livraison immédiate</span>`
     : `Cash insuffisant <span class="sm">il manque ${fmt(total - S.cash)}</span>`;
 }
-
-function closeSheet(){
-  $('scrim').classList.remove('show');
-  $('sheet').classList.remove('show');
-  sel = null;
-}
-
-/* ---- LA conséquence : commande déterministe ---- */
 function doOrder(){
-  const s = sel, g = selQty;
-  const total = g * s.eurG;
+  const s = sel, g = selQty, pct = orderPct(s,g), unit = effEurG(s,g), total = Math.round(g*unit);
   if(total > S.cash) return;
-  const real = realQual(s.annoncee, s.rating);      // qualité RÉELLE livrée
-
-  S.cash   -= total;
-  S.stockG += g;
-  S.qualSum += g * real;                            // pondération pour la moyenne
-  s.sales  += 1;                                    // présentation : ventes++
-
+  const real = realQual(s), r = rel(s.id), loy = loyalty(r.count);
+  S.cash -= total; S.stockG += g; S.qualSum += g*real;
+  r.count += 1; r.grams += g; s.sales += 1;
   const gap = s.annoncee - real;
-  const cause = gap <= 2
-    ? `<span class="ok">qualité tenue (${real}%)</span> — fournisseur fiable ${s.rating.toFixed(1)}★`
-    : `<span class="lo">qualité réelle ${real}% &lt; ${s.annoncee}% annoncé</span> — note basse ${s.rating.toFixed(1)}★`;
-  S.receipts.unshift({ handle:s.handle, g, total:Math.round(total), annoncee:s.annoncee, real, cause });
-  if(S.receipts.length > 30) S.receipts.pop();
-  save();
-
-  closeSheet();
-  renderWallet(); renderFeed();
-  const bad = gap > 6;
-  toast(`${g} g reçus de ${s.handle} · qualité réelle ${real}%` + (bad?` (annoncé ${s.annoncee}%)`:''), bad);
+  const qcause = gap <= 2
+    ? `<span class="ok">qualité tenue (${real}%)</span> — ${s.rating.toFixed(1)}★`
+    : `<span class="lo">qualité réelle ${real}% &lt; ${s.annoncee}% annoncé</span> — note ${s.rating.toFixed(1)}★`;
+  const dparts = [
+    loy.pct>0?`fidélité ${loy.lvl} −${loy.pct}%`:'',
+    r.deal?`négo −${negoBonus[s.tier]}%`:'',
+    g>=BULK_G?`volume −3%`:'',
+  ].filter(Boolean);
+  const dcause = pct>0 ? ` · <span class="di">remise −${pct}% (${dparts.join(', ')})</span>` : '';
+  S.receipts.unshift({ handle:s.handle, g, total, annoncee:s.annoncee, real, cause:qcause + dcause });
+  if(S.receipts.length > 40) S.receipts.pop();
+  save(); closeSheet(); renderWallet(); renderFeed();
+  toast(`${g} g reçus de ${s.handle} · qualité réelle ${real}%` + (gap>6?` (annoncé ${s.annoncee}%)`:''), gap>6);
 }
 
-/* ---- toast ---- */
-let toastT = null;
-function toast(msg, bad=false){
-  const t = $('toast');
-  t.className = 'toast show' + (bad?' bad':'');
-  t.innerHTML = msg;
-  clearTimeout(toastT);
-  toastT = setTimeout(() => t.className = 'toast' + (bad?' bad':''), 2600);
+/* ===========================================================================
+   MESSAGERIE / NÉGOCIATION — réponses déterministes, en personnage
+   =========================================================================== */
+let chatSel = null;
+function openChat(s){
+  chatSel = s; renderChat(); showSheet();
+}
+function renderChat(){
+  const s = chatSel, r = rel(s.id), loy = loyalty(r.count);
+  // fil reconstruit depuis l'état (déterministe) : accueil + échanges débloqués
+  const greet = loy.lvl==='régulier' ? "Ah, mon client régulier 🤝 toujours dispo pour toi."
+              : loy.lvl==='habitué'  ? "Re. On commence à se connaître, c'est bien."
+              : loy.lvl==='connu'    ? "Salut, déjà recroisé je crois. Qu'est-ce qu'il te faut ?"
+              : "Yo. Tu cherches quoi ? PGP/escrow only, je réponds pas en clair.";
+  const msgs = [`<div class="msg-b them">${greet}<span class="meta">${s.handle} · ${stars(s.rating)} ${s.rating.toFixed(1)}</span></div>`];
+
+  if(r.sampled){
+    msgs.push(`<div class="msg-b me">Tu peux m'envoyer un échantillon avant que je commande ?</div>`);
+    if(s.rating >= 3){
+      const gap = s.annoncee - realQual(s);
+      msgs.push(`<div class="msg-b them">Tiens, photo macro + test. Honnête : c'est du <span class="num">${realQual(s)}%</span> réel${gap>2?` (j'annonce ${s.annoncee}%, je gonfle un peu, comme tout le monde)`:`, pile ce que j'annonce`}.</div>`);
+    } else {
+      msgs.push(`<div class="msg-b them">Pas d'échantillons. C'est à prendre ou à laisser, à ce prix-là tu fais pas la fine bouche.</div>`);
+    }
+  }
+  if(r.deal){
+    msgs.push(`<div class="msg-b me">On peut s'arranger sur le prix si je deviens régulier ?</div>`);
+    msgs.push(`<div class="msg-b them">Ok. Vu ${loy.pct>0?'qu\'on bosse ensemble':'que tu te lances'}, je te débloque <span class="num">−${negoBonus[s.tier]}%</span> en plus sur tes prochaines commandes${s.tier==='premium'?" (je descends pas plus, c'est du haut de gamme)":''}. Marché conclu.</div>`);
+  }
+
+  const sampleDone = r.sampled, dealDone = r.deal;
+  $('sheet').innerHTML = `
+    <div class="grab"></div>
+    <div class="shead">
+      <div class="av">${s.emoji}</div>
+      <div class="who"><div class="handle">${s.handle}</div>
+        <div class="sub">${FAMILIES[s.family]} · ${loy.lvl}${loy.pct>0?` (−${loy.pct}%)`:''} · ${r.count} commande${r.count>1?'s':''}</div></div>
+      <div class="tier ${s.tier}">${s.tier}</div>
+    </div>
+    <div class="thread" id="thread">
+      <div class="relline">canal chiffré · onion</div>
+      ${msgs.join('')}
+    </div>
+    <div class="chatacts">
+      <div class="chatrow">
+        <button class="cbtn nego" id="c-nego" ${dealDone?'disabled':''}>${dealDone?'Remise obtenue ✓':'Négocier une remise'}<span class="un">${dealDone?`−${negoBonus[s.tier]}% acquis`:`jusqu'à −${negoBonus[s.tier]}% (plafond ${s.tier})`}</span></button>
+        <button class="cbtn samp" id="c-samp" ${sampleDone?'disabled':''}>${sampleDone?'Échantillon vu ✓':'Demander un échantillon'}<span class="un">${sampleDone?'qualité réelle connue':'révèle la qualité réelle'}</span></button>
+      </div>
+      <div class="chatrow"><button class="cbtn order" id="c-order">Passer commande →</button></div>
+    </div>`;
+  const th = $('thread'); th.scrollTop = th.scrollHeight;
+  if(!dealDone) $('c-nego').addEventListener('click', () => { rel(s.id).deal = true; save(); renderChat(); renderFeed();
+    toast(`${s.handle} t'accorde −${negoBonus[s.tier]}% sur tes commandes.`); });
+  if(!sampleDone) $('c-samp').addEventListener('click', () => { rel(s.id).sampled = true; save(); renderChat(); renderFeed();
+    toast(s.rating>=3 ? `Échantillon reçu : qualité réelle ${realQual(s)}%.` : `${s.handle} refuse l'échantillon.`, s.rating<3); });
+  $('c-order').addEventListener('click', () => openOrder(s));
 }
 
-/* ---- panneau reçus (réutilise scrim+sheet) ---- */
+/* ===========================================================================
+   REÇUS
+   =========================================================================== */
 function openReceipts(){
   if(!S.receipts.length){
     $('sheet').innerHTML = `<div class="grab"></div><div class="empty">Pas encore de reçu.<br>Passe une commande sur le marché.</div>`;
-  }else{
+  } else {
     const rows = S.receipts.map(r => `
       <div class="rcpt">
         <div class="r1"><span>${r.g} g · ${r.handle}</span><span class="amt">-${fmt(r.total)}</span></div>
@@ -438,38 +594,47 @@ function openReceipts(){
       <div class="qtitle" style="margin-bottom:10px">Reçus · ${S.receipts.length}</div>
       <div class="receipts">${rows}</div>`;
   }
-  $('scrim').classList.add('show');
-  $('sheet').classList.add('show');
+  showSheet();
 }
 
 /* ===========================================================================
-   FILTRES, RESET, HORLOGE, INIT
+   SHEET helpers, filtres, tri, reset, horloge, init
    =========================================================================== */
+function showSheet(){ $('scrim').classList.add('show'); $('sheet').classList.add('show'); }
+function closeSheet(){ $('scrim').classList.remove('show'); $('sheet').classList.remove('show'); sel=chatSel=null; }
+
+$('feed').addEventListener('click', e => {
+  const fav = e.target.closest('[data-fav]');
+  if(fav){ const id = fav.dataset.fav; const i = S.favs.indexOf(id);
+    i<0 ? S.favs.push(id) : S.favs.splice(i,1); save(); renderFeed(); return; }
+  const msg = e.target.closest('[data-msg]'); if(msg){ openChat(byId(msg.dataset.msg)); return; }
+  const ord = e.target.closest('[data-order]'); if(ord){ openOrder(byId(ord.dataset.order)); return; }
+});
 $('filters').addEventListener('click', e => {
   const c = e.target.closest('.chip'); if(!c) return;
   filter = c.dataset.f;
   [...$('filters').children].forEach(x => x.classList.toggle('on', x===c));
   renderFeed();
 });
+$('sort').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  sortBy = b.dataset.s;
+  [...$('sort').children].forEach(x => x.classList.toggle('on', x===b));
+  renderFeed();
+});
 $('scrim').addEventListener('click', closeSheet);
 $('receipts-btn').addEventListener('click', openReceipts);
 $('reset-btn').addEventListener('click', () => {
-  if(confirm('Repartir de zéro (cash, stock, reçus) ?')){
-    S = DEFAULT();
-    // restaure les ventes du roster (présentation) — pas critique
-    save(); renderWallet(); renderFeed(); toast('Compte réinitialisé.');
+  if(confirm('Repartir de zéro (cash, stock, relations, favoris) ?')){
+    S = DEFAULT(); save(); renderWallet(); renderFeed(); toast('Compte réinitialisé.');
   }
 });
 
-// horloge cosmétique (présentation uniquement)
-function tick(){
-  const d = new Date();
-  $('clock').textContent = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-}
+function tick(){ const d=new Date();
+  $('clock').textContent = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
 setInterval(tick, 10000); tick();
 
-renderWallet();
-renderFeed();
+renderWallet(); renderFeed();
 </script>
 </body>
 </html>
