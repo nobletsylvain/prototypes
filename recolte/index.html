@@ -156,7 +156,7 @@
 <div class="hud" id="stepper">
   <span class="step" data-step="effeuille">1·Effeuille</span>
   <span class="step" data-step="tri">2·Tri</span>
-  <span class="step" data-step="mix">3·Mix</span>
+  <span class="step" data-step="mix">3·Coupe</span>
   <span class="step" data-step="pots">4·Pots</span>
   <span class="step" data-step="stock">5·Stock</span>
 </div>
@@ -169,9 +169,8 @@
 <!-- Phase 1 : Effeuillage -->
 <div class="panel" id="effui">
   <div class="card" id="effcard"></div>
-  <div style="text-align:center;font-size:12.5px;font-weight:800;color:rgba(173,224,140,.85);padding:5px 0 2px;pointer-events:none" id="effswipe">👆 Frotte les branches — détache les têtes (lent = moins de déchet)</div>
+  <div style="text-align:center;font-size:12.5px;font-weight:800;color:rgba(173,224,140,.85);padding:5px 0 2px;pointer-events:none" id="effswipe">👆 Glisse le long des colas pour détacher les têtes</div>
   <div class="row">
-    <button class="btn alt" id="effSecateur">✂️ Sécateur</button>
     <button class="btn" id="effNext">Trier ▸</button>
   </div>
 </div>
@@ -291,10 +290,14 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 app.appendChild(renderer.domElement);
 
-// Cadrage auto : la scene (plan + 5 bacs) rentre toujours a l'ecran.
-const VIEW_DIR    = new THREE.Vector3(0.02, 0.64, 0.77).normalize();  // 3/4 plongeant
-const VIEW_TARGET = new THREE.Vector3(0, 0.15, 0.0);
-const VIEW_RADIUS = Math.hypot(3.9, 0.9, 3.0);
+// Deux cadrages : "work" (3/4 plongeant sur le plan + bacs) pour tri/coupe/pots/
+// stock, et "eff" (frontal, plus bas) pour l'effeuillage des colas suspendues.
+const VIEWS = {
+  work: { target: new THREE.Vector3(0, 0.15, 0.0), dir: new THREE.Vector3(0.02, 0.64, 0.77).normalize(), radius: Math.hypot(3.9, 0.9, 3.0) },
+  eff:  { target: new THREE.Vector3(0, 1.45, 0.0), dir: new THREE.Vector3(0, 0.20, 1).normalize(),        radius: Math.hypot(2.4, 1.1, 0.4) },
+};
+let curView = VIEWS.work;
+const VIEW_TARGET = new THREE.Vector3();   // cible courante (utilisee par la boucle)
 const baseCamPos  = new THREE.Vector3();
 let zoom = +(localStorage.getItem("rc_zoom")) || 1;
 zoom = Math.max(0.6, Math.min(2.4, zoom));
@@ -303,11 +306,13 @@ function fitView() {
   const vFov = camera.fov * Math.PI / 180;
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
   const fov = Math.min(vFov, hFov);
-  const dist = (VIEW_RADIUS / Math.sin(fov / 2)) * 1.05 / zoom;
-  baseCamPos.copy(VIEW_TARGET).addScaledVector(VIEW_DIR, dist);
+  const dist = (curView.radius / Math.sin(fov / 2)) * 1.05 / zoom;
+  VIEW_TARGET.copy(curView.target);
+  baseCamPos.copy(VIEW_TARGET).addScaledVector(curView.dir, dist);
   camera.position.copy(baseCamPos);
   camera.lookAt(VIEW_TARGET);
 }
+function setView(name) { curView = VIEWS[name] || VIEWS.work; fitView(); }
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -398,6 +403,24 @@ function makeNug(mat, small) {
   m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
   return m;
 }
+// Petite feuille (deco des colas) : cone aplati vert sombre.
+const matLeafSolid = new THREE.MeshStandardMaterial({ color: 0x3f6b2c, roughness: 0.95, side: THREE.DoubleSide });
+const leafGeo = new THREE.ConeGeometry(0.085, 0.32, 4);
+function makeLeaf() { const m = new THREE.Mesh(leafGeo, matLeafSolid); m.scale.z = 0.22; return m; }
+
+// Projection monde -> pixels ecran (pour l'effeuillage au glisse, façon v2).
+const _sp = new THREE.Vector3();
+function toScreen(obj) {
+  obj.getWorldPosition(_sp); _sp.project(camera);
+  return { x: (_sp.x * 0.5 + 0.5) * window.innerWidth, y: (-_sp.y * 0.5 + 0.5) * window.innerHeight, z: _sp.z };
+}
+// Distance d'un point a un segment (en px) — reprise telle quelle de green-front-v2.
+function distSeg(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+  let t = l2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
 
 /* -------------------------------------------------------------------------
    6) BACS DE TRI : 4 varietes au fond + 1 bac DECHET, chacun avec sa pile
@@ -446,21 +469,78 @@ function refreshPile(binGrp, grams, perNug) {
 /* -------------------------------------------------------------------------
    7) ZONE DE TRAVAIL CENTRALE (contenu selon la phase)
    ------------------------------------------------------------------------- */
-// 7a) Les BRANCHES a effeuiller (phase 1) : tige + tetes accrochees.
-const branch = new THREE.Group();
-branch.position.set(0, 0, 0.2);
-const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 2.4, 8), matBranch);
-stem.rotation.z = 0.5; stem.position.y = 0.5; stem.castShadow = true;
-branch.add(stem);
-const branchNugs = [];
-const BRANCH_MAX = 16;
-for (let i = 0; i < BRANCH_MAX; i++) {
-  const m = makeNug(matStrain[STR_IDS[i % STR_IDS.length]], i % 3 === 0);
-  const t = (i / BRANCH_MAX - 0.5) * 2.0;
-  m.position.set(t * 0.9, 0.5 + t * 0.5 + 0.18, (i % 2 ? 0.16 : -0.16));
-  branch.add(m); branchNugs.push(m);
+// 7a) Les COLAS suspendues a effeuiller (phase 1) — feel repris de green-front-v2 :
+// 4 colas (une par variete) pendent a un fil de sechage ; on glisse le doigt le
+// long d'une cola pour detacher ses tetes (detection en pixels ecran, cf. v2).
+// Tout tombe MELE dans le panier central (le tri par variete vient apres).
+const COLA_TOP = 2.85, COLA_BOT = 0.85;          // hauteurs haut/bas des colas
+// Fil de sechage.
+const dryLine = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 7.2, 6),
+  new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 0.4, roughness: 0.5 }));
+dryLine.rotation.z = Math.PI / 2; dryLine.position.set(0, COLA_TOP + 0.05, 0);
+scene.add(dryLine);
+
+const colasGrp = new THREE.Group();
+scene.add(colasGrp);
+function buildCola(variety) {
+  const grp = new THREE.Group();
+  const len = COLA_TOP - COLA_BOT, midY = (COLA_TOP + COLA_BOT) / 2;
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.05, len, 6), matBranch);
+  stem.position.y = midY; stem.castShadow = true; grp.add(stem);
+  const hook = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.018, 6, 10),
+    new THREE.MeshStandardMaterial({ color: 0x8a8f95, metalness: 0.5, roughness: 0.5 }));
+  hook.position.y = COLA_TOP; hook.rotation.x = Math.PI / 2; grp.add(hook);
+  const buds = [], n = 9;
+  for (let i = 0; i < n; i++) {
+    const u = i / (n - 1);
+    const y = COLA_TOP - 0.18 - u * (len - 0.3);
+    const side = i % 2 ? 1 : -1;
+    const m = makeNug(matStrain[variety], i % 3 === 0);
+    m.position.set(side * (0.05 + Math.random() * 0.1), y, (Math.random() - 0.5) * 0.12);
+    grp.add(m);
+    buds.push({ mesh: m, mass: 0, leafFrac: 0, on: true });
+  }
+  const leaves = [];
+  for (let i = 0; i < 5; i++) {
+    const u = (i + 0.5) / 5, y = COLA_TOP - 0.2 - u * (len - 0.3), side = i % 2 ? 1 : -1;
+    const lf = makeLeaf();
+    lf.position.set(side * 0.13, y, 0.04);
+    lf.rotation.z = side > 0 ? -1.1 : 1.1; lf.rotation.x = 0.4;
+    grp.add(lf); leaves.push(lf);
+  }
+  colasGrp.add(grp);
+  return { grp, variety, buds, leaves };
 }
-scene.add(branch);
+const colaByVar = {};
+for (const id of STR_IDS) colaByVar[id] = buildCola(id);
+
+// Panier de reception sous les colas : les tetes effeuillees y tombent (melees).
+const basket = new THREE.Group();
+const basketMat = new THREE.MeshStandardMaterial({ color: 0x6b5836, roughness: 0.85, side: THREE.DoubleSide });
+const bW = 3.4, bD = 1.1, bH = 0.34, bt = 0.06;
+const bFloor = new THREE.Mesh(new THREE.BoxGeometry(bW, bt, bD), basketMat);
+bFloor.position.y = bt / 2; bFloor.receiveShadow = true; basket.add(bFloor);
+{ const f = new THREE.Mesh(new THREE.BoxGeometry(bW, bH, bt), basketMat); f.position.set(0, bH / 2, -bD / 2); basket.add(f);
+  const b = new THREE.Mesh(new THREE.BoxGeometry(bW, bH, bt), basketMat); b.position.set(0, bH / 2, bD / 2); basket.add(b);
+  const l = new THREE.Mesh(new THREE.BoxGeometry(bt, bH, bD), basketMat); l.position.set(-bW / 2, bH / 2, 0); basket.add(l);
+  const r = new THREE.Mesh(new THREE.BoxGeometry(bt, bH, bD), basketMat); r.position.set(bW / 2, bH / 2, 0); basket.add(r); }
+basket.position.set(0, 0.2, 0.55);
+basket.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
+scene.add(basket);
+// Pile melee dans le panier (visibilite pilotee par le % effeuille).
+const basketPile = new THREE.Group(); basket.add(basketPile);
+const BASKET_MAX = 24;
+for (let i = 0; i < BASKET_MAX; i++) {
+  const m = makeNug(matStrain[STR_IDS[i % STR_IDS.length]], i % 4 === 0);
+  const col = i % 8, layer = Math.floor(i / 8);
+  m.position.set(-1.5 + col * 0.42 + (Math.random() - 0.5) * 0.1, 0.12 + layer * 0.13, -0.28 + (i % 2) * 0.5);
+  m.visible = false; basketPile.add(m);
+}
+const _bw = new THREE.Vector3(0, 0.45, 0.55);   // cible monde du panier (pour les flyers)
+function refreshBasket(strippedG, totalG) {
+  const n = totalG > 0 ? Math.max(0, Math.min(BASKET_MAX, Math.round(strippedG / totalG * BASKET_MAX))) : 0;
+  for (let i = 0; i < BASKET_MAX; i++) basketPile.children[i].visible = i < n;
+}
 
 // 7b) Le TAS FRAIS mele a trier (phase 2).
 const freshGrp = new THREE.Group();
@@ -610,6 +690,14 @@ function flyNug(mat, fromY, target, small) {
   flyers.push({ mesh: m, target: target.clone().setY(0.35), t: 0 });
   while (flyers.length > 40) { const f = flyers.shift(); scene.remove(f.mesh); }
 }
+// Flyer partant d'une position monde precise (effeuillage : la tete part de la cola).
+function flyNugFrom(mat, from, target, small) {
+  const m = makeNug(mat, small !== false);
+  m.position.copy(from);
+  scene.add(m);
+  flyers.push({ mesh: m, target: target.clone(), t: 0 });
+  while (flyers.length > 40) { const f = flyers.shift(); scene.remove(f.mesh); }
+}
 function updateFlyers(dt) {
   for (let i = flyers.length - 1; i >= 0; i--) {
     const f = flyers[i];
@@ -670,7 +758,7 @@ function saveShop()    { localStorage.setItem("rc_shop", JSON.stringify(owned));
    ------------------------------------------------------------------------- */
 const ui = {};
 ["cash","debt","replbl","repfill","level","xpfill","hint","toast",
- "effui","effcard","effswipe","effSecateur","effNext",
+ "effui","effcard","effswipe","effNext",
  "triui","tricard","triactive","triswatch","trilbl","trigrid","triNext",
  "mixui","mixcard","mixchips","dtrack","dtrail","dknob","mixBlend","mixPrep",
  "potsui","potcard","sealgauge","sealsweet","sealcursor","potgrid","optHygro","potDone",
@@ -794,22 +882,29 @@ function setPhase(p) {
   ui.mixui.classList.toggle("show", p === "mix");
   ui.potsui.classList.toggle("show", p === "pots");
   ui.stockui.classList.toggle("show", p === "stock");
-  branch.visible    = (p === "effeuille");
+  const isEff = (p === "effeuille");
+  colasGrp.visible  = isEff;
+  dryLine.visible   = isEff;
+  basket.visible    = isEff;
   freshGrp.visible  = (p === "tri");
   activeNug.visible = (p === "tri");
   bowl.visible      = (p === "mix");
   jar.visible       = (p === "pots");
   shelf.visible     = (p === "stock");
+  // Les bacs de tri ne sont pertinents que pendant tri/coupe : on les cache a l'effeuillage.
+  for (const id of STR_IDS) bins3d[id].visible = !isEff;
+  bins3d.waste.visible = !isEff;
+  setView(isEff ? "eff" : "work");
   updateStepper();
 }
 
 /* -------------------------------------------------------------------------
    12) PHASE 1 — EFFEUILLAGE (prise de recolte a credit + frottage)
    ------------------------------------------------------------------------- */
-let branchDrop = 0;
-const eff = { dragging: false, lastX: 0, lastY: 0, lastT: 0, acc: 0, speed: 0, flash: 0, cd: 0 };
-const EFF_STRIDE = 30;   // px de glisse par poignee effeuillee
-let useSecateur = false;
+// Effeuillage au GLISSE (feel green-front-v2) : on passe le doigt sur une cola,
+// toute tete croisee (test en pixels ecran) se detache et tombe MELEE dans le
+// panier. Pas de timing/skill — geste libre. Le tri par variete vient apres.
+const eff = { dragging: false, prev: null, flash: 0 };
 
 function maxDebt() { return 800 + rep * 24 + level * 200; }
 
@@ -819,7 +914,6 @@ function newHarvest() {
   if (level >= 2) key = "crop";
   if (owned.room) key = "room";
   const h = HARVESTS[key];
-  // Choix des varietes presentes (les premieres nbVar, melangees).
   const pool = STR_IDS.slice().sort(() => Math.random() - 0.5).slice(0, h.nbVar);
   const fr = {}; let s = 0;
   for (const id of pool) { const w = 0.5 + Math.random(); fr[id] = w; s += w; }
@@ -829,67 +923,82 @@ function newHarvest() {
     wholesale: +(h.wholesale * (1 - rep / 600)).toFixed(2),
     fr, leafFr: h.leaf, varieties: pool,
   };
-  branchDrop = 1;
-  // Recolte prise a credit -> dette.
   const cost = Math.round(h.g * harvest.wholesale);
-  setDebt(debt + cost);
+  setDebt(debt + cost);                                // recolte prise a credit -> dette
   showToast("Récolte prise à crédit", "#bdf0a3");
+}
+// Prepare les colas : montre une cola par variete presente, repartie a l'ecran,
+// et charge ses tetes (masse = part de la recolte / nb de tetes).
+function setupColas() {
+  for (const id of STR_IDS) colaByVar[id].grp.visible = false;
+  const vs = harvest.varieties;
+  // Sécateur (boutique) : reduit la part de feuille arrachee.
+  const leafFr = Math.max(0.04, harvest.leafFr - owned.secateur * 0.02);
+  // Ecartement selon le nombre de colas (2 -> resserrees, 4 -> pleine largeur).
+  const span = vs.length <= 1 ? 0 : vs.length === 2 ? 1.5 : vs.length === 3 ? 2.1 : 2.4;
+  vs.forEach((v, i) => {
+    const c = colaByVar[v]; c.grp.visible = true;
+    c.grp.position.x = vs.length === 1 ? 0 : -span + 2 * span * (i / (vs.length - 1));
+    const target = harvest.total * harvest.fr[v], per = target / c.buds.length;
+    for (const b of c.buds) { b.on = true; b.mesh.visible = true; b.mass = per; b.leafFrac = leafFr * (0.7 + Math.random() * 0.6); }
+    for (const lf of c.leaves) { lf.visible = true; lf.material = matLeafSolid; }
+  });
 }
 function gotoEffeuille() {
   setPhase("effeuille");
   newHarvest();
   fresh = { skunk: 0, widow: 0, lemon: 0, purple: 0, leaf: 0 };
-  eff.dragging = false; eff.acc = 0; eff.flash = 0; eff.cd = 0;
-  for (const m of branchNugs) m.visible = true;
-  setSecateur(useSecateur);
+  eff.dragging = false; eff.prev = null; eff.flash = 0;
+  setupColas();
+  refreshBasket(0, harvest.total);
   refreshEffCard();
-  setHint("Frotte les branches pour détacher les têtes. Geste lent = moins de déchet. ✂️ sécateur = plus propre.");
-}
-function refreshEffCard() {
-  const names = harvest.varieties.map(id => STRAINS[id].emoji).join(" ");
-  ui.effcard.innerHTML =
-    "🌿 Récolte : <b>" + HARVESTS[harvest.key].name + "</b> — " + names + "<br>" +
-    "Sur branches : <b>" + Math.round(harvest.raw) + " g</b> / " + harvest.total + " g" +
-    "<br>Tas frais : <b>" + Math.round(freshBud()) + " g</b> têtes · " + Math.round(fresh.leaf) + " g feuilles";
+  setHint("Glisse le doigt le long des colas pour détacher les têtes. Tout tombe mêlé dans le panier — tu trieras après.");
 }
 function freshBud() { return STR_IDS.reduce((s, id) => s + fresh[id], 0); }
-function setSecateur(on) {
-  useSecateur = on;
-  ui.effSecateur.classList.toggle("on", on);
+function colaBudsLeft() {
+  let n = 0;
+  for (const id of harvest.varieties) for (const b of colaByVar[id].buds) if (b.on) n++;
+  return n;
 }
-// Une poignee effeuillee : detache des tetes (reparties selon la recolte) + des
-// feuilles. Geste vif / pas de secateur -> plus de feuilles arrachees (dechet).
-// La VARIETE n'est PAS encore separee : tout tombe dans le tas frais mele.
-function effStrip(speed) {
-  if (phase !== "effeuille" || harvest.raw <= 0) return false;
-  const batchG = Math.min(harvest.raw, 16);
-  // Part de feuille de cette poignee : base de la recolte, +geste vif, -secateur.
-  const vivacity = Math.max(0, Math.min(1, (speed - 0.15) / 0.9));
-  let leafShare = harvest.leafFr + vivacity * 0.12 - (useSecateur ? 0.10 + owned.secateur * 0.015 : 0);
-  leafShare = Math.max(0.05, Math.min(0.6, leafShare));
-  const budG = batchG * (1 - leafShare), leafG = batchG * leafShare;
-  for (const id of harvest.varieties) fresh[id] += budG * harvest.fr[id];
-  fresh.leaf += leafG;
-  harvest.raw -= batchG;
-  // Juice.
-  flyNug(matStrain[harvest.varieties[0]], 0.9, new THREE.Vector3(0, 0, 0.2), true);
-  if (Math.random() < 0.5) flyNug(matLeaf, 0.9, BIN_POS.waste, true);
-  eff.flash = 0.16;
-  if (Math.random() < 0.4) addShake(0.05);
-  // Cache progressivement les tetes de la branche.
-  const remain = Math.ceil((harvest.raw / harvest.total) * BRANCH_MAX);
-  for (let i = 0; i < BRANCH_MAX; i++) branchNugs[i].visible = i < remain;
-  playSnip();
-  return true;
+function refreshEffCard() {
+  const names = harvest.varieties.map(id => STRAINS[id].emoji + " " + STRAINS[id].name.split(" ")[0]).join(" · ");
+  ui.effcard.innerHTML =
+    "🌿 Récolte : <b>" + HARVESTS[harvest.key].name + "</b><br>" + names +
+    "<br>Panier : <b>" + Math.round(freshBud()) + " g</b> têtes · " + Math.round(fresh.leaf) + " g feuilles";
 }
-function effCommitUI() {
-  refreshEffCard();
-  if (harvest.raw <= 0.5 && !harvest._done) {
-    harvest._done = true; harvest.raw = 0;
-    for (const m of branchNugs) m.visible = false;
+// Détache toute tete croisee par le segment de glisse (a->b en pixels ecran).
+function effStripSeg(a, b) {
+  if (phase !== "effeuille") return;
+  let any = false;
+  for (const id of harvest.varieties) {
+    const c = colaByVar[id];
+    for (const bd of c.buds) {
+      if (!bd.on) continue;
+      const s = toScreen(bd.mesh);
+      if (s.z > 1) continue;
+      if (distSeg(s.x, s.y, a.x, a.y, b.x, b.y) < 38) {
+        bd.on = false; bd.mesh.visible = false;
+        fresh[id] += bd.mass;
+        fresh.leaf += bd.mass * bd.leafFrac;
+        const from = new THREE.Vector3(); bd.mesh.getWorldPosition(from);
+        flyNugFrom(matStrain[id], from, _bw, true);
+        if (Math.random() < 0.4) flyNugFrom(matLeaf, from, new THREE.Vector3(_bw.x + 1.2, 0.4, _bw.z), true);
+        any = true;
+      }
+    }
+    // Les feuilles deco disparaissent au fil de l'effeuillage de leur cola.
+    const left = c.buds.filter(x => x.on).length, vis = Math.ceil(left / c.buds.length * c.leaves.length);
+    for (let i = 0; i < c.leaves.length; i++) c.leaves[i].visible = c.grp.visible && i < vis;
+  }
+  if (any) {
+    eff.flash = 0.16; addShake(0.04); playSnip();
+    refreshBasket(freshBud() + fresh.leaf, harvest.total);
     refreshEffCard();
-    setHint("Branches nues ! Passe au tri par variété ▸");
-    showToast("Effeuillage fini 🌿", "#9be37d");
+    if (colaBudsLeft() === 0 && !harvest._done) {
+      harvest._done = true;
+      setHint("Colas effeuillées ! Passe au tri par variété ▸");
+      showToast("Effeuillage fini 🌿", "#9be37d");
+    }
   }
 }
 
@@ -899,12 +1008,13 @@ function effCommitUI() {
 function gotoTri() {
   setPhase("tri");
   triStreak = 0;
-  // Bascule le restant des branches en tas frais (s'il en reste).
-  if (harvest && harvest.raw > 0.5) {
-    const remain = harvest.raw;
-    for (const id of harvest.varieties) fresh[id] += remain * harvest.fr[id] * (1 - harvest.leafFr);
-    fresh.leaf += remain * harvest.leafFr;
-    harvest.raw = 0;
+  // Effeuillage incomplet : on bascule les tetes encore sur les colas dans le tas frais.
+  if (harvest) {
+    for (const id of harvest.varieties) {
+      for (const b of colaByVar[id].buds) {
+        if (b.on) { b.on = false; b.mesh.visible = false; fresh[id] += b.mass; fresh.leaf += b.mass * b.leafFrac; }
+      }
+    }
   }
   fresh._total = freshBud() + fresh.leaf;
   pickActive();
@@ -1295,9 +1405,9 @@ el.addEventListener("pointerdown", (e) => {
   if (pointers.size >= 2) { pinching = true; pinchStartDist = pinchDist() || 1; pinchStartZoom = zoom; return; }
   ensureAudio();
   if (phase === "effeuille") {
-    eff.dragging = true; eff.lastX = e.clientX; eff.lastY = e.clientY;
-    eff.lastT = performance.now(); eff.acc = 0; eff.speed = 0;
-    if (eff.cd <= 0 && effStrip(0)) { eff.cd = 0.26; effCommitUI(); }   // tap = poignee propre
+    eff.dragging = true;
+    eff.prev = { x: e.clientX, y: e.clientY };
+    effStripSeg(eff.prev, eff.prev);             // un simple tap detache la tete touchee
   } else if (phase === "pots") { if (seal.active) resolveSeal(); }
 }, { passive: false });
 
@@ -1308,38 +1418,24 @@ el.addEventListener("pointermove", (e) => {
     zoom = Math.max(0.6, Math.min(2.4, pinchStartZoom * (pinchDist() / pinchStartDist)));
     localStorage.setItem("rc_zoom", zoom.toFixed(3));
     fitView();
-  } else if (phase === "effeuille" && eff.dragging && pointers.size < 2) {
-    // Effeuillage : on accumule la distance glissee ; chaque EFF_STRIDE px detache
-    // une poignee, dont la part de dechet depend de la vitesse instantanee.
+  } else if (phase === "effeuille" && eff.dragging && eff.prev && pointers.size < 2) {
+    // Effeuillage au glisse : on detache toute tete croisee par le segment.
     e.preventDefault();
-    const now = performance.now();
-    const dx = e.clientX - eff.lastX, dy = e.clientY - eff.lastY;
-    const dist = Math.hypot(dx, dy);
-    eff.speed = dist / Math.max(1, now - eff.lastT);
-    eff.lastX = e.clientX; eff.lastY = e.clientY; eff.lastT = now;
-    eff.acc += dist;
-    let did = false, guard = 0;
-    while (eff.acc >= EFF_STRIDE && guard++ < 12) {
-      eff.acc -= EFF_STRIDE;
-      if (effStrip(eff.speed)) did = true; else break;
-    }
-    if (did) effCommitUI();
+    const cur = { x: e.clientX, y: e.clientY };
+    effStripSeg(eff.prev, cur);
+    eff.prev = cur;
   }
 }, { passive: false });
 function onUp(e) {
   pointers.delete(e.pointerId);
   if (pinching && pointers.size < 2) pinching = false;
-  if (pointers.size === 0) eff.dragging = false;
+  if (pointers.size === 0) { eff.dragging = false; eff.prev = null; }
 }
 el.addEventListener("pointerup", onUp, { passive: false });
 el.addEventListener("pointercancel", onUp, { passive: false });
 
 // Boutons des overlays.
-ui.effSecateur.addEventListener("click", () => setSecateur(!useSecateur));
-ui.effNext.addEventListener("click", () => {
-  if (freshTotal() < 1 && (!harvest || harvest.raw > 0.5)) { showToast("Effeuille d'abord", "#caa15f"); return; }
-  gotoTri();
-});
+ui.effNext.addEventListener("click", () => { gotoTri(); });   // le restant non effeuillé bascule dans le tas frais
 ui.triNext.addEventListener("click", () => {
   if (STR_IDS.every(id => bins[id].g < 1)) { showToast("Trie d'abord de la fleur", "#caa15f"); return; }
   // Restant non trie -> dechet.
@@ -1370,8 +1466,6 @@ ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.cla
    ------------------------------------------------------------------------- */
 function updateGauges(dt) {
   if (phase === "effeuille") {
-    if (eff.cd > 0) eff.cd = Math.max(0, eff.cd - dt);
-    if (eff.flash > 0) eff.flash = Math.max(0, eff.flash - dt);
     if (ui.effswipe) ui.effswipe.style.color = "rgba(173,224,140," + (0.6 + eff.flash * 2).toFixed(2) + ")";
   }
   if (phase === "pots" && seal.active) {
@@ -1387,12 +1481,13 @@ function loop(t) {
   const dt = Math.min((t - last) / 1000 || 0, 0.05);
   last = t;
 
-  // Chute des branches a l'effeuillage.
-  if (phase === "effeuille" && branchDrop > 0) {
-    branchDrop = Math.max(0, branchDrop - dt * 2.2);
-    branch.position.set(0, 0.3 + branchDrop * branchDrop * 4.0, 0.2);
-    branch.rotation.z = branchDrop * 0.2;
-    if (branchDrop === 0) { branch.position.set(0, 0, 0.2); branch.rotation.z = 0; playThud(); addShake(0.16); }
+  // Colas qui se balancent doucement au fil de sechage.
+  if (phase === "effeuille") {
+    for (const id of harvest ? harvest.varieties : []) {
+      const c = colaByVar[id];
+      c.grp.rotation.z = Math.sin(t * 0.0011 + c.grp.position.x) * 0.045;
+    }
+    if (eff.flash > 0) eff.flash = Math.max(0, eff.flash - dt);
   }
   // Tete active qui flotte + tourne pendant le tri.
   if (phase === "tri" && active) {
@@ -1415,8 +1510,8 @@ function loop(t) {
   }
   camera.lookAt(VIEW_TARGET);
 
-  // Etiquettes des bacs (visibles hors phase stock/pots ou tout est central).
-  const showBins = (phase === "tri" || phase === "mix" || phase === "effeuille");
+  // Etiquettes des bacs (visibles seulement quand les bacs le sont : tri / coupe).
+  const showBins = (phase === "tri" || phase === "mix");
   for (const id of STR_IDS) { binLabels[id].style.display = showBins ? "block" : "none"; if (showBins) placeLabel(binLabels[id], BIN_POS[id], 0.6); }
   binLabels.waste.style.display = showBins ? "block" : "none"; if (showBins) placeLabel(binLabels.waste, BIN_POS.waste, 0.6);
 
