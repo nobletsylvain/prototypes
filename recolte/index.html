@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Récolte</title>
+<style>
+  /* --- Plein ecran, pense mobile (pas de scroll, pas de zoom) --- */
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+  html, body { width:100%; height:100%; overflow:hidden; touch-action:none;
+    font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(120% 120% at 50% 0%, #14361f 0%, #0c2114 55%, #07140c 100%); }
+  #app { position:fixed; inset:0; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+
+  /* --- HUD (overlay HTML par dessus la scene 3D) --- */
+  .hud { position:fixed; pointer-events:none; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.5); }
+  #cash { top:max(12px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+    font-weight:800; font-size:19px; color:#9be37d; }
+  #debt { top:calc(max(12px,env(safe-area-inset-top)) + 26px); left:50%; transform:translateX(-50%);
+    font-weight:700; font-size:12px; color:#ff9f6b; }
+  #repwrap { top:max(12px,env(safe-area-inset-top)); left:14px; display:flex; flex-direction:column; gap:3px; }
+  #replbl { font-size:11px; font-weight:800; color:#bdf0a3; letter-spacing:.3px; }
+  #repbar { width:104px; height:7px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
+  #repfill { height:100%; width:55%; background:linear-gradient(90deg,#ff6b6b,#ffd166 55%,#7ad17a); transition:width .3s; }
+  #xpwrap { top:max(12px,env(safe-area-inset-top)); right:64px; display:flex; align-items:center; gap:6px; }
+  #level { background:rgba(155,227,125,.18); border:1px solid rgba(155,227,125,.55); color:#bdf0a3;
+    font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  #xpbar { width:76px; height:7px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
+  #xpfill { height:100%; width:0%; background:linear-gradient(90deg,#7ad17a,#bdf0a3); border-radius:999px; transition:width .25s; }
+
+  /* --- Stepper : les 5 etapes du core loop --- */
+  #stepper { top:calc(max(12px,env(safe-area-inset-top)) + 46px); left:50%; transform:translateX(-50%);
+    display:flex; gap:4px; }
+  .step { font-size:9.5px; font-weight:800; letter-spacing:.2px; padding:3px 7px; border-radius:999px;
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); color:rgba(255,255,255,.5); white-space:nowrap; }
+  .step.on { background:rgba(155,227,125,.22); border-color:rgba(155,227,125,.6); color:#d6f7c2; }
+  .step.done { color:rgba(155,227,125,.75); }
+
+  #hint { position:fixed; left:0; right:0; bottom:max(168px,calc(env(safe-area-inset-bottom) + 162px));
+    text-align:center; font-size:13px; color:rgba(255,255,255,.72); padding:0 24px; transition:opacity .4s;
+    pointer-events:none; text-shadow:0 2px 8px rgba(0,0,0,.5); }
+  #toast { position:fixed; left:0; right:0; top:40%; text-align:center; font-size:24px; font-weight:800; opacity:0;
+    transition:opacity .25s, transform .25s; transform:translateY(8px); pointer-events:none;
+    color:#fff; text-shadow:0 2px 10px rgba(0,0,0,.6); padding:0 20px; }
+  #toast.show { opacity:1; transform:translateY(0); }
+
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
+  .blabel { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
+    font-weight:800; font-size:12px; padding:2px 7px; border-radius:8px;
+    background:rgba(0,0,0,.5); text-shadow:0 1px 3px rgba(0,0,0,.6); }
+  .blabel .qd { font-size:10px; opacity:.85; }
+
+  /* --- Barre d'action basse commune aux phases --- */
+  .panel { position:fixed; left:0; right:0; bottom:0; display:none; flex-direction:column; align-items:center;
+    gap:9px; padding:12px 14px max(14px,calc(env(safe-area-inset-bottom) + 10px)); pointer-events:none; }
+  .panel.show { display:flex; }
+  .card { pointer-events:none; background:rgba(8,20,12,.62); border:1px solid rgba(255,255,255,.12);
+    border-radius:14px; padding:9px 14px; color:#fff; font-size:13px; font-weight:600; text-align:center;
+    backdrop-filter:blur(6px); max-width:440px; line-height:1.5; }
+  .card b { color:#bdf0a3; }
+  .card .q { color:#ffd166; }
+  .btn { pointer-events:auto; border:none; border-radius:13px; font-weight:800; font-size:15px;
+    padding:11px 18px; color:#10210f; background:#7ad17a; box-shadow:0 4px 14px rgba(122,209,122,.35); }
+  .btn:active { transform:scale(.98); }
+  .btn.alt { background:rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.25); box-shadow:none; }
+  .btn.warn { background:#ff7a3c; color:#fff; box-shadow:0 4px 14px rgba(255,122,60,.35); }
+  .btn:disabled { background:rgba(255,255,255,.1); color:rgba(255,255,255,.35); box-shadow:none; }
+  .row { display:flex; gap:9px; align-items:center; justify-content:center; flex-wrap:wrap; pointer-events:none; }
+  .row .btn, .row .toggle { pointer-events:auto; }
+
+  /* --- Jauge de timing reutilisable (scan, negoce, scellage) --- */
+  .gauge { position:relative; width:74%; max-width:340px; height:22px; background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.18); border-radius:999px; overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,.4);
+    pointer-events:none; }
+  .sweet { position:absolute; top:0; bottom:0; background:linear-gradient(90deg,rgba(155,227,125,.25),rgba(155,227,125,.65),rgba(155,227,125,.25)); }
+  .cursor { position:absolute; top:-2px; bottom:-2px; width:5px; margin-left:-2.5px; background:#fff;
+    border-radius:3px; box-shadow:0 0 8px rgba(255,255,255,.9); }
+
+  /* --- Tri : grille des bacs de variete (boutons de routage) --- */
+  #trigrid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; width:96%; max-width:460px; pointer-events:auto; }
+  .vbtn { pointer-events:auto; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.16);
+    border-radius:12px; padding:8px 3px; color:#fff; text-align:center; transition:transform .05s, border-color .12s; }
+  .vbtn:active { transform:scale(.95); }
+  .vbtn .ve { font-size:20px; line-height:1.1; }
+  .vbtn .vn { font-size:10px; font-weight:800; margin-top:1px; }
+  .vbtn .vg { font-size:10px; color:rgba(255,255,255,.6); margin-top:1px; }
+  #triactive { display:flex; align-items:center; justify-content:center; gap:9px; pointer-events:none;
+    font-size:13px; font-weight:800; }
+  #triswatch { width:26px; height:26px; border-radius:8px; box-shadow:0 0 12px rgba(0,0,0,.4); border:2px solid rgba(255,255,255,.55); }
+
+  /* --- Selecteurs (toggle) --- */
+  .toggle { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
+    font-weight:700; font-size:13px; padding:8px 12px; border-radius:11px; }
+  .toggle.on { background:#7aa0ff; border-color:#7aa0ff; color:#0c142a; }
+
+  /* --- Mix : chips de selection de variete --- */
+  #mixchips { display:flex; gap:7px; flex-wrap:wrap; justify-content:center; width:96%; max-width:460px; pointer-events:auto; }
+  .chip { pointer-events:auto; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.18);
+    border-radius:11px; padding:7px 11px; color:#fff; font-weight:700; font-size:12.5px; }
+  .chip.on { background:rgba(122,209,122,.22); border-color:#7ad17a; }
+  .chip:disabled { opacity:.35; }
+
+  /* --- Mix : curseur de dilution --- */
+  #dtrack { position:relative; width:80%; max-width:360px; height:30px; pointer-events:auto;
+    display:flex; align-items:center; }
+  #dtrail { position:absolute; left:0; right:0; height:10px; border-radius:999px;
+    background:linear-gradient(90deg,#7ad17a,#ffd166 55%,#ff6b6b); opacity:.85; }
+  #dknob { position:absolute; width:24px; height:24px; border-radius:50%; background:#fff; left:0; margin-left:-12px;
+    box-shadow:0 2px 8px rgba(0,0,0,.5); border:2px solid #1a2c18; }
+
+  /* --- Pots : grille de formats --- */
+  #potgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; width:94%; max-width:440px; pointer-events:auto; }
+  .fmt { pointer-events:auto; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16);
+    border-radius:12px; padding:8px 5px; color:#fff; text-align:center; }
+  .fmt:active { background:rgba(255,255,255,.16); }
+  .fmt:disabled { opacity:.4; }
+  .fmt .fn { font-weight:800; font-size:13px; }
+  .fmt .fp { font-size:11px; color:#9be37d; margin-top:2px; }
+
+  /* --- Boutique --- */
+  #shopbtn { position:fixed; right:14px; top:max(10px,env(safe-area-inset-top)); pointer-events:auto;
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff; font-size:18px;
+    width:44px; height:40px; border-radius:12px; }
+  #shopbtn:active { background:rgba(255,255,255,.25); }
+  #shop { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); z-index:6; }
+  #shop.show { display:flex; }
+  #shopinner { width:88%; max-width:400px; max-height:76vh; overflow:auto; background:#10271a;
+    border:1px solid rgba(255,255,255,.15); border-radius:16px; padding:16px; color:#fff; }
+  #shophead { font-weight:800; font-size:18px; margin-bottom:12px; display:flex; justify-content:space-between; }
+  #shopcash { color:#9be37d; }
+  .shopitem { display:flex; align-items:center; gap:10px; padding:10px; margin-bottom:10px;
+    border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.04); }
+  .shopitem .ic { font-size:24px; }
+  .shopitem .info { flex:1; }
+  .shopitem .nm { font-weight:700; }
+  .shopitem .ds { font-size:12px; color:rgba(255,255,255,.6); }
+  .shopitem button { background:#3a6b3a; border:none; color:#fff; font-weight:700; padding:9px 12px; border-radius:10px; min-width:64px; }
+  .shopitem button:disabled { background:rgba(255,255,255,.12); color:rgba(255,255,255,.4); }
+  #shopclose { width:100%; background:rgba(255,255,255,.12); border:none; color:#fff; font-weight:700; padding:11px; border-radius:12px; }
+</style>
+
+<!-- Three.js charge en module depuis un CDN (import map). Supporte par Safari iOS 16.4+ -->
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- HUD haut -->
+<div class="hud" id="cash">💶 0 €</div>
+<div class="hud" id="debt">🧾 dette 0 €</div>
+<div class="hud" id="repwrap"><span id="replbl">⭐ Réput. 55</span><div id="repbar"><div id="repfill"></div></div></div>
+<div class="hud" id="xpwrap"><span id="level">Niv. 1</span><div id="xpbar"><div id="xpfill"></div></div></div>
+<div class="hud" id="stepper">
+  <span class="step" data-step="effeuille">1·Effeuille</span>
+  <span class="step" data-step="tri">2·Tri</span>
+  <span class="step" data-step="mix">3·Mix</span>
+  <span class="step" data-step="pots">4·Pots</span>
+  <span class="step" data-step="stock">5·Stock</span>
+</div>
+<button id="shopbtn">🛒</button>
+
+<div class="hud" id="hint"></div>
+<div id="toast"></div>
+<div id="labels"></div>
+
+<!-- Phase 1 : Effeuillage -->
+<div class="panel" id="effui">
+  <div class="card" id="effcard"></div>
+  <div style="text-align:center;font-size:12.5px;font-weight:800;color:rgba(173,224,140,.85);padding:5px 0 2px;pointer-events:none" id="effswipe">👆 Frotte les branches — détache les têtes (lent = moins de déchet)</div>
+  <div class="row">
+    <button class="btn alt" id="effSecateur">✂️ Sécateur</button>
+    <button class="btn" id="effNext">Trier ▸</button>
+  </div>
+</div>
+
+<!-- Phase 2 : Tri par variete -->
+<div class="panel" id="triui">
+  <div class="card" id="tricard"></div>
+  <div id="triactive"><span id="triswatch"></span><span id="trilbl">—</span></div>
+  <div id="trigrid"></div>
+  <div class="row"><button class="btn" id="triNext">Mélanger ▸</button></div>
+</div>
+
+<!-- Phase 3 : Mix / Dilution -->
+<div class="panel" id="mixui">
+  <div class="card" id="mixcard"></div>
+  <div id="mixchips"></div>
+  <div id="dtrack"><div id="dtrail"></div><div id="dknob"></div></div>
+  <div class="row">
+    <button class="toggle" id="mixBlend">🧬 Blend maison</button>
+    <button class="btn" id="mixPrep">Préparer le pot ▸</button>
+  </div>
+</div>
+
+<!-- Phase 4 : Conditionnement en pots -->
+<div class="panel" id="potsui">
+  <div class="card" id="potcard"></div>
+  <div class="gauge" id="sealgauge" style="display:none"><div class="sweet" id="sealsweet"></div><div class="cursor" id="sealcursor"></div></div>
+  <div id="potgrid"></div>
+  <div class="row">
+    <button class="toggle" id="optHygro" title="Pochon hygro (curing)">💧 Hygro</button>
+    <button class="btn" id="potDone">Terminer ▸</button>
+  </div>
+</div>
+
+<!-- Phase 5 : Stockage / Vente -->
+<div class="panel" id="stockui">
+  <div class="card" id="stockcard"></div>
+  <div class="row">
+    <button class="btn" id="stockSell">💶 Vendre le stock</button>
+    <button class="btn alt" id="stockNew">Nouvelle récolte ▸</button>
+  </div>
+</div>
+
+<!-- Boutique -->
+<div id="shop">
+  <div id="shopinner">
+    <div id="shophead"><span>🛒 Boutique</span><span id="shopcash"></span></div>
+    <div id="shopitems"></div>
+    <button id="shopclose">Fermer</button>
+  </div>
+</div>
+
+<script type="module">
+"use strict";
+import * as THREE from "three";
+
+/* =========================================================================
+   RECOLTE — core loop de transfo multi-varietes (proto mobile 3D)
+   -------------------------------------------------------------------------
+   On prend une RECOLTE a credit (plusieurs varietes sur branches), puis :
+     1) Effeuillage : on FROTTE les branches -> les tetes tombent dans un
+        TAS FRAIS mele (toutes varietes) + des feuilles partent en DECHET.
+     2) Tri         : on route chaque poignee du tas frais vers le bon BAC
+        de variete (Skunk / White Widow / Lemon / Purple) ou le bac Dechet.
+        Se tromper de bac CONTAMINE le bac (qualite/purete en baisse).
+     3) Mix         : on choisit une variete (pure) OU un "Blend maison"
+        (plusieurs varietes), et on peut DILUER au dechet vegetal (volume up,
+        qualite down) -> c'est l'arbitrage cupidite/prudence.
+     4) Pots        : on conditionne en POTS en verre etiquetes VARIETE + QUALITE,
+        scellage au timing pour un bonus.
+     5) Stock       : les pots s'empilent sur l'etagere ; "Vendre le stock"
+        rembourse d'abord la DETTE, le surplus tombe en cash.
+   Reputation = qualite moyenne vendue. Persistance localStorage prefixe "rc_".
+   Tout est commente en francais, brique par brique. (Fork de green-front.)
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   0) VARIETES + ECONOMIE (constantes de jeu)
+   ------------------------------------------------------------------------- */
+// Varietes triables. col = couleur 3D, tint = pastille d'indice a l'ecran.
+const STRAINS = {
+  skunk:  { name: "Skunk",        emoji: "🦨", col: [111,154,72],  tint: "#9bd06a", lbl: "#bdf0a3" },
+  widow:  { name: "White Widow",  emoji: "❄️", col: [176,202,184], tint: "#dff3e4", lbl: "#e6f6ec" },
+  lemon:  { name: "Lemon Haze",   emoji: "🍋", col: [200,193,74],  tint: "#e8e27a", lbl: "#ece887" },
+  purple: { name: "Purple Kush",  emoji: "🍇", col: [129,97,166],  tint: "#c4a3e8", lbl: "#cba8ec" },
+};
+const STR_IDS = ["skunk", "widow", "lemon", "purple"];
+
+// Recoltes prises a credit. €/g de gros baisse avec le volume. nbVar = nb de
+// varietes presentes dans la recolte. leaf = part de feuilles/dechet (a effeuiller).
+const HARVESTS = {
+  plant:  { g: 140, name: "Plant (≈140 g)",   wholesale: 2.6, nbVar: 2, leaf: 0.30 },
+  crop:   { g: 320, name: "Récolte (≈320 g)", wholesale: 2.3, nbVar: 3, leaf: 0.26 },
+  room:   { g: 640, name: "Chambre (≈640 g)", wholesale: 2.0, nbVar: 4, leaf: 0.22 },
+};
+
+// Formats de pots : petite quantite = €/g plus eleve (retail).
+const JARS = [
+  { id: "j35", g: 3.5, eur: 11, name: "3.5 g", emoji: "🫙" },
+  { id: "j7",  g: 7,   eur: 10, name: "7 g",   emoji: "🫙" },
+  { id: "j14", g: 14,  eur: 9,  name: "14 g",  emoji: "🫙" },
+  { id: "j28", g: 28,  eur: 8,  name: "28 g",  emoji: "🏺" },
+];
+
+const WASTE_Q = 0.08;   // qualite "intrinseque" du dechet vegetal (pour la dilution)
+
+/* -------------------------------------------------------------------------
+   1) SCENE, CAMERA, RENDU
+   ------------------------------------------------------------------------- */
+const app = document.getElementById("app");
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setClearColor(0x000000, 0);            // fond transparent -> degrade CSS visible
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
+// Cadrage auto : la scene (plan + 5 bacs) rentre toujours a l'ecran.
+const VIEW_DIR    = new THREE.Vector3(0.02, 0.64, 0.77).normalize();  // 3/4 plongeant
+const VIEW_TARGET = new THREE.Vector3(0, 0.15, 0.0);
+const VIEW_RADIUS = Math.hypot(3.9, 0.9, 3.0);
+const baseCamPos  = new THREE.Vector3();
+let zoom = +(localStorage.getItem("rc_zoom")) || 1;
+zoom = Math.max(0.6, Math.min(2.4, zoom));
+
+function fitView() {
+  const vFov = camera.fov * Math.PI / 180;
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  const fov = Math.min(vFov, hFov);
+  const dist = (VIEW_RADIUS / Math.sin(fov / 2)) * 1.05 / zoom;
+  baseCamPos.copy(VIEW_TARGET).addScaledVector(VIEW_DIR, dist);
+  camera.position.copy(baseCamPos);
+  camera.lookAt(VIEW_TARGET);
+}
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  fitView();
+}
+window.addEventListener("resize", resize);
+
+/* -------------------------------------------------------------------------
+   2) LUMIERES
+   ------------------------------------------------------------------------- */
+scene.add(new THREE.HemisphereLight(0xeafff0, 0x16281a, 0.62));
+const sun = new THREE.DirectionalLight(0xffffe8, 1.4);
+sun.position.set(5, 11, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.bias = -0.0004;
+const sc = sun.shadow.camera;
+sc.left = -8; sc.right = 8; sc.top = 8; sc.bottom = -8; sc.near = 1; sc.far = 28;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xbce0ff, 0.32);
+fill.position.set(-4, 3, 6);
+scene.add(fill);
+
+/* -------------------------------------------------------------------------
+   3) TEXTURES PROCEDURALES (grain) — aucun fichier externe
+   ------------------------------------------------------------------------- */
+function grainTex(r, g, b, contrast, spots) {
+  const c = document.createElement("canvas"); c.width = c.height = 96;
+  const x = c.getContext("2d");
+  const img = x.createImageData(96, 96);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * contrast;
+    img.data[i]   = Math.max(0, Math.min(255, r + n));
+    img.data[i+1] = Math.max(0, Math.min(255, g + n));
+    img.data[i+2] = Math.max(0, Math.min(255, b + n));
+    img.data[i+3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  for (let k = 0; k < spots; k++) {
+    x.fillStyle = "rgba(40,24,52," + (Math.random() * 0.22) + ")";       // petits pistils
+    x.fillRect(Math.random() * 96, Math.random() * 96, Math.random() * 2 + 1, Math.random() * 2 + 1);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 2);
+  return t;
+}
+// Un materiau "nug" par variete + le dechet vegetal.
+const matStrain = {};
+for (const id of STR_IDS) {
+  const [r, g, b] = STRAINS[id].col;
+  matStrain[id] = new THREE.MeshStandardMaterial({ map: grainTex(r, g, b, 40, 90), roughness: 0.88 });
+}
+const matLeaf  = new THREE.MeshStandardMaterial({ map: grainTex(96, 116, 64, 30, 30), roughness: 0.96 }); // feuilles/dechet
+const matBranch = new THREE.MeshStandardMaterial({ color: 0x5a4327, roughness: 0.9 });
+
+/* -------------------------------------------------------------------------
+   4) PLAN DE TRAVAIL
+   ------------------------------------------------------------------------- */
+const board = new THREE.Mesh(
+  new THREE.BoxGeometry(8.6, 0.3, 6.4),
+  new THREE.MeshStandardMaterial({ color: 0x6f7378, roughness: 0.55, metalness: 0.3 })
+);
+board.position.set(0, -0.15, 0.2);
+board.receiveShadow = true;
+scene.add(board);
+
+/* -------------------------------------------------------------------------
+   5) NUGS (tetes) : icosaedres deformes + materiau passe en parametre
+   ------------------------------------------------------------------------- */
+function makeNugGeo(r) {
+  const g = new THREE.IcosahedronGeometry(r, 1);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const f = 0.74 + Math.random() * 0.5;     // bosselage
+    p.setXYZ(i, p.getX(i) * f, p.getY(i) * f, p.getZ(i) * f);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+const nugGeoBig = makeNugGeo(0.16);
+const nugGeoSm  = makeNugGeo(0.1);
+function makeNug(mat, small) {
+  const m = new THREE.Mesh(small ? nugGeoSm : nugGeoBig, mat);
+  m.castShadow = true;
+  m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+  return m;
+}
+
+/* -------------------------------------------------------------------------
+   6) BACS DE TRI : 4 varietes au fond + 1 bac DECHET, chacun avec sa pile
+   ------------------------------------------------------------------------- */
+function makeBin(pos, col, mat2) {
+  const grp = new THREE.Group(); grp.position.copy(pos);
+  const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, metalness: 0.1, side: THREE.DoubleSide });
+  const w = 1.3, d = 1.1, h = 0.38, th = 0.06;
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(w, th, d), mat);
+  floor.position.y = th / 2; floor.receiveShadow = true; grp.add(floor);
+  const wLR = (x) => { const m = new THREE.Mesh(new THREE.BoxGeometry(th, h, d), mat); m.position.set(x, h / 2, 0); grp.add(m); };
+  const wFB = (z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, th), mat); m.position.set(0, h / 2, z); grp.add(m); };
+  wLR(-w / 2); wLR(w / 2); wFB(-d / 2); wFB(d / 2);
+  scene.add(grp);
+  // Pile de nugs (visibilite pilotee par le poids du bac).
+  const pile = new THREE.Group(); grp.add(pile);
+  const PMAX = 14;
+  for (let i = 0; i < PMAX; i++) {
+    const m = makeNug(mat2, false);
+    const layer = Math.floor(i / 7), idx = i % 7, cx = idx % 4, rz = Math.floor(idx / 4);
+    m.position.set(-0.42 + cx * 0.3, 0.15 + layer * 0.15, -0.22 + rz * 0.44);
+    m.visible = false; pile.add(m);
+  }
+  grp.userData.pile = pile; grp.userData.PMAX = PMAX;
+  return grp;
+}
+// 4 bacs varietes en rangee au fond + bac dechet en avant a droite.
+const BIN_POS = {
+  skunk:  new THREE.Vector3(-3.0, 0, -1.7),
+  widow:  new THREE.Vector3(-1.0, 0, -1.7),
+  lemon:  new THREE.Vector3( 1.0, 0, -1.7),
+  purple: new THREE.Vector3( 3.0, 0, -1.7),
+  waste:  new THREE.Vector3( 3.2, 0,  1.6),
+};
+const BIN_COL = { skunk: 0x33532b, widow: 0x4b5a4f, lemon: 0x55521f, purple: 0x3c2f4e, waste: 0x3a3026 };
+const bins3d = {};
+for (const id of STR_IDS) bins3d[id] = makeBin(BIN_POS[id], BIN_COL[id], matStrain[id]);
+bins3d.waste = makeBin(BIN_POS.waste, BIN_COL.waste, matLeaf);
+
+function refreshPile(binGrp, grams, perNug) {
+  const pile = binGrp.userData.pile, PMAX = binGrp.userData.PMAX;
+  const n = Math.max(0, Math.min(PMAX, Math.round(grams / perNug)));
+  for (let i = 0; i < PMAX; i++) pile.children[i].visible = i < n;
+}
+
+/* -------------------------------------------------------------------------
+   7) ZONE DE TRAVAIL CENTRALE (contenu selon la phase)
+   ------------------------------------------------------------------------- */
+// 7a) Les BRANCHES a effeuiller (phase 1) : tige + tetes accrochees.
+const branch = new THREE.Group();
+branch.position.set(0, 0, 0.2);
+const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 2.4, 8), matBranch);
+stem.rotation.z = 0.5; stem.position.y = 0.5; stem.castShadow = true;
+branch.add(stem);
+const branchNugs = [];
+const BRANCH_MAX = 16;
+for (let i = 0; i < BRANCH_MAX; i++) {
+  const m = makeNug(matStrain[STR_IDS[i % STR_IDS.length]], i % 3 === 0);
+  const t = (i / BRANCH_MAX - 0.5) * 2.0;
+  m.position.set(t * 0.9, 0.5 + t * 0.5 + 0.18, (i % 2 ? 0.16 : -0.16));
+  branch.add(m); branchNugs.push(m);
+}
+scene.add(branch);
+
+// 7b) Le TAS FRAIS mele a trier (phase 2).
+const freshGrp = new THREE.Group();
+freshGrp.position.set(0, 0, 0.2);
+scene.add(freshGrp);
+const FRESH_MAX = 22;
+for (let i = 0; i < FRESH_MAX; i++) {
+  const m = makeNug(i % 5 === 0 ? matLeaf : matStrain[STR_IDS[i % STR_IDS.length]], false);
+  const a = (i / FRESH_MAX) * Math.PI * 2, r = 0.16 + (i % 5) * 0.14;
+  m.position.set(Math.cos(a) * r, 0.16 + (i % 3) * 0.12, Math.sin(a) * r * 0.7);
+  freshGrp.add(m);
+}
+// La tete "active" en cours de tri, qui flotte au dessus du tas.
+const activeNug = makeNug(matStrain.skunk, false);
+activeNug.scale.setScalar(1.35);
+activeNug.position.set(0, 0.85, 0.2);
+scene.add(activeNug);
+function refreshFreshPile(grams, total) {
+  const n = total > 0 ? Math.max(0, Math.min(FRESH_MAX, Math.round((grams / total) * FRESH_MAX))) : 0;
+  for (let i = 0; i < FRESH_MAX; i++) freshGrp.children[i].visible = i < n;
+}
+
+// 7c) Le BOL de melange (phase 3).
+const bowl = new THREE.Group();
+const bowlMat = new THREE.MeshStandardMaterial({ color: 0x9aa1a8, metalness: 0.5, roughness: 0.35, side: THREE.DoubleSide });
+const bowlWall = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 0.78, 0.5, 28, 1, true), bowlMat);
+bowlWall.position.y = 0.27;
+const bowlBottom = new THREE.Mesh(new THREE.CircleGeometry(0.78, 28), bowlMat);
+bowlBottom.rotation.x = -Math.PI / 2; bowlBottom.position.y = 0.04;
+bowl.add(bowlWall); bowl.add(bowlBottom);
+bowl.position.set(0, 0, 0.2);
+bowl.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+const bowlFill = new THREE.Group(); bowl.add(bowlFill);   // nugs dans le bol
+const bowlNugs = [];
+for (let i = 0; i < 12; i++) {
+  const m = makeNug(matStrain.skunk, true);
+  const a = Math.random() * 6.28, r = Math.random() * 0.6;
+  m.position.set(Math.cos(a) * r, 0.12 + Math.random() * 0.06, Math.sin(a) * r);
+  bowlFill.add(m); bowlNugs.push(m);
+}
+scene.add(bowl);
+function setBowlMat(mat) { for (const m of bowlNugs) m.material = mat; }
+
+// 7d) Le POT en verre (phase 4) : verre + remplissage teinte + couvercle + bandeau d'etiquette.
+const jar = new THREE.Group();
+const glass = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.55, 0.55, 1.0, 24, 1, true),
+  new THREE.MeshStandardMaterial({ color: 0xdfeef0, transparent: true, opacity: 0.2, roughness: 0.05, metalness: 0.3, side: THREE.DoubleSide })
+);
+glass.position.y = 0.55;
+const jarFill = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.9, 24), matStrain.skunk);
+jarFill.position.y = 0.5;
+const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.59, 0.59, 0.13, 24),
+  new THREE.MeshStandardMaterial({ color: 0xb8a14a, metalness: 0.6, roughness: 0.4 }));
+lid.position.y = 1.1;
+const band = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 0.3, 24, 1, true),
+  new THREE.MeshStandardMaterial({ color: 0xf3efe2, roughness: 0.8, side: THREE.DoubleSide }));
+band.position.y = 0.42;
+jar.add(glass); jar.add(jarFill); jar.add(lid); jar.add(band);
+jar.position.set(0, 0, 0.2);
+jar.traverse(o => { if (o.isMesh) o.castShadow = true; });
+scene.add(jar);
+jar.userData.fill = jarFill;
+
+// 7e) L'ETAGERE de stockage (phase 5) : planche + pots scelles empiles.
+const shelf = new THREE.Group();
+const plank = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.12, 1.3),
+  new THREE.MeshStandardMaterial({ color: 0x4a3a22, roughness: 0.85 }));
+plank.position.y = 0.06; plank.receiveShadow = true;
+shelf.add(plank);
+shelf.position.set(0, 0, 0.4);
+scene.add(shelf);
+const jarSlots = [];
+const slotGlassMat = new THREE.MeshStandardMaterial({ color: 0xdfeef0, transparent: true, opacity: 0.28, roughness: 0.05, side: THREE.DoubleSide });
+for (let i = 0; i < 18; i++) {
+  const grp = new THREE.Group();
+  const gl = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.42, 14, 1, true), slotGlassMat);
+  gl.position.y = 0.21;
+  const fl = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.36, 14), matStrain.skunk);
+  fl.position.y = 0.2;
+  const ld = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.06, 14),
+    new THREE.MeshStandardMaterial({ color: 0xb8a14a, metalness: 0.6, roughness: 0.4 }));
+  ld.position.y = 0.45;
+  grp.add(gl); grp.add(fl); grp.add(ld);
+  const col = i % 9, rowz = Math.floor(i / 9);
+  grp.position.set(-2.3 + col * 0.56, 0.12, -0.28 + rowz * 0.56);
+  grp.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  grp.visible = false; grp.userData.fill = fl;
+  shelf.add(grp); jarSlots.push(grp);
+}
+function refreshShelf() {
+  for (let i = 0; i < jarSlots.length; i++) {
+    const j = storage[i];
+    jarSlots[i].visible = !!j;
+    if (j) jarSlots[i].userData.fill.material = j.strain === "blend" ? matStrain.skunk : matStrain[j.strain];
+  }
+}
+
+/* -------------------------------------------------------------------------
+   8) SECOUSSE / AUDIO (juice synthetise, zero fichier) + nugs volants
+   ------------------------------------------------------------------------- */
+let shake = 0;
+function addShake(a) { shake = Math.min(0.6, shake + a); }
+
+let actx = null;
+function ensureAudio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (actx && actx.state === "suspended") actx.resume();
+  return actx;
+}
+function beep(freq, t0, dur, vol, type) {
+  const ac = ensureAudio(); if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || "square"; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t0); o.stop(t0 + dur);
+}
+function noiseBurst(dur, f0, f1, vol, type, q) {
+  const ac = ensureAudio(); if (!ac) return;
+  const t = ac.currentTime, len = Math.max(1, Math.floor(ac.sampleRate * dur));
+  const buf = ac.createBuffer(1, len, ac.sampleRate), ch = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.5);
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const filt = ac.createBiquadFilter(); filt.type = type || "bandpass"; filt.Q.value = q || 0.8;
+  filt.frequency.setValueAtTime(f0, t);
+  filt.frequency.exponentialRampToValueAtTime(Math.max(60, f1), t + dur);
+  const g = ac.createGain(); g.gain.value = vol;
+  src.connect(filt); filt.connect(g); g.connect(ac.destination);
+  src.start(t); src.stop(t + dur);
+}
+function playSnip() { noiseBurst(0.07, 3200, 900, 0.2, "bandpass", 1.1); }       // froissement/effeuillage
+function playSeal() { noiseBurst(0.22, 600, 1700, 0.22, "lowpass", 0.6); }       // bocal scelle
+function playSale() { const ac = ensureAudio(); if (!ac) return; const t = ac.currentTime; beep(880, t, 0.12, 0.22); beep(1320, t + 0.08, 0.16, 0.2); }
+function playThud() { noiseBurst(0.18, 240, 70, 0.3, "lowpass", 0.7); }          // chute des branches
+function playGood() { const ac = ensureAudio(); if (!ac) return; beep(740, ac.currentTime, 0.07, 0.16, "sine"); }
+function playBad()  { beep(170, (ensureAudio() || {}).currentTime || 0, 0.12, 0.18, "sawtooth"); }
+
+// Nugs qui volent vers un bac (feedback du tri/effeuillage).
+const flyers = [];
+function flyNug(mat, fromY, target, small) {
+  const m = makeNug(mat, small !== false);
+  m.position.set((Math.random() - 0.5) * 0.6, fromY, 0.2 + (Math.random() - 0.5) * 0.4);
+  scene.add(m);
+  flyers.push({ mesh: m, target: target.clone().setY(0.35), t: 0 });
+  while (flyers.length > 40) { const f = flyers.shift(); scene.remove(f.mesh); }
+}
+function updateFlyers(dt) {
+  for (let i = flyers.length - 1; i >= 0; i--) {
+    const f = flyers[i];
+    f.t += dt; f.mesh.rotation.x += dt * 8; f.mesh.rotation.y += dt * 6;
+    f.mesh.position.lerp(f.target, Math.min(1, dt * 6));
+    if (f.mesh.position.distanceTo(f.target) < 0.12 || f.t > 1.2) {
+      scene.remove(f.mesh); flyers.splice(i, 1);
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------
+   9) ETAT DE PARTIE + PERSISTANCE (prefixe "rc_")
+   ------------------------------------------------------------------------- */
+const SAVE_VERSION = "1";
+if (localStorage.getItem("rc_ver") !== SAVE_VERSION) {
+  ["rc_cash","rc_debt","rc_rep","rc_level","rc_xp","rc_shop","rc_bins","rc_waste","rc_storage"].forEach(k => localStorage.removeItem(k));
+  localStorage.setItem("rc_ver", SAVE_VERSION);
+}
+
+let cash  = +(localStorage.getItem("rc_cash")  || 0);
+let debt  = +(localStorage.getItem("rc_debt")  || 0);
+let rep   = +(localStorage.getItem("rc_rep")   || 55);   // reputation 0..100
+let level = Math.max(1, +(localStorage.getItem("rc_level") || 1));
+let xp    = Math.max(0, +(localStorage.getItem("rc_xp")    || 0));
+
+// Bacs tries par variete : g = grammes, qs = somme ponderee de qualite (q = qs/g).
+function freshBins() { const o = {}; for (const id of STR_IDS) o[id] = { g: 0, qs: 0 }; return o; }
+let bins  = Object.assign(freshBins(), JSON.parse(localStorage.getItem("rc_bins") || "null") || {});
+let waste = +(localStorage.getItem("rc_waste") || 0);              // dechet vegetal (pour la dilution)
+let storage = JSON.parse(localStorage.getItem("rc_storage") || "[]");  // pots scelles : {strain,name,grade,q,g,price}
+
+const owned = JSON.parse(localStorage.getItem("rc_shop") || "{}");
+owned.room    = owned.room    || 0;   // debloque la recolte "Chambre" (4 varietes)
+owned.secateur= owned.secateur|| 0;   // sécateur : moins de dechet a l'effeuillage
+owned.loupe   = owned.loupe   || 0;   // loupe/UV : contamination du tri moins penalisante
+owned.hygro   = owned.hygro   || 0;   // pochons hygro (curing) debloques
+owned.sealer  = owned.sealer  || 0;   // scelleuse (zone verte de scellage)
+owned.network = owned.network || 0;   // reseau de revendeurs (prix retail)
+owned.autosort= owned.autosort|| 0;   // auto-trieuse (tri passif)
+
+let phase = "effeuille";              // effeuille | tri | mix | pots | stock
+let harvest = null;                   // recolte en cours { raw, total, wholesale, fr:{...}, leafFr }
+let fresh = null;                     // tas frais a trier { skunk, widow, lemon, purple, leaf }
+let active = null;                    // tete active en cours de tri { kind: id|"leaf", g }
+let triStreak = 0;                    // serie de bons routages
+let mixSel = {};                      // varietes selectionnees pour le mix
+let mixBlend = false;                 // mode blend (plusieurs varietes ensemble)
+let batch = null;                     // lot prepare a empoter { strain, name, g, q }
+let optHygro = false;                 // option pochon hygro au conditionnement
+
+function saveBins()    { localStorage.setItem("rc_bins", JSON.stringify(bins)); localStorage.setItem("rc_waste", String(Math.round(waste))); }
+function saveStorage() { localStorage.setItem("rc_storage", JSON.stringify(storage)); }
+function saveShop()    { localStorage.setItem("rc_shop", JSON.stringify(owned)); }
+
+/* -------------------------------------------------------------------------
+   10) UI : references + setters HUD
+   ------------------------------------------------------------------------- */
+const ui = {};
+["cash","debt","replbl","repfill","level","xpfill","hint","toast",
+ "effui","effcard","effswipe","effSecateur","effNext",
+ "triui","tricard","triactive","triswatch","trilbl","trigrid","triNext",
+ "mixui","mixcard","mixchips","dtrack","dtrail","dknob","mixBlend","mixPrep",
+ "potsui","potcard","sealgauge","sealsweet","sealcursor","potgrid","optHygro","potDone",
+ "stockui","stockcard","stockSell","stockNew",
+ "shop","shopitems","shopcash"].forEach(id => ui[id] = document.getElementById(id));
+
+function levelMult() { return 1 + (level - 1) * 0.04; }
+function repMult()   { return (0.8 + rep / 100 * 0.5) + owned.network * 0.04; }   // prix retail selon reput + reseau
+
+function setCash(v) {
+  cash = Math.max(0, Math.round(v));
+  localStorage.setItem("rc_cash", String(cash));
+  ui.cash.textContent = "💶 " + cash + " €";
+  if (ui.shop.classList.contains("show")) renderShop();
+}
+function setDebt(v) {
+  debt = Math.max(0, Math.round(v));
+  localStorage.setItem("rc_debt", String(debt));
+  ui.debt.textContent = debt > 0 ? "🧾 dette " + debt + " €" : "🧾 à jour";
+  ui.debt.style.color = debt > 0 ? "#ff9f6b" : "#9be37d";
+}
+function setRep(v) {
+  const was = rep;
+  rep = Math.max(0, Math.min(100, v));
+  localStorage.setItem("rc_rep", String(Math.round(rep)));
+  ui.replbl.textContent = "⭐ Réput. " + Math.round(rep);
+  ui.repfill.style.width = rep + "%";
+  if (Math.round(rep) !== Math.round(was)) {
+    const d = rep - was;
+    if (Math.abs(d) >= 1) showToast((d > 0 ? "+" : "") + Math.round(d) + " réput.", d > 0 ? "#bdf0a3" : "#ff9f6b");
+  }
+}
+// Le revenu rembourse d'abord la DETTE, le surplus tombe en cash.
+function applyRevenue(rev) {
+  rev = Math.max(0, rev);
+  if (debt > 0) {
+    const pay = Math.min(debt, rev);
+    const before = debt;
+    setDebt(debt - pay); rev -= pay;
+    if (before > 0 && debt === 0) setRep(rep + 2);   // recolte remboursee -> confiance du fournisseur
+  }
+  if (rev > 0) setCash(cash + rev);
+}
+
+// XP / niveaux.
+function xpNeed(lvl) { return Math.round(90 * Math.pow(1.3, lvl - 1)); }
+function updateXpUI() {
+  ui.level.textContent = "Niv. " + level + " · +" + Math.round((levelMult() - 1) * 100) + "%";
+  ui.xpfill.style.width = Math.min(100, (xp / xpNeed(level)) * 100) + "%";
+}
+function addXP(n) {
+  xp += n; let leveled = false;
+  while (xp >= xpNeed(level)) { xp -= xpNeed(level); level++; leveled = true; }
+  if (leveled) {
+    showToast("Niveau " + level + " ! +" + Math.round((levelMult() - 1) * 100) + "% revenus", "#bdf0a3");
+    addShake(0.16);
+    const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(990, t + 0.08, 0.14, 0.22); }
+  }
+  localStorage.setItem("rc_level", String(level));
+  localStorage.setItem("rc_xp", String(Math.round(xp)));
+  updateXpUI();
+}
+
+let toastTimer = 0;
+function showToast(msg, color) {
+  ui.toast.textContent = msg;
+  ui.toast.style.color = color || "#fff";
+  ui.toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => ui.toast.classList.remove("show"), 950);
+}
+function setHint(t) { ui.hint.textContent = t; ui.hint.style.opacity = t ? "1" : "0"; }
+
+// Qualite -> mention de grade (etiquette des pots).
+function gradeOf(q) { return q >= 0.8 ? "Top" : q >= 0.62 ? "Bon" : q >= 0.42 ? "Moyen" : "Schlag"; }
+function binQ(id) { return bins[id].g > 0.01 ? bins[id].qs / bins[id].g : 0; }
+
+// Etiquettes 3D projetees pour les bacs.
+const labelsEl = document.getElementById("labels");
+function makeLabel(html, color) {
+  const d = document.createElement("div"); d.className = "blabel";
+  d.innerHTML = html; d.style.color = color; labelsEl.appendChild(d); return d;
+}
+const binLabels = {};
+for (const id of STR_IDS) binLabels[id] = makeLabel(STRAINS[id].emoji + " 0 g", STRAINS[id].lbl);
+binLabels.waste = makeLabel("🍂 Déchet 0 g", "#caa15f");
+const _lv = new THREE.Vector3();
+function placeLabel(div, pos, y) {
+  _lv.set(pos.x, y, pos.z).project(camera);
+  if (_lv.z > 1) { div.style.display = "none"; return; }
+  div.style.display = "block";
+  div.style.left = ((_lv.x * 0.5 + 0.5) * window.innerWidth) + "px";
+  div.style.top  = ((-_lv.y * 0.5 + 0.5) * window.innerHeight) + "px";
+}
+function updateBinsUI() {
+  for (const id of STR_IDS) {
+    binLabels[id].innerHTML = STRAINS[id].emoji + " " + Math.round(bins[id].g) + " g" +
+      (bins[id].g > 1 ? " <span class=\"qd\">" + gradeOf(binQ(id)) + "</span>" : "");
+    refreshPile(bins3d[id], bins[id].g, 24);
+  }
+  binLabels.waste.innerHTML = "🍂 Déchet " + Math.round(waste) + " g";
+  refreshPile(bins3d.waste, waste, 24);
+}
+
+/* -------------------------------------------------------------------------
+   11) STEPPER + bascule de phase (montre la bonne station + overlay)
+   ------------------------------------------------------------------------- */
+const ORDER = ["effeuille", "tri", "mix", "pots", "stock"];
+function updateStepper() {
+  const idx = ORDER.indexOf(phase);
+  document.querySelectorAll(".step").forEach(s => {
+    const i = ORDER.indexOf(s.dataset.step);
+    s.classList.toggle("on", s.dataset.step === phase);
+    s.classList.toggle("done", i < idx);
+  });
+}
+function setPhase(p) {
+  phase = p;
+  ui.effui.classList.toggle("show", p === "effeuille");
+  ui.triui.classList.toggle("show", p === "tri");
+  ui.mixui.classList.toggle("show", p === "mix");
+  ui.potsui.classList.toggle("show", p === "pots");
+  ui.stockui.classList.toggle("show", p === "stock");
+  branch.visible    = (p === "effeuille");
+  freshGrp.visible  = (p === "tri");
+  activeNug.visible = (p === "tri");
+  bowl.visible      = (p === "mix");
+  jar.visible       = (p === "pots");
+  shelf.visible     = (p === "stock");
+  updateStepper();
+}
+
+/* -------------------------------------------------------------------------
+   12) PHASE 1 — EFFEUILLAGE (prise de recolte a credit + frottage)
+   ------------------------------------------------------------------------- */
+let branchDrop = 0;
+const eff = { dragging: false, lastX: 0, lastY: 0, lastT: 0, acc: 0, speed: 0, flash: 0, cd: 0 };
+const EFF_STRIDE = 30;   // px de glisse par poignee effeuillee
+let useSecateur = false;
+
+function maxDebt() { return 800 + rep * 24 + level * 200; }
+
+// Compose une nouvelle recolte : choisit nbVar varietes et leurs parts.
+function newHarvest() {
+  let key = "plant";
+  if (level >= 2) key = "crop";
+  if (owned.room) key = "room";
+  const h = HARVESTS[key];
+  // Choix des varietes presentes (les premieres nbVar, melangees).
+  const pool = STR_IDS.slice().sort(() => Math.random() - 0.5).slice(0, h.nbVar);
+  const fr = {}; let s = 0;
+  for (const id of pool) { const w = 0.5 + Math.random(); fr[id] = w; s += w; }
+  for (const id of pool) fr[id] /= s;                  // normalise a 1
+  harvest = {
+    raw: h.g, total: h.g, key,
+    wholesale: +(h.wholesale * (1 - rep / 600)).toFixed(2),
+    fr, leafFr: h.leaf, varieties: pool,
+  };
+  branchDrop = 1;
+  // Recolte prise a credit -> dette.
+  const cost = Math.round(h.g * harvest.wholesale);
+  setDebt(debt + cost);
+  showToast("Récolte prise à crédit", "#bdf0a3");
+}
+function gotoEffeuille() {
+  setPhase("effeuille");
+  newHarvest();
+  fresh = { skunk: 0, widow: 0, lemon: 0, purple: 0, leaf: 0 };
+  eff.dragging = false; eff.acc = 0; eff.flash = 0; eff.cd = 0;
+  for (const m of branchNugs) m.visible = true;
+  setSecateur(useSecateur);
+  refreshEffCard();
+  setHint("Frotte les branches pour détacher les têtes. Geste lent = moins de déchet. ✂️ sécateur = plus propre.");
+}
+function refreshEffCard() {
+  const names = harvest.varieties.map(id => STRAINS[id].emoji).join(" ");
+  ui.effcard.innerHTML =
+    "🌿 Récolte : <b>" + HARVESTS[harvest.key].name + "</b> — " + names + "<br>" +
+    "Sur branches : <b>" + Math.round(harvest.raw) + " g</b> / " + harvest.total + " g" +
+    "<br>Tas frais : <b>" + Math.round(freshBud()) + " g</b> têtes · " + Math.round(fresh.leaf) + " g feuilles";
+}
+function freshBud() { return STR_IDS.reduce((s, id) => s + fresh[id], 0); }
+function setSecateur(on) {
+  useSecateur = on;
+  ui.effSecateur.classList.toggle("on", on);
+}
+// Une poignee effeuillee : detache des tetes (reparties selon la recolte) + des
+// feuilles. Geste vif / pas de secateur -> plus de feuilles arrachees (dechet).
+// La VARIETE n'est PAS encore separee : tout tombe dans le tas frais mele.
+function effStrip(speed) {
+  if (phase !== "effeuille" || harvest.raw <= 0) return false;
+  const batchG = Math.min(harvest.raw, 16);
+  // Part de feuille de cette poignee : base de la recolte, +geste vif, -secateur.
+  const vivacity = Math.max(0, Math.min(1, (speed - 0.15) / 0.9));
+  let leafShare = harvest.leafFr + vivacity * 0.12 - (useSecateur ? 0.10 + owned.secateur * 0.015 : 0);
+  leafShare = Math.max(0.05, Math.min(0.6, leafShare));
+  const budG = batchG * (1 - leafShare), leafG = batchG * leafShare;
+  for (const id of harvest.varieties) fresh[id] += budG * harvest.fr[id];
+  fresh.leaf += leafG;
+  harvest.raw -= batchG;
+  // Juice.
+  flyNug(matStrain[harvest.varieties[0]], 0.9, new THREE.Vector3(0, 0, 0.2), true);
+  if (Math.random() < 0.5) flyNug(matLeaf, 0.9, BIN_POS.waste, true);
+  eff.flash = 0.16;
+  if (Math.random() < 0.4) addShake(0.05);
+  // Cache progressivement les tetes de la branche.
+  const remain = Math.ceil((harvest.raw / harvest.total) * BRANCH_MAX);
+  for (let i = 0; i < BRANCH_MAX; i++) branchNugs[i].visible = i < remain;
+  playSnip();
+  return true;
+}
+function effCommitUI() {
+  refreshEffCard();
+  if (harvest.raw <= 0.5 && !harvest._done) {
+    harvest._done = true; harvest.raw = 0;
+    for (const m of branchNugs) m.visible = false;
+    refreshEffCard();
+    setHint("Branches nues ! Passe au tri par variété ▸");
+    showToast("Effeuillage fini 🌿", "#9be37d");
+  }
+}
+
+/* -------------------------------------------------------------------------
+   13) PHASE 2 — TRI PAR VARIETE
+   ------------------------------------------------------------------------- */
+function gotoTri() {
+  setPhase("tri");
+  triStreak = 0;
+  // Bascule le restant des branches en tas frais (s'il en reste).
+  if (harvest && harvest.raw > 0.5) {
+    const remain = harvest.raw;
+    for (const id of harvest.varieties) fresh[id] += remain * harvest.fr[id] * (1 - harvest.leafFr);
+    fresh.leaf += remain * harvest.leafFr;
+    harvest.raw = 0;
+  }
+  fresh._total = freshBud() + fresh.leaf;
+  pickActive();
+  refreshTriCard();
+  renderTriGrid();
+  updateBinsUI();
+  setHint("Route chaque poignée vers le bon bac de variété. Erreur = contamination (qualité du bac en baisse). 🍂 = bac déchet.");
+}
+function freshTotal() { return freshBud() + fresh.leaf; }
+// Pioche la prochaine tete active dans le tas frais (ponderee par les g restants).
+function pickActive() {
+  const total = freshTotal();
+  if (total <= 0.5) { active = null; return; }
+  let r = Math.random() * total;
+  if (r < fresh.leaf) {
+    const g = Math.min(fresh.leaf, 8 + Math.random() * 5);
+    active = { kind: "leaf", g };
+  } else {
+    r -= fresh.leaf;
+    let chosen = STR_IDS[0];
+    for (const id of STR_IDS) { if (r < fresh[id]) { chosen = id; break; } r -= fresh[id]; }
+    const g = Math.min(fresh[chosen], 11 + Math.random() * 6);
+    active = { kind: chosen, g };
+  }
+  // Rendu de la tete active (couleur = variete reelle).
+  activeNug.material = active.kind === "leaf" ? matLeaf : matStrain[active.kind];
+  const sw = active.kind === "leaf" ? "#7e8a4f" : STRAINS[active.kind].tint;
+  ui.triswatch.style.background = sw;
+  ui.trilbl.textContent = active.kind === "leaf" ? "🍂 Feuille / déchet ?" : "Quelle variété ?";
+}
+function refreshTriCard() {
+  ui.tricard.innerHTML =
+    "🌿 Tas frais : <b>" + Math.round(freshTotal()) + " g</b> à trier" +
+    (triStreak >= 3 ? " · 🔥 série ×" + triStreak : "") +
+    "<br>Bacs — " + STR_IDS.map(id => STRAINS[id].emoji + " " + Math.round(bins[id].g)).join(" · ") +
+    " · 🍂 " + Math.round(waste) + " g";
+}
+// Route la tete active vers un bac (id de variete) ou "waste".
+function routeTo(target) {
+  if (!active) return;
+  const k = active.kind, g = active.g;
+  // Retire du tas frais.
+  if (k === "leaf") fresh.leaf = Math.max(0, fresh.leaf - g);
+  else fresh[k] = Math.max(0, fresh[k] - g);
+
+  const qBase = Math.min(1, 0.9 + Math.min(triStreak, 6) * 0.017);   // serie propre -> petit bonus
+  if (target === "waste") {
+    waste += g;
+    if (k === "leaf") { triStreak++; addXP(1); playGood(); flyNug(matLeaf, 0.85, BIN_POS.waste, true); }
+    else { triStreak = 0; setRep(rep - 0.3); playBad(); showToast("Tête jetée 😖", "#ff9f6b"); }   // bonne tete gachee
+  } else {
+    bins[target].g += g;
+    if (k === target) {                                  // bon bac
+      bins[target].qs += g * qBase;
+      triStreak++; addXP(1); playGood();
+      if (triStreak > 0 && triStreak % 5 === 0) addShake(0.1);
+      flyNug(matStrain[target], 0.85, BIN_POS[target], true);
+    } else if (k === "leaf") {                            // feuille dans une variete
+      bins[target].qs += g * (0.12 + owned.loupe * 0.03);
+      triStreak = 0; playBad(); showToast("Feuille dans le bac 😕", "#ff9f6b");
+      flyNug(matLeaf, 0.85, BIN_POS[target], true);
+    } else {                                              // mauvaise variete -> contamination
+      bins[target].qs += g * (0.4 + owned.loupe * 0.06);
+      triStreak = 0; playBad(); showToast("Contamination ⚠", "#ff6b6b");
+      flyNug(matStrain[k], 0.85, BIN_POS[target], true);
+    }
+  }
+  saveBins(); updateBinsUI();
+  pickActive(); refreshTriCard(); renderTriGrid();
+  if (!active) {
+    setHint("Tas trié ! Passe au mélange ▸");
+    showToast("Tri terminé 🌿", "#9be37d");
+  }
+}
+function renderTriGrid() {
+  ui.trigrid.innerHTML = "";
+  const cells = STR_IDS.concat(["waste"]);
+  for (const id of cells) {
+    const b = document.createElement("button"); b.className = "vbtn"; b.dataset.bin = id;
+    const isW = id === "waste";
+    b.style.borderColor = isW ? "rgba(202,161,95,.5)" : "rgba(" + STRAINS[id].col.join(",") + ",.85)";
+    b.innerHTML = '<div class="ve">' + (isW ? "🍂" : STRAINS[id].emoji) + '</div>' +
+      '<div class="vn">' + (isW ? "Déchet" : STRAINS[id].name.split(" ")[0]) + '</div>' +
+      '<div class="vg">' + Math.round(isW ? waste : bins[id].g) + " g</div>";
+    b.addEventListener("click", () => routeTo(id));
+    ui.trigrid.appendChild(b);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   14) PHASE 3 — MIX / DILUTION
+   ------------------------------------------------------------------------- */
+let dilute = 0;                 // 0..0.4 : part de dechet vegetal ajoutee
+const DILUTE_MAX = 0.4;
+function gotoMix() {
+  setPhase("mix");
+  mixSel = {}; mixBlend = false; dilute = 0;
+  ui.mixBlend.classList.remove("on");
+  // Selection par defaut : la variete la plus fournie.
+  let best = null, bg = 0;
+  for (const id of STR_IDS) if (bins[id].g > bg) { bg = bins[id].g; best = id; }
+  if (best) mixSel[best] = true;
+  setBowlByMix();
+  setDKnob(); renderMixChips(); refreshMixCard();
+  setHint("Choisis une variété (pure) ou active 🧬 Blend pour en mêler plusieurs. Le curseur dilue au déchet (volume +, qualité −).");
+}
+function selectedIds() { return STR_IDS.filter(id => mixSel[id] && bins[id].g > 0.5); }
+// Projette le lot sans rien consommer.
+function projectMix() {
+  const ids = selectedIds();
+  let g = 0, qs = 0;
+  for (const id of ids) { g += bins[id].g; qs += bins[id].qs; }
+  const qFlower = g > 0.01 ? qs / g : 0;
+  // Dilution : ajoute du dechet (plafonne par le stock dispo).
+  let add = dilute > 0 ? g * dilute / (1 - dilute) : 0;
+  add = Math.min(add, waste);
+  const outG = g + add;
+  const outQ = outG > 0.01 ? (g * qFlower + add * WASTE_Q) / outG : 0;
+  const effDil = outG > 0.01 ? add / outG : 0;
+  return { ids, g, qFlower, add, outG, outQ, effDil };
+}
+function setBowlByMix() {
+  const ids = selectedIds();
+  setBowlMat(ids.length ? matStrain[ids[0]] : matLeaf);
+}
+function refreshMixCard() {
+  const p = projectMix();
+  if (p.g < 1) { ui.mixcard.innerHTML = "Sélectionne au moins une variété triée."; return; }
+  const name = p.ids.length > 1 ? "Blend maison (" + p.ids.length + " var.)" : STRAINS[p.ids[0]].name;
+  ui.mixcard.innerHTML =
+    "⚗️ <b>" + name + "</b><br>" +
+    "Fleur " + Math.round(p.g) + " g + Déchet " + Math.round(p.add) + " g ➜ <b>" + Math.round(p.outG) + " g</b><br>" +
+    "Qualité <b>" + gradeOf(p.outQ) + "</b> (" + Math.round(p.outQ * 100) + " %)" +
+    (p.effDil > 0.25 ? " · <span class=\"q\">⚠ très coupé</span>" : "");
+}
+function setDKnob() { ui.dknob.style.left = (dilute / DILUTE_MAX * 100) + "%"; }
+function renderMixChips() {
+  ui.mixchips.innerHTML = "";
+  for (const id of STR_IDS) {
+    const b = document.createElement("button"); b.className = "chip" + (mixSel[id] ? " on" : "");
+    b.disabled = bins[id].g < 0.5;
+    b.innerHTML = STRAINS[id].emoji + " " + STRAINS[id].name.split(" ")[0] + " <span style=\"opacity:.7\">" + Math.round(bins[id].g) + "g</span>";
+    b.addEventListener("click", () => toggleMix(id));
+    ui.mixchips.appendChild(b);
+  }
+}
+function toggleMix(id) {
+  if (bins[id].g < 0.5) return;
+  if (mixBlend) { mixSel[id] = !mixSel[id]; }
+  else { mixSel = {}; mixSel[id] = true; }   // mode pur : une seule variete
+  setBowlByMix(); renderMixChips(); refreshMixCard();
+}
+function setMixBlend(on) {
+  mixBlend = on; ui.mixBlend.classList.toggle("on", on);
+  if (!on) {                                   // repasse en pur : garde une seule selection
+    const ids = selectedIds();
+    mixSel = {}; if (ids.length) mixSel[ids[0]] = true;
+  }
+  renderMixChips(); refreshMixCard();
+}
+function prepBatch() {
+  const p = projectMix();
+  if (p.g < 1) { showToast("Rien à mélanger", "#caa15f"); return; }
+  // Consomme les bacs selectionnes + le dechet utilise.
+  for (const id of p.ids) { bins[id] = { g: 0, qs: 0 }; }
+  waste = Math.max(0, waste - p.add);
+  const name = p.ids.length > 1 ? "Blend maison" : STRAINS[p.ids[0]].name;
+  const strain = p.ids.length > 1 ? "blend" : p.ids[0];
+  let q = p.outQ;
+  if (owned.hygro && optHygro) q = Math.min(1, q + 0.05);   // curing -> petit bonus applique au pot
+  batch = { strain, name, g: p.outG, q };
+  saveBins(); updateBinsUI();
+  addShake(0.16); playSeal();
+  gotoPots();
+}
+
+/* -------------------------------------------------------------------------
+   15) PHASE 4 — CONDITIONNEMENT EN POTS (etiquetes variete + qualite)
+   ------------------------------------------------------------------------- */
+const seal = { active: false, fmt: null, cursor: 0, dir: 1 };
+function sealSweet() { return 0.1 + owned.sealer * 0.03; }
+function qualMult(q) { return 0.6 + q * 0.9; }   // qualite -> multiplicateur de prix
+
+function gotoPots() {
+  setPhase("pots");
+  ui.optHygro.classList.toggle("on", optHygro);
+  renderPotFormats();
+  refreshPotCard();
+  setHint("Empote ta variété : chaque pot porte son étiquette (variété + qualité). Scelle dans le vert pour un bonus.");
+}
+function refreshPotCard() {
+  ui.potcard.innerHTML =
+    "🫙 Lot : <b>" + batch.name + "</b> — " + Math.round(batch.g) + " g<br>" +
+    "Étiquette : <b>" + batch.name + " · " + gradeOf(batch.q) + "</b> (" + Math.round(batch.q * 100) + " %)";
+  const fill = jar.userData.fill;
+  fill.material = batch.strain === "blend" ? matStrain[selectedIds()[0] || "skunk"] : matStrain[batch.strain] || matStrain.skunk;
+  const k = Math.max(0.04, Math.min(1, batch.g / 200));
+  fill.scale.y = k; fill.position.y = 0.05 + 0.45 * k;
+}
+function potUnit(f) { return Math.round(f.g * f.eur * qualMult(batch.q) * repMult() * levelMult()); }
+function renderPotFormats() {
+  ui.potgrid.innerHTML = "";
+  for (const f of JARS) {
+    const b = document.createElement("button");
+    b.className = "fmt"; b.dataset.fmt = f.id;
+    b.disabled = !batch || batch.g < f.g;
+    b.innerHTML = '<div class="fn">' + f.emoji + " " + f.name + '</div><div class="fp">~' + potUnit(f) + " €</div>";
+    b.addEventListener("click", () => startSeal(f.id));
+    ui.potgrid.appendChild(b);
+  }
+}
+function startSeal(fid) {
+  if (seal.active) return;
+  const f = JARS.find(x => x.id === fid);
+  if (!batch || batch.g < f.g) { showToast("Pas assez pour ce pot", "#caa15f"); return; }
+  if (storage.length >= jarSlots.length) { showToast("Étagère pleine — vends ton stock", "#caa15f"); return; }
+  seal.active = true; seal.fmt = f; seal.cursor = 0; seal.dir = 1;
+  ui.sealgauge.style.display = "block";
+  const sw = sealSweet();
+  ui.sealsweet.style.left = (50 - sw * 100) + "%";
+  ui.sealsweet.style.width = (sw * 200) + "%";
+  setHint("Tape dans le vert pour sceller bien serré (" + f.name + ").");
+}
+function resolveSeal() {
+  if (!seal.active) return;
+  const f = seal.fmt; seal.active = false;
+  ui.sealgauge.style.display = "none";
+  if (!batch || batch.g < f.g) { showToast("Plus assez", "#caa15f"); return; }
+  if (storage.length >= jarSlots.length) { showToast("Étagère pleine", "#caa15f"); return; }
+
+  const err = Math.abs(seal.cursor - 0.5);
+  const tight = err <= sealSweet() ? 1.12 : err <= sealSweet() * 2.4 ? 1.0 : 0.9;
+  batch.g -= f.g;
+  let price = f.g * f.eur * qualMult(batch.q) * repMult() * levelMult() * tight;
+  if (optHygro && owned.hygro) price *= 1.08;        // hygro : fraicheur -> +valeur
+  // Pot SCELLE -> stockage (vendu en phase Stock).
+  storage.push({ strain: batch.strain, name: batch.name, grade: gradeOf(batch.q), q: batch.q, g: f.g, price: Math.round(price) });
+  saveStorage();
+  showPotJuice();
+  showToast("Pot " + f.name + " · " + batch.name, STRAINS[batch.strain] ? STRAINS[batch.strain].lbl : "#bdf0a3");
+  renderPotFormats(); refreshPotCard();
+  if (batch.g < JARS[0].g) { setHint("Lot empoté. Termine pour stocker ▸"); }
+}
+function showPotJuice() { playSeal(); addShake(0.1); }
+
+/* -------------------------------------------------------------------------
+   16) PHASE 5 — STOCKAGE / VENTE
+   ------------------------------------------------------------------------- */
+function binsLeft() { return STR_IDS.some(id => bins[id].g > 0.5); }
+function gotoStock() {
+  setPhase("stock");
+  refreshShelf();
+  refreshStockCard();
+  setHint("Tes pots sont en stock. Vends pour rembourser la dette puis encaisser, ou repars sur une récolte.");
+}
+function stockValue() { return storage.reduce((s, j) => s + j.price, 0); }
+function refreshStockCard() {
+  if (!storage.length) {
+    ui.stockcard.innerHTML = "Étagère vide. Lance une nouvelle récolte ▸";
+    return;
+  }
+  // Regroupe par etiquette (variete + grade).
+  const groups = {};
+  for (const j of storage) { const k = j.name + " · " + j.grade; (groups[k] = groups[k] || { n: 0, g: 0 }); groups[k].n++; groups[k].g += j.g; }
+  const lines = Object.entries(groups).map(([k, v]) => "• <b>" + k + "</b> ×" + v.n + " (" + Math.round(v.g) + " g)").join("<br>");
+  ui.stockcard.innerHTML = "📦 Stock : <b>" + storage.length + " pots</b> · valeur ≈ <b>" + stockValue() + " €</b><br>" + lines;
+}
+function sellStock() {
+  if (!storage.length) { showToast("Rien à vendre", "#caa15f"); return; }
+  const total = stockValue();
+  // Reputation : qualite moyenne vendue (et curing).
+  let qSum = 0, gSum = 0;
+  for (const j of storage) { qSum += j.q * j.g; gSum += j.g; }
+  const avgQ = gSum > 0 ? qSum / gSum : 0;
+  applyRevenue(total);
+  addXP(Math.max(2, Math.round(total * 0.04)));
+  const dRep = (avgQ - 0.55) * 14 + (optHygro && owned.hygro ? 1 : 0);
+  setRep(rep + dRep);
+  if (avgQ < 0.42) showToast("Clients déçus 😠", "#ff6b6b");
+  else showToast("+" + total + " € · stock écoulé", "#9be37d");
+  playSale(); addShake(0.2);
+  storage = []; saveStorage(); refreshShelf(); refreshStockCard();
+}
+
+/* -------------------------------------------------------------------------
+   17) AUTO-TRIEUSE (tri passif idle) — employe achetable
+   ------------------------------------------------------------------------- */
+let autoSortTimer = 0;
+function updateAutoSort(dt) {
+  if (!owned.autosort || phase !== "tri" || !active) return;
+  autoSortTimer += dt;
+  if (autoSortTimer >= 2.2) {
+    autoSortTimer = 0;
+    // Trie une poignee correctement toute seule (qualite correcte, pas parfaite).
+    const k = active.kind, g = active.g;
+    if (k === "leaf") { fresh.leaf = Math.max(0, fresh.leaf - g); waste += g; }
+    else { fresh[k] = Math.max(0, fresh[k] - g); bins[k].g += g; bins[k].qs += g * 0.82; }
+    saveBins(); updateBinsUI();
+    pickActive(); refreshTriCard(); renderTriGrid();
+    if (!active) { setHint("Tas trié ! Passe au mélange ▸"); }
+  }
+}
+
+/* -------------------------------------------------------------------------
+   18) BOUTIQUE (data-driven)
+   ------------------------------------------------------------------------- */
+const SHOP = [
+  { id: "room", icon: "🏠", name: "Chambre de culture",
+    desc: () => "Débloque la récolte Chambre (4 variétés, gros volume).",
+    cost: () => 1800, can: () => owned.room < 1, maxed: () => owned.room >= 1,
+    buy: () => { owned.room = 1; } },
+  { id: "secateur", icon: "✂️", name: "Sécateur pro",
+    desc: () => "Moins de feuille/déchet à l'effeuillage (+" + ((owned.secateur + 1) * 1.5).toFixed(1) + "%).",
+    cost: () => Math.round(280 * Math.pow(1.6, owned.secateur)),
+    can: () => owned.secateur < 5, maxed: () => owned.secateur >= 5,
+    buy: () => { owned.secateur++; } },
+  { id: "loupe", icon: "🔬", name: "Loupe / lampe UV",
+    desc: () => "Une erreur de tri contamine moins (+" + ((owned.loupe + 1) * 6) + "% rattrapé).",
+    cost: () => Math.round(340 * Math.pow(1.6, owned.loupe)),
+    can: () => owned.loupe < 5, maxed: () => owned.loupe >= 5,
+    buy: () => { owned.loupe++; } },
+  { id: "hygro", icon: "💧", name: "Pochons hygro (curing)",
+    desc: () => "Débloque l'option Hygro : +qualité au pot, +réput.",
+    cost: () => 600, can: () => owned.hygro < 1, maxed: () => owned.hygro >= 1,
+    buy: () => { owned.hygro = 1; } },
+  { id: "sealer", icon: "🛡️", name: "Scelleuse à pots",
+    desc: () => "Élargit la zone verte de scellage.",
+    cost: () => Math.round(500 * Math.pow(1.7, owned.sealer)),
+    can: () => owned.sealer < 4, maxed: () => owned.sealer >= 4,
+    buy: () => { owned.sealer++; } },
+  { id: "network", icon: "📇", name: "Réseau revendeurs",
+    desc: () => "+4 % prix de vente par niveau.",
+    cost: () => Math.round(700 * Math.pow(1.6, owned.network)),
+    can: () => owned.network < 6, maxed: () => owned.network >= 6,
+    buy: () => { owned.network++; } },
+  { id: "autosort", icon: "🤖", name: "Auto-trieuse",
+    desc: () => "Trie le tas frais toute seule, en fond.",
+    cost: () => 2600, can: () => owned.autosort < 1, maxed: () => owned.autosort >= 1,
+    buy: () => { owned.autosort = 1; } },
+];
+function renderShop() {
+  ui.shopcash.textContent = "💶 " + cash + " €";
+  ui.shopitems.innerHTML = "";
+  for (const it of SHOP) {
+    const cost = it.cost(), maxed = it.maxed(), can = !maxed && it.can() && cash >= cost;
+    const row = document.createElement("div"); row.className = "shopitem";
+    row.innerHTML = '<div class="ic">' + it.icon + '</div><div class="info"><div class="nm">' +
+      it.name + '</div><div class="ds">' + it.desc() + '</div></div>';
+    const b = document.createElement("button");
+    b.textContent = maxed ? "✓" : (cost + " €");
+    b.disabled = !can;
+    b.addEventListener("click", () => buyItem(it));
+    row.appendChild(b);
+    ui.shopitems.appendChild(row);
+  }
+}
+function buyItem(it) {
+  const cost = it.cost();
+  if (it.maxed() || !it.can() || cash < cost) return;
+  setCash(cash - cost); it.buy(); saveShop();
+  const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(990, t + 0.07, 0.14, 0.2); }
+  renderShop();
+  if (phase === "pots") { renderPotFormats(); refreshPotCard(); }
+}
+
+/* -------------------------------------------------------------------------
+   19) ENTREES (pointer) : tap selon la phase + pinch zoom
+   ------------------------------------------------------------------------- */
+const el = renderer.domElement;
+const pointers = new Map();
+let pinching = false, pinchStartDist = 0, pinchStartZoom = 1;
+function pinchDist() { const a = [...pointers.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
+
+// Curseur de dilution (slider).
+let sliderDrag = false;
+function setDiluteFromX(clientX) {
+  const r = ui.dtrack.getBoundingClientRect();
+  dilute = Math.max(0, Math.min(DILUTE_MAX, ((clientX - r.left) / r.width) * DILUTE_MAX));
+  setDKnob(); refreshMixCard();
+}
+ui.dtrack.addEventListener("pointerdown", (e) => { e.stopPropagation(); sliderDrag = true; setDiluteFromX(e.clientX); });
+window.addEventListener("pointermove", (e) => { if (sliderDrag) setDiluteFromX(e.clientX); });
+window.addEventListener("pointerup", () => { sliderDrag = false; });
+
+el.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size >= 2) { pinching = true; pinchStartDist = pinchDist() || 1; pinchStartZoom = zoom; return; }
+  ensureAudio();
+  if (phase === "effeuille") {
+    eff.dragging = true; eff.lastX = e.clientX; eff.lastY = e.clientY;
+    eff.lastT = performance.now(); eff.acc = 0; eff.speed = 0;
+    if (eff.cd <= 0 && effStrip(0)) { eff.cd = 0.26; effCommitUI(); }   // tap = poignee propre
+  } else if (phase === "pots") { if (seal.active) resolveSeal(); }
+}, { passive: false });
+
+el.addEventListener("pointermove", (e) => {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinching && pointers.size >= 2) {
+    e.preventDefault();
+    zoom = Math.max(0.6, Math.min(2.4, pinchStartZoom * (pinchDist() / pinchStartDist)));
+    localStorage.setItem("rc_zoom", zoom.toFixed(3));
+    fitView();
+  } else if (phase === "effeuille" && eff.dragging && pointers.size < 2) {
+    // Effeuillage : on accumule la distance glissee ; chaque EFF_STRIDE px detache
+    // une poignee, dont la part de dechet depend de la vitesse instantanee.
+    e.preventDefault();
+    const now = performance.now();
+    const dx = e.clientX - eff.lastX, dy = e.clientY - eff.lastY;
+    const dist = Math.hypot(dx, dy);
+    eff.speed = dist / Math.max(1, now - eff.lastT);
+    eff.lastX = e.clientX; eff.lastY = e.clientY; eff.lastT = now;
+    eff.acc += dist;
+    let did = false, guard = 0;
+    while (eff.acc >= EFF_STRIDE && guard++ < 12) {
+      eff.acc -= EFF_STRIDE;
+      if (effStrip(eff.speed)) did = true; else break;
+    }
+    if (did) effCommitUI();
+  }
+}, { passive: false });
+function onUp(e) {
+  pointers.delete(e.pointerId);
+  if (pinching && pointers.size < 2) pinching = false;
+  if (pointers.size === 0) eff.dragging = false;
+}
+el.addEventListener("pointerup", onUp, { passive: false });
+el.addEventListener("pointercancel", onUp, { passive: false });
+
+// Boutons des overlays.
+ui.effSecateur.addEventListener("click", () => setSecateur(!useSecateur));
+ui.effNext.addEventListener("click", () => {
+  if (freshTotal() < 1 && (!harvest || harvest.raw > 0.5)) { showToast("Effeuille d'abord", "#caa15f"); return; }
+  gotoTri();
+});
+ui.triNext.addEventListener("click", () => {
+  if (STR_IDS.every(id => bins[id].g < 1)) { showToast("Trie d'abord de la fleur", "#caa15f"); return; }
+  // Restant non trie -> dechet.
+  if (active || freshTotal() > 0.5) { waste += freshTotal(); fresh = { skunk: 0, widow: 0, lemon: 0, purple: 0, leaf: 0 }; active = null; saveBins(); updateBinsUI(); }
+  gotoMix();
+});
+ui.mixBlend.addEventListener("click", () => setMixBlend(!mixBlend));
+ui.mixPrep.addEventListener("click", prepBatch);
+ui.optHygro.addEventListener("click", () => {
+  if (!owned.hygro) { showToast("Achète les pochons hygro 🛒", "#caa15f"); return; }
+  optHygro = !optHygro; ui.optHygro.classList.toggle("on", optHygro);
+});
+ui.potDone.addEventListener("click", () => {
+  if (binsLeft()) { showToast("Reste des variétés à empoter", "#caa15f"); gotoMix(); }
+  else gotoStock();
+});
+ui.stockSell.addEventListener("click", sellStock);
+ui.stockNew.addEventListener("click", () => {
+  if (debt > maxDebt() * 0.98) { showToast("Paie ta dette avant une nouvelle récolte", "#ff6b6b"); return; }
+  gotoEffeuille();
+});
+document.getElementById("shopbtn").addEventListener("click", () => { renderShop(); ui.shop.classList.add("show"); });
+document.getElementById("shopclose").addEventListener("click", () => ui.shop.classList.remove("show"));
+ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.classList.remove("show"); });
+
+/* -------------------------------------------------------------------------
+   20) BOUCLE PRINCIPALE
+   ------------------------------------------------------------------------- */
+function updateGauges(dt) {
+  if (phase === "effeuille") {
+    if (eff.cd > 0) eff.cd = Math.max(0, eff.cd - dt);
+    if (eff.flash > 0) eff.flash = Math.max(0, eff.flash - dt);
+    if (ui.effswipe) ui.effswipe.style.color = "rgba(173,224,140," + (0.6 + eff.flash * 2).toFixed(2) + ")";
+  }
+  if (phase === "pots" && seal.active) {
+    seal.cursor += seal.dir * (1.25 - owned.sealer * 0.08) * dt;
+    if (seal.cursor >= 1) { seal.cursor = 1; seal.dir = -1; }
+    if (seal.cursor <= 0) { seal.cursor = 0; seal.dir = 1; }
+    ui.sealcursor.style.left = (seal.cursor * 100) + "%";
+  }
+}
+
+let last = 0;
+function loop(t) {
+  const dt = Math.min((t - last) / 1000 || 0, 0.05);
+  last = t;
+
+  // Chute des branches a l'effeuillage.
+  if (phase === "effeuille" && branchDrop > 0) {
+    branchDrop = Math.max(0, branchDrop - dt * 2.2);
+    branch.position.set(0, 0.3 + branchDrop * branchDrop * 4.0, 0.2);
+    branch.rotation.z = branchDrop * 0.2;
+    if (branchDrop === 0) { branch.position.set(0, 0, 0.2); branch.rotation.z = 0; playThud(); addShake(0.16); }
+  }
+  // Tete active qui flotte + tourne pendant le tri.
+  if (phase === "tri" && active) {
+    activeNug.position.y = 0.85 + Math.sin(t * 0.004) * 0.05;
+    activeNug.rotation.y += dt * 1.2;
+  }
+  if (phase === "mix") bowlFill.rotation.y += dt * 0.8;
+  if (phase === "pots") jar.rotation.y += dt * 0.4;
+
+  updateGauges(dt);
+  updateFlyers(dt);
+  updateAutoSort(dt);
+
+  if (shake > 0) { shake *= Math.pow(0.0009, dt); if (shake < 0.002) shake = 0; }
+  camera.position.copy(baseCamPos);
+  if (shake > 0) {
+    camera.position.x += (Math.random() - 0.5) * shake;
+    camera.position.y += (Math.random() - 0.5) * shake;
+    camera.position.z += (Math.random() - 0.5) * shake;
+  }
+  camera.lookAt(VIEW_TARGET);
+
+  // Etiquettes des bacs (visibles hors phase stock/pots ou tout est central).
+  const showBins = (phase === "tri" || phase === "mix" || phase === "effeuille");
+  for (const id of STR_IDS) { binLabels[id].style.display = showBins ? "block" : "none"; if (showBins) placeLabel(binLabels[id], BIN_POS[id], 0.6); }
+  binLabels.waste.style.display = showBins ? "block" : "none"; if (showBins) placeLabel(binLabels.waste, BIN_POS.waste, 0.6);
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+
+/* -------------------------------------------------------------------------
+   21) INIT
+   ------------------------------------------------------------------------- */
+resize();
+setCash(cash); setDebt(debt); setRep(rep); updateXpUI();
+updateBinsUI();
+// On reprend a l'effeuillage (bins/storage/dette conserves).
+gotoEffeuille();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
