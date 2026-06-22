@@ -188,12 +188,11 @@
   </div>
 </div>
 
-<!-- Phase 2 : Tri par variete -->
+<!-- Phase 2 : Tri par variete (au geste) -->
 <div class="panel" id="triui">
   <div class="card" id="tricard"></div>
-  <div id="triactive"><span id="triswatch"></span><span id="trilbl">—</span></div>
-  <div id="trigrid"></div>
-  <div class="row"><button class="btn" id="triNext">Mélanger ▸</button></div>
+  <div style="text-align:center;font-size:12.5px;font-weight:800;color:rgba(173,224,140,.85);padding:5px 0 2px;pointer-events:none" id="triswipe">👆 Frotte le tas — les têtes filent dans leur bac</div>
+  <div class="row"><button class="btn" id="triNext">Coupe ▸</button></div>
 </div>
 
 <!-- Phase 3 : Mix / Dilution -->
@@ -786,19 +785,16 @@ let waste = +(localStorage.getItem("rc_waste") || 0);              // dechet veg
 let storage = JSON.parse(localStorage.getItem("rc_storage") || "[]");  // pots scelles : {strain,name,grade,q,g,price}
 
 const owned = JSON.parse(localStorage.getItem("rc_shop") || "{}");
-owned.room    = owned.room    || 0;   // debloque la recolte "Chambre" (4 varietes)
 owned.secateur= owned.secateur|| 0;   // sécateur : moins de dechet a l'effeuillage
-owned.loupe   = owned.loupe   || 0;   // loupe/UV : contamination du tri moins penalisante
+owned.tray    = owned.tray    || 0;   // tapis trieur : plus de tetes triees par frottee
 owned.hygro   = owned.hygro   || 0;   // pochons hygro (curing) debloques
 owned.sealer  = owned.sealer  || 0;   // scelleuse (zone verte de scellage)
 owned.network = owned.network || 0;   // reseau de revendeurs (prix retail)
-owned.autosort= owned.autosort|| 0;   // auto-trieuse (tri passif)
+owned.autosort= owned.autosort|| 0;   // trieuse auto (tri passif, niveaux = vitesse)
 
 let phase = "effeuille";              // effeuille | tri | mix | pots | stock
 let harvest = null;                   // recolte en cours { raw, total, wholesale, fr:{...}, leafFr }
 let fresh = null;                     // tas frais a trier { skunk, widow, lemon, purple, leaf }
-let active = null;                    // tete active en cours de tri { kind: id|"leaf", g }
-let triStreak = 0;                    // serie de bons routages
 let mixSel = {};                      // varietes selectionnees pour le mix
 let mixBlend = false;                 // mode blend (plusieurs varietes ensemble)
 let batch = null;                     // lot prepare a empoter { strain, name, g, q }
@@ -814,7 +810,7 @@ function saveShop()    { localStorage.setItem("rc_shop", JSON.stringify(owned));
 const ui = {};
 ["cash","debt","replbl","repfill","level","xpfill","hint","toast",
  "effui","effcard","effswipe","effNext",
- "triui","tricard","triactive","triswatch","trilbl","trigrid","triNext",
+ "triui","tricard","triswipe","triNext",
  "mixui","mixcard","mixchips","dtrack","dtrail","dknob","mixBlend","mixPrep",
  "potsui","potcard","sealgauge","sealsweet","sealcursor","potgrid","optHygro","potDone",
  "stockui","stockcard","stockSell","stockNew",
@@ -942,7 +938,7 @@ function setPhase(p) {
   dryLine.visible   = isEff;
   basket.visible    = isEff;
   freshGrp.visible  = (p === "tri");
-  activeNug.visible = (p === "tri");
+  activeNug.visible = false;            // (plus de "tete active" : tri au geste)
   bowl.visible      = (p === "mix");
   jar.visible       = (p === "pots");
   shelf.visible     = (p === "stock");
@@ -1108,8 +1104,13 @@ function effStripSeg(a, b) {
 }
 
 /* -------------------------------------------------------------------------
-   13) PHASE 2 — TRI PAR VARIETE
+   13) PHASE 2 — TRI PAR VARIETE (geste juteux, sans penalite)
+   On FROTTE le tas frais : les tetes filent toutes seules dans LEUR bac de
+   variete (et les feuilles au dechet), a qualite pleine. Aucune identification,
+   aucune contamination. La boutique debloque des outils qui trient plus/auto.
    ------------------------------------------------------------------------- */
+const tri = { dragging: false, lastX: 0, lastY: 0, acc: 0, flash: 0, _done: false };
+const TRI_STRIDE = 24;            // px de glisse par poignee triee
 function gotoTri() {
   // On valide la quantite choisie -> le branchage est pris a credit (une seule fois).
   if (harvest && !harvest.credited) {
@@ -1118,98 +1119,63 @@ function gotoTri() {
     showToast("Branchage pris à crédit", "#bdf0a3");
   }
   setPhase("tri");
-  triStreak = 0;
   // Effeuillage incomplet : on bascule les tetes encore sur les colas dans le tas frais.
   for (const c of activeColas) {
     for (const b of c.buds) {
       if (b.on) { b.on = false; b.mesh.visible = false; fresh[c.variety] += b.mass; fresh.leaf += b.mass * b.leafFrac; }
     }
   }
-  fresh._total = freshBud() + fresh.leaf;
-  pickActive();
+  tri.acc = 0; tri.flash = 0; tri._done = false;
+  tri.total = Math.max(1, freshTotal());
+  refreshFreshPile(freshTotal(), tri.total);
   refreshTriCard();
-  renderTriGrid();
   updateBinsUI();
-  setHint("Route chaque poignée vers le bon bac de variété. Erreur = contamination (qualité du bac en baisse). 🍂 = bac déchet.");
+  setHint(owned.autosort
+    ? "La trieuse auto fait le tri. Tu peux frotter le tas pour accélérer."
+    : "Frotte le tas — les têtes filent toutes seules dans leur bac. (Boutique : tapis trieur, trieuse auto.)");
 }
 function freshTotal() { return freshBud() + fresh.leaf; }
-// Pioche la prochaine tete active dans le tas frais (ponderee par les g restants).
-function pickActive() {
-  const total = freshTotal();
-  if (total <= 0.5) { active = null; return; }
-  let r = Math.random() * total;
-  if (r < fresh.leaf) {
-    const g = Math.min(fresh.leaf, 8 + Math.random() * 5);
-    active = { kind: "leaf", g };
-  } else {
-    r -= fresh.leaf;
-    let chosen = STR_IDS[0];
-    for (const id of STR_IDS) { if (r < fresh[id]) { chosen = id; break; } r -= fresh[id]; }
-    const g = Math.min(fresh[chosen], 11 + Math.random() * 6);
-    active = { kind: chosen, g };
-  }
-  // Rendu de la tete active (couleur = variete reelle).
-  activeNug.material = active.kind === "leaf" ? matLeaf : matStrain[active.kind];
-  const sw = active.kind === "leaf" ? "#7e8a4f" : STRAINS[active.kind].tint;
-  ui.triswatch.style.background = sw;
-  ui.trilbl.textContent = active.kind === "leaf" ? "🍂 Feuille / déchet ?" : "Quelle variété ?";
-}
+function triPerStride() { return (8 + Math.random() * 4) * (1 + owned.tray * 0.7); }   // tapis = poignee + grosse
 function refreshTriCard() {
   ui.tricard.innerHTML =
     "🌿 Tas frais : <b>" + Math.round(freshTotal()) + " g</b> à trier" +
-    (triStreak >= 3 ? " · 🔥 série ×" + triStreak : "") +
     "<br>Bacs — " + STR_IDS.map(id => STRAINS[id].emoji + " " + Math.round(bins[id].g)).join(" · ") +
     " · 🍂 " + Math.round(waste) + " g";
 }
-// Route la tete active vers un bac (id de variete) ou "waste".
-function routeTo(target) {
-  if (!active) return;
-  const k = active.kind, g = active.g;
-  // Retire du tas frais.
-  if (k === "leaf") fresh.leaf = Math.max(0, fresh.leaf - g);
-  else fresh[k] = Math.max(0, fresh[k] - g);
-
-  const qBase = Math.min(1, 0.9 + Math.min(triStreak, 6) * 0.017);   // serie propre -> petit bonus
-  if (target === "waste") {
-    waste += g;
-    if (k === "leaf") { triStreak++; addXP(1); playGood(); flyNug(matLeaf, 0.85, BIN_POS.waste, true); }
-    else { triStreak = 0; setRep(rep - 0.3); playBad(); showToast("Tête jetée 😖", "#ff9f6b"); }   // bonne tete gachee
-  } else {
-    bins[target].g += g;
-    if (k === target) {                                  // bon bac
-      bins[target].qs += g * qBase;
-      triStreak++; addXP(1); playGood();
-      if (triStreak > 0 && triStreak % 5 === 0) addShake(0.1);
-      flyNug(matStrain[target], 0.85, BIN_POS[target], true);
-    } else if (k === "leaf") {                            // feuille dans une variete
-      bins[target].qs += g * (0.12 + owned.loupe * 0.03);
-      triStreak = 0; playBad(); showToast("Feuille dans le bac 😕", "#ff9f6b");
-      flyNug(matLeaf, 0.85, BIN_POS[target], true);
-    } else {                                              // mauvaise variete -> contamination
-      bins[target].qs += g * (0.4 + owned.loupe * 0.06);
-      triStreak = 0; playBad(); showToast("Contamination ⚠", "#ff6b6b");
-      flyNug(matStrain[k], 0.85, BIN_POS[target], true);
-    }
+// Trie une poignee : retire `amount` g du tas et repartit vers les BONS bacs
+// (auto, sans erreur), qualite pleine. Renvoie true si quelque chose a ete trie.
+function sortHandful(amount) {
+  const total = freshTotal();
+  if (total <= 0.2) return false;
+  amount = Math.min(total, amount);
+  let any = false;
+  for (const id of STR_IDS) {
+    if (fresh[id] <= 0) continue;
+    const take = fresh[id] / total * amount;
+    if (take <= 0) continue;
+    fresh[id] -= take; bins[id].g += take; bins[id].qs += take * 1.0;     // qualite pleine
+    flyNug(matStrain[id], 0.5, BIN_POS[id], true);
+    any = true;
   }
-  saveBins(); updateBinsUI();
-  pickActive(); refreshTriCard(); renderTriGrid();
-  if (!active) {
-    setHint("Tas trié ! Passe au mélange ▸");
-    showToast("Tri terminé 🌿", "#9be37d");
+  if (fresh.leaf > 0) {
+    const take = fresh.leaf / total * amount;
+    fresh.leaf -= take; waste += take;
+    if (Math.random() < 0.7) flyNug(matLeaf, 0.5, BIN_POS.waste, true);
   }
+  if (any) { tri.flash = 0.16; playSnip(); }
+  return any;
 }
-function renderTriGrid() {
-  ui.trigrid.innerHTML = "";
-  const cells = STR_IDS.concat(["waste"]);
-  for (const id of cells) {
-    const b = document.createElement("button"); b.className = "vbtn"; b.dataset.bin = id;
-    const isW = id === "waste";
-    b.style.borderColor = isW ? "rgba(202,161,95,.5)" : "rgba(" + STRAINS[id].col.join(",") + ",.85)";
-    b.innerHTML = '<div class="ve">' + (isW ? "🍂" : STRAINS[id].emoji) + '</div>' +
-      '<div class="vn">' + (isW ? "Déchet" : STRAINS[id].name.split(" ")[0]) + '</div>' +
-      '<div class="vg">' + Math.round(isW ? waste : bins[id].g) + " g</div>";
-    b.addEventListener("click", () => routeTo(id));
-    ui.trigrid.appendChild(b);
+// Regroupe save + rendu apres une rafale de tri (perf), + fin de tri.
+function triCommitUI() {
+  saveBins(); updateBinsUI(); refreshTriCard();
+  refreshFreshPile(freshTotal(), tri.total);
+  if (freshTotal() <= 0.2 && !tri._done) {
+    tri._done = true;
+    for (const id of STR_IDS) fresh[id] = 0; fresh.leaf = 0;
+    updateBinsUI();
+    setHint("Tas trié ! Passe à la coupe ▸");
+    showToast("Tri terminé 🌿", "#9be37d");
+    addShake(0.12); addXP(3);
   }
 }
 
@@ -1411,19 +1377,16 @@ function sellStock() {
 /* -------------------------------------------------------------------------
    17) AUTO-TRIEUSE (tri passif idle) — employe achetable
    ------------------------------------------------------------------------- */
+// Trieuse auto (machine) : trie le tas en passif, qualite pleine. Plus de niveaux
+// = plus rapide. Le joueur peut frotter en plus pour accelerer.
 let autoSortTimer = 0;
 function updateAutoSort(dt) {
-  if (!owned.autosort || phase !== "tri" || !active) return;
+  if (!owned.autosort || phase !== "tri" || freshTotal() <= 0.2) return;
   autoSortTimer += dt;
-  if (autoSortTimer >= 2.2) {
+  const interval = Math.max(0.25, 1.0 - (owned.autosort - 1) * 0.22);
+  if (autoSortTimer >= interval) {
     autoSortTimer = 0;
-    // Trie une poignee correctement toute seule (qualite correcte, pas parfaite).
-    const k = active.kind, g = active.g;
-    if (k === "leaf") { fresh.leaf = Math.max(0, fresh.leaf - g); waste += g; }
-    else { fresh[k] = Math.max(0, fresh[k] - g); bins[k].g += g; bins[k].qs += g * 0.82; }
-    saveBins(); updateBinsUI();
-    pickActive(); refreshTriCard(); renderTriGrid();
-    if (!active) { setHint("Tas trié ! Passe au mélange ▸"); }
+    if (sortHandful(10 + owned.autosort * 4)) triCommitUI();
   }
 }
 
@@ -1436,11 +1399,11 @@ const SHOP = [
     cost: () => Math.round(280 * Math.pow(1.6, owned.secateur)),
     can: () => owned.secateur < 5, maxed: () => owned.secateur >= 5,
     buy: () => { owned.secateur++; } },
-  { id: "loupe", icon: "🔬", name: "Loupe / lampe UV",
-    desc: () => "Une erreur de tri contamine moins (+" + ((owned.loupe + 1) * 6) + "% rattrapé).",
-    cost: () => Math.round(340 * Math.pow(1.6, owned.loupe)),
-    can: () => owned.loupe < 5, maxed: () => owned.loupe >= 5,
-    buy: () => { owned.loupe++; } },
+  { id: "tray", icon: "🛗", name: "Tapis trieur",
+    desc: () => "Chaque frottée trie plus de têtes (+" + ((owned.tray + 1) * 70) + "%).",
+    cost: () => Math.round(380 * Math.pow(1.7, owned.tray)),
+    can: () => owned.tray < 4, maxed: () => owned.tray >= 4,
+    buy: () => { owned.tray++; } },
   { id: "hygro", icon: "💧", name: "Pochons hygro (curing)",
     desc: () => "Débloque l'option Hygro : +qualité au pot, +réput.",
     cost: () => 600, can: () => owned.hygro < 1, maxed: () => owned.hygro >= 1,
@@ -1455,10 +1418,12 @@ const SHOP = [
     cost: () => Math.round(700 * Math.pow(1.6, owned.network)),
     can: () => owned.network < 6, maxed: () => owned.network >= 6,
     buy: () => { owned.network++; } },
-  { id: "autosort", icon: "🤖", name: "Auto-trieuse",
-    desc: () => "Trie le tas frais toute seule, en fond.",
-    cost: () => 2600, can: () => owned.autosort < 1, maxed: () => owned.autosort >= 1,
-    buy: () => { owned.autosort = 1; } },
+  { id: "autosort", icon: "🤖", name: "Trieuse auto",
+    desc: () => owned.autosort < 1 ? "Machine : trie le tas tout seul, en fond."
+      : "Trieuse auto plus rapide (niv. " + (owned.autosort + 1) + ").",
+    cost: () => Math.round(2200 * Math.pow(1.8, owned.autosort)),
+    can: () => owned.autosort < 4, maxed: () => owned.autosort >= 4,
+    buy: () => { owned.autosort++; } },
 ];
 function renderShop() {
   ui.shopcash.textContent = "💶 " + cash + " €";
@@ -1513,6 +1478,9 @@ el.addEventListener("pointerdown", (e) => {
     eff.dragging = true;
     eff.prev = { x: e.clientX, y: e.clientY };
     effStripSeg(eff.prev, eff.prev);             // un simple tap detache la tete touchee
+  } else if (phase === "tri") {
+    tri.dragging = true; tri.lastX = e.clientX; tri.lastY = e.clientY; tri.acc = 0;
+    if (sortHandful(triPerStride())) triCommitUI();   // tap = une poignee
   } else if (phase === "pots") { if (seal.active) resolveSeal(); }
 }, { passive: false });
 
@@ -1529,12 +1497,21 @@ el.addEventListener("pointermove", (e) => {
     const cur = { x: e.clientX, y: e.clientY };
     effStripSeg(eff.prev, cur);
     eff.prev = cur;
+  } else if (phase === "tri" && tri.dragging && pointers.size < 2) {
+    // Tri au frotte : chaque TRI_STRIDE px glisses trie une poignee (auto, sans erreur).
+    e.preventDefault();
+    const dx = e.clientX - tri.lastX, dy = e.clientY - tri.lastY;
+    tri.lastX = e.clientX; tri.lastY = e.clientY;
+    tri.acc += Math.hypot(dx, dy);
+    let did = false, guard = 0;
+    while (tri.acc >= TRI_STRIDE && guard++ < 12) { tri.acc -= TRI_STRIDE; if (sortHandful(triPerStride())) did = true; else break; }
+    if (did) triCommitUI();
   }
 }, { passive: false });
 function onUp(e) {
   pointers.delete(e.pointerId);
   if (pinching && pointers.size < 2) pinching = false;
-  if (pointers.size === 0) { eff.dragging = false; eff.prev = null; }
+  if (pointers.size === 0) { eff.dragging = false; eff.prev = null; tri.dragging = false; }
 }
 el.addEventListener("pointerup", onUp, { passive: false });
 el.addEventListener("pointercancel", onUp, { passive: false });
@@ -1543,9 +1520,9 @@ el.addEventListener("pointercancel", onUp, { passive: false });
 ui.effNext.addEventListener("click", () => { gotoTri(); });   // le restant non effeuillé bascule dans le tas frais
 document.querySelectorAll(".qbtn").forEach(b => b.addEventListener("click", () => chooseQty(+b.dataset.q)));
 ui.triNext.addEventListener("click", () => {
-  if (STR_IDS.every(id => bins[id].g < 1)) { showToast("Trie d'abord de la fleur", "#caa15f"); return; }
-  // Restant non trie -> dechet.
-  if (active || freshTotal() > 0.5) { waste += freshTotal(); fresh = { skunk: 0, widow: 0, lemon: 0, purple: 0, leaf: 0 }; active = null; saveBins(); updateBinsUI(); }
+  if (STR_IDS.every(id => bins[id].g < 1)) { showToast("Frotte le tas pour trier", "#caa15f"); return; }
+  // Restant non trie : on le trie d'un coup (auto, sans penalite) avant de partir.
+  if (freshTotal() > 0.5) { sortHandful(freshTotal()); saveBins(); updateBinsUI(); }
   gotoMix();
 });
 ui.mixBlend.addEventListener("click", () => setMixBlend(!mixBlend));
@@ -1594,10 +1571,11 @@ function loop(t) {
     }
     if (eff.flash > 0) eff.flash = Math.max(0, eff.flash - dt);
   }
-  // Tete active qui flotte + tourne pendant le tri.
-  if (phase === "tri" && active) {
-    activeNug.position.y = 0.85 + Math.sin(t * 0.004) * 0.05;
-    activeNug.rotation.y += dt * 1.2;
+  // Tas frais qui fremit quand on le frotte (tri au geste).
+  if (phase === "tri") {
+    if (tri.flash > 0) tri.flash = Math.max(0, tri.flash - dt);
+    freshGrp.rotation.y += dt * (0.3 + tri.flash * 4);
+    if (ui.triswipe) ui.triswipe.style.color = "rgba(173,224,140," + (0.6 + tri.flash * 2).toFixed(2) + ")";
   }
   if (phase === "mix") bowlFill.rotation.y += dt * 0.8;
   if (phase === "pots") jar.rotation.y += dt * 0.4;
