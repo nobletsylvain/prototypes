@@ -28,6 +28,7 @@ export const C = {
   CADENCE_JITTER: [0, 0.7, -0.45, 1.0, -0.6, 0.4, -0.3, 0.8],  // décalage déterministe (h) → cadence irrégulière
   REPUT_PROPRE: 6,           // une coupe propre fait monter la demande
   REPUT_ARRACHE: -25,        // une coupe à l'arrache la fait fuir
+  DROP_REPUT: 4,             // poster un "drop" (arrivage) : petit coup de buzz social (≤ qualité, tracé, 1×/j)
 };
 
 export function jaugeOpaque(v, max, sym = '•', plein = '🔥'){
@@ -50,6 +51,7 @@ export function createSim(){
     batches: [],
     debloques: { hash: true, weed: false, neige: false },
     vitrine: false,                // vitrine EN VENTE — persiste jour après jour
+    dropAujourdhui: false,         // un "drop" social a-t-il été posté aujourd'hui ? (cooldown)
     clientsJour: [],               // clients programmés pour la journée (déterministe)
     clientSeq: 0,
     metricsJour: newJour(),
@@ -133,6 +135,17 @@ export function createSim(){
       return api;
     },
 
+    // FEED : poster un DROP (annonce d'arrivage) → coup de buzz social, +demande.
+    // Une fois par jour (sinon ça spamme). Effet déterministe et tracé ; reste
+    // secondaire devant la qualité (le levier dominant).
+    posterDrop(){
+      if (state.dropAujourdhui) return api;
+      state.dropAujourdhui = true;
+      state.reput = clamp(state.reput + C.DROP_REPUT);
+      ligne({ ic: '🔥', label: 'Drop posté', cause: 'ton arrivage a buzzé sur le feed — la demande monte' });
+      return api;
+    },
+
     // les DM en attente (clients arrivés, pas encore servis) — pour l'UI
     dmEnAttente(){ return state.clientsJour.filter(c => c.arrive && !c.servi); },
 
@@ -185,6 +198,7 @@ export function createSim(){
     state.jour++;
     state.metricsJour = newJour();
     state.clientsJour = [];
+    state.dropAujourdhui = false;           // le drop redevient possible le jour suivant
     if (state.vitrine) programmerJour(0);   // vitrine persistante : on reprogramme le jour suivant
   }
 
