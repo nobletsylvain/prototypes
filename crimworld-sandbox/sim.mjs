@@ -1,16 +1,17 @@
 /* =======================================================================
-   CrimWorld — Sandbox · CŒUR DE SIMULATION v2.1 (Snap : story + DM)
+   CrimWorld — Sandbox · CŒUR DE SIMULATION v2.2 (stock = sachets par format)
 
-   Boucle : RÉASSORT (darkweb) → LABO (batch) → INVENTAIRE → tu postes ta STORY
-   → les CLIENTS te DM au fil de la journée → tu les SERS depuis ton stock.
-   La demande = des ÉVÉNEMENTS DM étalés sur la journée (pilotés par réput), pas
-   un plafond vidable d'un coup → tue le temps mort. Horloge temps réel. Pas de heat.
+   Boucle : RÉASSORT (darkweb) → LABO (sachets conditionnés par format) →
+   INVENTAIRE (nb de sachets 2g/5g/10g) → VITRINE (tu fixes un PRIX par format,
+   persistante) → les CLIENTS te DM pour UN format précis → tu vends 1 sachet à
+   ton prix. À sec sur un format → rupture (ça t'apprend à produire le bon mix).
 
    JS pur, sans DOM, déterministe, inspectable console.
-   INVARIANTS : aucun Math.random ne pilote l'ÉTAT/une CONSÉQUENCE (l'arrivée des
-   clients, les paniers, sont déterministes ; pseudo/avatar = présentation, côté UI) ;
-   chaque conséquence porte une `cause` lisible ; réput affichée OPAQUE ; l'équilibre
-   vit dans UNE courbe (nb de clients ∝ réput).
+   INVARIANTS : aucun Math.random ne pilote l'ÉTAT/une CONSÉQUENCE (arrivées,
+   format demandé = déterministes ; pseudo/avatar = présentation, côté UI) ;
+   chaque conséquence porte une `cause` lisible ; réput affichée OPAQUE ;
+   l'équilibre vit dans UNE courbe (nb de clients ∝ réput). Le PRIX est un levier
+   joueur (sa marge ; sensibilité au prix = couche suivante).
    ======================================================================= */
 
 export const C = {
@@ -18,16 +19,15 @@ export const C = {
   DAY_HOURS: 24,
   LOYER_JOUR: 40,            // frais de base du block (compteur de fond) — tunable
   PRODUITS: ['hash', 'weed', 'neige'],
-  PRIX_GRAMME:  { hash: 10, weed: 8,  neige: 60 },   // € / g au détail
-  CLIENTS_BASE: 12,          // nb de clients/jour à réput 100 (si la story est postée)
-  PREMIER_DM_H: 0.4,         // 1er DM ~0,4 h après la story (≈ 2,4 s) — feedback quasi immédiat
-  MARGE_FIN_H: 2,            // dernier DM ~2 h avant minuit → le temps de le servir (peu de temps mort)
-  CADENCE_JITTER: [0, 0.7, -0.45, 1.0, -0.6, 0.4, -0.3, 0.8],  // décalage déterministe (h) → cadence irrégulière (rafales/creux), pas métronomique
-  PANIER: [10, 5, 15, 5, 10, 20, 5, 10],  // g demandés par client (cyclique, déterministe)
+  FORMATS: [2, 5, 10],       // tailles de sachet (g) — alignées sur les bacs du labo
+  PRIX_DEFAUT: { 2: 16, 5: 30, 10: 50 },   // € / sachet par défaut (ajustable par le joueur)
+  DEMANDE_FORMAT: [10, 5, 2, 5, 10, 2, 5, 10],  // format demandé par client (cyclique, déterministe)
+  CLIENTS_BASE: 12,          // nb de clients/jour à réput 100 (si la vitrine est ouverte)
+  PREMIER_DM_H: 0.4,         // 1er DM ~0,4 h après ouverture (≈ 2,4 s) — feedback quasi immédiat
+  MARGE_FIN_H: 2,            // dernier DM ~2 h avant minuit → le temps de le servir
+  CADENCE_JITTER: [0, 0.7, -0.45, 1.0, -0.6, 0.4, -0.3, 0.8],  // décalage déterministe (h) → cadence irrégulière
   REPUT_PROPRE: 6,           // une coupe propre fait monter la demande
   REPUT_ARRACHE: -25,        // une coupe à l'arrache la fait fuir
-  LAB_RAW: 100,              // labo : g de matière consommés par batch (provisoire, P3)
-  LAB_YIELD: { A: 0.8, C: 1.2 },  // rendement propre / arrache (provisoire, P3)
 };
 
 export function jaugeOpaque(v, max, sym = '•', plein = '🔥'){
@@ -36,15 +36,20 @@ export function jaugeOpaque(v, max, sym = '•', plein = '🔥'){
 }
 
 export function createSim(){
-  const z = () => ({ hash: 0, weed: 0, neige: 0 });
+  const z       = () => ({ hash: 0, weed: 0, neige: 0 });              // grammes par produit (matière)
+  const parFmt  = () => C.FORMATS.reduce((o, f) => (o[f] = 0, o), {});  // sachets par format
+  const stockZ  = () => ({ hash: parFmt(), weed: parFmt(), neige: parFmt() });
+  const prixZ   = () => ({ hash: { ...C.PRIX_DEFAUT }, weed: { ...C.PRIX_DEFAUT }, neige: { ...C.PRIX_DEFAUT } });
+
   const state = {
     jour: 1, heure: 0, cash: 0, loyerDu: 0,
     reput: 50,                     // demande (opaque)
     matiere: z(),                  // g de matière première (réassort)
-    stock: z(),                    // g finis, prêts à vendre
+    stock: stockZ(),               // sachets prêts à vendre, PAR FORMAT
+    prix: prixZ(),                 // € par sachet et par format (levier joueur)
     batches: [],
     debloques: { hash: true, weed: false, neige: false },
-    vitrine: false,                // vitrine EN VENTE — persiste jour après jour (plus de story quotidienne)
+    vitrine: false,                // vitrine EN VENTE — persiste jour après jour
     clientsJour: [],               // clients programmés pour la journée (déterministe)
     clientSeq: 0,
     metricsJour: newJour(),
@@ -52,12 +57,13 @@ export function createSim(){
     dernierMetrics: null,
   };
 
-  function newJour(){ return { achatsEUR: 0, ventesEUR: 0, gProduits: z(), vendu: z(), clientsServis: 0, lignes: [] }; }
+  function newJour(){ return { achatsEUR: 0, ventesEUR: 0, sachetsVendus: 0, clientsServis: 0, lignes: [] }; }
   function ligne(o){ state.metricsJour.lignes.push(o); }
   const clamp = v => Math.max(0, Math.min(100, v));
+  const stockTotalG = p => C.FORMATS.reduce((s, f) => s + f * state.stock[p][f], 0);  // info (g équivalents)
 
   // programme les DM clients d'une journée (déterministe) à partir de l'heure `debut`.
-  // nb ∝ réput (la courbe unique) ; arrivées front-loadées + cadence irrégulière.
+  // nb ∝ réput (la courbe unique) ; chaque client veut UN format (cyclique).
   function programmerJour(debut){
     const n = Math.round(C.CLIENTS_BASE * state.reput / 100);
     const first = debut + C.PREMIER_DM_H;
@@ -68,8 +74,8 @@ export function createSim(){
       state.clientsJour.push({
         id: ++state.clientSeq,
         produit: 'hash',                                 // produit actif (généralisé plus tard)
-        grammes: C.PANIER[i % C.PANIER.length],
-        heureArrivee: Math.max(first, Math.min(last, base + j)),          // cadence irrégulière (rafales/creux)
+        format: C.DEMANDE_FORMAT[i % C.DEMANDE_FORMAT.length],
+        heureArrivee: Math.max(first, Math.min(last, base + j)),          // cadence irrégulière
         arrive: false, servi: false,
       });
     }
@@ -79,6 +85,13 @@ export function createSim(){
   const api = {
     state,
     debloquer(produit){ state.debloques[produit] = true; return api; },
+
+    // VITRINE : fixer le prix d'un format (€ / sachet). C'est TA marge.
+    setPrix(produit, format, px){
+      if (!state.prix[produit] || !(format in state.prix[produit])) return api;
+      state.prix[produit][format] = Math.max(0, Math.round(px));
+      return api;
+    },
 
     // RÉASSORT (darkweb) : matière première au semi-grossiste
     acheterMatiere(produit, grammes, prixTotal, cause){
@@ -91,30 +104,31 @@ export function createSim(){
       return api;
     },
 
-    // LABO : un proto (iframe, P3) renvoie un BATCH. Ici : consomme la matière,
-    // range le batch en stock. qualite 'A' (propre) | 'C' (arrache).
-    produireBatch({ produit, grammesRaw, grammesFinis, qualite }){
+    // LABO : un proto (iframe) renvoie un BATCH conditionné = des SACHETS par format.
+    // formats = { 2: n, 5: n, 10: n } ; grammesRaw = matière réellement coupée (anti free-mint).
+    produireBatch({ produit, grammesRaw, qualite, formats }){
       if (!state.debloques[produit]) return api;
-      // anti free-mint : pas de batch sans assez de matière (chaque g fini vient d'un g acheté)
-      if (grammesRaw <= 0 || state.matiere[produit] < grammesRaw) return api;
+      formats = formats || {};
+      const nSachets = C.FORMATS.reduce((s, f) => s + (formats[f] || 0), 0);
+      // anti free-mint : pas de batch sans matière coupée, ni sans sachets
+      if (grammesRaw <= 0 || nSachets <= 0 || state.matiere[produit] < grammesRaw) return api;
       state.matiere[produit] -= grammesRaw;
-      state.stock[produit] += grammesFinis;
-      state.batches.push({ produit, grammes: grammesFinis, qualite, jour: state.jour });
+      for (const f of C.FORMATS) state.stock[produit][f] += (formats[f] || 0);
+      state.batches.push({ produit, formats: { ...formats }, qualite, jour: state.jour });
       state.reput = clamp(state.reput + (qualite === 'A' ? C.REPUT_PROPRE : C.REPUT_ARRACHE));
-      state.metricsJour.gProduits[produit] += grammesFinis;
-      ligne({ ic: '⚗️', label: `Batch ${produit} : ${grammesFinis}g (${qualite === 'A' ? 'propre' : 'arrache'})`,
+      const detail = C.FORMATS.filter(f => formats[f] > 0).map(f => `${formats[f]}×${f}g`).join(' · ');
+      ligne({ ic: '⚗️', label: `Batch ${produit} : ${detail} (${qualite === 'A' ? 'propre' : 'arrache'})`,
         cause: qualite === 'A' ? 'sorti propre du labo' : 'coupé à l’arrache au labo' });
       return api;
     },
 
-    // SNAP : mettre la vitrine EN VENTE. Persiste jour après jour (plus de story
-    // quotidienne) — ton stock reste en vente jusqu'à épuisement ; les jours
-    // suivants sont reprogrammés automatiquement à minuit (cloreJour).
+    // SNAP : ouvrir la vitrine. Persiste jour après jour (plus de story quotidienne) —
+    // ton stock reste en vente jusqu'à épuisement ; reprogrammée auto à minuit.
     ouvrirVitrine(){
       if (state.vitrine) return api;
       state.vitrine = true;
       const n = programmerJour(state.heure);
-      ligne({ ic: '🟢', label: 'Vitrine en vente', cause: 'ton stock est en ligne — les clients DM jusqu’à épuisement' });
+      ligne({ ic: '🟢', label: 'Vitrine en vente', cause: 'tes sachets sont en ligne — les clients DM jusqu’à épuisement' });
       if (n === 0) ligne({ ic: '🦗', label: 'Personne ne DM', cause: 'réput trop basse — ta came n’attire pas' });
       return api;
     },
@@ -122,20 +136,19 @@ export function createSim(){
     // les DM en attente (clients arrivés, pas encore servis) — pour l'UI
     dmEnAttente(){ return state.clientsJour.filter(c => c.arrive && !c.servi); },
 
-    // SERVIR un client (répondre à son DM) : vend depuis le stock.
+    // SERVIR un client : vend 1 SACHET du format qu'il demande, à ton prix.
     servir(id){
       const c = state.clientsJour.find(x => x.id === id && x.arrive && !x.servi);
       if (!c) return 0;
-      const g = Math.min(c.grammes, state.stock[c.produit]);
-      if (g <= 0) return 0;                              // rupture : l'UI gère le retour ; raté tracé à minuit
-      state.stock[c.produit] -= g;
-      const montant = g * C.PRIX_GRAMME[c.produit];
+      if (state.stock[c.produit][c.format] <= 0) return 0;   // rupture sur CE format
+      state.stock[c.produit][c.format] -= 1;
+      const montant = state.prix[c.produit][c.format];
       state.cash += montant;
       c.servi = true;
-      state.metricsJour.vendu[c.produit] += g;
+      state.metricsJour.sachetsVendus += 1;
       state.metricsJour.ventesEUR += montant;
       state.metricsJour.clientsServis++;
-      ligne({ ic: '🤝', label: `${g}g ${c.produit} vendus`, montant, cause: 'client servi via Snap' });
+      ligne({ ic: '🤝', label: `1× ${c.format}g ${c.produit} vendu`, montant, cause: 'client servi via Snap' });
       return montant;
     },
 
@@ -153,22 +166,16 @@ export function createSim(){
   };
 
   function cloreJour(){
-    // clients non servis = ventes ratées. On distingue DM IGNORÉ (stock dispo, tu
-    // n'as pas répondu) de RUPTURE (plus assez de came) — chaque cause tracée.
-    const rates = state.clientsJour.filter(c => !c.servi);
-    const ignores  = rates.filter(c => state.stock[c.produit] >= c.grammes);
-    const ruptures = rates.filter(c => state.stock[c.produit] <  c.grammes);
-    if (ignores.length){
-      const g = ignores.reduce((s, c) => s + c.grammes, 0);
-      ligne({ ic: '📭', label: `${ignores.length} DM ignorés (${g}g ratés)`,
-        cause: 'tu n’as pas répondu — le client est parti' });
-    }
-    if (ruptures.length){
-      const g = ruptures.reduce((s, c) => s + c.grammes, 0);
-      ligne({ ic: '📉', label: `${ruptures.length} clients non servis (${g}g ratés)`,
-        cause: 'rupture de stock — pas assez de came prête' });
-    }
-    state.cash   -= C.LOYER_JOUR;          // frais prélevés sur la caisse
+    // clients non servis = ventes ratées. RUPTURE (plus de sachet de leur format)
+    // vs IGNORÉ (le format était dispo, tu n'as pas répondu) — chaque cause tracée.
+    const rates    = state.clientsJour.filter(c => !c.servi);
+    const ruptures = rates.filter(c => state.stock[c.produit][c.format] <= 0);
+    const ignores  = rates.filter(c => state.stock[c.produit][c.format] >  0);
+    if (ignores.length)
+      ligne({ ic: '📭', label: `${ignores.length} DM ignorés`, cause: 'le format était en stock — tu n’as pas répondu' });
+    if (ruptures.length)
+      ligne({ ic: '📉', label: `${ruptures.length} clients non servis`, cause: 'rupture — plus de sachet du format demandé' });
+    state.cash    -= C.LOYER_JOUR;         // frais prélevés sur la caisse
     state.loyerDu += C.LOYER_JOUR;         // cumul des frais (info)
     ligne({ ic: '💸', label: 'Frais du block', montant: -C.LOYER_JOUR,
       cause: 'faut graisser pour bosser sur le block' });
@@ -183,14 +190,15 @@ export function createSim(){
 
   function snapshot(){
     const m = state.metricsJour;
+    const stockCopy = {};
+    for (const p of C.PRODUITS) stockCopy[p] = { ...state.stock[p] };
     return {
       jour: state.jour,
       achatsEUR: m.achatsEUR, ventesEUR: m.ventesEUR,
       net: m.lignes.reduce((s, l) => s + (l.montant || 0), 0),
-      gProduits: { ...m.gProduits }, gVendus: { ...m.vendu },
-      clientsServis: m.clientsServis,
+      sachetsVendus: m.sachetsVendus, clientsServis: m.clientsServis,
       cash: state.cash, loyerDu: state.loyerDu,
-      stock: { ...state.stock }, matiere: { ...state.matiere },
+      stock: stockCopy, stockGhash: stockTotalG('hash'), matiere: { ...state.matiere },
       reputOpaque: jaugeOpaque(state.reput, 100),
       lignes: m.lignes.slice(),
     };
@@ -200,7 +208,7 @@ export function createSim(){
 }
 
 /* =======================================================================
-   DÉMO CONSOLE — la boucle Snap (story + DM) sur 3 jours déterministes.
+   DÉMO CONSOLE — stock par sachets + prix par format, sur 3 jours.
    Lancer : node crimworld-sandbox/sim.mjs
    ======================================================================= */
 function printJour(s){
@@ -209,30 +217,30 @@ function printJour(s){
     const m = l.montant ? (l.montant > 0 ? ` +${l.montant}€` : ` ${l.montant}€`) : '';
     console.log(`  ${l.ic} ${l.label}${m}\n       ↳ ${l.cause}`);
   }
-  console.log(`  — net ${s.net >= 0 ? '+' : ''}${s.net}€ · caisse ${s.cash}€ · clients servis ${s.clientsServis}`);
-  console.log(`  — stock hash ${s.stock.hash}g · réput ${s.reputOpaque}`);
+  console.log(`  — net ${s.net >= 0 ? '+' : ''}${s.net}€ · caisse ${s.cash}€ · sachets vendus ${s.sachetsVendus} · clients servis ${s.clientsServis}`);
+  console.log(`  — stock hash 2g·${s.stock.hash[2]} 5g·${s.stock.hash[5]} 10g·${s.stock.hash[10]} · réput ${s.reputOpaque}`);
 }
 
 export function demo(){
   const sim = createSim();
   const H = C.HOUR_MS;
   const jouerJournee = () => { for (let h = 0; h < C.DAY_HOURS; h++){ sim.tick(H); for (const c of sim.dmEnAttente()) sim.servir(c.id); } };
-  console.log('CrimWorld Sandbox v2.1 — démo vitrine persistante (Snap DM)');
+  console.log('CrimWorld Sandbox v2.2 — démo stock par sachets + prix par format');
 
-  // JOUR 1 — tu OUVRES la vitrine SANS stock → les clients DM mais tu rates tout.
+  // JOUR 1 — vitrine ouverte SANS stock → les clients DM mais tu rates tout.
   sim.acheterMatiere('hash', 100, 250);
-  sim.ouvrirVitrine();                     // une seule fois : la vitrine reste en vente
+  sim.ouvrirVitrine();                     // une seule fois : reste en vente
   jouerJournee();
   printJour(sim.state.dernierMetrics);
 
-  // JOUR 2 — labo propre → les clients (reprogrammés AUTO) arrivent et tu les sers.
-  sim.produireBatch({ produit: 'hash', grammesRaw: 100, grammesFinis: 80, qualite: 'A' });
+  // JOUR 2 — labo propre : un mix de sachets → les clients (auto) arrivent et tu sers.
+  sim.produireBatch({ produit: 'hash', grammesRaw: 100, qualite: 'A', formats: { 2: 8, 5: 6, 10: 3 } });
   jouerJournee();
   printJour(sim.state.dernierMetrics);
 
-  // JOUR 3 — labo à l'arrache → réput chute → MOINS de clients le DM (toujours pas de re-post).
-  sim.acheterMatiere('hash', 100, 250);   // il faut racheter de la matière (anti free-mint)
-  sim.produireBatch({ produit: 'hash', grammesRaw: 100, grammesFinis: 120, qualite: 'C' });
+  // JOUR 3 — labo à l'arrache → réput chute → MOINS de clients (toujours pas de re-post).
+  sim.acheterMatiere('hash', 100, 250);
+  sim.produireBatch({ produit: 'hash', grammesRaw: 100, qualite: 'C', formats: { 2: 4, 5: 4, 10: 6 } });
   jouerJournee();
   printJour(sim.state.dernierMetrics);
 }
