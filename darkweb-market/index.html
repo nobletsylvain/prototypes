@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Onion Market — appro darkweb</title>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
 <style>
   /* =========================================================================
      Onion Market — prototype « fournisseur » (façon Silk Road / TOR).
@@ -88,6 +91,22 @@
   .lhead{display:flex;align-items:center;gap:9px}
   .av{width:38px;height:38px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;
        font-size:20px;background:var(--surface2);border:1px solid var(--border)}
+  /* vignette produit 3D (image baked) */
+  .thumb{width:54px;height:54px;flex:none;border-radius:11px;overflow:hidden;position:relative;
+       background:radial-gradient(120% 120% at 50% 20%,#1a2113 0,#0a0d08 100%);border:1px solid var(--border)}
+  .thumb img{width:100%;height:100%;object-fit:contain;display:block}
+  .thumb .pe{position:absolute;bottom:2px;right:3px;font-size:11px;filter:drop-shadow(0 1px 1px #000)}
+  /* viewer 3D interactif (fiche commande) */
+  .viewer{position:relative;width:100%;height:190px;margin:2px 0 12px;border-radius:14px;overflow:hidden;
+       background:radial-gradient(130% 100% at 50% 10%,#1a2113 0,#0a0d08 70%);border:1px solid var(--border);
+       display:flex;align-items:center;justify-content:center}
+  .viewer canvas{display:block;touch-action:none}
+  .viewer .vhint{position:absolute;bottom:7px;left:0;right:0;text-align:center;font:600 9px var(--mono);
+       color:var(--faint);letter-spacing:.04em;pointer-events:none}
+  .viewer .vtag{position:absolute;top:7px;left:8px;font:700 9px var(--mono);padding:3px 7px;border-radius:6px;
+       letter-spacing:.03em}
+  .viewer .vtag.annonce{color:#0a0908;background:var(--gold)}
+  .viewer .vtag.reel{color:var(--bg);background:var(--neon)}
   .who{min-width:0;flex:1}
   .handle{font:800 14px var(--sans);display:flex;align-items:center;gap:6px}
   .verif{color:var(--onion);font-size:12px}
@@ -265,6 +284,7 @@
 </div>
 
 <script type="module">
+import * as THREE from 'three';
 /* ===========================================================================
    DONNÉES — roster FIXE (constantes nommées). Aucun tirage ne pilote l'état.
    family : resine | extraction | weed   ·   tier : cheap | mid | premium
@@ -354,6 +374,179 @@ function rel(id){ return S.rel[id] || (S.rel[id] = { count:0, grams:0, deal:fals
 const avgQual = () => S.stockG > 0 ? Math.round(S.qualSum / S.stockG) : 0;
 
 /* ===========================================================================
+   APERÇU PRODUIT 3D (Three.js) — modèles procéduraux paramétrés par la QUALITÉ.
+   · vignette « photo du listing » = baked à la qualité ANNONCÉE (flatteuse) ;
+   · viewer interactif de la fiche = annoncée, ou RÉELLE après échantillon.
+   L'aléa ici est de PRÉSENTATION uniquement (placement des grains/cristaux) —
+   seedé donc stable, il ne pilote aucune conséquence.
+   =========================================================================== */
+const seeded = i => { const x = Math.sin(i*127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+const qOf = pct => Math.max(0, Math.min(1, (pct - 50) / 46));   // qualité % -> 0..1 visuel
+
+function makeProduct(family, pct){
+  const q = qOf(pct), g = new THREE.Group();
+  if(family === 'resine'){
+    // hash pressé : MeshPhysical + clearcoat (gras huileux qui monte avec la qualité)
+    const col = new THREE.Color().lerpColors(new THREE.Color('#3a2414'), new THREE.Color('#c08a33'), q);
+    const brick = new THREE.Mesh(new THREE.BoxGeometry(1.5,0.55,1.0),
+      new THREE.MeshPhysicalMaterial({ color:col, roughness:0.62-0.30*q, metalness:0.0,
+        clearcoat:0.2+0.6*q, clearcoatRoughness:0.45-0.2*q, envMapIntensity:0.85 }));
+    g.add(brick);
+    const stamp = new THREE.Mesh(new THREE.BoxGeometry(0.55,0.03,0.55),
+      new THREE.MeshPhysicalMaterial({ color:col.clone().multiplyScalar(0.6), roughness:0.7, envMapIntensity:0.6 }));
+    stamp.position.y = 0.29; g.add(stamp);
+    // miettes (plus nombreuses en basse qualité = produit sale)
+    const crumbs = Math.round(8*(1-q));
+    for(let i=0;i<crumbs;i++){
+      const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.05+seeded(i)*0.05,0),
+        new THREE.MeshStandardMaterial({ color:col.clone().multiplyScalar(0.8), roughness:0.95, flatShading:true }));
+      c.position.set((seeded(i*3)-0.5)*1.7, -0.27, (seeded(i*7)-0.5)*1.2); g.add(c);
+    }
+  } else if(family === 'extraction'){
+    // cristaux : MeshPhysical + transmission (translucidité vitreuse ∝ qualité)
+    const col = new THREE.Color().lerpColors(new THREE.Color('#8a6420'), new THREE.Color('#edc04f'), q);
+    const n = 8 + Math.round(q*12);
+    for(let i=0;i<n;i++){
+      const r = 0.16 + seeded(i)*0.16;
+      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r,0),
+        new THREE.MeshPhysicalMaterial({ color:col, roughness:0.18-0.12*q, metalness:0.0,
+          transmission:0.25+0.5*q, ior:1.55, thickness:0.6, attenuationColor:col.clone(), attenuationDistance:1.4,
+          envMapIntensity:1.3, flatShading:true, transparent:true }));
+      const a = seeded(i*3)*6.283, rad = seeded(i*7)*0.5;
+      m.position.set(Math.cos(a)*rad, -0.25 + seeded(i*5)*0.55, Math.sin(a)*rad);
+      m.rotation.set(seeded(i)*3, seeded(i*2)*3, seeded(i*4)*3); g.add(m);
+    }
+  } else { // weed
+    // têtes : MeshPhysical + sheen (velours), givre de trichomes en Points
+    const green = new THREE.Color().lerpColors(new THREE.Color('#56602c'), new THREE.Color('#5f9230'), q);
+    const calyx = new THREE.MeshPhysicalMaterial({ color:green, roughness:0.68, metalness:0,
+      sheen:0.5+0.4*q, sheenRoughness:0.5, sheenColor:new THREE.Color('#d2e8a0'),
+      clearcoat:0.15*q, envMapIntensity:0.6 });
+    const n = 16 + Math.round(q*12);
+    for(let i=0;i<n;i++){
+      const r = 0.17 + seeded(i)*0.09, t = i/n, ang = i*2.39, rad = 0.37*(1-0.45*t);
+      const m = new THREE.Mesh(new THREE.SphereGeometry(r,10,8), calyx);
+      m.position.set(Math.cos(ang)*rad, t*1.3-0.65, Math.sin(ang)*rad); g.add(m);
+    }
+    const np = 5 + Math.round(q*16);                                   // pistils orange
+    const pm = new THREE.MeshStandardMaterial({ color:'#d2702a', roughness:0.5 });
+    for(let i=0;i<np;i++){
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.022,0.24,4), pm);
+      const ang = seeded(i*9)*6.283, t = seeded(i*4), rad = 0.3*(1-0.4*t);
+      c.position.set(Math.cos(ang)*rad, t*1.2-0.45, Math.sin(ang)*rad);
+      c.rotation.set((seeded(i*2)-0.5)*1.6, 0, (seeded(i)-0.5)*1.6); g.add(c);
+    }
+    const npt = Math.round(50 + q*260);                                // trichomes (givre)
+    const pts = new Float32Array(npt*3);
+    for(let i=0;i<npt;i++){
+      const t=i/npt, ang=i*2.39, rad=0.4*(1-0.45*t)*(0.82+0.2*seeded(i));
+      pts[i*3]=Math.cos(ang)*rad; pts[i*3+1]=t*1.3-0.65+(seeded(i*3)-0.5)*0.1; pts[i*3+2]=Math.sin(ang)*rad;
+    }
+    const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pts,3));
+    g.add(new THREE.Points(pg, new THREE.PointsMaterial({ color:'#eef2dd', size:0.05, transparent:true, opacity:0.5+0.35*q })));
+  }
+  return g;
+}
+
+// env-map studio générée en core three (pas d'addon) : PMREM d'une scène de
+// 3 « softbox » émissives -> IBL pour les MeshPhysicalMaterial (reflets/transmission).
+function buildEnv(renderer){
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const s = new THREE.Scene(); s.background = new THREE.Color(0x0c0f0a);
+  const box = (hex, mul, pos, scl) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1,1),
+      new THREE.MeshBasicMaterial({ color:new THREE.Color(hex).multiplyScalar(mul), side:THREE.DoubleSide }));
+    m.position.set(...pos); m.scale.set(...scl); m.lookAt(0,0,0); s.add(m);
+  };
+  box(0xfff1d8, 3.2, [ 4, 6, 4], [9,9,1]);   // key chaude
+  box(0x9fc4ff, 1.4, [-5, 2,-3], [7,7,1]);   // rim froide
+  box(0xffffff, 0.5, [ 0,-4, 2], [7,7,1]);   // fill bas
+  const tex = pmrem.fromScene(s, 0.04).texture;
+  pmrem.dispose();
+  return tex;
+}
+
+// ombre de contact (radial gradient) pour poser le produit
+let _shadowTex = null;
+function shadowTexture(){
+  if(_shadowTex) return _shadowTex;
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d'); const grd = x.createRadialGradient(64,64,4,64,64,62);
+  grd.addColorStop(0,'rgba(0,0,0,0.55)'); grd.addColorStop(1,'rgba(0,0,0,0)');
+  x.fillStyle = grd; x.fillRect(0,0,128,128);
+  _shadowTex = new THREE.CanvasTexture(c); return _shadowTex;
+}
+
+function makeStage(){
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(34,1,0.1,100);
+  camera.position.set(2.0,1.3,2.4); camera.lookAt(0,-0.1,0);
+  scene.add(new THREE.AmbientLight(0xffffff,0.25));
+  const key = new THREE.DirectionalLight(0xfff0d8,1.6); key.position.set(3,5,4); scene.add(key);
+  const rim = new THREE.DirectionalLight(0x8fbaff,0.5); rim.position.set(-3,2,-3); scene.add(rim);
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.4,2.4),
+    new THREE.MeshBasicMaterial({ map:shadowTexture(), transparent:true, depthWrite:false }));
+  shadow.rotation.x = -Math.PI/2; shadow.position.y = -0.66; scene.add(shadow);
+  return { scene, camera };
+}
+function tuneRenderer(r){ r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1; }
+
+// ---- vignettes baked (cache par famille+qualité) ----
+const thumbCache = {};
+let thumbR = null, thumbStage = null;
+function bakeThumb(family, pct){
+  const key = family + '_' + pct;
+  if(thumbCache[key]) return thumbCache[key];
+  try{
+    if(!thumbR){
+      thumbR = new THREE.WebGLRenderer({ antialias:true, alpha:true, preserveDrawingBuffer:true });
+      thumbR.setPixelRatio(2); thumbR.setSize(120,120); tuneRenderer(thumbR);
+      thumbStage = makeStage(); thumbStage.scene.environment = buildEnv(thumbR);
+    }
+    const old = thumbStage.scene.getObjectByName('product'); if(old) thumbStage.scene.remove(old);
+    const p = makeProduct(family, pct); p.name = 'product'; p.rotation.y = 0.7; thumbStage.scene.add(p);
+    thumbR.render(thumbStage.scene, thumbStage.camera);
+    const url = thumbR.domElement.toDataURL('image/png');
+    thumbCache[key] = url; return url;
+  }catch(e){ return null; }   // si WebGL indispo, on retombe sur l'emoji
+}
+
+// ---- viewer interactif (un seul à la fois) ----
+let live = null;
+function disposeViewer(){
+  if(!live) return;
+  cancelAnimationFrame(live.raf);
+  window.removeEventListener('pointermove', live.move);
+  window.removeEventListener('pointerup', live.up);
+  live.renderer.dispose();
+  if(live.dom && live.dom.parentNode) live.dom.parentNode.removeChild(live.dom);
+  live = null;
+}
+function mountViewer(el, family, pct){
+  disposeViewer();
+  let renderer;
+  try{ renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true }); }
+  catch(e){ el.innerHTML = '<div class="vhint">aperçu 3D indisponible</div>'; return; }
+  const w = el.clientWidth || 340, h = el.clientHeight || 190;
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.setSize(w, h); tuneRenderer(renderer); el.appendChild(renderer.domElement);
+  const stage = makeStage(); stage.scene.environment = buildEnv(renderer);
+  stage.camera.aspect = w/h; stage.camera.updateProjectionMatrix();
+  const group = makeProduct(family, pct); stage.scene.add(group);
+  let rot = 0.5, vel = 0.006, dragging = false, lastX = 0;
+  const dom = renderer.domElement; dom.style.cursor = 'grab';
+  const down = e => { dragging = true; lastX = (e.touches?e.touches[0].clientX:e.clientX); vel = 0; dom.style.cursor='grabbing'; };
+  const move = e => { if(!dragging) return; const x = (e.touches?e.touches[0].clientX:e.clientX); rot += (x-lastX)*0.011; lastX = x; };
+  const up = () => { dragging = false; dom.style.cursor='grab'; };
+  dom.addEventListener('pointerdown', down);
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  live = { renderer, raf:0, dom, move, up };
+  (function loop(){ rot += vel; group.rotation.y = rot; renderer.render(stage.scene, stage.camera);
+    live.raf = requestAnimationFrame(loop); })();
+}
+
+/* ===========================================================================
    RENDU liste
    =========================================================================== */
 const $ = id => document.getElementById(id);
@@ -403,11 +596,15 @@ function renderFeed(){
       r.deal ? `<span class="bdg loy">remise négociée</span>` : '',
       r.sampled ? `<span class="bdg samp">échantillon vu</span>` : '',
     ].filter(Boolean).join('');
+    const thumb = bakeThumb(s.family, s.annoncee);   // photo du listing = qualité annoncée
+    const thumbHTML = thumb
+      ? `<div class="thumb"><img src="${thumb}" alt=""><span class="pe">${s.emoji}</span></div>`
+      : `<div class="av">${s.emoji}</div>`;
     const el = document.createElement('div');
     el.className = 'listing';
     el.innerHTML = `
       <div class="lhead">
-        <div class="av">${s.emoji}</div>
+        ${thumbHTML}
         <div class="who">
           <div class="handle">${s.handle}${s.rating>=4.5?'<span class="verif">✔︎</span>':''}</div>
           <div class="sub">${s.id}@onion · PGP ✓ · escrow</div>
@@ -437,6 +634,7 @@ function renderFeed(){
 let sel = null, selQty = 0;
 
 function openOrder(s){
+  disposeViewer();
   sel = s; selQty = s.qtys.includes(selQty) ? selQty : s.qtys[0];
   const r = rel(s.id), loy = loyalty(r.count);
   const real = realQual(s), gap = s.annoncee - real;
@@ -458,6 +656,10 @@ function openOrder(s){
         <div class="sub">${stars(s.rating)} ${s.rating.toFixed(1)} · ${s.sales} ventes · ${FAMILIES[s.family]}</div></div>
       <div class="tier ${s.tier}">${s.tier}</div>
     </div>
+    <div class="viewer" id="viewer">
+      <div class="vtag ${r.sampled?'reel':'annonce'}">${r.sampled?'rendu réel · échantillon':'photo du listing'}</div>
+      <div class="vhint">glisse pour tourner · ${r.sampled?'qualité réelle':'qualité annoncée'}</div>
+    </div>
     <div class="specs">
       <div class="spec"><div class="k">Produit</div><div class="v" style="font-size:11px">${s.prod}</div></div>
       <div class="spec"><div class="k">Prix base</div><div class="v">${fmt1(s.eurG)}/g</div></div>
@@ -475,6 +677,7 @@ function openOrder(s){
   $('buy').addEventListener('click', doOrder);
   $('to-chat').addEventListener('click', () => openChat(s));
   showSheet();
+  mountViewer($('viewer'), s.family, r.sampled ? realQual(s) : s.annoncee);
 }
 function renderQtys(){
   const box = $('qtys'); box.innerHTML = '';
@@ -525,6 +728,7 @@ function doOrder(){
    =========================================================================== */
 let chatSel = null;
 function openChat(s){
+  disposeViewer();
   chatSel = s; renderChat(); showSheet();
 }
 function renderChat(){
@@ -582,6 +786,7 @@ function renderChat(){
    REÇUS
    =========================================================================== */
 function openReceipts(){
+  disposeViewer();
   if(!S.receipts.length){
     $('sheet').innerHTML = `<div class="grab"></div><div class="empty">Pas encore de reçu.<br>Passe une commande sur le marché.</div>`;
   } else {
@@ -601,7 +806,16 @@ function openReceipts(){
    SHEET helpers, filtres, tri, reset, horloge, init
    =========================================================================== */
 function showSheet(){ $('scrim').classList.add('show'); $('sheet').classList.add('show'); }
-function closeSheet(){ $('scrim').classList.remove('show'); $('sheet').classList.remove('show'); sel=chatSel=null; }
+function closeSheet(){ disposeViewer(); $('scrim').classList.remove('show'); $('sheet').classList.remove('show'); sel=chatSel=null; }
+
+let toastT = null;
+function toast(msg, bad=false){
+  const t = $('toast');
+  t.className = 'toast show' + (bad ? ' bad' : '');
+  t.innerHTML = msg;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => { t.className = 'toast'; }, 2600);
+}
 
 $('feed').addEventListener('click', e => {
   const fav = e.target.closest('[data-fav]');
