@@ -117,6 +117,8 @@ Un **halo lumineux** pulse sous la station active et un **bandeau de consigne** 
 
 **Rendu** : textures **procédurales** (établi bois, poudre cristalline à paillettes, cellophane froissée) + **reflets doux** (env map) sur le verre / métal / plastique — 100 % canvas, aucun fichier externe.
 
+**Animations produits** : tas de poudre en **dôme** qui grossit/fond en douceur, **source qui s'incline** vers la dalle quand on verse, **tas qui tourne** pendant le mélange, **pochons qui rebondissent** en sortant. HUD aéré (bandeaux dégradés haut/bas).
+
 > Prototype de jeu, habillage purement visuel/stylisé.
 
 ### Jouer
