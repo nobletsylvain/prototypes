@@ -285,7 +285,7 @@
       <div class="cap">Ta vitrine</div>
     </div>
     <div class="story" data-story="comptoir"><div class="ring seen"><div class="inner">🏪</div></div><div class="cap">Le Comptoir</div></div>
-    <div class="story" data-story="campus"><div class="ring seen"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
+    <div class="story" data-story="campus"><div class="ring"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
     <div class="story" data-story="arrivage"><div class="ring"><div class="inner">🌃</div></div><div class="cap"><span class="live">● ARRIVAGE</span></div></div>
     <div class="story" data-story="ruelle"><div class="ring seen"><div class="inner">🚬</div></div><div class="cap">La Ruelle</div></div>
     <div class="story" data-story="momo"><div class="ring"><div class="inner">💀</div></div><div class="cap">Momo</div></div>
@@ -335,7 +335,7 @@
       <span class="ico">📦</span>
       <span class="txt">VIDÉO 9:16 — ta came, grain de nuit<br>(générée hors-ligne → bakée .mp4)</span>
       <div class="vcap">
-        <div class="big">fraîchement coupé 🔥💨</div>
+        <div class="big" id="viewer-cap">fraîchement coupé 🔥💨</div>
         <div class="sub" id="viewer-views">— vu par 🔥 •••• (opaque)</div>
       </div>
       <div class="vreply"><span>Répondre…</span><span class="emojis">❄️ 🌿 💸</span></div>
@@ -672,8 +672,9 @@ els.postBtn.addEventListener("click", () => {
   els.scompose.classList.remove("show");
   els.ringMine.classList.remove("ready"); els.ringMine.classList.add("seen");
   els.viewer.classList.add("show");
-  els.viewerViews.textContent = state.qualite === "A"
-    ? "— vu par 🔥🔥 ••••• (opaque)" : "— vu par 🔥 ••• (opaque)";
+  const v = VITRINE[state.qualite === "A" ? "A" : "C"];
+  $("viewer-cap").textContent = v.caption;
+  els.viewerViews.textContent = v.views;
 });
 els.viewer.addEventListener("click", () => {
   if (!pendingStory) return;
@@ -689,35 +690,36 @@ els.viewer.addEventListener("click", () => {
    ========================================================================= */
 const STORIES = {
   comptoir: { nm:"Le Comptoir", av:"🏪", slides:[
-    { ts:"il y a 2 h", clip:"STORY 9:16 — comptoir du tabac, néon qui grésille, sous la pluie",
-      caption:"ça remonte sec en ce moment 📈", views:"— vu par les habitués du coin (opaque)", emojis:["👀","💸","🔥"] },
-    { ts:"il y a 2 h", clip:"STORY 9:16 — une main glisse un sachet sous le comptoir",
-      caption:"qui livre propre mange 🤝", views:"— vu par le quartier (opaque)", emojis:["🤝","🧊","👀"] },
+    { ts:"il y a 12 min", clip:"STORY 9:16 — Comptoir tabac nuit néons, grain TV",
+      caption:"Prix qui montent sec 💸🔥", views:"— Vu par tout le quartier (opaque)", emojis:["👀","💸","🥶"],
+      prompt:"Vertical 9:16 night shot of a French banlieue tabac counter, flickering neon signs, cigarette packs and price tags in foreground, heavy TV grain and film noise, moody purple and blue lighting, no faces or text, gritty urban atmosphere." },
   ]},
   campus: { nm:"Le Campus", av:"🎓", slides:[
-    { ts:"il y a 5 h", clip:"STORY 9:16 — amphi vide la nuit, néons blafards",
-      caption:"semaine d'exams = ça consomme 🎓💨", views:"— vu par tout le campus (opaque)", emojis:["💨","😵","🔥"] },
-    { ts:"il y a 5 h", clip:"STORY 9:16 — file de mecs qui patientent près du distributeur de la fac",
-      caption:"faut un bon plan, et vite 👀", views:"— vu par les fauchés (opaque)", emojis:["👀","💸","🌿"] },
+    { ts:"il y a 28 min", clip:"STORY 9:16 — Résidence étudiante nuit, néons verts",
+      caption:"Examens = demande qui flambe ❄️", views:"— Vu par la cité étudiante (opaque)", emojis:["🔥","🌿","💸"],
+      prompt:"Vertical 9:16 video of a French suburban student dorm at night, green neon glow on windows, scattered study notes and energy drinks on a desk, subtle TV grain effect, cold moody lighting, no people or readable text." },
   ]},
   arrivage: { nm:"Arrivage", av:"🌃", slides:[
-    { ts:"live", clip:"STORY 9:16 — un coffre qui s'ouvre, cartons scellés, parking sombre",
-      caption:"ÇA VIENT DE TOMBER 🌃🔥", views:"— le quartier est déjà au courant (opaque)", emojis:["🔥","👀","🤝"] },
-    { ts:"live", clip:"STORY 9:16 — gros plan d'une brique sous lampe torche, grain de nuit",
-      caption:"premier arrivé, premier servi 💨", views:"— vu par les rapides (opaque)", emojis:["💨","💸","🥶"] },
+    { ts:"LIVE", clip:"STORY 9:16 — Sac qui tombe du scooter, néons ruelle",
+      caption:"Gros arrivage vient de tomber 🔥", views:"— Tout le quartier est dessus (opaque)", emojis:["👀","🔥","🌿"],
+      prompt:"Dynamic vertical 9:16 live-style clip of a duffel bag dropped in a dark banlieue alley at night, scooter headlights, neon reflections on wet ground, heavy film grain, urgent movement, no faces, cinematic tension." },
   ]},
   ruelle: { nm:"La Ruelle", av:"🚬", slides:[
-    { ts:"hier", clip:"STORY 9:16 — ruelle sombre, fumée de clope, silhouettes adossées au mur",
-      caption:"c'est NOTRE coin ici 🚬", views:"— vu par ceux qui savent (opaque)", emojis:["🚬","💀","👀"] },
-    { ts:"hier", clip:"STORY 9:16 — mur tagué, capuche, visage hors-champ",
-      caption:"les touristes on les calcule pas 😤", views:"— vu par la concurrence (opaque)", emojis:["😤","💀","🥶"] },
+    { ts:"il y a 7 min", clip:"STORY 9:16 — Coin de rue sombre, néons rouges",
+      caption:"La concurrence veille 👀", views:"— Les corners sont chauds (opaque)", emojis:["💀","🥶","🔥"],
+      prompt:"Vertical 9:16 gritty night shot of a narrow banlieue alley corner, red neon signs reflecting on pavement, scattered cigarette butts, subtle shadows, heavy TV grain, tense atmosphere, no people." },
   ]},
   momo: { nm:"Momo", av:"💀", slides:[
-    { ts:"à l'instant", clip:"STORY 9:16 — Momo sur SON corner, liasse au poing, grain de nuit",
-      caption:"le block C, c'est MOI 💀", views:"— vu par tout le quartier (opaque)", emojis:["💀","💸","🥶"] },
-    { ts:"à l'instant", clip:"STORY 9:16 — un doigt tape une montre clinquante, fond noir",
-      caption:"ceux qui me doivent… tic tac ⏳", views:"— vu par les mauvais payeurs (opaque)", emojis:["⏳","💀","😬"] },
+    { ts:"il y a 41 min", clip:"STORY 9:16 — Montre en or sous néon, grain sale",
+      caption:"La dette elle attend pas 💀", views:"— Message privé du quartier (opaque)", emojis:["💀","💸","🥶"],
+      prompt:"Close-up vertical 9:16 of a gold watch and chain under harsh neon light in dark room, subtle cash stacks in shadow, heavy film grain and noise, menacing moody vibe, no faces or logos." },
   ]},
+};
+
+/* Vitrine du joueur : 2 variantes selon la qualité de coupe (cf. Grok vitrine_A/_C). */
+const VITRINE = {
+  A: { caption:"Qualité propre, discrète A ❄️", views:"— Vu par les vrais (opaque)" },
+  C: { caption:"Ça part vite, volume max 🔥",   views:"— Vu par les pressés (opaque)" },
 };
 
 const npcViewer = $("npcviewer");
