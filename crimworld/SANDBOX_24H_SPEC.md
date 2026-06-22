@@ -289,3 +289,33 @@ Chaque lot : sim JS pur testable en **console** → UI → **reviewer** → comm
 4. **Opacité réput** : **totalement opaque** (comme les vues de la vitrine).
 5. **Périmètre v1** : **inclut le dispatch** de drivers (l'inversion §3c, au
    lot 4).
+
+## TODO / Roadmap (vivante — maj 2026-06-22)
+
+### ✅ Fait & déployé
+- Boucle : Darkweb (réassort) → Labo (atelier **hash-slicer en embed**) → Inventaire →
+  **Vitrine persistante** → Snap DM (servir / négocier). Horloge temps réel, 1er DM ~2,4 s,
+  cadence irrégulière déterministe.
+- Stock = **sachets par FORMAT** (2/5/10 g) **et par QUALITÉ** (A népalais / B pollen / C savonnette).
+- **Qualité sourcée au Darkweb** : 3 tiers **gatés par la réput** (savonnette → pollen → népalais).
+- **Clients à discernement** (schlag / habitué / connaisseur) ; service auto = **moins bonne qualité acceptable**
+  (on préserve le bon pour l'élite, le « pneu » part aux schlags).
+- **Réput pilotée par la qualité servie** (A>B>C) ; **drop** (buzz +réput, 1×/j).
+- **Négo / contre-offre** : substitut, upsell, **conditionnement au choix** ; **downsell** (sous le standard, réput↓).
+- **Prix par QUALITÉ × FORMAT** + **repère marché** (positionnement).
+- **Feed** : preuve sociale (followers + commentaires reflétant came/service).
+
+### 🔜 À faire (priorisé)
+1. **Sensibilité au prix** (★ éco) — au-dessus du marché → les clients filent (avec **retard**) ;
+   sous le marché → undercut. ⚠️ aujourd'hui le prix listé n'a **pas de downside** sur le *Servir*
+   (le repère marché est encore cosmétique). C'est le chaînon manquant de la « gestion des prix ».
+2. **2ᵉ/3ᵉ ateliers en embed** : green-front-v3 (weed) · guitar-shito (népalais/briquet) · neige →
+   « chaque style = son mini-jeu » (le travail parallèle sur ces protos les prépare).
+3. **Multi-produit** : débloquer weed + neige (clients, demande, substitution de produit en négo).
+4. **Drop ciblé** : personnaliser le drop (produit / qualité / légende) → ciblage de la demande.
+5. **Feed social +** : commenter / répondre soi-même, clash / drama (rivaux).
+6. **Négo Darkweb / standing** : messagerie avec les semi-grossistes (envoyer / répondre / négocier),
+   basher → invitation (au lieu d'un simple seuil de réput).
+7. **Tuning** : seuils de déblocage qualité (55/75), prix marché, cadence, durée du jour, DECEPTION/REPUT_SERVI.
+8. **Palier 2 (scaling, vision)** : Grossiste → Vbeur → nourrice → fours + corners (dispatch dealers).
+   ⚠️ guetteurs/four = heat autorités (hors périmètre d'origine — décision à acter avant).
