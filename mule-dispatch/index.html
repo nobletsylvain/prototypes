@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>MULE — coursiers à la demande</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { min-height:100%; font-family:-apple-system,"Segoe UI",Roboto,sans-serif; color:#fff;
+    background:radial-gradient(120% 120% at 50% 0%, #10243a 0%, #0b1727 55%, #060d18 100%); }
+  body { padding:max(16px,env(safe-area-inset-top)) 14px 90px; max-width:560px; margin:0 auto; }
+
+  header { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  header .logo { font-size:26px; }
+  header h1 { font-size:20px; font-weight:900; letter-spacing:.5px; }
+  header .pitch { font-size:11px; color:rgba(255,255,255,.5); margin-top:1px; }
+
+  /* bandeau */
+  .hud { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
+  .hud .cell { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+    border-radius:12px; padding:8px 6px; text-align:center; }
+  .hud .k { font-size:10px; text-transform:uppercase; letter-spacing:.4px; color:rgba(255,255,255,.45); }
+  .hud .v { font-size:16px; font-weight:800; margin-top:2px; }
+  .hud .v.warn { color:#ffd166; } .hud .v.bad { color:#ff7b7b; }
+  .heatbar { height:4px; border-radius:999px; background:rgba(255,255,255,.12); margin-top:5px; overflow:hidden; }
+  .heatbar i { display:block; height:100%; background:linear-gradient(90deg,#7bd88f,#ffd166,#ff7b7b); }
+
+  h2.sec { font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.6px;
+    color:rgba(255,255,255,.55); margin:16px 2px 8px; }
+
+  /* job card */
+  .job { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:16px;
+    padding:12px; margin-bottom:12px; }
+  .job .head { display:flex; align-items:baseline; gap:8px; }
+  .job .dst { font-size:16px; font-weight:800; }
+  .job .meta { font-size:11px; color:rgba(255,255,255,.55); margin-top:2px; }
+  .job .meta b { color:rgba(255,255,255,.8); font-weight:700; }
+
+  .ld { display:flex; align-items:center; gap:10px; margin-top:10px; }
+  .ld input[type=range] { flex:1; accent-color:#5aa9ff; }
+  .ld .g { font-variant-numeric:tabular-nums; font-weight:800; min-width:54px; text-align:right; font-size:14px; }
+
+  .couriers { display:flex; gap:7px; overflow-x:auto; padding:9px 0 3px; margin-top:6px; }
+  .courier { flex:none; width:118px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.12);
+    border-radius:13px; padding:9px; cursor:pointer; transition:.12s; }
+  .courier.sel { border-color:#5aa9ff; background:rgba(90,169,255,.14); }
+  .courier .nm { font-size:12px; font-weight:800; display:flex; align-items:center; gap:4px; }
+  .courier .rt { font-size:10px; color:#ffd166; margin-top:1px; }
+  .courier .tr { font-size:10px; color:rgba(255,255,255,.55); margin-top:4px; line-height:1.45; }
+
+  .quote { display:flex; justify-content:space-between; align-items:center; margin-top:9px;
+    padding-top:9px; border-top:1px dashed rgba(255,255,255,.12); font-size:12px; }
+  .quote .risk { font-weight:800; padding:2px 9px; border-radius:999px; font-size:11px; }
+  .risk.ok { background:rgba(123,216,143,.16); color:#9fe6b0; }
+  .risk.mid { background:rgba(255,209,102,.16); color:#ffd166; }
+  .risk.hot { background:rgba(255,123,123,.18); color:#ff9b9b; }
+  .quote .num { color:rgba(255,255,255,.85); } .quote .num b{ color:#fff; }
+  .quote .empty { color:rgba(255,255,255,.4); font-style:italic; }
+
+  /* actions bar */
+  .bar { position:fixed; left:0; right:0; bottom:0; padding:12px 14px max(12px,env(safe-area-inset-bottom));
+    background:linear-gradient(180deg, rgba(6,13,24,0), #060d18 32%); max-width:560px; margin:0 auto;
+    display:flex; gap:10px; }
+  .btn { flex:1; border:none; border-radius:14px; padding:14px; font-size:15px; font-weight:800; cursor:pointer; }
+  .btn.go { background:#5aa9ff; color:#06243f; }
+  .btn.go:disabled { background:rgba(255,255,255,.1); color:rgba(255,255,255,.4); cursor:default; }
+  .btn.ghost { flex:none; background:rgba(255,255,255,.08); color:#fff; border:1px solid rgba(255,255,255,.15); }
+
+  /* report */
+  .report .line { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+    border-left-width:4px; border-radius:12px; padding:11px 12px; margin-bottom:10px; }
+  .report .line.clean { border-left-color:#7bd88f; }
+  .report .line.soft  { border-left-color:#ffd166; }
+  .report .line.bad   { border-left-color:#ff7b7b; }
+  .report .t { display:flex; justify-content:space-between; font-weight:800; font-size:14px; }
+  .report .t .amt.pos { color:#9fe6b0; } .report .t .amt.neg { color:#ff9b9b; }
+  .report .cause { font-size:12px; color:rgba(255,255,255,.62); margin-top:5px; line-height:1.5; }
+  .report .totals { display:flex; justify-content:space-between; font-size:15px; font-weight:800;
+    padding:12px; background:rgba(90,169,255,.1); border:1px solid rgba(90,169,255,.25); border-radius:14px; margin-top:4px; }
+
+  .gameover { text-align:center; padding:40px 10px; }
+  .gameover .big { font-size:40px; } .gameover h2 { margin:10px 0 6px; }
+  .gameover p { color:rgba(255,255,255,.6); font-size:13px; line-height:1.6; }
+  .muted { color:rgba(255,255,255,.45); font-size:12px; text-align:center; margin-top:8px; }
+  .reset { display:block; margin:18px auto 0; background:none; border:1px solid rgba(255,255,255,.2);
+    color:rgba(255,255,255,.6); border-radius:10px; padding:7px 14px; font-size:12px; cursor:pointer; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo">📦</div>
+    <div>
+      <h1>MULE</h1>
+      <div class="pitch">coursiers à la demande · tu dispatches, t'assumes</div>
+    </div>
+  </header>
+
+  <div id="hud" class="hud"></div>
+  <div id="screen"></div>
+
+  <div id="bar" class="bar"></div>
+
+<script type="module">
+/* =========================================================================
+   MULE — postiche d'Uber pour la logistique de rue (proto CrimWorld).
+   Couche TRANSPORT : tu ne bouges pas la came toi-même, tu DÉLÉGUES à des
+   coursiers gig. La décision centrale CrimWorld (cupidité vs prudence) se
+   rejoue ici : gros colis sur coursier pas cher & exposé = SAISIE traçable.
+
+   INVARIANT : aucune conséquence n'est tirée au sort. Tout résultat
+   (saisie, retard, ponction) découle de constantes nommées × la décision
+   du joueur (coursier choisi, grammes confiés), et porte une `cause` lisible.
+   ========================================================================= */
+
+const SAVE_VERSION = 1;            // bump => reset propre (champ `v` de mule_state)
+const KEY = 'mule_state';
+
+/* --- Économie : PLACEHOLDERS nommés (à régler en playtest) -------------- */
+const CAPITAL_DEPART   = 200;
+const STOCK_DEPART     = 120;      // g en planque au départ
+const DETTE_DEPART     = 700;      // lot fronté initial
+const LOT_STOCK        = 120;      // réappro : +g
+const LOT_DETTE        = 700;      // réappro : +€ de dette
+const DELAI_ECHEANCE   = 3;        // tournées avant échéance
+const PLAFOND_DETTE    = 1600;     // au-delà, le grossiste coupe les vivres
+const HEAT_CAP         = 60;       // quartier grillé => défaite
+const HEAT_BUST        = 15;       // une saisie chauffe lourd
+const HEAT_EXPO_K      = 4;        // heat d'exposition par livraison (co-effet parallèle)
+const HEAT_DECAY       = 5;        // refroidissement par tournée
+const SEUIL_BUST       = 0.45;     // risque >= seuil => saisie
+const SEUIL_DISCRET_G  = 120;      // grammes « sous le radar » (seuil ABSOLU, pas relatif au véhicule)
+const RETARD_PCT       = 0.40;     // hors fenêtre => -40% sur la recette
+const PONCTION_SEUIL   = 0.70;     // fiabilité < seuil => le coursier se sert
+const SURGE_K          = 0.7;      // majoration tarif selon la heat
+
+/* --- Véhicules : constantes nommées, AUCUN tirage ne pilote l'état ------ */
+// Pas de prénoms : le VÉHICULE est l'identité et l'arbitrage. Échelle :
+//   vélib (petit/discret/court) → T-Max (urbain polyvalent) → go fast
+//   (gros volume / long trajet, mais grosse logistique à l'arrivée = exposé).
+// fiab = tient sa course ; expo = se fait remarquer (surtout au déchargement) ;
+// eta = lenteur de base ; cap = grammes embarquables ; base/km = tarif.
+const COURIERS = [
+  { id:'velib',  nm:'Vélib',   emoji:'🚲', veh:'vélo',     rating:4.5, courses:240, fiab:0.90, expo:0.20, eta:34, cap:40,  base:5,  km:1.6 },
+  { id:'tmax',   nm:'T-Max',   emoji:'🛵', veh:'scooter',  rating:4.2, courses:510, fiab:0.82, expo:0.40, eta:19, cap:100, base:9,  km:1.4 },
+  { id:'gofast', nm:'Go fast', emoji:'🚗', veh:'go fast',  rating:3.6, courses:175, fiab:0.66, expo:0.62, eta:11, cap:280, base:18, km:2.0 },
+];
+const courierById = id => COURIERS.find(c => c.id === id);
+
+/* --- Destinations : pool fixe, 3 actives par tournée (rotation) --------- */
+// L'Entrepôt = débouché gros volume / long trajet : la raison d'être du go fast
+// (et le piège : le charger à ras bord franchit le seuil de discrétion → saisie).
+const DESTS = [
+  { id:'comptoir', nm:'Le Comptoir', emoji:'🏪', dist:5,  demande:40,  eurG:9,  fenetre:35 },
+  { id:'campus',   nm:'Le Campus',   emoji:'🎓', dist:8,  demande:60,  eurG:8,  fenetre:45 },
+  { id:'ruelle',   nm:'La Ruelle',   emoji:'🌃', dist:3,  demande:70,  eurG:7,  fenetre:24 },
+  { id:'gare',     nm:'La Gare',     emoji:'🚉', dist:6,  demande:50,  eurG:10, fenetre:30 },
+  { id:'marina',   nm:'La Marina',   emoji:'⛵', dist:12, demande:30,  eurG:15, fenetre:52 },
+  { id:'entrepot', nm:"L'Entrepôt",  emoji:'🏭', dist:14, demande:200, eurG:5,  fenetre:70 },
+];
+
+/* =========================== Fonctions déterministes ==================== */
+const REF_DIST = 6;
+// Tarif d'une course (prépayé à la commande, façon Uber), majoré par la heat.
+function surge(heat)            { return 1 + SURGE_K * (heat / HEAT_CAP); }
+function fare(c, d, heat)       { return Math.round((c.base + c.km * d.dist) * surge(heat)); }
+// Temps de course : lenteur de base du coursier modulée par la distance.
+function eta(c, d)              { return Math.round(c.eta * (0.5 + d.dist / 12)); }
+// Risque d'exposition : expo × manque de fiabilité × volume ABSOLU du colis.
+// (miroir du bust d'allocation de La Bascule §9 ; seuil discret en grammes, pas
+//  relatif au véhicule — c'est le gros colis sur le go fast qui se fait prendre.)
+function risk(c, g)            { return c.expo * (1 - c.fiab) * (g / SEUIL_DISCRET_G); }
+function busted(c, g)          { return g > 0 && risk(c, g) >= SEUIL_BUST; }
+function ponctionPct(c)        { return c.fiab < PONCTION_SEUIL ? Math.round((PONCTION_SEUIL - c.fiab) * 100) : 0; }
+// Grammes au-delà desquels CE véhicule franchit le seuil de saisie (lisible joueur).
+// Dénominateur nul (expo 0 ou fiab 1, réglages futurs) ⇒ ne buste jamais ⇒ Infinity (jamais affiché).
+function seuilSaisie(c)        { const k = c.expo * (1 - c.fiab); return k > 0 ? Math.round(SEUIL_BUST * SEUIL_DISCRET_G / k) : Infinity; }
+// Heat d'exposition d'une livraison : lecture PARALLÈLE du choix de routage
+// (volume absolu × exposition du véhicule), jamais « moins de ventes donc heat ».
+function heatExpo(c, g)        { return Math.round(c.expo * (g / SEUIL_DISCRET_G) * HEAT_EXPO_K); }
+
+function riskLabel(c, g) {
+  if (g === 0) return null;
+  const r = risk(c, g);
+  if (r >= SEUIL_BUST)      return { cls:'hot', txt:'CHAUD' };
+  if (r >= SEUIL_BUST * 0.6) return { cls:'mid', txt:'tendu' };
+  return { cls:'ok', txt:'sûr' };
+}
+
+// Les destinations actives d'une tournée : 3 du pool, par rotation (déterministe).
+function activeDests(run) {
+  const n = DESTS.length, start = (run - 1) % n;
+  const scale = 1 + 0.06 * (run - 1);
+  return [0,1,2].map(k => {
+    const base = DESTS[(start + k) % n];
+    return { ...base, demande: Math.round(base.demande * scale) };
+  });
+}
+
+/* ============================= État / persistance ====================== */
+function freshState() {
+  return {
+    v: SAVE_VERSION,
+    run: 1,
+    cash: CAPITAL_DEPART,
+    stock: STOCK_DEPART,
+    debt: DETTE_DEPART,
+    echeance: DELAI_ECHEANCE + 1,   // tournée-limite de remboursement
+    heat: 0,
+    over: null,                     // {title, why} si défaite
+    assign: {},                     // destId -> {courierId, g}
+    report: null,                   // résultat de la dernière tournée
+  };
+}
+let S = load();
+function load() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY));
+    if (raw && raw.v === SAVE_VERSION) return raw;
+  } catch (e) {}
+  return freshState();
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(S)); }
+function reset() { S = freshState(); save(); render(); }
+
+/* =============================== Résolution ============================= */
+// Pur : prend l'état + les affectations, renvoie les lignes de rapport + deltas.
+// Chaque ligne porte sa `cause` (contrat de données CrimWorld).
+function resolve() {
+  const heat0 = S.heat;
+  const dests = activeDests(S.run);
+  const lines = [];
+  let dCash = 0, dStock = 0, dHeat = 0;
+
+  for (const d of dests) {
+    const a = S.assign[d.id];
+    if (!a || !a.g) continue;
+    const c = courierById(a.courierId);
+    const g = a.g;
+    const f = fare(c, d, heat0);
+    dStock -= g;                        // la came quitte la planque dans tous les cas
+    const hx = heatExpo(c, g);
+    dHeat += hx;
+
+    if (busted(c, g)) {
+      dCash -= f;                        // course prépayée, perdue
+      dHeat += HEAT_BUST;
+      lines.push({ kind:'bad', dst:d, c, g, amt:-f,
+        cause:`${c.emoji} ${c.nm} ${c.rating}★ — colis ${g} g > seuil de discrétion ${seuilSaisie(c)} g, `
+            + `logistique d'arrivée trop voyante à ${d.nm} (expo ${c.expo}) → SAISIE. Course de ${f} € perdue, +${HEAT_BUST} heat.` });
+      continue;
+    }
+
+    let recette = g * d.eurG;
+    const t = eta(c, d);
+    const late = t > d.fenetre;
+    const pp = ponctionPct(c);
+    const causes = [];
+    if (late) { recette = Math.round(recette * (1 - RETARD_PCT)); causes.push(`retard ${t} min > fenêtre ${d.fenetre} min (${c.veh}) → −${Math.round(RETARD_PCT*100)} % recette`); }
+    if (pp)   { recette = Math.round(recette * (1 - pp/100));     causes.push(`fiabilité ${c.fiab} < ${PONCTION_SEUIL} → ponction ${pp} % par le coursier`); }
+    const net = recette - f;
+    dCash += net;
+
+    let kind = 'clean', cause;
+    if (causes.length) {
+      kind = 'soft';
+      cause = `${c.emoji} ${c.nm} livre ${g} g à ${d.nm} (recette brute ${g*d.eurG} €). ` + causes.join(' ; ') + `. Course ${f} €.`;
+    } else {
+      cause = `${c.emoji} ${c.nm} livre ${g} g à ${d.nm} dans la fenêtre, sans ponction. ${g} g × ${d.eurG} € − ${f} € de course.`;
+    }
+    if (hx) cause += ` (+${hx} heat d'exposition.)`;
+    lines.push({ kind, dst:d, c, g, amt:net, cause });
+  }
+
+  return { lines, dCash, dStock, dHeat, heat0 };
+}
+
+function dispatch() {
+  const r = resolve();
+  S.cash  += r.dCash;
+  S.stock += r.dStock;
+  S.heat   = Math.max(0, S.heat + r.dHeat - HEAT_DECAY);
+  S.run   += 1;
+  S.assign = {};
+  S.report = { lines: r.lines, dCash: r.dCash, run: S.run - 1 };
+
+  // Défaites — toutes traçables, aucune au hasard.
+  if (S.heat >= HEAT_CAP)
+    S.over = { title:'Quartier grillé', why:`La heat de rue a atteint ${HEAT_CAP}. Trop de livraisons exposées, trop de saisies : le coin est cramé.` };
+  else if (S.cash < 0)
+    S.over = { title:'À sec', why:`Les courses prépayées et les saisies ont vidé la caisse (${S.cash} €). Plus de quoi lancer une tournée.` };
+  else if (S.run > S.echeance && S.debt > 0)
+    S.over = { title:'Échéance impayée', why:`Dette de ${S.debt} € non soldée à la tournée ${S.echeance}. Le grossiste coupe les vivres.` };
+
+  save();
+  render();
+}
+
+function rembourser() {
+  const m = Math.min(S.cash, S.debt);
+  if (m <= 0) return;
+  S.cash -= m; S.debt -= m;
+  if (S.debt === 0) S.echeance = S.run + DELAI_ECHEANCE; // soldé : horloge détendue
+  save(); render();
+}
+function reappro() {
+  if (S.debt + LOT_DETTE > PLAFOND_DETTE) return;
+  S.stock += LOT_STOCK; S.debt += LOT_DETTE;
+  S.echeance = S.run + DELAI_ECHEANCE;
+  save(); render();
+}
+
+/* =============================== Rendu UI =============================== */
+const $hud = document.getElementById('hud');
+const $screen = document.getElementById('screen');
+const $bar = document.getElementById('bar');
+
+function renderHud() {
+  const heatPct = Math.min(100, Math.round(S.heat / HEAT_CAP * 100));
+  const dueIn = S.echeance - S.run;
+  $hud.innerHTML = `
+    <div class="cell"><div class="k">Cash</div><div class="v ${S.cash<40?'warn':''}">${S.cash} €</div></div>
+    <div class="cell"><div class="k">Dette</div><div class="v ${S.debt>PLAFOND_DETTE*0.75?'bad':S.debt>0?'warn':''}">${S.debt} €</div>
+      <div class="k" style="margin-top:3px">${S.debt>0?`échéance T${S.echeance} (${dueIn>0?'+'+dueIn:'!'} )`:'soldée'}</div></div>
+    <div class="cell"><div class="k">Stock</div><div class="v ${S.stock<30?'warn':''}">${S.stock} g</div></div>
+    <div class="cell"><div class="k">Heat</div><div class="v ${heatPct>75?'bad':heatPct>50?'warn':''}">${S.heat}</div>
+      <div class="heatbar"><i style="width:${heatPct}%"></i></div></div>`;
+}
+
+function setAssign(destId, patch) {
+  const cur = S.assign[destId] || { courierId:null, g:0 };
+  S.assign[destId] = { ...cur, ...patch };
+  if (!S.assign[destId].courierId) S.assign[destId].g = 0;
+  save(); render();
+}
+
+function renderBoard() {
+  const dests = activeDests(S.run);
+  const totalAssigned = Object.values(S.assign).reduce((s,a)=> s + (a?.g||0), 0);
+
+  $screen.className = '';
+  $screen.innerHTML =
+    `<h2 class="sec">Tournée ${S.run} · ${dests.length} livraisons demandées</h2>` +
+    dests.map(d => {
+      const a = S.assign[d.id] || { courierId:null, g:0 };
+      const c = a.courierId ? courierById(a.courierId) : null;
+      const stockDispo = S.stock - (totalAssigned - (a.g||0));
+      const maxG = Math.min(d.demande, stockDispo, c ? c.cap : d.demande);
+      const rl = c ? riskLabel(c, a.g) : null;
+      const f  = c && a.g ? fare(c, d, S.heat) : 0;
+      const t  = c && a.g ? eta(c, d) : 0;
+      const recette = a.g ? a.g * d.eurG : 0;
+      return `
+      <div class="job">
+        <div class="head">
+          <div class="dst">${d.emoji} ${d.nm}</div>
+          <div class="meta"><b>${d.eurG} €/g</b> · demande ${d.demande} g · fenêtre ${d.fenetre} min · ${d.dist} km</div>
+        </div>
+        <div class="couriers">
+          ${COURIERS.map(cc => `
+            <div class="courier ${a.courierId===cc.id?'sel':''}" data-pick="${d.id}:${cc.id}">
+              <div class="nm">${cc.emoji} ${cc.nm}</div>
+              <div class="rt">${cc.rating}★ · ${cc.courses} courses</div>
+              <div class="tr">${cc.veh} · cap ${cc.cap} g<br>fiab ${cc.fiab} · expo ${cc.expo}${seuilSaisie(cc)<cc.cap?`<br>⚠︎ voyant > ${seuilSaisie(cc)} g`:''}</div>
+            </div>`).join('')}
+        </div>
+        <div class="ld">
+          <input type="range" min="0" max="${Math.max(0,maxG)}" value="${Math.min(a.g,Math.max(0,maxG))}"
+                 ${c?'':'disabled'} data-load="${d.id}">
+          <div class="g">${a.g} g</div>
+        </div>
+        <div class="quote">
+          ${ c && a.g
+            ? `<span class="risk ${rl.cls}">${rl.txt}</span>
+               <span class="num">ETA <b>${t}m</b> · course <b>${f} €</b> · recette ~<b>${recette} €</b></span>`
+            : `<span class="empty">${c?'choisis une charge…':'choisis un coursier…'}</span>` }
+        </div>
+      </div>`;
+    }).join('') +
+    `<div class="muted">Stock engagé : ${totalAssigned} / ${S.stock} g · taper le rapport ouvre la tournée suivante.</div>`;
+
+  // listeners
+  $screen.querySelectorAll('[data-pick]').forEach(el => el.onclick = () => {
+    const [destId, cid] = el.dataset.pick.split(':');
+    const a = S.assign[destId];
+    setAssign(destId, { courierId: (a && a.courierId===cid) ? null : cid });
+  });
+  $screen.querySelectorAll('[data-load]').forEach(el => {
+    el.oninput = () => { const g = +el.value; el.nextElementSibling.textContent = g+' g'; };
+    el.onchange = () => setAssign(el.dataset.load, { g:+el.value });
+  });
+}
+
+function renderBar() {
+  const hasAssign = Object.values(S.assign).some(a => a?.g > 0);
+  $bar.innerHTML =
+    `<button class="btn ghost" id="rb" ${S.debt&&S.cash>0?'':'disabled'}>Rembourser</button>
+     <button class="btn ghost" id="ra" ${S.debt+LOT_DETTE<=PLAFOND_DETTE?'':'disabled'}>Réappro</button>
+     <button class="btn go" id="go" ${hasAssign?'':'disabled'}>Dispatcher</button>`;
+  document.getElementById('go').onclick = dispatch;
+  document.getElementById('rb').onclick = rembourser;
+  document.getElementById('ra').onclick = reappro;
+}
+
+function renderReport() {
+  const rep = S.report;
+  $screen.className = 'report';
+  const cls = k => k==='bad'?'bad':k==='soft'?'soft':'clean';
+  $screen.innerHTML =
+    `<h2 class="sec">Rapport — tournée ${rep.run}</h2>` +
+    (rep.lines.length ? rep.lines.map(l => `
+      <div class="line ${cls(l.kind)}">
+        <div class="t"><span>${l.dst.emoji} ${l.dst.nm} — ${l.g} g</span>
+          <span class="amt ${l.amt>=0?'pos':'neg'}">${l.amt>=0?'+':''}${l.amt} €</span></div>
+        <div class="cause">${l.cause}</div>
+      </div>`).join('')
+      : `<div class="muted">Aucune livraison dispatchée cette tournée.</div>`) +
+    `<div class="totals"><span>Net de la tournée</span>
+       <span class="amt ${rep.dCash>=0?'pos':'neg'}" style="color:${rep.dCash>=0?'#9fe6b0':'#ff9b9b'}">${rep.dCash>=0?'+':''}${rep.dCash} €</span></div>`;
+  $screen.onclick = () => { S.report = null; save(); render(); };
+}
+
+function renderOver() {
+  $screen.className = '';
+  $hud.style.opacity = .4;
+  $screen.innerHTML = `
+    <div class="gameover">
+      <div class="big">🚫</div>
+      <h2>${S.over.title}</h2>
+      <p>${S.over.why}</p>
+      <p class="muted">Tournée ${S.run-1} · cash ${S.cash} € · heat ${S.heat} · dette ${S.debt} €</p>
+      <button class="reset" id="rs">Repartir de zéro</button>
+    </div>`;
+  document.getElementById('rs').onclick = reset;
+}
+
+function render() {
+  $hud.style.opacity = 1;
+  renderHud();
+  if (S.over)        { renderOver(); $bar.innerHTML = ''; return; }
+  if (S.report)      { renderReport(); $bar.innerHTML = ''; return; }
+  renderBoard();
+  renderBar();
+}
+
+render();
+</script>
+</body>
+</html>
