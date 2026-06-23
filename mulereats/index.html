@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>MulerEats</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+    font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;}
+  :root{ --green:#0aa84f; --green-d:#06803c; --ink:#101418; --mut:#6b7280; --line:#ececec; --bg:#f6f7f8; --card:#fff; --bad:#e23b3b; --warn:#e8902a; }
+  html,body{height:100%;}
+  body{background:var(--bg);color:var(--ink);max-width:520px;margin:0 auto;position:relative;min-height:100%;}
+
+  /* ---- top bar ---- */
+  .top{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);
+    padding:max(10px,env(safe-area-inset-top)) 16px 10px;}
+  .top .row1{display:flex;align-items:center;gap:8px;}
+  .top .loc{font-weight:800;font-size:15px;display:flex;align-items:center;gap:4px;}
+  .top .loc small{color:var(--mut);font-weight:600;}
+  .top .brand{margin-left:auto;font-weight:900;font-size:18px;letter-spacing:-.3px;}
+  .top .brand b{color:var(--green);}
+  .search{margin-top:10px;background:var(--bg);border-radius:12px;padding:10px 12px;color:var(--mut);
+    font-size:14px;display:flex;align-items:center;gap:8px;font-weight:600;}
+
+  /* ---- hud strip ---- */
+  .hud{display:flex;gap:8px;padding:10px 16px 2px;overflow-x:auto;}
+  .pill{flex:none;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px;}
+  .pill .v{font-weight:800;} .pill.bad .v{color:var(--bad);} .pill.warn .v{color:var(--warn);}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--green);}
+  .pill.bad .dot{background:var(--bad);} .pill.warn .dot{background:var(--warn);}
+
+  main{padding:8px 16px 92px;}
+  h2.sec{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--mut);margin:16px 2px 9px;}
+
+  /* ---- category chips ---- */
+  .cats{display:flex;gap:8px;overflow-x:auto;padding:6px 0 4px;}
+  .cat{flex:none;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;}
+  .cat .e{font-size:18px;}
+
+  /* ---- deal-point feed card ---- */
+  .feedcard{background:#fff;border-radius:16px;overflow:hidden;margin-bottom:14px;border:1px solid var(--line);box-shadow:0 1px 3px rgba(0,0,0,.04);}
+  .feedcard .photo{height:104px;display:flex;align-items:center;justify-content:center;font-size:46px;position:relative;}
+  .feedcard .badge{position:absolute;left:10px;bottom:10px;background:#fff;border-radius:999px;padding:4px 9px;font-size:12px;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.12);}
+  .feedcard .badge.green{background:var(--green);color:#fff;}
+  .feedcard .body{padding:11px 13px;}
+  .feedcard .nm{font-weight:800;font-size:16px;display:flex;align-items:center;gap:6px;}
+  .feedcard .nm .rt{margin-left:auto;font-size:13px;font-weight:800;color:var(--ink);}
+  .feedcard .meta{color:var(--mut);font-size:12.5px;margin-top:3px;font-weight:600;}
+
+  /* ---- order card (manager) ---- */
+  .order{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:11px;}
+  .order.assigned{border-color:var(--green);box-shadow:0 0 0 1px var(--green) inset;}
+  .order .oh{display:flex;align-items:center;gap:8px;}
+  .order .cust{font-weight:800;font-size:14px;}
+  .order .pay{margin-left:auto;font-weight:900;font-size:15px;}
+  .order .det{color:var(--mut);font-size:12.5px;margin-top:3px;font-weight:600;}
+  .order .prodtag{display:inline-flex;align-items:center;gap:4px;background:var(--bg);border-radius:8px;padding:2px 7px;font-weight:700;color:var(--ink);}
+  .couriers{display:flex;gap:7px;overflow-x:auto;margin-top:11px;padding-bottom:2px;}
+  .cour{flex:none;width:96px;border:1px solid var(--line);border-radius:11px;padding:8px;text-align:center;}
+  .cour.sel{border-color:var(--green);background:#eafaf0;}
+  .cour .ce{font-size:22px;} .cour .cn{font-weight:800;font-size:12px;margin-top:1px;}
+  .cour .cm{font-size:10.5px;color:var(--mut);margin-top:2px;line-height:1.35;font-weight:600;}
+  .order .quote{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:12.5px;font-weight:600;color:var(--mut);}
+  .risk{font-weight:800;padding:2px 9px;border-radius:999px;font-size:11px;}
+  .risk.ok{background:#eafaf0;color:var(--green-d);} .risk.mid{background:#fdf1e2;color:var(--warn);} .risk.hot{background:#fdecec;color:var(--bad);}
+  .order .nostock{margin-top:10px;background:#fdecec;color:var(--bad);border-radius:10px;padding:8px 10px;font-size:12.5px;font-weight:700;}
+
+  /* ---- warehouse / suppliers ---- */
+  .stockgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;}
+  .stockcell{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center;}
+  .stockcell .e{font-size:26px;} .stockcell .q{font-weight:900;font-size:18px;margin-top:3px;} .stockcell .l{font-size:11px;color:var(--mut);font-weight:700;}
+  .stockcell.low{border-color:var(--warn);} .stockcell.low .q{color:var(--warn);}
+  .supplier{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:11px;}
+  .supplier .sh{display:flex;align-items:center;gap:8px;font-weight:800;}
+  .supplier .sh .rt{margin-left:auto;font-size:12.5px;color:var(--mut);font-weight:700;}
+  .supplier .opts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .buy{border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12.5px;font-weight:800;background:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px;}
+  .buy:active{background:var(--bg);} .buy small{color:var(--mut);font-weight:700;font-size:10.5px;}
+  .buy:disabled{opacity:.4;}
+
+  /* ---- stats / report lines ---- */
+  .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:6px;}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px;}
+  .kpi .l{font-size:11.5px;color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.4px;}
+  .kpi .v{font-size:22px;font-weight:900;margin-top:3px;}
+  .runblock{background:#fff;border:1px solid var(--line);border-radius:14px;margin-bottom:11px;overflow:hidden;}
+  .runblock .rt{padding:10px 12px;font-weight:800;font-size:13.5px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:7px;background:var(--bg);}
+  .runblock .rt .tot{margin-left:auto;}
+  .line{padding:10px 12px;border-bottom:1px solid var(--line);border-left:3px solid var(--green);}
+  .line:last-child{border-bottom:none;} .line.soft{border-left-color:var(--warn);} .line.bad{border-left-color:var(--bad);}
+  .line .t{display:flex;justify-content:space-between;font-weight:800;font-size:13.5px;}
+  .line .amt.pos{color:var(--green-d);} .line .amt.neg{color:var(--bad);}
+  .line .cause{font-size:12px;color:var(--mut);margin-top:4px;line-height:1.5;font-weight:600;}
+
+  /* ---- bottom nav ---- */
+  .nav{position:fixed;left:0;right:0;bottom:0;max-width:520px;margin:0 auto;background:#fff;border-top:1px solid var(--line);
+    display:flex;padding:6px 4px max(6px,env(safe-area-inset-bottom));z-index:20;}
+  .nav a{flex:1;text-align:center;color:var(--mut);font-size:10.5px;font-weight:700;padding:5px 0;cursor:pointer;}
+  .nav a .i{font-size:21px;display:block;line-height:1.1;filter:grayscale(1);opacity:.65;}
+  .nav a.on{color:var(--green);} .nav a.on .i{filter:none;opacity:1;}
+  .nav a .bdg{display:inline-block;min-width:16px;background:var(--bad);color:#fff;border-radius:999px;font-size:10px;font-weight:900;padding:0 4px;margin-left:2px;}
+
+  /* ---- big action button ---- */
+  .cta{position:fixed;left:16px;right:16px;bottom:calc(64px + env(safe-area-inset-bottom));max-width:488px;margin:0 auto;
+    background:var(--green);color:#fff;border:none;border-radius:14px;padding:15px;font-size:15px;font-weight:800;z-index:19;
+    box-shadow:0 6px 18px rgba(10,168,79,.35);cursor:pointer;}
+  .cta:disabled{background:#c7cdd2;box-shadow:none;}
+  .cta.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:none;}
+
+  .empty{text-align:center;color:var(--mut);font-weight:600;font-size:13.5px;padding:30px 10px;}
+  .over{text-align:center;padding:48px 16px;}
+  .over .e{font-size:54px;} .over h1{margin:12px 0 6px;font-size:22px;} .over p{color:var(--mut);font-weight:600;line-height:1.6;font-size:14px;}
+  .over button{margin-top:20px;background:var(--green);color:#fff;border:none;border-radius:12px;padding:13px 22px;font-weight:800;font-size:15px;cursor:pointer;}
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="row1">
+      <div class="loc">📍 Quartier Nord <small>▾</small></div>
+      <div class="brand">Muler<b>Eats</b></div>
+    </div>
+    <div class="search">🔎 Rechercher un plug, un produit…</div>
+  </div>
+  <div id="hud" class="hud"></div>
+  <main id="main"></main>
+  <button id="cta" class="cta" style="display:none"></button>
+  <nav id="nav" class="nav"></nav>
+
+<script type="module">
+/* =========================================================================
+   MulerEats — postiche d'UberEats pour un réseau de livraison (proto CrimWorld).
+   Hybride opérateur : le LOOK est celui d'une appli conso (feed de "restos" =
+   points de deal, notes, ETA, frais de livraison), mais le joueur est
+   l'OPÉRATEUR qui gère derrière : fournisseurs → entrepôt → points de deal →
+   coursiers → client.
+
+   Boucle d'un SERVICE (rush) :
+   1. des COMMANDES tombent sur tes points de deal (clients) ;
+   2. tu prépares depuis le STOCK ENTREPÔT (réappro chez les FOURNISSEURS) ;
+   3. tu assignes un COURSIER MulerEats (vélib / T-Max / go fast) ;
+   4. tu clôtures → résolution déterministe + récap qui NOMME chaque cause.
+
+   Tension d'opérateur = le BATCHING : empiler plusieurs commandes sur un même
+   coursier économise les frais mais CUMULE les grammes → au-delà du seuil de
+   discrétion, toute la tournée se fait SAISIR.
+
+   INVARIANT CrimWorld : aucune conséquence n'est tirée au sort. Saisie, retard,
+   ponction, heat découlent de constantes nommées × décisions joueur, et portent
+   une `cause` lisible. (Zéro Math.random, état comme présentation.)
+   ========================================================================= */
+
+const SAVE_VERSION = 1;
+const KEY = 'mulereats_state';
+
+/* --- Économie : PLACEHOLDERS nommés ------------------------------------ */
+const CAPITAL_DEPART  = 300;
+const HEAT_CAP        = 60, HEAT_BUST = 15, HEAT_EXPO_K = 4, HEAT_DECAY = 5;
+const SEUIL_BUST      = 0.45;
+const SEUIL_DISCRET_G = 52;      // grammes cumulés "sous le radar" sur une tournée (go fast saisi ~111 g)
+const RETARD_PCT      = 0.40;
+const PONCTION_SEUIL  = 0.70;
+const SURGE_K         = 0.70;
+const PLAFOND_DETTE   = 2000, DELAI_ECHEANCE = 3;
+
+/* --- Produits (les "cuisines") ----------------------------------------- */
+const PRODUCTS = {
+  beuh: { nm:'Beuh', emoji:'🌿', retail:10, whole:5,  grad:'linear-gradient(135deg,#cde7c0,#8fce7a)' },
+  coke: { nm:'Coke', emoji:'❄️', retail:65, whole:38, grad:'linear-gradient(135deg,#dbeafe,#9cc4f5)' },
+  shit: { nm:'Shit', emoji:'🟫', retail:8,  whole:4,  grad:'linear-gradient(135deg,#e6d3bd,#c69b6d)' },
+};
+const prodList = Object.entries(PRODUCTS).map(([id,p]) => ({ id, ...p }));
+
+/* --- Points de deal (tes "restos" sur la plateforme) ------------------- */
+// premium = multiplie le prix payé par le client ; expo = sensibilité heat de la zone.
+const DEALPOINTS = [
+  { id:'ruelle',   nm:'Plug Ruelle',  emoji:'🌃', zone:'Quartier Nord', dist:3,  expo:0.60, rating:4.1, premium:0.90, grad:'linear-gradient(135deg,#3a3f5c,#1f2336)' },
+  { id:'chantier', nm:'Chantier Est', emoji:'🏗️', zone:'Zone Est',      dist:6,  expo:0.40, rating:3.9, premium:1.00, grad:'linear-gradient(135deg,#c9a14a,#9c7a2e)' },
+  { id:'campus',   nm:'Campus 24/7',  emoji:'🎓', zone:'La Fac',        dist:8,  expo:0.35, rating:4.5, premium:1.10, grad:'linear-gradient(135deg,#4f7fd6,#33539c)' },
+  { id:'marina',   nm:'Marina VIP',   emoji:'⛵', zone:'Le Port',       dist:12, expo:0.20, rating:4.8, premium:1.35, grad:'linear-gradient(135deg,#1f6f6b,#0e3f3c)' },
+];
+const dealById = id => DEALPOINTS.find(d => d.id === id);
+
+/* --- Coursiers MulerEats (la flotte) ----------------------------------- */
+const COURIERS = [
+  { id:'velib',  nm:'Vélib',   emoji:'🚲', rating:4.5, fiab:0.90, expo:0.20, eta:34, base:5,  km:1.6 },
+  { id:'tmax',   nm:'T-Max',   emoji:'🛵', rating:4.2, fiab:0.82, expo:0.40, eta:19, base:9,  km:1.4 },
+  { id:'gofast', nm:'Go fast', emoji:'🚗', rating:3.6, fiab:0.66, expo:0.62, eta:11, base:18, km:2.0 },
+];
+const courierById = id => COURIERS.find(c => c.id === id);
+
+/* --- Fournisseurs (réappro entrepôt, façon Onion Market) --------------- */
+const SUPPLIERS = [
+  { id:'onion', nm:'Onion Wholesale', emoji:'🧅', rating:'4.6★ · darkweb', sells:{ beuh:[100,250], shit:[100,250] } },
+  { id:'gros',  nm:'Le Grossiste',    emoji:'🚛', rating:'fronte à crédit', sells:{ beuh:[50,150], coke:[20,50], shit:[50,150] } },
+];
+
+/* --- Pool de commandes (authored, AUCUN tirage ne pilote l'état) ------- */
+// rotation par service ; qty mise à l'échelle par le numéro de service.
+const ORDER_POOL = [
+  { cust:'kev_92',     prod:'beuh', deal:'ruelle',   qty:18, fen:30 },
+  { cust:'la_miss',    prod:'coke', deal:'marina',   qty:4,  fen:50 },
+  { cust:'ptit_sosso', prod:'shit', deal:'chantier', qty:25, fen:35 },
+  { cust:'marioo',     prod:'beuh', deal:'campus',   qty:30, fen:45 },
+  { cust:'dwizz',      prod:'shit', deal:'ruelle',   qty:40, fen:24 },
+  { cust:'nono_du13',  prod:'coke', deal:'campus',   qty:6,  fen:40 },
+  { cust:'la_blonde',  prod:'beuh', deal:'chantier', qty:22, fen:30 },
+  { cust:'riton',      prod:'shit', deal:'marina',   qty:15, fen:52 },
+  { cust:'samy_xv',    prod:'beuh', deal:'ruelle',   qty:35, fen:26 },
+  { cust:'zoe',        prod:'coke', deal:'marina',   qty:3,  fen:50 },
+];
+
+/* =========================== Fonctions déterministes ==================== */
+const surge       = h => 1 + SURGE_K * (h / HEAT_CAP);
+const eta         = (c,d) => Math.round(c.eta * (0.5 + d.dist / 12));
+const orderEurG   = o => Math.round(PRODUCTS[o.prod].retail * dealById(o.deal).premium);
+const orderPay    = o => o.qty * orderEurG(o);
+// risque d'une TOURNÉE : volume cumulé absolu × exposition × manque de fiabilité.
+const runRisk     = (c, totalG) => c.expo * (1 - c.fiab) * (totalG / SEUIL_DISCRET_G);
+const runBusted   = (c, totalG) => totalG > 0 && runRisk(c, totalG) >= SEUIL_BUST;
+const seuilSaisie = c => { const k = c.expo*(1-c.fiab); return k>0 ? Math.round(SEUIL_BUST*SEUIL_DISCRET_G/k) : Infinity; };
+const ponctionPct = c => c.fiab < PONCTION_SEUIL ? Math.round((PONCTION_SEUIL - c.fiab) * 100) : 0;
+const heatExpo    = (c, totalG) => Math.round(c.expo * (totalG / SEUIL_DISCRET_G) * HEAT_EXPO_K);
+
+function riskChip(c, totalG) {
+  if (!c || totalG === 0) return null;
+  const r = runRisk(c, totalG);
+  if (r >= SEUIL_BUST)        return { cls:'hot', txt:'CHAUD' };
+  if (r >= SEUIL_BUST * 0.6)  return { cls:'mid', txt:'tendu' };
+  return { cls:'ok', txt:'discret' };
+}
+
+// Commandes d'un service : 4 du pool par rotation, qty mise à l'échelle.
+function serviceOrders(service) {
+  const n = ORDER_POOL.length, start = ((service - 1) * 4) % n;
+  const scale = 1 + 0.05 * (service - 1);
+  return [0,1,2,3].map(k => {
+    const t = ORDER_POOL[(start + k) % n];
+    return { id:`s${service}-${k}`, ...t, qty: Math.max(1, Math.round(t.qty * scale)) };
+  });
+}
+
+/* ============================= État / persistance ====================== */
+function freshState() {
+  return {
+    v: SAVE_VERSION, tab:'home', service:1,
+    cash: CAPITAL_DEPART, debt:0, echeance: DELAI_ECHEANCE + 1, heat:0,
+    stock: { beuh:80, coke:12, shit:60 },
+    assign: {},          // orderId -> courierId
+    report: null, over:null,
+    earned:0, delivered:0, busts:0,   // cumulés (stats)
+  };
+}
+let S = load();
+function load() {
+  try {
+    const r = JSON.parse(localStorage.getItem(KEY));
+    if (r && r.v === SAVE_VERSION) {
+      if (!['home','orders','whouse','stats'].includes(r.tab)) r.tab = 'home';  // garde state trafiqué
+      return r;
+    }
+  } catch(e){}
+  return freshState();
+}
+const save  = () => localStorage.setItem(KEY, JSON.stringify(S));
+const reset = () => { S = freshState(); save(); render(); };
+
+/* =============================== Résolution ============================= */
+// Pur : regroupe les commandes assignées PAR COURSIER (tournée), résout chaque
+// tournée, renvoie des blocs de récap dont chaque ligne porte sa `cause`.
+function resolveService() {
+  const heat0 = S.heat;
+  const orders = serviceOrders(S.service);
+  const runs = {};   // courierId -> [orders]
+  for (const o of orders) {
+    const cid = S.assign[o.id];
+    if (cid) (runs[cid] ||= []).push(o);
+  }
+
+  const blocks = [];
+  let dCash = 0, dHeat = 0, delivered = 0, busts = 0;
+
+  for (const cid of Object.keys(runs)) {
+    const c = courierById(cid);
+    const list = runs[cid];
+    const totalG = list.reduce((s,o)=> s + o.qty, 0);
+    const sumDist = list.reduce((s,o)=> s + dealById(o.deal).dist, 0);
+    const fee = Math.round((c.base + c.km * sumDist) * surge(heat0));
+    const hx = heatExpo(c, totalG);
+    dHeat += hx;
+    const lines = [];
+
+    if (runBusted(c, totalG)) {
+      busts++; dHeat += HEAT_BUST;
+      for (const o of list) lines.push({ kind:'bad', o, amt: 0,
+        cause:`Tournée saisie : ${totalG} g cumulés sur ${c.emoji} ${c.nm} > seuil de discrétion ${seuilSaisie(c)} g. Colis de @${o.cust} (${o.qty} g ${PRODUCTS[o.prod].nm}) perdu.` });
+      blocks.push({ c, totalG, fee:0, hx:hx+HEAT_BUST, busted:true, lines, net:0 });
+      continue;
+    }
+
+    let runNet = -fee;
+    for (const o of list) {
+      const d = dealById(o.deal);
+      let recette = orderPay(o);
+      const t = eta(c, d), late = t > o.fen, pp = ponctionPct(c);
+      const reasons = [];
+      if (late) { recette = Math.round(recette * (1 - RETARD_PCT)); reasons.push(`retard ${t} min > fenêtre ${o.fen} min → −${Math.round(RETARD_PCT*100)} %`); }
+      if (pp)   { recette = Math.round(recette * (1 - pp/100));     reasons.push(`${c.nm} fiab ${c.fiab} < ${PONCTION_SEUIL} → ponction ${pp} %`); }
+      runNet += recette;
+      delivered++;
+      lines.push({ kind: reasons.length?'soft':'clean', o, amt:recette,
+        cause: reasons.length
+          ? `${o.qty} g ${PRODUCTS[o.prod].nm} → @${o.cust} (${d.nm}). ` + reasons.join(' ; ') + '.'
+          : `${o.qty} g ${PRODUCTS[o.prod].nm} → @${o.cust} (${d.nm}), livré dans les temps.` });
+    }
+    dCash += runNet;
+    blocks.push({ c, totalG, fee, hx, busted:false, lines, net:runNet });
+  }
+
+  return { blocks, dCash, dHeat, delivered, busts };
+}
+
+function cloturer() {
+  const r = resolveService();
+  // débit du stock (toute came assignée quitte l'entrepôt, livrée ou saisie)
+  for (const b of r.blocks) for (const l of b.lines) S.stock[l.o.prod] = Math.max(0, S.stock[l.o.prod] - l.o.qty);
+  S.cash += r.dCash;
+  S.heat  = Math.max(0, S.heat + r.dHeat - HEAT_DECAY);
+  S.earned += Math.max(0, r.dCash);
+  S.delivered += r.delivered; S.busts += r.busts;
+  S.report = { blocks:r.blocks, dCash:r.dCash, service:S.service };
+  S.service += 1; S.assign = {}; S.tab = 'stats';
+
+  if (S.heat >= HEAT_CAP) S.over = { e:'🚨', t:'Quartier grillé', p:`La heat de rue a atteint ${HEAT_CAP}. Trop de tournées voyantes, trop de saisies : MulerEats ferme le secteur.` };
+  else if (S.cash < 0)    S.over = { e:'💸', t:'Compte à découvert', p:`Les frais de livraison et les saisies ont mis le compte à ${S.cash} €.` };
+  else if (S.service > S.echeance && S.debt > 0) S.over = { e:'⏰', t:'Échéance impayée', p:`Dette de ${S.debt} € non soldée au service ${S.echeance}. Le grossiste coupe l'appro.` };
+  save(); render();
+}
+
+function rembourser() { const m = Math.min(S.cash, S.debt); if (m<=0) return; S.cash-=m; S.debt-=m; if(!S.debt) S.echeance=S.service+DELAI_ECHEANCE; save(); render(); }
+function approvisionner(prod, qty) {
+  if (!PRODUCTS[prod]) return;
+  const cost = qty * PRODUCTS[prod].whole;
+  if (S.debt + cost > PLAFOND_DETTE) return;
+  S.stock[prod] += qty; S.debt += cost; S.echeance = S.service + DELAI_ECHEANCE;
+  save(); render();
+}
+
+/* =============================== Rendu ================================= */
+const $hud = document.getElementById('hud');
+const $main = document.getElementById('main');
+const $cta = document.getElementById('cta');
+const $nav = document.getElementById('nav');
+
+const pendingCount = () => serviceOrders(S.service).filter(x => !S.assign[x.id]).length;
+const assignedCount = () => Object.keys(S.assign).length;
+
+function renderHud() {
+  const hp = Math.min(100, Math.round(S.heat/HEAT_CAP*100));
+  const heatCls = hp>75?'bad':hp>50?'warn':'';
+  const debtCls = S.debt>PLAFOND_DETTE*0.75?'bad':S.debt>0?'warn':'';
+  $hud.innerHTML = `
+    <div class="pill"><span class="dot"></span>Caisse <span class="v">${S.cash} €</span></div>
+    <div class="pill ${debtCls}"><span class="dot"></span>Dette <span class="v">${S.debt} €</span>${S.debt?` · éch. S${S.echeance}`:''}</div>
+    <div class="pill ${heatCls}"><span class="dot"></span>Heat <span class="v">${S.heat}</span>/${HEAT_CAP}</div>
+    <div class="pill"><span class="dot"></span>Service <span class="v">${S.service}</span></div>`;
+}
+
+/* ---- Accueil : feed conso (cartes points de deal) ---- */
+function renderHome() {
+  const orders = serviceOrders(S.service);
+  const byDeal = {}; orders.forEach(o => { if(!S.assign[o.id]) byDeal[o.deal]=(byDeal[o.deal]||0)+1; });
+  $main.innerHTML =
+    `<div class="cats">${prodList.map(p=>`<div class="cat"><span class="e">${p.emoji}</span>${p.nm}</div>`).join('')}</div>
+     <h2 class="sec">Tes points de deal · ${DEALPOINTS.length} ouverts</h2>` +
+    DEALPOINTS.map(d => `
+      <div class="feedcard" data-deal="${d.id}">
+        <div class="photo" style="background:${d.grad}">${d.emoji}
+          ${byDeal[d.id]?`<div class="badge green">${byDeal[d.id]} commande${byDeal[d.id]>1?'s':''}</div>`:`<div class="badge">à jour</div>`}
+        </div>
+        <div class="body">
+          <div class="nm">${d.nm}<span class="rt">★ ${d.rating}</span></div>
+          <div class="meta">${d.zone} · ${d.dist} km · exposition ${Math.round(d.expo*100)} % · prix ×${d.premium}</div>
+        </div>
+      </div>`).join('');
+  $main.querySelectorAll('[data-deal]').forEach(el => el.onclick = () => { S.tab='orders'; save(); render(); });
+}
+
+/* ---- Commandes : file entrante + assignation coursier (manager) ---- */
+function renderOrders() {
+  const orders = serviceOrders(S.service);
+  // grammes cumulés par coursier (pour le risque de tournée live)
+  const loadByCourier = {};
+  orders.forEach(o => { const cid=S.assign[o.id]; if(cid) loadByCourier[cid]=(loadByCourier[cid]||0)+o.qty; });
+
+  $main.innerHTML = `<h2 class="sec">Service ${S.service} · commandes entrantes</h2>` +
+    orders.map(o => {
+      const d = dealById(o.deal), p = PRODUCTS[o.prod];
+      const cid = S.assign[o.id], c = cid?courierById(cid):null;
+      const noStock = S.stock[o.prod] < o.qty && !cid;
+      const runG = c ? loadByCourier[cid] : 0;
+      const chip = riskChip(c, runG);
+      const t = c?eta(c,d):0;
+      return `
+      <div class="order ${cid?'assigned':''}">
+        <div class="oh">
+          <span class="cust">@${o.cust}</span>
+          <span class="pay">${orderPay(o)} €</span>
+        </div>
+        <div class="det"><span class="prodtag">${p.emoji} ${o.qty} g ${p.nm}</span> · ${d.emoji} ${d.nm} · fenêtre ${o.fen} min · ${orderEurG(o)} €/g</div>
+        ${noStock ? `<div class="nostock">Stock ${p.nm} insuffisant (${S.stock[o.prod]} g en entrepôt) — passe par l'Entrepôt.</div>` : `
+        <div class="couriers">
+          ${COURIERS.map(cc => {
+            const projG = (loadByCourier[cc.id]||0) + (cid===cc.id?0:o.qty);
+            const cch = riskChip(cc, projG);
+            return `<div class="cour ${cid===cc.id?'sel':''}" data-asg="${o.id}:${cc.id}">
+              <div class="ce">${cc.emoji}</div><div class="cn">${cc.nm}</div>
+              <div class="cm">★${cc.rating} · ${eta(cc,d)}m${cch?`<br><span class="risk ${cch.cls}">${cch.txt}</span>`:''}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div class="quote">
+          ${ c ? `<span class="risk ${chip.cls}">tournée ${chip.txt}</span> ${c.emoji} ${c.nm} · ETA ${t} min · ${runG} g cumulés`
+               : `Assigne un coursier — gare au cumul de grammes par coursier.` }
+        </div>`}
+      </div>`;
+    }).join('');
+
+  $main.querySelectorAll('[data-asg]').forEach(el => el.onclick = () => {
+    const [oid, cid] = el.dataset.asg.split(':');
+    if (S.assign[oid] === cid) delete S.assign[oid]; else S.assign[oid] = cid;
+    save(); render();
+  });
+}
+
+/* ---- Entrepôt : stock + réappro fournisseurs ---- */
+function renderWarehouse() {
+  $main.innerHTML =
+    `<h2 class="sec">Entrepôt · stock disponible</h2>
+     <div class="stockgrid">${prodList.map(p=>`
+       <div class="stockcell ${S.stock[p.id]<20?'low':''}"><div class="e">${p.emoji}</div><div class="q">${S.stock[p.id]} g</div><div class="l">${p.nm}</div></div>`).join('')}</div>
+     <h2 class="sec">Fournisseurs · réappro (à crédit)</h2>` +
+    SUPPLIERS.map(s => `
+      <div class="supplier">
+        <div class="sh">${s.emoji} ${s.nm}<span class="rt">${s.rating}</span></div>
+        <div class="opts">
+          ${Object.entries(s.sells).map(([prod,qtys]) => qtys.map(q => {
+            const cost = q*PRODUCTS[prod].whole, blocked = S.debt+cost>PLAFOND_DETTE;
+            return `<button class="buy" data-buy="${prod}:${q}" ${blocked?'disabled':''}>
+              ${PRODUCTS[prod].emoji} +${q} g ${PRODUCTS[prod].nm}<small>+${cost} € dette</small></button>`;
+          }).join('')).join('')}
+        </div>
+      </div>`).join('') +
+    (S.debt? `<button class="cta ghost" style="position:static;margin-top:6px;width:100%" id="remb">Rembourser ${Math.min(S.cash,S.debt)} €</button>`:'');
+  $main.querySelectorAll('[data-buy]').forEach(el => el.onclick = () => { const [p,q]=el.dataset.buy.split(':'); approvisionner(p,+q); });
+  const rb = document.getElementById('remb'); if (rb) rb.onclick = rembourser;
+}
+
+/* ---- Stats : KPIs + récap du dernier service (causes) ---- */
+function renderStats() {
+  const rep = S.report;
+  $main.innerHTML =
+    `<h2 class="sec">Tableau de bord</h2>
+     <div class="kpis">
+       <div class="kpi"><div class="l">Recettes cumulées</div><div class="v">${S.earned} €</div></div>
+       <div class="kpi"><div class="l">Livraisons OK</div><div class="v">${S.delivered}</div></div>
+       <div class="kpi"><div class="l">Saisies subies</div><div class="v">${S.busts}</div></div>
+       <div class="kpi"><div class="l">Heat de rue</div><div class="v">${S.heat}/${HEAT_CAP}</div></div>
+     </div>` +
+    (rep ? `<h2 class="sec">Récap du service ${rep.service}</h2>` +
+      rep.blocks.map(b => `
+        <div class="runblock">
+          <div class="rt">${b.c.emoji} Tournée ${b.c.nm} · ${b.totalG} g ${b.busted?'· <span style="color:var(--bad)">SAISIE</span>':`· frais ${b.fee} €`} · +${b.hx} heat
+            <span class="tot" style="color:${b.net>=0?'var(--green-d)':'var(--bad)'}">${b.net>=0?'+':''}${b.net} €</span></div>
+          ${b.lines.map(l=>`
+            <div class="line ${l.kind}">
+              <div class="t"><span>@${l.o.cust} · ${l.o.qty} g ${PRODUCTS[l.o.prod].nm}</span>
+                <span class="amt ${l.amt>0?'pos':'neg'}">${l.amt>0?'+'+l.amt+' €':'0 €'}</span></div>
+              <div class="cause">${l.cause}</div>
+            </div>`).join('')}
+        </div>`).join('') +
+      `<div class="runblock"><div class="rt">Net du service<span class="tot" style="color:${rep.dCash>=0?'var(--green-d)':'var(--bad)'}">${rep.dCash>=0?'+':''}${rep.dCash} €</span></div></div>`
+      : `<div class="empty">Aucun service clôturé pour l'instant.</div>`);
+}
+
+function renderCta() {
+  $cta.style.display = 'block';
+  if (S.tab === 'orders') {
+    const n = assignedCount();
+    $cta.disabled = n === 0;
+    $cta.textContent = n ? `Clôturer le service · ${n} course${n>1?'s':''}` : 'Assigne au moins une commande';
+    $cta.onclick = cloturer;
+  } else if (S.tab === 'home') {
+    const pend = pendingCount();
+    $cta.textContent = `Voir les commandes${pend?` · ${pend} en attente`:''}`;
+    $cta.disabled = false; $cta.onclick = () => { S.tab='orders'; save(); render(); };
+  } else { $cta.style.display = 'none'; }
+}
+
+const TABS = [
+  { id:'home',   i:'🏠', l:'Accueil' },
+  { id:'orders', i:'🧾', l:'Commandes' },
+  { id:'whouse', i:'📦', l:'Entrepôt' },
+  { id:'stats',  i:'📊', l:'Stats' },
+];
+function renderNav() {
+  const pend = pendingCount();
+  $nav.innerHTML = TABS.map(t => `
+    <a class="${S.tab===t.id?'on':''}" data-tab="${t.id}">
+      <span class="i">${t.i}</span>${t.l}${t.id==='orders'&&pend?`<span class="bdg">${pend}</span>`:''}
+    </a>`).join('');
+  $nav.querySelectorAll('[data-tab]').forEach(el => el.onclick = () => { S.tab=el.dataset.tab; save(); render(); });
+}
+
+function render() {
+  if (S.over) {
+    $hud.innerHTML=''; $cta.style.display='none'; $nav.innerHTML='';
+    $main.innerHTML = `<div class="over"><div class="e">${S.over.e}</div><h1>${S.over.t}</h1><p>${S.over.p}</p>
+      <p style="margin-top:10px">Service ${S.service-1} · caisse ${S.cash} € · ${S.delivered} livraisons · ${S.busts} saisies</p>
+      <button id="rs">Rouvrir un secteur</button></div>`;
+    document.getElementById('rs').onclick = reset; return;
+  }
+  renderHud(); renderNav(); renderCta();
+  ({ home:renderHome, orders:renderOrders, whouse:renderWarehouse, stats:renderStats }[S.tab] || renderHome)();
+}
+
+render();
+</script>
+</body>
+</html>
