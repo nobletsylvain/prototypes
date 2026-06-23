@@ -310,7 +310,7 @@ app.appendChild(renderer.domElement);
 // stock, et "eff" (frontal, plus bas) pour l'effeuillage des colas suspendues.
 const VIEWS = {
   work: { target: new THREE.Vector3(0, 0.15, 0.0), dir: new THREE.Vector3(0.02, 0.64, 0.77).normalize(), radius: Math.hypot(3.9, 0.9, 3.0) },
-  eff:  { target: new THREE.Vector3(0, 1.95, 0.0), dir: new THREE.Vector3(0, 0.16, 1).normalize(),        radius: Math.hypot(2.4, 1.9, 0.4) },
+  eff:  { target: new THREE.Vector3(0, 2.2, 0.0), dir: new THREE.Vector3(0, 0.16, 1).normalize(),         radius: Math.hypot(2.4, 2.05, 0.4) },
   pack: { target: new THREE.Vector3(0, 0.62, 0.2), dir: new THREE.Vector3(0.05, 0.42, 0.9).normalize(),   radius: Math.hypot(0.7, 0.9, 0.4) },
 };
 let curView = VIEWS.work;
@@ -502,7 +502,7 @@ function refreshPile(binGrp, grams, perNug) {
 // 4 colas (une par variete) pendent a un fil de sechage ; on glisse le doigt le
 // long d'une cola pour detacher ses tetes (detection en pixels ecran, cf. v2).
 // Tout tombe MELE dans le panier central (le tri par variete vient apres).
-const COLA_TOP = 3.7, COLA_BOT = 0.55;          // hauteurs haut/bas des colas (tiges longues)
+const COLA_TOP = 4.1, COLA_BOT = 1.0;          // colas remontées : plus d'espace libre au-dessus du bac
 // Fil de sechage.
 const dryLine = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 7.2, 6),
   new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 0.4, roughness: 0.5 }));
@@ -1062,7 +1062,7 @@ function colaLayout(n) {
   const pos = [];
   const span = n <= 1 ? 0 : Math.min(2.65, 0.5 * (n - 1));   // serre au-dela de ~11 colas
   for (let i = 0; i < n; i++) pos.push({ x: n === 1 ? 0 : -span + 2 * span * (i / (n - 1)), z: (i % 2) * 0.16 - 0.08 });
-  return { pos, radius: Math.hypot(span + 0.8, 1.9, 0.45), targetZ: 0 };
+  return { pos, radius: Math.hypot(span + 0.8, 2.15, 0.45), targetZ: 0 };
 }
 function setupColas() {
   for (const c of colaPool) c.grp.visible = false;
@@ -1561,6 +1561,17 @@ const el = renderer.domElement;
 const pointers = new Map();
 let pinching = false, pinchStartDist = 0, pinchStartZoom = 1;
 function pinchDist() { const a = [...pointers.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
+// Le doigt est-il SUR le tas de tri ? (rayon ecran = projection du tas, suit sa taille)
+const _pcv = new THREE.Vector3(), _pev = new THREE.Vector3();
+function overPile(px, py) {
+  _pcv.set(0, 0.35, 0.2); _pcv.project(camera);
+  const cx = (_pcv.x * 0.5 + 0.5) * window.innerWidth, cy = (-_pcv.y * 0.5 + 0.5) * window.innerHeight;
+  const frac = tri.total > 0 ? Math.max(0.22, Math.min(1, freshTotal() / tri.total)) : 0.4;
+  const rW = 0.5 + Math.sqrt(frac) * 0.95;
+  _pev.set(rW, 0.35, 0.2); _pev.project(camera);
+  const rPx = Math.abs((_pev.x * 0.5 + 0.5) * window.innerWidth - cx) + 26;
+  return Math.hypot(px - cx, py - cy) < rPx;
+}
 // Centre ecran du pot + angle d'un point autour de lui (pour le geste de vissage).
 const _jc = new THREE.Vector3();
 function jarScreen() { _jc.set(jar.position.x, jar.position.y + 0.6, jar.position.z); _jc.project(camera); return { x: (_jc.x * 0.5 + 0.5) * window.innerWidth, y: (-_jc.y * 0.5 + 0.5) * window.innerHeight }; }
@@ -1588,8 +1599,10 @@ el.addEventListener("pointerdown", (e) => {
     eff.prev = { x: e.clientX, y: e.clientY }; eff.lastT = performance.now();
     effStripSeg(eff.prev, eff.prev, 0);          // un simple tap detache proprement
   } else if (phase === "tri") {
-    tri.dragging = true; tri.lastX = e.clientX; tri.lastY = e.clientY; tri.acc = 0;
-    if (sortHandful(triPerStride())) triCommitUI();   // tap = une poignee
+    if (overPile(e.clientX, e.clientY)) {             // il faut toucher le TAS
+      tri.dragging = true; tri.lastX = e.clientX; tri.lastY = e.clientY; tri.acc = 0;
+      if (sortHandful(triPerStride())) triCommitUI();
+    }
   } else if (phase === "pots" && !PACK.busy) {
     if (PACK.step === "fill") PACK.pouring = true;
     else if (PACK.step === "screw") { PACK.screwing = true; PACK.lastAng = angTo(e); }
@@ -1613,14 +1626,16 @@ el.addEventListener("pointermove", (e) => {
     effStripSeg(eff.prev, cur, speed);
     eff.prev = cur; eff.lastT = now;
   } else if (phase === "tri" && tri.dragging && pointers.size < 2) {
-    // Tri au frotte : chaque TRI_STRIDE px glisses trie une poignee (auto, sans erreur).
+    // Tri au frotte SUR LE TAS : hors du tas, on ne trie pas (juste suivi du doigt).
     e.preventDefault();
     const dx = e.clientX - tri.lastX, dy = e.clientY - tri.lastY;
     tri.lastX = e.clientX; tri.lastY = e.clientY;
-    tri.acc += Math.hypot(dx, dy);
-    let did = false, guard = 0;
-    while (tri.acc >= TRI_STRIDE && guard++ < 12) { tri.acc -= TRI_STRIDE; if (sortHandful(triPerStride())) did = true; else break; }
-    if (did) triCommitUI();
+    if (overPile(e.clientX, e.clientY)) {
+      tri.acc += Math.hypot(dx, dy);
+      let did = false, guard = 0;
+      while (tri.acc >= TRI_STRIDE && guard++ < 12) { tri.acc -= TRI_STRIDE; if (sortHandful(triPerStride())) did = true; else break; }
+      if (did) triCommitUI();
+    } else { tri.acc = 0; }
   } else if (phase === "pots" && pointers.size < 2) {
     if (PACK.step === "screw" && PACK.screwing) {
       e.preventDefault();
