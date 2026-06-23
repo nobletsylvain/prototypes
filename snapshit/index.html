@@ -85,6 +85,30 @@
   .conv .tm{font:500 10px var(--sans);color:var(--faint);flex:none;align-self:flex-start;margin-top:3px}
   .empty{padding:40px 24px;text-align:center;color:var(--faint);font:500 13px var(--sans);line-height:1.5}
 
+  .conv.done{opacity:.5} .conv .st{font:700 10px var(--mono);color:var(--muted)}
+  .conv .st.ok{color:var(--green)} .conv .st.bad{color:var(--rust)} .conv .st.go{color:var(--snap)} .conv .st.warn{color:var(--sodium)}
+
+  /* fil de DM (négociation) */
+  .dmview{position:absolute;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:46}
+  .dmview.show{display:flex}
+  .dmhdr{flex:none;display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid var(--border)}
+  .dmhdr .dmback{font-size:26px;color:var(--muted);cursor:pointer;padding:0 4px;line-height:1}
+  .dmhdr .av{width:40px;height:40px;border-radius:50%;font-size:18px;border:1px solid var(--border);
+       background:linear-gradient(135deg,#3a322b,#181410);display:flex;align-items:center;justify-content:center}
+  .dmhdr .nm{font:700 15px var(--sans)} .dmhdr .sub{font:500 11px var(--sans);color:var(--muted)}
+  .dmbody{flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:9px}
+  .bub{max-width:78%;padding:9px 13px;border-radius:15px;font:500 13px var(--sans);line-height:1.4}
+  .bub.in{align-self:flex-start;background:var(--surface2);border:1px solid var(--border);border-bottom-left-radius:5px}
+  .bub.out{align-self:flex-end;background:var(--neon);color:#fff;border-bottom-right-radius:5px}
+  .bub.sys{align-self:center;background:none;color:var(--faint);font:600 11px var(--mono);text-align:center;max-width:92%}
+  .dmacts{flex:none;display:flex;gap:9px;padding:11px 12px;border-top:1px solid var(--border)}
+  .dmbtn{flex:1;padding:12px 8px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);
+       color:var(--text);font:700 12px var(--sans);cursor:pointer}
+  .dmbtn:active{transform:scale(.97)}
+  .dmbtn.ok{background:#1e2a1e;border-color:var(--green);color:#cfe6cf}
+  .dmbtn.bad{background:#2a1410;border-color:var(--rust);color:#f0c0b6}
+  .dmdone{flex:1;text-align:center;color:var(--faint);font:600 12px var(--mono);padding:6px}
+
   /* dock d'actions */
   .dock{flex:none;border-top:1px solid var(--border);background:var(--surface);padding:9px 12px;display:flex;flex-direction:column;gap:8px}
   .hint{font:500 11px var(--mono);color:var(--faint);text-align:center;min-height:14px}
@@ -162,7 +186,7 @@
 <body>
 <div class="phone">
   <div class="notch"></div>
-  <div class="statusbar"><span id="clock">21:47</span><span>jour <b id="day">1</b></span></div>
+  <div class="statusbar"><span id="clock">21:47</span><span>jour <b id="day">1</b> · 💶 <b id="cash">0</b>€</span></div>
 
   <div class="hdr">
     <div class="logo">⚡ <b>Snapshit</b></div>
@@ -187,8 +211,11 @@
 
   <div class="body" id="body"></div>
 
+  <!-- fil de DM (négociation jouable) -->
+  <div class="dmview" id="dmview"></div>
+
   <div class="dock">
-    <div class="hint" id="hint">Coupe ton batch, poste ta vitrine (ou un drop), puis passe la journée.</div>
+    <div class="hint" id="hint">Réponds à tes DM, coupe ton batch, poste ta vitrine, puis passe la journée.</div>
     <div class="batch" id="batch">
       <div class="chip q-propre"   data-q="propre"   data-on="0">propre<small>qualité haute</small></div>
       <div class="chip q-standard" data-q="standard" data-on="1">standard<small>correct</small></div>
@@ -233,7 +260,7 @@
 // ============================================================================
 // SNAPSHIT — refonte sur le châssis crimworld/. Voir commentaire d'en-tête.
 // ============================================================================
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 const KEY='snapshit_state', VKEY='snapshit_ver';
 
 // ---- Constantes nommées (PLACEHOLDERS — réglage humain plus tard) ----------
@@ -247,6 +274,10 @@ const C = {
   DROP_SPIKE:22, CRY_WOLF_SEUIL_ECART:18, CRY_WOLF_DELAI:2, CRY_WOLF_AMPLEUR:16,
   CREDIBILITE_DECAY:0.55, CREDIBILITE_REGAIN:0.12,
   REPUT_PENTE_HAUSSE:0.14, REPUT_PENTE_BAISSE:0.30, REPUT_MAX:100,
+  // --- négociation DM (la demande, jouable) ---
+  PRIX_FAIR:10, LOWBALL_FACTOR:0.55,            // €/unité ; le lowball paie ~55% du prix
+  QTY_GENUINE:[2,3,4,5], QTY_LOWBALL:[8,12,16], // un vrai client prend peu, le brader prend en gros
+  FLAKE_PAR_BRADAGE:0.07, BRADE_DELAI:2,        // brader arme le mauvais public (différé, tracé)
 };
 
 // ---- DICO d'argot (sous-ensemble embarqué ; vrai slang/ peut l'écraser) ----
@@ -319,8 +350,10 @@ function lineFor(ctx,tone,extra){
 function fresh(){ return {
   jour:1, reput:C.REPUT_INIT, expo:C.EXPO_INIT, credibilite:1, flake:C.FLAKE_BASE,
   qualiteChoisie:'standard', promesse:null, posteAujourdhui:false, repPrev:C.REPUT_INIT,
-  pendingCryWolf:[], pendingBadPublic:[], dms:[],
+  pendingCryWolf:[], pendingBadPublic:[], dms:[], cash:0,
+  dayTally:{sold:0,cash:0,brade:0,refused:0,ghost:0,block:0},
 }; }
+const freshTally = () => ({sold:0,cash:0,brade:0,refused:0,ghost:0,block:0});
 let S = load();
 function load(){ try{
   if(localStorage.getItem(VKEY)!==String(SAVE_VERSION)) throw 0;
@@ -366,7 +399,10 @@ function passerJournee(){
   S.pendingBadPublic = S.pendingBadPublic.filter(ev=>{
     if(ev.due!==S.jour) return true;
     S.flake=clamp(S.flake+ev.ampleur,0,0.9);
-    cons.push({k:'warn',t:'BASSIN — mauvais public',c:`Ton buzz d'il y a ${C.EXPO_DELAI_MAUVAIS_PUBLIC}j a attiré le mauvais monde : la part de flakes/lowballers monte. Co-effet PARALLÈLE de l'exposition.`});
+    const c = ev.cause==='brade'
+      ? `Tu as bradé tes prix au jour ${ev.jourCause} : le mot a circulé, les lowballers rappliquent (part flakes ↑). Tracé à TON geste — pas au hasard.`
+      : `Ton buzz d'il y a ${C.EXPO_DELAI_MAUVAIS_PUBLIC}j a attiré le mauvais monde : la part de flakes/lowballers monte. Co-effet PARALLÈLE de l'exposition.`;
+    cons.push({k:'warn',t:'BASSIN — mauvais public',c});
     comments.push(reaction('mauvais_public', S.reput<50?'hostile':'mefi'));
     return false;
   });
@@ -388,7 +424,7 @@ function passerJournee(){
 
   // 3) EXPO : sur-exposition arme le mauvais public (différé), puis décroît
   if(S.expo>C.EXPO_SEUIL_MAUVAIS_PUBLIC){
-    S.pendingBadPublic.push({due:S.jour+C.EXPO_DELAI_MAUVAIS_PUBLIC,ampleur:C.FLAKE_PAR_SUREXPO});
+    S.pendingBadPublic.push({due:S.jour+C.EXPO_DELAI_MAUVAIS_PUBLIC,ampleur:C.FLAKE_PAR_SUREXPO,cause:'expo'});
     cons.push({k:'warn',t:'EXPO — au-dessus du radar',c:`Buzz élevé (${Math.round(S.expo)}/${C.EXPO_CAP}). Payoff immédiat (plus d'yeux) MAIS le mauvais public arrivera au jour ${S.jour+C.EXPO_DELAI_MAUVAIS_PUBLIC}. Deux sorties parallèles du même buzz.`});
   }
   const expoAvant=S.expo;
@@ -404,15 +440,26 @@ function passerJournee(){
   else if(qLivree>=C.QUAL.propre-5) comments.push(reaction('qualite_haute', S.reput>=72?'chaleureux':'neutre'));
   else comments.push(reaction('ambiant',tone));
 
-  // 6) DEMANDE du jour -> alimente la liste de DM (présentation : genProfile)
+  // 6) BILAN des DM négociés aujourd'hui : cash = cupidité ; bradage = dette différée
+  const t=S.dayTally;
+  if(t.sold||t.brade) cons.push({k:'good',t:'CAISSE du jour',c:`Tu as encaissé ${t.cash}€ — ${t.sold} vente(s) au prix${t.brade?`, ${t.brade} bradée(s)`:''}.`});
+  if(t.brade>0){
+    const amp=clamp(C.FLAKE_PAR_BRADAGE*t.brade,0,0.4);
+    S.pendingBadPublic.push({due:S.jour+C.BRADE_DELAI,ampleur:amp,cause:'brade',jourCause:S.jour});
+    cons.push({k:'warn',t:'BRADAGE — ça va se savoir',c:`Tu as cassé tes prix ${t.brade} fois. Cash tout de suite, mais le mauvais public débarquera au jour ${S.jour+C.BRADE_DELAI}. Cupidité now ↔ bassin pourri later.`});
+  }
+  const leftG=(S.dms||[]).filter(d=>d.kind==='genuine'&&d.status==='pending').length;
+  if(leftG>0) cons.push({k:'warn',t:'CLIENTS IGNORÉS',c:`${leftG} client(s) sérieux pas répondus — partis ailleurs. Pas de sanction : juste du cash laissé sur la table.`});
+
+  // 7) DEMANDE de demain -> nouveau bassin de DM (présentation : genProfile)
   const spike = S.posteAujourdhui ? Math.round(C.DROP_SPIKE*S.credibilite) : 0;
   const dmGood = Math.max(0, Math.round(S.reput/14 + expoAvant/22 + spike/8));
   const dmBad  = Math.round(dmGood*S.flake);
   S.dms = buildDMs(dmGood, dmBad, tone);
-  cons.push({k: dmGood>0?'good':'warn',t:'DEMANDE du jour',c:`${dmGood} acheteurs t'ont DM (dont ${dmBad} flakes/lowballers, part ${Math.round(S.flake*100)}%).${spike?` +${spike} de spike grâce à ton drop (×crédibilité ${S.credibilite.toFixed(2)}).`:''}`});
+  cons.push({k: dmGood>0?'good':'warn',t:'DEMANDE de demain',c:`${dmGood} acheteurs vont te DM (dont ${dmBad} flakes/lowballers, part ${Math.round(S.flake*100)}%).${spike?` +${spike} de spike grâce à ton drop (×crédibilité ${S.credibilite.toFixed(2)}).`:''}`});
 
   // clôture
-  S.posteAujourdhui=false; S.qualiteChoisie='standard'; S.jour+=1; save();
+  S.posteAujourdhui=false; S.qualiteChoisie='standard'; S.dayTally=freshTally(); S.jour+=1; save();
   return { cons, comments: comments.filter(Boolean) };
 }
 
@@ -426,13 +473,50 @@ function reaction(ctx,tone,extra){
   else v = Math.random()<0.5 ? rnd(VOICES) : genProfile();
   return { nm:v.nm, av:v.av, txt, tone };
 }
+// banque d'ouvertures de DM (présentation) — {QTY} substitué AVANT fillConcepts
+const MSG = {
+  genuine:{ chaleureux:["wesh frérot, tjs dispo ? je prends {QTY} 🙏","on m'a parlé de toi — je veux {QTY} ce soir 🔥","du lourd paraît-il, je prends {QTY}"],
+            neutre:["salut, tjs dispo ? besoin de {QTY}","tu peux ce soir ? {QTY} pour moi","yo, dispo pour {QTY} ?"],
+            mefi:["c'est toi le plug ? je veux {QTY}, mais je te connais pas","{QTY} si c'est clean. c'est clean ?"],
+            hostile:["bon t'es sérieux toi ? {QTY} ou j'me casse"] },
+  lowball:["je prends {QTY} mais tu me fais un prix 👀","gros volume {QTY}, lâche -40% sinon je vais ailleurs","{QTY} cash là maintenant si tu casses le prix","aller fais un effort, {QTY} d'un coup 🤝"],
+  flake:["allô ?? tjs là ?","euh je sais pas encore… {QTY} ptet","tu réponds vite au moins ? ⌛","faut que je vois avec un pote, attends…"],
+};
+function dmObj(id,v,kind,qty,ppu,msg,tone){ return {id,nm:v.nm,av:v.av,kind,qty,ppu,msg,status:'pending',tone,log:null}; }
 function buildDMs(good,bad,tone){
-  const out=[];
+  const out=[]; let id=0;
+  const ppuG=Math.max(4,Math.round(C.PRIX_FAIR*(0.6+S.reput/120)));   // la demande paie selon la réput
+  const ppuL=Math.max(3,Math.round(ppuG*C.LOWBALL_FACTOR));
+  const lowN=Math.round(bad*0.6), flakeN=bad-lowN;                    // split déterministe du mauvais public
   for(let i=0;i<good;i++){ const v=Math.random()<0.4?rnd(VOICES):genProfile();
-    out.push({nm:v.nm,av:v.av,pv:fillConcepts(rnd(LINES.ambiant[tone]||LINES.ambiant.neutre)),flake:false}); }
-  for(let i=0;i<bad;i++){ const p=genProfile();
-    out.push({nm:p.nm,av:p.av,pv:fillConcepts(rnd(["tu fais un prix ? je prends bcp 👀","{MONEY} contre un gros stock vite","allô ? tjs dispo ? ...","-50% si je prends tout"])),flake:true}); }
+    const qty=C.QTY_GENUINE[i%C.QTY_GENUINE.length];
+    out.push(dmObj(id++,v,'genuine',qty,ppuG,fillConcepts(rnd(MSG.genuine[tone]||MSG.genuine.neutre).replace(/\{QTY\}/g,qty)),tone)); }
+  for(let i=0;i<lowN;i++){ const v=(i===0)?voice('kevin'):genProfile();  // Kévin le lowballer ouvre le bal
+    const qty=C.QTY_LOWBALL[i%C.QTY_LOWBALL.length];
+    out.push(dmObj(id++,v,'lowball',qty,ppuL,fillConcepts(rnd(MSG.lowball).replace(/\{QTY\}/g,qty)),'mefi')); }
+  for(let i=0;i<flakeN;i++){ const v=genProfile();
+    const qty=C.QTY_GENUINE[i%C.QTY_GENUINE.length];
+    out.push(dmObj(id++,v,'flake',qty,ppuG,fillConcepts(rnd(MSG.flake).replace(/\{QTY\}/g,qty)),'mefi')); }
   return out;
+}
+// applique une décision de négociation — DÉTERMINISTE, tracé. Renvoie la réplique diégétique.
+function doDMAction(id, action){
+  const d=S.dms.find(x=>x.id===id); if(!d||d.status!=='pending') return {reply:'',sys:''};
+  const t=S.dayTally; let reply='',sys='';
+  if(d.kind==='genuine'){
+    if(action==='sell'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.sold++; d.status='sold';
+      reply="reçu, t'es le boss 🙏"; sys=`💶 +${tot}€ encaissés.`; }
+    else { t.refused++; d.status='refused'; reply="ah… ok tant pis 😞"; sys="vente laissée filer."; }
+  } else if(d.kind==='lowball'){
+    if(action==='brade'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.brade++; d.status='brade';
+      reply="ahah merci bg 😏 je ramène les reufs"; sys=`💸 +${tot}€ — mais brader, ça finit par se savoir…`; }
+    else { t.refused++; d.status='refused'; reply="pff radin va. 🙄"; sys="prix tenu — ton bassin reste sain."; }
+  } else {
+    if(action==='rdv'){ t.ghost++; d.status='ghost'; reply="ouais ouais à 23h…"; sys="📍 RDV posé… 🦗 il n'est jamais venu. temps perdu."; }
+    else { t.block++; d.status='block'; sys="🚫 bloqué. inbox plus clean."; }
+  }
+  save();
+  return {reply,sys};
 }
 
 // ============================================================================
@@ -440,6 +524,7 @@ function buildDMs(good,bad,tone){
 // ============================================================================
 function renderHeader(){
   $('day').textContent=S.jour;
+  $('cash').textContent=S.cash;
   const tone=toneFromReput(S.reput);
   const blocks={hostile:'◦ ◦ ◦','mefi':'● ◦ ◦',neutre:'● ● ◦',chaleureux:'● ● ●'}[tone];
   const col={hostile:'var(--rust)','mefi':'var(--sodium)',neutre:'var(--muted)',chaleureux:'var(--green)'}[tone];
@@ -449,13 +534,57 @@ function renderHeader(){
 function renderBody(){
   const b=$('body');
   if(!S.dms || S.dms.length===0){ b.innerHTML='<div class="empty">Pas encore de DM.<br>Poste ta vitrine, fais-toi un nom… ou pas.</div>'; return; }
-  let h='<div class="seclbl">messages — le bassin du jour</div>';
+  const pend=S.dms.filter(d=>d.status==='pending').length;
+  let h=`<div class="seclbl">messages — bassin du jour · ${pend} en attente</div>`;
   for(const d of S.dms){
-    h+=`<div class="conv ${d.flake?'flake':''}"><div class="av ${d.flake?'':'unread'}">${esc(d.av)}</div>`+
-       `<div class="col"><div class="nm">${esc(d.nm)}</div><div class="pv">${esc(d.pv)}</div></div>`+
-       `<div class="tm">${d.flake?'⚠️':'•'}</div></div>`;
+    const isBad=d.kind!=='genuine', done=d.status!=='pending';
+    h+=`<div class="conv ${isBad?'flake':''} ${done?'done':''}" data-id="${d.id}">`+
+       `<div class="av ${(!done&&d.kind==='genuine')?'unread':''}">${esc(d.av)}</div>`+
+       `<div class="col"><div class="nm">${esc(d.nm)}</div><div class="pv">${esc(d.msg)}</div></div>`+
+       `<div class="tm">${statusPill(d)}</div></div>`;
   }
   b.innerHTML=h;
+}
+function statusPill(d){
+  if(d.status==='pending') return d.kind==='genuine'?'<span class="st go">répondre</span>':'<span class="st warn">⚠️</span>';
+  return ({sold:'<span class="st ok">vendu ✅</span>',brade:'<span class="st bad">bradé 💸</span>',
+           refused:'<span class="st">refusé</span>',ghost:'<span class="st bad">🦗 posé</span>',
+           block:'<span class="st">bloqué</span>'})[d.status]||'';
+}
+
+// --- fil de DM (négociation jouable) ----------------------------------------
+function toneWord(t){ return {chaleureux:'chaleureuse 🟢',neutre:'neutre',mefi:'méfiante 🟠',hostile:'froide 🔴'}[t]||'?'; }
+function dmActsHTML(d){
+  if(d.status!=='pending') return '<div class="dmdone">conversation terminée</div>';
+  const tot=d.qty*d.ppu;
+  if(d.kind==='genuine') return `<button class="dmbtn ok" data-act="sell">✅ Vendre ${d.qty} · ${tot}€</button><button class="dmbtn" data-act="refuse">✋ Refuser</button>`;
+  if(d.kind==='lowball') return `<button class="dmbtn bad" data-act="brade">💸 Brader ${d.qty} · ${tot}€</button><button class="dmbtn" data-act="refuse">🧱 Tenir le prix</button>`;
+  return `<button class="dmbtn" data-act="rdv">📍 Poser un RDV</button><button class="dmbtn" data-act="block">🚫 Bloquer</button>`;
+}
+function openDM(id){
+  const d=S.dms.find(x=>x.id===id); if(!d) return;
+  const sub = d.kind==='genuine'?('client · vibe '+toneWord(d.tone)) : d.kind==='lowball'?'négociateur 👀' : 'inconnu ???';
+  $('dmview').innerHTML=`
+    <div class="dmhdr"><span class="dmback">‹</span><div class="av">${esc(d.av)}</div>
+      <div><div class="nm">${esc(d.nm)}</div><div class="sub">${sub}</div></div></div>
+    <div class="dmbody" id="dmbody"><div class="bub in">${esc(d.msg)}</div></div>
+    <div class="dmacts" id="dmacts" data-id="${d.id}">${dmActsHTML(d)}</div>`;
+  if(d.log) for(const m of d.log) appendBub(m.cls,m.txt);   // rejoue l'échange si déjà résolu
+  $('dmview').classList.add('show');
+}
+function closeDM(){ $('dmview').classList.remove('show'); refresh(); }
+function appendBub(cls,txt){ const bd=$('dmbody'); if(!bd||!txt) return;
+  const e=document.createElement('div'); e.className='bub '+cls; e.textContent=txt; bd.appendChild(e); bd.scrollTop=bd.scrollHeight; }
+function handleDMBtn(act,id){
+  const d=S.dms.find(x=>x.id===id); if(!d||d.status!=='pending') return;
+  const outTxt={sell:'Vendu. 🤝',refuse:'Non, pas aujourd’hui.',brade:'Bon ok, pour toi… 💸',rdv:'Ok je te pose un RDV.',block:''}[act];
+  const r=doDMAction(id,act);
+  d.log=[];
+  if(outTxt){ appendBub('out',outTxt); d.log.push({cls:'out',txt:outTxt}); }
+  if(r.reply){ appendBub('in',r.reply); d.log.push({cls:'in',txt:r.reply}); }
+  if(r.sys){ appendBub('sys',r.sys); d.log.push({cls:'sys',txt:r.sys}); }
+  const a=$('dmacts'); if(a) a.innerHTML='<div class="dmdone">conversation terminée</div>';
+  save();
 }
 function renderDock(){ document.querySelectorAll('#batch .chip').forEach(c=>c.dataset.on=(c.dataset.q===S.qualiteChoisie)?'1':'0'); }
 function esc(s){ return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
@@ -510,7 +639,7 @@ function closeComposer(){ $('scompose').classList.remove('show'); }
 
 let hintTimer=null;
 function flash(m){ const h=$('hint'); h.textContent=m; clearTimeout(hintTimer);
-  hintTimer=setTimeout(()=>{ h.textContent='Coupe ton batch, poste ta vitrine (ou un drop), puis passe la journée.'; },2600); }
+  hintTimer=setTimeout(()=>{ h.textContent='Réponds à tes DM, coupe ton batch, poste ta vitrine, puis passe la journée.'; },2600); }
 
 function refresh(){ renderHeader(); renderBody(); renderDock(); }
 
@@ -530,6 +659,12 @@ $('btnDay').addEventListener('click',()=>{
   const { cons, comments } = passerJournee();
   refresh();
   playComments(comments, ()=>showReport(cons));
+});
+$('body').addEventListener('click',e=>{ const row=e.target.closest('.conv[data-id]'); if(row) openDM(+row.dataset.id); });
+$('dmview').addEventListener('click',e=>{
+  if(e.target.closest('.dmback')){ closeDM(); return; }
+  const btn=e.target.closest('.dmbtn'); if(!btn) return;
+  handleDMBtn(btn.dataset.act, +$('dmacts').dataset.id);
 });
 $('btnReset').addEventListener('click',()=>{ if(confirm('Reset le proto ?')){ S=fresh(); save(); refresh(); flash('Reset.'); } });
 
