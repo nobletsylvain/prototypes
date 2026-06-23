@@ -1,11 +1,12 @@
 {
   "meta": {
     "name": "Dico du trafic — slang multilingue",
-    "version": 1,
-    "updated": "2026-06-21",
+    "version": 2,
+    "updated": "2026-06-23",
     "but": "Vocabulaire crédible pour l'habillage des prototypes + base de localisation (i18n). Clé par CONCEPT, puis par langue.",
     "langues": ["fr", "en-US", "en-GB", "es", "it", "de", "nl", "pt-BR"],
-    "registres": ["courant", "cite", "rap", "verlan", "police", "regional", "prison"],
+    "registres": ["courant", "cite", "rap", "verlan", "police", "regional", "prison", "chic"],
+    "registres_note": "« chic » ajouté en v2 pour le registre connaisseur/bourgeois (Snapshit : La Comtesse ≠ Kévin).",
     "avertissement": "Argot évolutif et régional. À usage de fiction/flavour uniquement. La présentation peut brouiller/varier les termes (cf. invariant « aléatoire de présentation »). Ne décrit aucun procédé réel.",
     "format_terme": { "term": "string", "register": "string?", "region": "string?", "note": "string?" }
   },
@@ -19,7 +20,15 @@
           { "term": "four", "register": "cite", "region": "Marseille", "note": "lieu où l'on « cuisine » (coupe + conditionne) ; « alimenter / livrer un four »" },
           { "term": "charbon", "register": "cite", "note": "synonyme de four" },
           { "term": "plan", "register": "cite" },
-          { "term": "terrain", "register": "cite" }
+          { "term": "terrain", "register": "cite" },
+          { "term": "tieks", "register": "cite", "note": "le quartier (verlan de cité)" },
+          { "term": "bendo", "register": "cite", "note": "trap/maison de vente (emprunt)" },
+          { "term": "binks", "register": "cite" },
+          { "term": "block", "register": "cite" },
+          { "term": "spot", "register": "courant" },
+          { "term": "point de vente", "register": "courant" },
+          { "term": "comptoir", "register": "chic", "note": "« l'adresse » discrète, registre connaisseur" },
+          { "term": "salon", "register": "chic" }
         ],
         "en-US": [
           { "term": "trap", "register": "courant" },
@@ -386,7 +395,12 @@
           { "term": "beuh", "register": "verlan", "note": "verlan de « herbe » ; aussi « beuher »" },
           { "term": "weed", "register": "courant" },
           { "term": "ganja", "register": "courant" },
-          { "term": "oinj", "register": "verlan", "note": "verlan de « joint » par extension" }
+          { "term": "oinj", "register": "verlan", "note": "verlan de « joint » par extension" },
+          { "term": "frappe", "register": "cite", "note": "herbe forte / de qualité" },
+          { "term": "verte", "register": "cite" },
+          { "term": "fleur", "register": "chic", "note": "registre connaisseur" },
+          { "term": "tête", "register": "chic", "note": "« têtes » = sommités fleuries, registre connaisseur" },
+          { "term": "cuvée", "register": "chic" }
         ],
         "en-US": [
           { "term": "weed", "register": "courant" },
@@ -628,7 +642,15 @@
           { "term": "lové", "register": "cite" },
           { "term": "biff", "register": "cite" },
           { "term": "caillasse", "register": "cite" },
-          { "term": "sous", "register": "courant" }
+          { "term": "sous", "register": "courant" },
+          { "term": "blé", "register": "courant" },
+          { "term": "thune", "register": "courant" },
+          { "term": "fric", "register": "courant" },
+          { "term": "moula", "register": "cite" },
+          { "term": "talbins", "register": "cite" },
+          { "term": "bifton", "register": "cite" },
+          { "term": "liquidités", "register": "chic" },
+          { "term": "espèces", "register": "chic" }
         ],
         "en-US": [
           { "term": "bands", "register": "courant" },
@@ -920,7 +942,15 @@
         "fr": [
           { "term": "client", "register": "courant" },
           { "term": "conso", "register": "courant" },
-          { "term": "toxico", "register": "courant" }
+          { "term": "toxico", "register": "courant" },
+          { "term": "clients", "register": "courant" },
+          { "term": "habitués", "register": "courant" },
+          { "term": "clientèle", "register": "courant" },
+          { "term": "reufs", "register": "cite", "note": "les « frères » = la clientèle du quartier" },
+          { "term": "régularos", "register": "cite" },
+          { "term": "têtes connues", "register": "cite" },
+          { "term": "fidèles", "register": "chic" },
+          { "term": "connaisseurs", "register": "chic" }
         ],
         "en-US": [
           { "term": "fiend", "register": "courant" },
@@ -1022,7 +1052,15 @@
         "fr": [
           { "term": "frappe", "register": "cite", "note": "came forte / de qualité (affichée sur les murs des réseaux)" },
           { "term": "jaune / marron / noir", "register": "cite", "note": "qualités/teintes de haschisch" },
-          { "term": "ber-tu", "register": "verlan", "note": "verlan de « tube » = came de qualité, selon contexte" }
+          { "term": "ber-tu", "register": "verlan", "note": "verlan de « tube » = came de qualité, selon contexte" },
+          { "term": "qualité", "register": "courant" },
+          { "term": "matos", "register": "courant" },
+          { "term": "came", "register": "courant" },
+          { "term": "tuerie", "register": "cite" },
+          { "term": "bombe", "register": "cite" },
+          { "term": "cru", "register": "chic" },
+          { "term": "gamme", "register": "chic" },
+          { "term": "facture", "register": "chic", "note": "« belle facture » = qualité, registre connaisseur" }
         ],
         "en-US": [
           { "term": "fire", "register": "courant", "note": "came de top qualité" },
@@ -1046,6 +1084,58 @@
         ],
         "pt-BR": [
           { "term": "parada boa", "register": "courant" }
+        ]
+      }
+    },
+
+    "QUALITY_GOOD": {
+      "gloss": "Came de bonne qualité — EXPRESSION auto-portée (article inclus) pour le gabarit Snapshit {QUALITY_GOOD} (ex. « c'est {QUALITY_GOOD} »). Pré-articulé car genres mixtes ; ne pas préfixer d'article dans le gabarit.",
+      "category": "produits",
+      "terms": {
+        "fr": [
+          { "term": "de la bonne", "register": "courant" },
+          { "term": "du bon", "register": "courant" },
+          { "term": "de la qualité", "register": "courant" },
+          { "term": "de la frappe", "register": "cite" },
+          { "term": "de la tuerie", "register": "cite" },
+          { "term": "du lourd", "register": "cite" },
+          { "term": "du haut de gamme", "register": "cite" },
+          { "term": "du propre", "register": "cite" },
+          { "term": "du grand cru", "register": "chic" },
+          { "term": "du raffiné", "register": "chic" },
+          { "term": "du premium", "register": "chic" },
+          { "term": "de la finesse", "register": "chic" }
+        ],
+        "en-US": [
+          { "term": "fire", "register": "courant" },
+          { "term": "top-shelf", "register": "courant" },
+          { "term": "the good stuff", "register": "courant" }
+        ]
+      }
+    },
+
+    "QUALITY_BAD": {
+      "gloss": "Came médiocre/coupée — EXPRESSION auto-portée (article inclus) pour le gabarit Snapshit {QUALITY_BAD} (ex. « c'est {QUALITY_BAD} »).",
+      "category": "produits",
+      "terms": {
+        "fr": [
+          { "term": "du mauvais", "register": "courant" },
+          { "term": "de la came coupée", "register": "courant" },
+          { "term": "de la moyenne", "register": "courant" },
+          { "term": "du pneu", "register": "cite" },
+          { "term": "de la merde", "register": "cite" },
+          { "term": "du sale", "register": "cite" },
+          { "term": "du plâtre", "register": "cite", "note": "came lourdement coupée" },
+          { "term": "de la coupée", "register": "cite" },
+          { "term": "du tout-venant", "register": "chic" },
+          { "term": "de la médiocrité", "register": "chic" },
+          { "term": "du frelaté", "register": "chic" },
+          { "term": "de l'indigne", "register": "chic" }
+        ],
+        "en-US": [
+          { "term": "trash", "register": "courant" },
+          { "term": "bunk", "register": "courant" },
+          { "term": "garbage", "register": "courant" }
         ]
       }
     },
