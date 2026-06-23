@@ -85,6 +85,7 @@
   .conv .tm{font:500 10px var(--sans);color:var(--faint);flex:none;align-self:flex-start;margin-top:3px}
   .empty{padding:40px 24px;text-align:center;color:var(--faint);font:500 13px var(--sans);line-height:1.5}
 
+  .conv.contact{border-left:2px solid var(--neon)}
   .conv.done{opacity:.5} .conv .st{font:700 10px var(--mono);color:var(--muted)}
   .conv .st.ok{color:var(--green)} .conv .st.bad{color:var(--rust)} .conv .st.go{color:var(--snap)} .conv .st.warn{color:var(--sodium)}
 
@@ -260,7 +261,7 @@
 // ============================================================================
 // SNAPSHIT — refonte sur le châssis crimworld/. Voir commentaire d'en-tête.
 // ============================================================================
-const SAVE_VERSION = 5;
+const SAVE_VERSION = 6;
 const KEY='snapshit_state', VKEY='snapshit_ver';
 
 // ---- Constantes nommées (PLACEHOLDERS — réglage humain plus tard) ----------
@@ -278,6 +279,11 @@ const C = {
   PRIX_FAIR:10, LOWBALL_FACTOR:0.55,            // €/unité ; le lowball paie ~55% du prix
   QTY_GENUINE:[2,3,4,5], QTY_LOWBALL:[8,12,16], // un vrai client prend peu, le brader prend en gros
   FLAKE_PAR_BRADAGE:0.07, BRADE_DELAI:2,        // brader arme le mauvais public (différé, tracé)
+  // --- carnet / réengagement 1:1 (la liste = un actif épuisable) ---
+  GOODWILL_INIT:100, GOODWILL_AGACE:35,         // au-dessous de AGACE, le client ne veut plus qu'on le relance
+  GOODWILL_REUP_OK:5, GOODWILL_DECLINE:8, GOODWILL_SPAM:25,
+  REUP_COOLDOWN:2, REUP_QTY:3, REUP_THRESHOLD:0.5,   // relancer < COOLDOWN jours = spam ; convertit si dispo×goodwill ≥ seuil
+  REUP_BASE:{accro:1, sami:0.75, petit:0.6, comtesse:0.65, ancien:0.45, client:0.65}, // propension par archétype
 };
 
 // ---- DICO d'argot (sous-ensemble embarqué ; vrai slang/ peut l'écraser) ----
@@ -357,9 +363,10 @@ function fresh(){ return {
   qualiteChoisie:'standard', promesse:null, posteAujourdhui:false, repPrev:C.REPUT_INIT,
   pendingCryWolf:[], pendingBadPublic:[], dms:[], cash:0, protagBrade:{},
   comtesseState:'neutre', accroStreak:0,   // mémoires d'archétype (la voix se souvient)
-  dayTally:{sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{}},
+  pool:[], poolSeq:0,                       // carnet de clients passés (réengagement 1:1)
+  dayTally:{sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{},muted:0,reup:0},
 }; }
-const freshTally = () => ({sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{}});
+const freshTally = () => ({sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{},muted:0,reup:0});
 let S = load();
 function load(){ try{
   if(localStorage.getItem(VKEY)!==String(SAVE_VERSION)) throw 0;
@@ -461,7 +468,8 @@ function passerJournee(){
 
   // 6) BILAN des DM négociés aujourd'hui : cash = cupidité ; bradage = dette différée
   const t=S.dayTally;
-  if(t.sold||t.brade) cons.push({k:'good',t:'CAISSE du jour',c:`Tu as encaissé ${t.cash}€ — ${t.sold} vente(s) au prix${t.brade?`, ${t.brade} bradée(s)`:''}.`});
+  if(t.sold||t.brade) cons.push({k:'good',t:'CAISSE du jour',c:`Tu as encaissé ${t.cash}€ — ${t.sold} vente(s) au prix${t.brade?`, ${t.brade} bradée(s)`:''}${t.reup?`, dont ${t.reup} relance(s) du carnet`:''}.`});
+  if(t.muted>0) cons.push({k:'bad',t:'CARNET — on t\'a mute',c:`${t.muted} client(s) t'ont mute aujourd'hui et quittent ton carnet : tu les as relancés trop souvent. La liste est un actif épuisable — co-effet de TES sollicitations, tracé.`});
   if(t.brade>0){
     const amp=clamp(C.FLAKE_PAR_BRADAGE*t.brade,0,0.4);
     S.pendingBadPublic.push({due:S.jour+C.BRADE_DELAI,ampleur:amp,cause:'brade',jourCause:S.jour,protags:Object.assign({},t.bradeProtags)});
@@ -537,6 +545,7 @@ function doDMAction(id, action){
   const t=S.dayTally; let reply='',sys='';
   if(d.kind==='genuine'){
     if(action==='sell'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.sold++; d.status='sold';
+      addToPool(d);                                  // il entre dans ton carnet (relançable plus tard)
       reply="reçu, t'es le boss 🙏"; sys=`💶 +${tot}€ encaissés.`; }
     else { t.refused++; d.status='refused'; reply="ah… ok tant pis 😞"; sys="vente laissée filer."; }
   } else if(d.kind==='lowball'){
@@ -554,6 +563,40 @@ function doDMAction(id, action){
   return {reply,sys};
 }
 
+// ---- CARNET : réengagement 1:1 (la liste est un actif épuisable) -----------
+// Un client servi entre au carnet. Le relancer convertit (selon archétype×goodwill)
+// MAIS trop le solliciter brûle son goodwill -> il te mute et quitte le carnet.
+function addToPool(d){
+  const named = d.protag!=='client' && d.protag!=='flake' && d.protag!=='kevin';
+  if(named){ const c=S.pool.find(x=>x.key===d.protag);
+    if(c){ c.buys++; c.goodwill=clamp(c.goodwill+C.GOODWILL_REUP_OK,0,100); c.lastBuy=S.jour; return; } }
+  S.pool.push({ key: named?d.protag:('anon'+(S.poolSeq++)), nm:d.nm, av:d.av, archetype:d.protag,
+    pref: d.protag==='comtesse'?'premium':'any', goodwill:C.GOODWILL_INIT, buys:1, lastBuy:S.jour, lastContact:0, log:null });
+}
+function goodwillVibe(g){ return g>=70?'chaud 🟢': g>=C.GOODWILL_AGACE?'tiède 🟠':'agacé 🔴'; }
+function canReup(c){ return c.lastContact!==S.jour && c.lastBuy!==S.jour; }   // pas 2× le même jour, ni le jour de l'achat
+// résout une relance — DÉTERMINISTE (dispo = état, pas hasard). Mute le client si goodwill tombe à 0.
+function reup(c){
+  const t=S.dayTally;
+  const gap = c.lastContact ? (S.jour-c.lastContact) : 99;
+  const spam = gap < C.REUP_COOLDOWN;                                  // relancé trop tôt depuis la dernière fois
+  if(spam || c.goodwill < C.GOODWILL_AGACE){
+    c.goodwill -= spam ? C.GOODWILL_SPAM : C.GOODWILL_DECLINE;
+    if(c.goodwill<=0){ t.muted++; return {kind:'mute', reply:"tu me harcèles… stop. 🔇",
+      sys:`🔇 il te mute et quitte ton carnet. Tracé : relancé trop souvent (${spam?'< '+C.REUP_COOLDOWN+'j d\'écart':'déjà agacé'}).`}; }
+    return {kind:'annoyed', reply:"oh tu me lâches un peu 🙄", sys:"⚠️ ça l'agace — son goodwill baisse."};
+  }
+  const base = C.REUP_BASE[c.archetype] ?? 0.6;
+  if(base*(c.goodwill/100) >= C.REUP_THRESHOLD){
+    const ppu=Math.max(4,Math.round(C.PRIX_FAIR*(0.6+S.reput/120))), tot=C.REUP_QTY*ppu;
+    S.cash+=tot; t.cash+=tot; t.sold++; t.reup++;
+    c.goodwill=clamp(c.goodwill+C.GOODWILL_REUP_OK,0,100); c.buys++; c.lastBuy=S.jour;
+    return {kind:'buy', reply:"ah carré, je prends 🙏", sys:`💶 +${tot}€ — content que tu aies pensé à lui.`};
+  }
+  c.goodwill=clamp(c.goodwill-Math.round(C.GOODWILL_DECLINE/2),0,100);
+  return {kind:'decline', reply:"pas ce soir, mais garde-moi au chaud 🙏", sys:"pas preneur aujourd'hui."};
+}
+
 // ============================================================================
 // PRÉSENTATION
 // ============================================================================
@@ -568,15 +611,30 @@ function renderHeader(){
 }
 function renderBody(){
   const b=$('body');
-  if(!S.dms || S.dms.length===0){ b.innerHTML='<div class="empty">Pas encore de DM.<br>Poste ta vitrine, fais-toi un nom… ou pas.</div>'; return; }
-  const pend=S.dms.filter(d=>d.status==='pending').length;
-  let h=`<div class="seclbl">messages — bassin du jour · ${pend} en attente</div>`;
-  for(const d of S.dms){
-    const isBad=d.kind!=='genuine', done=d.status!=='pending';
-    h+=`<div class="conv ${isBad?'flake':''} ${done?'done':''}" data-id="${d.id}">`+
-       `<div class="av ${(!done&&d.kind==='genuine')?'unread':''}">${esc(d.av)}</div>`+
-       `<div class="col"><div class="nm">${esc(d.nm)}</div><div class="pv">${esc(d.msg)}</div></div>`+
-       `<div class="tm">${statusPill(d)}</div></div>`;
+  if((!S.dms||!S.dms.length) && (!S.pool||!S.pool.length)){ b.innerHTML='<div class="empty">Pas encore de DM.<br>Poste ta vitrine, fais-toi un nom… ou pas.</div>'; return; }
+  let h='';
+  // CARNET : clients passés, relançables 1:1 (le réengagement)
+  if(S.pool && S.pool.length){
+    h+=`<div class="seclbl">📒 ton carnet — ${S.pool.length} client${S.pool.length>1?'s':''} (relance 1:1)</div>`;
+    for(const c of S.pool){
+      const dispo=canReup(c);
+      h+=`<div class="conv contact ${dispo?'':'done'}" data-key="${esc(c.key)}">`+
+         `<div class="av">${esc(c.av)}</div>`+
+         `<div class="col"><div class="nm">${esc(c.nm)}</div><div class="pv">${c.buys} cmde${c.buys>1?'s':''} · ${goodwillVibe(c.goodwill)}</div></div>`+
+         `<div class="tm">${dispo?'<span class="st go">relancer</span>':'<span class="st">vu</span>'}</div></div>`;
+    }
+  }
+  // BASSIN du jour : les DM entrants
+  if(S.dms && S.dms.length){
+    const pend=S.dms.filter(d=>d.status==='pending').length;
+    h+=`<div class="seclbl">messages — bassin du jour · ${pend} en attente</div>`;
+    for(const d of S.dms){
+      const isBad=d.kind!=='genuine', done=d.status!=='pending';
+      h+=`<div class="conv ${isBad?'flake':''} ${done?'done':''}" data-id="${d.id}">`+
+         `<div class="av ${(!done&&d.kind==='genuine')?'unread':''}">${esc(d.av)}</div>`+
+         `<div class="col"><div class="nm">${esc(d.nm)}</div><div class="pv">${esc(d.msg)}</div></div>`+
+         `<div class="tm">${statusPill(d)}</div></div>`;
+    }
   }
   b.innerHTML=h;
 }
@@ -619,6 +677,33 @@ function handleDMBtn(act,id){
   if(r.reply){ appendBub('in',r.reply); d.log.push({cls:'in',txt:r.reply}); }
   if(r.sys){ appendBub('sys',r.sys); d.log.push({cls:'sys',txt:r.sys}); }
   const a=$('dmacts'); if(a) a.innerHTML='<div class="dmdone">conversation terminée</div>';
+  save();
+}
+// --- fil de RELANCE 1:1 (carnet) ---
+function openContact(key){
+  const c=S.pool.find(x=>x.key===key); if(!c) return;
+  const dispo=canReup(c);
+  const why = c.lastBuy===S.jour ? 'déjà servi aujourd\'hui' : (c.lastContact===S.jour ? 'déjà relancé aujourd\'hui' : '');
+  const acts = dispo
+    ? `<button class="dmbtn ok" data-reup="${esc(key)}">📣 Proposer l'arrivage (${C.REUP_QTY})</button><button class="dmbtn" data-act="close">Fermer</button>`
+    : `<div class="dmdone">${why}</div>`;
+  $('dmview').innerHTML=`
+    <div class="dmhdr"><span class="dmback">‹</span><div class="av">${esc(c.av)}</div>
+      <div><div class="nm">${esc(c.nm)}</div><div class="sub">carnet · ${c.buys} cmde${c.buys>1?'s':''} · ${goodwillVibe(c.goodwill)}</div></div></div>
+    <div class="dmbody" id="dmbody"><div class="bub sys">tu as son @ depuis vos deals. Le relancer trop souvent l'agace.</div></div>
+    <div class="dmacts" id="dmacts" data-key="${esc(key)}">${acts}</div>`;
+  if(c.log) for(const m of c.log) appendBub(m.cls,m.txt);
+  $('dmview').classList.add('show');
+}
+function handleReup(key){
+  const c=S.pool.find(x=>x.key===key); if(!c||!canReup(c)) return;
+  const out=`nouvel arrivage 🔥 je te garde ${C.REUP_QTY} ?`;
+  appendBub('out',out); c.log=[{cls:'out',txt:out}];
+  const r=reup(c); c.lastContact=S.jour;
+  if(r.reply){ appendBub('in',r.reply); c.log.push({cls:'in',txt:r.reply}); }
+  if(r.sys){ appendBub('sys',r.sys); c.log.push({cls:'sys',txt:r.sys}); }
+  if(r.kind==='mute') S.pool=S.pool.filter(x=>x.key!==key);
+  const a=$('dmacts'); if(a) a.innerHTML=`<div class="dmdone">${r.kind==='mute'?'🔇 il t\'a mute':'relancé'}</div>`;
   save();
 }
 function renderDock(){ document.querySelectorAll('#batch .chip').forEach(c=>c.dataset.on=(c.dataset.q===S.qualiteChoisie)?'1':'0'); }
@@ -695,10 +780,15 @@ $('btnDay').addEventListener('click',()=>{
   refresh();
   playComments(comments, ()=>showReport(cons));
 });
-$('body').addEventListener('click',e=>{ const row=e.target.closest('.conv[data-id]'); if(row) openDM(+row.dataset.id); });
+$('body').addEventListener('click',e=>{
+  const contact=e.target.closest('.contact[data-key]'); if(contact){ openContact(contact.dataset.key); return; }
+  const row=e.target.closest('.conv[data-id]'); if(row) openDM(+row.dataset.id);
+});
 $('dmview').addEventListener('click',e=>{
   if(e.target.closest('.dmback')){ closeDM(); return; }
   const btn=e.target.closest('.dmbtn'); if(!btn) return;
+  if(btn.dataset.reup){ handleReup(btn.dataset.reup); return; }
+  if(btn.dataset.act==='close'){ closeDM(); return; }
   handleDMBtn(btn.dataset.act, +$('dmacts').dataset.id);
 });
 $('btnReset').addEventListener('click',()=>{ if(confirm('Reset le proto ?')){ S=fresh(); save(); refresh(); flash('Reset.'); } });
