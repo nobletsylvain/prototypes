@@ -260,7 +260,7 @@
 // ============================================================================
 // SNAPSHIT — refonte sur le châssis crimworld/. Voir commentaire d'en-tête.
 // ============================================================================
-const SAVE_VERSION = 4;
+const SAVE_VERSION = 5;
 const KEY='snapshit_state', VKEY='snapshit_ver';
 
 // ---- Constantes nommées (PLACEHOLDERS — réglage humain plus tard) ----------
@@ -317,6 +317,8 @@ const VOICES = [
 const voice = id => VOICES.find(v=>v.id===id) || genProfile();
 // visage DÉTERMINISTE d'un TYPE de protagoniste (pour nommer les conséquences au bilan)
 const FACE = id => VOICES.find(v=>v.id===id) || {nm:'les lowballers',av:'👥'};
+// foule de voix « neutres » : on exclut les archétypes à mémoire gérés à part (Kévin/Comtesse/Accro)
+const CROWD_VOICES = VOICES.filter(v=>!['kevin','comtesse','accro'].includes(v.id));
 const protagBreakdown = m => Object.entries(m).map(([p,n])=>{ const f=FACE(p); return `${f.av} ${f.nm}${n>1?` ×${n}`:''}`; }).join(', ');
 
 // ---- Banque de phrases : contexte × ton (gabarits {CONCEPT}) ----------------
@@ -354,6 +356,7 @@ function fresh(){ return {
   jour:1, reput:C.REPUT_INIT, expo:C.EXPO_INIT, credibilite:1, flake:C.FLAKE_BASE,
   qualiteChoisie:'standard', promesse:null, posteAujourdhui:false, repPrev:C.REPUT_INIT,
   pendingCryWolf:[], pendingBadPublic:[], dms:[], cash:0, protagBrade:{},
+  comtesseState:'neutre', accroStreak:0,   // mémoires d'archétype (la voix se souvient)
   dayTally:{sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{}},
 }; }
 const freshTally = () => ({sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{}});
@@ -397,6 +400,12 @@ function passerJournee(){
     S.reput=clamp(S.reput-ev.ampleur,0,C.REPUT_MAX);
     cons.push({k:'bad',t:'RÉPUT — falaise (cry-wolf)',c:`La confiance s'effondre : tu avais hypé un drop « ${ev.niveau} » au jour ${ev.jourPromesse} puis livré bien en dessous. Le mensonge a fini par se savoir.`});
     comments.push(reaction('cry_wolf','hostile',{DELAI:String(S.jour-ev.jourPromesse)}));
+    // La Comtesse se souvient : trahir une promesse PREMIUM, elle ne le pardonne pas → elle part
+    if(ev.niveau==='premium' && S.comtesseState!=='partie'){
+      S.comtesseState='partie';
+      cons.push({k:'bad',t:'👑 LA COMTESSE TE LÂCHE',c:`Tu avais promis du premium au jour ${ev.jourPromesse} puis servi du sale. Elle ne pardonne pas la came médiocre : elle s'en va (et avec elle, le client qui paie le prix fort). Pour la récupérer : un drop premium, et TIENS-le.`});
+      comments.push({nm:'La Comtesse',av:'👑',txt:"je te croyais du goût. déçue. 🚪👑",tone:'hostile'});
+    }
     return false;
   });
   S.pendingBadPublic = S.pendingBadPublic.filter(ev=>{
@@ -422,6 +431,12 @@ function passerJournee(){
       S.credibilite=clamp(S.credibilite+C.CREDIBILITE_REGAIN,0.05,1);
       cons.push({k:'good',t:'PROMESSE TENUE',c:`Promis « ${S.promesse.niveau} », livré à la hauteur (qualité ${qLivree}). Le spike se convertit, crédibilité ↑.`});
       comments.push(reaction('promesse_tenue','chaleureux'));
+      // La Comtesse se souvient : un premium PROMIS ET TENU la gagne (ou la ramène)
+      if(S.promesse.niveau==='premium' && S.comtesseState!=='fan'){
+        const back=S.comtesseState==='partie'; S.comtesseState='fan';
+        cons.push({k:'good',t:'👑 LA COMTESSE'+(back?' REVIENT':' TE VALIDE'),c:`Premium promis, premium livré. La Comtesse ${back?'revient — elle te pardonne et repassera commande au prix fort':'te repère : elle achètera désormais ton premium au prix fort'}.`});
+        comments.push({nm:'La Comtesse',av:'👑',txt:back?'bon… tu te rattrapes. je reviens 👑':'enfin du sérieux. validé 👑✨',tone:'chaleureux'});
+      }
     }
     S.promesse=null;
   }
@@ -463,6 +478,7 @@ function passerJournee(){
   cons.push({k: dmGood>0?'good':'warn',t:'DEMANDE de demain',c:`${dmGood} acheteurs vont te DM (dont ${dmBad} flakes/lowballers, part ${Math.round(S.flake*100)}%).${spike?` +${spike} de spike grâce à ton drop (×crédibilité ${S.credibilite.toFixed(2)}).`:''}`});
 
   // clôture
+  S.accroStreak++;   // l'accro est toujours là demain (et un cran plus accro)
   S.posteAujourdhui=false; S.qualiteChoisie='standard'; S.dayTally=freshTally(); S.jour+=1; save();
   return { cons, comments: comments.filter(Boolean) };
 }
@@ -485,7 +501,16 @@ const MSG = {
             hostile:["bon t'es sérieux toi ? {QTY} ou j'me casse"] },
   lowball:["je prends {QTY} mais tu me fais un prix 👀","gros volume {QTY}, lâche -40% sinon je vais ailleurs","{QTY} cash là maintenant si tu casses le prix","aller fais un effort, {QTY} d'un coup 🤝"],
   flake:["allô ?? tjs là ?","euh je sais pas encore… {QTY} ptet","tu réponds vite au moins ? ⌛","faut que je vois avec un pote, attends…"],
+  comtesse:["du haut de gamme uniquement, j'espère 👑 {QTY}","je ne prends que le meilleur. {QTY}, au prix qu'il faut.","fais-moi honneur — {QTY} de premium 🥂"],
 };
+// L'accro : sa came le rend plus accro → sa demande escalade avec le nombre de jours
+function accroLine(){
+  const s=S.accroStreak;
+  const bank = s>=6 ? ["jpeux plus dormir sans 😵 file {QTY} vite stp","reup je t'en supplie, {QTY} 🙏😰","comme d'hab mais double, {QTY}"]
+             : s>=3 ? ["yo c'est encore moi 😅 {QTY} comme d'hab","re, {QTY} pour moi le sang","tjs là ? je reprends {QTY}"]
+             :        ["wesh je prends {QTY} 🙏","dispo ? {QTY} stp"];
+  return rnd(bank);
+}
 // protag = TYPE de protagoniste (visage récurrent), pas l'identité d'affichage de la foule
 function dmObj(id,v,kind,qty,ppu,msg,tone,protag){ return {id,nm:v.nm,av:v.av,kind,qty,ppu,msg,status:'pending',tone,protag,log:null}; }
 function buildDMs(good,bad,tone){
@@ -493,15 +518,17 @@ function buildDMs(good,bad,tone){
   const ppuG=Math.max(4,Math.round(C.PRIX_FAIR*(0.6+S.reput/120)));   // la demande paie selon la réput
   const ppuL=Math.max(3,Math.round(ppuG*C.LOWBALL_FACTOR));
   const lowN=Math.round(bad*0.6), flakeN=bad-lowN;                    // split déterministe du mauvais public
-  for(let i=0;i<good;i++){ const v=Math.random()<0.4?rnd(VOICES):genProfile();
-    const qty=C.QTY_GENUINE[i%C.QTY_GENUINE.length];
-    out.push(dmObj(id++,v,'genuine',qty,ppuG,fillConcepts(rnd(MSG.genuine[tone]||MSG.genuine.neutre).replace(/\{QTY\}/g,qty)),tone, v.id||'client')); }
-  for(let i=0;i<lowN;i++){ const v=(i===0)?voice('kevin'):genProfile();  // Kévin le lowballer ouvre le bal
-    const qty=C.QTY_LOWBALL[i%C.QTY_LOWBALL.length];
-    out.push(dmObj(id++,v,'lowball',qty,ppuL,fillConcepts(rnd(MSG.lowball).replace(/\{QTY\}/g,qty)),'mefi', 'kevin')); }  // type = le lowballer (Kévin)
-  for(let i=0;i<flakeN;i++){ const v=genProfile();
-    const qty=C.QTY_GENUINE[i%C.QTY_GENUINE.length];
-    out.push(dmObj(id++,v,'flake',qty,ppuG,fillConcepts(rnd(MSG.flake).replace(/\{QTY\}/g,qty)),'mefi', 'flake')); }
+  const push=(v,kind,qty,ppu,msg,protag)=>out.push(dmObj(id++,v,kind,qty,ppu,fillConcepts(msg.replace(/\{QTY\}/g,qty)),kind==='genuine'?tone:'mefi',protag));
+  // L'ACCRO : toujours présent, quoi qu'il arrive (loyauté AVEUGLE = la blague noire), même réput à terre
+  push(FACE('accro'),'genuine',C.QTY_GENUINE[0],ppuG,accroLine(),'accro');
+  // LA COMTESSE : présente seulement si GAGNÉE (fan) ; loyauté CONDITIONNÉE à la qualité ; paie le prix fort
+  if(S.comtesseState==='fan') push(FACE('comtesse'),'genuine',2,Math.round(ppuG*1.6),rnd(MSG.comtesse),'comtesse');
+  // le reste de la demande : foule anonyme + voix neutres (Kévin/Comtesse/Accro exclus, gérés ci-dessus)
+  for(let i=0;i<good;i++){ const v=Math.random()<0.4?rnd(CROWD_VOICES):genProfile();
+    push(v,'genuine',C.QTY_GENUINE[i%C.QTY_GENUINE.length],ppuG,rnd(MSG.genuine[tone]||MSG.genuine.neutre), v.id||'client'); }
+  for(let i=0;i<lowN;i++){ const v=(i===0)?FACE('kevin'):genProfile();  // Kévin le lowballer ouvre le bal
+    push(v,'lowball',C.QTY_LOWBALL[i%C.QTY_LOWBALL.length],ppuL,rnd(MSG.lowball),'kevin'); }
+  for(let i=0;i<flakeN;i++){ push(genProfile(),'flake',C.QTY_GENUINE[i%C.QTY_GENUINE.length],ppuG,rnd(MSG.flake),'flake'); }
   return out;
 }
 // applique une décision de négociation — DÉTERMINISTE, tracé. Renvoie la réplique diégétique.
