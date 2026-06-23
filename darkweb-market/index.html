@@ -1,0 +1,1403 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Onion Market — appro darkweb</title>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<style>
+  /* =========================================================================
+     Onion Market — prototype « fournisseur » (façon Silk Road / TOR).
+     Périmètre : marché + RELATION fournisseur (messagerie, négociation,
+     favoris, fidélité). Pas d'Ubeur / transit ici (lot ultérieur).
+
+     INVARIANT (repris de CrimWorld) : DÉTERMINISTE. Aucun Math.random ne pilote
+     une conséquence. Tout — qualité réelle, remise, réponse du fournisseur —
+     est fonction d'une DÉCISION traçable (tier choisi, historique, volume).
+       · qualité RÉELLE  = annoncée × fiabilité(rating)
+       · remise totale   = fidélité(historique) + négo(tier) + volume, plafond(tier)
+       · échantillon      = accordé si rating ≥ 3, sinon refusé (en personnage)
+     Persistance localStorage préfixe `dw_`.
+     ========================================================================= */
+  :root{
+    --bg:#0B0E0B; --surface:#11160F; --surface2:#161C13; --border:#243121;
+    --text:#D7E4CF; --muted:#7E8C77; --faint:#566150;
+    --onion:#7FBF4D; --onion-d:#4f7d2e; --neon:#46c2a0; --rust:#C8442F;
+    --gold:#E8B84B; --star:#E8B84B;
+    --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
+    --sans:-apple-system,"Segoe UI","Roboto","Helvetica Neue",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none;user-select:none}
+  [hidden]{display:none!important}
+  html,body{height:100%}
+  body{background:radial-gradient(1100px 650px at 70% -10%,#13180f 0,var(--bg) 60%);
+       font-family:var(--sans);color:var(--text);min-height:100vh;
+       display:flex;align-items:center;justify-content:center;padding:16px 10px}
+
+  /* ---- coque téléphone ---- */
+  .phone{position:relative;width:min(390px,96vw);height:min(820px,94vh);border-radius:38px;
+       background:var(--bg);border:1px solid var(--border);overflow:hidden;
+       box-shadow:0 30px 80px -20px #000,0 0 0 8px #070907;display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);
+       width:130px;height:26px;background:#070907;border-radius:0 0 16px 16px;z-index:60}
+  .statusbar{height:38px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
+       padding:0 22px 6px;font:600 12px var(--sans);color:var(--muted)}
+  .statusbar #clock{font:700 12px var(--mono);color:var(--text)}
+  .statusbar .tor{color:var(--onion);display:flex;align-items:center;gap:4px}
+
+  /* ---- en-tête de l'app ---- */
+  .appbar{flex:none;padding:8px 14px 10px;border-bottom:1px solid var(--border);background:#0d110c}
+  .brand{display:flex;align-items:center;gap:9px}
+  .brand .logo{width:34px;height:34px;border-radius:10px;flex:none;display:flex;align-items:center;
+       justify-content:center;font-size:20px;background:rgba(127,191,77,.12);
+       border:1px solid rgba(127,191,77,.35)}
+  .brand .nm{font:800 16px var(--sans);letter-spacing:.2px}
+  .brand .nm b{color:var(--onion)}
+  .brand .url{font:600 10px var(--mono);color:var(--faint);margin-top:1px}
+  .brand .lock{margin-left:auto;font:700 10px var(--mono);color:var(--onion);
+       border:1px solid var(--onion-d);border-radius:6px;padding:3px 7px}
+
+  /* ---- bandeau wallet ---- */
+  .wallet{flex:none;display:flex;gap:7px;padding:9px 12px;border-bottom:1px solid var(--border);background:#0e120d}
+  .wallet .seg{flex:1;min-width:0;border-radius:10px;background:var(--surface);border:1px solid var(--border);
+       padding:6px 9px;display:flex;flex-direction:column;gap:1px}
+  .wallet .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wallet b{font:800 15px var(--mono);line-height:1.1}
+  .wallet .cash b{color:var(--onion)}
+  .wallet .stock b{color:var(--text)}
+  .wallet .qual b{color:var(--gold)}
+  .wallet .debt b{color:var(--rust)}
+
+  /* ---- filtres famille + tri ---- */
+  .filters{flex:none;display:flex;gap:6px;padding:9px 12px 3px;overflow-x:auto}
+  .filters::-webkit-scrollbar{display:none}
+  .chip{flex:none;font:700 11px var(--sans);color:var(--muted);background:var(--surface);
+       border:1px solid var(--border);border-radius:999px;padding:5px 11px;cursor:pointer;white-space:nowrap}
+  .chip.on{color:var(--bg);background:var(--onion);border-color:var(--onion)}
+  .chip.fav.on{background:var(--gold);border-color:var(--gold)}
+  .sortrow{flex:none;display:flex;align-items:center;gap:7px;padding:4px 12px 6px}
+  .sortrow .lbl{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase}
+  .seg{display:flex;gap:0;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface)}
+  .seg button{font:700 10px var(--sans);color:var(--muted);background:none;border:none;padding:5px 10px;cursor:pointer}
+  .seg button.on{background:var(--surface2);color:var(--text)}
+
+  /* ---- bascule Acheter / Vendre ---- */
+  .modebar{flex:none;display:flex;gap:7px;padding:9px 12px 2px}
+  .modebar button{flex:1;font:800 12px var(--sans);color:var(--muted);background:var(--surface);
+       border:1px solid var(--border);border-radius:11px;padding:9px;cursor:pointer;display:flex;
+       align-items:center;justify-content:center;gap:6px}
+  .modebar button.on{color:var(--bg);background:var(--onion);border-color:var(--onion)}
+
+  /* ---- vue Vendeur ---- */
+  .sellview{flex:1;overflow-y:auto;padding:6px 12px 16px;display:flex;flex-direction:column;gap:11px}
+  .scard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px}
+  .scard h3{font:700 10px var(--sans);text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:9px}
+  .scard h3 .hint{float:right;text-transform:none;letter-spacing:0;color:var(--muted);font-weight:600}
+  .annrow .qty.lie{border-color:rgba(232,184,75,.5)} .annrow .qty.lie.on{background:rgba(232,184,75,.12)}
+  .annrow .qty .e.warn{color:var(--gold)} .annrow .qty .e.good{color:var(--onion)}
+  .estim{display:flex;justify-content:space-between;align-items:baseline;font:600 12px var(--sans);color:var(--muted);margin:2px 0 4px}
+  .estim b{font:800 14px var(--mono);color:var(--text)}
+  .lrow{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);
+       border-radius:11px;padding:9px 11px}
+  .lrow .li{flex:1;min-width:0}
+  .lrow .lt{font:800 13px var(--mono)}
+  .lrow .ls{font:600 10px var(--mono);color:var(--faint);margin-top:2px}
+  .lrow .bar{height:5px;border-radius:3px;background:var(--border);margin-top:6px;overflow:hidden}
+  .lrow .bar i{display:block;height:100%;background:var(--onion)}
+  .lrow .amt{font:800 13px var(--mono);color:var(--onion);flex:none}
+  .bdg.lie{background:rgba(232,184,75,.14);color:var(--gold);border:1px solid rgba(232,184,75,.4)}
+  .bdg.honest{background:rgba(127,191,77,.12);color:var(--onion);border:1px solid var(--onion-d)}
+  .report .rrow{font:500 11px/1.45 var(--mono);color:var(--muted);padding:6px 0;border-top:1px dashed var(--border)}
+  .report .rrow:first-child{border-top:none}
+  .report .rrow .ok{color:var(--onion)} .report .rrow .lo{color:var(--rust)} .report .rrow .gd{color:var(--gold)}
+  .report .falaise{margin-top:8px;font:700 11px/1.4 var(--mono);color:var(--rust);
+       background:rgba(200,68,47,.1);border:1px solid var(--rust);border-radius:9px;padding:8px 10px}
+  .sellempty{font:600 12px/1.5 var(--sans);color:var(--faint);text-align:center;padding:18px 8px}
+
+  /* ---- liste des listings ---- */
+  .feed{flex:1;overflow-y:auto;padding:4px 12px 14px;display:flex;flex-direction:column;gap:9px}
+  .listing{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:11px 12px;
+       cursor:pointer;transition:border-color .15s,transform .05s;position:relative}
+  .listing:active{transform:scale(.992)}
+  .lhead{display:flex;align-items:center;gap:9px}
+  .av{width:38px;height:38px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;
+       font-size:20px;background:var(--surface2);border:1px solid var(--border)}
+  /* vignette produit 3D (image baked) */
+  .thumb{width:54px;height:54px;flex:none;border-radius:11px;overflow:hidden;position:relative;
+       background:radial-gradient(120% 120% at 50% 20%,#1a2113 0,#0a0d08 100%);border:1px solid var(--border)}
+  .thumb img{width:100%;height:100%;object-fit:contain;display:block}
+  .thumb .pe{position:absolute;bottom:2px;right:3px;font-size:11px;filter:drop-shadow(0 1px 1px #000)}
+  /* viewer 3D interactif (fiche commande) */
+  .viewer{position:relative;flex:none;width:100%;height:190px;margin:2px 0 12px;border-radius:14px;overflow:hidden;
+       background:radial-gradient(130% 100% at 50% 10%,#1a2113 0,#0a0d08 70%);border:1px solid var(--border);
+       display:flex;align-items:center;justify-content:center}
+  .viewer canvas{display:block;touch-action:none}
+  .viewer .vhint{position:absolute;bottom:7px;left:0;right:0;text-align:center;font:600 9px var(--mono);
+       color:var(--faint);letter-spacing:.04em;pointer-events:none}
+  .viewer .vtag{position:absolute;top:7px;left:8px;font:700 9px var(--mono);padding:3px 7px;border-radius:6px;
+       letter-spacing:.03em}
+  .viewer .vtag.annonce{color:#0a0908;background:var(--gold)}
+  .viewer .vtag.reel{color:var(--bg);background:var(--neon)}
+  .who{min-width:0;flex:1}
+  .handle{font:800 14px var(--sans);display:flex;align-items:center;gap:6px}
+  .verif{color:var(--onion);font-size:12px}
+  .sub{font:600 10px var(--mono);color:var(--faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .favstar{flex:none;font-size:18px;color:var(--faint);cursor:pointer;padding:2px 2px 2px 6px;line-height:1}
+  .favstar.on{color:var(--gold)}
+  .tier{flex:none;font:800 9px var(--mono);letter-spacing:.04em;text-transform:uppercase;
+       border-radius:6px;padding:3px 7px}
+  .tier.cheap{color:#c9a06a;background:rgba(201,160,106,.12);border:1px solid rgba(201,160,106,.35)}
+  .tier.mid{color:#7bbfe0;background:rgba(123,191,224,.12);border:1px solid rgba(123,191,224,.35)}
+  .tier.premium{color:var(--gold);background:rgba(232,184,75,.12);border:1px solid rgba(232,184,75,.4)}
+  .badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+  .bdg{font:700 9px var(--mono);letter-spacing:.02em;border-radius:5px;padding:2px 6px;
+       border:1px solid var(--border);color:var(--muted);background:var(--surface2)}
+  .bdg.loy{color:var(--onion);border-color:var(--onion-d)}
+  .bdg.fam{color:var(--neon);border-color:#2c4a44}
+  .bdg.samp{color:var(--gold);border-color:rgba(232,184,75,.4)}
+  .lbody{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-top:9px}
+  .prod{font:600 12px var(--sans);color:var(--text)}
+  .prod .pq{color:var(--muted);font:600 11px var(--mono)}
+  .stars{font:700 11px var(--mono);color:var(--star);margin-top:3px;letter-spacing:.5px}
+  .stars .cnt{color:var(--faint)}
+  .price{text-align:right;flex:none}
+  .price b{font:800 16px var(--mono);color:var(--onion)}
+  .price .u{font:600 10px var(--mono);color:var(--faint)}
+  .price .was{font:600 10px var(--mono);color:var(--faint);text-decoration:line-through;display:block}
+  .actrow{display:flex;gap:7px;margin-top:10px}
+  .mini{flex:1;font:700 11px var(--sans);text-align:center;border-radius:9px;padding:8px;cursor:pointer;
+       border:1px solid var(--border);background:var(--surface2);color:var(--text)}
+  .mini.msg{color:var(--neon);border-color:#2c4a44}
+  .mini.order{color:var(--bg);background:var(--onion);border-color:var(--onion)}
+  .mini .un{display:block;font:600 9px var(--mono);opacity:.7;margin-top:1px}
+
+  /* ---- bottom-sheet générique ---- */
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;
+       transition:opacity .2s;z-index:40}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:50;background:var(--surface);
+       border-top:1px solid var(--border);border-radius:22px 22px 0 0;padding:8px 16px 18px;
+       transform:translateY(102%);transition:transform .26s cubic-bezier(.2,.8,.2,1);
+       max-height:88%;overflow-y:auto;display:flex;flex-direction:column}
+  .sheet.show{transform:translateY(0)}
+  .grab{width:42px;height:4px;border-radius:99px;background:var(--border);margin:4px auto 12px;flex:none}
+  .shead{display:flex;align-items:center;gap:11px;margin-bottom:10px;flex:none}
+  .shead .av{width:46px;height:46px;font-size:24px}
+  .shead .handle{font-size:16px}
+
+  /* ---- fiche / commande ---- */
+  .specs{display:flex;gap:7px;margin:4px 0 12px}
+  .spec{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 9px;text-align:center}
+  .spec .k{font:600 8px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase}
+  .spec .v{font:800 14px var(--mono);margin-top:2px}
+  .spec.q .v{color:var(--gold)}
+  .desc{font:400 12px/1.5 var(--sans);color:var(--muted);background:var(--surface2);border:1px solid var(--border);
+       border-radius:10px;padding:10px 11px;margin-bottom:12px}
+  .desc .warn{color:var(--gold)} .desc .good{color:var(--onion)}
+  .qtitle{font:700 11px var(--sans);color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px}
+  .qtys{display:flex;gap:7px;margin-bottom:13px}
+  .qtys{flex-wrap:wrap}
+  .qty{flex:1 1 28%;background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:9px 4px;
+       text-align:center;cursor:pointer;transition:border-color .12s}
+  .qty.on{border-color:var(--onion);background:rgba(127,191,77,.1)}
+  .qty.locked{opacity:.55;border-style:dashed}
+  .qty .g{font:800 14px var(--mono)}
+  .qty .e{font:600 10px var(--mono);color:var(--faint);margin-top:2px}
+  /* forme (weed) + crédit */
+  .forms{display:flex;gap:7px;margin-bottom:13px}
+  .formopt{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:9px 10px;cursor:pointer}
+  .formopt.on{border-color:var(--onion);background:rgba(127,191,77,.1)}
+  .formopt b{display:block;font:800 12px var(--sans)}
+  .formopt span{font:600 10px var(--mono);color:var(--faint)}
+  .credit{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 11px;cursor:pointer;
+       background:var(--surface2);border:1px solid var(--border);border-radius:11px;font:700 12px var(--sans);color:var(--text)}
+  .credit input{width:16px;height:16px;accent-color:var(--gold)}
+  .credit span{font:600 10px var(--mono);color:var(--faint)}
+  .credithint{margin-top:10px;font:600 10px var(--mono);color:var(--faint);text-align:center}
+  .recap{display:flex;justify-content:space-between;align-items:baseline;font:600 12px var(--sans);
+       color:var(--muted);margin-bottom:4px}
+  .recap b{font:800 15px var(--mono);color:var(--text)}
+  .recap .disc{color:var(--onion)}
+  .recap.tot b{color:var(--onion);font-size:19px}
+  .buy{margin-top:12px;width:100%;border:none;border-radius:14px;padding:14px;cursor:pointer;
+       font:800 15px var(--sans);color:var(--bg);background:var(--onion);transition:transform .05s,opacity .15s}
+  .buy:active{transform:scale(.99)}
+  .buy:disabled{opacity:.4;cursor:not-allowed}
+  .buy .sm{display:block;font:600 10px var(--mono);opacity:.8;margin-top:2px}
+  .ghostbtn{margin-top:9px;width:100%;border:1px solid var(--border);border-radius:13px;padding:11px;cursor:pointer;
+       font:700 12px var(--sans);color:var(--neon);background:none}
+
+  /* ---- messagerie ---- */
+  .thread{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:2px 0 8px;min-height:160px}
+  .relline{align-self:center;font:600 9px var(--sans);color:var(--faint);letter-spacing:.06em;text-transform:uppercase;margin:2px 0}
+  .msg-b{max-width:82%;padding:9px 12px;border-radius:15px;font:400 13px/1.4 var(--sans);animation:pop .18s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  .msg-b.them{align-self:flex-start;background:var(--surface2);border:1px solid var(--border);border-bottom-left-radius:5px}
+  .msg-b.me{align-self:flex-end;background:var(--onion-d);color:#eaf6df;border-bottom-right-radius:5px}
+  .msg-b .meta{display:block;font:600 9px var(--mono);color:var(--faint);margin-top:3px}
+  .msg-b.them .num{color:var(--onion);font-weight:700}
+  .chatacts{flex:none;display:flex;flex-direction:column;gap:7px;padding-top:8px;border-top:1px solid var(--border)}
+  .chatrow{display:flex;gap:7px}
+  .cbtn{flex:1;border:1px solid var(--border);border-radius:12px;padding:10px;cursor:pointer;
+       font:700 12px var(--sans);background:var(--surface2);color:var(--text);text-align:center}
+  .cbtn:disabled{opacity:.4;cursor:default}
+  .cbtn.nego{color:var(--gold);border-color:rgba(232,184,75,.4)}
+  .cbtn.samp{color:var(--neon);border-color:#2c4a44}
+  .cbtn.order{color:var(--bg);background:var(--onion);border-color:var(--onion)}
+  .cbtn .un{display:block;font:600 9px var(--mono);opacity:.7;margin-top:1px}
+
+  /* ---- toast ---- */
+  .toast{position:absolute;left:50%;bottom:96px;transform:translateX(-50%) translateY(10px);
+       background:#070907;border:1px solid var(--onion);color:var(--onion);font:600 12px var(--sans);
+       padding:10px 15px;border-radius:12px;max-width:84%;text-align:center;opacity:0;pointer-events:none;
+       transition:opacity .25s,transform .25s;z-index:58;line-height:1.4}
+  .toast.bad{border-color:var(--rust);color:var(--rust)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* ---- barre du bas ---- */
+  .tabbar{flex:none;border-top:1px solid var(--border);background:#0d110c;padding:7px 12px 10px;
+       display:flex;align-items:center;gap:10px}
+  .tabbar .last{flex:1;min-width:0;font:600 11px var(--mono);color:var(--muted);
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tabbar .last b{color:var(--text)}
+  .reset{flex:none;font:700 11px var(--sans);color:var(--faint);background:none;border:1px solid var(--border);
+       border-radius:8px;padding:5px 9px;cursor:pointer}
+
+  /* ---- reçus ---- */
+  .receipts{display:flex;flex-direction:column;gap:8px}
+  .rcpt{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font:600 12px var(--sans)}
+  .rcpt .r1{display:flex;justify-content:space-between}
+  .rcpt .amt{font:800 13px var(--mono);color:var(--rust)}
+  .rcpt .cause{font:500 11px/1.4 var(--mono);color:var(--muted);margin-top:4px}
+  .rcpt .cause .ok{color:var(--onion)} .rcpt .cause .lo{color:var(--rust)} .rcpt .cause .di{color:var(--onion)}
+  .empty{font:600 12px var(--sans);color:var(--faint);text-align:center;padding:24px 0}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="statusbar">
+    <span id="clock">23:14</span>
+    <span class="tor">🧅 TOR · <span id="ping">relayé</span></span>
+  </div>
+
+  <div class="appbar">
+    <div class="brand">
+      <div class="logo">🧅</div>
+      <div>
+        <div class="nm">Onion<b>Market</b></div>
+        <div class="url">onionmkt7r…xq.onion · place de marché</div>
+      </div>
+      <div class="lock">🔒 PGP</div>
+    </div>
+  </div>
+
+  <div class="wallet" id="wallet"></div>
+
+  <div class="modebar" id="modebar">
+    <button data-v="buy" class="on">🛒 Acheter</button>
+    <button data-v="sell">🏷️ Vendre</button>
+  </div>
+
+  <div class="filters" id="filters"></div>
+  <div class="sortrow" id="sortrow">
+    <span class="lbl">Trier</span>
+    <div class="seg" id="sort">
+      <button data-s="rating" class="on">Note ★</button>
+      <button data-s="qual">Qualité</button>
+      <button data-s="price">Prix ↑</button>
+    </div>
+  </div>
+
+  <div class="feed" id="feed"></div>
+  <div class="sellview" id="sellview" hidden></div>
+
+  <div class="tabbar">
+    <div class="last" id="last">Aucune commande pour l'instant.</div>
+    <button class="reset" id="receipts-btn">Reçus</button>
+    <button class="reset" id="reset-btn">⟲</button>
+  </div>
+
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet" id="sheet"></div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+/* ===========================================================================
+   DONNÉES — roster FIXE (constantes nommées). Aucun tirage ne pilote l'état.
+   family : resine | extraction | weed | coke | speed | mdma | cachets | fournitures
+   tier   : cheap | mid | premium     ·     kind (fournitures) : cut|reagent|pack|press|precursor
+   =========================================================================== */
+const SAVE_VERSION = 6;
+const KEY = 'dw_state';
+const START_CASH = 1600;
+
+const FAMILIES = { resine:'Résine', extraction:'Concentrés', weed:'Weed',
+                   coke:'Coke', speed:'Speed', mdma:'MDMA', cachets:'Cachets',
+                   fournitures:'Fournitures' };
+
+const SUPPLIERS = [
+  // ---- Résine (hash pressé) ----
+  { id:'pneu',  handle:'PneuDeSecours', emoji:'🛞', family:'resine', tier:'cheap',  rating:2.1, sales:418,
+    prod:'Hash marocain', eurG:4.2, annoncee:74, qtys:[25,50,100,250],
+    desc:"Gros volumes, prix planché. Beaucoup d'avis tièdes : « pas ce qui est sur la photo ». Tu sais à quoi t'attendre." },
+  { id:'bazar', handle:'BazarDuBled', emoji:'🐫', family:'resine', tier:'cheap',  rating:3.0, sales:1102,
+    prod:'Hash pollen', eurG:5.0, annoncee:78, qtys:[25,50,100,250],
+    desc:"Le volume du marché. Correct sans plus, livre à peu près ce qu'il annonce. Vendeur historique." },
+  { id:'atlas', handle:'AtlasFinest', emoji:'⛰️', family:'resine', tier:'mid',    rating:4.2, sales:734,
+    prod:'Hash Ketama', eurG:7.5, annoncee:85, qtys:[10,25,50,100],
+    desc:"Bonne réput, peu de litiges. Un cran au-dessus en propreté. Le rapport qualité/prix de référence." },
+  { id:'camo',  handle:'CaramelBeldia', emoji:'🍯', family:'resine', tier:'mid',    rating:3.7, sales:289,
+    prod:'Beldia artisanal', eurG:6.8, annoncee:82, qtys:[10,25,50,100],
+    desc:"Petit producteur, lots irréguliers mais honnêtes. Parfois en-dessous de l'annonce." },
+  // ---- Extraction ----
+  { id:'frost', handle:'FrostbiteLab', emoji:'❄️', family:'extraction', tier:'premium', rating:4.8, sales:512,
+    prod:'Ice-o-lator 1ère coulée', eurG:14.0, annoncee:94, qtys:[10,25,50],
+    desc:"Top du marché. PGP signé, escrow, lab-tested. Cher, mais ce que tu commandes EST ce qui arrive." },
+  { id:'verde', handle:'VerdeReserva', emoji:'🫒', family:'extraction', tier:'premium', rating:4.5, sales:201,
+    prod:'Dry-sift 120µ', eurG:12.0, annoncee:90, qtys:[10,25,50],
+    desc:"Réserve haut de gamme, stock limité. Très peu d'avis négatifs. Min. de commande bas, idéal pour tester." },
+  { id:'rosin', handle:'RosinBros', emoji:'💧', family:'extraction', tier:'mid', rating:3.9, sales:158,
+    prod:'Live rosin 90µ', eurG:11.0, annoncee:88, qtys:[5,10,25],
+    desc:"Presse à chaud maison, petits lots. Sérieux mais jeune sur le marché — la note grimpe." },
+  // ---- Weed ----
+  { id:'gorilla', handle:'GorillaPlug', emoji:'🦍', family:'weed', tier:'premium', rating:4.4, sales:367,
+    prod:'Gorilla Glue (indoor)', eurG:11.0, annoncee:88, qtys:[10,25,50],
+    desc:"Indoor soigné, trim propre, photos macro réelles. Premium assumé, livre conforme." },
+  { id:'green', handle:'GreenHouseNL', emoji:'🏠', family:'weed', tier:'mid', rating:3.8, sales:640,
+    prod:'Amnesia greenhouse', eurG:8.0, annoncee:80, qtys:[10,25,50,100],
+    desc:"Serre néerlandaise, gros débit. Standard fiable, rien d'exceptionnel." },
+  { id:'paco',  handle:'OutdoorPaco', emoji:'🌳', family:'weed', tier:'cheap', rating:2.6, sales:233,
+    prod:'Outdoor OG', eurG:5.5, annoncee:70, qtys:[25,50,100,250],
+    desc:"Outdoor de plein champ, prix au plus bas. Annonce généreuse, réalité plus modeste. Avis partagés." },
+  // ---- Coke (écailles / cailloux) ----
+  { id:'fish',  handle:'FishScaleCo', emoji:'🐟', family:'coke', tier:'premium', rating:4.6, sales:288,
+    prod:'Fish-scale écaille', eurG:72, annoncee:93, qtys:[10,25,50,100],
+    desc:"Écaille nacrée, lab-tested, escrow obligatoire. Cher mais la pureté annoncée arrive. Min. de commande élevé." },
+  { id:'peru',  handle:'PeruFlake', emoji:'🏔️', family:'coke', tier:'mid', rating:3.8, sales:430,
+    prod:'Pérou caillou', eurG:60, annoncee:84, qtys:[10,25,50,100],
+    desc:"Caillou compact, coupe légère. Le rapport pureté/prix de référence. Quelques avis « un peu rebattu »." },
+  { id:'snow',  handle:'SnowmanStreet', emoji:'⛄', family:'coke', tier:'cheap', rating:2.4, sales:512,
+    prod:'Coke de rue (coupée)', eurG:46, annoncee:70, qtys:[25,50,100,250],
+    desc:"Volume, prix planché. Recoupée au lévamisole — l'annonce est optimiste. Pour qui recoupe derrière." },
+  // ---- Speed (pâte d'amphét) ----
+  { id:'baseup',handle:'BaseUpLab', emoji:'🧪', family:'speed', tier:'mid', rating:3.9, sales:240,
+    prod:'Base amphét 70%', eurG:13, annoncee:80, qtys:[25,50,100,250],
+    desc:"Base pressée propre, peu d'humidité. Sérieux, monte en réput. Idéal pour recouper proprement." },
+  { id:'turbo', handle:'TurboPaste', emoji:'⚡', family:'speed', tier:'cheap', rating:2.8, sales:690,
+    prod:'Speed pâte (street)', eurG:8, annoncee:62, qtys:[50,100,250,500],
+    desc:"Pâte humide rosée, gros volumes, prix au sol. Très coupée caféine — annonce généreuse. Le débit du marché." },
+  // ---- MDMA (cristaux) ----
+  { id:'champ', handle:'ChampagneXTC', emoji:'🥂', family:'mdma', tier:'premium', rating:4.7, sales:333,
+    prod:'Cristal champagne', eurG:38, annoncee:94, qtys:[10,25,50,100],
+    desc:"Gros cristaux champagne translucides, lab-tested. Top du marché, escrow signé. Ce que tu vois arrive." },
+  { id:'brown', handle:'BrownRocks', emoji:'🟤', family:'mdma', tier:'mid', rating:3.6, sales:410,
+    prod:'Cristal brun', eurG:30, annoncee:82, qtys:[25,50,100,250],
+    desc:"Cristal brun correct, dosage honnête sans plus. Lots irréguliers. Bon volume pour le prix." },
+  { id:'molly', handle:'MollyDiscount', emoji:'💎', family:'mdma', tier:'cheap', rating:2.7, sales:520,
+    prod:'Molly coupée', eurG:22, annoncee:70, qtys:[25,50,100,250],
+    desc:"Poudreux, coupé caféine/sucre. L'annonce flatte la pureté. Volume pas cher pour recouper en gélules." },
+  // ---- Cachets / taz (pressés, à l'unité) ----
+  { id:'tesla', handle:'TeslaPress', emoji:'🚗', family:'cachets', tier:'premium', rating:4.5, sales:401,
+    prod:'Tesla 240 mg', eurG:3.2, annoncee:90, unit:'u', qtys:[50,100,250,500],
+    desc:"Press net, dosage testé et tenu. Réput béton. Cher au cachet mais zéro mauvaise surprise sur le dosage." },
+  { id:'punish',handle:'PunisherDrop', emoji:'💀', family:'cachets', tier:'mid', rating:3.5, sales:355,
+    prod:'Punisher 180 mg', eurG:2.4, annoncee:80, unit:'u', qtys:[50,100,250,500],
+    desc:"Dosage moyen, press correct. Quelques cachets ébréchés par lot. Bon volume pour soirée." },
+  { id:'smiley',handle:'SmileyCheap', emoji:'🙂', family:'cachets', tier:'cheap', rating:2.5, sales:600,
+    prod:'Smiley dosage faible', eurG:1.7, annoncee:66, unit:'u', qtys:[100,250,500,1000],
+    desc:"Press grossier, dosage faible et inégal — l'annonce gonfle le mg. Prix au cachet imbattable, en gros." },
+  // ---- Fournitures : coupe + matériel + ressources de production (l'atelier du top boy) ----
+  // « qualité » = pureté/discrétion de la coupe, propreté du matériel, rendement de la ressource.
+  { id:'pharmacut', handle:'PharmaGradeCut', emoji:'⚗️', family:'fournitures', tier:'premium', rating:4.7, sales:382,
+    prod:'Agent de coupe pharma', eurG:9, annoncee:96, kind:'cut', qtys:[100,250,500,1000],
+    desc:"Diluant qualité pharma, inodore, passe les réactifs de rue. Cher mais ta came ne trahit pas la coupe." },
+  { id:'cleancut',  handle:'CleanCutCo', emoji:'🥛', family:'fournitures', tier:'mid', rating:3.7, sales:441,
+    prod:'Coupe fine inodore', eurG:4.5, annoncee:80, kind:'cut', qtys:[100,250,500,1000],
+    desc:"Diluant fin sans goût, se lie bien. Le compromis discrétion/prix pour gonfler sans casser la réput." },
+  { id:'bulkcut',   handle:'BulkFillers', emoji:'🧂', family:'fournitures', tier:'cheap', rating:2.6, sales:914,
+    prod:'Coupe générique (vrac)', eurG:2.2, annoncee:60, kind:'cut', qtys:[250,500,1000,2000],
+    desc:"Lactose/créatine en gros sacs, prix au sol. Grossier — un nez averti le sent. Pour gonfler vite fait." },
+  { id:'reagent',   handle:'ReagentLab', emoji:'🧪', family:'fournitures', tier:'mid', rating:4.0, sales:560,
+    prod:'Kits de test réactifs', eurG:6, annoncee:88, kind:'reagent', unit:'u', qtys:[10,25,50,100],
+    desc:"Marquis / Mecke / Mandelin. Pour vérifier ce que tu reçois — ou ce que tu vends. L'outil de prudence." },
+  { id:'vacpack',   handle:'VacPackSupply', emoji:'🧰', family:'fournitures', tier:'cheap', rating:3.1, sales:1322,
+    prod:'Sachets + scelleuse (lot)', eurG:0.6, annoncee:72, kind:'pack', unit:'u', qtys:[100,250,500,1000],
+    desc:"Baggies zip, mylar, sous-vide. Conditionnement discret en gros. Le consommable de base de l'atelier." },
+  { id:'press',     handle:'PressMasters', emoji:'🛠️', family:'fournitures', tier:'premium', rating:4.4, sales:121,
+    prod:'Presse + matrice custom', eurG:850, annoncee:92, kind:'press', unit:'u', qtys:[1,2,5],
+    desc:"Presse hydraulique et matrice de logo sur mesure. L'investissement qui te fait passer producteur." },
+  { id:'base',      handle:'SealedBase', emoji:'🛢️', family:'fournitures', tier:'premium', rating:4.6, sales:88,
+    prod:'Base de synthèse (lot scellé)', eurG:42, annoncee:94, kind:'precursor', qtys:[100,250,500],
+    desc:"Intrant de production scellé et lab-testé, pour qui fabrique au lieu d'acheter. Réservé aux relations établies." },
+];
+const byId = id => SUPPLIERS.find(s => s.id === id);
+
+/* ----- fonctions DÉTERMINISTES (cœur du design) ----- */
+const reliab   = r => Math.min(1, 0.5 + 0.1 * r);                 // fiabilité 0..1 depuis le rating
+const realQual = s => Math.round(s.annoncee * reliab(s.rating));  // qualité réelle livrée
+const capPct   = { cheap:32, mid:24, premium:14 };                // plafond de remise par tier
+const negoBonus= { cheap:8,  mid:5,  premium:2 };                 // remise débloquée par la négociation
+// remise « gros volume » — c'est là que se font les meilleures affaires, surtout
+// en cheap/moyen (bas/moyen de gamme). Le premium ne brade presque pas.
+const BULK = {
+  cheap:   [[1000,16],[500,11],[250,7],[100,3]],
+  mid:     [[1000,12],[500,9],[250,6],[100,3]],
+  premium: [[2000,7],[1000,5],[500,2]],
+};
+function bulkPct(s,g){ for(const [t,p] of BULK[s.tier]) if(g>=t) return p; return 0; }
+// palier de fidélité depuis le nombre de commandes passées chez ce fournisseur
+function loyalty(count){
+  if(count >= 10) return { lvl:'régulier', pct:8 };
+  if(count >= 5)  return { lvl:'habitué',  pct:5 };
+  if(count >= 2)  return { lvl:'connu',    pct:2 };
+  return { lvl:'nouveau', pct:0 };
+}
+// rang de réputation (gate les grosses quantités)
+function repRank(s){ const c = rel(s.id).count; return c>=10?3 : c>=5?2 : c>=2?1 : 0; }
+// échelle de quantités par tier/famille. Le haut de gamme ne se vend qu'en
+// gros (250 g→2 kg) ; la weed part de 250 g ; les très grosses quantités
+// exigent de la réputation.
+function qtyBase(s){
+  if(s.family === 'fournitures') return s.qtys;                   // paliers hétérogènes par item (coupe/matériel/ressource)
+  if(s.family === 'cachets') return [50,100,250,500,1000];        // à l'unité
+  if(s.family === 'coke')    return [10,25,50,100,250];           // cher, petits paliers
+  if(s.family === 'mdma')    return [25,50,100,250,500];
+  if(s.family === 'speed')   return [50,100,250,500,1000];
+  if(s.family === 'weed')    return [250,500,1000,2000];
+  if(s.tier === 'premium')   return [250,500,1000,2000];
+  if(s.tier === 'mid')       return [50,100,250,500,1000];
+  return [50,100,250,500,1000];                                   // cheap
+}
+const qtyReq = g => g>=2000?3 : g>=1000?2 : g>=500?1 : 0;          // rang de répu requis
+function qtyLadder(s){ return qtyBase(s).map(g => ({ g, need:qtyReq(g), locked: repRank(s) < qtyReq(g) })); }
+// crédit : débloqué une fois la relation établie (habitué), jamais sur le premium
+function creditOK(s){ return s.tier !== 'premium' && rel(s.id).count >= 5; }
+// facteur de prix selon la forme (weed branchage = brut, moins cher)
+const formFactor = (s, form) => (s.family === 'weed' && form === 'branchage') ? 0.7 : 1;
+// remise debout (hors volume) : fidélité + négo si débloquée, plafonnée par tier
+function standingPct(s){
+  const r = rel(s.id);
+  return Math.min(capPct[s.tier], loyalty(r.count).pct + (r.deal ? negoBonus[s.tier] : 0));
+}
+// remise effective pour une commande de g grammes
+function orderPct(s, g){
+  const r = rel(s.id);
+  return Math.min(capPct[s.tier], loyalty(r.count).pct + (r.deal ? negoBonus[s.tier] : 0) + bulkPct(s, g));
+}
+const effEurG = (s, g, form) => s.eurG * formFactor(s, form) * (1 - orderPct(s, g) / 100);
+
+/* ----- ÉCONOMIE VENDEUR (T2) — demande déterministe, aucune RNG sur les conséquences -----
+   Le joueur revend son stock : il choisit un PRIX et une QUALITÉ ANNONCÉE (qu'il peut gonfler
+   au-dessus du réel). La demande répond au prix, à l'annonce et à sa note de vendeur. L'écart
+   annoncé−réel se PAIE : honnête → la note monte ; gonflé → tromperie qui s'accumule en silence
+   puis casse net la confiance (FALAISE, miroir de la fraude de « La Bascule »). */
+const SELL = {
+  REF_K:   0.135,  // prix de référence du marché (€/g) = REF_K × qualité annoncée
+  DEMAND:  44,     // demande de base par cycle (unités) à conditions neutres
+  TOL:     6,      // tolérance d'écart annoncé−réel avant que ça se sente
+  SEUIL:   7,      // cumul de tromperie qui déclenche la falaise
+  FALAISE: 1.3,    // chute de note à la falaise
+  GAIN:    0.09,   // gain de note par cycle de vente honnête
+};
+const refEurG    = ann => +(SELL.REF_K * ann).toFixed(2);
+const sellerLvl  = r => r<=0?'nouveau' : r<2?'douteux' : r<3.5?'correct' : r<4.5?'établi' : 'référence';
+const priceMult  = (eurG, ann) => Math.max(0.12, Math.min(2.2, Math.pow(refEurG(ann)/eurG, 1.6)));
+const qualMult   = ann => 0.55 + ann/100*0.85;                      // annonce haute = plus d'acheteurs
+const ratingMult = r => 0.45 + Math.min(5, Math.max(0, r))/5*0.65;  // note basse = méfiance
+const cycleDemand = (eurG, ann, r) => Math.round(SELL.DEMAND * priceMult(eurG,ann) * qualMult(ann) * ratingMult(r));
+
+// unité de vente : grammes par défaut, cachets à la pièce
+const U = s => s.unit || 'g';
+const labelAmt = (g, unit) => unit === 'u' ? g + ' u' : (g >= 1000 ? (g/1000) + ' kg' : g + ' g');
+const labelQ = (s, g) => labelAmt(g, U(s));
+
+/* ===========================================================================
+   ÉTAT + persistance
+   =========================================================================== */
+const DEFAULT = () => ({ v:SAVE_VERSION, cash:START_CASH, stockG:0, qualSum:0, debt:0, receipts:[], favs:[], rel:{},
+  seller:{ rating:0, sales:0, cum:0, fallen:false, day:0 }, listings:[], lastReport:null, listSeq:0 });
+function load(){
+  try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.v === SAVE_VERSION) return s; }catch(e){}
+  return DEFAULT();
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+let S = load();
+// relation avec un fournisseur (créée à la volée)
+function rel(id){ return S.rel[id] || (S.rel[id] = { count:0, grams:0, deal:false, sampled:false }); }
+const avgQual = () => S.stockG > 0 ? Math.round(S.qualSum / S.stockG) : 0;
+
+/* ===========================================================================
+   APERÇU PRODUIT 3D (Three.js) — modèles procéduraux paramétrés par la QUALITÉ.
+   · vignette « photo du listing » = baked à la qualité ANNONCÉE (flatteuse) ;
+   · viewer interactif de la fiche = annoncée, ou RÉELLE après échantillon.
+   L'aléa ici est de PRÉSENTATION uniquement (placement des grains/cristaux) —
+   seedé donc stable, il ne pilote aucune conséquence.
+   =========================================================================== */
+const seeded = i => { const x = Math.sin(i*127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+const qOf = pct => Math.max(0, Math.min(1, (pct - 50) / 46));   // qualité % -> 0..1 visuel
+const _cl = v => Math.max(0, Math.min(255, v|0));
+
+// --- grain procédural multi-échelle (marbrures + grain fin + impuretés), repris
+//     de guitar-shito : c'est ce qui rend la résine crédible (pas une couleur plate).
+function grainTex(r,g,b,contrast,spots){
+  const S=128, c=document.createElement('canvas'); c.width=c.height=S; const x=c.getContext('2d');
+  x.fillStyle='rgb('+(r|0)+','+(g|0)+','+(b|0)+')'; x.fillRect(0,0,S,S);
+  for(let i=0;i<20;i++){                                   // marbrures (pressage irrégulier)
+    const rx=seeded(i*3)*S, ry=seeded(i*5)*S, rad=S*(0.06+seeded(i*7)*0.16), d=(seeded(i*9)-0.5)*contrast;
+    const rgb=_cl(r+d)+','+_cl(g+d)+','+_cl(b+d*0.9);
+    const grd=x.createRadialGradient(rx,ry,0,rx,ry,rad);
+    grd.addColorStop(0,'rgba('+rgb+',0.42)'); grd.addColorStop(1,'rgba('+rgb+',0)');
+    x.fillStyle=grd; x.fillRect(0,0,S,S);
+  }
+  const img=x.getImageData(0,0,S,S), d=img.data;          // grain fin
+  for(let i=0;i<d.length;i+=4){ const n=(Math.random()-0.5)*contrast; d[i]=_cl(d[i]+n); d[i+1]=_cl(d[i+1]+n); d[i+2]=_cl(d[i+2]+n); }
+  x.putImageData(img,0,0);
+  for(let k=0;k<spots;k++){                                // impuretés pressées
+    x.fillStyle='rgba(20,12,6,'+(Math.random()*0.22)+')';
+    x.beginPath(); x.arc(Math.random()*S,Math.random()*S,Math.random()*1.6+0.5,0,6.283); x.fill();
+  }
+  const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(1.5,1.5); t.anisotropy=4; return t;
+}
+// bump map partagé : micro-relief de résine pressée
+const resinBump = (()=>{
+  const S=128, c=document.createElement('canvas'); c.width=c.height=S; const x=c.getContext('2d');
+  x.fillStyle='#808080'; x.fillRect(0,0,S,S);
+  for(let i=0;i<40;i++){ const rx=Math.random()*S, ry=Math.random()*S, rad=S*(0.03+Math.random()*0.1), v=Math.random()<0.5?0:255, a=0.1+Math.random()*0.22;
+    const grd=x.createRadialGradient(rx,ry,0,rx,ry,rad); grd.addColorStop(0,'rgba('+v+','+v+','+v+','+a+')'); grd.addColorStop(1,'rgba('+v+','+v+','+v+',0)');
+    x.fillStyle=grd; x.fillRect(0,0,S,S); }
+  const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(1.5,1.5); return t;
+})();
+// rectangle arrondi + plaque extrudée biseautée (plaque de hash plate à coins ronds)
+function roundedRect(w,h,r){
+  const s=new THREE.Shape(), x=-w/2, y=-h/2;
+  s.moveTo(x+r,y); s.lineTo(x+w-r,y); s.quadraticCurveTo(x+w,y,x+w,y+r);
+  s.lineTo(x+w,y+h-r); s.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  s.lineTo(x+r,y+h); s.quadraticCurveTo(x,y+h,x,y+h-r);
+  s.lineTo(x,y+r); s.quadraticCurveTo(x,y,x+r,y); return s;
+}
+function roundedSlab(w,len,thick,r){
+  const b=r*0.6;
+  const geo=new THREE.ExtrudeGeometry(roundedRect(w,len,r),
+    { depth:Math.max(0.02,thick-2*b), bevelEnabled:true, bevelThickness:b, bevelSize:b, bevelSegments:2, steps:1 });
+  geo.center(); geo.rotateX(-Math.PI/2); geo.computeVertexNormals(); return geo;
+}
+
+function makeProduct(family, pct, form, kind){
+  const q = qOf(pct), g = new THREE.Group();
+  if(family === 'resine'){
+    // plaque de hash pressée : slab arrondi + grain multi-échelle + bump + lustre.
+    const lo = new THREE.Color(46/255,31/255,18/255), hi = new THREE.Color(150/255,112/255,56/255);
+    const base = lo.clone().lerp(hi, q);
+    const grain = grainTex(base.r*255, base.g*255, base.b*255, 34, Math.round(50 + (1-q)*200));
+    const mat = new THREE.MeshPhysicalMaterial({ map:grain, bumpMap:resinBump, bumpScale:0.5,
+      roughness:0.62-0.30*q, metalness:0.06, clearcoat:0.15+0.55*q, clearcoatRoughness:0.5-0.25*q, envMapIntensity:0.95 });
+    const slab = new THREE.Mesh(roundedSlab(1.7,1.25,0.34,0.16), mat); g.add(slab);
+    // estampe pressée au centre
+    const stampMat = new THREE.MeshPhysicalMaterial({ map:grain, bumpMap:resinBump, bumpScale:0.9,
+      color:new THREE.Color(0.6,0.55,0.5), roughness:0.5, clearcoat:0.3 });
+    const stamp = new THREE.Mesh(roundedSlab(0.6,0.6,0.06,0.1), stampMat); stamp.position.y=0.16; g.add(stamp);
+    // miettes (plus nombreuses en basse qualité)
+    const crumbs = Math.round(7*(1-q));
+    for(let i=0;i<crumbs;i++){
+      const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.05+seeded(i)*0.05,0),
+        new THREE.MeshStandardMaterial({ map:grain, roughness:0.95, flatShading:true }));
+      c.position.set((seeded(i*3)-0.5)*1.85, -0.16, (seeded(i*7)-0.5)*1.35);
+      c.rotation.set(seeded(i)*3, seeded(i*2)*3, 0); g.add(c);
+    }
+  } else if(family === 'extraction'){
+    // cristaux : MeshPhysical + transmission (translucidité vitreuse ∝ qualité)
+    const col = new THREE.Color().lerpColors(new THREE.Color('#8a6420'), new THREE.Color('#edc04f'), q);
+    const n = 8 + Math.round(q*12);
+    for(let i=0;i<n;i++){
+      const r = 0.16 + seeded(i)*0.16;
+      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r,0),
+        new THREE.MeshPhysicalMaterial({ color:col, roughness:0.18-0.12*q, metalness:0.0,
+          transmission:0.25+0.5*q, ior:1.55, thickness:0.6, attenuationColor:col.clone(), attenuationDistance:1.4,
+          envMapIntensity:1.3, flatShading:true, transparent:true }));
+      const a = seeded(i*3)*6.283, rad = seeded(i*7)*0.5;
+      m.position.set(Math.cos(a)*rad, -0.25 + seeded(i*5)*0.55, Math.sin(a)*rad);
+      m.rotation.set(seeded(i)*3, seeded(i*2)*3, seeded(i*4)*3); g.add(m);
+    }
+  } else if(family === 'coke'){
+    // écailles / cailloux : blanc nacré « fish-scale » en haute qualité, terne et jauni (recoupé) en basse
+    const white = new THREE.Color().lerpColors(new THREE.Color('#c9c2b4'), new THREE.Color('#fdfdfb'), q);
+    const n = 9 + Math.round(q*9);
+    for(let i=0;i<n;i++){
+      const r = 0.17 + seeded(i*3)*0.18;
+      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r,0),
+        new THREE.MeshPhysicalMaterial({ color:white, roughness:0.55-0.34*q, metalness:0,
+          clearcoat:0.2+0.6*q, clearcoatRoughness:0.45-0.3*q, iridescence:0.55*q, iridescenceIOR:1.3,
+          sheen:0.4*q, sheenColor:new THREE.Color('#dfe8ff'), envMapIntensity:1.1, flatShading:true }));
+      const a = seeded(i*5)*6.283, rad = seeded(i*7)*0.55;
+      m.position.set(Math.cos(a)*rad, -0.30 + seeded(i*9)*0.5, Math.sin(a)*rad);
+      m.rotation.set(seeded(i)*3, seeded(i*2)*3, seeded(i*4)*3);
+      m.scale.set(1, 0.55 + seeded(i*6)*0.5, 1); g.add(m);
+    }
+  } else if(family === 'speed'){
+    // pâte d'amphét : galette grumeleuse, rosée/sale (street) -> beige base propre (haute)
+    const paste = new THREE.Color().lerpColors(new THREE.Color('#b79a92'), new THREE.Color('#ece0cf'), q);
+    const mat = new THREE.MeshPhysicalMaterial({ color:paste, roughness:0.6-0.15*q, metalness:0,
+      bumpMap:resinBump, bumpScale:0.7, clearcoat:0.15+0.35*q, clearcoatRoughness:0.65, sheen:0.25, envMapIntensity:0.7 });
+    const patty = new THREE.Mesh(new THREE.SphereGeometry(0.82,28,18), mat);
+    patty.scale.set(1, 0.45, 1); patty.position.y = -0.22; g.add(patty);
+    const lumps = 5 + Math.round((1-q)*6);
+    for(let i=0;i<lumps;i++){
+      const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11+seeded(i)*0.12,0), mat);
+      const a = seeded(i*3)*6.283, rad = 0.18 + seeded(i*7)*0.5;
+      c.position.set(Math.cos(a)*rad, -0.06 + seeded(i*5)*0.12, Math.sin(a)*rad);
+      c.rotation.set(seeded(i)*3, seeded(i*2)*3, 0); g.add(c);
+    }
+  } else if(family === 'mdma'){
+    // gros cristaux façon rock-candy : champagne translucide (haute) -> brun coupé (basse)
+    const col = new THREE.Color().lerpColors(new THREE.Color('#7a5a30'), new THREE.Color('#e9cd8e'), q);
+    const n = 5 + Math.round(q*6);
+    for(let i=0;i<n;i++){
+      const r = 0.22 + seeded(i*3)*0.2;
+      const geo = new THREE.BoxGeometry(r, r*(0.7+seeded(i)*0.7), r*(0.6+seeded(i*2)*0.5));
+      const m = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ color:col, roughness:0.14-0.07*q, metalness:0,
+        transmission:0.35+0.5*q, ior:1.5, thickness:0.8, attenuationColor:col.clone(), attenuationDistance:1.2,
+        envMapIntensity:1.4, transparent:true, flatShading:true }));
+      const a = seeded(i*5)*6.283, rad = seeded(i*7)*0.45;
+      m.position.set(Math.cos(a)*rad, -0.26 + seeded(i*9)*0.5, Math.sin(a)*rad);
+      m.rotation.set(seeded(i)*2, seeded(i*2)*3, seeded(i*4)*2); g.add(m);
+    }
+  } else if(family === 'cachets'){
+    // cachets pressés colorés avec logo embossé : press net + couleur vive (haute), ébréché/terne (basse)
+    const hues = ['#d96a6a','#6aa0d9','#7cc77c','#d9c46a','#b07cd9','#d98f5a'];   // couleurs bonbon (présentation)
+    const n = 5 + Math.round(q*4);
+    for(let i=0;i<n;i++){
+      const col = new THREE.Color(hues[i % hues.length]).lerp(new THREE.Color('#8a8278'), (1-q)*0.5);
+      const mat = new THREE.MeshPhysicalMaterial({ color:col, roughness:0.5-0.25*q, metalness:0,
+        clearcoat:0.4*q, clearcoatRoughness:0.4, envMapIntensity:0.8 });
+      const pill = new THREE.Mesh(new THREE.CylinderGeometry(0.27,0.29,0.15,22), mat);
+      const a = seeded(i*5)*6.283, rad = i===0 ? 0 : 0.3 + seeded(i*7)*0.42;
+      pill.position.set(Math.cos(a)*rad, -0.42 + i*0.015, Math.sin(a)*rad);
+      pill.rotation.set((seeded(i*2)-0.5)*0.5, seeded(i)*3, (seeded(i*3)-0.5)*0.5); g.add(pill);
+      // logo embossé (petit prisme) — d'autant plus net que la qualité est haute
+      const logo = new THREE.Mesh(new THREE.TetrahedronGeometry(0.07*(0.5+q*0.7)),
+        new THREE.MeshStandardMaterial({ color:col.clone().multiplyScalar(0.7), roughness:0.6 }));
+      logo.position.set(pill.position.x, pill.position.y + 0.085, pill.position.z);
+      logo.rotation.y = seeded(i)*3; g.add(logo);
+      // ébréchures en basse qualité
+      if(q < 0.4 && seeded(i*11) < 0.5){
+        const chip = new THREE.Mesh(new THREE.IcosahedronGeometry(0.05,0), mat);
+        chip.position.set(pill.position.x + 0.2, pill.position.y, pill.position.z); g.add(chip);
+      }
+    }
+  } else if(family === 'fournitures'){
+    // intrants de l'atelier : modèle selon le sous-type (kind). « Qualité » = propreté/discrétion.
+    if(kind === 'precursor'){
+      // bidon scellé d'intrant de production
+      const drumMat = new THREE.MeshPhysicalMaterial({ color:new THREE.Color().lerpColors(new THREE.Color('#3a5a8a'), new THREE.Color('#5b86c4'), q),
+        roughness:0.4-0.1*q, metalness:0.1, clearcoat:0.5, envMapIntensity:1.0 });
+      g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.62,0.62,1.25,30), drumMat));
+      for(const yy of [-0.4,0.4]){ const ring=new THREE.Mesh(new THREE.TorusGeometry(0.62,0.05,8,30), drumMat); ring.rotation.x=Math.PI/2; ring.position.y=yy; g.add(ring); }
+      const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.18,16), new THREE.MeshStandardMaterial({ color:0x222a33, roughness:0.6 }));
+      cap.position.set(0.26,0.68,0); g.add(cap);
+    } else if(kind === 'press'){
+      // presse de producteur (matériel métallique) + matrice dorée
+      const metal = new THREE.MeshStandardMaterial({ color:0x8a9299, roughness:0.35-0.15*q, metalness:0.85, envMapIntensity:1.2 });
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(0.95,1.2,0.72), metal));
+      const piston=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.7,16), metal); piston.position.y=0.52; g.add(piston);
+      const die=new THREE.Mesh(new THREE.CylinderGeometry(0.33,0.33,0.18,22),
+        new THREE.MeshStandardMaterial({ color:0xb8893f, roughness:0.35, metalness:0.9, envMapIntensity:1.2 })); die.position.y=-0.46; g.add(die);
+      const base=new THREE.Mesh(new THREE.BoxGeometry(1.15,0.18,0.9), metal); base.position.y=-0.64; g.add(base);
+    } else if(kind === 'pack'){
+      // pile de sachets translucides
+      for(let i=0;i<5;i++){
+        const sq=new THREE.Mesh(new THREE.BoxGeometry(0.95,0.04,0.95),
+          new THREE.MeshPhysicalMaterial({ color:0xdfe7ea, roughness:0.2, metalness:0, transmission:0.5, thickness:0.2, transparent:true, clearcoat:0.6, envMapIntensity:1.0 }));
+        sq.position.set((seeded(i*3)-0.5)*0.2, -0.4+i*0.13, (seeded(i*5)-0.5)*0.2); sq.rotation.y=seeded(i)*0.6; g.add(sq);
+      }
+    } else if(kind === 'reagent'){
+      // flacons de réactifs de test
+      const cols=['#8a3030','#2f5a7a','#6a2f7a'];
+      for(let i=0;i<3;i++){ const x=(i-1)*0.44;
+        const glass=new THREE.MeshPhysicalMaterial({ color:new THREE.Color(cols[i]), roughness:0.1, metalness:0,
+          transmission:0.7, ior:1.5, thickness:0.4, attenuationColor:new THREE.Color(cols[i]), attenuationDistance:0.6, transparent:true, envMapIntensity:1.2 });
+        const bottle=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.17,0.72,18), glass); bottle.position.set(x,-0.08,0); g.add(bottle);
+        const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.18,12), new THREE.MeshStandardMaterial({ color:0x14181d, roughness:0.7 })); cap.position.set(x,0.36,0); g.add(cap);
+        const tip=new THREE.Mesh(new THREE.ConeGeometry(0.09,0.16,12), new THREE.MeshStandardMaterial({ color:0x202830, roughness:0.6 })); tip.position.set(x,0.52,0); g.add(tip);
+      }
+    } else { // 'cut' (agents de coupe) — sachet de poudre sous vide
+      const powder=new THREE.Mesh(new THREE.BoxGeometry(1.42,0.44,0.96),
+        new THREE.MeshStandardMaterial({ color:new THREE.Color().lerpColors(new THREE.Color('#cdc8bd'), new THREE.Color('#fbfbf8'), q), roughness:0.95 }));
+      g.add(powder);
+      const bag=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.52,1.04),
+        new THREE.MeshPhysicalMaterial({ color:0xe9eef0, roughness:0.22, metalness:0, transmission:0.28, thickness:0.4, transparent:true, clearcoat:0.6, envMapIntensity:1.0 }));
+      g.add(bag);
+      const seal=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.09,0.16), new THREE.MeshStandardMaterial({ color:0xbfc6c9, roughness:0.5, metalness:0.2 }));
+      seal.position.z=0.5; g.add(seal);
+    }
+  } else { // weed
+    const branch = (form === 'branchage');     // brut (tiges + feuilles) vs paquet manucuré
+    const green = new THREE.Color().lerpColors(new THREE.Color('#56602c'), new THREE.Color('#5f9230'), q);
+    const calyx = new THREE.MeshPhysicalMaterial({ color:green, roughness:0.68, metalness:0,
+      sheen:0.5+0.4*q, sheenRoughness:0.5, sheenColor:new THREE.Color('#d2e8a0'),
+      clearcoat:0.15*q, envMapIntensity:0.6 });
+    const n = 16 + Math.round(q*12);
+    for(let i=0;i<n;i++){
+      const r = 0.17 + seeded(i)*0.09, t = i/n, ang = i*2.39, rad = (branch?0.46:0.37)*(1-0.45*t);
+      const m = new THREE.Mesh(new THREE.SphereGeometry(r,10,8), calyx);
+      m.position.set(Math.cos(ang)*rad, t*1.3-0.65, Math.sin(ang)*rad); g.add(m);
+    }
+    if(branch){
+      // forme brute : tige centrale + ramures + feuilles palmées -> mène à l'effeuillage
+      const stemMat = new THREE.MeshStandardMaterial({ color:'#6e5a30', roughness:0.9 });
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.06,1.7,6), stemMat); g.add(stem);
+      const leafMat = new THREE.MeshStandardMaterial({ color:green.clone().multiplyScalar(0.85), roughness:0.85, side:THREE.DoubleSide });
+      for(let i=0;i<6;i++){
+        const l = new THREE.Mesh(new THREE.CircleGeometry(0.36,5), leafMat);
+        const a = i/6*6.283;
+        l.position.set(Math.cos(a)*0.4, -0.35+i*0.2, Math.sin(a)*0.4);
+        l.rotation.set(-1.0, a, (seeded(i)-0.5)*0.8); g.add(l);
+      }
+    }
+    const np = (branch?3:5) + Math.round(q*(branch?8:16));             // pistils orange
+    const pm = new THREE.MeshStandardMaterial({ color:'#d2702a', roughness:0.5 });
+    for(let i=0;i<np;i++){
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.022,0.24,4), pm);
+      const ang = seeded(i*9)*6.283, t = seeded(i*4), rad = 0.3*(1-0.4*t);
+      c.position.set(Math.cos(ang)*rad, t*1.2-0.45, Math.sin(ang)*rad);
+      c.rotation.set((seeded(i*2)-0.5)*1.6, 0, (seeded(i)-0.5)*1.6); g.add(c);
+    }
+    const npt = Math.round((branch?20:50) + q*(branch?120:260));        // givre (moins sur le brut)
+    const pts = new Float32Array(npt*3);
+    for(let i=0;i<npt;i++){
+      const t=i/npt, ang=i*2.39, rad=(branch?0.46:0.4)*(1-0.45*t)*(0.82+0.2*seeded(i));
+      pts[i*3]=Math.cos(ang)*rad; pts[i*3+1]=t*1.3-0.65+(seeded(i*3)-0.5)*0.1; pts[i*3+2]=Math.sin(ang)*rad;
+    }
+    const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pts,3));
+    g.add(new THREE.Points(pg, new THREE.PointsMaterial({ color:'#eef2dd', size:0.05, transparent:true, opacity:0.5+0.35*q })));
+  }
+  return g;
+}
+
+// env-map studio générée en core three (pas d'addon) : PMREM d'une scène de
+// 3 « softbox » émissives -> IBL pour les MeshPhysicalMaterial (reflets/transmission).
+function buildEnv(renderer){
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const s = new THREE.Scene(); s.background = new THREE.Color(0x0c0f0a);
+  const box = (hex, mul, pos, scl) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1,1),
+      new THREE.MeshBasicMaterial({ color:new THREE.Color(hex).multiplyScalar(mul), side:THREE.DoubleSide }));
+    m.position.set(...pos); m.scale.set(...scl); m.lookAt(0,0,0); s.add(m);
+  };
+  box(0xfff1d8, 3.2, [ 4, 6, 4], [9,9,1]);   // key chaude
+  box(0x9fc4ff, 1.4, [-5, 2,-3], [7,7,1]);   // rim froide
+  box(0xffffff, 0.5, [ 0,-4, 2], [7,7,1]);   // fill bas
+  const tex = pmrem.fromScene(s, 0.04).texture;
+  pmrem.dispose();
+  return tex;
+}
+
+// ombre de contact (radial gradient) pour poser le produit
+let _shadowTex = null;
+function shadowTexture(){
+  if(_shadowTex) return _shadowTex;
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d'); const grd = x.createRadialGradient(64,64,4,64,64,62);
+  grd.addColorStop(0,'rgba(0,0,0,0.55)'); grd.addColorStop(1,'rgba(0,0,0,0)');
+  x.fillStyle = grd; x.fillRect(0,0,128,128);
+  _shadowTex = new THREE.CanvasTexture(c); return _shadowTex;
+}
+
+function makeStage(){
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(34,1,0.1,100);
+  camera.position.set(2.0,1.3,2.4); camera.lookAt(0,-0.1,0);
+  scene.add(new THREE.AmbientLight(0xffffff,0.25));
+  const key = new THREE.DirectionalLight(0xfff0d8,1.6); key.position.set(3,5,4); scene.add(key);
+  const rim = new THREE.DirectionalLight(0x8fbaff,0.5); rim.position.set(-3,2,-3); scene.add(rim);
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.4,2.4),
+    new THREE.MeshBasicMaterial({ map:shadowTexture(), transparent:true, depthWrite:false }));
+  shadow.rotation.x = -Math.PI/2; shadow.position.y = -0.66; scene.add(shadow);
+  return { scene, camera };
+}
+function tuneRenderer(r){ r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1; }
+
+// ---- vignettes baked (cache par famille+qualité) ----
+const thumbCache = {};
+let thumbR = null, thumbStage = null;
+function bakeThumb(family, pct, kind){
+  const key = family + '_' + pct + '_' + (kind || '');
+  if(thumbCache[key]) return thumbCache[key];
+  try{
+    if(!thumbR){
+      thumbR = new THREE.WebGLRenderer({ antialias:true, alpha:true, preserveDrawingBuffer:true });
+      thumbR.setPixelRatio(2); thumbR.setSize(120,120); tuneRenderer(thumbR);
+      thumbStage = makeStage(); thumbStage.scene.environment = buildEnv(thumbR);
+    }
+    const old = thumbStage.scene.getObjectByName('product'); if(old) thumbStage.scene.remove(old);
+    const p = makeProduct(family, pct, undefined, kind); p.name = 'product'; p.rotation.y = 0.7; thumbStage.scene.add(p);
+    thumbR.render(thumbStage.scene, thumbStage.camera);
+    const url = thumbR.domElement.toDataURL('image/png');
+    thumbCache[key] = url; return url;
+  }catch(e){ return null; }   // si WebGL indispo, on retombe sur l'emoji
+}
+
+// ---- viewer interactif (un seul à la fois) ----
+let live = null;
+function disposeViewer(){
+  if(!live) return;
+  cancelAnimationFrame(live.raf);
+  window.removeEventListener('pointermove', live.move);
+  window.removeEventListener('pointerup', live.up);
+  live.renderer.dispose();
+  if(live.dom && live.dom.parentNode) live.dom.parentNode.removeChild(live.dom);
+  live = null;
+}
+function mountViewer(el, family, pct, form, kind){
+  disposeViewer();
+  let renderer;
+  try{ renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true }); }
+  catch(e){ el.innerHTML = '<div class="vhint">aperçu 3D indisponible</div>'; return; }
+  const w = el.clientWidth || 340, h = el.clientHeight || 190;
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.setSize(w, h); tuneRenderer(renderer); el.appendChild(renderer.domElement);
+  const stage = makeStage(); stage.scene.environment = buildEnv(renderer);
+  stage.camera.aspect = w/h; stage.camera.updateProjectionMatrix();
+  const group = makeProduct(family, pct, form, kind); stage.scene.add(group);
+  let rot = 0.5, vel = 0.006, dragging = false, lastX = 0;
+  const dom = renderer.domElement; dom.style.cursor = 'grab';
+  const down = e => { dragging = true; lastX = (e.touches?e.touches[0].clientX:e.clientX); vel = 0; dom.style.cursor='grabbing'; };
+  const move = e => { if(!dragging) return; const x = (e.touches?e.touches[0].clientX:e.clientX); rot += (x-lastX)*0.011; lastX = x; };
+  const up = () => { dragging = false; dom.style.cursor='grab'; };
+  dom.addEventListener('pointerdown', down);
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  live = { renderer, raf:0, dom, move, up };
+  (function loop(){ rot += vel; group.rotation.y = rot; renderer.render(stage.scene, stage.camera);
+    live.raf = requestAnimationFrame(loop); })();
+}
+
+/* ===========================================================================
+   RENDU liste
+   =========================================================================== */
+const $ = id => document.getElementById(id);
+const fmt = n => '€' + Math.round(n).toLocaleString('fr-FR');
+const fmt1 = n => '€' + (Math.round(n*10)/10).toLocaleString('fr-FR');
+const stars = r => { const f=Math.floor(r), h=r-f>=0.5; return '★'.repeat(f)+(h?'⯨':'')+'☆'.repeat(5-f-(h?1:0)); };
+
+let filter = 'all', sortBy = 'rating';
+
+function renderFilters(){
+  const chips = [`<div class="chip${filter==='all'?' on':''}" data-f="all">Tout</div>`]
+    .concat(Object.keys(FAMILIES).map(k =>
+      `<div class="chip${filter===k?' on':''}" data-f="${k}">${FAMILIES[k]}</div>`))
+    .concat([`<div class="chip fav${filter==='fav'?' on':''}" data-f="fav">★ Favoris</div>`]);
+  $('filters').innerHTML = chips.join('');
+}
+
+function renderWallet(){
+  const segs = [
+    `<div class="seg cash"><div class="k">Cash</div><b>${fmt(S.cash)}</b></div>`,
+    `<div class="seg stock"><div class="k">Stock brut</div><b>${S.stockG} g</b></div>`,
+    `<div class="seg qual"><div class="k">Qualité moy.</div><b>${S.stockG>0?avgQual()+'%':'—'}</b></div>`,
+    S.debt>0 ? `<div class="seg debt"><div class="k">Dette</div><b>${fmt(S.debt)}</b></div>` : '',
+  ].filter(Boolean).join('');
+  $('wallet').innerHTML = segs;
+  const last = S.receipts[0];
+  $('last').innerHTML = last
+    ? `Dernier : <b>${labelAmt(last.g, last.unit)}</b> de ${last.handle} · qualité ${last.real}%`
+    : "Aucune commande pour l'instant.";
+}
+
+function visibleSuppliers(){
+  let list = SUPPLIERS.filter(s =>
+    filter === 'all' ? true :
+    filter === 'fav' ? S.favs.includes(s.id) :
+    s.family === filter);
+  const cmp = {
+    rating: (a,b) => b.rating - a.rating,
+    qual:   (a,b) => b.annoncee - a.annoncee,
+    price:  (a,b) => a.eurG - b.eurG,
+  }[sortBy];
+  return list.sort(cmp);
+}
+
+function renderFeed(){
+  const feed = $('feed'); feed.innerHTML = '';
+  const list = visibleSuppliers();
+  if(!list.length){ feed.innerHTML = `<div class="empty">Aucun fournisseur ici.<br>${filter==='fav'?'Ajoute des favoris avec ★.':''}</div>`; return; }
+  list.forEach(s => {
+    const r = rel(s.id), loy = loyalty(r.count), st = standingPct(s);
+    const fav = S.favs.includes(s.id);
+    const showQ = r.sampled ? `<span class="pq">· réel ${realQual(s)}%</span>` : `<span class="pq">· ${s.annoncee}% annoncé</span>`;
+    const priceBlock = st > 0
+      ? `<span class="was">${fmt1(s.eurG)}/${U(s)}</span><b>${fmt1(s.eurG*(1-st/100))}</b><span class="u">/${U(s)}</span>`
+      : `<b>${fmt1(s.eurG)}</b><span class="u">/${U(s)}</span>`;
+    const badges = [
+      `<span class="bdg fam">${FAMILIES[s.family]}</span>`,
+      loy.pct > 0 ? `<span class="bdg loy">${loy.lvl} −${loy.pct}%</span>` : '',
+      r.deal ? `<span class="bdg loy">remise négociée</span>` : '',
+      r.sampled ? `<span class="bdg samp">échantillon vu</span>` : '',
+    ].filter(Boolean).join('');
+    const thumb = bakeThumb(s.family, s.annoncee, s.kind);   // photo du listing = qualité annoncée
+    const thumbHTML = thumb
+      ? `<div class="thumb"><img src="${thumb}" alt=""><span class="pe">${s.emoji}</span></div>`
+      : `<div class="av">${s.emoji}</div>`;
+    const el = document.createElement('div');
+    el.className = 'listing'; el.dataset.card = s.id;
+    el.innerHTML = `
+      <div class="lhead">
+        ${thumbHTML}
+        <div class="who">
+          <div class="handle">${s.handle}${s.rating>=4.5?'<span class="verif">✔︎</span>':''}</div>
+          <div class="sub">${s.id}@onion · PGP ✓ · escrow</div>
+        </div>
+        <div class="favstar ${fav?'on':''}" data-fav="${s.id}">${fav?'★':'☆'}</div>
+        <div class="tier ${s.tier}">${s.tier}</div>
+      </div>
+      <div class="badges">${badges}</div>
+      <div class="lbody">
+        <div>
+          <div class="prod">${s.prod} ${showQ}</div>
+          <div class="stars">${stars(s.rating)} <span class="cnt">${s.rating.toFixed(1)} · ${s.sales} ventes</span></div>
+        </div>
+        <div class="price">${priceBlock}</div>
+      </div>
+      <div class="actrow">
+        <div class="mini msg" data-msg="${s.id}">💬 Contacter${r.count?`<span class="un">${r.count} cmd</span>`:''}</div>
+        <div class="mini order" data-order="${s.id}">Commander</div>
+      </div>`;
+    feed.appendChild(el);
+  });
+}
+
+/* ===========================================================================
+   COMMANDE (la conséquence)
+   =========================================================================== */
+let sel = null, selQty = 0, selForm = 'paquet', selCredit = false;
+const labelG = g => g>=1000 ? (g/1000)+' kg' : g+' g';
+const repName = rank => rank>=3 ? 'régulier' : rank>=2 ? 'habitué' : 'connu';
+
+function openOrder(s){
+  disposeViewer();
+  sel = s; selCredit = false; if(s.family !== 'weed') selForm = 'paquet';
+  const ladder = qtyLadder(s);
+  if(!ladder.some(o => o.g===selQty && !o.locked)) selQty = (ladder.find(o=>!o.locked) || ladder[0]).g;
+  const r = rel(s.id), loy = loyalty(r.count);
+  const real = realQual(s), gap = s.annoncee - real;
+  const qInfo = r.sampled
+    ? `Échantillon vu : qualité réelle <span class="${gap>6?'warn':'good'}">${real}%</span> (annoncé ${s.annoncee}%).`
+    : (gap > 6
+        ? `<span class="warn">⚠ Note basse (${s.rating.toFixed(1)}★) : la qualité réelle tombe souvent sous l'annonce. Demande un échantillon en message.</span>`
+        : `<span class="good">Note solide : livre au niveau annoncé.</span>`);
+  const formSel = s.family === 'weed' ? `
+    <div class="qtitle">Forme</div>
+    <div class="forms" id="forms">
+      <div class="formopt ${selForm==='paquet'?'on':''}" data-form="paquet"><b>🌿 Paquet manucuré</b><span>têtes parées · prix plein</span></div>
+      <div class="formopt ${selForm==='branchage'?'on':''}" data-form="branchage"><b>🌾 Branchage brut</b><span>−30% · à effeuiller</span></div>
+    </div>` : '';
+  const creditRow = creditOK(s)
+    ? `<label class="credit" id="credit-row"><input type="checkbox" id="credit-cb"> 💳 Payer à crédit <span>· dette envers ${s.handle}, à rembourser</span></label>`
+    : (s.tier!=='premium' && r.count<5 ? `<div class="credithint">💳 Crédit débloqué après 5 commandes (relation « habitué »).</div>`
+                                       : (s.tier==='premium' ? `<div class="credithint">Haut de gamme : cash uniquement, pas de crédit.</div>` : ''));
+  const basePrice = fmt1(s.eurG * formFactor(s, selForm));
+  $('sheet').innerHTML = `
+    <div class="grab"></div>
+    <div class="shead">
+      <div class="av">${s.emoji}</div>
+      <div class="who"><div class="handle">${s.handle}</div>
+        <div class="sub">${stars(s.rating)} ${s.rating.toFixed(1)} · ${s.sales} ventes · ${FAMILIES[s.family]}</div></div>
+      <div class="tier ${s.tier}">${s.tier}</div>
+    </div>
+    <div class="viewer" id="viewer">
+      <div class="vtag ${r.sampled?'reel':'annonce'}">${r.sampled?'rendu réel · échantillon':'photo du listing'}</div>
+      <div class="vhint">glisse pour tourner · ${r.sampled?'qualité réelle':'qualité annoncée'}</div>
+    </div>
+    <div class="specs">
+      <div class="spec"><div class="k">Produit</div><div class="v" style="font-size:11px">${s.prod}</div></div>
+      <div class="spec"><div class="k">Prix base</div><div class="v" id="r-base">${basePrice}/${U(s)}</div></div>
+      <div class="spec q"><div class="k">Qualité ${r.sampled?'réelle':'annoncée'}</div><div class="v">${r.sampled?realQual(s):s.annoncee}%</div></div>
+    </div>
+    <div class="desc">${qInfo}</div>
+    ${formSel}
+    <div class="qtitle">Quantité</div>
+    <div class="qtys" id="qtys"></div>
+    <div class="recap"><span>Prix appliqué</span><b id="r-unit">—</b></div>
+    <div class="recap"><span>Remise</span><b class="disc" id="r-disc">—</b></div>
+    <div class="recap tot"><span>Total</span><b id="r-total">—</b></div>
+    ${creditRow}
+    <button class="buy" id="buy"></button>
+    <button class="ghostbtn" id="to-chat">💬 Négocier / demander un échantillon</button>`;
+  renderQtys();
+  $('buy').addEventListener('click', doOrder);
+  $('to-chat').addEventListener('click', () => openChat(s));
+  const cb = $('credit-cb'); if(cb) cb.addEventListener('change', e => { selCredit = e.target.checked; refreshRecap(); });
+  const forms = $('forms'); if(forms) forms.addEventListener('click', e => {
+    const o = e.target.closest('[data-form]'); if(!o) return; selForm = o.dataset.form; openOrder(s);
+  });
+  showSheet();
+  mountViewer($('viewer'), s.family, r.sampled ? realQual(s) : s.annoncee, selForm, s.kind);
+}
+function renderQtys(){
+  const box = $('qtys'); box.innerHTML = '';
+  qtyLadder(sel).forEach(o => {
+    const el = document.createElement('div');
+    el.className = 'qty' + (o.g===selQty?' on':'') + (o.locked?' locked':'');
+    el.innerHTML = o.locked
+      ? `<div class="g">${labelQ(sel,o.g)}</div><div class="e">🔒 ${repName(o.need)}</div>`
+      : `<div class="g">${labelQ(sel,o.g)}</div><div class="e">${fmt(o.g*effEurG(sel,o.g,selForm))}</div>`;
+    el.addEventListener('click', () => {
+      if(o.locked){ toast(`Quantité réservée : réputation « ${repName(o.need)} » requise chez ${sel.handle}.`, true); return; }
+      selQty = o.g; renderQtys(); refreshRecap();
+    });
+    box.appendChild(el);
+  });
+  refreshRecap();
+}
+function refreshRecap(){
+  const s = sel, g = selQty, pct = orderPct(s,g), unit = effEurG(s,g,selForm), total = Math.round(g*unit);
+  const full = s.eurG * formFactor(s, selForm) * g;
+  $('r-unit').textContent = fmt1(unit) + '/' + U(s);
+  $('r-disc').textContent = pct > 0 ? `−${pct}% (${fmt(full - total)})` : '—';
+  $('r-total').textContent = fmt(total);
+  const btn = $('buy');
+  if(selCredit){
+    btn.disabled = false;
+    btn.innerHTML = `Commander ${labelQ(s,g)} à crédit · ${fmt(total)} <span class="sm">+${fmt(total)} de dette envers ${s.handle}</span>`;
+  } else {
+    const ok = total <= S.cash; btn.disabled = !ok;
+    btn.innerHTML = ok
+      ? `Commander ${labelQ(s,g)} · ${fmt(total)} <span class="sm">paiement cash · escrow · livraison immédiate</span>`
+      : `Cash insuffisant <span class="sm">il manque ${fmt(total - S.cash)}</span>`;
+  }
+}
+function doOrder(){
+  const s = sel, g = selQty, pct = orderPct(s,g), unit = effEurG(s,g,selForm), total = Math.round(g*unit);
+  if(!selCredit && total > S.cash) return;
+  const credit = selCredit, real = realQual(s), r = rel(s.id), loy = loyalty(r.count);
+  if(credit) S.debt += total; else S.cash -= total;
+  S.stockG += g; S.qualSum += g*real;
+  r.count += 1; r.grams += g; s.sales += 1;
+  const gap = s.annoncee - real;
+  const form = (s.family==='weed') ? (selForm==='branchage'?' · branchage brut (à effeuiller)':' · paquet manucuré') : '';
+  const qcause = (gap <= 2
+    ? `<span class="ok">qualité tenue (${real}%)</span> — ${s.rating.toFixed(1)}★`
+    : `<span class="lo">qualité réelle ${real}% &lt; ${s.annoncee}% annoncé</span> — note ${s.rating.toFixed(1)}★`) + form;
+  const dparts = [
+    loy.pct>0?`fidélité ${loy.lvl} −${loy.pct}%`:'',
+    r.deal?`négo −${negoBonus[s.tier]}%`:'',
+    bulkPct(s,g)>0?`volume −${bulkPct(s,g)}%`:'',
+  ].filter(Boolean);
+  const dcause = pct>0 ? ` · <span class="di">remise −${pct}% (${dparts.join(', ')})</span>` : '';
+  const ccause = credit ? ` · <span class="lo">à crédit (+${fmt(total)} dette)</span>` : '';
+  S.receipts.unshift({ handle:s.handle, g, unit:U(s), total, credit, annoncee:s.annoncee, real, cause:qcause + dcause + ccause });
+  if(S.receipts.length > 40) S.receipts.pop();
+  save(); closeSheet(); renderWallet(); renderFeed();
+  toast(`${labelQ(s,g)} ${credit?'à crédit ':''}reçus de ${s.handle} · qualité réelle ${real}%` + (gap>6?` (annoncé ${s.annoncee}%)`:''), gap>6);
+}
+
+/* ===========================================================================
+   MESSAGERIE / NÉGOCIATION — réponses déterministes, en personnage
+   =========================================================================== */
+let chatSel = null;
+function openChat(s){
+  disposeViewer();
+  chatSel = s; renderChat(); showSheet();
+}
+function renderChat(){
+  const s = chatSel, r = rel(s.id), loy = loyalty(r.count);
+  // fil reconstruit depuis l'état (déterministe) : accueil + échanges débloqués
+  const greet = loy.lvl==='régulier' ? "Ah, mon client régulier 🤝 toujours dispo pour toi."
+              : loy.lvl==='habitué'  ? "Re. On commence à se connaître, c'est bien."
+              : loy.lvl==='connu'    ? "Salut, déjà recroisé je crois. Qu'est-ce qu'il te faut ?"
+              : "Yo. Tu cherches quoi ? PGP/escrow only, je réponds pas en clair.";
+  const msgs = [`<div class="msg-b them">${greet}<span class="meta">${s.handle} · ${stars(s.rating)} ${s.rating.toFixed(1)}</span></div>`];
+
+  // offres proactives qui s'ouvrent avec la relation (déterministe)
+  if(creditOK(s))
+    msgs.push(`<div class="msg-b them">Et puis t'as fait tes preuves : je peux te laisser tourner <span class="num">à crédit</span> maintenant, tu régleras la dette plus tard. 🤝</div>`);
+  if(repRank(s) >= 2)
+    msgs.push(`<div class="msg-b them">Vu la confiance, je t'ouvre les <span class="num">gros volumes</span> (jusqu'à 2 kg). Les grosses quantités, je les garde pour les sérieux.</div>`);
+
+  if(r.sampled){
+    msgs.push(`<div class="msg-b me">Tu peux m'envoyer un échantillon avant que je commande ?</div>`);
+    if(s.rating >= 3){
+      const gap = s.annoncee - realQual(s);
+      msgs.push(`<div class="msg-b them">Tiens, photo macro + test. Honnête : c'est du <span class="num">${realQual(s)}%</span> réel${gap>2?` (j'annonce ${s.annoncee}%, je gonfle un peu, comme tout le monde)`:`, pile ce que j'annonce`}.</div>`);
+    } else {
+      msgs.push(`<div class="msg-b them">Pas d'échantillons. C'est à prendre ou à laisser, à ce prix-là tu fais pas la fine bouche.</div>`);
+    }
+  }
+  if(r.deal){
+    msgs.push(`<div class="msg-b me">On peut s'arranger sur le prix si je deviens régulier ?</div>`);
+    msgs.push(`<div class="msg-b them">Ok. Vu ${loy.pct>0?'qu\'on bosse ensemble':'que tu te lances'}, je te débloque <span class="num">−${negoBonus[s.tier]}%</span> en plus sur tes prochaines commandes${s.tier==='premium'?" (je descends pas plus, c'est du haut de gamme)":''}. Marché conclu.</div>`);
+  }
+
+  const sampleDone = r.sampled, dealDone = r.deal;
+  $('sheet').innerHTML = `
+    <div class="grab"></div>
+    <div class="shead">
+      <div class="av">${s.emoji}</div>
+      <div class="who"><div class="handle">${s.handle}</div>
+        <div class="sub">${FAMILIES[s.family]} · ${loy.lvl}${loy.pct>0?` (−${loy.pct}%)`:''} · ${r.count} commande${r.count>1?'s':''}</div></div>
+      <div class="tier ${s.tier}">${s.tier}</div>
+    </div>
+    <div class="thread" id="thread">
+      <div class="relline">canal chiffré · onion</div>
+      ${msgs.join('')}
+    </div>
+    <div class="chatacts">
+      <div class="chatrow">
+        <button class="cbtn nego" id="c-nego" ${dealDone?'disabled':''}>${dealDone?'Remise obtenue ✓':'Négocier une remise'}<span class="un">${dealDone?`−${negoBonus[s.tier]}% acquis`:`jusqu'à −${negoBonus[s.tier]}% (plafond ${s.tier})`}</span></button>
+        <button class="cbtn samp" id="c-samp" ${sampleDone?'disabled':''}>${sampleDone?'Échantillon vu ✓':'Demander un échantillon'}<span class="un">${sampleDone?'qualité réelle connue':'révèle la qualité réelle'}</span></button>
+      </div>
+      <div class="chatrow"><button class="cbtn order" id="c-order">Passer commande →</button></div>
+    </div>`;
+  const th = $('thread'); th.scrollTop = th.scrollHeight;
+  if(!dealDone) $('c-nego').addEventListener('click', () => { rel(s.id).deal = true; save(); renderChat(); renderFeed();
+    toast(`${s.handle} t'accorde −${negoBonus[s.tier]}% sur tes commandes.`); });
+  if(!sampleDone) $('c-samp').addEventListener('click', () => { rel(s.id).sampled = true; save(); renderChat(); renderFeed();
+    toast(s.rating>=3 ? `Échantillon reçu : qualité réelle ${realQual(s)}%.` : `${s.handle} refuse l'échantillon.`, s.rating<3); });
+  $('c-order').addEventListener('click', () => openOrder(s));
+}
+
+/* ===========================================================================
+   REÇUS
+   =========================================================================== */
+function openReceipts(){
+  disposeViewer();
+  if(!S.receipts.length){
+    $('sheet').innerHTML = `<div class="grab"></div><div class="empty">Pas encore de reçu.<br>Passe une commande sur le marché.</div>`;
+  } else {
+    const rows = S.receipts.map(r => `
+      <div class="rcpt">
+        <div class="r1"><span>${labelAmt(r.g, r.unit)} · ${r.handle}</span><span class="amt">-${fmt(r.total)}</span></div>
+        <div class="cause">${r.cause}</div>
+      </div>`).join('');
+    $('sheet').innerHTML = `<div class="grab"></div>
+      <div class="qtitle" style="margin-bottom:10px">Reçus · ${S.receipts.length}</div>
+      <div class="receipts">${rows}</div>`;
+  }
+  showSheet();
+}
+
+/* ===========================================================================
+   MODE VENDEUR (T2) — revendre son stock, écouler par cycle, rapport tracable
+   =========================================================================== */
+let view = 'buy';
+let selListQty = 0, selListAnnDelta = 0, selListPriceMode = 'market';
+const PRICE_MODE = { brade:0.82, market:1.0, premium:1.22 };
+
+function switchView(v){
+  view = v;
+  [...$('modebar').children].forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  const sell = v === 'sell';
+  ['filters','sortrow','feed'].forEach(id => $(id).hidden = sell);
+  $('sellview').hidden = !sell;
+  if(sell) renderSell(); else renderFeed();
+}
+
+// options de quantité à mettre en vente, bornées par le stock
+function sellQtyOptions(){
+  const opts = [50,100,250,500,1000].filter(g => g <= S.stockG);
+  if(S.stockG > 0 && !opts.includes(S.stockG)) opts.push(S.stockG);   // « tout »
+  return [...new Set(opts)].sort((a,b)=>a-b);
+}
+const annOf   = real => Math.min(98, real + selListAnnDelta);
+const priceOf = real => +(refEurG(annOf(real)) * PRICE_MODE[selListPriceMode]).toFixed(2);
+
+function renderSell(){
+  const sv = $('sellview'), real = avgQual(), sr = S.seller;
+  const head = `
+    <div class="scard">
+      <h3>Profil vendeur <span class="hint">jour ${sr.day}</span></h3>
+      <div class="specs">
+        <div class="spec"><div class="k">Note vendeur</div><div class="v" style="color:var(--gold)">${sr.rating>0?sr.rating.toFixed(1)+'★':'—'}</div></div>
+        <div class="spec"><div class="k">Réputation</div><div class="v" style="font-size:12px">${sellerLvl(sr.rating)}</div></div>
+        <div class="spec"><div class="k">Unités vendues</div><div class="v">${sr.sales}</div></div>
+      </div>
+    </div>`;
+
+  // formulaire de mise en vente
+  let form;
+  if(S.stockG <= 0){
+    form = `<div class="scard"><h3>Mettre en vente</h3>
+      <div class="sellempty">Ton stock est vide.<br>Passe en <b>🛒 Acheter</b> pour t'approvisionner, puis reviens revendre.</div></div>`;
+  } else {
+    const opts = sellQtyOptions();
+    if(!opts.includes(selListQty)) selListQty = opts[0];
+    const qtyTiles = opts.map(g => `<div class="qty${g===selListQty?' on':''}" data-sq="${g}">
+        <div class="g">${g===S.stockG?'tout':labelAmt(g,'g')}</div><div class="e">${g} u</div></div>`).join('');
+    const annTiles = [[0,'honnête'],[10,'gonflé +10'],[20,'gonflé +20']].map(([d,lab])=>{
+      const a = Math.min(98, real + d), gap = a - real;
+      return `<div class="qty${d>0?' lie':''}${d===selListAnnDelta?' on':''}" data-ann="${d}">
+        <div class="g">${a}%</div><div class="e ${gap>SELL.TOL?'warn':'good'}">${lab}</div></div>`;
+    }).join('');
+    const priceTiles = Object.keys(PRICE_MODE).map(m => {
+      const saved = selListPriceMode; selListPriceMode = m; const p = priceOf(real); selListPriceMode = saved;
+      const pct = Math.round((PRICE_MODE[m]-1)*100);
+      const lab = m==='brade'?`${pct}% (brade)`:m==='premium'?`+${pct}% (premium)`:'marché';
+      return `<div class="qty${m===selListPriceMode?' on':''}" data-pm="${m}">
+        <div class="g">${fmt1(p)}<span style="font-size:9px">/g</span></div><div class="e">${lab}</div></div>`;
+    }).join('');
+    const ann = annOf(real), price = priceOf(real);
+    const dem = Math.min(selListQty, cycleDemand(price, ann, sr.rating));
+    const gap = ann - real;
+    const riskTxt = gap > SELL.TOL
+      ? `<span style="color:var(--gold)">⚠ annonce gonflée (+${gap}%) : ça vend plus, mais la tromperie s'accumule</span>`
+      : `<span style="color:var(--onion)">annonce honnête : ta note grimpe à chaque livraison</span>`;
+    form = `<div class="scard">
+      <h3>Mettre en vente <span class="hint">stock ${S.stockG} u · réel ${real}%</span></h3>
+      <div class="qtitle">Quantité</div><div class="qtys" id="sq">${qtyTiles}</div>
+      <div class="qtitle">Qualité annoncée</div><div class="qtys annrow" id="sa">${annTiles}</div>
+      <div class="qtitle">Prix</div><div class="qtys" id="sp">${priceTiles}</div>
+      <div class="estim"><span>Demande estimée</span><b>≈ ${dem} u / jour</b></div>
+      <div class="estim"><span>Revenu / jour</span><b>≈ ${fmt(dem*price)}</b></div>
+      <div class="desc" style="margin:6px 0 0">${riskTxt}</div>
+      <button class="buy" id="post-btn">Mettre en vente · ${selListQty} u @ ${fmt1(price)}/g</button>
+    </div>`;
+  }
+
+  // annonces actives
+  let actives = '';
+  if(S.listings.length){
+    const rows = S.listings.map(L => {
+      const gap = L.annoncee - L.real, pct = Math.round(L.sold/L.qty*100);
+      return `<div class="lrow">
+        <div class="li">
+          <div class="lt">${L.qty} u @ ${fmt1(L.eurG)}/g
+            <span class="bdg ${gap>SELL.TOL?'lie':'honest'}">${L.annoncee}%${gap>SELL.TOL?` (réel ${L.real}%)`:''}</span></div>
+          <div class="ls">${L.sold}/${L.qty} vendues · encaissé ${fmt(L.revenue)}</div>
+          <div class="bar"><i style="width:${pct}%"></i></div>
+        </div></div>`;
+    }).join('');
+    actives = `<div class="scard"><h3>Annonces en ligne <span class="hint">${S.listings.length}</span></h3>
+      <div style="display:flex;flex-direction:column;gap:8px">${rows}</div>
+      <button class="buy" id="day-btn" style="margin-top:11px">⏭ Écouler — jour suivant</button></div>`;
+  }
+
+  // rapport du dernier cycle
+  let report = '';
+  if(S.lastReport){
+    const R = S.lastReport;
+    const rrows = R.rows.map(r => `<div class="rrow">${r.cause}</div>`).join('');
+    report = `<div class="scard report"><h3>Rapport — jour ${R.day} <span class="hint">+${fmt(R.totRev)} · ${R.anySold} u</span></h3>
+      ${rrows}${R.falaise?`<div class="falaise">${R.falaise}</div>`:''}</div>`;
+  }
+
+  sv.innerHTML = head + form + actives + report;
+  const sq = $('sq'); if(sq) sq.onclick = e => { const t=e.target.closest('[data-sq]'); if(t){ selListQty=+t.dataset.sq; renderSell(); } };
+  const sa = $('sa'); if(sa) sa.onclick = e => { const t=e.target.closest('[data-ann]'); if(t){ selListAnnDelta=+t.dataset.ann; renderSell(); } };
+  const sp = $('sp'); if(sp) sp.onclick = e => { const t=e.target.closest('[data-pm]'); if(t){ selListPriceMode=t.dataset.pm; renderSell(); } };
+  const pb = $('post-btn'); if(pb) pb.onclick = postListing;
+  const db = $('day-btn'); if(db) db.onclick = resolveDay;
+}
+
+function postListing(){
+  const real = avgQual(), qty = Math.min(selListQty, S.stockG);
+  if(qty <= 0) return;
+  const ann = annOf(real), eurG = priceOf(real);
+  S.stockG -= qty; S.qualSum -= qty*real;                    // sort le lot du stock (qualité moyenne inchangée)
+  if(S.stockG <= 0) S.qualSum = 0;
+  S.listings.push({ id:++S.listSeq, qty, sold:0, eurG, annoncee:ann, real, revenue:0 });
+  selListQty = 0; selListAnnDelta = 0; selListPriceMode = 'market';
+  save(); renderWallet(); renderSell();
+  toast(`Annonce en ligne : ${qty} u @ ${fmt1(eurG)}/g · annoncé ${ann}%`);
+}
+
+function resolveDay(){
+  if(!S.listings.length) return;
+  const sr = S.seller; sr.day += 1;
+  const rows = []; let totRev = 0, anySold = 0;
+  for(const L of S.listings){
+    const remain = L.qty - L.sold;
+    if(remain <= 0) continue;
+    const want = cycleDemand(L.eurG, L.annoncee, sr.rating);
+    const sold = Math.min(remain, want);
+    const ref = refEurG(L.annoncee);
+    const priceTxt = L.eurG < ref ? `prix sous le marché <span class="ok">(+demande)</span>`
+                   : L.eurG > ref ? `prix premium <span class="gd">(−demande)</span>` : `au prix du marché`;
+    if(sold <= 0){
+      rows.push({ cause:`<b>${L.annoncee}% @ ${fmt1(L.eurG)}/g</b> — aucune vente · ${priceTxt}, note ${sellerLvl(sr.rating)}` });
+      continue;
+    }
+    const rev = Math.round(sold * L.eurG);
+    L.sold += sold; L.revenue += rev; S.cash += rev; sr.sales += sold;
+    totRev += rev; anySold += sold;
+    const gap = L.annoncee - L.real;
+    let honTxt;
+    if(gap > SELL.TOL){
+      const add = sold/100 * (gap - SELL.TOL); sr.cum += add;
+      honTxt = `<span class="lo">tromperie +${add.toFixed(1)} (annoncé ${L.annoncee}% vs réel ${L.real}%)</span>`;
+    } else {
+      sr.rating = Math.min(5, sr.rating + SELL.GAIN);
+      honTxt = `<span class="ok">livraison conforme (note +${SELL.GAIN})</span>`;
+    }
+    rows.push({ cause:`<b>${sold} u</b> @ ${fmt1(L.eurG)}/g = ${fmt(rev)} · ${priceTxt} · ${honTxt}` });
+  }
+  let falaise = null;
+  if(!sr.fallen && sr.cum >= SELL.SEUIL){
+    sr.fallen = true; sr.rating = Math.max(0, sr.rating - SELL.FALAISE);
+    falaise = `⚠ FALAISE — la rue a recoupé tes lots : tes annonces gonflées se sont sues. Note −${SELL.FALAISE.toFixed(1)}. La confiance, une fois cassée, ne revient pas en un jour.`;
+  }
+  S.listings = S.listings.filter(L => L.sold < L.qty);       // purge des annonces écoulées
+  S.lastReport = { day:sr.day, rows, totRev, anySold, falaise };
+  save(); renderWallet(); renderSell();
+  toast(falaise ? `Jour ${sr.day} : la confiance s'est effondrée.` : `Jour ${sr.day} : ${anySold} u vendues · +${fmt(totRev)}`, !!falaise);
+}
+
+/* ===========================================================================
+   SHEET helpers, filtres, tri, reset, horloge, init
+   =========================================================================== */
+function showSheet(){ $('scrim').classList.add('show'); $('sheet').classList.add('show'); }
+function closeSheet(){ disposeViewer(); $('scrim').classList.remove('show'); $('sheet').classList.remove('show'); sel=chatSel=null; }
+
+let toastT = null;
+function toast(msg, bad=false){
+  const t = $('toast');
+  t.className = 'toast show' + (bad ? ' bad' : '');
+  t.innerHTML = msg;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => { t.className = 'toast'; }, 2600);
+}
+
+$('feed').addEventListener('click', e => {
+  const fav = e.target.closest('[data-fav]');
+  if(fav){ const id = fav.dataset.fav; const i = S.favs.indexOf(id);
+    i<0 ? S.favs.push(id) : S.favs.splice(i,1); save(); renderFeed(); return; }
+  const msg = e.target.closest('[data-msg]'); if(msg){ openChat(byId(msg.dataset.msg)); return; }
+  const ord = e.target.closest('[data-order]'); if(ord){ openOrder(byId(ord.dataset.order)); return; }
+  const card = e.target.closest('[data-card]'); if(card){ openOrder(byId(card.dataset.card)); return; }
+});
+$('filters').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if(!c) return;
+  filter = c.dataset.f;
+  [...$('filters').children].forEach(x => x.classList.toggle('on', x===c));
+  renderFeed();
+});
+$('sort').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  sortBy = b.dataset.s;
+  [...$('sort').children].forEach(x => x.classList.toggle('on', x===b));
+  renderFeed();
+});
+$('modebar').addEventListener('click', e => {
+  const b = e.target.closest('[data-v]'); if(b) switchView(b.dataset.v);
+});
+$('scrim').addEventListener('click', closeSheet);
+$('receipts-btn').addEventListener('click', openReceipts);
+$('reset-btn').addEventListener('click', () => {
+  if(confirm('Repartir de zéro (cash, stock, relations, favoris) ?')){
+    S = DEFAULT(); save(); renderWallet(); renderFeed(); if(view==='sell') renderSell(); toast('Compte réinitialisé.');
+  }
+});
+
+function tick(){ const d=new Date();
+  $('clock').textContent = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+setInterval(tick, 10000); tick();
+
+renderFilters(); renderWallet(); renderFeed();
+</script>
+</body>
+</html>
