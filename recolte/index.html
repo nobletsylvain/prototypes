@@ -37,9 +37,11 @@
   .step.on { background:rgba(155,227,125,.22); border-color:rgba(155,227,125,.6); color:#d6f7c2; }
   .step.done { color:rgba(155,227,125,.75); }
 
-  #hint { position:fixed; left:0; right:0; bottom:max(168px,calc(env(safe-area-inset-bottom) + 162px));
-    text-align:center; font-size:13px; color:rgba(255,255,255,.72); padding:0 24px; transition:opacity .4s;
-    pointer-events:none; text-shadow:0 2px 8px rgba(0,0,0,.5); }
+  /* Instructions : dans la bande vide en haut (sous le stepper), plus jamais
+     par-dessus les curseurs/cartes du bas. */
+  #hint { position:fixed; left:0; right:0; top:calc(max(12px,env(safe-area-inset-top)) + 78px);
+    text-align:center; font-size:13px; line-height:1.35; color:rgba(255,255,255,.8); padding:0 28px;
+    transition:opacity .4s; pointer-events:none; text-shadow:0 2px 8px rgba(0,0,0,.6); }
   #toast { position:fixed; left:0; right:0; top:40%; text-align:center; font-size:24px; font-weight:800; opacity:0;
     transition:opacity .25s, transform .25s; transform:translateY(8px); pointer-events:none;
     color:#fff; text-shadow:0 2px 10px rgba(0,0,0,.6); padding:0 20px; }
@@ -337,9 +339,9 @@ app.appendChild(renderer.domElement);
 // Deux cadrages : "work" (3/4 plongeant sur le plan + bacs) pour tri/coupe/pots/
 // stock, et "eff" (frontal, plus bas) pour l'effeuillage des colas suspendues.
 const VIEWS = {
-  work: { target: new THREE.Vector3(0, 0.15, 0.0), dir: new THREE.Vector3(0.02, 0.64, 0.77).normalize(), radius: Math.hypot(3.9, 0.9, 3.0) },
+  work: { target: new THREE.Vector3(0.25, 0.4, 0.1), dir: new THREE.Vector3(-0.05, 0.58, 0.81).normalize(), radius: Math.hypot(3.55, 0.85, 2.75) },
   eff:  { target: new THREE.Vector3(0, 2.45, 0.0), dir: new THREE.Vector3(0, 0.14, 1).normalize(),        radius: Math.hypot(2.4, 2.35, 0.4) },
-  pack: { target: new THREE.Vector3(0, 0.62, 0.2), dir: new THREE.Vector3(0.05, 0.42, 0.9).normalize(),   radius: Math.hypot(0.7, 0.9, 0.4) },
+  pack: { target: new THREE.Vector3(0, 0.6, 0.2), dir: new THREE.Vector3(0.05, 0.4, 0.92).normalize(),   radius: Math.hypot(0.54, 0.72, 0.31) },
 };
 let curView = VIEWS.work;
 const VIEW_TARGET = new THREE.Vector3();   // cible courante (utilisee par la boucle)
@@ -466,6 +468,37 @@ const matLeafSolid = new THREE.MeshStandardMaterial({ color: 0x3f6b2c, roughness
 const leafGeo = new THREE.ConeGeometry(0.085, 0.32, 4);
 function makeLeaf() { const m = new THREE.Mesh(leafGeo, matLeafSolid); m.scale.z = 0.22; return m; }
 
+// Matieres du DECHET vegetal (brindilles, miettes, petites feuilles) — texturees,
+// arrondies (pas de facettes grossieres). Definies tot car servies a la fois par
+// le bac dechet (tri) et le pot (emballage).
+// Feuille seche : vraie LAME plate et nervuree (PlaneGeometry deformee), pas un cone.
+function makeLeafBladeGeo() {
+  const g = new THREE.PlaneGeometry(0.34, 0.5, 4, 6);
+  const p = g.attributes.position;
+  for (let k = 0; k < p.count; k++) {
+    const u = p.getX(k) / 0.34, v = p.getY(k) / 0.5;          // -0.5..0.5
+    const taper = Math.cos(v * Math.PI) * 0.5 + 0.5;          // pointe aux deux bouts (forme de feuille)
+    p.setX(k, p.getX(k) * (0.35 + taper * 0.9));
+    p.setZ(k, Math.cos(u * Math.PI) * 0.05 - Math.abs(v) * 0.04);   // pli central + courbure
+  }
+  g.computeVertexNormals();
+  return g;
+}
+const twigGeo = new THREE.CylinderGeometry(0.016, 0.010, 0.5, 8);   // brindille fine et plus longue
+const crumbGeo = new THREE.IcosahedronGeometry(0.07, 1);            // miette arrondie (detail 1)
+const wasteLeafGeo = makeLeafBladeGeo();
+const matTwig = new THREE.MeshStandardMaterial({ map: grainTex(108, 84, 46, 30, 18), roughness: 0.95 });
+const matCrumb = new THREE.MeshStandardMaterial({ map: grainTex(120, 112, 62, 26, 12), roughness: 0.92 });
+const matWasteLeaf = new THREE.MeshStandardMaterial({ map: grainTex(96, 120, 60, 26, 14), roughness: 0.9, side: THREE.DoubleSide });
+// Oriente un debris : brindille couchee, feuille a plat, miette posee.
+function dressWasteBit(m, i, kind) {
+  if (kind === 0) { m.geometry = twigGeo; m.material = matTwig; m.scale.set(1, 1, 1); m.rotation.set((i % 3 - 1) * 0.5, i * 1.7, Math.PI / 2 + (i % 2 ? 0.4 : -0.4)); }
+  else if (kind === 1) { m.geometry = wasteLeafGeo; m.material = matWasteLeaf; m.scale.setScalar(0.9 + (i % 3) * 0.12); m.rotation.set(-Math.PI / 2 + (i % 3 - 1) * 0.35, i * 0.9, (i % 2 ? 1 : -1) * 0.6); }
+  else { m.geometry = crumbGeo; m.material = matCrumb; m.scale.setScalar(0.85 + (i % 4) * 0.16); m.rotation.set(i, i * 2.1, i * 0.7); }
+  return m;
+}
+function makeWasteBit(i) { const m = new THREE.Mesh(twigGeo, matTwig); m.castShadow = true; return dressWasteBit(m, i, i % 3); }
+
 // Projection monde -> pixels ecran (pour l'effeuillage au glisse, façon v2).
 const _sp = new THREE.Vector3();
 function toScreen(obj) {
@@ -483,7 +516,7 @@ function distSeg(px, py, ax, ay, bx, by) {
 /* -------------------------------------------------------------------------
    6) BACS DE TRI : 4 varietes au fond + 1 bac DECHET, chacun avec sa pile
    ------------------------------------------------------------------------- */
-function makeBin(pos, col, mat2) {
+function makeBin(pos, col, mat2, isWaste) {
   const grp = new THREE.Group(); grp.position.copy(pos);
   // Bac : caisse en plastique matte texturee (parois) + fond plus sombre (creux).
   const mat = new THREE.MeshStandardMaterial({ map: matteTex(col, 18, 1), roughness: 0.78, metalness: 0.08, side: THREE.DoubleSide });
@@ -497,11 +530,11 @@ function makeBin(pos, col, mat2) {
   scene.add(grp);
   // Pile de nugs (visibilite pilotee par le poids du bac).
   const pile = new THREE.Group(); grp.add(pile);
-  const PMAX = 14;
+  const PMAX = isWaste ? 20 : 14;
   for (let i = 0; i < PMAX; i++) {
-    const m = makeNug(mat2, false);
+    const m = isWaste ? makeWasteBit(i) : makeNug(mat2, false);
     const layer = Math.floor(i / 7), idx = i % 7, cx = idx % 4, rz = Math.floor(idx / 4);
-    m.position.set(-0.42 + cx * 0.3, 0.15 + layer * 0.15, -0.22 + rz * 0.44);
+    m.position.set(-0.42 + cx * 0.3 + (isWaste ? (i % 3 - 1) * 0.05 : 0), 0.13 + layer * 0.13, -0.22 + rz * 0.44);
     m.visible = false; pile.add(m);
   }
   grp.userData.pile = pile; grp.userData.PMAX = PMAX;
@@ -518,7 +551,7 @@ const BIN_POS = {
 const BIN_COL = { skunk: 0x33532b, widow: 0x4b5a4f, lemon: 0x55521f, purple: 0x3c2f4e, waste: 0x3a3026 };
 const bins3d = {};
 for (const id of STR_IDS) bins3d[id] = makeBin(BIN_POS[id], BIN_COL[id], matStrain[id]);
-bins3d.waste = makeBin(BIN_POS.waste, BIN_COL.waste, matLeaf);
+bins3d.waste = makeBin(BIN_POS.waste, BIN_COL.waste, matLeaf, true);
 
 function refreshPile(binGrp, grams, perNug) {
   const pile = binGrp.userData.pile, PMAX = binGrp.userData.PMAX;
@@ -706,15 +739,6 @@ lid.position.y = 1.1;
 jarFill.visible = false;                         // remplacé par des BUDS (cf. jarBuds)
 jar.add(glass); jar.add(jarBase); jar.add(jarFill); jar.add(lid);
 
-// Matieres du DECHET vegetal dans le pot : brindilles, miettes, petites feuilles
-// — texturees et plus volumineuses (le dechet doit remplir/garnir le pot).
-const twigGeo = new THREE.CylinderGeometry(0.022, 0.015, 0.34, 5);
-const crumbGeo = new THREE.IcosahedronGeometry(0.075, 0);
-const wasteLeafGeo = new THREE.ConeGeometry(0.14, 0.42, 5);
-const matTwig = new THREE.MeshStandardMaterial({ map: grainTex(112, 88, 48, 36, 24), roughness: 0.96 });
-const matCrumb = new THREE.MeshStandardMaterial({ map: grainTex(126, 120, 66, 32, 16), roughness: 0.95 });
-const matWasteLeaf = new THREE.MeshStandardMaterial({ map: grainTex(92, 116, 58, 34, 18), roughness: 0.95, side: THREE.DoubleSide });
-
 // Contenu du pot = des TÊTES qui s'entassent (variétés) ou du déchet végétal
 // (brindilles/feuilles/miettes). Empilage du BAS vers le HAUT, le nb de couches
 // visibles suit le POIDS (g / 1000) -> 1 kg remplit le pot, 300 g ~1/3.
@@ -750,9 +774,7 @@ function refreshPotContent(frac, comp) {
     m.rotation.set((i * 1.3) % 6, (i * 2.1) % 6, (i * 0.7) % 6);
     if (pick === "waste") {
       const t = (i * 7) % 10;
-      if (t < 3) { m.geometry = twigGeo; m.material = matTwig; m.scale.set(1, 1, 1); m.rotation.z = (i % 2 ? 1 : -1) * 1.25; }
-      else if (t < 7) { m.geometry = wasteLeafGeo; m.material = matWasteLeaf; m.scale.set(1, 1, 0.45); }   // feuilles volumineuses
-      else { m.geometry = crumbGeo; m.material = matCrumb; m.scale.setScalar(0.9 + (i % 3) * 0.22); }
+      dressWasteBit(m, i, t < 3 ? 0 : t < 7 ? 1 : 2);    // brindille / feuille a plat / miette
     } else {
       m.geometry = nugGeoSm; m.material = matStrain[pick]; m.scale.setScalar(1.05 + ((i * 13) % 5) * 0.07);
     }
@@ -760,16 +782,16 @@ function refreshPotContent(frac, comp) {
 }
 
 // Etiquette imprimee (canvas) ENROULEE autour du pot (arc de cylindre) une fois scelle.
-const LBL_W = 420, LBL_H = 200;
+const LBL_W = 460, LBL_H = 248;
 const labelCanvas = document.createElement("canvas"); labelCanvas.width = LBL_W; labelCanvas.height = LBL_H;
 const labelTex = new THREE.CanvasTexture(labelCanvas);
-labelTex.anisotropy = 4;
-const LABEL_ARC = 2.15;                                         // ~123° autour de l'avant du pot (centré sur +Z)
+labelTex.anisotropy = 8;
+const LABEL_ARC = 2.3;                                          // ~132° autour de l'avant du pot (centré sur +Z)
 const jarLabel = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.563, 0.563, 0.56, 40, 1, true, -LABEL_ARC / 2, LABEL_ARC),
+  new THREE.CylinderGeometry(0.563, 0.563, 0.7, 48, 1, true, -LABEL_ARC / 2, LABEL_ARC),
   new THREE.MeshStandardMaterial({ map: labelTex, transparent: true, roughness: 0.85, metalness: 0, side: THREE.DoubleSide })
 );
-jarLabel.position.set(0, 0.46, 0); jarLabel.visible = false;
+jarLabel.position.set(0, 0.5, 0); jarLabel.visible = false;
 jar.add(jarLabel); jar.userData.label = jarLabel;
 function labelRoundRect(x, a, b, w, h, r) { x.beginPath(); x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r); x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath(); }
 function printLabel(b) {
@@ -777,26 +799,33 @@ function printLabel(b) {
   x.clearRect(0, 0, LBL_W, LBL_H);
   // Papier kraft clair + grain.
   x.fillStyle = "#ece4d0"; x.fillRect(0, 0, LBL_W, LBL_H);
-  for (let i = 0; i < 2600; i++) { x.fillStyle = "rgba(" + (120 + (Math.random() * 50 | 0)) + "," + (108 + (Math.random() * 36 | 0)) + "," + (84 + (Math.random() * 30 | 0)) + "," + (Math.random() * 0.07).toFixed(3) + ")"; x.fillRect(Math.random() * LBL_W, Math.random() * LBL_H, 2, 2); }
+  for (let i = 0; i < 3000; i++) { x.fillStyle = "rgba(" + (120 + (Math.random() * 50 | 0)) + "," + (108 + (Math.random() * 36 | 0)) + "," + (84 + (Math.random() * 30 | 0)) + "," + (Math.random() * 0.07).toFixed(3) + ")"; x.fillRect(Math.random() * LBL_W, Math.random() * LBL_H, 2, 2); }
   const wasteOnly = b.strain === "waste";
   const tint = wasteOnly ? "rgb(111,90,50)" : (STRAINS[b.strain] ? "rgb(" + STRAINS[b.strain].col.join(",") + ")" : "rgb(90,125,58)");
-  // Bandeau d'en-tete colore (variete) + filets.
-  x.fillStyle = tint; x.fillRect(0, 0, LBL_W, 60);
-  x.fillStyle = "rgba(0,0,0,.18)"; x.fillRect(0, 56, LBL_W, 4);
-  x.textAlign = "left"; x.fillStyle = "#fff";
-  x.font = '800 38px Georgia, "Times New Roman", serif';
-  x.fillText((STRAINS[b.strain] ? STRAINS[b.strain].name : b.name).toUpperCase().slice(0, 16), 20, 44);
+  const HEAD = 68;
+  // Bandeau d'en-tete colore (variete) + filet.
+  x.fillStyle = tint; x.fillRect(0, 0, LBL_W, HEAD);
+  x.fillStyle = "rgba(0,0,0,.18)"; x.fillRect(0, HEAD - 4, LBL_W, 4);
+  // Nom (tronque pour ne pas chevaucher le badge qualite).
+  x.textBaseline = "alphabetic"; x.textAlign = "left"; x.fillStyle = "#fff";
+  x.font = '800 36px Georgia, "Times New Roman", serif';
+  x.fillText((STRAINS[b.strain] ? STRAINS[b.strain].name : b.name).toUpperCase().slice(0, 13), 22, 47);
   // Badge qualite a droite.
   x.textAlign = "right"; x.font = '800 22px Georgia, serif';
-  x.fillText(gradeOf(b.q) + "  " + Math.round(b.q * 100) + "%", LBL_W - 18, 40);
-  // Corps : composition.
-  x.textAlign = "left"; x.fillStyle = "#2b3a21"; x.font = '22px Georgia, serif'; let yy = 96;
+  x.fillText(gradeOf(b.q) + " · " + Math.round(b.q * 100) + "%", LBL_W - 20, 44);
+  // Corps : composition, repartie uniformement (jamais de chevauchement).
   const comp = b.comp || {};
-  for (const id of STR_IDS) if (comp[id] > 0.5) { x.fillText("• " + STRAINS[id].name + "   " + Math.round(comp[id]) + " g", 22, yy); yy += 30; }
-  if (comp.waste > 0.5) { x.fillText("• Déchet végétal   " + Math.round(comp.waste) + " g", 22, yy); yy += 30; }
+  const lines = [];
+  for (const id of STR_IDS) if (comp[id] > 0.5) lines.push(STRAINS[id].name + "   " + Math.round(comp[id]) + " g");
+  if (comp.waste > 0.5) lines.push("Déchet végétal   " + Math.round(comp.waste) + " g");
+  const top = HEAD + 30, bot = LBL_H - 42;                       // zone reservee a la composition
+  const lh = lines.length > 1 ? Math.min(34, (bot - top) / (lines.length - 1)) : 0;
+  const fs = Math.max(15, Math.min(23, lh - 7));
+  x.textAlign = "left"; x.fillStyle = "#2b3a21"; x.font = fs + 'px Georgia, serif';
+  lines.forEach((ln, i) => x.fillText("• " + ln, 24, top + i * lh));
   // Pied.
   x.fillStyle = "#6a5a34"; x.font = '800 20px Georgia, serif';
-  x.fillText(Math.round(b.g) + " g · bocal 1 kg", 22, LBL_H - 16);
+  x.fillText(Math.round(b.g) + " g · bocal 1 kg", 24, LBL_H - 16);
   x.strokeStyle = "rgba(45,55,32,.45)"; x.lineWidth = 4; x.strokeRect(3, 3, LBL_W - 6, LBL_H - 6);
   labelTex.needsUpdate = true;
 }
