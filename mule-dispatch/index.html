@@ -125,33 +125,37 @@ const DELAI_ECHEANCE   = 3;        // tournées avant échéance
 const PLAFOND_DETTE    = 1600;     // au-delà, le grossiste coupe les vivres
 const HEAT_CAP         = 60;       // quartier grillé => défaite
 const HEAT_BUST        = 15;       // une saisie chauffe lourd
-const HEAT_EXPO_K      = 7;        // heat d'exposition par livraison (co-effet parallèle)
+const HEAT_EXPO_K      = 4;        // heat d'exposition par livraison (co-effet parallèle)
 const HEAT_DECAY       = 5;        // refroidissement par tournée
 const SEUIL_BUST       = 0.45;     // risque >= seuil => saisie
-const SEUIL_DISCRET    = 0.6;      // fraction « sous le radar » de la capacité
+const SEUIL_DISCRET_G  = 120;      // grammes « sous le radar » (seuil ABSOLU, pas relatif au véhicule)
 const RETARD_PCT       = 0.40;     // hors fenêtre => -40% sur la recette
-const PONCTION_SEUIL   = 0.66;     // fiabilité < seuil => le coursier se sert
+const PONCTION_SEUIL   = 0.70;     // fiabilité < seuil => le coursier se sert
 const SURGE_K          = 0.7;      // majoration tarif selon la heat
 
-/* --- Coursiers : constantes nommées, AUCUN tirage ne pilote l'état ------ */
-// fiab = tient sa course ; expo = se fait remarquer ; eta = lenteur de base ;
-// cap = grammes qu'il porte « discrètement » ; base/km = tarif.
+/* --- Véhicules : constantes nommées, AUCUN tirage ne pilote l'état ------ */
+// Pas de prénoms : le VÉHICULE est l'identité et l'arbitrage. Échelle :
+//   vélib (petit/discret/court) → T-Max (urbain polyvalent) → go fast
+//   (gros volume / long trajet, mais grosse logistique à l'arrivée = exposé).
+// fiab = tient sa course ; expo = se fait remarquer (surtout au déchargement) ;
+// eta = lenteur de base ; cap = grammes embarquables ; base/km = tarif.
 const COURIERS = [
-  { id:'velo',   nm:'Théo',   emoji:'🚲', veh:'vélo',    rating:4.6, courses:312, fiab:0.92, expo:0.20, eta:38, cap:30,  base:6,  km:1.2 },
-  { id:'metro',  nm:'Sam',    emoji:'🚇', veh:'métro',   rating:3.2, courses:270, fiab:0.64, expo:0.32, eta:30, cap:45,  base:5,  km:0.2 },
-  { id:'scoot',  nm:'Nadia',  emoji:'🛵', veh:'scooter', rating:4.1, courses:540, fiab:0.80, expo:0.40, eta:22, cap:60,  base:9,  km:1.6 },
-  { id:'caisse', nm:'Brahim', emoji:'🚗', veh:'voiture', rating:3.8, courses:410, fiab:0.72, expo:0.55, eta:14, cap:130, base:14, km:2.4 },
-  { id:'skate',  nm:'Lou',    emoji:'🛹', veh:'skate',   rating:2.4, courses:96,  fiab:0.55, expo:0.72, eta:18, cap:22,  base:4,  km:0.8 },
+  { id:'velib',  nm:'Vélib',   emoji:'🚲', veh:'vélo',     rating:4.5, courses:240, fiab:0.90, expo:0.20, eta:34, cap:40,  base:5,  km:1.6 },
+  { id:'tmax',   nm:'T-Max',   emoji:'🛵', veh:'scooter',  rating:4.2, courses:510, fiab:0.82, expo:0.40, eta:19, cap:100, base:9,  km:1.4 },
+  { id:'gofast', nm:'Go fast', emoji:'🚗', veh:'go fast',  rating:3.6, courses:175, fiab:0.66, expo:0.62, eta:11, cap:280, base:18, km:2.0 },
 ];
 const courierById = id => COURIERS.find(c => c.id === id);
 
 /* --- Destinations : pool fixe, 3 actives par tournée (rotation) --------- */
+// L'Entrepôt = débouché gros volume / long trajet : la raison d'être du go fast
+// (et le piège : le charger à ras bord franchit le seuil de discrétion → saisie).
 const DESTS = [
-  { id:'comptoir', nm:'Le Comptoir', emoji:'🏪', dist:5,  demande:40, eurG:9,  fenetre:35 },
-  { id:'campus',   nm:'Le Campus',   emoji:'🎓', dist:8,  demande:60, eurG:8,  fenetre:45 },
-  { id:'ruelle',   nm:'La Ruelle',   emoji:'🌃', dist:3,  demande:85, eurG:7,  fenetre:24 },
-  { id:'gare',     nm:'La Gare',     emoji:'🚉', dist:6,  demande:50, eurG:10, fenetre:30 },
-  { id:'marina',   nm:'La Marina',   emoji:'⛵', dist:12, demande:30, eurG:15, fenetre:52 },
+  { id:'comptoir', nm:'Le Comptoir', emoji:'🏪', dist:5,  demande:40,  eurG:9,  fenetre:35 },
+  { id:'campus',   nm:'Le Campus',   emoji:'🎓', dist:8,  demande:60,  eurG:8,  fenetre:45 },
+  { id:'ruelle',   nm:'La Ruelle',   emoji:'🌃', dist:3,  demande:70,  eurG:7,  fenetre:24 },
+  { id:'gare',     nm:'La Gare',     emoji:'🚉', dist:6,  demande:50,  eurG:10, fenetre:30 },
+  { id:'marina',   nm:'La Marina',   emoji:'⛵', dist:12, demande:30,  eurG:15, fenetre:52 },
+  { id:'entrepot', nm:"L'Entrepôt",  emoji:'🏭', dist:14, demande:200, eurG:5,  fenetre:70 },
 ];
 
 /* =========================== Fonctions déterministes ==================== */
@@ -161,15 +165,18 @@ function surge(heat)            { return 1 + SURGE_K * (heat / HEAT_CAP); }
 function fare(c, d, heat)       { return Math.round((c.base + c.km * d.dist) * surge(heat)); }
 // Temps de course : lenteur de base du coursier modulée par la distance.
 function eta(c, d)              { return Math.round(c.eta * (0.5 + d.dist / 12)); }
-// Risque d'exposition : expo × manque de fiabilité × surcharge du colis.
-// (miroir du bust d'allocation de La Bascule §9 — dénominateur « discret ».)
-function risk(c, g)            { return c.expo * (1 - c.fiab) * (g / (c.cap * SEUIL_DISCRET)); }
+// Risque d'exposition : expo × manque de fiabilité × volume ABSOLU du colis.
+// (miroir du bust d'allocation de La Bascule §9 ; seuil discret en grammes, pas
+//  relatif au véhicule — c'est le gros colis sur le go fast qui se fait prendre.)
+function risk(c, g)            { return c.expo * (1 - c.fiab) * (g / SEUIL_DISCRET_G); }
 function busted(c, g)          { return g > 0 && risk(c, g) >= SEUIL_BUST; }
 function ponctionPct(c)        { return c.fiab < PONCTION_SEUIL ? Math.round((PONCTION_SEUIL - c.fiab) * 100) : 0; }
-function capDiscrete(c)        { return Math.round(c.cap * SEUIL_DISCRET); }
-// Heat d'exposition d'une livraison : lecture PARALLÈLE du choix de routage,
-// jamais « moins de ventes donc heat ».
-function heatExpo(c, g)        { return Math.round(c.expo * (g / c.cap) * HEAT_EXPO_K); }
+// Grammes au-delà desquels CE véhicule franchit le seuil de saisie (lisible joueur).
+// Dénominateur nul (expo 0 ou fiab 1, réglages futurs) ⇒ ne buste jamais ⇒ Infinity (jamais affiché).
+function seuilSaisie(c)        { const k = c.expo * (1 - c.fiab); return k > 0 ? Math.round(SEUIL_BUST * SEUIL_DISCRET_G / k) : Infinity; }
+// Heat d'exposition d'une livraison : lecture PARALLÈLE du choix de routage
+// (volume absolu × exposition du véhicule), jamais « moins de ventes donc heat ».
+function heatExpo(c, g)        { return Math.round(c.expo * (g / SEUIL_DISCRET_G) * HEAT_EXPO_K); }
 
 function riskLabel(c, g) {
   if (g === 0) return null;
@@ -238,8 +245,8 @@ function resolve() {
       dCash -= f;                        // course prépayée, perdue
       dHeat += HEAT_BUST;
       lines.push({ kind:'bad', dst:d, c, g, amt:-f,
-        cause:`${c.emoji} ${c.nm} ${c.rating}★ — colis ${g} g > capacité discrète ${capDiscrete(c)} g, `
-            + `zone ${d.nm} (expo ${c.expo}) → SAISIE. Course de ${f} € perdue, +${HEAT_BUST} heat.` });
+        cause:`${c.emoji} ${c.nm} ${c.rating}★ — colis ${g} g > seuil de discrétion ${seuilSaisie(c)} g, `
+            + `logistique d'arrivée trop voyante à ${d.nm} (expo ${c.expo}) → SAISIE. Course de ${f} € perdue, +${HEAT_BUST} heat.` });
       continue;
     }
 
@@ -336,7 +343,8 @@ function renderBoard() {
     dests.map(d => {
       const a = S.assign[d.id] || { courierId:null, g:0 };
       const c = a.courierId ? courierById(a.courierId) : null;
-      const maxG = Math.min(d.demande, S.stock - (totalAssigned - (a.g||0)));
+      const stockDispo = S.stock - (totalAssigned - (a.g||0));
+      const maxG = Math.min(d.demande, stockDispo, c ? c.cap : d.demande);
       const rl = c ? riskLabel(c, a.g) : null;
       const f  = c && a.g ? fare(c, d, S.heat) : 0;
       const t  = c && a.g ? eta(c, d) : 0;
@@ -352,7 +360,7 @@ function renderBoard() {
             <div class="courier ${a.courierId===cc.id?'sel':''}" data-pick="${d.id}:${cc.id}">
               <div class="nm">${cc.emoji} ${cc.nm}</div>
               <div class="rt">${cc.rating}★ · ${cc.courses} courses</div>
-              <div class="tr">${cc.veh} · cap ${cc.cap} g<br>fiab ${cc.fiab} · expo ${cc.expo}</div>
+              <div class="tr">${cc.veh} · cap ${cc.cap} g<br>fiab ${cc.fiab} · expo ${cc.expo}${seuilSaisie(cc)<cc.cap?`<br>⚠︎ voyant > ${seuilSaisie(cc)} g`:''}</div>
             </div>`).join('')}
         </div>
         <div class="ld">
