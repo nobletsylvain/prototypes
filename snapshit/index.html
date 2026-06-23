@@ -302,17 +302,23 @@ const fillConcepts = s => s.replace(/\{(\w+)\}/g,(_,k)=>termOf(k));
   const r=await fetch('../slang/dico-trafic.json'); if(!r.ok) return; const j=await r.json(); const m={};
   const grab=(k,cc)=>{ const t=j.concepts?.[cc]?.terms?.fr; if(t&&t.length) m[k]=t.map(x=>x.term); };
   grab('SELL_POINT','SELL_POINT'); grab('CUSTOMER','CUSTOMER'); grab('CANNABIS_WEED','CANNABIS_WEED'); grab('MONEY','MONEY');
+  grab('QUALITY_GOOD','QUALITY_GOOD'); grab('QUALITY_BAD','QUALITY_BAD');   // concepts v2 (auto-portés)
   DICO=Object.assign({},DICO,m);
 }catch(e){/* proto reste autonome */} })();
 
 // ---- genProfile (REPRIS de crimworld/index.html : foule anonyme) ------------
-const CM_PRE=["Pay","Hedge","Krilo","Naps","Vex","Zko","Brth","Lome","Saff","Dru","Niko","Ylw","Mok","Ras"];
-const CM_SUF=["Li","45","_","xx","02","tn","99","z","_b","77","ka","23","oo","37"];
-const CM_AV =["🦅","🐍","🦊","👹","🐉","🦂","🌒","🥷","🦍","🐺","🎭","💉","🪙","🔥"];
-function genProfile(){ return { nm: rnd(CM_PRE)+rnd(CM_SUF), av: rnd(CM_AV) }; }
+// Banques fallback embarquées ; content/crowd.json (si chargé) les enrichit (voir CONTENU EXTERNE).
+let CM_PRE=["Pay","Hedge","Krilo","Naps","Vex","Zko","Brth","Lome","Saff","Dru","Niko","Ylw","Mok","Ras"];
+let CM_SUF=["Li","45","_","xx","02","tn","99","z","_b","77","ka","23","oo","37"];
+let CM_AV =["🦅","🐍","🦊","👹","🐉","🦂","🌒","🥷","🦍","🐺","🎭","💉","🪙","🔥"];
+function genProfile(){
+  const Cr = CONTENT && CONTENT.crowd && CONTENT.crowd.pseudo;          // foule enrichie (patterns pondérés)
+  if(Cr){ return { nm: genPseudo(Cr), av: rnd((CONTENT.crowd.avatar&&CONTENT.crowd.avatar.emojis)||CM_AV) }; }
+  return { nm: rnd(CM_PRE)+rnd(CM_SUF), av: rnd(CM_AV) };                // fallback combinatoire d'origine
+}
 
 // ---- La TROUPE (voix récurrentes nommées — alignées sur le roster existant) -
-const VOICES = [
+let VOICES = [
   { id:'accro',    nm:"L'accro",       av:'😵' },
   { id:'comtesse', nm:'La Comtesse',   av:'👑' },
   { id:'kevin',    nm:'Kévin',         av:'🧃' },   // le lowballer (roster la-bascule)
@@ -324,11 +330,11 @@ const voice = id => VOICES.find(v=>v.id===id) || genProfile();
 // visage DÉTERMINISTE d'un TYPE de protagoniste (pour nommer les conséquences au bilan)
 const FACE = id => VOICES.find(v=>v.id===id) || {nm:'les lowballers',av:'👥'};
 // foule de voix « neutres » : on exclut les archétypes à mémoire gérés à part (Kévin/Comtesse/Accro)
-const CROWD_VOICES = VOICES.filter(v=>!['kevin','comtesse','accro'].includes(v.id));
+let CROWD_VOICES = VOICES.filter(v=>!['kevin','comtesse','accro'].includes(v.id));
 const protagBreakdown = m => Object.entries(m).map(([p,n])=>{ const f=FACE(p); return `${f.av} ${f.nm}${n>1?` ×${n}`:''}`; }).join(', ');
 
 // ---- Banque de phrases : contexte × ton (gabarits {CONCEPT}) ----------------
-const LINES = {
+let LINES = {
   ambiant:{ chaleureux:["{SELL_POINT} tourne fort en ce moment 🔥","on sait où trouver {QUALITY_GOOD} 🙏","ça parle de toi dans le quartier frérot"],
             neutre:["{SELL_POINT} fait son truc tranquille","rien à signaler ce soir","la night est calme 🌙"],
             mefi:["mouais… faut voir ce que ça donne 👀","j'attends de tester avant de dire","on verra bien"],
@@ -502,7 +508,7 @@ function reaction(ctx,tone,extra){
   return { nm:v.nm, av:v.av, txt, tone };
 }
 // banque d'ouvertures de DM (présentation) — {QTY} substitué AVANT fillConcepts
-const MSG = {
+let MSG = {
   genuine:{ chaleureux:["wesh frérot, tjs dispo ? je prends {QTY} 🙏","on m'a parlé de toi — je veux {QTY} ce soir 🔥","du lourd paraît-il, je prends {QTY}"],
             neutre:["salut, tjs dispo ? besoin de {QTY}","tu peux ce soir ? {QTY} pour moi","yo, dispo pour {QTY} ?"],
             mefi:["c'est toi le plug ? je veux {QTY}, mais je te connais pas","{QTY} si c'est clean. c'est clean ?"],
@@ -513,12 +519,91 @@ const MSG = {
 };
 // L'accro : sa came le rend plus accro → sa demande escalade avec le nombre de jours
 function accroLine(){
-  const s=S.accroStreak;
+  const s=S.accroStreak, pal = s>=6?'desespere': s>=3?'relance':'calme';
+  const pa=TROUPE.find(p=>p.id==='accro'), fromProf=pa&&pa.lines&&pa.lines.dm_open&&pa.lines.dm_open[pal];
+  if(fromProf&&fromProf.length) return rnd(fromProf);                 // profil accro (content)
+  if(MSG._accro&&MSG._accro[pal]) return rnd(MSG._accro[pal]);        // paliers lines.json
   const bank = s>=6 ? ["jpeux plus dormir sans 😵 file {QTY} vite stp","reup je t'en supplie, {QTY} 🙏😰","comme d'hab mais double, {QTY}"]
              : s>=3 ? ["yo c'est encore moi 😅 {QTY} comme d'hab","re, {QTY} pour moi le sang","tjs là ? je reprends {QTY}"]
              :        ["wesh je prends {QTY} 🙏","dispo ? {QTY} stp"];
   return rnd(bank);
 }
+
+// ---- CONTENU EXTERNE : enrichit troupe/foule/voix via content/*.json --------
+// Best-effort (comme le dico) : si le fetch échoue, les banques embarquées restent la source.
+// Invariant : présentation uniquement — le moteur pioche (rnd), le texte ne décide rien.
+let CONTENT=null, TROUPE=[], ACTION_REPLY=null, REUP_REPLY=null;
+async function loadContent(){ try{
+  const [P,L,Cr]=await Promise.all([
+    fetch('./content/profiles.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/lines.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/crowd.json').then(r=>r.ok?r.json():null).catch(()=>null),
+  ]);
+  CONTENT={profiles:P,lines:L,crowd:Cr};
+  if(L) applyLines(L);
+  if(P) applyProfiles(P);
+}catch(e){/* proto reste autonome */} }
+function applyLines(L){
+  if(L.dm_open){ const d=L.dm_open;
+    if(d.genuine) MSG.genuine=d.genuine; if(d.lowball) MSG.lowball=d.lowball;
+    if(d.flake) MSG.flake=d.flake; if(d.comtesse) MSG.comtesse=d.comtesse; if(d.accro) MSG._accro=d.accro; }
+  if(L.story_comment) for(const k in L.story_comment) LINES[k]=L.story_comment[k];   // ctx→ton→[]
+  if(L.action_reply) ACTION_REPLY=L.action_reply;
+  if(L.reup_reply)   REUP_REPLY=L.reup_reply;
+}
+function applyProfiles(P){
+  TROUPE=P.troupe||[];
+  const MEM=['accro','comtesse','kevin'];                              // gérés à part dans buildDMs
+  // la « foule de voix neutres » devient les faces cosmétiques genuine (sami/petit/ancien + clients nommés)
+  const crowd=TROUPE.filter(p=>(p.kind_default||'genuine')==='genuine' && !MEM.includes(p.id)).map(voiceFromProfile);
+  if(crowd.length) CROWD_VOICES=crowd;
+  for(const p of TROUPE){ const v=VOICES.find(x=>x.id===p.id);         // maj visage des voix à mémoire
+    if(v){ v.nm=p.pseudo; if(p.avatar&&p.avatar.emoji) v.av=p.avatar.emoji; } }
+}
+function voiceFromProfile(p){ return { id:p.id, protag:p.id, nm:p.pseudo, av:(p.avatar&&p.avatar.emoji)||'👤', lines:p.lines, kind:p.kind_default||'genuine' }; }
+function troupeVoice(id){ const p=TROUPE.find(x=>x.id===id); return p?voiceFromProfile(p):FACE(id); }
+// pseudo de foule : choisit un pattern pondéré puis tire ses fragments
+function weightedPick(a){ const t=a.reduce((s,x)=>s+(x.weight||1),0); let r=Math.random()*t; for(const x of a){ r-=(x.weight||1); if(r<=0) return x; } return a[0]; }
+function genPseudo(Cr){
+  const digits=n=>{ let s=''; for(let i=0;i<n;i++) s+=(Math.random()*10|0); return s; };
+  const sep=()=>rnd(Cr.separators||['']);
+  switch(weightedPick(Cr.patterns||[{id:'prefix_suffix'}]).id){
+    case 'word_digits': return rnd(Cr.words)+digits(2+(Math.random()*2|0));
+    case 'name_city':   return rnd(Cr.prefixes)+sep()+rnd(Cr.cities);
+    case 'word_glued':  return rnd(Cr.words);
+    case 'leet_typo':   return rnd(Cr.leet);
+    case 'prefix_word': return rnd(Cr.prefixes)+sep()+rnd(Cr.words);
+    default:            return rnd(Cr.prefixes)+rnd(Cr.suffixes);
+  }
+}
+// ouverture de DM : la voix parle SES lignes (troupe) sinon la banque globale (lines.json/fallback)
+function dmOpenFor(v,kind,tone){
+  const L=v&&v.lines&&v.lines.dm_open;
+  if(L){ if(Array.isArray(L)){ if(L.length) return rnd(L); }
+    else if(typeof L==='object'){ const pool=L[tone]||L.neutre||L.chaleureux||L.mefi||Object.values(L)[0]; if(pool&&pool.length) return rnd(pool); } }
+  if(kind==='genuine') return rnd(MSG.genuine[tone]||MSG.genuine.neutre);
+  if(kind==='lowball') return rnd(MSG.lowball);
+  if(kind==='flake')   return rnd(MSG.flake);
+  return '';
+}
+// réplique à une action : profil spécifique → banque par kind → fallback. fillConcepts + {QTY} appliqués.
+function replyFor(d,actionKey,fallback){
+  const prof=TROUPE.find(p=>p.id===d.protag&&p.pseudo===d.nm)||TROUPE.find(p=>p.id===d.protag);
+  const pa=prof&&prof.lines&&prof.lines.action_reply&&prof.lines.action_reply[actionKey];
+  if(pa&&pa.length) return rnd(pa);
+  const ga=ACTION_REPLY&&ACTION_REPLY[d.kind]&&ACTION_REPLY[d.kind][actionKey];
+  if(ga&&ga.length) return rnd(ga);
+  return fallback;
+}
+function reupReplyFor(c,result,fallback){
+  const prof=TROUPE.find(p=>p.id===c.archetype);
+  const pr=prof&&prof.lines&&prof.lines.reup_reply&&prof.lines.reup_reply[result];
+  if(pr&&pr.length) return rnd(pr);
+  const gr=REUP_REPLY&&REUP_REPLY[result];
+  if(gr&&gr.length) return rnd(gr);
+  return fallback;
+}
+const fin=(s,qty)=>fillConcepts(String(s).replace(/\{QTY\}/g,qty));   // finalise une réplique (concepts + qty)
 // protag = TYPE de protagoniste (visage récurrent), pas l'identité d'affichage de la foule
 function dmObj(id,v,kind,qty,ppu,msg,tone,protag){ return {id,nm:v.nm,av:v.av,kind,qty,ppu,msg,status:'pending',tone,protag,log:null}; }
 function buildDMs(good,bad,tone){
@@ -528,15 +613,17 @@ function buildDMs(good,bad,tone){
   const lowN=Math.round(bad*0.6), flakeN=bad-lowN;                    // split déterministe du mauvais public
   const push=(v,kind,qty,ppu,msg,protag)=>out.push(dmObj(id++,v,kind,qty,ppu,fillConcepts(msg.replace(/\{QTY\}/g,qty)),kind==='genuine'?tone:'mefi',protag));
   // L'ACCRO : toujours présent, quoi qu'il arrive (loyauté AVEUGLE = la blague noire), même réput à terre
-  push(FACE('accro'),'genuine',C.QTY_GENUINE[0],ppuG,accroLine(),'accro');
+  { const v=troupeVoice('accro'); push(v,'genuine',C.QTY_GENUINE[0],ppuG,accroLine(),'accro'); }
   // LA COMTESSE : présente seulement si GAGNÉE (fan) ; loyauté CONDITIONNÉE à la qualité ; paie le prix fort
-  if(S.comtesseState==='fan') push(FACE('comtesse'),'genuine',2,Math.round(ppuG*1.6),rnd(MSG.comtesse),'comtesse');
-  // le reste de la demande : foule anonyme + voix neutres (Kévin/Comtesse/Accro exclus, gérés ci-dessus)
-  for(let i=0;i<good;i++){ const v=Math.random()<0.4?rnd(CROWD_VOICES):genProfile();
-    push(v,'genuine',C.QTY_GENUINE[i%C.QTY_GENUINE.length],ppuG,rnd(MSG.genuine[tone]||MSG.genuine.neutre), v.id||'client'); }
-  for(let i=0;i<lowN;i++){ const v=(i===0)?FACE('kevin'):genProfile();  // Kévin le lowballer ouvre le bal
-    push(v,'lowball',C.QTY_LOWBALL[i%C.QTY_LOWBALL.length],ppuL,rnd(MSG.lowball),'kevin'); }
-  for(let i=0;i<flakeN;i++){ push(genProfile(),'flake',C.QTY_GENUINE[i%C.QTY_GENUINE.length],ppuG,rnd(MSG.flake),'flake'); }
+  if(S.comtesseState==='fan'){ const v=troupeVoice('comtesse'); push(v,'genuine',2,Math.round(ppuG*1.6),dmOpenFor(v,'genuine',tone),'comtesse'); }
+  // le reste de la demande : foule anonyme + faces cosmétiques (Kévin/Comtesse/Accro exclus, gérés ci-dessus)
+  for(let i=0;i<good;i++){ const v=(CROWD_VOICES.length&&Math.random()<0.5)?rnd(CROWD_VOICES):genProfile();
+    push(v,'genuine',C.QTY_GENUINE[i%C.QTY_GENUINE.length],ppuG,dmOpenFor(v,'genuine',tone), v.id||'client'); }
+  for(let i=0;i<lowN;i++){ const v=(i===0)?troupeVoice('kevin'):genProfile();  // Kévin le lowballer ouvre le bal
+    push(v,'lowball',C.QTY_LOWBALL[i%C.QTY_LOWBALL.length],ppuL,dmOpenFor(v,'lowball',tone),'kevin'); }
+  const flakeFaces=TROUPE.filter(p=>(p.kind_default||p.kind)==='flake');
+  for(let i=0;i<flakeN;i++){ const v=(flakeFaces.length&&Math.random()<0.4)?voiceFromProfile(rnd(flakeFaces)):genProfile();
+    push(v,'flake',C.QTY_GENUINE[i%C.QTY_GENUINE.length],ppuG,dmOpenFor(v,'flake',tone),'flake'); }
   return out;
 }
 // applique une décision de négociation — DÉTERMINISTE, tracé. Renvoie la réplique diégétique.
@@ -546,21 +633,22 @@ function doDMAction(id, action){
   if(d.kind==='genuine'){
     if(action==='sell'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.sold++; d.status='sold';
       addToPool(d);                                  // il entre dans ton carnet (relançable plus tard)
-      reply="reçu, t'es le boss 🙏"; sys=`💶 +${tot}€ encaissés.`; }
-    else { t.refused++; d.status='refused'; reply="ah… ok tant pis 😞"; sys="vente laissée filer."; }
+      reply=replyFor(d,'sell',"reçu, t'es le boss 🙏"); sys=`💶 +${tot}€ encaissés.`; }
+    else { t.refused++; d.status='refused'; reply=replyFor(d,'refuse',"ah… ok tant pis 😞"); sys="vente laissée filer."; }
   } else if(d.kind==='lowball'){
     if(action==='brade'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.brade++; d.status='brade';
       t.bradeProtags[d.protag]=(t.bradeProtags[d.protag]||0)+1;        // tracé par TYPE de protagoniste
       S.protagBrade[d.protag]=(S.protagBrade[d.protag]||0)+1;          // mémoire longue (la voix se souvient)
-      reply = S.protagBrade[d.protag]>=3 ? "ahah encore toi le pigeon 😏 j'ramène TOUTE l'équipe" : "ahah merci bg 😏 je ramène les reufs";
+      const esc = S.protagBrade[d.protag]>=3;                          // 3e bradage → ramène toute l'équipe
+      reply = replyFor(d, esc?'brade_escalade':'brade', esc ? "ahah encore toi le pigeon 😏 j'ramène TOUTE l'équipe" : "ahah merci bg 😏 je ramène les reufs");
       sys=`💸 +${tot}€ — mais brader devant ${FACE(d.protag).nm}, ça se sait…`; }
-    else { t.refused++; d.status='refused'; reply="pff radin va. 🙄"; sys="prix tenu — ton bassin reste sain."; }
+    else { t.refused++; d.status='refused'; reply=replyFor(d,'refuse',"pff radin va. 🙄"); sys="prix tenu — ton bassin reste sain."; }
   } else {
-    if(action==='rdv'){ t.ghost++; d.status='ghost'; reply="ouais ouais à 23h…"; sys="📍 RDV posé… 🦗 il n'est jamais venu. temps perdu."; }
-    else { t.block++; d.status='block'; sys="🚫 bloqué. inbox plus clean."; }
+    if(action==='rdv'){ t.ghost++; d.status='ghost'; reply=replyFor(d,'rdv',"ouais ouais à 23h…"); sys="📍 RDV posé… 🦗 il n'est jamais venu. temps perdu."; }
+    else { t.block++; d.status='block'; reply=replyFor(d,'block',''); sys="🚫 bloqué. inbox plus clean."; }
   }
   save();
-  return {reply,sys};
+  return {reply:fin(reply,d.qty),sys};
 }
 
 // ---- CARNET : réengagement 1:1 (la liste est un actif épuisable) -----------
@@ -582,19 +670,19 @@ function reup(c){
   const spam = gap < C.REUP_COOLDOWN;                                  // relancé trop tôt depuis la dernière fois
   if(spam || c.goodwill < C.GOODWILL_AGACE){
     c.goodwill -= spam ? C.GOODWILL_SPAM : C.GOODWILL_DECLINE;
-    if(c.goodwill<=0){ t.muted++; return {kind:'mute', reply:"tu me harcèles… stop. 🔇",
+    if(c.goodwill<=0){ t.muted++; return {kind:'mute', reply:fin(reupReplyFor(c,'mute',"tu me harcèles… stop. 🔇"),C.REUP_QTY),
       sys:`🔇 il te mute et quitte ton carnet. Tracé : relancé trop souvent (${spam?'< '+C.REUP_COOLDOWN+'j d\'écart':'déjà agacé'}).`}; }
-    return {kind:'annoyed', reply:"oh tu me lâches un peu 🙄", sys:"⚠️ ça l'agace — son goodwill baisse."};
+    return {kind:'annoyed', reply:fin(reupReplyFor(c,'annoyed',"oh tu me lâches un peu 🙄"),C.REUP_QTY), sys:"⚠️ ça l'agace — son goodwill baisse."};
   }
   const base = C.REUP_BASE[c.archetype] ?? 0.6;
   if(base*(c.goodwill/100) >= C.REUP_THRESHOLD){
     const ppu=Math.max(4,Math.round(C.PRIX_FAIR*(0.6+S.reput/120))), tot=C.REUP_QTY*ppu;
     S.cash+=tot; t.cash+=tot; t.sold++; t.reup++;
     c.goodwill=clamp(c.goodwill+C.GOODWILL_REUP_OK,0,100); c.buys++; c.lastBuy=S.jour;
-    return {kind:'buy', reply:"ah carré, je prends 🙏", sys:`💶 +${tot}€ — content que tu aies pensé à lui.`};
+    return {kind:'buy', reply:fin(reupReplyFor(c,'buy',"ah carré, je prends 🙏"),C.REUP_QTY), sys:`💶 +${tot}€ — content que tu aies pensé à lui.`};
   }
   c.goodwill=clamp(c.goodwill-Math.round(C.GOODWILL_DECLINE/2),0,100);
-  return {kind:'decline', reply:"pas ce soir, mais garde-moi au chaud 🙏", sys:"pas preneur aujourd'hui."};
+  return {kind:'decline', reply:fin(reupReplyFor(c,'decline',"pas ce soir, mais garde-moi au chaud 🙏"),C.REUP_QTY), sys:"pas preneur aujourd'hui."};
 }
 
 // ============================================================================
@@ -797,6 +885,7 @@ $('btnReset').addEventListener('click',()=>{ if(confirm('Reset le proto ?')){ S=
 // barres de progression du viewer (cosmétique)
 $('vprog').innerHTML='<span><b></b></span>';
 refresh();
+loadContent().then(refresh);   // enrichit troupe/foule/voix dès que content/*.json est dispo (sinon fallback)
 </script>
 </body>
 </html>
