@@ -1,0 +1,135 @@
+{
+  "_meta": {
+    "doc": "Snapshit — générateurs de LA FOULE (anonymes éphémères). Étend CM_PRE/CM_SUF/CM_AV + patterns de pseudo de snapshit/index.html (genProfile).",
+    "version": 1,
+    "updated": "2026-06-23",
+    "regles": [
+      "Anonymes jetables : combinatoire pondérée, pas de fiche unitaire.",
+      "Éviter collisions avec la troupe (profiles.json) : ne pas reproduire ses pseudos.",
+      "Avatars : univers clandé, jamais de visage net identifiable.",
+      "Assemblage : choisir un pattern selon son poids, puis tirer ses fragments."
+    ],
+    "usage_patterns": "tire un pattern ~ poids, applique son template avec les banques (prefix/suffix/word/city/leet/sep)."
+  },
+
+  "pseudo": {
+    "prefixes": [
+      "Pay","Hedge","Krilo","Naps","Vex","Zko","Brth","Lome","Saff","Dru",
+      "Niko","Ylw","Mok","Ras","Tcho","Blz","Grv","Syl","Drix","Maz",
+      "Ouss","Greg","Lyn","Bako","Tess","Vyn","Krl","Snn","Jow","Daks",
+      "Rmz","Fkr","Nzo","Wlz","Tana","Zef","Bril","Moha","Lka","Sib",
+      "Drk","Ghz","Pno","Sava","Tyx","Olz","Brak","Nuit","Zik","Vrn"
+    ],
+    "suffixes": [
+      "Li","45","_","xx","02","tn","99","z","_b","77",
+      "ka","23","oo","37","93","univ","officiel","_off","x2","ww",
+      "75","13","69","_dz","_mrs","zer","ito","ski","ouf","__",
+      "59","06","one","star","prod","bzh","911","000","_yt","real"
+    ],
+    "words": [
+      "ftgang","nuitblanche","ssjbinks","blackout","sansomeil","tieksboy","gramme0",
+      "billyzkitch","nofilter","afterlife","brouillard","hagra","onfire","minuit",
+      "stocklimite","cashonly","ghostmode","reseaux","plugxx","graillou","binks",
+      "lamiff","capuche","scooternuit","biztime","kestumate","wallahbrise","tranquille",
+      "lecharbon","sombre","nofakes","onlyloud","babylone","veillee","insomnie","grise",
+      "ratpi","khapta","srab","gova","teumteum","zonzon","depart","oklm","khey","akhi"
+    ],
+    "cities": [
+      "mrs","91","93","75","13","69","06","59","31","33",
+      "lyon","paname","ruff","tess","bdp","nord","sud","mtp","str","bzh"
+    ],
+    "leet": [
+      "vyx","brth","0xnaps","z3k","kr1lo","n4ps","m0k","v3x","r4s","dru1",
+      "5aff","l0me","y1w","tch0","b1z"
+    ],
+    "separators": [".","_","","-","x"],
+    "patterns": [
+      { "id": "prefix_suffix", "template": "{prefix}{suffix}", "weight": 30, "note": "le pattern d'origine (genProfile) : KriloLi, Vex_" },
+      { "id": "word_digits", "template": "{word}{2-3 digits}", "weight": 22, "note": "naps93, zko_ (mot + chiffres)" },
+      { "id": "name_city", "template": "{prefix}{sep}{city}", "weight": 18, "note": "yanis.91, dris.mrs (prénom/mot . ville)" },
+      { "id": "word_glued", "template": "{word}", "weight": 14, "note": "ftgang, nuitblanche, ssjbinks (mot collé argot)" },
+      { "id": "leet_typo", "template": "{leet}", "weight": 10, "note": "vyx, 0xnaps (leet/typo)" },
+      { "id": "prefix_word", "template": "{prefix}{sep}{word}", "weight": 6, "note": "combo riche : Zko.binks" }
+    ]
+  },
+
+  "avatar": {
+    "emojis": [
+      "🦅","🐍","🦊","👹","🐉","🦂","🌒","🥷","🦍","🐺",
+      "🎭","💉","🪙","🔥","👻","🃏","🐲","🦇","☠️","🕶️",
+      "🧿","🐙","🦉","🌑","⚡","🩸","🎰","🔮","🐈‍⬛","🚬",
+      "🧤","🛵","🪙","🎮","🥷","🪤","🧱","📟","🪫","🌃"
+    ],
+    "generic_prompts": {
+      "client": [
+        "silhouette encapuchonnée de dos sous lampadaire orange, grain nuit, accent #FFFC00, sans visage",
+        "main tenant un téléphone dans le noir, écran qui éclaire, néon #FFFC00, anonyme",
+        "ombre sur un mur de cage d'escalier, lumière minuteur, accent #FFFC00",
+        "personne floue traversant un passage piéton de nuit, traînées néon #FFFC00",
+        "dos d'un sweat à capuche, parking souterrain, unique néon #FFFC00",
+        "reflet déformé dans une vitre de hall d'immeuble, palette sombre, touche #FFFC00"
+      ],
+      "flake": [
+        "chaise vide sous un lampadaire, brume, point de RDV désert, accent #FFFC00",
+        "banc mouillé sous la pluie de nuit, personne, halo néon #FFFC00",
+        "message 'vu' sur un écran fissuré, fond noir, accent #FFFC00",
+        "rue vide à 23h, horloge floue, ambiance d'attente, touche #FFFC00",
+        "porte entrouverte sur un couloir vide, lumière vacillante, accent #FFFC00"
+      ],
+      "lowballer": [
+        "fausse chaîne dorée sur survêt, capuche, fond parking, accent #FFFC00, sans visage",
+        "liasse de petits billets froissés tenue serrée, lumière crue, néon #FFFC00",
+        "calculatrice de téléphone éclairée dans le noir, accent #FFFC00",
+        "sneakers contrefaites sous néon, bitume mouillé, touche #FFFC00",
+        "main qui marchande, geste flou, fond béton, accent #FFFC00"
+      ],
+      "connaisseur": [
+        "gant de soie sombre et bague, verre à pied, fond noir, reflet #FFFC00, aucun visage",
+        "détail de manteau de luxe, texture riche, éclairage froid, touche #FFFC00",
+        "loupe de joaillier sur surface sombre, élégance, accent #FFFC00",
+        "verre de vin tenu par une main soignée, pénombre feutrée, néon #FFFC00",
+        "intérieur cossu tamisé, fauteuil cuir, unique lampe #FFFC00"
+      ],
+      "accro": [
+        "gros plan flou et cramé sous néon jaune sale, yeux hors champ, halo #FFFC00",
+        "main tremblante près d'un écran trop lumineux, grain nuit, accent #FFFC00",
+        "silhouette recroquevillée dans un coin sombre, néon #FFFC00, anonyme",
+        "réveil à 3h du matin flou, lumière bleutée et touche #FFFC00",
+        "couloir qui tourne, effet de vertige, palette cramée, accent #FFFC00"
+      ],
+      "regular": [
+        "casquette baissée de dos, sweat sombre, lampadaire orangé, léger #FFFC00",
+        "habitué adossé à un mur, posture détendue, pénombre, accent #FFFC00",
+        "trousseau de clés et téléphone dans une poche, lumière douce, touche #FFFC00",
+        "tasse à emporter sur un muret la nuit, halo néon #FFFC00",
+        "ombre familière sous le même réverbère, grain nuit, accent #FFFC00"
+      ],
+      "jeune": [
+        "silhouette d'ado de dos en trottinette, hall sombre, néon #FFFC00, anonyme",
+        "manette ou téléphone dans le noir, visage caché par la lumière, accent #FFFC00",
+        "capuche trop grande, épaules étroites, cage d'escalier, touche #FFFC00",
+        "sac à dos d'école posé sur un banc de nuit, halo #FFFC00",
+        "stickers sur un casque de scooter, lumière crue, accent #FFFC00"
+      ],
+      "ancien": [
+        "fumée de cigarette devant une fenêtre voilée, ton sépia, faible reflet #FFFC00, dos voûté",
+        "mains burinées tenant un briquet, lumière chaude basse, touche #FFFC00",
+        "manteau usé sur un porte-manteau, intérieur sombre, accent #FFFC00",
+        "cendrier plein sur une table de cuisine la nuit, halo #FFFC00",
+        "silhouette lente sous la pluie, parapluie, palette désaturée, touche #FFFC00"
+      ],
+      "curieux": [
+        "regard hors champ vers une vitrine de nuit, reflet néon #FFFC00, anonyme",
+        "personne hésitant à l'entrée d'une ruelle, pénombre, accent #FFFC00",
+        "téléphone filmant une story, écran lumineux, fond sombre, touche #FFFC00",
+        "groupe flou au loin sous un lampadaire, ambiance after, néon #FFFC00"
+      ],
+      "touriste": [
+        "valise à roulettes sur un trottoir de nuit, lumières floues, accent #FFFC00",
+        "carte de la ville pliée tenue dans le noir, halo néon #FFFC00, sans visage",
+        "groupe d'after flou sortant d'un club, traînées #FFFC00",
+        "bracelet de festival au poignet, lumière colorée, touche #FFFC00"
+      ]
+    }
+  }
+}
