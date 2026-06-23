@@ -670,7 +670,7 @@ function setBowlMat(mat) { for (const m of bowlNugs) m.material = mat; }
 const jar = new THREE.Group();
 const glass = new THREE.Mesh(
   new THREE.CylinderGeometry(0.55, 0.55, 1.0, 24, 1, true),
-  new THREE.MeshStandardMaterial({ color: 0xd2e6dc, transparent: true, opacity: 0.38, roughness: 0.08, metalness: 0.2, side: THREE.DoubleSide })
+  new THREE.MeshStandardMaterial({ color: 0xd8ebe2, transparent: true, opacity: 0.26, roughness: 0.06, metalness: 0.25, side: THREE.DoubleSide })
 );
 glass.position.y = 0.55;
 const jarBase = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.52, 0.08, 24),
@@ -678,50 +678,95 @@ const jarBase = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.52, 0.08, 24),
 jarBase.position.y = 0.06;
 const jarFill = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.9, 24), matStrain.skunk);
 jarFill.position.y = 0.5;
-const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.59, 0.59, 0.13, 24),
-  new THREE.MeshStandardMaterial({ color: 0xb8a14a, metalness: 0.6, roughness: 0.4 }));
+const lid = new THREE.Group();                   // couvercle metal + jupe + bouton (poli)
+const lidTop = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.1, 28),
+  new THREE.MeshStandardMaterial({ color: 0xc7ad55, metalness: 0.75, roughness: 0.32 }));
+const lidSkirt = new THREE.Mesh(new THREE.CylinderGeometry(0.605, 0.605, 0.16, 28, 1, true),
+  new THREE.MeshStandardMaterial({ color: 0x9c8540, metalness: 0.7, roughness: 0.4, side: THREE.DoubleSide }));
+lidSkirt.position.y = -0.1;
+const lidKnob = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.06, 16),
+  new THREE.MeshStandardMaterial({ color: 0xd8c067, metalness: 0.8, roughness: 0.3 }));
+lidKnob.position.y = 0.07;
+lid.add(lidTop); lid.add(lidSkirt); lid.add(lidKnob);
 lid.position.y = 1.1;
-const band = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 0.3, 24, 1, true),
-  new THREE.MeshStandardMaterial({ color: 0xf3efe2, roughness: 0.8, side: THREE.DoubleSide }));
-band.position.y = 0.42;
 jarFill.visible = false;                         // remplacé par des BUDS (cf. jarBuds)
-jar.add(glass); jar.add(jarBase); jar.add(jarFill); jar.add(lid); jar.add(band);
-// Contenu du pot = des TÊTES qui s'entassent (pas de poudre). Couleur pilotée par
-// le mix (refreshPotContent). Empilage en couches (sunflower) du bas vers le haut.
+jar.add(glass); jar.add(jarBase); jar.add(jarFill); jar.add(lid);
+
+// Matieres du DECHET vegetal dans le pot : brindilles, miettes, petites feuilles.
+const twigGeo = new THREE.CylinderGeometry(0.014, 0.011, 0.26, 4);
+const crumbGeo = new THREE.IcosahedronGeometry(0.05, 0);
+const matTwig = new THREE.MeshStandardMaterial({ color: 0x6f5a32, roughness: 0.95 });
+const matCrumb = new THREE.MeshStandardMaterial({ color: 0x7c7a44, roughness: 0.95 });
+
+// Contenu du pot = des TÊTES qui s'entassent (variétés) ou du déchet végétal
+// (brindilles/feuilles/miettes). Empilage du BAS vers le HAUT, le nb de couches
+// visibles suit le POIDS (g / 1000) -> 1 kg remplit le pot, 300 g ~1/3.
 const jarBuds = new THREE.Group(); jar.add(jarBuds);
-const JARBUD_MAX = 40, jarBudList = [];
-for (let i = 0; i < JARBUD_MAX; i++) {
-  const m = makeNug(matStrain.skunk, true);
-  const layer = Math.floor(i / 5), idx = i % 5;
-  const a = i * 2.39996, r = (0.06 + (idx / 5) * 0.34);
-  m.position.set(Math.cos(a) * r, 0.12 + layer * 0.105, Math.sin(a) * r);
-  m.scale.setScalar(0.92 + Math.random() * 0.3);
-  m.visible = false; jarBuds.add(m); jarBudList.push(m);
+const LAYERS = 11, PERLAYER = 7, JARBUD_MAX = LAYERS * PERLAYER, jarBudList = [];
+for (let L = 0; L < LAYERS; L++) {
+  for (let k = 0; k < PERLAYER; k++) {
+    const i = L * PERLAYER + k;
+    const m = new THREE.Mesh(nugGeoSm, matStrain.skunk); m.castShadow = true;
+    const a = i * 2.39996, rr = Math.sqrt((k + 0.4) / PERLAYER) * 0.42;
+    m.position.set(Math.cos(a) * rr, 0.12 + L * (0.86 / (LAYERS - 1)), Math.sin(a) * rr);
+    m.visible = false; jarBuds.add(m); jarBudList.push(m);
+  }
 }
 jar.position.set(0, 0, 0.2);
 jar.traverse(o => { if (o.isMesh) o.castShadow = true; });
 scene.add(jar);
 jar.userData.fill = jarFill;
 jar.userData.lid = lid;
-jar.userData.band = band;
 jar.userData.glass = glass;
-// Remplit le pot avec des buds : fraction 0..1, couleurs tirees de la composition.
+// Remplit le pot : frac (0..1 du poids/1000) -> couches visibles bas->haut ;
+// chaque emplacement = bud (variété) ou déchet (brindille/miette/feuille) selon comp.
 function refreshPotContent(frac, comp) {
   const n = Math.max(0, Math.min(JARBUD_MAX, Math.round(frac * JARBUD_MAX)));
   const weights = [];
-  if (comp) {
-    for (const id of STR_IDS) if (comp[id] > 0) weights.push([matStrain[id], comp[id]]);
-    if (comp.waste > 0) weights.push([matLeaf, comp.waste]);
-  }
+  if (comp) { for (const id of STR_IDS) if (comp[id] > 0) weights.push([id, comp[id]]); if (comp.waste > 0) weights.push(["waste", comp.waste]); }
   const wsum = weights.reduce((s, w) => s + w[1], 0) || 1;
   for (let i = 0; i < JARBUD_MAX; i++) {
     const m = jarBudList[i]; m.visible = i < n;
-    if (i < n && weights.length) {
-      let r = ((i * 0.61803) % 1) * wsum, mat = weights[0][0];
-      for (const w of weights) { if (r < w[1]) { mat = w[0]; break; } r -= w[1]; }
-      m.material = mat;
+    if (i >= n || !weights.length) continue;
+    let r = ((i * 0.61803) % 1) * wsum, pick = weights[0][0];
+    for (const w of weights) { if (r < w[1]) { pick = w[0]; break; } r -= w[1]; }
+    m.rotation.set((i * 1.3) % 6, (i * 2.1) % 6, (i * 0.7) % 6);
+    if (pick === "waste") {
+      const t = (i * 7) % 10;
+      if (t < 5) { m.geometry = twigGeo; m.material = matTwig; m.scale.set(1, 1, 1); m.rotation.z = (i % 2 ? 1 : -1) * 1.25; }
+      else if (t < 8) { m.geometry = crumbGeo; m.material = matCrumb; m.scale.setScalar(0.7 + (i % 3) * 0.18); }
+      else { m.geometry = leafGeo; m.material = matLeafSolid; m.scale.set(1, 1, 0.28); }
+    } else {
+      m.geometry = nugGeoSm; m.material = matStrain[pick]; m.scale.setScalar(0.95 + ((i * 13) % 5) * 0.06);
     }
   }
+}
+
+// Etiquette imprimee (canvas) appliquee a l'avant du pot une fois scelle.
+const labelCanvas = document.createElement("canvas"); labelCanvas.width = 256; labelCanvas.height = 168;
+const labelTex = new THREE.CanvasTexture(labelCanvas);
+const jarLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.84, 0.55),
+  new THREE.MeshBasicMaterial({ map: labelTex, transparent: true }));
+jarLabel.position.set(0, 0.46, 0.566); jarLabel.visible = false;
+jar.add(jarLabel); jar.userData.label = jarLabel;
+function labelRoundRect(x, a, b, w, h, r) { x.beginPath(); x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r); x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath(); }
+function printLabel(b) {
+  const c = labelCanvas, x = c.getContext("2d");
+  x.clearRect(0, 0, 256, 168);
+  labelRoundRect(x, 4, 4, 248, 160, 14); x.fillStyle = "#f4f0e3"; x.fill();
+  x.lineWidth = 3; x.strokeStyle = "rgba(40,60,30,.35)"; x.stroke();
+  x.textAlign = "left";
+  x.fillStyle = "#16240f"; x.font = "800 27px -apple-system,sans-serif";
+  x.fillText((STRAINS[b.strain] ? STRAINS[b.strain].name : b.name).slice(0, 16), 16, 38);
+  x.font = "800 19px sans-serif"; x.fillStyle = qColor(b.q);
+  x.fillText(gradeOf(b.q) + " · " + Math.round(b.q * 100) + " %", 16, 64);
+  x.font = "16px sans-serif"; x.fillStyle = "#3a4a2c"; let yy = 90;
+  const comp = b.comp || {};
+  for (const id of STR_IDS) if (comp[id] > 0.5) { x.fillText(STRAINS[id].name + " · " + Math.round(comp[id]) + " g", 16, yy); yy += 21; }
+  if (comp.waste > 0.5) { x.fillText("Déchet végétal · " + Math.round(comp.waste) + " g", 16, yy); yy += 21; }
+  x.fillStyle = "#6f5f38"; x.font = "800 15px sans-serif";
+  x.fillText(Math.round(b.g) + " g — pot 1 kg", 16, 156);
+  labelTex.needsUpdate = true;
 }
 
 // 7e) L'ETAGERE de stockage (phase 5) : planche + pots scelles empiles.
@@ -1427,8 +1472,8 @@ const POT_BASE_EUR = 9.0;                                       // €/g de vent
 const JAR_MAX = 1000, SCREW_TURNS = Math.PI * 2;               // pot = conserve 1 kg
 const PACK = { step: "fill", jarG: 0, cap: 0, rate: 60, pouring: false, screwing: false, sealAcc: 0, lastAng: 0, pushStart: null, busy: false, flyT: 0, psnd: 0, ssnd: 0 };
 function packCap() { return batch ? Math.min(JAR_MAX, batch.g) : 0; }
-function setJarFill(g) {                                        // remplit le pot de BUDS selon le mix
-  refreshPotContent(PACK.cap > 0 ? g / PACK.cap : 0, batch ? batch.comp : null);
+function setJarFill(g) {                                        // niveau = poids absolu / 1 kg
+  refreshPotContent(Math.min(1, g / JAR_MAX), batch ? batch.comp : null);
 }
 function setPotStep() {
   if (!ui.potstep) return;
@@ -1450,6 +1495,7 @@ function startJar() {
   PACK.cap = packCap(); PACK.rate = Math.max(60, PACK.cap / 2.0);     // verse tout le mix en ~2 s
   setJarFill(0);
   jar.userData.lid.visible = false; jar.userData.lid.rotation.y = 0; jar.userData.lid.position.y = 1.35;
+  jar.userData.label.visible = false;            // l'étiquette s'imprime au vissage
   jar.visible = !!batch && phase === "pots";
   refreshPotCard(); setPotStep();
   setHint(batch ? "Maintiens sur le pot pour verser le mix." : "Tout est en pot. Stocker ▸");
@@ -1471,6 +1517,7 @@ function goScrew() {
 function sealDone() {
   PACK.step = "push"; jar.userData.lid.position.y = 1.1;
   playSeal(); addShake(0.08);
+  if (batch) { printLabel(batch); jar.userData.label.visible = true; PACK.labelPop = 0; }  // étiquette imprimée
   setPotStep(); setHint("Pousse le pot vers l'étagère.");
 }
 // Le pot scelle part au stock (conservation). Le prix de revente se fait au
@@ -1829,6 +1876,11 @@ function loop(t) {
   }
   if (phase === "mix") bowlFill.rotation.y += dt * 0.8;
   if (phase === "pots") {
+    // Petit "pop" de l'étiquette quand elle vient d'être imprimée.
+    if (PACK.labelPop != null && PACK.labelPop < 1) {
+      PACK.labelPop = Math.min(1, PACK.labelPop + dt * 5);
+      const s = 0.6 + 0.4 * PACK.labelPop; jar.userData.label.scale.set(s, s, 1);
+    }
     // Versement continu tant qu'on maintient : remplit le pot avec TOUT le mix.
     if (PACK.pouring && PACK.step === "fill") {
       PACK.jarG = Math.min(PACK.cap, PACK.jarG + PACK.rate * dt);
