@@ -692,11 +692,14 @@ lid.position.y = 1.1;
 jarFill.visible = false;                         // remplacé par des BUDS (cf. jarBuds)
 jar.add(glass); jar.add(jarBase); jar.add(jarFill); jar.add(lid);
 
-// Matieres du DECHET vegetal dans le pot : brindilles, miettes, petites feuilles.
-const twigGeo = new THREE.CylinderGeometry(0.014, 0.011, 0.26, 4);
-const crumbGeo = new THREE.IcosahedronGeometry(0.05, 0);
-const matTwig = new THREE.MeshStandardMaterial({ color: 0x6f5a32, roughness: 0.95 });
-const matCrumb = new THREE.MeshStandardMaterial({ color: 0x7c7a44, roughness: 0.95 });
+// Matieres du DECHET vegetal dans le pot : brindilles, miettes, petites feuilles
+// — texturees et plus volumineuses (le dechet doit remplir/garnir le pot).
+const twigGeo = new THREE.CylinderGeometry(0.022, 0.015, 0.34, 5);
+const crumbGeo = new THREE.IcosahedronGeometry(0.075, 0);
+const wasteLeafGeo = new THREE.ConeGeometry(0.14, 0.42, 5);
+const matTwig = new THREE.MeshStandardMaterial({ map: grainTex(112, 88, 48, 36, 24), roughness: 0.96 });
+const matCrumb = new THREE.MeshStandardMaterial({ map: grainTex(126, 120, 66, 32, 16), roughness: 0.95 });
+const matWasteLeaf = new THREE.MeshStandardMaterial({ map: grainTex(92, 116, 58, 34, 18), roughness: 0.95, side: THREE.DoubleSide });
 
 // Contenu du pot = des TÊTES qui s'entassent (variétés) ou du déchet végétal
 // (brindilles/feuilles/miettes). Empilage du BAS vers le HAUT, le nb de couches
@@ -733,39 +736,54 @@ function refreshPotContent(frac, comp) {
     m.rotation.set((i * 1.3) % 6, (i * 2.1) % 6, (i * 0.7) % 6);
     if (pick === "waste") {
       const t = (i * 7) % 10;
-      if (t < 5) { m.geometry = twigGeo; m.material = matTwig; m.scale.set(1, 1, 1); m.rotation.z = (i % 2 ? 1 : -1) * 1.25; }
-      else if (t < 8) { m.geometry = crumbGeo; m.material = matCrumb; m.scale.setScalar(0.7 + (i % 3) * 0.18); }
-      else { m.geometry = leafGeo; m.material = matLeafSolid; m.scale.set(1, 1, 0.28); }
+      if (t < 3) { m.geometry = twigGeo; m.material = matTwig; m.scale.set(1, 1, 1); m.rotation.z = (i % 2 ? 1 : -1) * 1.25; }
+      else if (t < 7) { m.geometry = wasteLeafGeo; m.material = matWasteLeaf; m.scale.set(1, 1, 0.45); }   // feuilles volumineuses
+      else { m.geometry = crumbGeo; m.material = matCrumb; m.scale.setScalar(0.9 + (i % 3) * 0.22); }
     } else {
-      m.geometry = nugGeoSm; m.material = matStrain[pick]; m.scale.setScalar(0.95 + ((i * 13) % 5) * 0.06);
+      m.geometry = nugGeoSm; m.material = matStrain[pick]; m.scale.setScalar(1.05 + ((i * 13) % 5) * 0.07);
     }
   }
 }
 
-// Etiquette imprimee (canvas) appliquee a l'avant du pot une fois scelle.
-const labelCanvas = document.createElement("canvas"); labelCanvas.width = 256; labelCanvas.height = 168;
+// Etiquette imprimee (canvas) ENROULEE autour du pot (arc de cylindre) une fois scelle.
+const LBL_W = 420, LBL_H = 200;
+const labelCanvas = document.createElement("canvas"); labelCanvas.width = LBL_W; labelCanvas.height = LBL_H;
 const labelTex = new THREE.CanvasTexture(labelCanvas);
-const jarLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.84, 0.55),
-  new THREE.MeshBasicMaterial({ map: labelTex, transparent: true }));
-jarLabel.position.set(0, 0.46, 0.566); jarLabel.visible = false;
+labelTex.anisotropy = 4;
+const LABEL_ARC = 2.15;                                         // ~123° autour de l'avant du pot (centré sur +Z)
+const jarLabel = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.563, 0.563, 0.56, 40, 1, true, -LABEL_ARC / 2, LABEL_ARC),
+  new THREE.MeshStandardMaterial({ map: labelTex, transparent: true, roughness: 0.85, metalness: 0, side: THREE.DoubleSide })
+);
+jarLabel.position.set(0, 0.46, 0); jarLabel.visible = false;
 jar.add(jarLabel); jar.userData.label = jarLabel;
 function labelRoundRect(x, a, b, w, h, r) { x.beginPath(); x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r); x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath(); }
 function printLabel(b) {
-  const c = labelCanvas, x = c.getContext("2d");
-  x.clearRect(0, 0, 256, 168);
-  labelRoundRect(x, 4, 4, 248, 160, 14); x.fillStyle = "#f4f0e3"; x.fill();
-  x.lineWidth = 3; x.strokeStyle = "rgba(40,60,30,.35)"; x.stroke();
-  x.textAlign = "left";
-  x.fillStyle = "#16240f"; x.font = "800 27px -apple-system,sans-serif";
-  x.fillText((STRAINS[b.strain] ? STRAINS[b.strain].name : b.name).slice(0, 16), 16, 38);
-  x.font = "800 19px sans-serif"; x.fillStyle = qColor(b.q);
-  x.fillText(gradeOf(b.q) + " · " + Math.round(b.q * 100) + " %", 16, 64);
-  x.font = "16px sans-serif"; x.fillStyle = "#3a4a2c"; let yy = 90;
+  const x = labelCanvas.getContext("2d");
+  x.clearRect(0, 0, LBL_W, LBL_H);
+  // Papier kraft clair + grain.
+  x.fillStyle = "#ece4d0"; x.fillRect(0, 0, LBL_W, LBL_H);
+  for (let i = 0; i < 2600; i++) { x.fillStyle = "rgba(" + (120 + (Math.random() * 50 | 0)) + "," + (108 + (Math.random() * 36 | 0)) + "," + (84 + (Math.random() * 30 | 0)) + "," + (Math.random() * 0.07).toFixed(3) + ")"; x.fillRect(Math.random() * LBL_W, Math.random() * LBL_H, 2, 2); }
+  const wasteOnly = b.strain === "waste";
+  const tint = wasteOnly ? "rgb(111,90,50)" : (STRAINS[b.strain] ? "rgb(" + STRAINS[b.strain].col.join(",") + ")" : "rgb(90,125,58)");
+  // Bandeau d'en-tete colore (variete) + filets.
+  x.fillStyle = tint; x.fillRect(0, 0, LBL_W, 60);
+  x.fillStyle = "rgba(0,0,0,.18)"; x.fillRect(0, 56, LBL_W, 4);
+  x.textAlign = "left"; x.fillStyle = "#fff";
+  x.font = '800 38px Georgia, "Times New Roman", serif';
+  x.fillText((STRAINS[b.strain] ? STRAINS[b.strain].name : b.name).toUpperCase().slice(0, 16), 20, 44);
+  // Badge qualite a droite.
+  x.textAlign = "right"; x.font = '800 22px Georgia, serif';
+  x.fillText(gradeOf(b.q) + "  " + Math.round(b.q * 100) + "%", LBL_W - 18, 40);
+  // Corps : composition.
+  x.textAlign = "left"; x.fillStyle = "#2b3a21"; x.font = '22px Georgia, serif'; let yy = 96;
   const comp = b.comp || {};
-  for (const id of STR_IDS) if (comp[id] > 0.5) { x.fillText(STRAINS[id].name + " · " + Math.round(comp[id]) + " g", 16, yy); yy += 21; }
-  if (comp.waste > 0.5) { x.fillText("Déchet végétal · " + Math.round(comp.waste) + " g", 16, yy); yy += 21; }
-  x.fillStyle = "#6f5f38"; x.font = "800 15px sans-serif";
-  x.fillText(Math.round(b.g) + " g — pot 1 kg", 16, 156);
+  for (const id of STR_IDS) if (comp[id] > 0.5) { x.fillText("• " + STRAINS[id].name + "   " + Math.round(comp[id]) + " g", 22, yy); yy += 30; }
+  if (comp.waste > 0.5) { x.fillText("• Déchet végétal   " + Math.round(comp.waste) + " g", 22, yy); yy += 30; }
+  // Pied.
+  x.fillStyle = "#6a5a34"; x.font = '800 20px Georgia, serif';
+  x.fillText(Math.round(b.g) + " g · bocal 1 kg", 22, LBL_H - 16);
+  x.strokeStyle = "rgba(45,55,32,.45)"; x.lineWidth = 4; x.strokeRect(3, 3, LBL_W - 6, LBL_H - 6);
   labelTex.needsUpdate = true;
 }
 
@@ -1879,7 +1897,7 @@ function loop(t) {
     // Petit "pop" de l'étiquette quand elle vient d'être imprimée.
     if (PACK.labelPop != null && PACK.labelPop < 1) {
       PACK.labelPop = Math.min(1, PACK.labelPop + dt * 5);
-      const s = 0.6 + 0.4 * PACK.labelPop; jar.userData.label.scale.set(s, s, 1);
+      const s = 0.5 + 0.5 * PACK.labelPop; jar.userData.label.scale.set(1, s, 1);
     }
     // Versement continu tant qu'on maintient : remplit le pot avec TOUT le mix.
     if (PACK.pouring && PACK.step === "fill") {
