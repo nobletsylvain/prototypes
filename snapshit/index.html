@@ -260,7 +260,7 @@
 // ============================================================================
 // SNAPSHIT — refonte sur le châssis crimworld/. Voir commentaire d'en-tête.
 // ============================================================================
-const SAVE_VERSION = 3;
+const SAVE_VERSION = 4;
 const KEY='snapshit_state', VKEY='snapshit_ver';
 
 // ---- Constantes nommées (PLACEHOLDERS — réglage humain plus tard) ----------
@@ -315,6 +315,9 @@ const VOICES = [
   { id:'ancien',   nm:"L'ancien",      av:'🚬' },
 ];
 const voice = id => VOICES.find(v=>v.id===id) || genProfile();
+// visage DÉTERMINISTE d'un TYPE de protagoniste (pour nommer les conséquences au bilan)
+const FACE = id => VOICES.find(v=>v.id===id) || {nm:'les lowballers',av:'👥'};
+const protagBreakdown = m => Object.entries(m).map(([p,n])=>{ const f=FACE(p); return `${f.av} ${f.nm}${n>1?` ×${n}`:''}`; }).join(', ');
 
 // ---- Banque de phrases : contexte × ton (gabarits {CONCEPT}) ----------------
 const LINES = {
@@ -350,10 +353,10 @@ function lineFor(ctx,tone,extra){
 function fresh(){ return {
   jour:1, reput:C.REPUT_INIT, expo:C.EXPO_INIT, credibilite:1, flake:C.FLAKE_BASE,
   qualiteChoisie:'standard', promesse:null, posteAujourdhui:false, repPrev:C.REPUT_INIT,
-  pendingCryWolf:[], pendingBadPublic:[], dms:[], cash:0,
-  dayTally:{sold:0,cash:0,brade:0,refused:0,ghost:0,block:0},
+  pendingCryWolf:[], pendingBadPublic:[], dms:[], cash:0, protagBrade:{},
+  dayTally:{sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{}},
 }; }
-const freshTally = () => ({sold:0,cash:0,brade:0,refused:0,ghost:0,block:0});
+const freshTally = () => ({sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{}});
 let S = load();
 function load(){ try{
   if(localStorage.getItem(VKEY)!==String(SAVE_VERSION)) throw 0;
@@ -399,8 +402,9 @@ function passerJournee(){
   S.pendingBadPublic = S.pendingBadPublic.filter(ev=>{
     if(ev.due!==S.jour) return true;
     S.flake=clamp(S.flake+ev.ampleur,0,0.9);
+    const who = ev.protags ? protagBreakdown(ev.protags) : 'les lowballers';
     const c = ev.cause==='brade'
-      ? `Tu as bradé tes prix au jour ${ev.jourCause} : le mot a circulé, les lowballers rappliquent (part flakes ↑). Tracé à TON geste — pas au hasard.`
+      ? `Tu as bradé devant ${who} au jour ${ev.jourCause} : le mot est passé, ils rappliquent avec les leurs (part flakes ↑). Tracé à TON geste — pas au hasard.`
       : `Ton buzz d'il y a ${C.EXPO_DELAI_MAUVAIS_PUBLIC}j a attiré le mauvais monde : la part de flakes/lowballers monte. Co-effet PARALLÈLE de l'exposition.`;
     cons.push({k:'warn',t:'BASSIN — mauvais public',c});
     comments.push(reaction('mauvais_public', S.reput<50?'hostile':'mefi'));
@@ -445,8 +449,8 @@ function passerJournee(){
   if(t.sold||t.brade) cons.push({k:'good',t:'CAISSE du jour',c:`Tu as encaissé ${t.cash}€ — ${t.sold} vente(s) au prix${t.brade?`, ${t.brade} bradée(s)`:''}.`});
   if(t.brade>0){
     const amp=clamp(C.FLAKE_PAR_BRADAGE*t.brade,0,0.4);
-    S.pendingBadPublic.push({due:S.jour+C.BRADE_DELAI,ampleur:amp,cause:'brade',jourCause:S.jour});
-    cons.push({k:'warn',t:'BRADAGE — ça va se savoir',c:`Tu as cassé tes prix ${t.brade} fois. Cash tout de suite, mais le mauvais public débarquera au jour ${S.jour+C.BRADE_DELAI}. Cupidité now ↔ bassin pourri later.`});
+    S.pendingBadPublic.push({due:S.jour+C.BRADE_DELAI,ampleur:amp,cause:'brade',jourCause:S.jour,protags:Object.assign({},t.bradeProtags)});
+    cons.push({k:'warn',t:'BRADAGE — ça va se savoir',c:`Tu as cassé tes prix devant ${protagBreakdown(t.bradeProtags)}. Cash tout de suite, mais le mauvais public débarquera au jour ${S.jour+C.BRADE_DELAI}. Cupidité now ↔ bassin pourri later.`});
   }
   const leftG=(S.dms||[]).filter(d=>d.kind==='genuine'&&d.status==='pending').length;
   if(leftG>0) cons.push({k:'warn',t:'CLIENTS IGNORÉS',c:`${leftG} client(s) sérieux pas répondus — partis ailleurs. Pas de sanction : juste du cash laissé sur la table.`});
@@ -482,7 +486,8 @@ const MSG = {
   lowball:["je prends {QTY} mais tu me fais un prix 👀","gros volume {QTY}, lâche -40% sinon je vais ailleurs","{QTY} cash là maintenant si tu casses le prix","aller fais un effort, {QTY} d'un coup 🤝"],
   flake:["allô ?? tjs là ?","euh je sais pas encore… {QTY} ptet","tu réponds vite au moins ? ⌛","faut que je vois avec un pote, attends…"],
 };
-function dmObj(id,v,kind,qty,ppu,msg,tone){ return {id,nm:v.nm,av:v.av,kind,qty,ppu,msg,status:'pending',tone,log:null}; }
+// protag = TYPE de protagoniste (visage récurrent), pas l'identité d'affichage de la foule
+function dmObj(id,v,kind,qty,ppu,msg,tone,protag){ return {id,nm:v.nm,av:v.av,kind,qty,ppu,msg,status:'pending',tone,protag,log:null}; }
 function buildDMs(good,bad,tone){
   const out=[]; let id=0;
   const ppuG=Math.max(4,Math.round(C.PRIX_FAIR*(0.6+S.reput/120)));   // la demande paie selon la réput
@@ -490,13 +495,13 @@ function buildDMs(good,bad,tone){
   const lowN=Math.round(bad*0.6), flakeN=bad-lowN;                    // split déterministe du mauvais public
   for(let i=0;i<good;i++){ const v=Math.random()<0.4?rnd(VOICES):genProfile();
     const qty=C.QTY_GENUINE[i%C.QTY_GENUINE.length];
-    out.push(dmObj(id++,v,'genuine',qty,ppuG,fillConcepts(rnd(MSG.genuine[tone]||MSG.genuine.neutre).replace(/\{QTY\}/g,qty)),tone)); }
+    out.push(dmObj(id++,v,'genuine',qty,ppuG,fillConcepts(rnd(MSG.genuine[tone]||MSG.genuine.neutre).replace(/\{QTY\}/g,qty)),tone, v.id||'client')); }
   for(let i=0;i<lowN;i++){ const v=(i===0)?voice('kevin'):genProfile();  // Kévin le lowballer ouvre le bal
     const qty=C.QTY_LOWBALL[i%C.QTY_LOWBALL.length];
-    out.push(dmObj(id++,v,'lowball',qty,ppuL,fillConcepts(rnd(MSG.lowball).replace(/\{QTY\}/g,qty)),'mefi')); }
+    out.push(dmObj(id++,v,'lowball',qty,ppuL,fillConcepts(rnd(MSG.lowball).replace(/\{QTY\}/g,qty)),'mefi', 'kevin')); }  // type = le lowballer (Kévin)
   for(let i=0;i<flakeN;i++){ const v=genProfile();
     const qty=C.QTY_GENUINE[i%C.QTY_GENUINE.length];
-    out.push(dmObj(id++,v,'flake',qty,ppuG,fillConcepts(rnd(MSG.flake).replace(/\{QTY\}/g,qty)),'mefi')); }
+    out.push(dmObj(id++,v,'flake',qty,ppuG,fillConcepts(rnd(MSG.flake).replace(/\{QTY\}/g,qty)),'mefi', 'flake')); }
   return out;
 }
 // applique une décision de négociation — DÉTERMINISTE, tracé. Renvoie la réplique diégétique.
@@ -509,7 +514,10 @@ function doDMAction(id, action){
     else { t.refused++; d.status='refused'; reply="ah… ok tant pis 😞"; sys="vente laissée filer."; }
   } else if(d.kind==='lowball'){
     if(action==='brade'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.brade++; d.status='brade';
-      reply="ahah merci bg 😏 je ramène les reufs"; sys=`💸 +${tot}€ — mais brader, ça finit par se savoir…`; }
+      t.bradeProtags[d.protag]=(t.bradeProtags[d.protag]||0)+1;        // tracé par TYPE de protagoniste
+      S.protagBrade[d.protag]=(S.protagBrade[d.protag]||0)+1;          // mémoire longue (la voix se souvient)
+      reply = S.protagBrade[d.protag]>=3 ? "ahah encore toi le pigeon 😏 j'ramène TOUTE l'équipe" : "ahah merci bg 😏 je ramène les reufs";
+      sys=`💸 +${tot}€ — mais brader devant ${FACE(d.protag).nm}, ça se sait…`; }
     else { t.refused++; d.status='refused'; reply="pff radin va. 🙄"; sys="prix tenu — ton bassin reste sain."; }
   } else {
     if(action==='rdv'){ t.ghost++; d.status='ghost'; reply="ouais ouais à 23h…"; sys="📍 RDV posé… 🦗 il n'est jamais venu. temps perdu."; }
