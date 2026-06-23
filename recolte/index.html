@@ -109,20 +109,16 @@
   #qtyrow .qbtn.on { background:rgba(155,227,125,.22); border-color:#7ad17a; color:#d6f7c2; }
   #qtyrow .qbtn:active { transform:scale(.96); }
 
-  /* --- Mix : chips de selection de variete --- */
-  #mixchips { display:flex; gap:7px; flex-wrap:wrap; justify-content:center; width:96%; max-width:460px; pointer-events:auto; }
-  .chip { pointer-events:auto; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.18);
-    border-radius:11px; padding:7px 11px; color:#fff; font-weight:700; font-size:12.5px; }
-  .chip.on { background:rgba(122,209,122,.22); border-color:#7ad17a; }
-  .chip:disabled { opacity:.35; }
-
-  /* --- Mix : curseur de dilution --- */
-  #dtrack { position:relative; width:80%; max-width:360px; height:30px; pointer-events:auto;
-    display:flex; align-items:center; }
-  #dtrail { position:absolute; left:0; right:0; height:10px; border-radius:999px;
-    background:linear-gradient(90deg,#7ad17a,#ffd166 55%,#ff6b6b); opacity:.85; }
-  #dknob { position:absolute; width:24px; height:24px; border-radius:50%; background:#fff; left:0; margin-left:-12px;
-    box-shadow:0 2px 8px rgba(0,0,0,.5); border:2px solid #1a2c18; }
+  /* --- Mix : une ligne de curseur par ingredient --- */
+  #mixsliders { display:flex; flex-direction:column; gap:6px; width:96%; max-width:440px; pointer-events:auto; }
+  .ming { display:flex; align-items:center; gap:9px; }
+  .mglb { flex:none; width:96px; font-size:12px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mgval { flex:none; width:48px; text-align:right; font-size:12px; font-weight:800; color:#fff; }
+  .mgsl { flex:1; -webkit-appearance:none; appearance:none; height:8px; border-radius:999px;
+    background:rgba(255,255,255,.16); outline:none; }
+  .mgsl::-webkit-slider-thumb { -webkit-appearance:none; width:22px; height:22px; border-radius:50%;
+    background:#fff; border:2px solid #1a2c18; box-shadow:0 2px 6px rgba(0,0,0,.5); }
+  .mgsl::-moz-range-thumb { width:22px; height:22px; border-radius:50%; background:#fff; border:2px solid #1a2c18; }
 
   /* --- Pots : grille de formats --- */
   #potgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; width:94%; max-width:440px; pointer-events:auto; }
@@ -172,7 +168,7 @@
   <span class="step" data-step="effeuille">1·Effeuille</span>
   <span class="step" data-step="tri">2·Tri</span>
   <span class="step" data-step="mix">3·Mix</span>
-  <span class="step" data-step="pots">4·Emballe</span>
+  <span class="step" data-step="pots">4·Pot</span>
   <span class="step" data-step="stock">5·Stock</span>
 </div>
 <button id="shopbtn">🛒</button>
@@ -207,12 +203,10 @@
 <!-- Phase 3 : Mix / Dilution (prépare des lots, puis Emballer) -->
 <div class="panel" id="mixui">
   <div class="card" id="mixcard"></div>
-  <div id="mixchips"></div>
-  <div id="dtrack"><div id="dtrail"></div><div id="dknob"></div></div>
+  <div id="mixsliders"></div>
   <div class="row">
-    <button class="toggle" id="mixBlend">🧬 Blend</button>
-    <button class="btn alt" id="mixPrep">➕ Préparer</button>
-    <button class="btn" id="mixPack">Emballer ▸</button>
+    <button class="btn alt" id="mixClear">Vider</button>
+    <button class="btn" id="mixPack">Mettre en pot ▸</button>
   </div>
 </div>
 
@@ -667,7 +661,20 @@ lid.position.y = 1.1;
 const band = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 0.3, 24, 1, true),
   new THREE.MeshStandardMaterial({ color: 0xf3efe2, roughness: 0.8, side: THREE.DoubleSide }));
 band.position.y = 0.42;
+jarFill.visible = false;                         // remplacé par des BUDS (cf. jarBuds)
 jar.add(glass); jar.add(jarBase); jar.add(jarFill); jar.add(lid); jar.add(band);
+// Contenu du pot = des TÊTES qui s'entassent (pas de poudre). Couleur pilotée par
+// le mix (refreshPotContent). Empilage en couches (sunflower) du bas vers le haut.
+const jarBuds = new THREE.Group(); jar.add(jarBuds);
+const JARBUD_MAX = 40, jarBudList = [];
+for (let i = 0; i < JARBUD_MAX; i++) {
+  const m = makeNug(matStrain.skunk, true);
+  const layer = Math.floor(i / 5), idx = i % 5;
+  const a = i * 2.39996, r = (0.06 + (idx / 5) * 0.34);
+  m.position.set(Math.cos(a) * r, 0.12 + layer * 0.105, Math.sin(a) * r);
+  m.scale.setScalar(0.92 + Math.random() * 0.3);
+  m.visible = false; jarBuds.add(m); jarBudList.push(m);
+}
 jar.position.set(0, 0, 0.2);
 jar.traverse(o => { if (o.isMesh) o.castShadow = true; });
 scene.add(jar);
@@ -675,6 +682,24 @@ jar.userData.fill = jarFill;
 jar.userData.lid = lid;
 jar.userData.band = band;
 jar.userData.glass = glass;
+// Remplit le pot avec des buds : fraction 0..1, couleurs tirees de la composition.
+function refreshPotContent(frac, comp) {
+  const n = Math.max(0, Math.min(JARBUD_MAX, Math.round(frac * JARBUD_MAX)));
+  const weights = [];
+  if (comp) {
+    for (const id of STR_IDS) if (comp[id] > 0) weights.push([matStrain[id], comp[id]]);
+    if (comp.waste > 0) weights.push([matLeaf, comp.waste]);
+  }
+  const wsum = weights.reduce((s, w) => s + w[1], 0) || 1;
+  for (let i = 0; i < JARBUD_MAX; i++) {
+    const m = jarBudList[i]; m.visible = i < n;
+    if (i < n && weights.length) {
+      let r = ((i * 0.61803) % 1) * wsum, mat = weights[0][0];
+      for (const w of weights) { if (r < w[1]) { mat = w[0]; break; } r -= w[1]; }
+      m.material = mat;
+    }
+  }
+}
 
 // 7e) L'ETAGERE de stockage (phase 5) : planche + pots scelles empiles.
 const shelf = new THREE.Group();
@@ -849,10 +874,7 @@ owned.autosort= owned.autosort|| 0;   // trieuse auto (tri passif, niveaux = vit
 let phase = "effeuille";              // effeuille | tri | mix | pots | stock
 let harvest = null;                   // recolte en cours { raw, total, wholesale, fr:{...}, leafFr }
 let fresh = null;                     // tas frais a trier { skunk, widow, lemon, purple, leaf }
-let mixSel = {};                      // varietes selectionnees pour le mix
-let mixBlend = false;                 // mode blend (plusieurs varietes ensemble)
-let batches = [];                     // file de lots prêts à emballer [{ strain, name, q, g }]
-let packJar = null;                   // pot en cours d'emballage (geste verser→visser→pousser)
+let batch = null;                     // recette validée à mettre en pot { strain, name, q, g, comp }
 let optHygro = false;                 // option pochon hygro au conditionnement
 
 function saveBins()    { localStorage.setItem("rc_bins", JSON.stringify(bins)); localStorage.setItem("rc_waste", String(Math.round(waste))); }
@@ -866,7 +888,7 @@ const ui = {};
 ["cash","debt","replbl","repfill","level","xpfill","hint","toast",
  "effui","effcard","effswipe","effNext",
  "triui","tricard","triswipe","triNext",
- "mixui","mixcard","mixchips","dtrack","dtrail","dknob","mixBlend","mixPrep","mixPack",
+ "mixui","mixcard","mixsliders","mixClear","mixPack",
  "potsui","potcard","potstep","optHygro","potDone",
  "stockui","stockcard","stockSell","stockNew",
  "shop","shopitems","shopcash"].forEach(id => ui[id] = document.getElementById(id));
@@ -1252,110 +1274,109 @@ function triCommitUI() {
 }
 
 /* -------------------------------------------------------------------------
-   14) PHASE 3 — MIX / DILUTION
+   14) PHASE 3 — MIX : un CURSEUR par ingredient (variete + dechet)
+   Le plat central part vide et se remplit au fil des curseurs. On compose la
+   recette (quantites choisies), on voit qualite/total en direct, puis on valide
+   -> ca part en mise en pot. Plus de dechet = volume + mais qualite -.
    ------------------------------------------------------------------------- */
-let dilute = 0;                 // 0..0.4 : part de dechet vegetal ajoutee
-const DILUTE_MAX = 0.4;
+const mixAmt = { skunk: 0, widow: 0, lemon: 0, purple: 0, waste: 0 };
+function qColor(q) { return q >= 0.62 ? "#9be37d" : q >= 0.42 ? "#ffd166" : "#ff6b6b"; }
+function ingMax(id) { return id === "waste" ? waste : bins[id].g; }
+function mixIngredients() {
+  const list = STR_IDS.filter(id => bins[id].g > 0.5).map(id => ({ id, kind: "strain" }));
+  if (waste > 0.5) list.push({ id: "waste", kind: "waste" });
+  return list;
+}
 function gotoMix() {
   setPhase("mix");
-  mixSel = {}; mixBlend = false; dilute = 0;
-  ui.mixBlend.classList.remove("on");
-  // Selection par defaut : la variete la plus fournie.
-  let best = null, bg = 0;
-  for (const id of STR_IDS) if (bins[id].g > bg) { bg = bins[id].g; best = id; }
-  if (best) mixSel[best] = true;
-  setBowlByMix();
-  setDKnob(); renderMixChips(); refreshMixCard();
-  setHint("Curseur = dilution au déchet (volume +, qualité −).");
+  for (const k in mixAmt) mixAmt[k] = 0;
+  renderMixSliders();
+  refreshMixDish();
+  refreshMixCard();
+  setHint("Règle la quantité de chaque produit dans le plat, puis Mettre en pot ▸.");
 }
-function selectedIds() { return STR_IDS.filter(id => mixSel[id] && bins[id].g > 0.5); }
-// Projette le lot sans rien consommer.
+// Projette la recette sans rien consommer.
 function projectMix() {
-  const ids = selectedIds();
   let g = 0, qs = 0;
-  for (const id of ids) { g += bins[id].g; qs += bins[id].qs; }
+  for (const id of STR_IDS) { const a = Math.min(mixAmt[id], bins[id].g); g += a; qs += a * binQ(id); }
   const qFlower = g > 0.01 ? qs / g : 0;
-  // Dilution : ajoute du dechet (plafonne par le stock dispo).
-  let add = dilute > 0 ? g * dilute / (1 - dilute) : 0;
-  add = Math.min(add, waste);
+  const add = Math.min(mixAmt.waste, waste);
   const outG = g + add;
   const outQ = outG > 0.01 ? (g * qFlower + add * WASTE_Q) / outG : 0;
-  const effDil = outG > 0.01 ? add / outG : 0;
-  return { ids, g, qFlower, add, outG, outQ, effDil };
+  const ids = STR_IDS.filter(id => mixAmt[id] > 0.5);
+  const wasteFrac = outG > 0.01 ? add / outG : 0;
+  return { ids, g, add, outG, outQ, wasteFrac };
 }
-function setBowlByMix() {
-  const ids = selectedIds();
-  setBowlMat(ids.length ? matStrain[ids[0]] : matLeaf);
-}
-function qColor(q) { return q >= 0.62 ? "#9be37d" : q >= 0.42 ? "#ffd166" : "#ff6b6b"; }
-function queueLine() {
-  if (!batches.length) return '';
-  const g = Math.round(batches.reduce((s, b) => s + b.g, 0));
-  return '<div class="sub2" style="margin-top:4px;color:#bdf0a3">📦 ' + batches.length + ' lot' + (batches.length > 1 ? 's' : '') + ' prêt' + (batches.length > 1 ? 's' : '') + ' · ' + g + ' g — Emballer ▸</div>';
+// Plat central : nugs colores selon la composition, nombre ∝ total.
+function refreshMixDish() {
+  const p = projectMix();
+  const weights = [];
+  for (const id of STR_IDS) if (mixAmt[id] > 0) weights.push([matStrain[id], mixAmt[id]]);
+  if (mixAmt.waste > 0) weights.push([matLeaf, mixAmt.waste]);
+  const wsum = weights.reduce((s, w) => s + w[1], 0) || 1;
+  const n = Math.max(0, Math.min(bowlNugs.length, Math.round(p.outG / 30)));
+  for (let i = 0; i < bowlNugs.length; i++) {
+    const m = bowlNugs[i]; m.visible = i < n;
+    if (i < n && weights.length) {
+      let r = ((i + 0.5) / Math.max(1, n)) * wsum, mat = weights[0][0];
+      for (const w of weights) { if (r < w[1]) { mat = w[0]; break; } r -= w[1]; }
+      m.material = mat;
+    }
+  }
 }
 function refreshMixCard() {
   const p = projectMix();
-  if (ui.mixPack) ui.mixPack.disabled = batches.length === 0;
-  if (p.g < 1) {
-    const noneLeft = STR_IDS.every(id => bins[id].g < 0.5);
+  if (ui.mixPack) ui.mixPack.disabled = p.outG < 1;
+  if (p.outG < 1) {
+    const noneLeft = STR_IDS.every(id => bins[id].g < 0.5) && waste < 0.5;
     ui.mixcard.innerHTML = '<div class="ttl">⚗️ Mix</div><div class="sub2">' +
-      (noneLeft ? (batches.length ? 'Tout préparé — passe à l\'emballage.' : 'Rien à mixer — trie d\'abord.') : 'Sélectionne une variété ci-dessous.') +
-      '</div>' + queueLine();
+      (noneLeft ? 'Plus rien à mixer — emballe ou stocke.' : 'Règle les curseurs pour composer ta recette.') + '</div>';
     return;
   }
-  const name = p.ids.length > 1 ? "🧬 Blend maison · " + p.ids.length + " var." : STRAINS[p.ids[0]].emoji + " " + STRAINS[p.ids[0]].name;
+  const name = p.ids.length > 1 ? "🧬 Blend maison · " + p.ids.length + " var." : (p.ids.length ? STRAINS[p.ids[0]].emoji + " " + STRAINS[p.ids[0]].name : "🍂 Déchet");
   ui.mixcard.innerHTML =
     '<div class="ttl">' + name + '</div>' +
-    '<div class="sub2">Fleur ' + Math.round(p.g) + ' g' + (p.add >= 1 ? ' + déchet ' + Math.round(p.add) + ' g' : '') + ' → <b style="color:#fff">' + Math.round(p.outG) + ' g</b></div>' +
+    '<div class="sub2">Plat : <b style="color:#fff">' + Math.round(p.outG) + ' g</b>' + (p.add >= 1 ? ' (dont ' + Math.round(p.add) + ' g déchet)' : '') + '</div>' +
     '<div style="margin-top:3px">Qualité <span class="qbig" style="color:' + qColor(p.outQ) + '">' + gradeOf(p.outQ) + ' · ' + Math.round(p.outQ * 100) + ' %</span>' +
-    (p.effDil > 0.25 ? ' <span class="q">⚠ très coupé</span>' : '') + '</div>' + queueLine();
+    (p.wasteFrac > 0.3 ? ' <span class="q">⚠ très coupé</span>' : '') + '</div>';
 }
-function setDKnob() { ui.dknob.style.left = (dilute / DILUTE_MAX * 100) + "%"; }
-function renderMixChips() {
-  ui.mixchips.innerHTML = "";
-  for (const id of STR_IDS) {
-    const b = document.createElement("button"); b.className = "chip" + (mixSel[id] ? " on" : "");
-    b.disabled = bins[id].g < 0.5;
-    b.innerHTML = STRAINS[id].emoji + " " + STRAINS[id].name.split(" ")[0] + " <span style=\"opacity:.7\">" + Math.round(bins[id].g) + "g</span>";
-    b.addEventListener("click", () => toggleMix(id));
-    ui.mixchips.appendChild(b);
+// Construit une ligne de curseur par ingredient disponible.
+function renderMixSliders() {
+  ui.mixsliders.innerHTML = "";
+  for (const it of mixIngredients()) {
+    const id = it.id, isW = id === "waste", max = Math.round(ingMax(id));
+    const tint = isW ? "#caa15f" : STRAINS[id].tint, emo = isW ? "🍂" : STRAINS[id].emoji, nm = isW ? "Déchet" : STRAINS[id].name.split(" ")[0];
+    const row = document.createElement("div"); row.className = "ming";
+    row.innerHTML =
+      '<span class="mglb" style="color:' + tint + '">' + emo + ' ' + nm + '</span>' +
+      '<input class="mgsl" type="range" min="0" max="' + max + '" value="' + Math.round(mixAmt[id]) + '" step="1" data-ing="' + id + '">' +
+      '<span class="mgval" data-val="' + id + '">' + Math.round(mixAmt[id]) + 'g</span>';
+    const sl = row.querySelector(".mgsl"), val = row.querySelector(".mgval");
+    sl.addEventListener("input", () => {
+      mixAmt[id] = Math.min(+sl.value, ingMax(id));
+      val.textContent = Math.round(mixAmt[id]) + "g";
+      refreshMixDish(); refreshMixCard();
+    });
+    ui.mixsliders.appendChild(row);
   }
 }
-function toggleMix(id) {
-  if (bins[id].g < 0.5) return;
-  if (mixBlend) { mixSel[id] = !mixSel[id]; }
-  else { mixSel = {}; mixSel[id] = true; }   // mode pur : une seule variete
-  setBowlByMix(); renderMixChips(); refreshMixCard();
-}
-function setMixBlend(on) {
-  mixBlend = on; ui.mixBlend.classList.toggle("on", on);
-  if (!on) {                                   // repasse en pur : garde une seule selection
-    const ids = selectedIds();
-    mixSel = {}; if (ids.length) mixSel[ids[0]] = true;
-  }
-  renderMixChips(); refreshMixCard();
-}
-// Prepare un lot et l'ajoute a la FILE (on peut en preparer plusieurs avant
-// d'emballer). Consomme les bacs selectionnes + le dechet utilise.
-function prepBatch() {
+// Valide la recette -> consomme les ingredients, cree le lot, mise en pot.
+function validateMix() {
   const p = projectMix();
-  if (p.g < 1) { showToast("Sélectionne une variété", "#caa15f"); return; }
-  for (const id of p.ids) { bins[id] = { g: 0, qs: 0 }; }
-  waste = Math.max(0, waste - p.add);
-  const name = p.ids.length > 1 ? "Blend maison" : STRAINS[p.ids[0]].name;
-  const strain = p.ids.length > 1 ? "blend" : p.ids[0];
-  let q = p.outQ;
-  if (owned.hygro && optHygro) q = Math.min(1, q + 0.05);   // curing -> petit bonus
-  batches.push({ strain, name, g: p.outG, q });
+  if (p.outG < 1) { showToast("Ajoute des ingrédients au plat", "#caa15f"); return; }
+  const comp = { waste: Math.min(mixAmt.waste, waste) };
+  for (const id of STR_IDS) {
+    const a = Math.min(mixAmt[id], bins[id].g); comp[id] = a;
+    if (a > 0) { const frac = a / bins[id].g; bins[id].qs *= (1 - frac); bins[id].g = Math.max(0, bins[id].g - a); }
+  }
+  waste = Math.max(0, waste - comp.waste);
+  let q = p.outQ; if (owned.hygro && optHygro) q = Math.min(1, q + 0.05);
+  const name = p.ids.length > 1 ? "Blend maison" : (p.ids.length ? STRAINS[p.ids[0]].name : "Déchet");
+  const strain = p.ids.length > 1 ? "blend" : (p.ids.length ? p.ids[0] : "waste");
+  batch = { strain, name, g: p.outG, q, comp };
   saveBins(); updateBinsUI();
-  addShake(0.1); playSeal();
-  showToast("Lot prêt : " + name + " " + Math.round(p.outG) + " g", "#9be37d");
-  // Reselection auto sur la variete restante la plus fournie.
-  mixSel = {}; mixBlend = false; ui.mixBlend.classList.remove("on"); dilute = 0; setDKnob();
-  let best = null, bg = 0;
-  for (const id of STR_IDS) if (bins[id].g > bg) { bg = bins[id].g; best = id; }
-  if (best) mixSel[best] = true;
-  setBowlByMix(); renderMixChips(); refreshMixCard();
+  addShake(0.12); playSeal();
+  gotoPack();
 }
 
 /* -------------------------------------------------------------------------
@@ -1365,77 +1386,70 @@ function prepBatch() {
    vers l'etagere. Petit pot = €/g plus eleve (detail), gros pot = €/g plus bas.
    ------------------------------------------------------------------------- */
 function qualMult(q) { return 0.6 + q * 0.9; }                 // qualite -> multiplicateur de prix
-function pricePerG(g) { const t = Math.max(0, Math.min(1, (g - 3.5) / 24.5)); return 11 - t * 3.2; } // 3.5g:11 -> 28g:7.8
-const JAR_MAX = 30, FILL_RATE = 24, SCREW_TURNS = Math.PI * 2;
-const PACK = { step: "fill", jarG: 0, pouring: false, screwing: false, sealAcc: 0, lastAng: 0, pushStart: null, busy: false, flyT: 0, psnd: 0, ssnd: 0 };
-function curBatch() { return batches[0] || null; }
-function packCap() { const b = curBatch(); return b ? Math.min(JAR_MAX, b.g) : 0; }
-function jarColor(b) { return b ? (b.strain === "blend" ? matStrain.skunk : (matStrain[b.strain] || matStrain.skunk)) : matStrain.skunk; }
-function setJarFill(g) {
-  const fill = jar.userData.fill, k = Math.max(0.001, Math.min(1, g / JAR_MAX));
-  fill.scale.y = k; fill.position.y = 0.05 + 0.45 * k; fill.visible = g > 0.05;
+const POT_BASE_EUR = 5.2;                                       // €/g de base (gros/non conditionné)
+const JAR_MAX = 1000, SCREW_TURNS = Math.PI * 2;               // pot = conserve 1 kg
+const PACK = { step: "fill", jarG: 0, cap: 0, rate: 60, pouring: false, screwing: false, sealAcc: 0, lastAng: 0, pushStart: null, busy: false, flyT: 0, psnd: 0, ssnd: 0 };
+function packCap() { return batch ? Math.min(JAR_MAX, batch.g) : 0; }
+function setJarFill(g) {                                        // remplit le pot de BUDS selon le mix
+  refreshPotContent(PACK.cap > 0 ? g / PACK.cap : 0, batch ? batch.comp : null);
 }
 function setPotStep() {
   if (!ui.potstep) return;
-  ui.potstep.textContent = PACK.step === "fill" ? "👇 Maintiens sur le pot pour verser · lâche quand c'est bon"
+  ui.potstep.textContent = PACK.step === "fill" ? "👇 Maintiens pour verser tout le mix dans le pot"
     : PACK.step === "screw" ? "🔄 Tourne le doigt autour du pot pour visser"
     : PACK.step === "push" ? "👆 Pousse le pot vers l'étagère (glisse vers le haut)"
     : "✓ Tout est en pot — Stocker ▸";
 }
 function gotoPack() {
-  if (!batches.length) { showToast("Prépare au moins un lot", "#caa15f"); return; }
+  if (!batch) { showToast("Compose un mix d'abord", "#caa15f"); return; }
   setPhase("pots");
   ui.optHygro.classList.toggle("on", optHygro);
   jar.position.set(0, 0, 0.2); jar.rotation.set(0, 0, 0);
   startJar();
 }
 function startJar() {
-  const b = curBatch();
-  PACK.step = b ? "fill" : "done";
+  PACK.step = batch ? "fill" : "done";
   PACK.jarG = 0; PACK.pouring = false; PACK.screwing = false; PACK.sealAcc = 0; PACK.busy = false;
-  jar.userData.fill.material = jarColor(b);
+  PACK.cap = packCap(); PACK.rate = Math.max(60, PACK.cap / 2.0);     // verse tout le mix en ~2 s
   setJarFill(0);
   jar.userData.lid.visible = false; jar.userData.lid.rotation.y = 0; jar.userData.lid.position.y = 1.35;
-  jar.visible = !!b && phase === "pots";
+  jar.visible = !!batch && phase === "pots";
   refreshPotCard(); setPotStep();
-  setHint(b ? "Maintiens sur le pot pour verser la fleur." : "Tout est en pot. Stocker ▸");
+  setHint(batch ? "Maintiens sur le pot pour verser le mix." : "Tout est en pot. Stocker ▸");
 }
 function refreshPotCard() {
-  const b = curBatch();
-  if (!b) { ui.potcard.innerHTML = '<div class="ttl">Tout est en pot ✓</div><div class="sub2">' + storage.length + ' pot(s) prêt(s) — Stocker ▸</div>'; return; }
+  if (!batch) { ui.potcard.innerHTML = '<div class="ttl">Tout est en pot ✓</div><div class="sub2">' + storage.length + ' pot(s) en stock — Stocker ▸</div>'; return; }
   const g = PACK.jarG;
-  const price = Math.round(g * pricePerG(g) * qualMult(b.q) * repMult() * levelMult() * (optHygro && owned.hygro ? 1.08 : 1));
   ui.potcard.innerHTML =
-    '<div class="ttl">' + (STRAINS[b.strain] ? STRAINS[b.strain].emoji + " " : "🧬 ") + b.name + ' · <span style="color:' + qColor(b.q) + '">' + gradeOf(b.q) + '</span></div>' +
-    '<div class="sub2">Lot restant ' + Math.round(b.g) + ' g · file : ' + batches.length + ' lot' + (batches.length > 1 ? 's' : '') + '</div>' +
-    '<div style="margin-top:2px">Pot : <b style="color:#fff">' + g.toFixed(1) + ' g</b>' + (g >= 1 ? ' · <b style="color:#9be37d">~' + price + ' €</b>' : '') + '</div>';
+    '<div class="ttl">' + (STRAINS[batch.strain] ? STRAINS[batch.strain].emoji + " " : "🧬 ") + batch.name + ' · <span style="color:' + qColor(batch.q) + '">' + gradeOf(batch.q) + '</span></div>' +
+    '<div class="sub2">Pot de conservation (1 kg) · mix ' + Math.round(batch.g) + ' g</div>' +
+    '<div style="margin-top:2px">Versé : <b style="color:#fff">' + Math.round(g) + ' g</b> / ' + Math.round(PACK.cap) + ' g</div>';
 }
-// Etape 1 finie -> on visse.
 function goScrew() {
   if (PACK.jarG < 1) return;
   PACK.step = "screw"; PACK.sealAcc = 0;
   jar.userData.lid.visible = true; jar.userData.lid.position.y = 1.35;
   setPotStep(); setHint("Tourne le doigt autour du pot pour visser le couvercle.");
 }
-// Etape 2 finie -> pret a pousser.
 function sealDone() {
   PACK.step = "push"; jar.userData.lid.position.y = 1.1;
   playSeal(); addShake(0.08);
   setPotStep(); setHint("Pousse le pot vers l'étagère.");
 }
-// Etape 3 : le pot scelle part au stock.
+// Le pot scelle part au stock (conservation). Le prix de revente se fait au
+// conditionnement (à venir) ; ici prix de base "gros".
 function doPush() {
-  if (PACK.busy || PACK.step !== "push") return;
+  if (PACK.busy || PACK.step !== "push" || !batch) return;
   if (storage.length >= jarSlots.length) { showToast("Étagère pleine — Stocker ▸", "#caa15f"); return; }
-  const b = curBatch(); if (!b) return;
   const g = PACK.jarG;
-  const price = Math.round(g * pricePerG(g) * qualMult(b.q) * repMult() * levelMult() * (optHygro && owned.hygro ? 1.08 : 1));
-  storage.push({ strain: b.strain, name: b.name, grade: gradeOf(b.q), q: b.q, g, price });
+  const price = Math.round(g * POT_BASE_EUR * qualMult(batch.q) * repMult() * levelMult() * (optHygro && owned.hygro ? 1.08 : 1));
+  storage.push({ strain: batch.strain, name: batch.name, grade: gradeOf(batch.q), q: batch.q, g, price, comp: batch.comp });
   saveStorage();
-  b.g -= g; if (b.g < 1) batches.shift();
-  addXP(Math.max(1, Math.round(price * 0.03)));
-  showToast("Pot " + g.toFixed(1) + " g · " + b.name + " → +" + price + " €", "#9be37d");
+  batch.g -= g;
+  addXP(Math.max(1, Math.round(price * 0.02)));
+  showToast("Pot " + Math.round(g) + " g · " + batch.name, "#9be37d");
   playSale();
+  if (batch.g < 1) batch = null;            // mix entièrement empoté
   PACK.busy = true; PACK.flyT = 0;          // animation "pousse vers l'etagere"
 }
 
@@ -1578,17 +1592,6 @@ function jarScreen() { _jc.set(jar.position.x, jar.position.y + 0.6, jar.positio
 function angTo(e) { const c = jarScreen(); return Math.atan2(e.clientY - c.y, e.clientX - c.x); }
 function angDelta(a, b) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
 
-// Curseur de dilution (slider).
-let sliderDrag = false;
-function setDiluteFromX(clientX) {
-  const r = ui.dtrack.getBoundingClientRect();
-  dilute = Math.max(0, Math.min(DILUTE_MAX, ((clientX - r.left) / r.width) * DILUTE_MAX));
-  setDKnob(); refreshMixCard();
-}
-ui.dtrack.addEventListener("pointerdown", (e) => { e.stopPropagation(); sliderDrag = true; setDiluteFromX(e.clientX); });
-window.addEventListener("pointermove", (e) => { if (sliderDrag) setDiluteFromX(e.clientX); });
-window.addEventListener("pointerup", () => { sliderDrag = false; });
-
 el.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -1674,16 +1677,15 @@ ui.triNext.addEventListener("click", () => {
   if (freshTotal() > 0.5) { sortHandful(freshTotal()); saveBins(); updateBinsUI(); }
   gotoMix();
 });
-ui.mixBlend.addEventListener("click", () => setMixBlend(!mixBlend));
-ui.mixPrep.addEventListener("click", prepBatch);
-ui.mixPack.addEventListener("click", gotoPack);
+ui.mixClear.addEventListener("click", () => { for (const k in mixAmt) mixAmt[k] = 0; renderMixSliders(); refreshMixDish(); refreshMixCard(); });
+ui.mixPack.addEventListener("click", validateMix);
 ui.optHygro.addEventListener("click", () => {
   if (!owned.hygro) { showToast("Achète les pochons hygro 🛒", "#caa15f"); return; }
   optHygro = !optHygro; ui.optHygro.classList.toggle("on", optHygro);
   refreshPotCard();
 });
 ui.potDone.addEventListener("click", () => {
-  if (batches.length) { showToast("Reste " + batches.length + " lot(s) à emballer", "#caa15f"); return; }
+  if (batch) { showToast("Finis de mettre le mix en pot", "#caa15f"); return; }
   gotoStock();
 });
 ui.stockSell.addEventListener("click", sellStock);
@@ -1728,20 +1730,24 @@ function loop(t) {
   }
   if (phase === "mix") bowlFill.rotation.y += dt * 0.8;
   if (phase === "pots") {
-    // Versement continu tant qu'on maintient (etape "fill").
+    // Versement continu tant qu'on maintient : remplit le pot avec TOUT le mix.
     if (PACK.pouring && PACK.step === "fill") {
-      const cap = packCap();
-      PACK.jarG = Math.min(cap, PACK.jarG + FILL_RATE * dt);
+      PACK.jarG = Math.min(PACK.cap, PACK.jarG + PACK.rate * dt);
       setJarFill(PACK.jarG); refreshPotCard();
-      if ((PACK.psnd -= dt) <= 0) { playDrop(); PACK.psnd = 0.11; }
-      if (PACK.jarG >= cap - 0.01) { PACK.pouring = false; goScrew(); }   // pot plein -> visser
+      if ((PACK.psnd -= dt) <= 0) { playDrop(); PACK.psnd = 0.1; }
+      if (PACK.jarG >= PACK.cap - 0.01) { PACK.pouring = false; goScrew(); }   // pot plein -> visser
     }
-    // Animation "pousse vers l'etagere".
+    // Animation "pousse vers l'etagere", puis pot suivant / retour au mix.
     if (PACK.busy) {
       PACK.flyT += dt; const k = Math.min(1, PACK.flyT / 0.4);
       jar.position.set(1.8 * k, 0.5 * Math.sin(k * Math.PI), 0.2 - 0.4 * k);
       jar.rotation.z = -0.5 * k;
-      if (PACK.flyT >= 0.4) { jar.position.set(0, 0, 0.2); jar.rotation.set(0, 0, 0); PACK.busy = false; refreshShelf(); startJar(); }
+      if (PACK.flyT >= 0.4) {
+        jar.position.set(0, 0, 0.2); jar.rotation.set(0, 0, 0); PACK.busy = false; refreshShelf();
+        if (batch) startJar();                                  // mix > 1 kg : pot suivant
+        else if (STR_IDS.some(id => bins[id].g > 0.5) || waste > 0.5) gotoMix();  // reste à mixer
+        else startJar();                                        // terminé -> état "done"
+      }
     }
   }
 
