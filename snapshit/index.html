@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Snapshit — hub social (proto)</title>
+<!--
+  Snapshit — PROTOTYPE AUTONOME du hub social CrimWorld.
+  Refonte sur le CHÂSSIS existant (crimworld/index.html) : on RÉUTILISE le viewer
+  de story, la brique « commentaires qui tombent » (showStoryComments), genProfile
+  et l'esthétique. Aucune connexion aux autres boucles : la qualité du batch et la
+  réput (qui viendront de la sim) sont STUBBÉES pour explorer la seule EXPÉRIENCE
+  sociale. Spec : crimworld/FEATURES_HUB_SOCIAL.md (EXPO · DROP-PROMESSE · VOIX).
+
+  Invariants DNA tenus : AUCUN aléatoire ne pilote l'ÉTAT/les CONSÉQUENCES (spike,
+  cry-wolf, mauvais public, dérive réput = déterministes) ; Math.random = présentation
+  seule (qui commente, quelle variante de phrase, avatar) ; réput OPAQUE (jamais de
+  chiffre, lue dans le TON) ; chaque conséquence porte une CAUSE rendue au bilan.
+-->
+<style>
+  :root{
+    --bg:#0E0D0C; --surface:#1A1714; --surface2:#221E1A; --border:#352E28;
+    --text:#E4DED5; --muted:#8C837B; --faint:#615951;
+    --sodium:#E8A33D; --neon:#3E7CC2; --rust:#C8442F; --green:#7FA37F;
+    --snap:#FFFC00; --story1:#F44; --story2:#FB5; --story3:#9B5;
+    --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
+    --sans:-apple-system,"Segoe UI","Roboto","Helvetica Neue",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none;user-select:none}
+  html,body{height:100%}
+  body{background:radial-gradient(1200px 700px at 30% -10%,#1b1714 0,var(--bg) 60%);
+       font-family:var(--sans);color:var(--text);min-height:100vh;
+       display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;padding:18px 12px}
+
+  .phone{position:relative;width:min(390px,96vw);height:min(800px,92vh);border-radius:38px;
+       background:var(--bg);border:1px solid var(--border);overflow:hidden;
+       box-shadow:0 30px 80px -20px #000,0 0 0 8px #0a0908;display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);
+       width:130px;height:26px;background:#0a0908;border-radius:0 0 16px 16px;z-index:60}
+  .statusbar{height:38px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
+       padding:0 22px 6px;font:600 12px var(--sans);color:var(--muted)}
+
+  /* header : logo + réput OPAQUE + buzz */
+  .hdr{flex:none;display:flex;align-items:center;gap:11px;padding:8px 14px 12px;border-bottom:1px solid var(--border)}
+  .hdr .logo{font:800 18px var(--sans);letter-spacing:-.5px}
+  .hdr .logo b{color:var(--snap)}
+  .hdr .spacer{flex:1}
+  .hdr .opq{text-align:right}
+  .hdr .opq .k{font:600 8px var(--sans);letter-spacing:.06em;color:var(--faint);text-transform:uppercase}
+  .hdr .opq .v{font:800 14px var(--mono);letter-spacing:2px}
+  .hdr .opq .buzz{font:600 9px var(--mono);color:var(--muted)}
+
+  /* stories tray */
+  .tray{flex:none;display:flex;gap:14px;padding:12px 16px;overflow-x:auto;border-bottom:1px solid var(--border)}
+  .story{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;width:62px;cursor:pointer}
+  .ring{width:58px;height:58px;border-radius:50%;padding:2.5px;
+       background:conic-gradient(var(--story1),var(--story2),var(--story3),var(--story1))}
+  .ring.seen{background:#3a332c}
+  .ring.mine{background:#3a332c}
+  .ring.mine.ready{background:var(--snap);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,252,0,.5)}50%{box-shadow:0 0 0 7px rgba(255,252,0,0)}}
+  .ring .inner{width:100%;height:100%;border-radius:50%;background:var(--surface);
+       border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;
+       font-size:18px;color:var(--muted);text-align:center;line-height:1.1;overflow:hidden}
+  .ring .ph{font:700 9px var(--mono);color:var(--faint)}
+  .story .cap{font:500 10px var(--sans);color:var(--muted);max-width:62px;text-align:center;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .live{font:700 8px var(--sans);color:#fff;background:var(--rust);border-radius:4px;padding:1px 4px;letter-spacing:.05em}
+
+  /* corps : liste de DM (le bassin d'acheteurs = la demande) */
+  .body{flex:1;overflow-y:auto;position:relative}
+  .seclbl{font:600 10px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.08em;padding:12px 16px 4px}
+  .conv{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #221d18;cursor:pointer}
+  .conv:active{background:var(--surface)}
+  .conv .av{width:44px;height:44px;border-radius:50%;flex:none;font-size:19px;
+       background:linear-gradient(135deg,#3a322b,#181410);display:flex;align-items:center;
+       justify-content:center;border:1px solid var(--border);position:relative}
+  .conv .av.unread::after{content:"";position:absolute;top:-1px;right:-1px;width:12px;height:12px;
+       border-radius:50%;background:var(--snap);border:2px solid var(--bg)}
+  .conv .col{flex:1;min-width:0}
+  .conv .nm{font:700 14px var(--sans)}
+  .conv .pv{font:500 12px var(--sans);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .conv.flake .pv{color:var(--rust)}
+  .conv .tm{font:500 10px var(--sans);color:var(--faint);flex:none;align-self:flex-start;margin-top:3px}
+  .empty{padding:40px 24px;text-align:center;color:var(--faint);font:500 13px var(--sans);line-height:1.5}
+
+  /* dock d'actions */
+  .dock{flex:none;border-top:1px solid var(--border);background:var(--surface);padding:9px 12px;display:flex;flex-direction:column;gap:8px}
+  .hint{font:500 11px var(--mono);color:var(--faint);text-align:center;min-height:14px}
+  .batch{display:flex;gap:6px}
+  .chip{flex:1;text-align:center;padding:7px 4px;border-radius:9px;border:1px solid var(--border);
+       background:var(--surface2);font:600 12px var(--sans);color:var(--muted);cursor:pointer;transition:.15s}
+  .chip small{display:block;font:500 8px var(--mono);margin-top:2px;opacity:.7}
+  .chip.q-propre[data-on="1"]{border-color:var(--green);background:#1e2a1e;color:var(--text)}
+  .chip.q-standard[data-on="1"]{border-color:var(--sodium);background:#2a230f;color:var(--text)}
+  .chip.q-arrache[data-on="1"]{border-color:var(--rust);background:#2a1410;color:var(--text)}
+  .btn{flex:1;padding:11px;border-radius:12px;border:1px solid var(--border);font:700 13px var(--sans);
+       cursor:pointer;background:var(--neon);color:#fff;border-color:var(--neon)}
+  .btn:active{transform:scale(.97)}
+
+  /* composer de story (repris) */
+  .scompose{position:absolute;inset:0;background:rgba(10,9,8,.94);display:none;flex-direction:column;
+       align-items:center;justify-content:center;gap:16px;z-index:55;padding:30px}
+  .scompose.show{display:flex}
+  .scompose .pre{width:190px;height:280px;border-radius:18px;border:1px solid var(--border);
+       background:repeating-linear-gradient(45deg,#1d1916 0 12px,#191512 12px 24px);
+       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;position:relative}
+  .scompose .pre .cap{position:absolute;bottom:16px;left:0;right:0;text-align:center;font:800 15px var(--sans);color:#fff;text-shadow:0 2px 8px #000;padding:0 10px}
+  .scompose .pre .ico{font-size:38px;opacity:.6}
+  .scompose .pre .ph{font:600 9px var(--mono);color:var(--faint)}
+  .scompose .lead{font:600 13px var(--sans);color:var(--text);text-align:center;max-width:280px;line-height:1.4}
+  .scompose .opts{display:flex;gap:9px;width:100%;max-width:300px}
+  .scompose .opt{flex:1;border-radius:14px;padding:11px 8px;border:1px solid var(--border);background:var(--surface2);
+       cursor:pointer;text-align:center;font:700 12px var(--sans);color:var(--text)}
+  .scompose .opt small{display:block;font:500 9px var(--mono);color:var(--muted);margin-top:3px}
+  .scompose .opt.drop{border-color:var(--snap)}
+  .scompose .x{position:absolute;top:18px;right:22px;font-size:24px;color:var(--muted);cursor:pointer}
+
+  /* viewer plein écran + commentaires qui tombent (repris) */
+  .viewer{position:absolute;inset:0;background:#0a0908;display:none;flex-direction:column;z-index:50}
+  .viewer.show{display:flex}
+  .vclip{flex:1;background:repeating-linear-gradient(45deg,#17130f 0 14px,#120f0c 14px 28px);
+       position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+  .vclip .ico{font-size:54px;opacity:.5}
+  .vclip .txt{font:600 12px var(--mono);color:var(--faint);letter-spacing:.05em;text-align:center;max-width:240px;line-height:1.5}
+  .progress{position:absolute;top:14px;left:14px;right:14px;display:flex;gap:5px;z-index:5}
+  .progress span{flex:1;height:3px;border-radius:3px;background:rgba(255,255,255,.25);overflow:hidden}
+  .progress span b{display:block;height:100%;width:100%;background:#fff}
+  .vhdr{position:absolute;top:26px;left:14px;right:14px;display:flex;align-items:center;gap:9px;z-index:5}
+  .vhdr .av{width:32px;height:32px;border-radius:50%;background:var(--snap);display:flex;align-items:center;justify-content:center;font-size:15px}
+  .vhdr .nm{font:700 13px var(--sans);color:#fff}
+  .vhdr .tm{font:500 11px var(--sans);color:rgba(255,255,255,.6)}
+  .vcap{position:absolute;left:16px;right:16px;top:78px;z-index:6}
+  .vcap .big{font:800 17px var(--sans);color:#fff;text-shadow:0 2px 12px #000;line-height:1.2}
+  .vcap .sub{font:600 11px var(--mono);color:var(--snap);margin-top:4px}
+  .vcomments{position:absolute;left:12px;right:12px;bottom:30px;z-index:6;display:flex;flex-direction:column;gap:8px;justify-content:flex-end;pointer-events:none}
+  .vcm{display:flex;align-items:flex-start;gap:8px;animation:cmIn .35s ease}
+  .vcm .a{width:24px;height:24px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
+       font-size:13px;background:linear-gradient(135deg,#3a322b,#181410);border:1px solid rgba(255,255,255,.18)}
+  .vcm .b{font:500 12.5px var(--sans);color:#fff;text-shadow:0 1px 8px #000;line-height:1.35}
+  .vcm .b .u{font-weight:800;margin-right:6px}
+  .vcm.warm .b .u{color:#bdf0a3} .vcm.cold .b .u{color:#ff9f6b} .vcm.mefi .b .u{color:#ffcf80} .vcm.neu .b .u{color:#fff}
+  @keyframes cmIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .vtap{position:absolute;left:0;right:0;bottom:8px;text-align:center;font:600 10px var(--mono);color:rgba(255,255,255,.4);z-index:6}
+
+  /* bilan (endscreen repris) */
+  .endscreen{position:absolute;inset:0;background:radial-gradient(700px 500px at 50% 0%,#1b1714,#0a0908);
+       display:none;flex-direction:column;z-index:70;padding:28px 22px;overflow-y:auto}
+  .endscreen.show{display:flex}
+  .endscreen h2{font:800 21px var(--sans);margin-bottom:4px}
+  .endscreen .verdict{font:600 12px var(--mono);color:var(--sodium);margin-bottom:16px;line-height:1.5}
+  .bilan{display:flex;flex-direction:column;gap:10px}
+  .bline{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 13px}
+  .bline .bt{font:700 13px var(--sans);display:flex;align-items:center;gap:7px}
+  .bline .bc{font:500 12px var(--sans);color:var(--muted);margin-top:4px;line-height:1.45}
+  .bline.good{border-color:rgba(127,163,127,.5)} .bline.bad{border-color:rgba(200,68,47,.5)} .bline.warn{border-color:rgba(232,163,61,.5)}
+  .endscreen .replay{margin-top:18px;align-self:center;background:var(--neon);border:none;color:#fff;border-radius:14px;padding:13px 30px;font:800 13px var(--sans);cursor:pointer}
+  .reset{position:absolute;bottom:5px;right:12px;z-index:80;font:500 10px var(--mono);color:var(--faint);background:none;border:none;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="statusbar"><span id="clock">21:47</span><span>jour <b id="day">1</b></span></div>
+
+  <div class="hdr">
+    <div class="logo">⚡ <b>Snapshit</b></div>
+    <div class="spacer"></div>
+    <div class="opq">
+      <div class="k">🔥 le block te capte</div>
+      <div class="v" id="repGauge">• • •</div>
+      <div class="buzz" id="buzz">buzz : tranquille</div>
+    </div>
+  </div>
+
+  <div class="tray" id="tray">
+    <div class="story" id="story-mine">
+      <div class="ring mine ready" id="ring-mine"><div class="inner"><span class="ph">+ TOI</span></div></div>
+      <div class="cap">Ta vitrine</div>
+    </div>
+    <div class="story"><div class="ring seen"><div class="inner">🏪</div></div><div class="cap">Le Comptoir</div></div>
+    <div class="story"><div class="ring seen"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
+    <div class="story"><div class="ring"><div class="inner">🌃</div></div><div class="cap"><span class="live">● ARRIVAGE</span></div></div>
+    <div class="story"><div class="ring seen"><div class="inner">🚬</div></div><div class="cap">La Ruelle</div></div>
+  </div>
+
+  <div class="body" id="body"></div>
+
+  <div class="dock">
+    <div class="hint" id="hint">Coupe ton batch, poste ta vitrine (ou un drop), puis passe la journée.</div>
+    <div class="batch" id="batch">
+      <div class="chip q-propre"   data-q="propre"   data-on="0">propre<small>qualité haute</small></div>
+      <div class="chip q-standard" data-q="standard" data-on="1">standard<small>correct</small></div>
+      <div class="chip q-arrache"  data-q="arrache"  data-on="0">à l'arrache<small>+ de poids</small></div>
+    </div>
+    <button class="btn" id="btnDay">Passer la journée →</button>
+  </div>
+
+  <!-- composer -->
+  <div class="scompose" id="scompose">
+    <div class="x" id="composeX">✕</div>
+    <div class="pre"><span class="ico">📦</span><span class="ph">CLIP 9:16<br>(à générer)</span><div class="cap" id="preCap">fraîchement coupé 🔥💨</div></div>
+    <div class="lead">Poste ta vitrine. Un <b>drop</b> = une promesse publique : ça spike, mais le block jugera ce que tu livres.</div>
+    <div class="opts">
+      <div class="opt" data-post="vitrine">⚡ Vitrine<small>juste montrer</small></div>
+      <div class="opt drop" data-post="normal">📣 Drop normal<small>« arrivage dispo »</small></div>
+      <div class="opt drop" data-post="premium">👑 Drop PREMIUM<small>« du haut de gamme »</small></div>
+    </div>
+  </div>
+
+  <!-- viewer + commentaires qui tombent -->
+  <div class="viewer" id="viewer">
+    <div class="vclip">
+      <div class="progress" id="vprog"></div>
+      <div class="vhdr"><div class="av">⚡</div><div><div class="nm">Ta vitrine</div><div class="tm">à l'instant</div></div></div>
+      <span class="ico">📦</span>
+      <span class="txt">CLIP 9:16 — ta came, grain de nuit<br>(générée hors-ligne)</span>
+      <div class="vcap"><div class="big" id="vcap">fraîchement coupé 🔥💨</div><div class="sub" id="vsub">— vu par 🔥 ••• (opaque)</div></div>
+      <div class="vcomments" id="vcomments"></div>
+      <div class="vtap" id="vtap">tape pour accélérer · le block réagit…</div>
+    </div>
+  </div>
+
+  <!-- bilan -->
+  <div class="endscreen" id="endscreen"></div>
+
+  <button class="reset" id="btnReset">reset</button>
+</div>
+
+<script type="module">
+'use strict';
+// ============================================================================
+// SNAPSHIT — refonte sur le châssis crimworld/. Voir commentaire d'en-tête.
+// ============================================================================
+const SAVE_VERSION = 2;
+const KEY='snapshit_state', VKEY='snapshit_ver';
+
+// ---- Constantes nommées (PLACEHOLDERS — réglage humain plus tard) ----------
+const C = {
+  REPUT_INIT:50, EXPO_INIT:10,
+  QUAL:{ propre:90, standard:65, arrache:35 },
+  EXPO_PAR_DROP:30, EXPO_PAR_VITRINE:12, EXPO_DECAY:0.72, EXPO_CAP:100,
+  EXPO_SEUIL_MAUVAIS_PUBLIC:60, EXPO_DELAI_MAUVAIS_PUBLIC:2,
+  FLAKE_BASE:0.10, FLAKE_PAR_SUREXPO:0.12, FLAKE_DECAY:0.85,
+  DROP_QUAL_PROMISE:{ premium:88, normal:66 },
+  DROP_SPIKE:22, CRY_WOLF_SEUIL_ECART:18, CRY_WOLF_DELAI:2, CRY_WOLF_AMPLEUR:16,
+  CREDIBILITE_DECAY:0.55, CREDIBILITE_REGAIN:0.12,
+  REPUT_PENTE_HAUSSE:0.14, REPUT_PENTE_BAISSE:0.30, REPUT_MAX:100,
+};
+
+// ---- DICO d'argot (sous-ensemble embarqué ; vrai slang/ peut l'écraser) ----
+let DICO = {
+  SELL_POINT:['le four','le tieks','le block','le terrain'],
+  CUSTOMER:['les clients','les reufs','la clientèle','les habitués'],
+  CANNABIS_WEED:['la beuh','la frappe','la verte'],
+  QUALITY_GOOD:['de la frappe','du haut de gamme','de la bonne'],
+  QUALITY_BAD:['du pneu','de la merde','du sale'],
+  MONEY:['la moula','les lovés','les bif'],
+};
+const rnd = a => a[(Math.random()*a.length)|0];          // PRÉSENTATION uniquement
+const termOf = c => DICO[c] ? rnd(DICO[c]) : c.toLowerCase();
+const fillConcepts = s => s.replace(/\{(\w+)\}/g,(_,k)=>termOf(k));
+(async()=>{ try{
+  const r=await fetch('../slang/dico-trafic.json'); if(!r.ok) return; const j=await r.json(); const m={};
+  const grab=(k,cc)=>{ const t=j.concepts?.[cc]?.terms?.fr; if(t&&t.length) m[k]=t.map(x=>x.term); };
+  grab('SELL_POINT','SELL_POINT'); grab('CUSTOMER','CUSTOMER'); grab('CANNABIS_WEED','CANNABIS_WEED'); grab('MONEY','MONEY');
+  DICO=Object.assign({},DICO,m);
+}catch(e){/* proto reste autonome */} })();
+
+// ---- genProfile (REPRIS de crimworld/index.html : foule anonyme) ------------
+const CM_PRE=["Pay","Hedge","Krilo","Naps","Vex","Zko","Brth","Lome","Saff","Dru","Niko","Ylw","Mok","Ras"];
+const CM_SUF=["Li","45","_","xx","02","tn","99","z","_b","77","ka","23","oo","37"];
+const CM_AV =["🦅","🐍","🦊","👹","🐉","🦂","🌒","🥷","🦍","🐺","🎭","💉","🪙","🔥"];
+function genProfile(){ return { nm: rnd(CM_PRE)+rnd(CM_SUF), av: rnd(CM_AV) }; }
+
+// ---- La TROUPE (voix récurrentes nommées — alignées sur le roster existant) -
+const VOICES = [
+  { id:'accro',    nm:"L'accro",       av:'😵' },
+  { id:'comtesse', nm:'La Comtesse',   av:'👑' },
+  { id:'kevin',    nm:'Kévin',         av:'🧃' },   // le lowballer (roster la-bascule)
+  { id:'sami',     nm:'Sami',          av:'🧢' },
+  { id:'petit',    nm:'Le petit du 4', av:'🧒' },
+  { id:'ancien',   nm:"L'ancien",      av:'🚬' },
+];
+const voice = id => VOICES.find(v=>v.id===id) || genProfile();
+
+// ---- Banque de phrases : contexte × ton (gabarits {CONCEPT}) ----------------
+const LINES = {
+  ambiant:{ chaleureux:["{SELL_POINT} tourne fort en ce moment 🔥","on sait où trouver {QUALITY_GOOD} 🙏","ça parle de toi dans le quartier frérot"],
+            neutre:["{SELL_POINT} fait son truc tranquille","rien à signaler ce soir","la night est calme 🌙"],
+            mefi:["mouais… faut voir ce que ça donne 👀","j'attends de tester avant de dire","on verra bien"],
+            hostile:["{SELL_POINT} c'est n'importe quoi maintenant","les {CUSTOMER} commencent à fuir…","ça craint là sérieux"] },
+  drop:{ chaleureux:["AH il a drop !! je fonce 🏃","enfin {QUALITY_GOOD} qui arrive 🤤","premier sur le drop évidemment"],
+         neutre:["drop posté, on regarde","ok il annonce du lourd, à voir","noté le drop"],
+         mefi:["encore un drop… on y croit à moitié","tu annonces mais bon 🤨","montre, parle moins"],
+         hostile:["ENCORE tu hype ? laisse tomber","drop de mytho oui","plus personne te calcule sur tes annonces"] },
+  qualite_basse:{ neutre:["bon c'était pas fou ce soir","ça passe mais sans plus"],
+                  mefi:["c'est {QUALITY_BAD} ça non ?","goût bizarre ton truc…","t'as coupé sévère là"],
+                  hostile:["c'est de la merde frérot, remboursé ⛔","du pneu pur, j'achète plus","tu sers {QUALITY_BAD} maintenant ?? 🤬"] },
+  qualite_haute:{ chaleureux:["alors ÇA c'est {QUALITY_GOOD} 😮‍💨🔥","propre propre, respect","le plug a du bon, validé ✅"],
+                  neutre:["correct ce soir, propre","rien à dire, ça tient"] },
+  cry_wolf:{ mefi:["t'avais promis {QUALITY_GOOD} y'a {DELAI}j… et là ?","l'annonce d'avant-hier c'était du vent 🤥"],
+             hostile:["t'as hypé {QUALITY_GOOD} y'a {DELAI}j puis servi {QUALITY_BAD} — mytho 🤬","on a tous vu ton drop. menteur. {CUSTOMER} se barrent"] },
+  mauvais_public:{ mefi:["y'a des reloux qui débarquent sur {SELL_POINT}…","ça attire n'importe qui ton buzz"],
+                   hostile:["full lowballers ce soir, ça négocie {MONEY} pour rien","trop de bruit → que des emmerdeurs"] },
+  promesse_tenue:{ chaleureux:["il avait dit premium, c'était premium 👑✅","quand il annonce, il assure 🤝"] },
+};
+function lineFor(ctx,tone,extra){
+  const bank=LINES[ctx]||{}; let pool=bank[tone];
+  if(!pool){ for(const t of ['chaleureux','neutre','mefi','hostile']){ if(bank[t]){pool=bank[t];break;} } }
+  if(!pool) return null;
+  let s=rnd(pool);
+  if(extra) for(const k in extra) s=s.split('{'+k+'}').join(extra[k]);   // extra AVANT
+  return fillConcepts(s);
+}
+
+// ---- ÉTAT --------------------------------------------------------------------
+function fresh(){ return {
+  jour:1, reput:C.REPUT_INIT, expo:C.EXPO_INIT, credibilite:1, flake:C.FLAKE_BASE,
+  qualiteChoisie:'standard', promesse:null, posteAujourdhui:false, repPrev:C.REPUT_INIT,
+  pendingCryWolf:[], pendingBadPublic:[], dms:[],
+}; }
+let S = load();
+function load(){ try{
+  if(localStorage.getItem(VKEY)!==String(SAVE_VERSION)) throw 0;
+  const s=JSON.parse(localStorage.getItem(KEY)); if(!s) throw 0; return s;
+}catch(e){ const s=fresh(); save(s); return s; } }
+function save(s){ localStorage.setItem(KEY,JSON.stringify(s||S)); localStorage.setItem(VKEY,String(SAVE_VERSION)); }
+
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const toneFromReput = r => r>=72?'chaleureux': r>=50?'neutre': r>=30?'mefi':'hostile';
+const $ = id => document.getElementById(id);
+
+// ============================================================================
+// MOTEUR (déterministe — aucune conséquence par hasard)
+// ============================================================================
+function posterVitrine(kind){            // kind: 'vitrine' | 'normal' | 'premium'
+  S.posteAujourdhui = true;
+  if(kind==='vitrine'){ S.expo=clamp(S.expo+C.EXPO_PAR_VITRINE,0,C.EXPO_CAP); }
+  else{
+    S.promesse={ jour:S.jour, niveau:kind, qualPromise:C.DROP_QUAL_PROMISE[kind] };
+    S.expo=clamp(S.expo+C.EXPO_PAR_DROP,0,C.EXPO_CAP);
+  }
+  // réactions IMMÉDIATES (présentation) au post
+  const tone=toneFromReput(S.reput);
+  const ctx = kind==='vitrine'?'ambiant':'drop';
+  const cs=[ reaction(ctx,tone), reaction(ctx,tone) ];
+  if(kind!=='vitrine') cs.push(reaction('drop', tone));
+  save();
+  return cs.filter(Boolean);
+}
+
+// Passer la journée : résout tout déterministement, renvoie {cons, comments}
+function passerJournee(){
+  const cons=[], comments=[]; const qLivree=C.QUAL[S.qualiteChoisie]; S.repPrev=S.reput;
+
+  // 1) différés à échéance (tracés à une décision passée)
+  S.pendingCryWolf = S.pendingCryWolf.filter(ev=>{
+    if(ev.due!==S.jour) return true;
+    S.reput=clamp(S.reput-ev.ampleur,0,C.REPUT_MAX);
+    cons.push({k:'bad',t:'RÉPUT — falaise (cry-wolf)',c:`La confiance s'effondre : tu avais hypé un drop « ${ev.niveau} » au jour ${ev.jourPromesse} puis livré bien en dessous. Le mensonge a fini par se savoir.`});
+    comments.push(reaction('cry_wolf','hostile',{DELAI:String(S.jour-ev.jourPromesse)}));
+    return false;
+  });
+  S.pendingBadPublic = S.pendingBadPublic.filter(ev=>{
+    if(ev.due!==S.jour) return true;
+    S.flake=clamp(S.flake+ev.ampleur,0,0.9);
+    cons.push({k:'warn',t:'BASSIN — mauvais public',c:`Ton buzz d'il y a ${C.EXPO_DELAI_MAUVAIS_PUBLIC}j a attiré le mauvais monde : la part de flakes/lowballers monte. Co-effet PARALLÈLE de l'exposition.`});
+    comments.push(reaction('mauvais_public', S.reput<50?'hostile':'mefi'));
+    return false;
+  });
+
+  // 2) jugement de la PROMESSE du jour
+  if(S.promesse){
+    const ecart=S.promesse.qualPromise-qLivree;
+    if(ecart>C.CRY_WOLF_SEUIL_ECART){
+      S.pendingCryWolf.push({due:S.jour+C.CRY_WOLF_DELAI,ampleur:C.CRY_WOLF_AMPLEUR,niveau:S.promesse.niveau,jourPromesse:S.promesse.jour});
+      S.credibilite=clamp(S.credibilite*C.CREDIBILITE_DECAY,0.05,1);
+      cons.push({k:'warn',t:'PROMESSE TRAHIE — bombe à retardement',c:`Promis « ${S.promesse.niveau} », livré qualité ${qLivree}. Personne ne réagit ce soir : le cry-wolf tombera au jour ${S.jour+C.CRY_WOLF_DELAI}. Ta crédibilité baisse (futurs drops moins efficaces).`});
+    } else {
+      S.credibilite=clamp(S.credibilite+C.CREDIBILITE_REGAIN,0.05,1);
+      cons.push({k:'good',t:'PROMESSE TENUE',c:`Promis « ${S.promesse.niveau} », livré à la hauteur (qualité ${qLivree}). Le spike se convertit, crédibilité ↑.`});
+      comments.push(reaction('promesse_tenue','chaleureux'));
+    }
+    S.promesse=null;
+  }
+
+  // 3) EXPO : sur-exposition arme le mauvais public (différé), puis décroît
+  if(S.expo>C.EXPO_SEUIL_MAUVAIS_PUBLIC){
+    S.pendingBadPublic.push({due:S.jour+C.EXPO_DELAI_MAUVAIS_PUBLIC,ampleur:C.FLAKE_PAR_SUREXPO});
+    cons.push({k:'warn',t:'EXPO — au-dessus du radar',c:`Buzz élevé (${Math.round(S.expo)}/${C.EXPO_CAP}). Payoff immédiat (plus d'yeux) MAIS le mauvais public arrivera au jour ${S.jour+C.EXPO_DELAI_MAUVAIS_PUBLIC}. Deux sorties parallèles du même buzz.`});
+  }
+  const expoAvant=S.expo;
+  S.expo=clamp(S.expo*C.EXPO_DECAY,0,C.EXPO_CAP);
+  S.flake=clamp(C.FLAKE_BASE+(S.flake-C.FLAKE_BASE)*C.FLAKE_DECAY,C.FLAKE_BASE,0.9);
+
+  // 4) RÉPUT (la demande) dérive vers la qualité livrée
+  const er=qLivree-S.reput; S.reput=clamp(S.reput+(er>=0?C.REPUT_PENTE_HAUSSE:C.REPUT_PENTE_BAISSE)*er,0,C.REPUT_MAX);
+
+  // 5) réactions à la QUALITÉ livrée (ton = jauge opaque)
+  const tone=toneFromReput(S.reput);
+  if(qLivree<=C.QUAL.arrache+5) comments.push(reaction('qualite_basse', S.reput<45?'hostile':'mefi'));
+  else if(qLivree>=C.QUAL.propre-5) comments.push(reaction('qualite_haute', S.reput>=72?'chaleureux':'neutre'));
+  else comments.push(reaction('ambiant',tone));
+
+  // 6) DEMANDE du jour -> alimente la liste de DM (présentation : genProfile)
+  const spike = S.posteAujourdhui ? Math.round(C.DROP_SPIKE*S.credibilite) : 0;
+  const dmGood = Math.max(0, Math.round(S.reput/14 + expoAvant/22 + spike/8));
+  const dmBad  = Math.round(dmGood*S.flake);
+  S.dms = buildDMs(dmGood, dmBad, tone);
+  cons.push({k: dmGood>0?'good':'warn',t:'DEMANDE du jour',c:`${dmGood} acheteurs t'ont DM (dont ${dmBad} flakes/lowballers, part ${Math.round(S.flake*100)}%).${spike?` +${spike} de spike grâce à ton drop (×crédibilité ${S.credibilite.toFixed(2)}).`:''}`});
+
+  // clôture
+  S.posteAujourdhui=false; S.qualiteChoisie='standard'; S.jour+=1; save();
+  return { cons, comments: comments.filter(Boolean) };
+}
+
+// fabrique un commentaire {nm,av,txt,tone} — voix nommée pour la MÉMOIRE, sinon foule
+function reaction(ctx,tone,extra){
+  const txt=lineFor(ctx,tone,extra); if(!txt) return null;
+  let v;
+  if(ctx==='cry_wolf') v=voice(rnd(['comtesse','ancien','accro']));
+  else if(ctx==='promesse_tenue') v=voice('comtesse');
+  else if(ctx==='mauvais_public') v=voice('kevin');
+  else v = Math.random()<0.5 ? rnd(VOICES) : genProfile();
+  return { nm:v.nm, av:v.av, txt, tone };
+}
+function buildDMs(good,bad,tone){
+  const out=[];
+  for(let i=0;i<good;i++){ const v=Math.random()<0.4?rnd(VOICES):genProfile();
+    out.push({nm:v.nm,av:v.av,pv:fillConcepts(rnd(LINES.ambiant[tone]||LINES.ambiant.neutre)),flake:false}); }
+  for(let i=0;i<bad;i++){ const p=genProfile();
+    out.push({nm:p.nm,av:p.av,pv:fillConcepts(rnd(["tu fais un prix ? je prends bcp 👀","{MONEY} contre un gros stock vite","allô ? tjs dispo ? ...","-50% si je prends tout"])),flake:true}); }
+  return out;
+}
+
+// ============================================================================
+// PRÉSENTATION
+// ============================================================================
+function renderHeader(){
+  $('day').textContent=S.jour;
+  const tone=toneFromReput(S.reput);
+  const blocks={hostile:'◦ ◦ ◦','mefi':'● ◦ ◦',neutre:'● ● ◦',chaleureux:'● ● ●'}[tone];
+  const col={hostile:'var(--rust)','mefi':'var(--sodium)',neutre:'var(--muted)',chaleureux:'var(--green)'}[tone];
+  const g=$('repGauge'); g.textContent=blocks; g.style.color=col;
+  $('buzz').textContent='buzz : '+(S.expo>C.EXPO_SEUIL_MAUVAIS_PUBLIC?'au-dessus du radar ⚠️':S.expo>30?'ça parle de toi':'tranquille');
+}
+function renderBody(){
+  const b=$('body');
+  if(!S.dms || S.dms.length===0){ b.innerHTML='<div class="empty">Pas encore de DM.<br>Poste ta vitrine, fais-toi un nom… ou pas.</div>'; return; }
+  let h='<div class="seclbl">messages — le bassin du jour</div>';
+  for(const d of S.dms){
+    h+=`<div class="conv ${d.flake?'flake':''}"><div class="av ${d.flake?'':'unread'}">${esc(d.av)}</div>`+
+       `<div class="col"><div class="nm">${esc(d.nm)}</div><div class="pv">${esc(d.pv)}</div></div>`+
+       `<div class="tm">${d.flake?'⚠️':'•'}</div></div>`;
+  }
+  b.innerHTML=h;
+}
+function renderDock(){ document.querySelectorAll('#batch .chip').forEach(c=>c.dataset.on=(c.dataset.q===S.qualiteChoisie)?'1':'0'); }
+function esc(s){ return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+// --- viewer + commentaires qui tombent (brique reprise/adaptée) -------------
+let vTimer=null, vTapHandler=null;
+function playComments(comments, onDone){
+  const v=$('viewer'), box=$('vcomments'); box.innerHTML='';
+  $('vsub').textContent='— vu par 🔥 '+{hostile:'◦◦◦','mefi':'●◦◦',neutre:'●●◦',chaleureux:'●●●'}[toneFromReput(S.reput)]+' (opaque)';
+  v.classList.add('show');
+  const list=comments.slice(); let i=0, done=false;
+  const toneCls=t=>({chaleureux:'warm',hostile:'cold',mefi:'mefi',neutre:'neu'}[t]||'neu');
+  const addOne=cm=>{ if(!cm) return;
+    const el=document.createElement('div'); el.className='vcm '+toneCls(cm.tone);
+    const a=document.createElement('div'); a.className='a'; a.textContent=cm.av;
+    const bd=document.createElement('div'); bd.className='b';
+    const u=document.createElement('span'); u.className='u'; u.textContent=cm.nm;
+    bd.appendChild(u); bd.appendChild(document.createTextNode(cm.txt));
+    el.appendChild(a); el.appendChild(bd); box.appendChild(el);
+    while(box.children.length>5) box.removeChild(box.firstChild);
+  };
+  const finish=()=>{ if(done) return; done=true; clearTimeout(vTimer);
+    v.removeEventListener('click',vTapHandler);
+    v.classList.remove('show'); box.innerHTML=''; onDone&&onDone(); };
+  const pump=()=>{ if(i>=list.length){ vTimer=setTimeout(finish,750); return; }
+    const cm=list[i++]; addOne(cm); vTimer=setTimeout(pump, Math.min(1500,650+(cm?cm.txt.length:0)*15)); };
+  vTapHandler=(e)=>{ e.stopPropagation(); if(i<list.length){ clearTimeout(vTimer); while(i<list.length) addOne(list[i++]); vTimer=setTimeout(finish,650);} else finish(); };
+  v.addEventListener('click',vTapHandler);
+  vTimer=setTimeout(pump,450);
+}
+
+// --- bilan (endscreen) ------------------------------------------------------
+function showReport(cons){
+  const trend=S.reput>S.repPrev+0.5?'↗ ça remonte':S.reput<S.repPrev-0.5?'↘ ça descend':'→ stable';
+  let h=`<h2>🌙 Rapport de nuit — jour ${S.jour-1}</h2>
+    <div class="verdict">Le bilan NOMME la cause. (le feed, lui, ne fait que la ressentir)</div><div class="bilan">`;
+  if(cons.length===0) h+=`<div class="bline"><div class="bc">Rien de notable. Le block dort.</div></div>`;
+  for(const c of cons) h+=`<div class="bline ${c.k}"><div class="bt">${esc(c.t)}</div><div class="bc">${esc(c.c)}</div></div>`;
+  h+=`<div class="bline"><div class="bc">Tendance réput (opaque) : <b>${trend}</b> — lis-la dans le ton du feed, pas dans un chiffre.</div></div>`;
+  h+=`</div><button class="replay" id="repOk">Continuer →</button>`;
+  const e=$('endscreen'); e.innerHTML=h; e.classList.add('show');
+  $('repOk').addEventListener('click',()=>{ e.classList.remove('show'); refresh(); });
+}
+
+// --- composer ---------------------------------------------------------------
+function openComposer(){
+  if(S.posteAujourdhui){ flash("T'as déjà posté aujourd'hui."); return; }
+  $('preCap').textContent = S.qualiteChoisie==='arrache'?'gros son ce soir 🔥':'fraîchement coupé 🔥💨';
+  $('scompose').classList.add('show');
+}
+function closeComposer(){ $('scompose').classList.remove('show'); }
+
+let hintTimer=null;
+function flash(m){ const h=$('hint'); h.textContent=m; clearTimeout(hintTimer);
+  hintTimer=setTimeout(()=>{ h.textContent='Coupe ton batch, poste ta vitrine (ou un drop), puis passe la journée.'; },2600); }
+
+function refresh(){ renderHeader(); renderBody(); renderDock(); }
+
+// ---- WIRING ----------------------------------------------------------------
+document.querySelectorAll('#batch .chip').forEach(c=>c.addEventListener('click',()=>{
+  S.qualiteChoisie=c.dataset.q; renderDock(); save();
+  flash(c.dataset.q==='arrache'?"À l'arrache = + de poids, mais ça se sent…":c.dataset.q==='propre'?'Propre : la qualité parle pour toi.':'Standard.');
+}));
+$('story-mine').addEventListener('click',openComposer);
+$('composeX').addEventListener('click',closeComposer);
+document.querySelectorAll('#scompose .opt').forEach(o=>o.addEventListener('click',()=>{
+  const kind=o.dataset.post; closeComposer();
+  const cs=posterVitrine(kind); refresh();
+  playComments(cs, ()=>{ flash(kind==='premium'?'Drop PREMIUM posté. Faut assurer derrière 👀':kind==='normal'?'Drop posté.':'Vitrine postée.'); });
+}));
+$('btnDay').addEventListener('click',()=>{
+  const { cons, comments } = passerJournee();
+  refresh();
+  playComments(comments, ()=>showReport(cons));
+});
+$('btnReset').addEventListener('click',()=>{ if(confirm('Reset le proto ?')){ S=fresh(); save(); refresh(); flash('Reset.'); } });
+
+// ---- BOOT ------------------------------------------------------------------
+// barres de progression du viewer (cosmétique)
+$('vprog').innerHTML='<span><b></b></span>';
+refresh();
+</script>
+</body>
+</html>
