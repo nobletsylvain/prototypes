@@ -30,6 +30,29 @@
 
 ---
 
+## 0.bis Décisions figées — périmètre v1 (TRANCHÉ, ne pas rouvrir)
+
+**(A) Roster — la mémoire reste aux 6 archétypes déjà câblés.**
+- Le **cœur à mémoire** est figé aux **6 `protag`** du §2
+  (`accro, comtesse, kevin, sami, petit, ancien`). Tu produis leurs données +
+  escalades mémoire.
+- Tu PEUX écrire des **faces nommées supplémentaires** (vers 15–25 de troupe), mais
+  **cosmétiques** : elles réutilisent les `kind` existants et portent
+  `protag:"client"` (genuine) ou `"flake"`. = récurrence visuelle + carnet 1:1,
+  **sans** mémoire dédiée. **Aucun `id` moteur nouveau.**
+- Tout archétype à **mémoire nouvelle** (grossiste/touriste/balance…) = **backlog
+  moteur** (§10) : tu le **décris**, tu ne le câbles pas, tu ne sors pas sa data.
+
+**(B) Dico — v1 limité aux concepts utilisés + `QUALITY`.**
+- Tu densifies **uniquement** : `SELL_POINT · CUSTOMER · CANNABIS_WEED · MONEY ·
+  QUALITY` — et tu **crées `QUALITY_GOOD` / `QUALITY_BAD`** côté dico (ils n'existent
+  aujourd'hui que dans le fallback embarqué, cf. §4.1).
+- **Par registre** : au moins `courant`, `cite`, **et** un registre « chic » pour le
+  connaisseur ; **4–8 termes `fr`** par concept × registre.
+- Les **24 autres concepts** du dico → **hors périmètre v1**, laissés tels quels.
+
+---
+
 ## 1. Ce que le moteur fait d'un *user* (le contrat)
 
 Un *user* Snapshit est soit une **voix nommée récurrente** (la « troupe »), soit un
@@ -106,9 +129,9 @@ Pour chaque user tu donnes **les deux** :
   le registre et le contenu. Familles proposées (liste ouverte) :
   `accro · connaisseur · lowballer · regular · jeune · ancien · flake · grossiste · touriste · curieux`.
 
-> Si tu crées un archétype **avec** une mémoire (ex. un « balance » qui se souvient
-> qu'on l'a grillé), écris **explicitement** à quoi il réagit, et **liste-le comme
-> demande de code** (le moteur devra l'implémenter) — ne le noie pas dans la data.
+> **Figé v1 (§0.bis A)** : on n'ajoute **aucune mémoire nouvelle** dans cette tâche.
+> Les candidats à mémoire sont gelés au **backlog moteur §10** (décrits, pas codés,
+> pas produits en data). Les faces en plus restent cosmétiques (`protag:"client"`/`"flake"`).
 
 ---
 
@@ -298,3 +321,21 @@ Cibles v1 (premier lot) :
 - Patch dico : concepts Snapshit (§3) + `QUALITY_GOOD/QUALITY_BAD` densifiés par
   registre, schéma intact, rien supprimé.
 - Tout passe les garde-fous §8. PR **draft**, puis merge `main`.
+
+---
+
+## 10. Backlog moteur (gelé v1 — à CODER plus tard, pas de data maintenant)
+
+Archétypes à **mémoire** candidats. Chacun exige d'abord du **code moteur**
+(nouveau `protag`/`id`, état persistant, conséquence **tracée** remontant à une
+décision du joueur) **avant** d'avoir une fiche data. Décris-les ici ; ne les
+produis pas.
+
+| candidat | visage | mémoire / conséquence visée | à coder | garde-fou |
+|---|---|---|---|---|
+| `grossiste` | 📦 | se souvient des **gros volumes** écoulés ; revient pour du volume, sensible au prix unitaire | état « volume cumulé » + ligne de relance volume ; co-effet heat de rue (déjà parallèle au volume) | ne pas chaîner « moins de ventes → heat » ; volume et heat restent **co-effets parallèles** |
+| `touriste` | 🧳 | **volatil** : vient par le **buzz/expo**, repart ; zéro fidélité ; nourrit le mauvais public quand l'expo grimpe | gate sur `expo` ; pas de carnet (ou goodwill qui s'évapore) | pure présentation côté texte ; l'état vient de `expo`, pas du hasard |
+| `balance` | 🐀 | se souvient d'avoir été **grillé/bloqué** ; conséquence différée et tracée | mémoire « bloqué N fois » → mauvais public/réput différé | ⚠️ touche au pilier **heat** — Snapshit = heat de rue **conso**, **pas** autorités ; valider contre le périmètre strict avant tout code |
+
+> Quand l'un de ces archétypes sera codé, il « promeut » et **rejoint le §2** (cœur à
+> mémoire) ; sa data sortira à ce moment-là, pas avant.
