@@ -112,8 +112,10 @@
   /* --- Mix : une ligne de curseur par ingredient --- */
   #mixsliders { display:flex; flex-direction:column; gap:6px; width:96%; max-width:440px; pointer-events:auto; }
   .ming { display:flex; align-items:center; gap:9px; }
-  .mglb { flex:none; width:96px; font-size:12px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .mgval { flex:none; width:48px; text-align:right; font-size:12px; font-weight:800; color:#fff; }
+  .mglb { flex:none; width:90px; font-size:12px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mgnum { flex:none; width:56px; text-align:right; font-size:12px; font-weight:800; color:#fff;
+    background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:4px 6px; -moz-appearance:textfield; }
+  .mgnum::-webkit-outer-spin-button, .mgnum::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
   .mgsl { flex:1; -webkit-appearance:none; appearance:none; height:8px; border-radius:999px;
     background:rgba(255,255,255,.16); outline:none; }
   .mgsl::-webkit-slider-thumb { -webkit-appearance:none; width:22px; height:22px; border-radius:50%;
@@ -183,8 +185,7 @@
   <span class="step" data-step="tri">2·Tri</span>
   <span class="step" data-step="mix">3·Mix</span>
   <span class="step" data-step="pots">4·Pot</span>
-  <span class="step" data-step="cond">5·Cond.</span>
-  <span class="step" data-step="stock">6·Stock</span>
+  <span class="step" data-step="stock">5·Stock</span>
 </div>
 <button id="shopbtn">🛒</button>
 
@@ -231,7 +232,7 @@
   <div style="text-align:center;font-size:13px;font-weight:800;color:#bdf0a3;padding:5px 0 2px;pointer-events:none" id="potstep">Verse la fleur dans le pot</div>
   <div class="row">
     <button class="toggle" id="optHygro" title="Pochon hygro (curing)">💧 Hygro</button>
-    <button class="btn alt" id="potDone">Conditionner ▸</button>
+    <button class="btn alt" id="potDone">Stocker ▸</button>
   </div>
 </div>
 
@@ -326,7 +327,7 @@ app.appendChild(renderer.domElement);
 // stock, et "eff" (frontal, plus bas) pour l'effeuillage des colas suspendues.
 const VIEWS = {
   work: { target: new THREE.Vector3(0, 0.15, 0.0), dir: new THREE.Vector3(0.02, 0.64, 0.77).normalize(), radius: Math.hypot(3.9, 0.9, 3.0) },
-  eff:  { target: new THREE.Vector3(0, 2.2, 0.0), dir: new THREE.Vector3(0, 0.16, 1).normalize(),         radius: Math.hypot(2.4, 2.05, 0.4) },
+  eff:  { target: new THREE.Vector3(0, 2.45, 0.0), dir: new THREE.Vector3(0, 0.14, 1).normalize(),        radius: Math.hypot(2.4, 2.35, 0.4) },
   pack: { target: new THREE.Vector3(0, 0.62, 0.2), dir: new THREE.Vector3(0.05, 0.42, 0.9).normalize(),   radius: Math.hypot(0.7, 0.9, 0.4) },
 };
 let curView = VIEWS.work;
@@ -518,7 +519,7 @@ function refreshPile(binGrp, grams, perNug) {
 // 4 colas (une par variete) pendent a un fil de sechage ; on glisse le doigt le
 // long d'une cola pour detacher ses tetes (detection en pixels ecran, cf. v2).
 // Tout tombe MELE dans le panier central (le tri par variete vient apres).
-const COLA_TOP = 4.1, COLA_BOT = 1.0;          // colas remontées : plus d'espace libre au-dessus du bac
+const COLA_TOP = 4.6, COLA_BOT = 0.85;          // tiges plus longues (espace conservé au-dessus du bac)
 // Fil de sechage.
 const dryLine = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 7.2, 6),
   new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 0.4, roughness: 0.5 }));
@@ -1028,7 +1029,7 @@ function binsPills(opts) {
 /* -------------------------------------------------------------------------
    11) STEPPER + bascule de phase (montre la bonne station + overlay)
    ------------------------------------------------------------------------- */
-const ORDER = ["effeuille", "tri", "mix", "pots", "cond", "stock"];
+const ORDER = ["effeuille", "tri", "mix", "pots", "stock"];   // "cond" en pause (à réactiver)
 function updateStepper() {
   const idx = ORDER.indexOf(phase);
   document.querySelectorAll(".step").forEach(s => {
@@ -1110,7 +1111,7 @@ function colaLayout(n) {
   const pos = [];
   const span = n <= 1 ? 0 : Math.min(2.65, 0.5 * (n - 1));   // serre au-dela de ~11 colas
   for (let i = 0; i < n; i++) pos.push({ x: n === 1 ? 0 : -span + 2 * span * (i / (n - 1)), z: (i % 2) * 0.16 - 0.08 });
-  return { pos, radius: Math.hypot(span + 0.8, 2.15, 0.45), targetZ: 0 };
+  return { pos, radius: Math.hypot(span + 0.8, 2.4, 0.45), targetZ: 0 };
 }
 function setupColas() {
   for (const c of colaPool) c.grp.visible = false;
@@ -1362,27 +1363,37 @@ function refreshMixCard() {
   const name = p.ids.length > 1 ? "🧬 Blend maison · " + p.ids.length + " var." : (p.ids.length ? STRAINS[p.ids[0]].emoji + " " + STRAINS[p.ids[0]].name : "🍂 Déchet");
   ui.mixcard.innerHTML =
     '<div class="ttl">' + name + '</div>' +
-    '<div class="sub2">Plat : <b style="color:#fff">' + Math.round(p.outG) + ' g</b>' + (p.add >= 1 ? ' (dont ' + Math.round(p.add) + ' g déchet)' : '') + '</div>' +
+    '<div class="sub2">Plat : <b style="color:#fff">' + Math.round(p.outG) + ' / 1000 g</b>' + (p.add >= 1 ? ' (dont ' + Math.round(p.add) + ' g déchet)' : '') + '</div>' +
     '<div style="margin-top:3px">Qualité <span class="qbig" style="color:' + qColor(p.outQ) + '">' + gradeOf(p.outQ) + ' · ' + Math.round(p.outQ * 100) + ' %</span>' +
     (p.wasteFrac > 0.3 ? ' <span class="q">⚠ très coupé</span>' : '') + '</div>';
 }
-// Construit une ligne de curseur par ingredient disponible.
+// Le pot conserve 1 kg : le TOTAL du mix (un ou plusieurs produits) est plafonné a 1000 g.
+const MIX_MAX = 1000;
+function mixTotal() { let s = 0; for (const k in mixAmt) s += mixAmt[k]; return s; }
+function mixCapFor(id) { return Math.min(ingMax(id), MIX_MAX - (mixTotal() - mixAmt[id])); }
+// Pose une quantite (curseur ou saisie) en respectant le stock dispo + le plafond 1 kg.
+function setMixAmt(id, v) {
+  v = Math.max(0, Math.min(Math.round(+v || 0), Math.round(mixCapFor(id))));
+  mixAmt[id] = v;
+  const row = ui.mixsliders.querySelector('[data-row="' + id + '"]');
+  if (row) { row.querySelector(".mgsl").value = v; const num = row.querySelector(".mgnum"); if (document.activeElement !== num) num.value = v; }
+  refreshMixDish(); refreshMixCard();
+}
+// Construit une ligne par ingredient : curseur + champ de saisie en grammes.
 function renderMixSliders() {
   ui.mixsliders.innerHTML = "";
   for (const it of mixIngredients()) {
-    const id = it.id, isW = id === "waste", max = Math.round(ingMax(id));
+    const id = it.id, isW = id === "waste", max = Math.round(Math.min(ingMax(id), MIX_MAX));
     const tint = isW ? "#caa15f" : STRAINS[id].tint, emo = isW ? "🍂" : STRAINS[id].emoji, nm = isW ? "Déchet" : STRAINS[id].name.split(" ")[0];
-    const row = document.createElement("div"); row.className = "ming";
+    const row = document.createElement("div"); row.className = "ming"; row.dataset.row = id;
     row.innerHTML =
       '<span class="mglb" style="color:' + tint + '">' + emo + ' ' + nm + '</span>' +
-      '<input class="mgsl" type="range" min="0" max="' + max + '" value="' + Math.round(mixAmt[id]) + '" step="1" data-ing="' + id + '">' +
-      '<span class="mgval" data-val="' + id + '">' + Math.round(mixAmt[id]) + 'g</span>';
-    const sl = row.querySelector(".mgsl"), val = row.querySelector(".mgval");
-    sl.addEventListener("input", () => {
-      mixAmt[id] = Math.min(+sl.value, ingMax(id));
-      val.textContent = Math.round(mixAmt[id]) + "g";
-      refreshMixDish(); refreshMixCard();
-    });
+      '<input class="mgsl" type="range" min="0" max="' + max + '" value="' + Math.round(mixAmt[id]) + '" step="1">' +
+      '<input class="mgnum" type="number" inputmode="numeric" min="0" max="' + max + '" value="' + Math.round(mixAmt[id]) + '">';
+    const sl = row.querySelector(".mgsl"), num = row.querySelector(".mgnum");
+    sl.addEventListener("input", () => setMixAmt(id, sl.value));
+    num.addEventListener("input", () => setMixAmt(id, num.value));
+    num.addEventListener("blur", () => { num.value = Math.round(mixAmt[id]); });
     ui.mixsliders.appendChild(row);
   }
 }
@@ -1412,7 +1423,7 @@ function validateMix() {
    vers l'etagere. Petit pot = €/g plus eleve (detail), gros pot = €/g plus bas.
    ------------------------------------------------------------------------- */
 function qualMult(q) { return 0.6 + q * 0.9; }                 // qualite -> multiplicateur de prix
-const POT_BASE_EUR = 5.2;                                       // €/g de base (gros/non conditionné)
+const POT_BASE_EUR = 9.0;                                       // €/g de vente directe (conditionnement en pause)
 const JAR_MAX = 1000, SCREW_TURNS = Math.PI * 2;               // pot = conserve 1 kg
 const PACK = { step: "fill", jarG: 0, cap: 0, rate: 60, pouring: false, screwing: false, sealAcc: 0, lastAng: 0, pushStart: null, busy: false, flyT: 0, psnd: 0, ssnd: 0 };
 function packCap() { return batch ? Math.min(JAR_MAX, batch.g) : 0; }
@@ -1773,8 +1784,7 @@ ui.optHygro.addEventListener("click", () => {
 });
 ui.potDone.addEventListener("click", () => {
   if (batch) { showToast("Finis de mettre le mix en pot", "#caa15f"); return; }
-  if (!storage.length) { showToast("Aucun pot à conditionner", "#caa15f"); return; }
-  gotoCond();
+  gotoStock();                                  // conditionnement en pause -> direct au stock
 });
 ui.condNext.addEventListener("click", gotoStock);
 ui.stockSell.addEventListener("click", sellStock);
