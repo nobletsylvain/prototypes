@@ -5,6 +5,10 @@
 > Ce n'est PAS de la logique de jeu — c'est de la **présentation**. Le moteur
 > (`snapshit/index.html`) décide *quand* et *à qui* une réplique sort ; le contenu
 > généré remplit les *slots*. Lire d'abord `crimworld/FEATURES_HUB_SOCIAL.md`.
+>
+> 📌 **Contrat de données autoritatif** (archétypes + schéma par user + dico,
+> calés sur le code) : [`ARCHETYPES_AND_USER_DATA.md`](./ARCHETYPES_AND_USER_DATA.md).
+> Commence par lui si ta tâche porte sur les archétypes / les données d'un user.
 
 ---
 
