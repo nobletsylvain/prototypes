@@ -120,6 +120,20 @@
     background:#fff; border:2px solid #1a2c18; box-shadow:0 2px 6px rgba(0,0,0,.5); }
   .mgsl::-moz-range-thumb { width:22px; height:22px; border-radius:50%; background:#fff; border:2px solid #1a2c18; }
 
+  /* --- Conditionnement : liste de pots + paliers (détail/semi/gros) --- */
+  #condlist { display:flex; flex-direction:column; gap:7px; width:96%; max-width:440px; max-height:38vh; overflow-y:auto; pointer-events:auto; }
+  .cpot { background:rgba(8,20,12,.55); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:8px 10px; }
+  .cpot .ch { font-size:12.5px; font-weight:800; display:flex; justify-content:space-between; gap:8px; }
+  .cpot .ct { display:flex; gap:6px; margin-top:6px; }
+  .tbtn { flex:1; pointer-events:auto; background:rgba(255,255,255,.08); border:1.5px solid rgba(255,255,255,.18);
+    border-radius:10px; padding:6px 4px; color:#fff; text-align:center; font-weight:800; font-size:11px; }
+  .tbtn:active { transform:scale(.96); }
+  .tbtn .te { font-size:11px; color:#9be37d; font-weight:800; margin-top:1px; }
+  .tbtn:disabled { opacity:.4; }
+  .tbtn.lock { opacity:.5; }
+  .cpot.done { opacity:.7; border-color:rgba(155,227,125,.5); }
+  .cpot .cdn { font-size:11px; font-weight:800; color:#9be37d; margin-top:5px; }
+
   /* --- Pots : grille de formats --- */
   #potgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; width:94%; max-width:440px; pointer-events:auto; }
   .fmt { pointer-events:auto; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16);
@@ -169,7 +183,8 @@
   <span class="step" data-step="tri">2·Tri</span>
   <span class="step" data-step="mix">3·Mix</span>
   <span class="step" data-step="pots">4·Pot</span>
-  <span class="step" data-step="stock">5·Stock</span>
+  <span class="step" data-step="cond">5·Cond.</span>
+  <span class="step" data-step="stock">6·Stock</span>
 </div>
 <button id="shopbtn">🛒</button>
 
@@ -216,11 +231,18 @@
   <div style="text-align:center;font-size:13px;font-weight:800;color:#bdf0a3;padding:5px 0 2px;pointer-events:none" id="potstep">Verse la fleur dans le pot</div>
   <div class="row">
     <button class="toggle" id="optHygro" title="Pochon hygro (curing)">💧 Hygro</button>
-    <button class="btn alt" id="potDone">Stocker ▸</button>
+    <button class="btn alt" id="potDone">Conditionner ▸</button>
   </div>
 </div>
 
-<!-- Phase 5 : Stockage / Vente -->
+<!-- Phase 5 : Conditionnement (choix du palier par pot : détail / semi-gros / gros) -->
+<div class="panel" id="condui">
+  <div class="card" id="condcard"></div>
+  <div id="condlist"></div>
+  <div class="row"><button class="btn" id="condNext">Stock ▸</button></div>
+</div>
+
+<!-- Phase 6 : Stockage / Vente -->
 <div class="panel" id="stockui">
   <div class="card" id="stockcard"></div>
   <div class="row">
@@ -870,8 +892,10 @@ owned.hygro   = owned.hygro   || 0;   // pochons hygro (curing) debloques
 owned.sealer  = owned.sealer  || 0;   // scelleuse (zone verte de scellage)
 owned.network = owned.network || 0;   // reseau de revendeurs (prix retail)
 owned.autosort= owned.autosort|| 0;   // trieuse auto (tri passif, niveaux = vitesse)
+owned.semi    = owned.semi    || 0;   // filiere semi-gros (conditionnement)
+owned.gros    = owned.gros    || 0;   // filiere gros (conditionnement, etape ultime)
 
-let phase = "effeuille";              // effeuille | tri | mix | pots | stock
+let phase = "effeuille";              // effeuille | tri | mix | pots | cond | stock
 let harvest = null;                   // recolte en cours { raw, total, wholesale, fr:{...}, leafFr }
 let fresh = null;                     // tas frais a trier { skunk, widow, lemon, purple, leaf }
 let batch = null;                     // recette validée à mettre en pot { strain, name, q, g, comp }
@@ -890,6 +914,7 @@ const ui = {};
  "triui","tricard","triswipe","triNext",
  "mixui","mixcard","mixsliders","mixClear","mixPack",
  "potsui","potcard","potstep","optHygro","potDone",
+ "condui","condcard","condlist","condNext",
  "stockui","stockcard","stockSell","stockNew",
  "shop","shopitems","shopcash"].forEach(id => ui[id] = document.getElementById(id));
 
@@ -1003,7 +1028,7 @@ function binsPills(opts) {
 /* -------------------------------------------------------------------------
    11) STEPPER + bascule de phase (montre la bonne station + overlay)
    ------------------------------------------------------------------------- */
-const ORDER = ["effeuille", "tri", "mix", "pots", "stock"];
+const ORDER = ["effeuille", "tri", "mix", "pots", "cond", "stock"];
 function updateStepper() {
   const idx = ORDER.indexOf(phase);
   document.querySelectorAll(".step").forEach(s => {
@@ -1018,6 +1043,7 @@ function setPhase(p) {
   ui.triui.classList.toggle("show", p === "tri");
   ui.mixui.classList.toggle("show", p === "mix");
   ui.potsui.classList.toggle("show", p === "pots");
+  ui.condui.classList.toggle("show", p === "cond");
   ui.stockui.classList.toggle("show", p === "stock");
   const isEff = (p === "effeuille");
   colasGrp.visible  = isEff;
@@ -1027,7 +1053,7 @@ function setPhase(p) {
   activeNug.visible = false;            // (plus de "tete active" : tri au geste)
   bowl.visible      = (p === "mix");
   jar.visible       = (p === "pots");
-  shelf.visible     = (p === "stock");
+  shelf.visible     = (p === "stock" || p === "cond");
   // Les bacs ne sont pertinents qu'au tri et au mix.
   const showBins3d = (p === "tri" || p === "mix");
   for (const id of STR_IDS) bins3d[id].visible = showBins3d;
@@ -1443,7 +1469,7 @@ function doPush() {
   if (storage.length >= jarSlots.length) { showToast("Étagère pleine — Stocker ▸", "#caa15f"); return; }
   const g = PACK.jarG;
   const price = Math.round(g * POT_BASE_EUR * qualMult(batch.q) * repMult() * levelMult() * (optHygro && owned.hygro ? 1.08 : 1));
-  storage.push({ strain: batch.strain, name: batch.name, grade: gradeOf(batch.q), q: batch.q, g, price, comp: batch.comp });
+  storage.push({ strain: batch.strain, name: batch.name, grade: gradeOf(batch.q), q: batch.q, g, price, comp: batch.comp, tier: null });
   saveStorage();
   batch.g -= g;
   addXP(Math.max(1, Math.round(price * 0.02)));
@@ -1454,7 +1480,59 @@ function doPush() {
 }
 
 /* -------------------------------------------------------------------------
-   16) PHASE 5 — STOCKAGE / VENTE
+   15b) PHASE 5 — CONDITIONNEMENT : un palier par pot (détail / semi-gros / gros)
+   Détail = €/g max (plein de petits paquets), Gros = €/g min mais écoulé d'un bloc
+   (≈ le pot tel quel), débloqué en dernier. Choix par pot.
+   ------------------------------------------------------------------------- */
+const TIERS = {
+  detail: { name: "Détail",    emoji: "🛍️", eur: 12.0, unlock: () => true },
+  semi:   { name: "Semi-gros", emoji: "📦", eur: 8.5,  unlock: () => owned.semi >= 1 },
+  gros:   { name: "Gros",      emoji: "🚚", eur: 5.2,  unlock: () => owned.gros >= 1 },
+};
+const TIER_ORDER = ["detail", "semi", "gros"];
+function potTierPrice(p, eur) { return Math.round(p.g * eur * qualMult(p.q) * repMult() * levelMult()); }
+function gotoCond() {
+  setPhase("cond");
+  refreshShelf();
+  renderCond();
+  setHint("Choisis un palier pour chaque pot : Détail = €/g max, Gros = écoulé en bloc (débloqué plus tard).");
+}
+function renderCond() {
+  const todo = storage.filter(p => !p.tier).length;
+  ui.condcard.innerHTML = '<div class="ttl">📦 Conditionnement</div>' +
+    '<div class="sub2">' + storage.length + ' pot(s) · <b style="color:#fff">' + todo + '</b> à conditionner — Détail €/g max, Gros en bloc</div>';
+  ui.condlist.innerHTML = "";
+  if (!storage.length) { ui.condlist.innerHTML = '<div class="sub2" style="text-align:center;color:rgba(255,255,255,.5)">Aucun pot. Reviens après la mise en pot.</div>'; return; }
+  storage.forEach((p, i) => {
+    const row = document.createElement("div"); row.className = "cpot" + (p.tier ? " done" : "");
+    const head = '<div class="ch"><span>' + (STRAINS[p.strain] ? STRAINS[p.strain].emoji + " " : "🧬 ") + p.name + ' · ' + p.grade + '</span><span style="color:rgba(255,255,255,.55)">' + Math.round(p.g) + ' g</span></div>';
+    if (p.tier) {
+      row.innerHTML = head + '<div class="cdn">✓ ' + TIERS[p.tier].emoji + ' ' + TIERS[p.tier].name + ' · ' + p.price + ' €</div>';
+    } else {
+      let btns = '<div class="ct">';
+      for (const t of TIER_ORDER) {
+        const T = TIERS[t], ok = T.unlock();
+        btns += '<button class="tbtn' + (ok ? '' : ' lock') + '" data-i="' + i + '" data-t="' + t + '"' + (ok ? '' : ' disabled') + '>' +
+          T.emoji + ' ' + T.name + '<div class="te">' + (ok ? potTierPrice(p, T.eur) + ' €' : '🔒') + '</div></button>';
+      }
+      row.innerHTML = head + btns + '</div>';
+    }
+    ui.condlist.appendChild(row);
+  });
+  ui.condlist.querySelectorAll(".tbtn:not([disabled])").forEach(b => b.addEventListener("click", () => condPot(+b.dataset.i, b.dataset.t)));
+}
+function condPot(i, t) {
+  const p = storage[i]; if (!p || p.tier) return;
+  const T = TIERS[t]; if (!T || !T.unlock()) return;
+  p.tier = t; p.price = potTierPrice(p, T.eur);
+  saveStorage();
+  const ac = ensureAudio(); if (ac) beep(720, ac.currentTime, 0.08, 0.16, "sine");
+  addXP(2); showToast(T.emoji + " " + T.name + " · " + p.price + " €", "#9be37d");
+  renderCond();
+}
+
+/* -------------------------------------------------------------------------
+   16) PHASE 6 — STOCKAGE / VENTE
    ------------------------------------------------------------------------- */
 function binsLeft() { return STR_IDS.some(id => bins[id].g > 0.5); }
 function gotoStock() {
@@ -1542,6 +1620,14 @@ const SHOP = [
     cost: () => Math.round(2200 * Math.pow(1.8, owned.autosort)),
     can: () => owned.autosort < 4, maxed: () => owned.autosort >= 4,
     buy: () => { owned.autosort++; } },
+  { id: "semi", icon: "📦", name: "Filière semi-gros",
+    desc: () => "Débloque le palier semi-gros au conditionnement.",
+    cost: () => 1500, can: () => owned.semi < 1, maxed: () => owned.semi >= 1,
+    buy: () => { owned.semi = 1; } },
+  { id: "gros", icon: "🚚", name: "Filière gros",
+    desc: () => "Débloque le palier GROS : écoule un pot d'un bloc (étape ultime).",
+    cost: () => 4000, can: () => owned.gros < 1 && owned.semi >= 1, maxed: () => owned.gros >= 1,
+    buy: () => { owned.gros = 1; } },
 ];
 function renderShop() {
   ui.shopcash.textContent = "💶 " + cash + " €";
@@ -1566,6 +1652,7 @@ function buyItem(it) {
   const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(990, t + 0.07, 0.14, 0.2); }
   renderShop();
   if (phase === "pots") refreshPotCard();
+  if (phase === "cond") renderCond();
 }
 
 /* -------------------------------------------------------------------------
@@ -1686,8 +1773,10 @@ ui.optHygro.addEventListener("click", () => {
 });
 ui.potDone.addEventListener("click", () => {
   if (batch) { showToast("Finis de mettre le mix en pot", "#caa15f"); return; }
-  gotoStock();
+  if (!storage.length) { showToast("Aucun pot à conditionner", "#caa15f"); return; }
+  gotoCond();
 });
+ui.condNext.addEventListener("click", gotoStock);
 ui.stockSell.addEventListener("click", sellStock);
 ui.stockNew.addEventListener("click", () => {
   if (debt > maxDebt() * 0.98) { showToast("Paie ta dette avant une nouvelle récolte", "#ff6b6b"); return; }
