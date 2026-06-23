@@ -172,7 +172,7 @@
   <span class="step" data-step="effeuille">1·Effeuille</span>
   <span class="step" data-step="tri">2·Tri</span>
   <span class="step" data-step="mix">3·Mix</span>
-  <span class="step" data-step="pots">4·Pots</span>
+  <span class="step" data-step="pots">4·Emballe</span>
   <span class="step" data-step="stock">5·Stock</span>
 </div>
 <button id="shopbtn">🛒</button>
@@ -204,25 +204,25 @@
   <div class="row"><button class="btn" id="triNext">Mix ▸</button></div>
 </div>
 
-<!-- Phase 3 : Mix / Dilution -->
+<!-- Phase 3 : Mix / Dilution (prépare des lots, puis Emballer) -->
 <div class="panel" id="mixui">
   <div class="card" id="mixcard"></div>
   <div id="mixchips"></div>
   <div id="dtrack"><div id="dtrail"></div><div id="dknob"></div></div>
   <div class="row">
-    <button class="toggle" id="mixBlend">🧬 Blend maison</button>
-    <button class="btn" id="mixPrep">Préparer le pot ▸</button>
+    <button class="toggle" id="mixBlend">🧬 Blend</button>
+    <button class="btn alt" id="mixPrep">➕ Préparer</button>
+    <button class="btn" id="mixPack">Emballer ▸</button>
   </div>
 </div>
 
-<!-- Phase 4 : Conditionnement en pots -->
+<!-- Phase 4 : Emballage — geste combo verser → visser → pousser -->
 <div class="panel" id="potsui">
   <div class="card" id="potcard"></div>
-  <div class="gauge" id="sealgauge" style="display:none"><div class="sweet" id="sealsweet"></div><div class="cursor" id="sealcursor"></div></div>
-  <div id="potgrid"></div>
+  <div style="text-align:center;font-size:13px;font-weight:800;color:#bdf0a3;padding:5px 0 2px;pointer-events:none" id="potstep">Verse la fleur dans le pot</div>
   <div class="row">
     <button class="toggle" id="optHygro" title="Pochon hygro (curing)">💧 Hygro</button>
-    <button class="btn" id="potDone">Terminer ▸</button>
+    <button class="btn alt" id="potDone">Stocker ▸</button>
   </div>
 </div>
 
@@ -311,6 +311,7 @@ app.appendChild(renderer.domElement);
 const VIEWS = {
   work: { target: new THREE.Vector3(0, 0.15, 0.0), dir: new THREE.Vector3(0.02, 0.64, 0.77).normalize(), radius: Math.hypot(3.9, 0.9, 3.0) },
   eff:  { target: new THREE.Vector3(0, 1.95, 0.0), dir: new THREE.Vector3(0, 0.16, 1).normalize(),        radius: Math.hypot(2.4, 1.9, 0.4) },
+  pack: { target: new THREE.Vector3(0, 0.62, 0.2), dir: new THREE.Vector3(0.05, 0.42, 0.9).normalize(),   radius: Math.hypot(0.7, 0.9, 0.4) },
 };
 let curView = VIEWS.work;
 const VIEW_TARGET = new THREE.Vector3();   // cible courante (utilisee par la boucle)
@@ -652,9 +653,12 @@ function setBowlMat(mat) { for (const m of bowlNugs) m.material = mat; }
 const jar = new THREE.Group();
 const glass = new THREE.Mesh(
   new THREE.CylinderGeometry(0.55, 0.55, 1.0, 24, 1, true),
-  new THREE.MeshStandardMaterial({ color: 0xdfeef0, transparent: true, opacity: 0.2, roughness: 0.05, metalness: 0.3, side: THREE.DoubleSide })
+  new THREE.MeshStandardMaterial({ color: 0xd2e6dc, transparent: true, opacity: 0.38, roughness: 0.08, metalness: 0.2, side: THREE.DoubleSide })
 );
 glass.position.y = 0.55;
+const jarBase = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.52, 0.08, 24),
+  new THREE.MeshStandardMaterial({ color: 0xd2e6dc, transparent: true, opacity: 0.45, roughness: 0.1, metalness: 0.2 }));
+jarBase.position.y = 0.06;
 const jarFill = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.9, 24), matStrain.skunk);
 jarFill.position.y = 0.5;
 const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.59, 0.59, 0.13, 24),
@@ -663,11 +667,14 @@ lid.position.y = 1.1;
 const band = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 0.3, 24, 1, true),
   new THREE.MeshStandardMaterial({ color: 0xf3efe2, roughness: 0.8, side: THREE.DoubleSide }));
 band.position.y = 0.42;
-jar.add(glass); jar.add(jarFill); jar.add(lid); jar.add(band);
+jar.add(glass); jar.add(jarBase); jar.add(jarFill); jar.add(lid); jar.add(band);
 jar.position.set(0, 0, 0.2);
 jar.traverse(o => { if (o.isMesh) o.castShadow = true; });
 scene.add(jar);
 jar.userData.fill = jarFill;
+jar.userData.lid = lid;
+jar.userData.band = band;
+jar.userData.glass = glass;
 
 // 7e) L'ETAGERE de stockage (phase 5) : planche + pots scelles empiles.
 const shelf = new THREE.Group();
@@ -844,7 +851,8 @@ let harvest = null;                   // recolte en cours { raw, total, wholesal
 let fresh = null;                     // tas frais a trier { skunk, widow, lemon, purple, leaf }
 let mixSel = {};                      // varietes selectionnees pour le mix
 let mixBlend = false;                 // mode blend (plusieurs varietes ensemble)
-let batch = null;                     // lot prepare a empoter { strain, name, g, q }
+let batches = [];                     // file de lots prêts à emballer [{ strain, name, q, g }]
+let packJar = null;                   // pot en cours d'emballage (geste verser→visser→pousser)
 let optHygro = false;                 // option pochon hygro au conditionnement
 
 function saveBins()    { localStorage.setItem("rc_bins", JSON.stringify(bins)); localStorage.setItem("rc_waste", String(Math.round(waste))); }
@@ -858,8 +866,8 @@ const ui = {};
 ["cash","debt","replbl","repfill","level","xpfill","hint","toast",
  "effui","effcard","effswipe","effNext",
  "triui","tricard","triswipe","triNext",
- "mixui","mixcard","mixchips","dtrack","dtrail","dknob","mixBlend","mixPrep",
- "potsui","potcard","sealgauge","sealsweet","sealcursor","potgrid","optHygro","potDone",
+ "mixui","mixcard","mixchips","dtrack","dtrail","dknob","mixBlend","mixPrep","mixPack",
+ "potsui","potcard","potstep","optHygro","potDone",
  "stockui","stockcard","stockSell","stockNew",
  "shop","shopitems","shopcash"].forEach(id => ui[id] = document.getElementById(id));
 
@@ -998,10 +1006,11 @@ function setPhase(p) {
   bowl.visible      = (p === "mix");
   jar.visible       = (p === "pots");
   shelf.visible     = (p === "stock");
-  // Les bacs de tri ne sont pertinents que pendant tri/coupe : on les cache a l'effeuillage.
-  for (const id of STR_IDS) bins3d[id].visible = !isEff;
-  bins3d.waste.visible = !isEff;
-  setView(isEff ? "eff" : "work");
+  // Les bacs ne sont pertinents qu'au tri et au mix.
+  const showBins3d = (p === "tri" || p === "mix");
+  for (const id of STR_IDS) bins3d[id].visible = showBins3d;
+  bins3d.waste.visible = showBins3d;
+  setView(isEff ? "eff" : p === "pots" ? "pack" : "work");
   updateStepper();
 }
 
@@ -1279,15 +1288,27 @@ function setBowlByMix() {
   setBowlMat(ids.length ? matStrain[ids[0]] : matLeaf);
 }
 function qColor(q) { return q >= 0.62 ? "#9be37d" : q >= 0.42 ? "#ffd166" : "#ff6b6b"; }
+function queueLine() {
+  if (!batches.length) return '';
+  const g = Math.round(batches.reduce((s, b) => s + b.g, 0));
+  return '<div class="sub2" style="margin-top:4px;color:#bdf0a3">📦 ' + batches.length + ' lot' + (batches.length > 1 ? 's' : '') + ' prêt' + (batches.length > 1 ? 's' : '') + ' · ' + g + ' g — Emballer ▸</div>';
+}
 function refreshMixCard() {
   const p = projectMix();
-  if (p.g < 1) { ui.mixcard.innerHTML = '<div class="ttl">⚗️ Mix</div><div class="sub2">Sélectionne une variété ci-dessous.</div>'; return; }
+  if (ui.mixPack) ui.mixPack.disabled = batches.length === 0;
+  if (p.g < 1) {
+    const noneLeft = STR_IDS.every(id => bins[id].g < 0.5);
+    ui.mixcard.innerHTML = '<div class="ttl">⚗️ Mix</div><div class="sub2">' +
+      (noneLeft ? (batches.length ? 'Tout préparé — passe à l\'emballage.' : 'Rien à mixer — trie d\'abord.') : 'Sélectionne une variété ci-dessous.') +
+      '</div>' + queueLine();
+    return;
+  }
   const name = p.ids.length > 1 ? "🧬 Blend maison · " + p.ids.length + " var." : STRAINS[p.ids[0]].emoji + " " + STRAINS[p.ids[0]].name;
   ui.mixcard.innerHTML =
     '<div class="ttl">' + name + '</div>' +
     '<div class="sub2">Fleur ' + Math.round(p.g) + ' g' + (p.add >= 1 ? ' + déchet ' + Math.round(p.add) + ' g' : '') + ' → <b style="color:#fff">' + Math.round(p.outG) + ' g</b></div>' +
     '<div style="margin-top:3px">Qualité <span class="qbig" style="color:' + qColor(p.outQ) + '">' + gradeOf(p.outQ) + ' · ' + Math.round(p.outQ * 100) + ' %</span>' +
-    (p.effDil > 0.25 ? ' <span class="q">⚠ très coupé</span>' : '') + '</div>';
+    (p.effDil > 0.25 ? ' <span class="q">⚠ très coupé</span>' : '') + '</div>' + queueLine();
 }
 function setDKnob() { ui.dknob.style.left = (dilute / DILUTE_MAX * 100) + "%"; }
 function renderMixChips() {
@@ -1314,90 +1335,109 @@ function setMixBlend(on) {
   }
   renderMixChips(); refreshMixCard();
 }
+// Prepare un lot et l'ajoute a la FILE (on peut en preparer plusieurs avant
+// d'emballer). Consomme les bacs selectionnes + le dechet utilise.
 function prepBatch() {
   const p = projectMix();
-  if (p.g < 1) { showToast("Rien à mélanger", "#caa15f"); return; }
-  // Consomme les bacs selectionnes + le dechet utilise.
+  if (p.g < 1) { showToast("Sélectionne une variété", "#caa15f"); return; }
   for (const id of p.ids) { bins[id] = { g: 0, qs: 0 }; }
   waste = Math.max(0, waste - p.add);
   const name = p.ids.length > 1 ? "Blend maison" : STRAINS[p.ids[0]].name;
   const strain = p.ids.length > 1 ? "blend" : p.ids[0];
   let q = p.outQ;
-  if (owned.hygro && optHygro) q = Math.min(1, q + 0.05);   // curing -> petit bonus applique au pot
-  batch = { strain, name, g: p.outG, q };
+  if (owned.hygro && optHygro) q = Math.min(1, q + 0.05);   // curing -> petit bonus
+  batches.push({ strain, name, g: p.outG, q });
   saveBins(); updateBinsUI();
-  addShake(0.16); playSeal();
-  gotoPots();
+  addShake(0.1); playSeal();
+  showToast("Lot prêt : " + name + " " + Math.round(p.outG) + " g", "#9be37d");
+  // Reselection auto sur la variete restante la plus fournie.
+  mixSel = {}; mixBlend = false; ui.mixBlend.classList.remove("on"); dilute = 0; setDKnob();
+  let best = null, bg = 0;
+  for (const id of STR_IDS) if (bins[id].g > bg) { bg = bins[id].g; best = id; }
+  if (best) mixSel[best] = true;
+  setBowlByMix(); renderMixChips(); refreshMixCard();
 }
 
 /* -------------------------------------------------------------------------
-   15) PHASE 4 — CONDITIONNEMENT EN POTS (etiquetes variete + qualite)
+   15) PHASE 4 — EMBALLAGE : geste combo VERSER -> VISSER -> POUSSER
+   Pas de mini-jeu/echec : un geste par etape. On verse la fleur d'un lot dans
+   le pot (maintien), on visse le couvercle (doigt circulaire), on pousse le pot
+   vers l'etagere. Petit pot = €/g plus eleve (detail), gros pot = €/g plus bas.
    ------------------------------------------------------------------------- */
-const seal = { active: false, fmt: null, cursor: 0, dir: 1 };
-function sealSweet() { return 0.1 + owned.sealer * 0.03; }
-function qualMult(q) { return 0.6 + q * 0.9; }   // qualite -> multiplicateur de prix
-
-function gotoPots() {
+function qualMult(q) { return 0.6 + q * 0.9; }                 // qualite -> multiplicateur de prix
+function pricePerG(g) { const t = Math.max(0, Math.min(1, (g - 3.5) / 24.5)); return 11 - t * 3.2; } // 3.5g:11 -> 28g:7.8
+const JAR_MAX = 30, FILL_RATE = 24, SCREW_TURNS = Math.PI * 2;
+const PACK = { step: "fill", jarG: 0, pouring: false, screwing: false, sealAcc: 0, lastAng: 0, pushStart: null, busy: false, flyT: 0, psnd: 0, ssnd: 0 };
+function curBatch() { return batches[0] || null; }
+function packCap() { const b = curBatch(); return b ? Math.min(JAR_MAX, b.g) : 0; }
+function jarColor(b) { return b ? (b.strain === "blend" ? matStrain.skunk : (matStrain[b.strain] || matStrain.skunk)) : matStrain.skunk; }
+function setJarFill(g) {
+  const fill = jar.userData.fill, k = Math.max(0.001, Math.min(1, g / JAR_MAX));
+  fill.scale.y = k; fill.position.y = 0.05 + 0.45 * k; fill.visible = g > 0.05;
+}
+function setPotStep() {
+  if (!ui.potstep) return;
+  ui.potstep.textContent = PACK.step === "fill" ? "👇 Maintiens sur le pot pour verser · lâche quand c'est bon"
+    : PACK.step === "screw" ? "🔄 Tourne le doigt autour du pot pour visser"
+    : PACK.step === "push" ? "👆 Pousse le pot vers l'étagère (glisse vers le haut)"
+    : "✓ Tout est en pot — Stocker ▸";
+}
+function gotoPack() {
+  if (!batches.length) { showToast("Prépare au moins un lot", "#caa15f"); return; }
   setPhase("pots");
   ui.optHygro.classList.toggle("on", optHygro);
-  renderPotFormats();
-  refreshPotCard();
-  setHint("Empote ta variété : chaque pot porte son étiquette (variété + qualité). Scelle dans le vert pour un bonus.");
+  jar.position.set(0, 0, 0.2); jar.rotation.set(0, 0, 0);
+  startJar();
+}
+function startJar() {
+  const b = curBatch();
+  PACK.step = b ? "fill" : "done";
+  PACK.jarG = 0; PACK.pouring = false; PACK.screwing = false; PACK.sealAcc = 0; PACK.busy = false;
+  jar.userData.fill.material = jarColor(b);
+  setJarFill(0);
+  jar.userData.lid.visible = false; jar.userData.lid.rotation.y = 0; jar.userData.lid.position.y = 1.35;
+  jar.visible = !!b && phase === "pots";
+  refreshPotCard(); setPotStep();
+  setHint(b ? "Maintiens sur le pot pour verser la fleur." : "Tout est en pot. Stocker ▸");
 }
 function refreshPotCard() {
+  const b = curBatch();
+  if (!b) { ui.potcard.innerHTML = '<div class="ttl">Tout est en pot ✓</div><div class="sub2">' + storage.length + ' pot(s) prêt(s) — Stocker ▸</div>'; return; }
+  const g = PACK.jarG;
+  const price = Math.round(g * pricePerG(g) * qualMult(b.q) * repMult() * levelMult() * (optHygro && owned.hygro ? 1.08 : 1));
   ui.potcard.innerHTML =
-    "🫙 Lot : <b>" + batch.name + "</b> — " + Math.round(batch.g) + " g<br>" +
-    "Étiquette : <b>" + batch.name + " · " + gradeOf(batch.q) + "</b> (" + Math.round(batch.q * 100) + " %)";
-  const fill = jar.userData.fill;
-  fill.material = batch.strain === "blend" ? matStrain[selectedIds()[0] || "skunk"] : matStrain[batch.strain] || matStrain.skunk;
-  const k = Math.max(0.04, Math.min(1, batch.g / 200));
-  fill.scale.y = k; fill.position.y = 0.05 + 0.45 * k;
+    '<div class="ttl">' + (STRAINS[b.strain] ? STRAINS[b.strain].emoji + " " : "🧬 ") + b.name + ' · <span style="color:' + qColor(b.q) + '">' + gradeOf(b.q) + '</span></div>' +
+    '<div class="sub2">Lot restant ' + Math.round(b.g) + ' g · file : ' + batches.length + ' lot' + (batches.length > 1 ? 's' : '') + '</div>' +
+    '<div style="margin-top:2px">Pot : <b style="color:#fff">' + g.toFixed(1) + ' g</b>' + (g >= 1 ? ' · <b style="color:#9be37d">~' + price + ' €</b>' : '') + '</div>';
 }
-function potUnit(f) { return Math.round(f.g * f.eur * qualMult(batch.q) * repMult() * levelMult()); }
-function renderPotFormats() {
-  ui.potgrid.innerHTML = "";
-  for (const f of JARS) {
-    const b = document.createElement("button");
-    b.className = "fmt"; b.dataset.fmt = f.id;
-    b.disabled = !batch || batch.g < f.g;
-    b.innerHTML = '<div class="fn">' + f.emoji + " " + f.name + '</div><div class="fp">~' + potUnit(f) + " €</div>";
-    b.addEventListener("click", () => startSeal(f.id));
-    ui.potgrid.appendChild(b);
-  }
+// Etape 1 finie -> on visse.
+function goScrew() {
+  if (PACK.jarG < 1) return;
+  PACK.step = "screw"; PACK.sealAcc = 0;
+  jar.userData.lid.visible = true; jar.userData.lid.position.y = 1.35;
+  setPotStep(); setHint("Tourne le doigt autour du pot pour visser le couvercle.");
 }
-function startSeal(fid) {
-  if (seal.active) return;
-  const f = JARS.find(x => x.id === fid);
-  if (!batch || batch.g < f.g) { showToast("Pas assez pour ce pot", "#caa15f"); return; }
-  if (storage.length >= jarSlots.length) { showToast("Étagère pleine — vends ton stock", "#caa15f"); return; }
-  seal.active = true; seal.fmt = f; seal.cursor = 0; seal.dir = 1;
-  ui.sealgauge.style.display = "block";
-  const sw = sealSweet();
-  ui.sealsweet.style.left = (50 - sw * 100) + "%";
-  ui.sealsweet.style.width = (sw * 200) + "%";
-  setHint("Tape dans le vert pour sceller bien serré (" + f.name + ").");
+// Etape 2 finie -> pret a pousser.
+function sealDone() {
+  PACK.step = "push"; jar.userData.lid.position.y = 1.1;
+  playSeal(); addShake(0.08);
+  setPotStep(); setHint("Pousse le pot vers l'étagère.");
 }
-function resolveSeal() {
-  if (!seal.active) return;
-  const f = seal.fmt; seal.active = false;
-  ui.sealgauge.style.display = "none";
-  if (!batch || batch.g < f.g) { showToast("Plus assez", "#caa15f"); return; }
-  if (storage.length >= jarSlots.length) { showToast("Étagère pleine", "#caa15f"); return; }
-
-  const err = Math.abs(seal.cursor - 0.5);
-  const tight = err <= sealSweet() ? 1.12 : err <= sealSweet() * 2.4 ? 1.0 : 0.9;
-  batch.g -= f.g;
-  let price = f.g * f.eur * qualMult(batch.q) * repMult() * levelMult() * tight;
-  if (optHygro && owned.hygro) price *= 1.08;        // hygro : fraicheur -> +valeur
-  // Pot SCELLE -> stockage (vendu en phase Stock).
-  storage.push({ strain: batch.strain, name: batch.name, grade: gradeOf(batch.q), q: batch.q, g: f.g, price: Math.round(price) });
+// Etape 3 : le pot scelle part au stock.
+function doPush() {
+  if (PACK.busy || PACK.step !== "push") return;
+  if (storage.length >= jarSlots.length) { showToast("Étagère pleine — Stocker ▸", "#caa15f"); return; }
+  const b = curBatch(); if (!b) return;
+  const g = PACK.jarG;
+  const price = Math.round(g * pricePerG(g) * qualMult(b.q) * repMult() * levelMult() * (optHygro && owned.hygro ? 1.08 : 1));
+  storage.push({ strain: b.strain, name: b.name, grade: gradeOf(b.q), q: b.q, g, price });
   saveStorage();
-  showPotJuice();
-  showToast("Pot " + f.name + " · " + batch.name, STRAINS[batch.strain] ? STRAINS[batch.strain].lbl : "#bdf0a3");
-  renderPotFormats(); refreshPotCard();
-  if (batch.g < JARS[0].g) { setHint("Lot empoté. Termine pour stocker ▸"); }
+  b.g -= g; if (b.g < 1) batches.shift();
+  addXP(Math.max(1, Math.round(price * 0.03)));
+  showToast("Pot " + g.toFixed(1) + " g · " + b.name + " → +" + price + " €", "#9be37d");
+  playSale();
+  PACK.busy = true; PACK.flyT = 0;          // animation "pousse vers l'etagere"
 }
-function showPotJuice() { playSeal(); addShake(0.1); }
 
 /* -------------------------------------------------------------------------
    16) PHASE 5 — STOCKAGE / VENTE
@@ -1511,7 +1551,7 @@ function buyItem(it) {
   setCash(cash - cost); it.buy(); saveShop();
   const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(990, t + 0.07, 0.14, 0.2); }
   renderShop();
-  if (phase === "pots") { renderPotFormats(); refreshPotCard(); }
+  if (phase === "pots") refreshPotCard();
 }
 
 /* -------------------------------------------------------------------------
@@ -1521,6 +1561,11 @@ const el = renderer.domElement;
 const pointers = new Map();
 let pinching = false, pinchStartDist = 0, pinchStartZoom = 1;
 function pinchDist() { const a = [...pointers.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
+// Centre ecran du pot + angle d'un point autour de lui (pour le geste de vissage).
+const _jc = new THREE.Vector3();
+function jarScreen() { _jc.set(jar.position.x, jar.position.y + 0.6, jar.position.z); _jc.project(camera); return { x: (_jc.x * 0.5 + 0.5) * window.innerWidth, y: (-_jc.y * 0.5 + 0.5) * window.innerHeight }; }
+function angTo(e) { const c = jarScreen(); return Math.atan2(e.clientY - c.y, e.clientX - c.x); }
+function angDelta(a, b) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
 
 // Curseur de dilution (slider).
 let sliderDrag = false;
@@ -1545,7 +1590,11 @@ el.addEventListener("pointerdown", (e) => {
   } else if (phase === "tri") {
     tri.dragging = true; tri.lastX = e.clientX; tri.lastY = e.clientY; tri.acc = 0;
     if (sortHandful(triPerStride())) triCommitUI();   // tap = une poignee
-  } else if (phase === "pots") { if (seal.active) resolveSeal(); }
+  } else if (phase === "pots" && !PACK.busy) {
+    if (PACK.step === "fill") PACK.pouring = true;
+    else if (PACK.step === "screw") { PACK.screwing = true; PACK.lastAng = angTo(e); }
+    else if (PACK.step === "push") PACK.pushStart = { x: e.clientX, y: e.clientY };
+  }
 }, { passive: false });
 
 el.addEventListener("pointermove", (e) => {
@@ -1572,12 +1621,31 @@ el.addEventListener("pointermove", (e) => {
     let did = false, guard = 0;
     while (tri.acc >= TRI_STRIDE && guard++ < 12) { tri.acc -= TRI_STRIDE; if (sortHandful(triPerStride())) did = true; else break; }
     if (did) triCommitUI();
+  } else if (phase === "pots" && pointers.size < 2) {
+    if (PACK.step === "screw" && PACK.screwing) {
+      e.preventDefault();
+      const a = angTo(e), d = angDelta(PACK.lastAng, a); PACK.lastAng = a;
+      PACK.sealAcc += Math.abs(d);
+      const lid = jar.userData.lid; lid.rotation.y += d * 1.4;
+      const target = SCREW_TURNS * (1 - owned.sealer * 0.12);
+      lid.position.y = 1.35 - 0.25 * Math.min(1, PACK.sealAcc / target);
+      if ((PACK.ssnd -= Math.abs(d)) <= 0) { playSnip(); PACK.ssnd = 0.5; }   // ratchet
+      if (PACK.sealAcc >= target) { PACK.screwing = false; sealDone(); }
+    } else if (PACK.step === "push" && PACK.pushStart) {
+      if (PACK.pushStart.y - e.clientY > 55) { PACK.pushStart = null; doPush(); }
+    }
   }
 }, { passive: false });
 function onUp(e) {
   pointers.delete(e.pointerId);
   if (pinching && pointers.size < 2) pinching = false;
-  if (pointers.size === 0) { eff.dragging = false; eff.prev = null; tri.dragging = false; }
+  if (pointers.size === 0) {
+    eff.dragging = false; eff.prev = null; tri.dragging = false;
+    if (phase === "pots") {
+      if (PACK.pouring) { PACK.pouring = false; if (PACK.step === "fill" && PACK.jarG >= 1) goScrew(); }
+      PACK.screwing = false; PACK.pushStart = null;
+    }
+  }
 }
 el.addEventListener("pointerup", onUp, { passive: false });
 el.addEventListener("pointercancel", onUp, { passive: false });
@@ -1593,13 +1661,15 @@ ui.triNext.addEventListener("click", () => {
 });
 ui.mixBlend.addEventListener("click", () => setMixBlend(!mixBlend));
 ui.mixPrep.addEventListener("click", prepBatch);
+ui.mixPack.addEventListener("click", gotoPack);
 ui.optHygro.addEventListener("click", () => {
   if (!owned.hygro) { showToast("Achète les pochons hygro 🛒", "#caa15f"); return; }
   optHygro = !optHygro; ui.optHygro.classList.toggle("on", optHygro);
+  refreshPotCard();
 });
 ui.potDone.addEventListener("click", () => {
-  if (binsLeft()) { showToast("Reste des variétés à empoter", "#caa15f"); gotoMix(); }
-  else gotoStock();
+  if (batches.length) { showToast("Reste " + batches.length + " lot(s) à emballer", "#caa15f"); return; }
+  gotoStock();
 });
 ui.stockSell.addEventListener("click", sellStock);
 ui.stockNew.addEventListener("click", () => {
@@ -1620,12 +1690,6 @@ function updateGauges(dt) {
       if (eff.hasty > 0.05) { ui.effswipe.style.color = "#ffae6b"; ui.effswipe.textContent = "⚠ Trop vif — tu abîmes des têtes ! Effeuille plus doucement"; }
       else { ui.effswipe.style.color = "rgba(173,224,140," + (0.6 + eff.flash * 2).toFixed(2) + ")"; ui.effswipe.textContent = "👆 Glisse doucement le long des colas"; }
     }
-  }
-  if (phase === "pots" && seal.active) {
-    seal.cursor += seal.dir * (1.25 - owned.sealer * 0.08) * dt;
-    if (seal.cursor >= 1) { seal.cursor = 1; seal.dir = -1; }
-    if (seal.cursor <= 0) { seal.cursor = 0; seal.dir = 1; }
-    ui.sealcursor.style.left = (seal.cursor * 100) + "%";
   }
 }
 
@@ -1648,7 +1712,23 @@ function loop(t) {
     if (ui.triswipe) ui.triswipe.style.color = "rgba(173,224,140," + (0.6 + tri.flash * 2).toFixed(2) + ")";
   }
   if (phase === "mix") bowlFill.rotation.y += dt * 0.8;
-  if (phase === "pots") jar.rotation.y += dt * 0.4;
+  if (phase === "pots") {
+    // Versement continu tant qu'on maintient (etape "fill").
+    if (PACK.pouring && PACK.step === "fill") {
+      const cap = packCap();
+      PACK.jarG = Math.min(cap, PACK.jarG + FILL_RATE * dt);
+      setJarFill(PACK.jarG); refreshPotCard();
+      if ((PACK.psnd -= dt) <= 0) { playDrop(); PACK.psnd = 0.11; }
+      if (PACK.jarG >= cap - 0.01) { PACK.pouring = false; goScrew(); }   // pot plein -> visser
+    }
+    // Animation "pousse vers l'etagere".
+    if (PACK.busy) {
+      PACK.flyT += dt; const k = Math.min(1, PACK.flyT / 0.4);
+      jar.position.set(1.8 * k, 0.5 * Math.sin(k * Math.PI), 0.2 - 0.4 * k);
+      jar.rotation.z = -0.5 * k;
+      if (PACK.flyT >= 0.4) { jar.position.set(0, 0, 0.2); jar.rotation.set(0, 0, 0); PACK.busy = false; refreshShelf(); startJar(); }
+    }
+  }
 
   updateGauges(dt);
   updateFlyers(dt);
