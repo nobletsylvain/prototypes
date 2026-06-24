@@ -204,10 +204,10 @@
       <div class="ring mine ready" id="ring-mine"><div class="inner"><span class="ph">+ TOI</span></div></div>
       <div class="cap">Ta vitrine</div>
     </div>
-    <div class="story"><div class="ring seen"><div class="inner">🏪</div></div><div class="cap">Le Comptoir</div></div>
-    <div class="story"><div class="ring seen"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
-    <div class="story"><div class="ring"><div class="inner">🌃</div></div><div class="cap"><span class="live">● ARRIVAGE</span></div></div>
-    <div class="story"><div class="ring seen"><div class="inner">🚬</div></div><div class="cap">La Ruelle</div></div>
+    <div class="story" data-actor="comptoir"><div class="ring seen"><div class="inner">🏪</div></div><div class="cap">Le Comptoir</div></div>
+    <div class="story" data-actor="campus"><div class="ring seen"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
+    <div class="story" data-actor="arrivage"><div class="ring"><div class="inner">🌃</div></div><div class="cap"><span class="live">● ARRIVAGE</span></div></div>
+    <div class="story" data-actor="ruelle"><div class="ring seen"><div class="inner">🚬</div></div><div class="cap">La Ruelle</div></div>
   </div>
 
   <div class="body" id="body"></div>
@@ -534,12 +534,15 @@ function accroLine(){
 // Invariant : présentation uniquement — le moteur pioche (rnd), le texte ne décide rien.
 let CONTENT=null, TROUPE=[], ACTION_REPLY=null, REUP_REPLY=null;
 async function loadContent(){ try{
-  const [P,L,Cr]=await Promise.all([
+  const [P,L,Cr,Vc,Re,Ac]=await Promise.all([
     fetch('./content/profiles.json').then(r=>r.ok?r.json():null).catch(()=>null),
     fetch('./content/lines.json').then(r=>r.ok?r.json():null).catch(()=>null),
     fetch('./content/crowd.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/vcap.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/reactions.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/actors.json').then(r=>r.ok?r.json():null).catch(()=>null),
   ]);
-  CONTENT={profiles:P,lines:L,crowd:Cr};
+  CONTENT={profiles:P,lines:L,crowd:Cr,vcap:Vc,reactions:Re,actors:Ac};
   if(L) applyLines(L);
   if(P) applyProfiles(P);
 }catch(e){/* proto reste autonome */} }
@@ -604,6 +607,37 @@ function reupReplyFor(c,result,fallback){
   return fallback;
 }
 const fin=(s,qty)=>fillConcepts(String(s).replace(/\{QTY\}/g,qty));   // finalise une réplique (concepts + qty)
+const rndFrom=(arr,fb)=>(arr&&arr.length)?rnd(arr):fb;
+// vcap.json : légende de TA vitrine (par drop d'abord, sinon par qualité)
+function vcapFor(kind){
+  const V=CONTENT&&CONTENT.vcap; if(!V) return null;
+  const pool=(V.by_drop&&V.by_drop[kind]) || (V.by_quality&&V.by_quality[S.qualiteChoisie]);
+  return (pool&&pool.length)?fillConcepts(rnd(pool)):null;
+}
+// reactions.json : jauge de buzz OPAQUE (phrasé par niveau, jamais un chiffre)
+function buzzLabel(){
+  const lvl = S.expo>C.EXPO_SEUIL_MAUVAIS_PUBLIC?'high':S.expo>30?'mid':'low';
+  const R=CONTENT&&CONTENT.reactions&&CONTENT.reactions.view_gauge;
+  if(R&&R[lvl]&&R[lvl].length) return rnd(R[lvl]);
+  return lvl==='high'?'au-dessus du radar ⚠️':lvl==='mid'?'ça parle de toi':'tranquille';
+}
+// reactions.json : flash post = libellé d'engagement flou + quelques likes par ton
+function postReactionFlash(kind){
+  const base = kind==='premium'?'Drop PREMIUM posté. Faut assurer derrière 👀':kind==='normal'?'Drop posté.':'Vitrine postée.';
+  const R=CONTENT&&CONTENT.reactions; if(!R) return base;
+  const label=rndFrom(R.reaction_labels,'');
+  const likes=((R.likes_by_tone&&R.likes_by_tone[toneFromReput(S.reput)])||[]).slice(0,3).join('');
+  return base+(label?' — '+label:'')+(likes?' '+likes:'');
+}
+// actors.json : story tappable d'un acteur d'ambiance (décor, ne vend rien)
+function openActorStory(key){
+  const A=CONTENT&&CONTENT.actors&&CONTENT.actors.actors, a=A&&A[key];
+  if(!a){ flash('Story indisponible (contenu pas chargé).'); return; }
+  $('vcap').textContent = a.emoji+' '+a.nom+' — '+fillConcepts(rndFrom(a.captions,a.vibe||''));
+  const tone=toneFromReput(S.reput);
+  const cs=(a.seed_comments||[]).map(txt=>{ const v=genProfile(); return { nm:v.nm, av:v.av, txt:fillConcepts(txt), tone }; });
+  playComments(cs);   // réutilise le viewer + commentaires qui tombent
+}
 // protag = TYPE de protagoniste (visage récurrent), pas l'identité d'affichage de la foule
 function dmObj(id,v,kind,qty,ppu,msg,tone,protag){ return {id,nm:v.nm,av:v.av,kind,qty,ppu,msg,status:'pending',tone,protag,log:null}; }
 function buildDMs(good,bad,tone){
@@ -695,7 +729,7 @@ function renderHeader(){
   const blocks={hostile:'◦ ◦ ◦','mefi':'● ◦ ◦',neutre:'● ● ◦',chaleureux:'● ● ●'}[tone];
   const col={hostile:'var(--rust)','mefi':'var(--sodium)',neutre:'var(--muted)',chaleureux:'var(--green)'}[tone];
   const g=$('repGauge'); g.textContent=blocks; g.style.color=col;
-  $('buzz').textContent='buzz : '+(S.expo>C.EXPO_SEUIL_MAUVAIS_PUBLIC?'au-dessus du radar ⚠️':S.expo>30?'ça parle de toi':'tranquille');
+  $('buzz').textContent='buzz : '+buzzLabel();
 }
 function renderBody(){
   const b=$('body');
@@ -860,9 +894,12 @@ $('story-mine').addEventListener('click',openComposer);
 $('composeX').addEventListener('click',closeComposer);
 document.querySelectorAll('#scompose .opt').forEach(o=>o.addEventListener('click',()=>{
   const kind=o.dataset.post; closeComposer();
-  const cs=posterVitrine(kind); refresh();
-  playComments(cs, ()=>{ flash(kind==='premium'?'Drop PREMIUM posté. Faut assurer derrière 👀':kind==='normal'?'Drop posté.':'Vitrine postée.'); });
+  const cs=posterVitrine(kind);
+  const cap=vcapFor(kind); if(cap) $('vcap').textContent=cap;   // légende de vitrine (vcap.json)
+  refresh();
+  playComments(cs, ()=>{ flash(postReactionFlash(kind)); });
 }));
+document.querySelectorAll('.story[data-actor]').forEach(s=>s.addEventListener('click',()=>openActorStory(s.dataset.actor)));
 $('btnDay').addEventListener('click',()=>{
   const { cons, comments } = passerJournee();
   refresh();
