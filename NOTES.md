@@ -9,6 +9,32 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-06-24 — nouveau proto « Ecstasy — Presse Cadencée »
+
+Core loop ecsta ajouté (`ecstasy-press/`), variation V1 d'un brief à 3 options
+(presse cadencée / maître de cuve / chaîne & tri). Chaîne : cuve (coupe au
+liant) → presse au rythme → tri/comptage au doigt → vente → rapport traçable.
+
+Arbitrage de design important (réconciliation des règles) :
+
+- La **coupe au liant** est l'arbitrage économique (cupidité vs prudence) et le
+  **levier unique de qualité** (ADN CrimWorld : qualité → sell-through **et**
+  chaleur de rue, deux co-effets **parallèles**, jamais une chaîne).
+- Mais **R1 (proto)** interdit qu'un mini-jeu raté inflige un malus. Donc le
+  **rythme de presse ne touche PAS la qualité** : il ne donne qu'un **bonus de
+  rendement** (bien tapé = quelques pilules de plus ; rater = base, zéro malus).
+  Les malformées (déterministes, issues de la coupe) sont **revendues aux
+  schlags** → reward réduit, pas une perte sèche (comme les déchets Hash Slicer).
+- **R2 (proto)** : les 5 niveaux d'outils allègent puis **automatisent**
+  (semi-auto) et **externalisent** (embauche) le pressage manuel.
+- Aucun `Math.random` sur l'état/les conséquences. La **saisie** (seuil de
+  chaleur) est une conséquence **différée et traçable** des coupes passées — la
+  « bascule » : on coupe sous la ligne de qualité, on encaisse quelques bons
+  lots, puis ça s'effondre. Équilibre laissé en **constantes nommées**
+  (placeholders), à régler humainement.
+
+---
+
 ## 2026-06-22 — direction des mini-jeux : ressenti d'abord, jamais de punition
 
 Réflexion de design (devenue **R1** et **R2** dans `CLAUDE.md`) :
