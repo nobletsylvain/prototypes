@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-<title>MulerEats</title>
+<title>BeuherEats</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
     font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;}
@@ -117,7 +117,7 @@
   <div class="top">
     <div class="row1">
       <div class="loc">📍 Quartier Nord <small>▾</small></div>
-      <div class="brand">Muler<b>Eats</b></div>
+      <div class="brand">Beuher<b>Eats</b></div>
     </div>
     <div class="search">🔎 Rechercher un plug, un produit…</div>
   </div>
@@ -128,7 +128,7 @@
 
 <script type="module">
 /* =========================================================================
-   MulerEats — postiche d'UberEats pour un réseau de livraison (proto CrimWorld).
+   BeuherEats — postiche d'UberEats pour un réseau de livraison (proto CrimWorld).
    Hybride opérateur : le LOOK est celui d'une appli conso (feed de "restos" =
    points de deal, notes, ETA, frais de livraison), mais le joueur est
    l'OPÉRATEUR qui gère derrière : fournisseurs → entrepôt → points de deal →
@@ -137,7 +137,7 @@
    Boucle d'un SERVICE (rush) :
    1. des COMMANDES tombent sur tes points de deal (clients) ;
    2. tu prépares depuis le STOCK ENTREPÔT (réappro chez les FOURNISSEURS) ;
-   3. tu assignes un COURSIER MulerEats (vélib / T-Max / go fast) ;
+   3. tu assignes un COURSIER BeuherEats (vélib / T-Max / go fast) ;
    4. tu clôtures → résolution déterministe + récap qui NOMME chaque cause.
 
    Tension d'opérateur = le BATCHING : empiler plusieurs commandes sur un même
@@ -150,7 +150,7 @@
    ========================================================================= */
 
 const SAVE_VERSION = 1;
-const KEY = 'mulereats_state';
+const KEY = 'beuhereats_state';
 
 /* --- Économie : PLACEHOLDERS nommés ------------------------------------ */
 const CAPITAL_DEPART  = 300;
@@ -180,7 +180,7 @@ const DEALPOINTS = [
 ];
 const dealById = id => DEALPOINTS.find(d => d.id === id);
 
-/* --- Coursiers MulerEats (la flotte) ----------------------------------- */
+/* --- Coursiers BeuherEats (la flotte) ----------------------------------- */
 const COURIERS = [
   { id:'velib',  nm:'Vélib',   emoji:'🚲', rating:4.5, fiab:0.90, expo:0.20, eta:34, base:5,  km:1.6, col:'#0aa84f' },
   { id:'tmax',   nm:'T-Max',   emoji:'🛵', rating:4.2, fiab:0.82, expo:0.40, eta:19, base:9,  km:1.4, col:'#e8902a' },
@@ -331,7 +331,7 @@ function cloturer() {
   S.report = { blocks:r.blocks, dCash:r.dCash, service:S.service };
   S.service += 1; S.assign = {}; S.tab = 'track';   // suivi sur la map avant le récap
 
-  if (S.heat >= HEAT_CAP) S.over = { e:'🚨', t:'Quartier grillé', p:`La heat de rue a atteint ${HEAT_CAP}. Trop de tournées voyantes, trop de saisies : MulerEats ferme le secteur.` };
+  if (S.heat >= HEAT_CAP) S.over = { e:'🚨', t:'Quartier grillé', p:`La heat de rue a atteint ${HEAT_CAP}. Trop de tournées voyantes, trop de saisies : BeuherEats ferme le secteur.` };
   else if (S.cash < 0)    S.over = { e:'💸', t:'Compte à découvert', p:`Les frais de livraison et les saisies ont mis le compte à ${S.cash} €.` };
   else if (S.service > S.echeance && S.debt > 0) S.over = { e:'⏰', t:'Échéance impayée', p:`Dette de ${S.debt} € non soldée au service ${S.echeance}. Le grossiste coupe l'appro.` };
   save(); render();
