@@ -1,0 +1,148 @@
+{
+  "_meta": {
+    "doc": "Snapshit — banques de répliques PARTAGÉES (foule + fallback). Densifie MSG/LINES/accroLine/doDMAction/reup de snapshit/index.html.",
+    "version": 1,
+    "updated": "2026-06-23",
+    "regles": [
+      "Présentation uniquement : le moteur pioche (rnd), le texte ne décide rien.",
+      "Réput OPAQUE : aucun chiffre de cote/followers ; la cote = le ton.",
+      "≤ ~80 car., 1 emoji max (story un peu plus permissif).",
+      "Gabarits : {SELL_POINT}/{CUSTOMER} (termes bares → article ici), {CANNABIS_WEED} (fém. → 'de la'), {QUALITY_GOOD}/{QUALITY_BAD} (auto-portés), {MONEY}, {QTY}, {DELAI}.",
+      "Structure alignée sur le code : dm_open.genuine[ton], dm_open.lowball/flake/comtesse[], dm_open.accro[palier], story_comment[ctx][ton], action_reply[kind][action], reup_reply[result]."
+    ]
+  },
+
+  "dm_open": {
+    "genuine": {
+      "chaleureux": [
+        "wesh frérot, tjs dispo ? je prends {QTY} 🙏",
+        "on m'a parlé de toi — je veux {QTY} ce soir 🔥",
+        "du lourd paraît-il, je prends {QTY}",
+        "le {SELL_POINT} a la cote, {QTY} pour moi 🤝",
+        "j'entends que du bien, {QTY} stp 🙏",
+        "tjs au top toi, {QTY}",
+        "validé par les reufs, je prends {QTY} 🔥",
+        "salut le boss, {QTY} comme on m'a dit"
+      ],
+      "neutre": [
+        "salut, tjs dispo ? besoin de {QTY}",
+        "tu peux ce soir ? {QTY} pour moi",
+        "yo, dispo pour {QTY} ?",
+        "{QTY}, ça marche ?",
+        "besoin de {QTY}, t'es là ?",
+        "dispo pour {QTY} ce soir ?",
+        "slt, {QTY} possible ?",
+        "je passe prendre {QTY}, ok ?"
+      ],
+      "mefi": [
+        "c'est toi le plug ? je veux {QTY}, mais je te connais pas",
+        "{QTY} si c'est clean. c'est clean ?",
+        "on verra la came d'abord. {QTY} ?",
+        "{QTY}, mais pas de {QUALITY_BAD} hein 👀",
+        "j'hésite… {QTY} si tu me rassures",
+        "première fois avec toi, {QTY} prudent",
+        "pas de coupe au moins ? {QTY}",
+        "{QTY}, mais je teste avant de revenir"
+      ],
+      "hostile": [
+        "bon t'es sérieux toi ? {QTY} ou j'me casse",
+        "{QTY}, et déconne pas cette fois",
+        "dernière chance, {QTY} propre",
+        "on m'a dit que du mal, prouve-moi. {QTY}",
+        "{QTY} mais à la moindre {QUALITY_BAD} j'me tire",
+        "fais vite, {QTY}, j'ai pas que ça"
+      ]
+    },
+    "lowball": [
+      "je prends {QTY} mais tu me fais un prix 👀",
+      "gros volume {QTY}, lâche -40% sinon je vais ailleurs",
+      "{QTY} cash là maintenant si tu casses le prix",
+      "aller fais un effort, {QTY} d'un coup 🤝",
+      "à ce prix non. {QTY} si tu baisses 😏",
+      "{QTY}, prix de gros ou rien",
+      "t'as trop cher, {QTY} si tu t'alignes",
+      "je connais moins cher, {QTY} fais un geste"
+    ],
+    "flake": [
+      "allô ?? tjs là ?",
+      "euh je sais pas encore… {QTY} ptet",
+      "tu réponds vite au moins ? ⌛",
+      "faut que je vois avec un pote, attends…",
+      "j'arrive dans 5 min juré ⌛",
+      "garde-moi {QTY}, je passe… ptet",
+      "t'es où ? bouge pas",
+      "2 min frérot (×4)"
+    ],
+    "comtesse": [
+      "du haut de gamme uniquement, j'espère 👑 {QTY}",
+      "je ne prends que le meilleur. {QTY}, au prix qu'il faut.",
+      "fais-moi honneur — {QTY} de premium 🥂",
+      "de la {QUALITY_GOOD} véritable, sinon rien. {QTY}",
+      "{QTY}, et que ce soit digne de mon goût 👑",
+      "le prix m'importe peu, la qualité si. {QTY}"
+    ],
+    "accro": {
+      "calme": ["wesh je prends {QTY} 🙏", "dispo ? {QTY} stp", "yo {QTY} pour moi"],
+      "relance": ["yo c'est encore moi 😅 {QTY} comme d'hab", "re, {QTY} pour moi le sang", "tjs là ? je reprends {QTY}"],
+      "desespere": ["jpeux plus dormir sans 😵 file {QTY} vite stp", "reup je t'en supplie, {QTY} 🙏😰", "comme d'hab mais double, {QTY}"]
+    }
+  },
+
+  "action_reply": {
+    "genuine": {
+      "sell": ["reçu, t'es le boss 🙏", "carré, à la prochaine 🤝", "merci frérot, je reviens", "nickel, tu gères", "top, à plus 🙏"],
+      "refuse": ["ah… ok tant pis 😞", "dommage, je vais voir ailleurs", "pas grave, une autre fois", "ok je retiens 😞"]
+    },
+    "lowball": {
+      "brade": ["ahah merci bg 😏 je ramène les reufs", "vu, à ce prix je reviens 🤝", "tranquille, je te ramène du monde", "bien joué, on se capte 😏"],
+      "brade_escalade": ["ahah encore toi le pigeon 😏 j'ramène TOUTE l'équipe", "tu casses toujours, je dis à tout le {SELL_POINT} 😏", "trop bon poire, on débarque en bande", "full reufs ce soir grâce à toi 😏"],
+      "refuse": ["pff radin va 🙄", "ok garde ta came alors", "tu perds un gros client là 👀", "mdr tant pis"]
+    },
+    "flake": {
+      "rdv": ["ouais ouais à 23h…", "j'arrive j'arrive ⌛", "bouge pas je viens", "ptet plus tard en fait"],
+      "block": ["bah quoi ?? 🦗", "mais attends frè—", "t'abuses là 🦗"]
+    }
+  },
+
+  "reup_reply": {
+    "buy": ["ah carré, je prends 🙏", "bien vu, vas-y {QTY} 🤝", "content que t'aies pensé à moi 🙏", "allez {QTY}, ça tombe bien"],
+    "decline": ["pas ce soir, mais garde-moi au chaud 🙏", "là j'peux pas, une autre fois", "pas preneur aujourd'hui 😞"],
+    "annoyed": ["oh tu me lâches un peu 🙄", "tu me relances trop là 🙄", "calme avec les messages 😒"],
+    "mute": ["tu me harcèles… stop. 🔇", "trop c'est trop, j'te mute 🔇", "lâche-moi maintenant 🔇"]
+  },
+
+  "story_comment": {
+    "ambiant": {
+      "chaleureux": ["le {SELL_POINT} tourne fort en ce moment 🔥", "on sait où trouver de la {QUALITY_GOOD} 🙏", "ça parle de toi dans le quartier frérot", "le {SELL_POINT} c'est du sérieux 🤝", "la night va être belle 🌙", "validé par les habitués ✅"],
+      "neutre": ["le {SELL_POINT} fait son truc tranquille", "rien à signaler ce soir", "la night est calme 🌙", "ça suit son cours", "présent comme d'hab", "on verra ce que ça donne"],
+      "mefi": ["mouais… faut voir ce que ça donne 👀", "j'attends de tester avant de dire", "on verra bien", "à confirmer ton truc 👀", "pas convaincu pour l'instant", "hmm, prudence"],
+      "hostile": ["le {SELL_POINT} c'est n'importe quoi maintenant", "les {CUSTOMER} commencent à fuir…", "ça craint là sérieux", "y'a plus rien de propre ici", "tu perds le quartier là", "déçu du {SELL_POINT}"]
+    },
+    "drop": {
+      "chaleureux": ["AH il a drop !! je fonce 🏃", "enfin de la {QUALITY_GOOD} qui arrive 🤤", "premier sur le drop évidemment", "ça c'est un vrai arrivage 🔥", "j'attendais que ça 🙏", "go go go 🏃"],
+      "neutre": ["drop posté, on regarde", "ok il annonce du lourd, à voir", "noté le drop", "on verra à l'usage", "présent pour le drop", "ça annonce, ok"],
+      "mefi": ["encore un drop… on y croit à moitié", "tu annonces mais bon 🤨", "montre, parle moins", "promesses promesses 🤨", "j'attends de voir le {QUALITY_GOOD}", "hype facile, livre d'abord"],
+      "hostile": ["ENCORE tu hype ? laisse tomber", "drop de mytho oui", "plus personne te calcule sur tes annonces", "du vent comme d'hab", "tes drops valent rien", "arrête le cinéma 🤡"]
+    },
+    "qualite_basse": {
+      "neutre": ["bon c'était pas fou ce soir", "ça passe mais sans plus", "moyen ton truc", "déjà goûté mieux"],
+      "mefi": ["c'est {QUALITY_BAD} ça non ?", "goût bizarre ton truc…", "t'as coupé sévère là", "ça sent le {QUALITY_BAD} 👀"],
+      "hostile": ["c'est {QUALITY_BAD} frérot, remboursé ⛔", "j'achète plus ce {QUALITY_BAD}", "tu sers {QUALITY_BAD} maintenant ?? 🤬", "honteux ce soir 🤬"]
+    },
+    "qualite_haute": {
+      "chaleureux": ["alors ÇA c'est de la {QUALITY_GOOD} 😮‍💨🔥", "propre propre, respect", "le plug a du bon, validé ✅", "qualité au top ce soir 🤤", "rien à redire, parfait 🙏", "du grand art 👌"],
+      "neutre": ["correct ce soir, propre", "rien à dire, ça tient", "honnête, du {QUALITY_GOOD}", "propre, comme attendu"]
+    },
+    "cry_wolf": {
+      "mefi": ["t'avais promis de la {QUALITY_GOOD} y'a {DELAI}j… et là ?", "l'annonce d'avant c'était du vent 🤥", "tu tiens jamais tes drops 👀", "{DELAI}j que t'as menti sur la came"],
+      "hostile": ["t'as hypé de la {QUALITY_GOOD} y'a {DELAI}j puis servi {QUALITY_BAD} — mytho 🤬", "on a tous vu ton drop. menteur. les {CUSTOMER} se barrent", "{DELAI}j de mensonge, fini pour moi ⛔", "tu nous as pris pour des pigeons 🤬"]
+    },
+    "mauvais_public": {
+      "mefi": ["y'a des reloux qui débarquent sur le {SELL_POINT}…", "ça attire n'importe qui ton buzz", "le {SELL_POINT} devient glauque 👀", "trop de monde louche ici"],
+      "hostile": ["full lowballers ce soir, ça négocie pour trois fois rien", "trop de bruit → que des emmerdeurs", "le {SELL_POINT} est pourri de flakes maintenant", "que des {CUSTOMER} qui grattent 🙄"]
+    },
+    "promesse_tenue": {
+      "chaleureux": ["il avait dit premium, c'était premium 👑✅", "quand il annonce, il assure 🤝", "promesse tenue, respect 🙏", "fiable sur ses drops, validé ✅", "il livre ce qu'il dit 👌"]
+    }
+  }
+}
