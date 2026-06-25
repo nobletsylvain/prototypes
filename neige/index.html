@@ -45,6 +45,12 @@
     animation:floatup .85s ease-out forwards; }
   @keyframes floatup { 0%{ opacity:0; transform:translate(-50%,-20%) scale(.7);} 18%{ opacity:1; }
     100%{ opacity:0; transform:translate(-50%,-170%) scale(1.05);} }
+  #debt { position:fixed; top:max(84px,calc(env(safe-area-inset-top) + 68px)); left:16px; pointer-events:auto;
+    background:rgba(255,107,107,.16); border:1px solid rgba(255,107,107,.5); color:#ffb3b3;
+    font-weight:800; font-size:12px; padding:5px 10px; border-radius:999px; display:none; }
+  #debt.show { display:block; }
+  #debt.frozen { background:rgba(255,60,60,.3); color:#ffd2d2; animation:pulsebtn 1.1s ease-in-out infinite; }
+  #debt:active { background:rgba(255,107,107,.34); }
 
   #xpwrap { position:fixed; top:calc(max(14px,env(safe-area-inset-top)) + 27px); left:50%; transform:translateX(-50%);
     display:flex; align-items:center; gap:6px; pointer-events:none; z-index:4; }
@@ -113,6 +119,7 @@
 <div class="hud" id="count">Produit : 0 g</div>
 <div id="cash">💶 0 €</div>
 <div id="rep">Réput 100%</div>
+<button id="debt">💳 0 €</button>
 <div id="xpwrap"><span id="level">Niv. 1</span><div id="xpbar"><div id="xpfill"></div></div></div>
 <div class="hud" id="title">COKE</div>
 <div class="hud" id="remain">Diluant</div>
@@ -192,6 +199,13 @@ const MIX_DRAG_K   = 1 / 650;
 const MIX_TIME_K   = 0.55;
 const BAG_HOLD_RATE= 0.26;
 const DIL_REFILL_G = 200;
+// CRÉDIT — le grossiste fronte la coke : dette + échéance + confiance.
+// Pas de game-over (R1) : dépasser l'échéance gèle le crédit et coûte un peu de
+// réput (cause tracée « dette en retard »), jamais une mort.
+const CREDIT_CAP   = 15000;   // plafond de front à confiance grossiste max
+const CREDIT_TERM  = 150;     // secondes avant échéance (proto ; ≈ « jours » en prod)
+const OVERDUE_REP  = 0.04;    // malus réput par échéance dépassée
+const TEAM_BATCH   = 22;      // g de coke versés par cycle d'auto-coupe (équipe)
 // price = €/g réel de l'agent (centimes) · clean = propreté (→ qualité/prix) ·
 // harm = nocivité (→ réputation).
 const DILUANTS = [
@@ -449,9 +463,10 @@ function setTrayTint(h) { trayHeap.material.color.lerpColors(COL_FRESH, COL_CUT,
 /* -------------------------------------------------------------------------
    5) ETAT DE PARTIE + PERSISTANCE
    ------------------------------------------------------------------------- */
-const SAVE_VERSION = "3";
+const SAVE_VERSION = "4";
 if (localStorage.getItem("neige_ver") !== SAVE_VERSION) {
-  ["neige_cash", "neige_level", "neige_xp", "neige_shop", "neige_rep", "neige_waste"].forEach(k => localStorage.removeItem(k));
+  ["neige_cash", "neige_level", "neige_xp", "neige_shop", "neige_rep", "neige_waste",
+   "neige_debt", "neige_conf"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("neige_ver", SAVE_VERSION);
 }
 let cash  = +(localStorage.getItem("neige_cash") || 0);
@@ -461,6 +476,12 @@ let rep   = Math.min(1.2, Math.max(0.7, +(localStorage.getItem("neige_rep") || 1
 let fmt   = +(localStorage.getItem("neige_fmt") || 1);
 let curDil = localStorage.getItem("neige_dil") || "lacto";
 if (!DIL_BY[curDil]) curDil = "lacto";
+
+// CRÉDIT — état du front grossiste.
+let debt    = Math.max(0, +(localStorage.getItem("neige_debt") || 0));
+let supConf = Math.min(1, Math.max(0, +(localStorage.getItem("neige_conf") || 0.5)));
+let dueTimer = debt > 0 ? CREDIT_TERM : 0;   // l'horloge ne persiste pas : ré-armée si dette ouverte
+let creditFrozen = false;
 
 let bulkG = 0, bulkPurity = STARTER.purity;
 const dilStock = { leva: 0, lacto: 0, manni: 0, benzo: 0 };
@@ -490,10 +511,18 @@ const ui = {
   title:document.getElementById("title"), remain:document.getElementById("remain"),
   prompt:document.getElementById("prompt").firstElementChild, toast:document.getElementById("toast"),
   shop:document.getElementById("shop"), shopitems:document.getElementById("shopitems"), shopcash:document.getElementById("shopcash"),
-  shopbtn:document.getElementById("shopbtn"),
+  shopbtn:document.getElementById("shopbtn"), debt:document.getElementById("debt"),
 };
 let shownCash = cash;
 function fmtEur(n) { return Math.round(n).toLocaleString("fr-FR"); }   // séparateurs de milliers
+function updateDebtUI() {
+  if (debt <= 0) { ui.debt.classList.remove("show", "frozen"); return; }
+  ui.debt.classList.add("show");
+  ui.debt.classList.toggle("frozen", creditFrozen);
+  const secs = Math.max(0, Math.ceil(dueTimer));
+  ui.debt.textContent = "💳 " + Math.round(debt) + " € · " +
+    (creditFrozen ? "GELÉ" : "éch. " + secs + "s") + " — Rembourser";
+}
 function setCash(v) {
   cash = v; localStorage.setItem("neige_cash", String(Math.round(cash)));
   if (ui.shop.classList.contains("show")) renderShop();
@@ -533,7 +562,7 @@ function updateTrayHeap()   { setHeap(trayHeap, trayG(), 160); }
 function xpNeed(lvl)  { return Math.round(260 * Math.pow(1.4, lvl - 1)); }
 function levelMult()  { return 1 + (level - 1) * 0.025; }
 function updateXpUI() {
-  ui.level.textContent = "Niv. " + level + " · +" + Math.round((levelMult() - 1) * 100) + "%";
+  ui.level.textContent = "Niv." + level + " · 🏭" + toolLevel() + "/5";
   ui.xpfill.style.width = Math.min(100, (xp / xpNeed(level)) * 100) + "%";
 }
 function addXP(n) {
@@ -718,51 +747,78 @@ function showToast(msg, color) {
    13) BOUTIQUE
    ------------------------------------------------------------------------- */
 const owned = JSON.parse(localStorage.getItem("neige_shop") || "{}");
-owned.press   = owned.press   || 0;
-owned.autobag = owned.autobag || 0;
+owned.spatula = owned.spatula || 0;   // niv.2 — mélange plus rapide
+owned.press   = owned.press   || 0;   // niv.3 — format 25 g
+owned.autobag = owned.autobag || 0;   // niv.4 — auto-ensacheuse
+owned.team    = owned.team    || 0;   // niv.5 — auto-coupe (externalisation)
 owned.cadence = owned.cadence || 0;
 function saveShop() { localStorage.setItem("neige_shop", JSON.stringify(owned)); }
+// Atelier : palier d'outils 1..5 (manuel → assisté → externalisé).
+function toolLevel() { return 1 + owned.spatula + owned.press + owned.autobag + owned.team; }
+function mixSpeedK()  { return owned.spatula ? 2 : 1; }   // spatule : mélange ~2× plus vite
 function bagInterval() { return 3.0 * Math.pow(0.82, owned.cadence); }
 // Qualité du produit = pureté (après coupe) + propreté du diluant utilisé.
 function cutQuality(purity, clean) { return Math.max(0.2, Math.min(1, 0.25 + 0.45 * purity + 0.30 * clean)); }
 function harmWord(h) { return h >= 0.1 ? "élevée" : h >= 0.03 ? "moyenne" : "faible"; }
 
 const SHOP = [
-  { id:"brick50", icon:"🧱", name:"Coke 50 g",
+  { id:"brick50", icon:"🧱", name:"Coke 50 g", size:50, credit:true,
     desc:()=>"Brique pressée (gros). Recharge la pile.",
     cost:()=>BRICK_PRICES[50], can:()=>true, maxed:()=>false, buy:()=>receiveCoke(50) },
-  { id:"brick100", icon:"📦", name:"Coke 100 g",
+  { id:"brick100", icon:"📦", name:"Coke 100 g", size:100, credit:true,
     desc:()=>"Brique pressée (gros, ~48 €/g).",
     cost:()=>BRICK_PRICES[100], can:()=>true, maxed:()=>false, buy:()=>receiveCoke(100) },
-  { id:"brick250", icon:"🧊", name:"Coke 250 g",
+  { id:"brick250", icon:"🧊", name:"Coke 250 g", size:250, credit:true,
     desc:()=>"Quart de kilo (gros volume, ~42 €/g).",
     cost:()=>BRICK_PRICES[250], can:()=>true, maxed:()=>false, buy:()=>receiveCoke(250) },
-  { id:"brick500", icon:"🧊", name:"Coke 500 g",
+  { id:"brick500", icon:"🧊", name:"Coke 500 g", size:500, credit:true,
     desc:()=>"Demi-kilo (le moins cher au gramme, ~38 €/g).",
     cost:()=>BRICK_PRICES[500], can:()=>true, maxed:()=>false, buy:()=>receiveCoke(500) },
   ...DILUANTS.map(d => ({
     id:"dil_" + d.key, icon:d.icon, name:d.name + " " + DIL_REFILL_G + " g",
     desc:()=>"Coupe : propreté " + Math.round(d.clean*100) + "% · nocivité " + harmWord(d.harm) + " · " + d.price.toFixed(2) + " €/g",
     cost:()=>Math.round(d.price * DIL_REFILL_G), can:()=>true, maxed:()=>false, buy:()=>receiveDiluant(d.key) })),
-  { id:"press", icon:"🗜️", name:"Presse à briquettes",
+  { id:"spatula", icon:"🥄", name:"Atelier niv.2 — Spatule de coupe",
+    desc:()=>"Mélange ~2× plus rapide. Moins de friction à la main.",
+    cost:()=>3500, can:()=>owned.spatula < 1, maxed:()=>owned.spatula >= 1, buy:()=>{ owned.spatula = 1; updateXpUI(); } },
+  { id:"press", icon:"🗜️", name:"Atelier niv.3 — Presse à briquettes",
     desc:()=>"Débloque le format 25 g (semi-gros).",
-    cost:()=>12000, can:()=>owned.press < 1, maxed:()=>owned.press >= 1, buy:()=>{ owned.press = 1; refreshFmtButtons(); } },
-  { id:"autobag", icon:"🤖", name:"Auto-ensacheuse",
+    cost:()=>12000, can:()=>owned.press < 1, maxed:()=>owned.press >= 1, buy:()=>{ owned.press = 1; refreshFmtButtons(); updateXpUI(); } },
+  { id:"autobag", icon:"🤖", name:"Atelier niv.4 — Auto-ensacheuse",
     desc:()=>"Ensache et vend du produit toute seule.",
-    cost:()=>28000, can:()=>owned.autobag < 1, maxed:()=>owned.autobag >= 1, buy:()=>{ owned.autobag = 1; } },
+    cost:()=>28000, can:()=>owned.autobag < 1, maxed:()=>owned.autobag >= 1, buy:()=>{ owned.autobag = 1; updateXpUI(); } },
   { id:"cadence", icon:"⚙️", name:"Cadence +",
     desc:()=>"Accélère l'auto-ensacheuse (" + bagInterval().toFixed(1) + " s/sachet).",
     cost:()=>Math.round(4000 * Math.pow(1.6, owned.cadence)),
     can:()=>owned.autobag >= 1 && owned.cadence < 8, maxed:()=>owned.cadence >= 8, buy:()=>{ owned.cadence++; } },
+  { id:"team", icon:"👥", name:"Atelier niv.5 — Équipe (externalisée)",
+    desc:()=>"Auto-coupe : verse coke + " + curDef().short + " et mélange seule quand la dalle est libre.",
+    cost:()=>55000, can:()=>owned.autobag >= 1 && owned.team < 1, maxed:()=>owned.team >= 1, buy:()=>{ owned.team = 1; updateXpUI(); } },
 ];
 function renderShop() {
   ui.shopcash.textContent = "💶 " + fmtEur(cash) + " €";
   ui.shopitems.innerHTML = "";
+  // Bandeau d'état : palier d'atelier + crédit grossiste.
+  const banner = document.createElement("div"); banner.className = "shopitem";
+  banner.innerHTML = '<div class="ic">🏭</div><div class="info"><div class="nm">Atelier niv. ' +
+    toolLevel() + "/5</div><div class=\"ds\">Confiance grossiste " + Math.round(supConf * 100) +
+    "% · front max " + creditLimit() + " € · dette " + Math.round(debt) + " €" +
+    (creditFrozen ? " · ⛔ GELÉ" : "") + "</div></div>";
+  ui.shopitems.appendChild(banner);
   for (const it of SHOP) {
     const cost = it.cost(), maxed = it.maxed(), can = !maxed && it.can() && cash >= cost;
     const row = document.createElement("div"); row.className = "shopitem";
     row.innerHTML = '<div class="ic">' + it.icon + '</div><div class="info"><div class="nm">' +
       it.name + '</div><div class="ds">' + it.desc() + '</div></div>';
+    // Brique : achat cash OU à crédit (front grossiste).
+    if (it.credit) {
+      const cb = document.createElement("button");
+      const okCredit = !creditFrozen && (debt + cost <= creditLimit());
+      cb.textContent = "Crédit"; cb.disabled = !okCredit;
+      cb.style.background = okCredit ? "#a3791f" : "";
+      cb.addEventListener("click", () => buyCokeCredit(it.size));
+      row.appendChild(cb);
+    }
     const b = document.createElement("button");
     b.textContent = maxed ? "✓" : (fmtEur(cost) + " €"); b.disabled = !can;
     b.addEventListener("click", () => buy(it));
@@ -780,16 +836,67 @@ function buy(it) {
 /* -------------------------------------------------------------------------
    14) RECEPTION : coke & diluant
    ------------------------------------------------------------------------- */
-function receiveCoke(size) {
-  const cost = BRICK_PRICES[size];
-  if (cash < cost) { showToast("Pas assez : " + cost + " €", "#ff6b6b"); return; }
-  setCash(cash - cost); ui.shop.classList.remove("show");
-  const purity = 0.80 + Math.random() * 0.12;       // pureté d'import ~80–92 %
+// Réception physique de la coke (sans paiement) — pureté d'import ~80–92 %.
+function addCoke(size) {
+  const purity = 0.80 + Math.random() * 0.12;
   const tot = bulkG + size;
   bulkPurity = tot > 0 ? (bulkG * bulkPurity + size * purity) / tot : purity;
   bulkG = tot; updateResources();
   burstPuffs(COKE_POS, 8); sSale();
+  return purity;
+}
+// Achat CASH.
+function receiveCoke(size) {
+  const cost = BRICK_PRICES[size];
+  if (cash < cost) { showToast("Pas assez : " + cost + " €", "#ff6b6b"); sErr(); return; }
+  setCash(cash - cost); ui.shop.classList.remove("show");
+  const purity = addCoke(size);
   showToast("Coke +" + size + " g · " + Math.round(purity * 100) + "%", "#bfe9ff");
+}
+// Achat À CRÉDIT (front grossiste) — crée/alourdit la dette, démarre l'échéance.
+function creditLimit() { return Math.round(CREDIT_CAP * supConf); }
+function buyCokeCredit(size) {
+  const cost = BRICK_PRICES[size];
+  if (creditFrozen)            { showToast("Crédit gelé — rembourse d'abord 💳", "#ff6b6b"); sErr(); return; }
+  if (debt + cost > creditLimit()) {
+    showToast("Front trop gros : limite " + creditLimit() + " €", "#ff6b6b"); sErr(); return;
+  }
+  if (dueTimer <= 0) dueTimer = CREDIT_TERM;   // démarre l'horloge au premier front
+  debt += cost; localStorage.setItem("neige_debt", String(Math.round(debt)));
+  ui.shop.classList.remove("show");
+  const purity = addCoke(size);
+  updateDebtUI();
+  showToast("Front +" + size + " g à crédit · dette " + Math.round(debt) + " €", "#ffd166");
+}
+// Remboursement — solde avant l'échéance = confiance grossiste en hausse.
+function repayDebt() {
+  if (debt <= 0) { showToast("Aucune dette", "#9be37d"); return; }
+  const pay = Math.min(cash, debt);
+  if (pay <= 0) { showToast("Pas de cash pour rembourser", "#ff6b6b"); sErr(); return; }
+  setCash(cash - pay); debt -= pay;
+  if (debt < 0.5) {
+    debt = 0; dueTimer = 0; creditFrozen = false;
+    supConf = Math.min(1, supConf + 0.08); localStorage.setItem("neige_conf", supConf.toFixed(3));
+    showToast("Dette soldée — le grossiste te fait confiance (+front)", "#9be37d");
+    addShake(0.12); sSale();
+  } else {
+    showToast("Remboursé " + Math.round(pay) + " € · reste " + Math.round(debt) + " €", "#ffd166");
+  }
+  localStorage.setItem("neige_debt", String(Math.round(debt)));
+  updateDebtUI();
+}
+// Tick d'échéance — PAS de game-over : on gèle le crédit + petit malus réput tracé.
+function updateCredit(dt) {
+  if (debt <= 0) { updateDebtUI(); return; }
+  dueTimer -= dt;
+  if (dueTimer <= 0) {
+    setRep(rep - OVERDUE_REP);                       // cause : « dette en retard »
+    supConf = Math.max(0, supConf - 0.15); localStorage.setItem("neige_conf", supConf.toFixed(3));
+    creditFrozen = true; dueTimer = CREDIT_TERM;      // ré-arme pour la prochaine pénalité
+    showToast("Échéance dépassée — crédit gelé, réput −" + Math.round(OVERDUE_REP * 100) + "%", "#ff6b6b");
+    addShake(0.14); sErr();
+  }
+  updateDebtUI();
 }
 function receiveDiluant(key) {
   const d = DIL_BY[key], cost = Math.round(d.price * DIL_REFILL_G);
@@ -835,11 +942,11 @@ function updateSources(dt) {
 let mixing = false;
 function mixAddDrag(px) {
   if (!mixing || trayG() <= 0) return;
-  homog = Math.min(1, homog + px * MIX_DRAG_K); setTrayTint(homog);
+  homog = Math.min(1, homog + px * MIX_DRAG_K * mixSpeedK()); setTrayTint(homog);
 }
 function updateMix(dt) {
   if (!mixing || tray.coke <= 0 || tray.dil <= 0) return;
-  homog = Math.min(1, homog + dt * MIX_TIME_K); setTrayTint(homog);
+  homog = Math.min(1, homog + dt * MIX_TIME_K * mixSpeedK()); setTrayTint(homog);
   trayHeap.rotation.y += dt * 7;                  // on stirre : le tas tourne
   if (Math.random() < dt * 14) {
     spawnPuff(new THREE.Vector3(SLAB_POS.x + (Math.random()-0.5)*1.0, 0.3, SLAB_POS.z + (Math.random()-0.5)*0.6),
@@ -915,6 +1022,27 @@ function updateAuto(dt) {
 }
 
 /* -------------------------------------------------------------------------
+   18b) ÉQUIPE (niv.5) — auto-coupe : le joueur ne touche plus la matière.
+   Verse coke + diluant courant et mélange seule quand la dalle est libre.
+   ------------------------------------------------------------------------- */
+let teamTimer = 0;
+function updateTeam(dt) {
+  if (!owned.team) return;
+  if (trayG() > 0.3 || mixing || pouring) return;   // attend que la dalle soit libre
+  teamTimer += dt;
+  if (teamTimer < 3.0) return;
+  teamTimer = 0;
+  const batch = Math.min(TEAM_BATCH, bulkG);
+  const cutG  = Math.min(dilStock[curDil], batch * 0.7);
+  if (batch < 1 || cutG < 1) return;                // pas de matière : l'équipe attend
+  const d = curDef();
+  bulkG -= batch; tray.coke += batch; tray.cokePure += batch * bulkPurity;
+  dilStock[curDil] -= cutG; tray.dil += cutG; tray.dilClean += cutG * d.clean; tray.dilHarm += cutG * d.harm;
+  updateResources(); updateTrayHeap();
+  commitMix();                                       // réutilise la logique de coupe existante
+}
+
+/* -------------------------------------------------------------------------
    19) GUIDAGE
    ------------------------------------------------------------------------- */
 function currentStep() {
@@ -930,7 +1058,7 @@ const PROMPTS = {
   buyDil:   "🧪 Plus de diluant — achète une coupe 🛒 (paliers en bas : « Coupe »)",
   mix:      "🪟 Tourne le doigt sur la DALLE pour mélanger la coupe",
   bag:      "📦 Tape (ou maintiens) le bac PRODUIT pour ensacher & vendre",
-  receive:  "🛒 Reçois de la coke et du diluant (ou 🔄 Lot gratuit)",
+  receive:  "🛒 Reçois de la coke (cash ou 💳 crédit) + du diluant (ou 🔄 Lot)",
 };
 const STEP_POS = { pourCoke: COKE_POS, pourDil: DIL_POS, mix: SLAB_POS, bag: PROD_POS };
 let glowPhase = 0;
@@ -1039,6 +1167,7 @@ function discardMix() {
     showToast("Dalle nettoyée", "#e6c896");
   } else { showToast("Rien à jeter", "#e6c896"); }
 }
+ui.debt.addEventListener("click", repayDebt);
 ui.shopbtn.addEventListener("click", () => { renderShop(); ui.shop.classList.add("show"); });
 document.getElementById("shopclose").addEventListener("click", () => ui.shop.classList.remove("show"));
 ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.classList.remove("show"); });
@@ -1086,6 +1215,8 @@ function loop(t) {
   updateMix(dt);
   updateBagging(dt);
   updateAuto(dt);
+  updateTeam(dt);
+  updateCredit(dt);
   updatePuffs(dt);
   updatePochons(dt);
   updateHeaps(dt);
@@ -1109,7 +1240,7 @@ function loop(t) {
    22) BOOTSTRAP
    ------------------------------------------------------------------------- */
 resize();
-setCash(cash); renderCash(1); setRep(rep); updateXpUI();
+setCash(cash); renderCash(1); setRep(rep); updateXpUI(); updateDebtUI();
 setFmt(fmt); refreshFmtButtons();
 updateProdLabel(); updateTrayHeap();
 bulkG = STARTER.coke; bulkPurity = STARTER.purity; dilStock.lacto = STARTER.dil;
