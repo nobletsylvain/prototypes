@@ -113,7 +113,11 @@ Un **halo lumineux** pulse sous la station active et un **bandeau de consigne** 
 
 **Économie & progression :** **prix calibrés sur le marché réel (UE, €)** — coke en gros ~**38–52 €/g** selon la quantité (briques 50/100/250/500 g, pureté ~80–92 %), détail rue ~**50–78 €/g** (× qualité), agents de coupe à **quelques centimes/g** : le vrai coût d'un cut bâclé, c'est la **réputation**, pas l'agent. La **coupe** a 4 paliers — **propreté** (→ qualité/€/g) vs **nocivité** (→ réput) : le cheap (Lévamisole) maximise le volume mais plombe la réput, le premium (Benzocaïne) « passe ». **Niveaux (XP)** +2,5 %/niv. Boutique : **coke** (briques dégressives) & les 4 **coupes**, **presse à briquettes** (25 g), **auto-ensacheuse** + cadence. **Formes** inspirées de *Drug Dealer Simulator* (briques pressées empilées, pots cylindriques, pochons zip plats alignés). Persistance `localStorage` préfixée **`neige_`** (isolée de `hash_` / `gf_` / `gs_`).
 
-**Feedback juteux** : sons synthétisés (WebAudio — flux de poudre, raclage du mix, zip, cha-ching), puffs de poudre, pochons qui s'alignent sur la table, secousse de caméra.
+**Feedback juteux** : sons synthétisés (WebAudio — flux de poudre, raclage du mix, zip, cha-ching), puffs de poudre, pochons qui s'empilent en tas, **« +€ » flottant** à chaque vente, **réputation qui flashe** vert/rouge, cash formaté qui défile, halo de guidage en anneau, secousse de caméra.
+
+**Rendu** : textures **procédurales** (établi bois, poudre cristalline à paillettes, cellophane froissée) + **reflets doux** (env map) sur le verre / métal / plastique — 100 % canvas, aucun fichier externe.
+
+**Animations produits** : tas de poudre en **dôme** qui grossit/fond en douceur, **source qui s'incline** vers la dalle quand on verse, **tas qui tourne** pendant le mélange, **pochons qui rebondissent** en sortant. HUD aéré (bandeaux dégradés haut/bas).
 
 > Prototype de jeu, habillage purement visuel/stylisé.
 
