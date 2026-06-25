@@ -8,9 +8,9 @@ et le code source de vérité **`../index.html`**. Tout ici est de la **présent
 
 | Fichier | Contenu |
 |---|---|
-| `profiles.json` | **La troupe** : 6 archétypes moteur (`accro/comtesse/kevin/sami/petit/ancien`) + faces cosmétiques (`protag:"client"`/`"flake"`), avec `lines` par slot et escalades mémoire. |
+| `profiles.json` | **La troupe** : 6 archétypes moteur (`accro/comtesse/kevin/sami/petit/ancien`) + faces cosmétiques (`protag:"client"`/`"flake"`), avec `lines` par slot, escalades mémoire, `history` et **`snaps`** (grille de profil : 3–6 × `{emoji,cap}`, du + récent au + ancien). |
 | `lines.json` | Banques **partagées** (foule + fallback) : `dm_open` (kind×ton), `story_comment` (ctx×ton), `action_reply`, `reup_reply`. Densifie `MSG`/`LINES`/`accroLine`/`doDMAction`/`reup`. |
-| `crowd.json` | Générateurs de **la foule** : banques de pseudo (≥150 fragments) + patterns pondérés, emojis d'avatar, prompts d'avatar génériques par archétype. |
+| `crowd.json` | Générateurs de **la foule** : banques de pseudo (≥150 fragments) + patterns pondérés, emojis d'avatar, prompts d'avatar génériques par archétype, **`snaps_by_archetype`** (grille générique, 6–8 × `{emoji,cap}` par famille) et **`bio_by_archetype`** (1 bio ≤ ~80 car. par famille). |
 | `vcap.json` | Légendes de **ta vitrine** : `by_quality` (`arrache/standard/propre` ×10) + `by_drop` (`vitrine/normal/premium` ×6). Alimente `vcap.big`. |
 | `actors.json` | Stories d'**ambiance** des 4 acteurs (`Le Comptoir/Le Campus/La Ruelle/● ARRIVAGE`) : décor, pas d'acheteurs — 8 captions + 4 commentaires d'amorce chacun. |
 | `reactions.json` | Vues/likes **opaques** (zéro compteur) : `views_sub` (le `vsub`), `view_gauge` low/mid/high, `likes_by_tone`, `reaction_labels` flous. |
@@ -45,6 +45,12 @@ et le code source de vérité **`../index.html`**. Tout ici est de la **présent
    Au moment du câblage, harmoniser (les nouveaux `lines.json` suivent la convention « article
    dans le gabarit » + `CUSTOMER` pluriel).
 4. **`chic`** a été ajouté à `meta.registres` du dico (v2) pour distinguer Comtesse (chic) de Kévin (cite).
+5. **Écran profil (grille `snaps` + `bio`) pas encore câblé.** `index.html` charge déjà
+   `profiles/lines/crowd` (`applyProfiles`) et `grab('QUALITY_*')` est en place, mais aucun rendu
+   ne lit `snaps` (profils) ni `snaps_by_archetype`/`bio_by_archetype` (foule) ; `genProfile`
+   ne renvoie que `{nm,av}`. Ces champs sont donc **data dormante** prête pour cet écran.
+   NB : le contrat `ARCHETYPES_AND_USER_DATA.md` ne contient pas (encore) la **§11** référencée
+   par la tâche — spec reprise depuis la consigne (3 slots : `snaps`, `snaps_by_archetype`, `bio_by_archetype`).
 
 ## Périmètre figé (v1)
 
