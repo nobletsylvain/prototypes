@@ -560,15 +560,17 @@ function accroLine(){
 // Invariant : présentation uniquement — le moteur pioche (rnd), le texte ne décide rien.
 let CONTENT=null, TROUPE=[], ACTION_REPLY=null, REUP_REPLY=null;
 async function loadContent(){ try{
-  const [P,L,Cr,Vc,Re,Ac]=await Promise.all([
+  const [P,L,Cr,Vc,Re,Ac,Hi,Ev]=await Promise.all([
     fetch('./content/profiles.json').then(r=>r.ok?r.json():null).catch(()=>null),
     fetch('./content/lines.json').then(r=>r.ok?r.json():null).catch(()=>null),
     fetch('./content/crowd.json').then(r=>r.ok?r.json():null).catch(()=>null),
     fetch('./content/vcap.json').then(r=>r.ok?r.json():null).catch(()=>null),
     fetch('./content/reactions.json').then(r=>r.ok?r.json():null).catch(()=>null),
     fetch('./content/actors.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/histories.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/events.json').then(r=>r.ok?r.json():null).catch(()=>null),
   ]);
-  CONTENT={profiles:P,lines:L,crowd:Cr,vcap:Vc,reactions:Re,actors:Ac};
+  CONTENT={profiles:P,lines:L,crowd:Cr,vcap:Vc,reactions:Re,actors:Ac,histories:Hi,events:Ev};
   if(L) applyLines(L);
   if(P) applyProfiles(P);
 }catch(e){/* proto reste autonome */} }
@@ -662,6 +664,7 @@ function openActorStory(key){
   $('vcap').textContent = a.emoji+' '+a.nom+' — '+fillConcepts(rndFrom(a.captions,a.vibe||''));
   const tone=toneFromReput(S.reput);
   const cs=(a.seed_comments||[]).map(txt=>{ const v=genProfile(); return { nm:v.nm, av:v.av, txt:fillConcepts(txt), tone }; });
+  const amb=dayAmbiance(); if(amb) cs.unshift({ nm:a.nom, av:a.emoji, txt:amb, tone:'neutre' });  // ambiance de la nuit (events)
   playComments(cs);   // réutilise le viewer + commentaires qui tombent
 }
 // protag = TYPE de protagoniste (visage récurrent), pas l'identité d'affichage de la foule
@@ -874,8 +877,22 @@ function snapsOf(prof,arch,av){
   const es=(prof&&prof.emoji_signature)||[av||'📷'];                       // fallback : signature/avatar
   return ['story','le block','la night','arrivage','un deal','vu'].map((c,i)=>({emoji:es[i%es.length]||'📷',cap:c}));
 }
-function timelineOf(prof,pool){
-  const ev=[]; if(prof&&prof.history) ev.push(...prof.history);
+// sélection STABLE (déterministe par seed, sans état ni Math.random) — n items consécutifs
+function pickStable(arr,seed,n){ let h=0; for(let i=0;i<seed.length;i++) h=(h*31+seed.charCodeAt(i))>>>0;
+  const L=arr.length; n=Math.min(n,L); const out=[]; for(let i=0;i<n;i++) out.push(arr[(h+i)%L]); return out; }
+// historiques de la FOULE (lot 3 : histories.by_archetype) — stables par pseudo
+function fouleHistory(nm,arch){ const H=CONTENT&&CONTENT.histories; if(!H) return [];
+  const pool=(H.by_archetype&&H.by_archetype[arch])||H.generic||[]; if(!pool.length) return [];
+  return pickStable(pool,nm||arch,3).map(fillConcepts); }
+// ambiance de la NUIT (lot 3 : events) — une occasion/saison par jour, déterministe, présentation pure
+function dayAmbiance(){ const E=CONTENT&&CONTENT.events; if(!E) return null;
+  const b=[]; if(E.occasions) for(const k in E.occasions) b.push(E.occasions[k]); if(E.saisons) for(const k in E.saisons) b.push(E.saisons[k]);
+  if(!b.length) return null; const bk=b[S.jour%b.length], caps=bk&&bk.captions||[]; if(!caps.length) return null;
+  return fillConcepts(caps[S.jour%caps.length]); }
+function timelineOf(prof,pool,nm,arch){
+  const ev=[];
+  if(prof&&prof.history) ev.push(...prof.history);            // troupe : historique authored
+  else ev.push(...fouleHistory(nm,arch));                     // foule : blips d'archétype (lot 3)
   if(pool){ if(pool.buys) ev.push(`${pool.buys} commande${pool.buys>1?'s':''} avec toi au total`);
     if(pool.lastBuy) ev.push(`dernier deal — il y a ${Math.max(0,S.jour-pool.lastBuy)}j`);
     if(pool.lastContact) ev.push(`relancé — il y a ${Math.max(0,S.jour-pool.lastContact)}j`); }
@@ -886,7 +903,7 @@ function openProfile(src){
   const pool = src.key ? S.pool.find(x=>x.key===src.key) : S.pool.find(x=>x.nm===src.nm&&x.archetype===src.protag);
   const nm=src.nm||(pool&&pool.nm)||'?', av=src.av||(pool&&pool.av)||'👤', protag=src.protag||(pool&&pool.archetype)||'client';
   const prof=findFullProfile(nm,protag), arch=archetypeOf(protag,prof), handle=(prof&&prof.handle)||'';
-  const snaps=snapsOf(prof,arch,av), tl=timelineOf(prof,pool);
+  const snaps=snapsOf(prof,arch,av), tl=timelineOf(prof,pool,nm,arch);
   let relHTML='';
   if(pool){ const gv=goodwillVibe(pool.goodwill).split(' '), seen=pool.lastBuy?('il y a '+Math.max(0,S.jour-pool.lastBuy)+'j'):'—';
     relHTML=`<div class="prel">
