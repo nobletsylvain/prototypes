@@ -906,7 +906,7 @@ function openProfile(src){
       ${handle?`<div class="phandle">${esc(handle)}</div>`:''}
       <div class="ptag">${esc(TAG_OF[arch]||(prof&&prof.tag)||'CLIENT')}</div>
     </div>
-    <div class="pbio">${esc(bioOf(prof,arch))}</div>
+    <div class="pbio">${esc(fillConcepts(bioOf(prof,arch)))}</div>
     ${relHTML}
     <div class="psec">SNAPS PASSÉS</div>
     <div class="psnaps">${snaps.map(s=>`<div class="psnap"><div class="e">${esc(s.emoji||'📷')}</div><div class="c">${esc(fillConcepts(s.cap||''))}</div></div>`).join('')}</div>
