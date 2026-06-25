@@ -57,6 +57,13 @@
         "il y a 4j — « comme d'hab » (×2 dans la nuit)",
         "il y a 2j — t'a DM avant même ton drop",
         "hier — a doublé la dose"
+      ],
+      "snaps": [
+        { "emoji": "🌙", "cap": "encore réveillé" },
+        { "emoji": "⏰", "cap": "tard, ça répond ?" },
+        { "emoji": "🚬", "cap": "la dernière, promis" },
+        { "emoji": "📱", "cap": "tu réponds ?" },
+        { "emoji": "💤", "cap": "pas dormi" }
       ]
     },
     {
@@ -98,6 +105,12 @@
         "il y a 5j — a snobé un drop 'normal'",
         "il y a 3j — promesse premium trahie → est partie 🚪",
         "retour conditionné à un premium tenu"
+      ],
+      "snaps": [
+        { "emoji": "🚪", "cap": "déçue, je m'en vais" },
+        { "emoji": "🥂", "cap": "un cru d'exception" },
+        { "emoji": "👑", "cap": "rien que le haut" },
+        { "emoji": "💎", "cap": "le goût a un prix" }
       ]
     },
     {
@@ -135,6 +148,13 @@
         "il y a 4j — 2e bradage, a ramené 'un pote'",
         "il y a 2j — story : 'le plug casse les prix 😏'",
         "menace au 3e bradage : ramène toute l'équipe"
+      ],
+      "snaps": [
+        { "emoji": "🤝", "cap": "j'ramène l'équipe" },
+        { "emoji": "🏷️", "cap": "le plug casse les prix" },
+        { "emoji": "💸", "cap": "fais un effort" },
+        { "emoji": "👀", "cap": "ça gratte où ?" },
+        { "emoji": "🛒", "cap": "gros volume only" }
       ]
     },
     {
@@ -175,6 +195,12 @@
         "il y a 5j — revenu, même quantité",
         "il y a 2j — a liké ta vitrine",
         "hier — 'à la prochaine 🤝'"
+      ],
+      "snaps": [
+        { "emoji": "🤝", "cap": "à la prochaine" },
+        { "emoji": "✅", "cap": "que du sérieux" },
+        { "emoji": "🧢", "cap": "comme d'hab" },
+        { "emoji": "🌃", "cap": "nuit calme" }
       ]
     },
     {
@@ -214,6 +240,12 @@
         "il y a 5j — premier achat, hyper impressionné",
         "il y a 3j — a posé 10 questions en DM",
         "hier — a montré ta story aux copains 👀"
+      ],
+      "snaps": [
+        { "emoji": "📲", "cap": "montré aux potes" },
+        { "emoji": "❓", "cap": "trop de questions" },
+        { "emoji": "👟", "cap": "première fois" },
+        { "emoji": "🛴", "cap": "le ptit du block" }
       ]
     },
     {
@@ -254,6 +286,12 @@
         "il y a 12j — achat, deux mots, parti",
         "il y a 6j — 'c'était mieux avant' en story",
         "hier — a décliné une relance, sec"
+      ],
+      "snaps": [
+        { "emoji": "🚬", "cap": "pas le temps" },
+        { "emoji": "🌫️", "cap": "le quartier a changé" },
+        { "emoji": "🥃", "cap": "c'était mieux avant" },
+        { "emoji": "📻", "cap": "à l'ancienne" }
       ]
     },
 
@@ -276,7 +314,12 @@
         "action_reply": { "sell": ["nickel 🤝", "merci, à plus"], "refuse": ["ok pas grave"] },
         "reup_reply": { "buy": ["ouais vas-y {QTY} 🤝"], "decline": ["pas ce soir"] }
       },
-      "history": ["il y a 6j — achat ponctuel", "il y a 2j — revenu sans négocier"]
+      "history": ["il y a 6j — achat ponctuel", "il y a 2j — revenu sans négocier"],
+      "snaps": [
+        { "emoji": "🤝", "cap": "comme convenu" },
+        { "emoji": "🧤", "cap": "discret" },
+        { "emoji": "🌃", "cap": "même heure" }
+      ]
     },
     {
       "id": "client",
@@ -297,7 +340,12 @@
         "action_reply": { "sell": ["go merci ⚡", "déjà reparti 🛵"], "refuse": ["pas le temps d'attendre alors"] },
         "reup_reply": { "buy": ["ouais mais vite {QTY} ⚡"], "decline": ["là j'peux pas, en course"] }
       },
-      "history": ["il y a 5j — achat éclair", "hier — passé sans s'arrêter"]
+      "history": ["il y a 5j — achat éclair", "hier — passé sans s'arrêter"],
+      "snaps": [
+        { "emoji": "⚡", "cap": "vite fait" },
+        { "emoji": "🛵", "cap": "j'suis en bas" },
+        { "emoji": "🌃", "cap": "tournée de nuit" }
+      ]
     },
     {
       "id": "client",
@@ -318,7 +366,12 @@
         "action_reply": { "sell": ["merci mon grand, tenez la monnaie ☕", "vous êtes un amour 🐈"], "refuse": ["oh… ce sera pour une autre fois"] },
         "reup_reply": { "buy": ["volontiers, {QTY} mon grand ☕"], "decline": ["pas aujourd'hui, mes jambes vont mieux 🐈"] }
       },
-      "history": ["il y a 10j — 'pour ses douleurs'", "il y a 3j — a apporté des gâteaux"]
+      "history": ["il y a 10j — 'pour ses douleurs'", "il y a 3j — a apporté des gâteaux"],
+      "snaps": [
+        { "emoji": "🍰", "cap": "des gâteaux pour toi" },
+        { "emoji": "☕", "cap": "pour mes douleurs" },
+        { "emoji": "🐈", "cap": "le chat et moi" }
+      ]
     },
     {
       "id": "client",
@@ -339,7 +392,12 @@
         "action_reply": { "sell": ["merci, ça va être chaud 🎉", "top, on revient peut-être 🎓"], "refuse": ["ah mince, on demandera ailleurs"] },
         "reup_reply": { "buy": ["allez {QTY}, y'a soirée 🎉"], "decline": ["révisions là, une autre fois 🎓"] }
       },
-      "history": ["il y a 4j — première via story", "hier — soirée, gros panier"]
+      "history": ["il y a 4j — première via story", "hier — soirée, gros panier"],
+      "snaps": [
+        { "emoji": "🎉", "cap": "soirée ce soir" },
+        { "emoji": "🎓", "cap": "after improvisé" },
+        { "emoji": "📲", "cap": "vu ta story" }
+      ]
     },
     {
       "id": "client",
@@ -360,7 +418,12 @@
         "action_reply": { "sell": ["merci chou, bonne night 🌙", "tjs un plaisir 💅"], "refuse": ["pas grave, bisous 💅"] },
         "reup_reply": { "buy": ["allez {QTY}, c'est la night 🌙"], "decline": ["calme ce soir, une autre fois 💅"] }
       },
-      "history": ["il y a 7j — habituée des nuits", "il y a 2j — a partagé ta story"]
+      "history": ["il y a 7j — habituée des nuits", "il y a 2j — a partagé ta story"],
+      "snaps": [
+        { "emoji": "📲", "cap": "j'ai partagé ta story" },
+        { "emoji": "🌙", "cap": "la night appelle" },
+        { "emoji": "💅", "cap": "fidèle, toujours" }
+      ]
     },
     {
       "id": "client",
@@ -381,7 +444,12 @@
         "action_reply": { "sell": ["parfait, à charge de revanche 🤝", "discret et net, merci"], "refuse": ["entendu, pas d'histoires"] },
         "reup_reply": { "buy": ["oui, {QTY}, discrètement 🤝"], "decline": ["pas le moment, trop de passage"] }
       },
-      "history": ["il y a 9j — arrangement discret", "il y a 4j — a renvoyé un client vers toi"]
+      "history": ["il y a 9j — arrangement discret", "il y a 4j — a renvoyé un client vers toi"],
+      "snaps": [
+        { "emoji": "🤝", "cap": "je t'envoie du monde" },
+        { "emoji": "🏪", "cap": "ouvert tard" },
+        { "emoji": "💶", "cap": "discret et net" }
+      ]
     },
     {
       "id": "client",
@@ -402,7 +470,12 @@
         "action_reply": { "sell": ["respect 🥊", "carré, merci 💪"], "refuse": ["ok, no soucis"] },
         "reup_reply": { "buy": ["allez {QTY} 💪"], "decline": ["en cut là, pas ce soir 🥊"] }
       },
-      "history": ["il y a 6j — petit achat sûr", "hier — a liké, sans commenter"]
+      "history": ["il y a 6j — petit achat sûr", "hier — a liké, sans commenter"],
+      "snaps": [
+        { "emoji": "💪", "cap": "récup' méritée" },
+        { "emoji": "🥊", "cap": "propre only" },
+        { "emoji": "🏋️", "cap": "après l'entraînement" }
+      ]
     },
     {
       "id": "flake",
@@ -422,7 +495,12 @@
         "dm_open": ["allô ?? tjs là ?", "euh je sais pas encore… {QTY} ptet", "tu réponds vite au moins ? ⌛", "faut que je vois avec une pote, attends…"],
         "action_reply": { "rdv": ["ouais ouais à 23h…", "j'arrive j'arrive ⌛"], "block": ["bah quoi ?? 🦗"] }
       },
-      "history": ["il y a 5j — RDV posé, jamais venue", "il y a 2j — 'promis cette fois' (non)"]
+      "history": ["il y a 5j — RDV posé, jamais venue", "il y a 2j — 'promis cette fois' (non)"],
+      "snaps": [
+        { "emoji": "⌛", "cap": "promis cette fois" },
+        { "emoji": "🦗", "cap": "désolée, j'ai zappé" },
+        { "emoji": "📵", "cap": "vu sans suite" }
+      ]
     },
     {
       "id": "flake",
@@ -442,7 +520,12 @@
         "dm_open": ["j'arrive dans 5 min frérot ⌛", "garde-moi {QTY}, je passe… ptet", "t'es où ? bouge pas 👻", "2 min juré (×4)"],
         "action_reply": { "rdv": ["bouge pas j'arrive 👻", "ya un imprévu, demain ?"], "block": ["mais attends frè—👻"] }
       },
-      "history": ["il y a 8j — '5 min', jamais venu", "il y a 3j — RDV fantôme #4"]
+      "history": ["il y a 8j — '5 min', jamais venu", "il y a 3j — RDV fantôme #4"],
+      "snaps": [
+        { "emoji": "⌛", "cap": "deux min juré" },
+        { "emoji": "👻", "cap": "t'es où ? bouge pas" },
+        { "emoji": "🌫️", "cap": "jamais vu en vrai" }
+      ]
     }
   ]
 }
