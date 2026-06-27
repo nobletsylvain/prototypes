@@ -131,5 +131,93 @@
         "bracelet de festival au poignet, lumière colorée, touche #FFFC00"
       ]
     }
+  },
+
+  "snaps_by_archetype": {
+    "_doc": "Grille de snaps GÉNÉRIQUE par famille (foule anonyme). { emoji (objet/ambiance, jamais un visage), cap ≤ ~22 car. }. Opaque : zéro chiffre de cote/vues. Le moteur pioche.",
+    "regular": [
+      { "emoji": "🤝", "cap": "comme d'hab" },
+      { "emoji": "🌃", "cap": "même heure" },
+      { "emoji": "✅", "cap": "que du sérieux" },
+      { "emoji": "🔁", "cap": "je repasse" },
+      { "emoji": "📦", "cap": "pris, parti" },
+      { "emoji": "🌙", "cap": "nuit calme" },
+      { "emoji": "🧢", "cap": "tranquille" }
+    ],
+    "lowballer": [
+      { "emoji": "💸", "cap": "casse le prix" },
+      { "emoji": "👀", "cap": "ça gratte où ?" },
+      { "emoji": "🏷️", "cap": "fais un prix" },
+      { "emoji": "🛒", "cap": "gros volume only" },
+      { "emoji": "🤝", "cap": "ramène l'équipe" },
+      { "emoji": "🪙", "cap": "le moins cher gagne" },
+      { "emoji": "📉", "cap": "à ce prix non" }
+    ],
+    "accro": [
+      { "emoji": "🌙", "cap": "encore debout" },
+      { "emoji": "⏰", "cap": "tard, ça répond ?" },
+      { "emoji": "🚬", "cap": "la dernière, promis" },
+      { "emoji": "📱", "cap": "tu réponds ?" },
+      { "emoji": "💤", "cap": "pas dormi" },
+      { "emoji": "🔁", "cap": "comme d'hab, encore" },
+      { "emoji": "🕳️", "cap": "vide ce soir" }
+    ],
+    "connaisseur": [
+      { "emoji": "🥂", "cap": "un cru d'exception" },
+      { "emoji": "👑", "cap": "rien que le haut" },
+      { "emoji": "💎", "cap": "le goût a un prix" },
+      { "emoji": "🍷", "cap": "ça se déguste" },
+      { "emoji": "✨", "cap": "raffiné, validé" },
+      { "emoji": "🚪", "cap": "déçu, je file" },
+      { "emoji": "🌟", "cap": "que du premium" }
+    ],
+    "jeune": [
+      { "emoji": "👟", "cap": "première fois" },
+      { "emoji": "🎮", "cap": "les grands en parlent" },
+      { "emoji": "🛴", "cap": "j'rentre du tieks" },
+      { "emoji": "📲", "cap": "montré aux potes" },
+      { "emoji": "🔥", "cap": "ça a l'air chaud" },
+      { "emoji": "❓", "cap": "comment ça marche ?" },
+      { "emoji": "⭐", "cap": "validé par les grands" }
+    ],
+    "ancien": [
+      { "emoji": "🚬", "cap": "c'était mieux avant" },
+      { "emoji": "🥃", "cap": "rien à prouver" },
+      { "emoji": "🌫️", "cap": "le quartier a changé" },
+      { "emoji": "📻", "cap": "à l'ancienne" },
+      { "emoji": "🪑", "cap": "assis, je regarde" },
+      { "emoji": "⌛", "cap": "j'ai connu mieux" },
+      { "emoji": "🌑", "cap": "pas le temps" }
+    ],
+    "flake": [
+      { "emoji": "⌛", "cap": "j'arrive… ptet" },
+      { "emoji": "🦗", "cap": "RDV ? on verra" },
+      { "emoji": "👻", "cap": "introuvable" },
+      { "emoji": "📵", "cap": "vu, pas répondu" },
+      { "emoji": "🌫️", "cap": "où je suis ? mystère" },
+      { "emoji": "🚪", "cap": "désolé, zappé" },
+      { "emoji": "⏳", "cap": "deux min juré" }
+    ],
+    "curieux": [
+      { "emoji": "👀", "cap": "je regarde" },
+      { "emoji": "🌃", "cap": "vu ta story" },
+      { "emoji": "💭", "cap": "je réfléchis encore" },
+      { "emoji": "🚪", "cap": "j'hésite à entrer" },
+      { "emoji": "✨", "cap": "ça intrigue" },
+      { "emoji": "📲", "cap": "tombé sur ton profil" },
+      { "emoji": "🌙", "cap": "juste de passage" }
+    ]
+  },
+
+  "bio_by_archetype": {
+    "_doc": "Bio générique 1 ligne par famille (≤ ~80 car.). Vitrine de profil : pas d'auto-dénigrement ({QUALITY_BAD} proscrit), réput opaque. Gabarits {CONCEPT} ok.",
+    "regular": "Habitué·e discret·e du {SELL_POINT}. Pas de drama : prend, paie, revient.",
+    "lowballer": "Négocie tout, paie le moins. Vient pour le volume, file si ça baisse pas.",
+    "accro": "Toujours là. Pour de la {CANNABIS_WEED}, la nuit ne finit jamais.",
+    "connaisseur": "Le goût a un prix. Ne prend que {QUALITY_GOOD}. Jamais la coupe.",
+    "jeune": "Première fois, mille questions. Les grands en parlent, alors curieux·se.",
+    "ancien": "A tout vu, tout connu. Sec, désabusé — mais toujours dans le coin.",
+    "flake": "Pose un RDV, s'évapore. « J'arrive »… on attend encore.",
+    "curieux": "Vient par le buzz, regarde, hésite. Repart parfois sans rien prendre."
   }
 }

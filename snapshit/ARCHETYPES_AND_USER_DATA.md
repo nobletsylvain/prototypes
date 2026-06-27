@@ -105,6 +105,7 @@ simple « skin » tant que le code ne lui attache pas de conséquence (à signal
 | `accro` | L'accro 😵 | genuine (spécial) | son **manque** : `accroStreak` ↑ chaque jour → demande qui escalade ; plancher de la demande (toujours là) | `REUP_BASE.accro = 1` (reprend toujours) |
 | `comtesse` | La Comtesse 👑 | genuine (spécial) | tes **promesses premium** : trahie (cry-wolf premium) → `comtesseState='parti'` (te lâche, quitte le bassin) ; promesse premium tenue → `'fan'` (revient, paie ~×1.6) | `REUP_BASE.comtesse = 0.65`, `pref:"premium"` |
 | `kevin` | Kévin 🧃 | lowball | combien de fois tu l'as **bradé** : `protagBrade.kevin` ; au 3e bradage il « ramène toute l'équipe » (escalade mauvais public) | ouvre toujours le bal des lowballers |
+| `grossiste` | Le Grossiste 📦 | grossiste (spécial) | **volume cumulé** écoulé : `grossisteVolume` ; demande/ton escaladent (paliers 40/120) | apparaît si `expo ≥ GROSSISTE_SEUIL_EXPO` (buzz) ; action `volume` → cash + `expo += GROSSISTE_EXPO_COST` (heat de rue, **co-effet parallèle**) ; pas de carnet |
 | `sami` | Sami 🧢 | genuine | rien (extensible) — le « régulier » fiable | `REUP_BASE.sami = 0.75` |
 | `petit` | Le petit du 4 🧒 | genuine | rien — le jeune curieux/naïf | `REUP_BASE.petit = 0.6` |
 | `ancien` | L'ancien 🚬 | genuine | rien — le vieux routier, sec, désabusé | `REUP_BASE.ancien = 0.45` (relancable mais distant) |
@@ -333,9 +334,74 @@ produis pas.
 
 | candidat | visage | mémoire / conséquence visée | à coder | garde-fou |
 |---|---|---|---|---|
-| `grossiste` | 📦 | se souvient des **gros volumes** écoulés ; revient pour du volume, sensible au prix unitaire | état « volume cumulé » + ligne de relance volume ; co-effet heat de rue (déjà parallèle au volume) | ne pas chaîner « moins de ventes → heat » ; volume et heat restent **co-effets parallèles** |
+| ~~`grossiste`~~ | 📦 | **CODÉ** _(promu §2)_ : `grossisteVolume` cumulé ; apparaît au buzz, action `volume` → cash + heat de rue (`expo`), **parallèle** | — | respecté : volume et heat = co-effets parallèles, pas de chaîne |
 | `touriste` | 🧳 | **volatil** : vient par le **buzz/expo**, repart ; zéro fidélité ; nourrit le mauvais public quand l'expo grimpe | gate sur `expo` ; pas de carnet (ou goodwill qui s'évapore) | pure présentation côté texte ; l'état vient de `expo`, pas du hasard |
 | `balance` | 🐀 | se souvient d'avoir été **grillé/bloqué** ; conséquence différée et tracée | mémoire « bloqué N fois » → mauvais public/réput différé | ⚠️ touche au pilier **heat** — Snapshit = heat de rue **conso**, **pas** autorités ; valider contre le périmètre strict avant tout code |
 
 > Quand l'un de ces archétypes sera codé, il « promeut » et **rejoint le §2** (cœur à
 > mémoire) ; sa data sortira à ce moment-là, pas avant.
+
+---
+
+## 11. Profondeur de profil — contenu à générer (slots déjà câblés)
+
+L'**écran profil** (`#profile` dans `index.html`) est **déjà codé** et tourne avec
+des **fallbacks**. Il rend, pour un user : identité (pseudo/avatar/handle/tag), bio,
+bandeau relation **opaque** (si au carnet), **grille SNAPS PASSÉS**, et **HISTORIQUE**
+(authored + procédural). Ta tâche = **remplir 3 nouveaux slots** pour que la grille
+et les bios ne soient plus des fallbacks. **Rien d'autre à coder.**
+
+### 11.1 `snaps` — par membre de la troupe (dans `profiles.json`)
+Ajoute à **chaque fiche** de `troupe` un tableau `snaps` : la grille de « stories
+passées » du profil (façon feed Insta). 3–6 entrées, **ordre = du plus récent au
+plus ancien**, cohérent avec l'archétype et le `history` existant.
+
+```jsonc
+"snaps": [
+  { "emoji": "💨", "cap": "coupe du soir" },   // emoji = visuel de la vignette ; cap ≤ ~22 car.
+  { "emoji": "🤝", "cap": "deal réglé" }
+]
+```
+- `emoji` : **un** emoji qui « illustre » la vignette (objet/ambiance, pas un visage).
+- `cap` : légende très courte (**≤ ~22 car.**), gabarits `{CANNABIS_WEED}`/`{QUALITY_GOOD}` ok.
+- **Réput opaque** : aucun chiffre de vues/likes. Pas d'auto-dénigrement (`{QUALITY_BAD}` à éviter).
+
+### 11.2 `snaps_by_archetype` — pour la foule (dans `crowd.json`)
+Banques génériques par **famille** (l'anonyme du carnet n'a pas de fiche). Mêmes
+règles que §11.1. **6–8 entrées par archétype.**
+```jsonc
+"snaps_by_archetype": {
+  "regular":   [{ "emoji":"🤝","cap":"comme d'hab" }, … ],
+  "lowballer": [{ "emoji":"👀","cap":"ça négocie" }, … ],
+  "accro":     [ … ], "connaisseur":[ … ], "jeune":[ … ], "ancien":[ … ],
+  "flake":     [ … ], "curieux":[ … ]
+}
+```
+Familles attendues : `regular · lowballer · accro · connaisseur · jeune · ancien · flake · curieux`.
+
+### 11.3 `bio_by_archetype` — pour la foule (dans `crowd.json`)
+Une **bio d'une ligne par famille** (la troupe a déjà sa `description`). ≤ ~80 car.,
+au ton de la famille, opaque.
+```jsonc
+"bio_by_archetype": { "regular":"Habitué discret, jamais un drame.", "lowballer":"…", … }
+```
+
+### 11.4 Comment le moteur lit ces slots (priorité)
+- **Bio** : `profil.description` (troupe) → `crowd.bio_by_archetype[arch]` → fallback embarqué.
+- **Snaps** : `profil.snaps` (troupe) → `crowd.snaps_by_archetype[arch]` → fallback (emoji_signature).
+- **Historique** : `profil.history` (authored) **+** lignes procédurales du carnet (gérées
+  par le moteur — **ne pas** les écrire).
+- **Relation** (commandes/vibe/pref/dernier deal) : **100 % moteur**, opaque — **aucun contenu**.
+
+### 11.5 Livraison & cibles
+Patch de `profiles.json` (champ `snaps` sur les 15 fiches) + `crowd.json`
+(`snaps_by_archetype`, `bio_by_archetype`). Schémas existants **inchangés**.
+
+| Élément | Cible |
+|---|---|
+| `snaps` par fiche troupe | 3–6 |
+| `snaps_by_archetype` par famille (8 familles) | 6–8 |
+| `bio_by_archetype` par famille | 1 |
+
+Garde-fous §8 (réput opaque, le texte ne décide rien, emojis anonymes, gabarits
+`{CONCEPT}` connus). PR **draft** → merge `main`.

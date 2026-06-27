@@ -125,3 +125,25 @@ Un **halo lumineux** pulse sous la station active et un **bandeau de consigne** 
 
 - En ligne : **https://nobletsylvain.github.io/prototypes/neige/** (depuis le hub).
 - En local : ouvrir `neige/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
+
+## 🪨 Crack — La Cuisson (core loop)
+
+Mini-jeu mobile en **2D canvas, zéro dépendance** (un seul `index.html`, pas de CDN). La décision-clé — **volume gonflé (coupe) contre pureté** — est **incarnée dans le geste de cuisson**, sous la pression du **front à crédit**. Variation retenue (« Le Cuistot pressé ») et comparatif des 3 pistes : voir **`crack/DESIGN.md`** (avec pseudocode mobile-ready Unity/Godot).
+
+**Boucle de jeu — la coupe se verse PENDANT la cuisson :**
+1. **Charger** 🧱 — pose une fournée de coke prise **à crédit** : la **dette monte**. On ne touche du cash qu'une fois la dette remboursée (la vente rembourse la dette d'abord).
+2. **Cuisson + coupe (simultané)** — **maintiens 🔥** : la température monte, garde-la dans la **zone verte** (au-dessus de `BURN_TEMP`, **ça crame** → la *façon* chute). En même temps **maintiens 🥄** pour **verser la coupe** → le contenu **gonfle à vue d'œil** (liquide laiteux → roches beiges gonflées). La cuisson n'avance qu'en zone verte. Plus tu verses : **+ de grammes, − de pureté**.
+3. **Sécher** ✋ — un curseur balaie une jauge, **Sortir** au centre (fenêtre élargie par les paliers). Trop tôt/tard = caillou mal pris.
+4. **Briser** 👉 — **swipe** en travers de la dalle séchée : elle se fissure puis éclate en **cailloux** (gonflés par la part de coupe).
+5. **Vendre** 💸 — `revenu = volume × €/g`, `€/g = base × qualité × réput × niveau`.
+
+**Économie & progression :** **co-effets parallèles** (jamais une chaîne) — `volume` et `réputation` sortent de la **même** décision (combien verser). La **réput** (0–100) est tirée vers la qualité vendue et module le `€/g` des tours suivants : **verser trop rembourse la dette plus vite ce tour-ci, mais sabote les suivants**. **5 paliers d'outils** : 🥄 cuillère & briquet → 🔥 réchaud → 🧪 bec Bunsen + thermo → ♨️ plaque régulée (assist) → 🏭 **labo + cuisinier** (cuisson *et* séchage **automatiques**, idle). **4 paliers de coupe** (Pur / Bicarbonate / Lévamisole sale / Benzocaïne propre — le vrai coût d'un cut cheap, c'est la **réput**, pas l'agent). **Niveaux (XP)** +2,5 %/niv. **Aucun aléatoire ne pilote l'état** : chaque conséquence (réput en chute, fournée cramée) remonte à un geste. Persistance `localStorage` préfixée **`crack_`** (isolée de `hash_` / `gf_` / `gs_` / `neige_`), clé de version `crack_ver` + `SAVE_VERSION`.
+
+**Feedback juteux** : sons synthétisés (WebAudio — cha-ching, craquement du bris, grésillement de surchauffe), flamme qui réagit à la chauffe, bulles de cuisson, miettes au swipe, flashs de jugement (`SEC PILE`, `NIVEAU…`).
+
+> Prototype de jeu, habillage purement visuel/stylisé.
+
+### Jouer
+
+- En ligne : **https://nobletsylvain.github.io/prototypes/crack/** (depuis le hub).
+- En local : ouvrir `crack/index.html` dans un navigateur (aucune connexion requise). Diagnostic/captures : `cd tools && node shots-crack.mjs`.

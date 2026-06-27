@@ -97,6 +97,31 @@
   .dmhdr .av{width:40px;height:40px;border-radius:50%;font-size:18px;border:1px solid var(--border);
        background:linear-gradient(135deg,#3a322b,#181410);display:flex;align-items:center;justify-content:center}
   .dmhdr .nm{font:700 15px var(--sans)} .dmhdr .sub{font:500 11px var(--sans);color:var(--muted)}
+  .prof-link{cursor:pointer}
+  /* profondeur de profil (overlay) */
+  .profile{position:absolute;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:48;overflow-y:auto}
+  .profile.show{display:flex}
+  .profile .phdr{flex:none;display:flex;align-items:center;gap:4px;padding:12px 14px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:2}
+  .profile .phdr .pback{font-size:26px;color:var(--muted);cursor:pointer;padding:0 6px;line-height:1}
+  .profile .phdr .ttl{font:700 14px var(--sans);color:var(--muted)}
+  .pcard{display:flex;flex-direction:column;align-items:center;gap:7px;padding:18px 16px 10px}
+  .pcard .pav{width:84px;height:84px;border-radius:50%;font-size:40px;display:flex;align-items:center;justify-content:center;border:2px solid var(--border);background:#13110f}
+  .pcard .pnm{font:800 19px var(--sans)}
+  .pcard .phandle{font:600 12px var(--mono);color:var(--snap)}
+  .pcard .ptag{font:700 9.5px var(--mono);color:var(--muted);border:1px solid var(--border);border-radius:20px;padding:3px 11px;letter-spacing:.6px}
+  .pbio{font:500 13px var(--sans);color:#cfc9c2;text-align:center;padding:2px 22px 12px;line-height:1.45}
+  .prel{display:flex;justify-content:space-around;padding:11px 12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .prel .it{display:flex;flex-direction:column;align-items:center;gap:3px}
+  .prel .it b{font:800 15px var(--sans)} .prel .it span{font:600 9px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .psec{font:700 10px var(--mono);color:var(--muted);letter-spacing:1.4px;padding:15px 16px 7px}
+  .psnaps{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:0 8px}
+  .psnap{aspect-ratio:1;background:linear-gradient(160deg,#1b1714,#0d0b0a);border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;overflow:hidden}
+  .psnap .e{font-size:30px;filter:drop-shadow(0 2px 6px #000)} .psnap .c{font:600 8.5px var(--mono);color:var(--muted);text-align:center;padding:0 4px;line-height:1.2}
+  .ptl{padding:4px 16px 8px;display:flex;flex-direction:column;gap:7px}
+  .ptl .ev{font:500 12px var(--sans);color:#bdb6ae;padding-left:11px;border-left:2px solid var(--border);line-height:1.35}
+  .pact{padding:12px 16px 24px}
+  .pact button{width:100%;background:var(--neon);border:none;color:#fff;border-radius:13px;padding:13px;font:800 13px var(--sans);cursor:pointer}
+  .pact .done{text-align:center;color:var(--muted);font:600 12px var(--mono);padding:10px}
   .dmbody{flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:9px}
   .bub{max-width:78%;padding:9px 13px;border-radius:15px;font:500 13px var(--sans);line-height:1.4}
   .bub.in{align-self:flex-start;background:var(--surface2);border:1px solid var(--border);border-bottom-left-radius:5px}
@@ -204,16 +229,17 @@
       <div class="ring mine ready" id="ring-mine"><div class="inner"><span class="ph">+ TOI</span></div></div>
       <div class="cap">Ta vitrine</div>
     </div>
-    <div class="story"><div class="ring seen"><div class="inner">🏪</div></div><div class="cap">Le Comptoir</div></div>
-    <div class="story"><div class="ring seen"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
-    <div class="story"><div class="ring"><div class="inner">🌃</div></div><div class="cap"><span class="live">● ARRIVAGE</span></div></div>
-    <div class="story"><div class="ring seen"><div class="inner">🚬</div></div><div class="cap">La Ruelle</div></div>
+    <div class="story" data-actor="comptoir"><div class="ring seen"><div class="inner">🏪</div></div><div class="cap">Le Comptoir</div></div>
+    <div class="story" data-actor="campus"><div class="ring seen"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
+    <div class="story" data-actor="arrivage"><div class="ring"><div class="inner">🌃</div></div><div class="cap"><span class="live">● ARRIVAGE</span></div></div>
+    <div class="story" data-actor="ruelle"><div class="ring seen"><div class="inner">🚬</div></div><div class="cap">La Ruelle</div></div>
   </div>
 
   <div class="body" id="body"></div>
 
   <!-- fil de DM (négociation jouable) -->
   <div class="dmview" id="dmview"></div>
+  <div class="profile" id="profile"></div>
 
   <div class="dock">
     <div class="hint" id="hint">Réponds à tes DM, coupe ton batch, poste ta vitrine, puis passe la journée.</div>
@@ -261,7 +287,7 @@
 // ============================================================================
 // SNAPSHIT — refonte sur le châssis crimworld/. Voir commentaire d'en-tête.
 // ============================================================================
-const SAVE_VERSION = 6;
+const SAVE_VERSION = 7;
 const KEY='snapshit_state', VKEY='snapshit_ver';
 
 // ---- Constantes nommées (PLACEHOLDERS — réglage humain plus tard) ----------
@@ -279,6 +305,11 @@ const C = {
   PRIX_FAIR:10, LOWBALL_FACTOR:0.55,            // €/unité ; le lowball paie ~55% du prix
   QTY_GENUINE:[2,3,4,5], QTY_LOWBALL:[8,12,16], // un vrai client prend peu, le brader prend en gros
   FLAKE_PAR_BRADAGE:0.07, BRADE_DELAI:2,        // brader arme le mauvais public (différé, tracé)
+  // --- grossiste : l'axe VOLUME (mémoire = volume cumulé) ---
+  GROSSISTE_SEUIL_EXPO:45,                       // ton buzz attire les grossistes (apparition déterministe)
+  GROSSISTE_FACTOR:0.7,                          // €/unité : remise volume (mieux que lowball, sous le détail)
+  GROSSISTE_QTY_BASE:20, GROSSISTE_QTY_STEP:40, GROSSISTE_QTY_CAP:60, // sa demande grossit avec la relation
+  GROSSISTE_EXPO_COST:14,                        // écouler du volume = +heat de rue (co-effet PARALLÈLE, immédiat)
   // --- carnet / réengagement 1:1 (la liste = un actif épuisable) ---
   GOODWILL_INIT:100, GOODWILL_AGACE:35,         // au-dessous de AGACE, le client ne veut plus qu'on le relance
   GOODWILL_REUP_OK:5, GOODWILL_DECLINE:8, GOODWILL_SPAM:25,
@@ -325,12 +356,13 @@ let VOICES = [
   { id:'sami',     nm:'Sami',          av:'🧢' },
   { id:'petit',    nm:'Le petit du 4', av:'🧒' },
   { id:'ancien',   nm:"L'ancien",      av:'🚬' },
+  { id:'grossiste',nm:'Le Grossiste',  av:'📦' },   // l'axe VOLUME (mémoire = volume cumulé)
 ];
 const voice = id => VOICES.find(v=>v.id===id) || genProfile();
 // visage DÉTERMINISTE d'un TYPE de protagoniste (pour nommer les conséquences au bilan)
 const FACE = id => VOICES.find(v=>v.id===id) || {nm:'les lowballers',av:'👥'};
 // foule de voix « neutres » : on exclut les archétypes à mémoire gérés à part (Kévin/Comtesse/Accro)
-let CROWD_VOICES = VOICES.filter(v=>!['kevin','comtesse','accro'].includes(v.id));
+let CROWD_VOICES = VOICES.filter(v=>!['kevin','comtesse','accro','grossiste'].includes(v.id));
 const protagBreakdown = m => Object.entries(m).map(([p,n])=>{ const f=FACE(p); return `${f.av} ${f.nm}${n>1?` ×${n}`:''}`; }).join(', ');
 
 // ---- Banque de phrases : contexte × ton (gabarits {CONCEPT}) ----------------
@@ -369,10 +401,11 @@ function fresh(){ return {
   qualiteChoisie:'standard', promesse:null, posteAujourdhui:false, repPrev:C.REPUT_INIT,
   pendingCryWolf:[], pendingBadPublic:[], dms:[], cash:0, protagBrade:{},
   comtesseState:'neutre', accroStreak:0,   // mémoires d'archétype (la voix se souvient)
+  grossisteVolume:0,                        // mémoire du grossiste : volume cumulé écoulé
   pool:[], poolSeq:0,                       // carnet de clients passés (réengagement 1:1)
-  dayTally:{sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{},muted:0,reup:0},
+  dayTally:{sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{},muted:0,reup:0,volume:0,volumeCash:0},
 }; }
-const freshTally = () => ({sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{},muted:0,reup:0});
+const freshTally = () => ({sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{},muted:0,reup:0,volume:0,volumeCash:0});
 let S = load();
 function load(){ try{
   if(localStorage.getItem(VKEY)!==String(SAVE_VERSION)) throw 0;
@@ -481,6 +514,7 @@ function passerJournee(){
     S.pendingBadPublic.push({due:S.jour+C.BRADE_DELAI,ampleur:amp,cause:'brade',jourCause:S.jour,protags:Object.assign({},t.bradeProtags)});
     cons.push({k:'warn',t:'BRADAGE — ça va se savoir',c:`Tu as cassé tes prix devant ${protagBreakdown(t.bradeProtags)}. Cash tout de suite, mais le mauvais public débarquera au jour ${S.jour+C.BRADE_DELAI}. Cupidité now ↔ bassin pourri later.`});
   }
+  if(t.volume>0) cons.push({k:'warn',t:'VOLUME — ça circule',c:`Tu as écoulé ${t.volume} d'un coup au grossiste : +${t.volumeCash}€ tout de suite, mais le volume se voit (heat de rue ↑, buzz à ${Math.round(S.expo)}/${C.EXPO_CAP}). Volume écoulé et heat = deux co-effets PARALLÈLES du même deal — jamais « moins de ventes donc heat ».`});
   const leftG=(S.dms||[]).filter(d=>d.kind==='genuine'&&d.status==='pending').length;
   if(leftG>0) cons.push({k:'warn',t:'CLIENTS IGNORÉS',c:`${leftG} client(s) sérieux pas répondus — partis ailleurs. Pas de sanction : juste du cash laissé sur la table.`});
 
@@ -488,7 +522,7 @@ function passerJournee(){
   const spike = S.posteAujourdhui ? Math.round(C.DROP_SPIKE*S.credibilite) : 0;
   const dmGood = Math.max(0, Math.round(S.reput/14 + expoAvant/22 + spike/8));
   const dmBad  = Math.round(dmGood*S.flake);
-  S.dms = buildDMs(dmGood, dmBad, tone);
+  S.dms = buildDMs(dmGood, dmBad, tone, expoAvant);   // le grossiste suit le pic de buzz du jour
   cons.push({k: dmGood>0?'good':'warn',t:'DEMANDE de demain',c:`${dmGood} acheteurs vont te DM (dont ${dmBad} flakes/lowballers, part ${Math.round(S.flake*100)}%).${spike?` +${spike} de spike grâce à ton drop (×crédibilité ${S.credibilite.toFixed(2)}).`:''}`});
 
   // clôture
@@ -529,31 +563,45 @@ function accroLine(){
   return rnd(bank);
 }
 
+// Le grossiste : sa demande et son ton escaladent avec le volume déjà écoulé (paliers)
+function grossisteLine(){
+  const v=S.grossisteVolume||0, tier = v>=120?'fournisseur': v>=40?'relance':'base';
+  if(MSG._grossiste&&MSG._grossiste[tier]) return rnd(MSG._grossiste[tier]);   // content (lines.json dm_open.grossiste)
+  return tier==='fournisseur' ? "comme d'hab mon fournisseur, {QTY} d'un coup 📦"
+       : tier==='relance'     ? "rebelote, je prends {QTY} en gros 📦"
+       :                        "j'écoule en gros — {QTY} d'un coup, prix de gros 📦";
+}
+
 // ---- CONTENU EXTERNE : enrichit troupe/foule/voix via content/*.json --------
 // Best-effort (comme le dico) : si le fetch échoue, les banques embarquées restent la source.
 // Invariant : présentation uniquement — le moteur pioche (rnd), le texte ne décide rien.
 let CONTENT=null, TROUPE=[], ACTION_REPLY=null, REUP_REPLY=null;
 async function loadContent(){ try{
-  const [P,L,Cr]=await Promise.all([
+  const [P,L,Cr,Vc,Re,Ac,Hi,Ev]=await Promise.all([
     fetch('./content/profiles.json').then(r=>r.ok?r.json():null).catch(()=>null),
     fetch('./content/lines.json').then(r=>r.ok?r.json():null).catch(()=>null),
     fetch('./content/crowd.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/vcap.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/reactions.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/actors.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/histories.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/events.json').then(r=>r.ok?r.json():null).catch(()=>null),
   ]);
-  CONTENT={profiles:P,lines:L,crowd:Cr};
+  CONTENT={profiles:P,lines:L,crowd:Cr,vcap:Vc,reactions:Re,actors:Ac,histories:Hi,events:Ev};
   if(L) applyLines(L);
   if(P) applyProfiles(P);
 }catch(e){/* proto reste autonome */} }
 function applyLines(L){
   if(L.dm_open){ const d=L.dm_open;
     if(d.genuine) MSG.genuine=d.genuine; if(d.lowball) MSG.lowball=d.lowball;
-    if(d.flake) MSG.flake=d.flake; if(d.comtesse) MSG.comtesse=d.comtesse; if(d.accro) MSG._accro=d.accro; }
+    if(d.flake) MSG.flake=d.flake; if(d.comtesse) MSG.comtesse=d.comtesse; if(d.accro) MSG._accro=d.accro; if(d.grossiste) MSG._grossiste=d.grossiste; }
   if(L.story_comment) for(const k in L.story_comment) LINES[k]=L.story_comment[k];   // ctx→ton→[]
   if(L.action_reply) ACTION_REPLY=L.action_reply;
   if(L.reup_reply)   REUP_REPLY=L.reup_reply;
 }
 function applyProfiles(P){
   TROUPE=P.troupe||[];
-  const MEM=['accro','comtesse','kevin'];                              // gérés à part dans buildDMs
+  const MEM=['accro','comtesse','kevin','grossiste'];                  // gérés à part dans buildDMs
   // la « foule de voix neutres » devient les faces cosmétiques genuine (sami/petit/ancien + clients nommés)
   const crowd=TROUPE.filter(p=>(p.kind_default||'genuine')==='genuine' && !MEM.includes(p.id)).map(voiceFromProfile);
   if(crowd.length) CROWD_VOICES=crowd;
@@ -604,9 +652,41 @@ function reupReplyFor(c,result,fallback){
   return fallback;
 }
 const fin=(s,qty)=>fillConcepts(String(s).replace(/\{QTY\}/g,qty));   // finalise une réplique (concepts + qty)
+const rndFrom=(arr,fb)=>(arr&&arr.length)?rnd(arr):fb;
+// vcap.json : légende de TA vitrine (par drop d'abord, sinon par qualité)
+function vcapFor(kind){
+  const V=CONTENT&&CONTENT.vcap; if(!V) return null;
+  const pool=(V.by_drop&&V.by_drop[kind]) || (V.by_quality&&V.by_quality[S.qualiteChoisie]);
+  return (pool&&pool.length)?fillConcepts(rnd(pool)):null;
+}
+// reactions.json : jauge de buzz OPAQUE (phrasé par niveau, jamais un chiffre)
+function buzzLabel(){
+  const lvl = S.expo>C.EXPO_SEUIL_MAUVAIS_PUBLIC?'high':S.expo>30?'mid':'low';
+  const R=CONTENT&&CONTENT.reactions&&CONTENT.reactions.view_gauge;
+  if(R&&R[lvl]&&R[lvl].length) return rnd(R[lvl]);
+  return lvl==='high'?'au-dessus du radar ⚠️':lvl==='mid'?'ça parle de toi':'tranquille';
+}
+// reactions.json : flash post = libellé d'engagement flou + quelques likes par ton
+function postReactionFlash(kind){
+  const base = kind==='premium'?'Drop PREMIUM posté. Faut assurer derrière 👀':kind==='normal'?'Drop posté.':'Vitrine postée.';
+  const R=CONTENT&&CONTENT.reactions; if(!R) return base;
+  const label=rndFrom(R.reaction_labels,'');
+  const likes=((R.likes_by_tone&&R.likes_by_tone[toneFromReput(S.reput)])||[]).slice(0,3).join('');
+  return base+(label?' — '+label:'')+(likes?' '+likes:'');
+}
+// actors.json : story tappable d'un acteur d'ambiance (décor, ne vend rien)
+function openActorStory(key){
+  const A=CONTENT&&CONTENT.actors&&CONTENT.actors.actors, a=A&&A[key];
+  if(!a){ flash('Story indisponible (contenu pas chargé).'); return; }
+  $('vcap').textContent = a.emoji+' '+a.nom+' — '+fillConcepts(rndFrom(a.captions,a.vibe||''));
+  const tone=toneFromReput(S.reput);
+  const cs=(a.seed_comments||[]).map(txt=>{ const v=genProfile(); return { nm:v.nm, av:v.av, txt:fillConcepts(txt), tone }; });
+  const amb=dayAmbiance(); if(amb) cs.unshift({ nm:a.nom, av:a.emoji, txt:amb, tone:'neutre' });  // ambiance de la nuit (events)
+  playComments(cs);   // réutilise le viewer + commentaires qui tombent
+}
 // protag = TYPE de protagoniste (visage récurrent), pas l'identité d'affichage de la foule
 function dmObj(id,v,kind,qty,ppu,msg,tone,protag){ return {id,nm:v.nm,av:v.av,kind,qty,ppu,msg,status:'pending',tone,protag,log:null}; }
-function buildDMs(good,bad,tone){
+function buildDMs(good,bad,tone,peakExpo){
   const out=[]; let id=0;
   const ppuG=Math.max(4,Math.round(C.PRIX_FAIR*(0.6+S.reput/120)));   // la demande paie selon la réput
   const ppuL=Math.max(3,Math.round(ppuG*C.LOWBALL_FACTOR));
@@ -614,6 +694,12 @@ function buildDMs(good,bad,tone){
   const push=(v,kind,qty,ppu,msg,protag)=>out.push(dmObj(id++,v,kind,qty,ppu,fillConcepts(msg.replace(/\{QTY\}/g,qty)),kind==='genuine'?tone:'mefi',protag));
   // L'ACCRO : toujours présent, quoi qu'il arrive (loyauté AVEUGLE = la blague noire), même réput à terre
   { const v=troupeVoice('accro'); push(v,'genuine',C.QTY_GENUINE[0],ppuG,accroLine(),'accro'); }
+  // LE GROSSISTE : attiré par ton BUZZ (expo) ; vient pour du gros volume à prix de gros (axe VOLUME)
+  if((peakExpo!=null?peakExpo:S.expo) >= C.GROSSISTE_SEUIL_EXPO){
+    const qty=Math.min(C.GROSSISTE_QTY_CAP, C.GROSSISTE_QTY_BASE+Math.floor((S.grossisteVolume||0)/C.GROSSISTE_QTY_STEP));
+    const ppuV=Math.max(3,Math.round(ppuG*C.GROSSISTE_FACTOR));
+    push(troupeVoice('grossiste'),'grossiste',qty,ppuV,grossisteLine(),'grossiste');
+  }
   // LA COMTESSE : présente seulement si GAGNÉE (fan) ; loyauté CONDITIONNÉE à la qualité ; paie le prix fort
   if(S.comtesseState==='fan'){ const v=troupeVoice('comtesse'); push(v,'genuine',2,Math.round(ppuG*1.6),dmOpenFor(v,'genuine',tone),'comtesse'); }
   // le reste de la demande : foule anonyme + faces cosmétiques (Kévin/Comtesse/Accro exclus, gérés ci-dessus)
@@ -643,6 +729,14 @@ function doDMAction(id, action){
       reply = replyFor(d, esc?'brade_escalade':'brade', esc ? "ahah encore toi le pigeon 😏 j'ramène TOUTE l'équipe" : "ahah merci bg 😏 je ramène les reufs");
       sys=`💸 +${tot}€ — mais brader devant ${FACE(d.protag).nm}, ça se sait…`; }
     else { t.refused++; d.status='refused'; reply=replyFor(d,'refuse',"pff radin va. 🙄"); sys="prix tenu — ton bassin reste sain."; }
+  } else if(d.kind==='grossiste'){
+    if(action==='volume'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.sold++; d.status='volume';
+      t.volume+=d.qty; t.volumeCash+=tot; S.grossisteVolume=(S.grossisteVolume||0)+d.qty;   // mémoire : volume cumulé
+      S.expo=clamp(S.expo+C.GROSSISTE_EXPO_COST,0,C.EXPO_CAP);          // heat de rue : co-effet PARALLÈLE du volume (immédiat)
+      const big=S.grossisteVolume>=120;
+      reply=replyFor(d, big?'volume_escalade':'volume', big?"toujours du lourd avec toi, à la prochaine 📦":"nickel, je reviens quand j'ai besoin de gros 📦");
+      sys=`💶 +${tot}€ (gros volume). Mais ça circule — heat de rue ↑.`; }
+    else { t.refused++; d.status='refused'; reply=replyFor(d,'refuse',"tant pis, je vois ailleurs pour le volume."); sys="volume refusé — pas de cash, mais pas de heat non plus."; }
   } else {
     if(action==='rdv'){ t.ghost++; d.status='ghost'; reply=replyFor(d,'rdv',"ouais ouais à 23h…"); sys="📍 RDV posé… 🦗 il n'est jamais venu. temps perdu."; }
     else { t.block++; d.status='block'; reply=replyFor(d,'block',''); sys="🚫 bloqué. inbox plus clean."; }
@@ -695,7 +789,7 @@ function renderHeader(){
   const blocks={hostile:'◦ ◦ ◦','mefi':'● ◦ ◦',neutre:'● ● ◦',chaleureux:'● ● ●'}[tone];
   const col={hostile:'var(--rust)','mefi':'var(--sodium)',neutre:'var(--muted)',chaleureux:'var(--green)'}[tone];
   const g=$('repGauge'); g.textContent=blocks; g.style.color=col;
-  $('buzz').textContent='buzz : '+(S.expo>C.EXPO_SEUIL_MAUVAIS_PUBLIC?'au-dessus du radar ⚠️':S.expo>30?'ça parle de toi':'tranquille');
+  $('buzz').textContent='buzz : '+buzzLabel();
 }
 function renderBody(){
   const b=$('body');
@@ -727,8 +821,8 @@ function renderBody(){
   b.innerHTML=h;
 }
 function statusPill(d){
-  if(d.status==='pending') return d.kind==='genuine'?'<span class="st go">répondre</span>':'<span class="st warn">⚠️</span>';
-  return ({sold:'<span class="st ok">vendu ✅</span>',brade:'<span class="st bad">bradé 💸</span>',
+  if(d.status==='pending') return d.kind==='genuine'?'<span class="st go">répondre</span>':d.kind==='grossiste'?'<span class="st warn">📦 voir</span>':'<span class="st warn">⚠️</span>';
+  return ({sold:'<span class="st ok">vendu ✅</span>',brade:'<span class="st bad">bradé 💸</span>',volume:'<span class="st bad">écoulé 📦</span>',
            refused:'<span class="st">refusé</span>',ghost:'<span class="st bad">🦗 posé</span>',
            block:'<span class="st">bloqué</span>'})[d.status]||'';
 }
@@ -740,14 +834,15 @@ function dmActsHTML(d){
   const tot=d.qty*d.ppu;
   if(d.kind==='genuine') return `<button class="dmbtn ok" data-act="sell">✅ Vendre ${d.qty} · ${tot}€</button><button class="dmbtn" data-act="refuse">✋ Refuser</button>`;
   if(d.kind==='lowball') return `<button class="dmbtn bad" data-act="brade">💸 Brader ${d.qty} · ${tot}€</button><button class="dmbtn" data-act="refuse">🧱 Tenir le prix</button>`;
+  if(d.kind==='grossiste') return `<button class="dmbtn bad" data-act="volume">📦 Écouler ${d.qty} · ${tot}€</button><button class="dmbtn" data-act="refuse">🧱 Refuser</button>`;
   return `<button class="dmbtn" data-act="rdv">📍 Poser un RDV</button><button class="dmbtn" data-act="block">🚫 Bloquer</button>`;
 }
 function openDM(id){
   const d=S.dms.find(x=>x.id===id); if(!d) return;
-  const sub = d.kind==='genuine'?('client · vibe '+toneWord(d.tone)) : d.kind==='lowball'?'négociateur 👀' : 'inconnu ???';
+  const sub = d.kind==='genuine'?('client · vibe '+toneWord(d.tone)) : d.kind==='lowball'?'négociateur 👀' : d.kind==='grossiste'?'grossiste 📦 — gros volume' : 'inconnu ???';
   $('dmview').innerHTML=`
-    <div class="dmhdr"><span class="dmback">‹</span><div class="av">${esc(d.av)}</div>
-      <div><div class="nm">${esc(d.nm)}</div><div class="sub">${sub}</div></div></div>
+    <div class="dmhdr" data-pnm="${esc(d.nm)}" data-pav="${esc(d.av)}" data-pprotag="${esc(d.protag||'client')}"><span class="dmback">‹</span><div class="av prof-link">${esc(d.av)}</div>
+      <div class="prof-link"><div class="nm">${esc(d.nm)}</div><div class="sub">${sub} · voir profil ›</div></div></div>
     <div class="dmbody" id="dmbody"><div class="bub in">${esc(d.msg)}</div></div>
     <div class="dmacts" id="dmacts" data-id="${d.id}">${dmActsHTML(d)}</div>`;
   if(d.log) for(const m of d.log) appendBub(m.cls,m.txt);   // rejoue l'échange si déjà résolu
@@ -758,7 +853,7 @@ function appendBub(cls,txt){ const bd=$('dmbody'); if(!bd||!txt) return;
   const e=document.createElement('div'); e.className='bub '+cls; e.textContent=txt; bd.appendChild(e); bd.scrollTop=bd.scrollHeight; }
 function handleDMBtn(act,id){
   const d=S.dms.find(x=>x.id===id); if(!d||d.status!=='pending') return;
-  const outTxt={sell:'Vendu. 🤝',refuse:'Non, pas aujourd’hui.',brade:'Bon ok, pour toi… 💸',rdv:'Ok je te pose un RDV.',block:''}[act];
+  const outTxt={sell:'Vendu. 🤝',refuse:'Non, pas aujourd’hui.',brade:'Bon ok, pour toi… 💸',volume:'Ok, je t’écoule ça. 📦',rdv:'Ok je te pose un RDV.',block:''}[act];
   const r=doDMAction(id,act);
   d.log=[];
   if(outTxt){ appendBub('out',outTxt); d.log.push({cls:'out',txt:outTxt}); }
@@ -776,8 +871,8 @@ function openContact(key){
     ? `<button class="dmbtn ok" data-reup="${esc(key)}">📣 Proposer l'arrivage (${C.REUP_QTY})</button><button class="dmbtn" data-act="close">Fermer</button>`
     : `<div class="dmdone">${why}</div>`;
   $('dmview').innerHTML=`
-    <div class="dmhdr"><span class="dmback">‹</span><div class="av">${esc(c.av)}</div>
-      <div><div class="nm">${esc(c.nm)}</div><div class="sub">carnet · ${c.buys} cmde${c.buys>1?'s':''} · ${goodwillVibe(c.goodwill)}</div></div></div>
+    <div class="dmhdr" data-pkey="${esc(key)}"><span class="dmback">‹</span><div class="av prof-link">${esc(c.av)}</div>
+      <div class="prof-link"><div class="nm">${esc(c.nm)}</div><div class="sub">carnet · ${c.buys} cmde${c.buys>1?'s':''} · ${goodwillVibe(c.goodwill)} · profil ›</div></div></div>
     <div class="dmbody" id="dmbody"><div class="bub sys">tu as son @ depuis vos deals. Le relancer trop souvent l'agace.</div></div>
     <div class="dmacts" id="dmacts" data-key="${esc(key)}">${acts}</div>`;
   if(c.log) for(const m of c.log) appendBub(m.cls,m.txt);
@@ -794,6 +889,83 @@ function handleReup(key){
   const a=$('dmacts'); if(a) a.innerHTML=`<div class="dmdone">${r.kind==='mute'?'🔇 il t\'a mute':'relancé'}</div>`;
   save();
 }
+// ---- PROFONDEUR DE PROFIL : la « carte » d'un user -------------------------
+// Le moteur définit les SLOTS ; le contenu les remplit. Authored (troupe) :
+// description(bio) / handle / tag / snaps[] / history[]. Foule : génériques par
+// archétype (crowd.json : bio_by_archetype / snaps_by_archetype) + historique
+// PROCÉDURAL dérivé du carnet (achats, dernier deal, relances). Tout opaque.
+const ARCH_OF={accro:'accro',comtesse:'connaisseur',kevin:'lowballer',sami:'regular',petit:'jeune',ancien:'ancien',flake:'flake',client:'regular',grossiste:'grossiste'};
+const TAG_OF={accro:'ACCRO',connaisseur:'CONNAISSEUR',lowballer:'LOWBALLER',regular:'CLIENT',jeune:'CURIEUX',ancien:'ANCIEN',flake:'FLAKE',curieux:'TOURISTE',grossiste:'GROSSISTE'};
+const BIO_FB={accro:"Toujours là, quoi qu'il arrive.",connaisseur:'Ne prend que le meilleur, paie le prix fort.',lowballer:'Négocie tout, ramène sa clique.',regular:'Habitué discret et fiable.',jeune:'Jeune curieux, impressionnable.',ancien:'Vieux routier, sec, a tout vu.',flake:'Pose un RDV, ne vient jamais.',curieux:'Vient par le buzz, repart au matin.',grossiste:'Écoule en gros. Vient quand ton buzz monte ; gros volume, prix de gros.'};
+function findFullProfile(nm,protag){ if(!TROUPE.length) return null;
+  return TROUPE.find(p=>p.id===protag&&p.pseudo===nm) || ((protag&&protag!=='client'&&protag!=='flake')?TROUPE.find(p=>p.id===protag):null); }
+function archetypeOf(protag,prof){ return (prof&&prof.archetype)||ARCH_OF[protag]||'regular'; }
+function bioOf(prof,arch){ if(prof&&prof.description) return prof.description;
+  const B=CONTENT&&CONTENT.crowd&&CONTENT.crowd.bio_by_archetype; return (B&&B[arch])||BIO_FB[arch]||'Profil du block.'; }
+function snapsOf(prof,arch,av){
+  if(prof&&prof.snaps&&prof.snaps.length) return prof.snaps.slice(0,6);
+  const SB=CONTENT&&CONTENT.crowd&&CONTENT.crowd.snaps_by_archetype;
+  if(SB&&SB[arch]&&SB[arch].length) return SB[arch].slice(0,6);
+  const es=(prof&&prof.emoji_signature)||[av||'📷'];                       // fallback : signature/avatar
+  return ['story','le block','la night','arrivage','un deal','vu'].map((c,i)=>({emoji:es[i%es.length]||'📷',cap:c}));
+}
+// sélection STABLE (déterministe par seed, sans état ni Math.random) — n items consécutifs
+function pickStable(arr,seed,n){ let h=0; for(let i=0;i<seed.length;i++) h=(h*31+seed.charCodeAt(i))>>>0;
+  const L=arr.length; n=Math.min(n,L); const out=[]; for(let i=0;i<n;i++) out.push(arr[(h+i)%L]); return out; }
+// historiques de la FOULE (lot 3 : histories.by_archetype) — stables par pseudo
+function fouleHistory(nm,arch){ const H=CONTENT&&CONTENT.histories; if(!H) return [];
+  const pool=(H.by_archetype&&H.by_archetype[arch])||H.generic||[]; if(!pool.length) return [];
+  return pickStable(pool,nm||arch,3).map(fillConcepts); }
+// ambiance de la NUIT (lot 3 : events) — une occasion/saison par jour, déterministe, présentation pure
+function dayAmbiance(){ const E=CONTENT&&CONTENT.events; if(!E) return null;
+  const b=[]; if(E.occasions) for(const k in E.occasions) b.push(E.occasions[k]); if(E.saisons) for(const k in E.saisons) b.push(E.saisons[k]);
+  if(!b.length) return null; const bk=b[S.jour%b.length], caps=bk&&bk.captions||[]; if(!caps.length) return null;
+  return fillConcepts(caps[S.jour%caps.length]); }
+function timelineOf(prof,pool,nm,arch){
+  const ev=[];
+  if(prof&&prof.history) ev.push(...prof.history);            // troupe : historique authored
+  else ev.push(...fouleHistory(nm,arch));                     // foule : blips d'archétype (lot 3)
+  if(pool){ if(pool.buys) ev.push(`${pool.buys} commande${pool.buys>1?'s':''} avec toi au total`);
+    if(pool.lastBuy) ev.push(`dernier deal — il y a ${Math.max(0,S.jour-pool.lastBuy)}j`);
+    if(pool.lastContact) ev.push(`relancé — il y a ${Math.max(0,S.jour-pool.lastContact)}j`); }
+  if(!ev.length) ev.push("nouveau dans ton réseau — pas encore d'histoire.");
+  return ev;
+}
+function openProfile(src){
+  const pool = src.key ? S.pool.find(x=>x.key===src.key) : S.pool.find(x=>x.nm===src.nm&&x.archetype===src.protag);
+  const nm=src.nm||(pool&&pool.nm)||'?', av=src.av||(pool&&pool.av)||'👤', protag=src.protag||(pool&&pool.archetype)||'client';
+  const prof=findFullProfile(nm,protag), arch=archetypeOf(protag,prof), handle=(prof&&prof.handle)||'';
+  const snaps=snapsOf(prof,arch,av), tl=timelineOf(prof,pool,nm,arch);
+  let relHTML='';
+  if(pool){ const gv=goodwillVibe(pool.goodwill).split(' '), seen=pool.lastBuy?('il y a '+Math.max(0,S.jour-pool.lastBuy)+'j'):'—';
+    relHTML=`<div class="prel">
+      <div class="it"><b>${pool.buys||0}</b><span>commande${(pool.buys||0)>1?'s':''}</span></div>
+      <div class="it"><b>${esc(gv[1]||'·')}</b><span>${esc(gv[0]||'vibe')}</span></div>
+      <div class="it"><b>${pool.pref==='premium'?'👑':'—'}</b><span>${pool.pref==='premium'?'premium':'standard'}</span></div>
+      <div class="it"><b>${esc(seen)}</b><span>dernier deal</span></div></div>`; }
+  let actHTML='';
+  if(pool){ actHTML = canReup(pool)
+    ? `<div class="pact"><button data-reup-key="${esc(pool.key)}">📣 Proposer l'arrivage (${C.REUP_QTY})</button></div>`
+    : `<div class="pact"><div class="done">${pool.lastBuy===S.jour?'déjà servi aujourd\'hui':'déjà relancé aujourd\'hui'}</div></div>`; }
+  $('profile').innerHTML=`
+    <div class="phdr"><span class="pback">‹</span><div class="ttl">profil</div></div>
+    <div class="pcard">
+      <div class="pav">${esc(av)}</div>
+      <div class="pnm">${esc(nm)}</div>
+      ${handle?`<div class="phandle">${esc(handle)}</div>`:''}
+      <div class="ptag">${esc(TAG_OF[arch]||(prof&&prof.tag)||'CLIENT')}</div>
+    </div>
+    <div class="pbio">${esc(fillConcepts(bioOf(prof,arch)))}</div>
+    ${relHTML}
+    <div class="psec">SNAPS PASSÉS</div>
+    <div class="psnaps">${snaps.map(s=>`<div class="psnap"><div class="e">${esc(s.emoji||'📷')}</div><div class="c">${esc(fillConcepts(s.cap||''))}</div></div>`).join('')}</div>
+    <div class="psec">HISTORIQUE</div>
+    <div class="ptl">${tl.map(e=>`<div class="ev">${esc(fillConcepts(e))}</div>`).join('')}</div>
+    ${actHTML}`;
+  $('profile').classList.add('show');
+}
+function closeProfile(){ $('profile').classList.remove('show'); }
+
 function renderDock(){ document.querySelectorAll('#batch .chip').forEach(c=>c.dataset.on=(c.dataset.q===S.qualiteChoisie)?'1':'0'); }
 function esc(s){ return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
@@ -860,24 +1032,33 @@ $('story-mine').addEventListener('click',openComposer);
 $('composeX').addEventListener('click',closeComposer);
 document.querySelectorAll('#scompose .opt').forEach(o=>o.addEventListener('click',()=>{
   const kind=o.dataset.post; closeComposer();
-  const cs=posterVitrine(kind); refresh();
-  playComments(cs, ()=>{ flash(kind==='premium'?'Drop PREMIUM posté. Faut assurer derrière 👀':kind==='normal'?'Drop posté.':'Vitrine postée.'); });
+  const cs=posterVitrine(kind);
+  const cap=vcapFor(kind); if(cap) $('vcap').textContent=cap;   // légende de vitrine (vcap.json)
+  refresh();
+  playComments(cs, ()=>{ flash(postReactionFlash(kind)); });
 }));
+document.querySelectorAll('.story[data-actor]').forEach(s=>s.addEventListener('click',()=>openActorStory(s.dataset.actor)));
 $('btnDay').addEventListener('click',()=>{
   const { cons, comments } = passerJournee();
   refresh();
   playComments(comments, ()=>showReport(cons));
 });
 $('body').addEventListener('click',e=>{
-  const contact=e.target.closest('.contact[data-key]'); if(contact){ openContact(contact.dataset.key); return; }
+  const contact=e.target.closest('.contact[data-key]'); if(contact){ openProfile({key:contact.dataset.key}); return; }  // carnet → profil (depth-first)
   const row=e.target.closest('.conv[data-id]'); if(row) openDM(+row.dataset.id);
 });
 $('dmview').addEventListener('click',e=>{
+  const pl=e.target.closest('.prof-link');                                   // tap nom/avatar → profil
+  if(pl){ const h=e.target.closest('.dmhdr'); if(h){ h.dataset.pkey?openProfile({key:h.dataset.pkey}):openProfile({nm:h.dataset.pnm,av:h.dataset.pav,protag:h.dataset.pprotag}); } return; }
   if(e.target.closest('.dmback')){ closeDM(); return; }
   const btn=e.target.closest('.dmbtn'); if(!btn) return;
   if(btn.dataset.reup){ handleReup(btn.dataset.reup); return; }
   if(btn.dataset.act==='close'){ closeDM(); return; }
   handleDMBtn(btn.dataset.act, +$('dmacts').dataset.id);
+});
+$('profile').addEventListener('click',e=>{
+  if(e.target.closest('.pback')){ closeProfile(); return; }
+  const rb=e.target.closest('[data-reup-key]'); if(rb){ closeProfile(); openContact(rb.dataset.reupKey); }   // relance via le fil carnet
 });
 $('btnReset').addEventListener('click',()=>{ if(confirm('Reset le proto ?')){ S=fresh(); save(); refresh(); flash('Reset.'); } });
 

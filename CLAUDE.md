@@ -55,6 +55,11 @@ marque *abrogée* (date + motif) pour garder la trace de la décision.
 
 ### Règles ajoutées
 
+**Définition** — un *mini-jeu* = toute action qui demande l'**intervention
+manuelle** du joueur, à commencer par un effet de **manipulation du produit**.
+Trois critères : l'**enjeu est explicite**, l'**interaction simple**, et la
+**conséquence immédiate** (impact **micro**, pas macro).
+
 - **R1 — Les mini-jeux servent le ressenti, pas la punition** _(2026-06-22)_.
   Un mini-jeu existe pour faire **sentir** l'action en l'exécutant à la main ;
   ce n'est **pas** un test d'adresse. **Rater n'inflige aucun malus** — au pire
@@ -70,6 +75,44 @@ marque *abrogée* (date + motif) pour garder la trace de la décision.
   *Raison* : la frustration résiduelle est un moteur d'achat d'outils et un fil
   de progression — du « faire à la main » vers le « piloter » —, jamais une
   punition.
+- **R3 — Le tactile EST le plaisir** _(2026-06-27)_.
+  Chaque corvée de production doit être un **mini-jeu tactile satisfaisant** :
+  c'est le **geste** qui régale (leçon *Schedule I*, « le crafting qui ne suce
+  pas »). *Raison* : si produire est un plaisir de la main, la boucle se tient
+  d'elle-même.
+- **R4 — Déterminisme obligatoire** _(2026-06-27)_.
+  Le résultat d'un mini-jeu est **prévisible et traçable, jamais randomisé** :
+  **skill oui, hasard non**. Le skill **module la récompense**, il ne **punit**
+  pas (cohérent avec R1). *Anti-exemple fondateur* : la vente de *The Boss
+  Gangster* (vol aléatoire, prix au jeu d'adresse, comportements imprévisibles)
+  = frustration. *Raison* : le joueur doit pouvoir relier son résultat à son geste.
+- **R5 — Satisfaction(t) décroissante** _(2026-06-27)_.
+  Le plaisir d'un mini-jeu **diminue avec la maîtrise** ; il n'est pas éternel.
+  *Raison* : c'est ce qui justifie, le moment venu, de pouvoir déléguer (R6).
+- **R6 — La vanne de délégation** _(2026-06-27)_.
+  Quand la satisfaction tombe à zéro, le joueur **peut déléguer** ce mini-jeu —
+  son **choix**, pas un automatisme imposé. Il garde la main tant que ça régale ;
+  on délègue en priorité la **répétition sans plaisir**. *Raison* :
+  l'automatisation libère de la corvée, jamais de la décision.
+- **R7 — Règle d'or** _(2026-06-27)_.
+  **Automatise la satisfaction épuisée, jamais la décision vivante ; bannis le
+  hasard.** *Raison* : synthèse de R4+R5+R6, boussole de tout nouveau mini-jeu.
+- **R8 — Un mini-jeu doit porter une décision** _(2026-06-27)_.
+  Le cœur de jeu = la case « **satisfaction haute + déterministe** ». Un mini-jeu
+  qui ne porte plus de décision devient **candidat à la délégation**. *Raison* :
+  on garde sous la main du joueur ce qui **arbitre**, on délègue le reste.
+- **R9 — L'équilibrage est systémique, pas local** _(2026-06-27)_.
+  Un outil plus performant **réduit une friction** (ex. tri manuel → semi-auto) ;
+  cette baisse doit être **compensée** par un nouveau challenge / critère, ou par
+  la **croissance des existants**. Ce n'est pas l'activité qui se re-corse, c'est
+  le **jeu dans son ensemble** qui tient sa tension. *Raison* : remplace l'idée
+  écartée d'un geste qui durcit en boucle (qui contredirait R5) ; la tension se
+  règle au niveau **système**, pas au niveau du geste.
+- **R10 — La coupe : un levier de décision, pas forcément un mini-jeu** _(2026-06-27)_.
+  La coupe **n'est pas forcément un mini-jeu**, mais reste un **facteur à la
+  décision** du joueur : c'est le **levier qualité/pureté** (manipulation manuelle
+  *possible* mais **pas obligatoire**). *Raison* : le levier unique de qualité
+  doit exister comme **choix**, qu'on l'incarne ou non dans un geste manuel.
 
 ## Ajouter un nouveau core loop (checklist)
 

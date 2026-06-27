@@ -9,26 +9,69 @@ Les entrées les plus récentes en haut.
 
 ---
 
-## 2026-06-24 — Ecstasy : rééquilibrage R1/R2 (le rythme ne touche plus l'éco)
+## 2026-06-27 — Ecstasy : conformité aux règles mini-jeux (rythme = ressenti pur)
 
-Relecture du proto à l'aune des règles fraîches. Deux écarts corrigés :
+Relecture du proto à l'aune des règles (R1/R2 d'abord, confirmé ensuite par
+R3→R10). Trois écarts corrigés :
 
-- **R1 (pas un test d'adresse)** : la presse cadencée donnait un *bonus de
-  rendement* indexé sur la précision → ça faisait du rythme une épreuve
-  d'adresse récompensée. Supprimé. Désormais **qualité ET volume ne dépendent
-  que de la coupe** (charge + taux de liant) ; le rythme est **100 % ressenti**
-  (combo/feedback visuel), zéro effet économique — ni bonus, ni malus.
-  Conséquence cohérente : presse manuelle et presse auto produisent le **même**
-  lot ; l'automatisation, c'est *moins d'effort*, pas *plus de rendement*.
-- **R2 (chaque palier allège)** : mes paliers manuels *durcissaient* le geste
-  (fenêtre qui rétrécit, curseur plus rapide). Inversé : chaque palier réduit le
-  nombre de frappes et **élargit** la fenêtre (T1 8 frappes/0,22 → T2 5/0,32 →
-  T3 3/0,44), puis T4 automatise, T5 externalise.
-- **R1 ergonomie** : ajout d'un bouton **« vider la cuve »** — un sur-versage de
-  liant n'est plus verrouillé, la coupe reste une décision réversible.
+- **R1 (pas un test d'adresse)** : la presse donnait un *bonus de rendement*
+  indexé sur la précision → ça en faisait une épreuve d'adresse. Supprimé.
+  **Qualité ET volume ne dépendent que de la coupe** (charge + taux de liant) ;
+  le rythme est **100 % ressenti** (combo/feedback), zéro effet éco — ni bonus,
+  ni malus. Manuelle et auto produisent le **même** lot : l'auto = *moins
+  d'effort*, pas *plus de rendement*.
+  *Nota R4* : le skill *pourrait* moduler la récompense (vers le haut, jamais
+  punir) ; j'ai choisi le ressenti pur pour ce proto — un skill-reward non
+  punitif reste réintroductible si on le souhaite.
+- **R2 / R9 (les paliers allègent, la tension vit au niveau système)** : mes
+  paliers manuels *durcissaient* le geste (fenêtre + étroite, curseur + rapide).
+  Inversé : moins de frappes + fenêtre **plus large** à chaque palier
+  (T1 8/0,22 → T2 5/0,32 → T3 3/0,44), puis T4 automatise, T5 externalise. C'est
+  exactement R9 : ce n'est pas le geste qui se re-corse.
+- **R1 ergonomie / R10** : bouton **« vider la cuve »** — le sur-versage de liant
+  n'est plus verrouillé ; la coupe reste un **levier de décision réversible**.
 
-`SAVE_VERSION` bumpée (1 → 2). Vérifs : `node --check` OK, capture headless +
-smoke test (pour → presse → tri → rapport) sans erreur.
+`SAVE_VERSION` 1 → 2. Vérifs : `node --check` OK, capture headless + smoke test
+(pour → presse → tri → rapport) sans erreur.
+
+---
+
+## 2026-06-27 — set de règles mini-jeux (R3→R10) + définition
+
+Acté en session, formalisé dans `CLAUDE.md`. **Définition** posée en tête des
+règles : un *mini-jeu* = toute action demandant l'**intervention manuelle** du
+joueur, à commencer par un effet de **manipulation du produit** — avec trois
+critères : **enjeu explicite**, **interaction simple**, **conséquence immédiate**
+(impact **micro**, pas macro). Idées-forces :
+
+- **Le tactile EST le plaisir** (R3) — leçon *Schedule I* : un crafting qui
+  « ne suce pas ». La corvée de prod doit régaler par le **geste**.
+- **Déterminisme** (R4) — *skill oui, hasard non*. Anti-exemple fondateur : la
+  vente de *The Boss Gangster* (vol aléatoire, prix au jeu d'adresse,
+  comportements imprévisibles) = frustration. Le résultat se relie au geste ;
+  le skill module la récompense, il ne punit pas.
+- **Cycle satisfaction → délégation** (R5/R6/R8) — le plaisir décroît avec la
+  maîtrise ; quand il tombe à zéro, le joueur *choisit* de déléguer (jamais
+  imposé). On délègue la **répétition sans plaisir**, jamais la décision : le
+  cœur de jeu est la case « satisfaction haute + déterministe ».
+- **Règle d'or** (R7) — automatise la satisfaction épuisée, jamais la décision
+  vivante ; bannis le hasard.
+
+Aller-retour assumé (proposées → annulées → **réécrites et réintroduites**) :
+
+- « Paliers = re-corser » devient **R9** : l'équilibrage est **systémique**, pas
+  local. Ce n'est pas l'activité qui se re-corse (ça contredirait R5), c'est le
+  **jeu entier** qui tient sa tension — une friction réduite par un outil est
+  compensée ailleurs (nouveau critère ou croissance des existants).
+- « Qualité/pureté = levier de coupe » devient **R10** : la coupe n'est pas
+  forcément un mini-jeu, mais reste un **facteur à la décision** (levier
+  qualité/pureté ; manipulation manuelle possible, pas obligatoire). Cohérent
+  avec le levier unique décrit en contexte dans l'entrée Ecstasy du 24/06.
+
+Cohérence avec l'existant :
+
+- R4 (skill oui) **ne contredit pas** R1 (« pas un test d'adresse *punitif* ») :
+  le skill module la **récompense**, jamais un malus. R1 reste valable, non abrogée.
 
 ---
 
