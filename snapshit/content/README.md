@@ -29,28 +29,23 @@ et le code source de vérité **`../index.html`**. Tout ici est de la **présent
   car genres mixtes → s'emploient **sans** article ajouté : `c'est {QUALITY_BAD}`, `de la {QUALITY_GOOD}` non.
 - Réput **opaque** : zéro chiffre de cote/followers ; la cote = le **ton**.
 
-## ⚠️ Écarts à traiter côté MOTEUR (le code prime — signalés, non codés ici)
+## Écarts MOTEUR — état (le code prime)
 
-1. **Le loader ne lit pas `QUALITY_*`.** `index.html` ne `grab()` que
-   `SELL_POINT/CUSTOMER/CANNABIS_WEED/MONEY` depuis le JSON. Les nouveaux
-   `QUALITY_GOOD`/`QUALITY_BAD` (ajoutés au dico) **ne seront pas fusionnés** tant que
-   `grab('QUALITY_GOOD','QUALITY_GOOD')` et `grab('QUALITY_BAD','QUALITY_BAD')` ne sont pas
-   ajoutés. En attendant, le fallback embarqué (`DICO`) reste la source pour ces deux concepts.
-2. **`content/*.json` n'est pas encore chargé.** Le moteur a `MSG`/`LINES`/`accroLine`/
-   `doDMAction`/`reup` **en dur**. Pour consommer `profiles.json`/`lines.json`/`crowd.json`,
-   il faut un chargeur (un `fetch` + merge analogue au loader du dico). C'est du **code moteur**
-   (hors périmètre data) : décrit, pas câblé.
-3. **Convention d'article incohérente dans les `LINES` existantes.** Certains gabarits du code
-   préfixent l'article (`les {CUSTOMER}`) en supposant un terme bare pluriel, d'autres non.
-   Au moment du câblage, harmoniser (les nouveaux `lines.json` suivent la convention « article
-   dans le gabarit » + `CUSTOMER` pluriel).
+1. ✅ **RÉSOLU — le loader lit `QUALITY_*`.** `index.html` fait désormais
+   `grab('QUALITY_GOOD','QUALITY_GOOD')` / `grab('QUALITY_BAD','QUALITY_BAD')` : les deux concepts
+   du dico (v2) sont fusionnés. Le fallback embarqué (`DICO`) reste le filet hors-ligne.
+2. ✅ **RÉSOLU — `content/*.json` est chargé.** Au boot, `fetch` + `CONTENT` consomment
+   `profiles/lines/crowd/vcap/reactions/actors/histories/events` : profils (`applyProfiles`),
+   foule (`genProfile`/crowd), historiques & ambiance (`fouleHistory`/`dayAmbiance`) et l'écran
+   profil. Le contenu n'est plus en dur.
+3. **Convention d'article dans les `LINES` historiques** *(à surveiller)*. Certains gabarits du
+   code préfixent l'article (`les {CUSTOMER}`) en supposant un terme bare pluriel, d'autres non.
+   Les `lines.json` suivent la convention « article dans le gabarit » + `CUSTOMER` pluriel.
 4. **`chic`** a été ajouté à `meta.registres` du dico (v2) pour distinguer Comtesse (chic) de Kévin (cite).
-5. **Écran profil (grille `snaps` + `bio`) pas encore câblé.** `index.html` charge déjà
-   `profiles/lines/crowd` (`applyProfiles`) et `grab('QUALITY_*')` est en place, mais aucun rendu
-   ne lit `snaps` (profils) ni `snaps_by_archetype`/`bio_by_archetype` (foule) ; `genProfile`
-   ne renvoie que `{nm,av}`. Ces champs sont donc **data dormante** prête pour cet écran.
-   NB : le contrat `ARCHETYPES_AND_USER_DATA.md` ne contient pas (encore) la **§11** référencée
-   par la tâche — spec reprise depuis la consigne (3 slots : `snaps`, `snaps_by_archetype`, `bio_by_archetype`).
+5. ✅ **RÉSOLU — écran profil câblé.** `openProfile()` rend la grille SNAPS et la bio :
+   `profil.snaps` → `crowd.snaps_by_archetype[arch]` → fallback ; `profil.description` →
+   `crowd.bio_by_archetype[arch]` → fallback (bio **et** caps passées à `fillConcepts`, donc les
+   gabarits `{CONCEPT}` s'expansent). Le contrat documente ces 3 slots en **§11**. Données **live**.
 
 ## Périmètre figé (v1)
 
