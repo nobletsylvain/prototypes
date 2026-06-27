@@ -9,6 +9,29 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-06-24 — Ecstasy : rééquilibrage R1/R2 (le rythme ne touche plus l'éco)
+
+Relecture du proto à l'aune des règles fraîches. Deux écarts corrigés :
+
+- **R1 (pas un test d'adresse)** : la presse cadencée donnait un *bonus de
+  rendement* indexé sur la précision → ça faisait du rythme une épreuve
+  d'adresse récompensée. Supprimé. Désormais **qualité ET volume ne dépendent
+  que de la coupe** (charge + taux de liant) ; le rythme est **100 % ressenti**
+  (combo/feedback visuel), zéro effet économique — ni bonus, ni malus.
+  Conséquence cohérente : presse manuelle et presse auto produisent le **même**
+  lot ; l'automatisation, c'est *moins d'effort*, pas *plus de rendement*.
+- **R2 (chaque palier allège)** : mes paliers manuels *durcissaient* le geste
+  (fenêtre qui rétrécit, curseur plus rapide). Inversé : chaque palier réduit le
+  nombre de frappes et **élargit** la fenêtre (T1 8 frappes/0,22 → T2 5/0,32 →
+  T3 3/0,44), puis T4 automatise, T5 externalise.
+- **R1 ergonomie** : ajout d'un bouton **« vider la cuve »** — un sur-versage de
+  liant n'est plus verrouillé, la coupe reste une décision réversible.
+
+`SAVE_VERSION` bumpée (1 → 2). Vérifs : `node --check` OK, capture headless +
+smoke test (pour → presse → tri → rapport) sans erreur.
+
+---
+
 ## 2026-06-24 — nouveau proto « Ecstasy — Presse Cadencée »
 
 Core loop ecsta ajouté (`ecstasy-press/`), variation V1 d'un brief à 3 options
