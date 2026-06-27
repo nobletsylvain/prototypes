@@ -9,9 +9,11 @@ Les entrées les plus récentes en haut.
 
 ---
 
-## 2026-06-27 — set de règles mini-jeux (R3→R8)
+## 2026-06-27 — set de règles mini-jeux (R3→R10) + définition
 
-Acté en session, formalisé dans `CLAUDE.md`. Idées-forces :
+Acté en session, formalisé dans `CLAUDE.md`. **Définition** posée en tête des
+règles : un *mini-jeu* = toute action demandant l'**intervention manuelle** du
+joueur, à commencer par un effet de **manipulation du produit**. Idées-forces :
 
 - **Le tactile EST le plaisir** (R3) — leçon *Schedule I* : un crafting qui
   « ne suce pas ». La corvée de prod doit régaler par le **geste**.
@@ -26,13 +28,16 @@ Acté en session, formalisé dans `CLAUDE.md`. Idées-forces :
 - **Règle d'or** (R7) — automatise la satisfaction épuisée, jamais la décision
   vivante ; bannis le hasard.
 
-Écartées de la formalisation (proposées en séance, **annulées** par le porteur) :
+Aller-retour assumé (proposées → annulées → **réécrites et réintroduites**) :
 
-- « Paliers = re-corser » (chaque upgrade ajoute rendement ET tension) — non
-  retenue comme règle.
-- « Qualité/pureté = levier décidé dans la coupe » — non retenue comme règle ;
-  le principe du **levier unique** reste décrit, en contexte, dans l'entrée
-  Ecstasy du 24/06 ci-dessous.
+- « Paliers = re-corser » devient **R9** : l'équilibrage est **systémique**, pas
+  local. Ce n'est pas l'activité qui se re-corse (ça contredirait R5), c'est le
+  **jeu entier** qui tient sa tension — une friction réduite par un outil est
+  compensée ailleurs (nouveau critère ou croissance des existants).
+- « Qualité/pureté = levier de coupe » devient **R10** : la coupe n'est pas
+  forcément un mini-jeu, mais reste un **facteur à la décision** (levier
+  qualité/pureté ; manipulation manuelle possible, pas obligatoire). Cohérent
+  avec le levier unique décrit en contexte dans l'entrée Ecstasy du 24/06.
 
 Cohérence avec l'existant :
 

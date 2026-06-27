@@ -55,6 +55,9 @@ marque *abrogée* (date + motif) pour garder la trace de la décision.
 
 ### Règles ajoutées
 
+**Définition** — un *mini-jeu* = toute action qui demande l'**intervention
+manuelle** du joueur, à commencer par un effet de **manipulation du produit**.
+
 - **R1 — Les mini-jeux servent le ressenti, pas la punition** _(2026-06-22)_.
   Un mini-jeu existe pour faire **sentir** l'action en l'exécutant à la main ;
   ce n'est **pas** un test d'adresse. **Rater n'inflige aucun malus** — au pire
@@ -96,6 +99,18 @@ marque *abrogée* (date + motif) pour garder la trace de la décision.
   Le cœur de jeu = la case « **satisfaction haute + déterministe** ». Un mini-jeu
   qui ne porte plus de décision devient **candidat à la délégation**. *Raison* :
   on garde sous la main du joueur ce qui **arbitre**, on délègue le reste.
+- **R9 — L'équilibrage est systémique, pas local** _(2026-06-27)_.
+  Un outil plus performant **réduit une friction** (ex. tri manuel → semi-auto) ;
+  cette baisse doit être **compensée** par un nouveau challenge / critère, ou par
+  la **croissance des existants**. Ce n'est pas l'activité qui se re-corse, c'est
+  le **jeu dans son ensemble** qui tient sa tension. *Raison* : remplace l'idée
+  écartée d'un geste qui durcit en boucle (qui contredirait R5) ; la tension se
+  règle au niveau **système**, pas au niveau du geste.
+- **R10 — La coupe : un levier de décision, pas forcément un mini-jeu** _(2026-06-27)_.
+  La coupe **n'est pas forcément un mini-jeu**, mais reste un **facteur à la
+  décision** du joueur : c'est le **levier qualité/pureté** (manipulation manuelle
+  *possible* mais **pas obligatoire**). *Raison* : le levier unique de qualité
+  doit exister comme **choix**, qu'on l'incarne ou non dans un geste manuel.
 
 ## Ajouter un nouveau core loop (checklist)
 
