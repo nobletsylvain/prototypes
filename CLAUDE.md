@@ -57,6 +57,8 @@ marque *abrogée* (date + motif) pour garder la trace de la décision.
 
 **Définition** — un *mini-jeu* = toute action qui demande l'**intervention
 manuelle** du joueur, à commencer par un effet de **manipulation du produit**.
+Trois critères : l'**enjeu est explicite**, l'**interaction simple**, et la
+**conséquence immédiate** (impact **micro**, pas macro).
 
 - **R1 — Les mini-jeux servent le ressenti, pas la punition** _(2026-06-22)_.
   Un mini-jeu existe pour faire **sentir** l'action en l'exécutant à la main ;

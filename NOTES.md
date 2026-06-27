@@ -13,7 +13,9 @@ Les entrées les plus récentes en haut.
 
 Acté en session, formalisé dans `CLAUDE.md`. **Définition** posée en tête des
 règles : un *mini-jeu* = toute action demandant l'**intervention manuelle** du
-joueur, à commencer par un effet de **manipulation du produit**. Idées-forces :
+joueur, à commencer par un effet de **manipulation du produit** — avec trois
+critères : **enjeu explicite**, **interaction simple**, **conséquence immédiate**
+(impact **micro**, pas macro). Idées-forces :
 
 - **Le tactile EST le plaisir** (R3) — leçon *Schedule I* : un crafting qui
   « ne suce pas ». La corvée de prod doit régaler par le **geste**.
