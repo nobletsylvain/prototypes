@@ -9,6 +9,45 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-06-27 — set de règles mini-jeux (R3→R10) + définition
+
+Acté en session, formalisé dans `CLAUDE.md`. **Définition** posée en tête des
+règles : un *mini-jeu* = toute action demandant l'**intervention manuelle** du
+joueur, à commencer par un effet de **manipulation du produit** — avec trois
+critères : **enjeu explicite**, **interaction simple**, **conséquence immédiate**
+(impact **micro**, pas macro). Idées-forces :
+
+- **Le tactile EST le plaisir** (R3) — leçon *Schedule I* : un crafting qui
+  « ne suce pas ». La corvée de prod doit régaler par le **geste**.
+- **Déterminisme** (R4) — *skill oui, hasard non*. Anti-exemple fondateur : la
+  vente de *The Boss Gangster* (vol aléatoire, prix au jeu d'adresse,
+  comportements imprévisibles) = frustration. Le résultat se relie au geste ;
+  le skill module la récompense, il ne punit pas.
+- **Cycle satisfaction → délégation** (R5/R6/R8) — le plaisir décroît avec la
+  maîtrise ; quand il tombe à zéro, le joueur *choisit* de déléguer (jamais
+  imposé). On délègue la **répétition sans plaisir**, jamais la décision : le
+  cœur de jeu est la case « satisfaction haute + déterministe ».
+- **Règle d'or** (R7) — automatise la satisfaction épuisée, jamais la décision
+  vivante ; bannis le hasard.
+
+Aller-retour assumé (proposées → annulées → **réécrites et réintroduites**) :
+
+- « Paliers = re-corser » devient **R9** : l'équilibrage est **systémique**, pas
+  local. Ce n'est pas l'activité qui se re-corse (ça contredirait R5), c'est le
+  **jeu entier** qui tient sa tension — une friction réduite par un outil est
+  compensée ailleurs (nouveau critère ou croissance des existants).
+- « Qualité/pureté = levier de coupe » devient **R10** : la coupe n'est pas
+  forcément un mini-jeu, mais reste un **facteur à la décision** (levier
+  qualité/pureté ; manipulation manuelle possible, pas obligatoire). Cohérent
+  avec le levier unique décrit en contexte dans l'entrée Ecstasy du 24/06.
+
+Cohérence avec l'existant :
+
+- R4 (skill oui) **ne contredit pas** R1 (« pas un test d'adresse *punitif* ») :
+  le skill module la **récompense**, jamais un malus. R1 reste valable, non abrogée.
+
+---
+
 ## 2026-06-24 — nouveau proto « Ecstasy — Presse Cadencée »
 
 Core loop ecsta ajouté (`ecstasy-press/`), variation V1 d'un brief à 3 options
