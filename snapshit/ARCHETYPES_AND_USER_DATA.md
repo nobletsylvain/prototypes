@@ -105,6 +105,7 @@ simple « skin » tant que le code ne lui attache pas de conséquence (à signal
 | `accro` | L'accro 😵 | genuine (spécial) | son **manque** : `accroStreak` ↑ chaque jour → demande qui escalade ; plancher de la demande (toujours là) | `REUP_BASE.accro = 1` (reprend toujours) |
 | `comtesse` | La Comtesse 👑 | genuine (spécial) | tes **promesses premium** : trahie (cry-wolf premium) → `comtesseState='parti'` (te lâche, quitte le bassin) ; promesse premium tenue → `'fan'` (revient, paie ~×1.6) | `REUP_BASE.comtesse = 0.65`, `pref:"premium"` |
 | `kevin` | Kévin 🧃 | lowball | combien de fois tu l'as **bradé** : `protagBrade.kevin` ; au 3e bradage il « ramène toute l'équipe » (escalade mauvais public) | ouvre toujours le bal des lowballers |
+| `grossiste` | Le Grossiste 📦 | grossiste (spécial) | **volume cumulé** écoulé : `grossisteVolume` ; demande/ton escaladent (paliers 40/120) | apparaît si `expo ≥ GROSSISTE_SEUIL_EXPO` (buzz) ; action `volume` → cash + `expo += GROSSISTE_EXPO_COST` (heat de rue, **co-effet parallèle**) ; pas de carnet |
 | `sami` | Sami 🧢 | genuine | rien (extensible) — le « régulier » fiable | `REUP_BASE.sami = 0.75` |
 | `petit` | Le petit du 4 🧒 | genuine | rien — le jeune curieux/naïf | `REUP_BASE.petit = 0.6` |
 | `ancien` | L'ancien 🚬 | genuine | rien — le vieux routier, sec, désabusé | `REUP_BASE.ancien = 0.45` (relancable mais distant) |
@@ -333,7 +334,7 @@ produis pas.
 
 | candidat | visage | mémoire / conséquence visée | à coder | garde-fou |
 |---|---|---|---|---|
-| `grossiste` | 📦 | se souvient des **gros volumes** écoulés ; revient pour du volume, sensible au prix unitaire | état « volume cumulé » + ligne de relance volume ; co-effet heat de rue (déjà parallèle au volume) | ne pas chaîner « moins de ventes → heat » ; volume et heat restent **co-effets parallèles** |
+| ~~`grossiste`~~ | 📦 | **CODÉ** _(promu §2)_ : `grossisteVolume` cumulé ; apparaît au buzz, action `volume` → cash + heat de rue (`expo`), **parallèle** | — | respecté : volume et heat = co-effets parallèles, pas de chaîne |
 | `touriste` | 🧳 | **volatil** : vient par le **buzz/expo**, repart ; zéro fidélité ; nourrit le mauvais public quand l'expo grimpe | gate sur `expo` ; pas de carnet (ou goodwill qui s'évapore) | pure présentation côté texte ; l'état vient de `expo`, pas du hasard |
 | `balance` | 🐀 | se souvient d'avoir été **grillé/bloqué** ; conséquence différée et tracée | mémoire « bloqué N fois » → mauvais public/réput différé | ⚠️ touche au pilier **heat** — Snapshit = heat de rue **conso**, **pas** autorités ; valider contre le périmètre strict avant tout code |
 

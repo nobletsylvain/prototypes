@@ -287,7 +287,7 @@
 // ============================================================================
 // SNAPSHIT — refonte sur le châssis crimworld/. Voir commentaire d'en-tête.
 // ============================================================================
-const SAVE_VERSION = 6;
+const SAVE_VERSION = 7;
 const KEY='snapshit_state', VKEY='snapshit_ver';
 
 // ---- Constantes nommées (PLACEHOLDERS — réglage humain plus tard) ----------
@@ -305,6 +305,11 @@ const C = {
   PRIX_FAIR:10, LOWBALL_FACTOR:0.55,            // €/unité ; le lowball paie ~55% du prix
   QTY_GENUINE:[2,3,4,5], QTY_LOWBALL:[8,12,16], // un vrai client prend peu, le brader prend en gros
   FLAKE_PAR_BRADAGE:0.07, BRADE_DELAI:2,        // brader arme le mauvais public (différé, tracé)
+  // --- grossiste : l'axe VOLUME (mémoire = volume cumulé) ---
+  GROSSISTE_SEUIL_EXPO:45,                       // ton buzz attire les grossistes (apparition déterministe)
+  GROSSISTE_FACTOR:0.7,                          // €/unité : remise volume (mieux que lowball, sous le détail)
+  GROSSISTE_QTY_BASE:20, GROSSISTE_QTY_STEP:40, GROSSISTE_QTY_CAP:60, // sa demande grossit avec la relation
+  GROSSISTE_EXPO_COST:14,                        // écouler du volume = +heat de rue (co-effet PARALLÈLE, immédiat)
   // --- carnet / réengagement 1:1 (la liste = un actif épuisable) ---
   GOODWILL_INIT:100, GOODWILL_AGACE:35,         // au-dessous de AGACE, le client ne veut plus qu'on le relance
   GOODWILL_REUP_OK:5, GOODWILL_DECLINE:8, GOODWILL_SPAM:25,
@@ -351,12 +356,13 @@ let VOICES = [
   { id:'sami',     nm:'Sami',          av:'🧢' },
   { id:'petit',    nm:'Le petit du 4', av:'🧒' },
   { id:'ancien',   nm:"L'ancien",      av:'🚬' },
+  { id:'grossiste',nm:'Le Grossiste',  av:'📦' },   // l'axe VOLUME (mémoire = volume cumulé)
 ];
 const voice = id => VOICES.find(v=>v.id===id) || genProfile();
 // visage DÉTERMINISTE d'un TYPE de protagoniste (pour nommer les conséquences au bilan)
 const FACE = id => VOICES.find(v=>v.id===id) || {nm:'les lowballers',av:'👥'};
 // foule de voix « neutres » : on exclut les archétypes à mémoire gérés à part (Kévin/Comtesse/Accro)
-let CROWD_VOICES = VOICES.filter(v=>!['kevin','comtesse','accro'].includes(v.id));
+let CROWD_VOICES = VOICES.filter(v=>!['kevin','comtesse','accro','grossiste'].includes(v.id));
 const protagBreakdown = m => Object.entries(m).map(([p,n])=>{ const f=FACE(p); return `${f.av} ${f.nm}${n>1?` ×${n}`:''}`; }).join(', ');
 
 // ---- Banque de phrases : contexte × ton (gabarits {CONCEPT}) ----------------
@@ -395,10 +401,11 @@ function fresh(){ return {
   qualiteChoisie:'standard', promesse:null, posteAujourdhui:false, repPrev:C.REPUT_INIT,
   pendingCryWolf:[], pendingBadPublic:[], dms:[], cash:0, protagBrade:{},
   comtesseState:'neutre', accroStreak:0,   // mémoires d'archétype (la voix se souvient)
+  grossisteVolume:0,                        // mémoire du grossiste : volume cumulé écoulé
   pool:[], poolSeq:0,                       // carnet de clients passés (réengagement 1:1)
-  dayTally:{sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{},muted:0,reup:0},
+  dayTally:{sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{},muted:0,reup:0,volume:0,volumeCash:0},
 }; }
-const freshTally = () => ({sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{},muted:0,reup:0});
+const freshTally = () => ({sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{},muted:0,reup:0,volume:0,volumeCash:0});
 let S = load();
 function load(){ try{
   if(localStorage.getItem(VKEY)!==String(SAVE_VERSION)) throw 0;
@@ -507,6 +514,7 @@ function passerJournee(){
     S.pendingBadPublic.push({due:S.jour+C.BRADE_DELAI,ampleur:amp,cause:'brade',jourCause:S.jour,protags:Object.assign({},t.bradeProtags)});
     cons.push({k:'warn',t:'BRADAGE — ça va se savoir',c:`Tu as cassé tes prix devant ${protagBreakdown(t.bradeProtags)}. Cash tout de suite, mais le mauvais public débarquera au jour ${S.jour+C.BRADE_DELAI}. Cupidité now ↔ bassin pourri later.`});
   }
+  if(t.volume>0) cons.push({k:'warn',t:'VOLUME — ça circule',c:`Tu as écoulé ${t.volume} d'un coup au grossiste : +${t.volumeCash}€ tout de suite, mais le volume se voit (heat de rue ↑, buzz à ${Math.round(S.expo)}/${C.EXPO_CAP}). Volume écoulé et heat = deux co-effets PARALLÈLES du même deal — jamais « moins de ventes donc heat ».`});
   const leftG=(S.dms||[]).filter(d=>d.kind==='genuine'&&d.status==='pending').length;
   if(leftG>0) cons.push({k:'warn',t:'CLIENTS IGNORÉS',c:`${leftG} client(s) sérieux pas répondus — partis ailleurs. Pas de sanction : juste du cash laissé sur la table.`});
 
@@ -514,7 +522,7 @@ function passerJournee(){
   const spike = S.posteAujourdhui ? Math.round(C.DROP_SPIKE*S.credibilite) : 0;
   const dmGood = Math.max(0, Math.round(S.reput/14 + expoAvant/22 + spike/8));
   const dmBad  = Math.round(dmGood*S.flake);
-  S.dms = buildDMs(dmGood, dmBad, tone);
+  S.dms = buildDMs(dmGood, dmBad, tone, expoAvant);   // le grossiste suit le pic de buzz du jour
   cons.push({k: dmGood>0?'good':'warn',t:'DEMANDE de demain',c:`${dmGood} acheteurs vont te DM (dont ${dmBad} flakes/lowballers, part ${Math.round(S.flake*100)}%).${spike?` +${spike} de spike grâce à ton drop (×crédibilité ${S.credibilite.toFixed(2)}).`:''}`});
 
   // clôture
@@ -555,6 +563,15 @@ function accroLine(){
   return rnd(bank);
 }
 
+// Le grossiste : sa demande et son ton escaladent avec le volume déjà écoulé (paliers)
+function grossisteLine(){
+  const v=S.grossisteVolume||0, tier = v>=120?'fournisseur': v>=40?'relance':'base';
+  if(MSG._grossiste&&MSG._grossiste[tier]) return rnd(MSG._grossiste[tier]);   // content (lines.json dm_open.grossiste)
+  return tier==='fournisseur' ? "comme d'hab mon fournisseur, {QTY} d'un coup 📦"
+       : tier==='relance'     ? "rebelote, je prends {QTY} en gros 📦"
+       :                        "j'écoule en gros — {QTY} d'un coup, prix de gros 📦";
+}
+
 // ---- CONTENU EXTERNE : enrichit troupe/foule/voix via content/*.json --------
 // Best-effort (comme le dico) : si le fetch échoue, les banques embarquées restent la source.
 // Invariant : présentation uniquement — le moteur pioche (rnd), le texte ne décide rien.
@@ -577,14 +594,14 @@ async function loadContent(){ try{
 function applyLines(L){
   if(L.dm_open){ const d=L.dm_open;
     if(d.genuine) MSG.genuine=d.genuine; if(d.lowball) MSG.lowball=d.lowball;
-    if(d.flake) MSG.flake=d.flake; if(d.comtesse) MSG.comtesse=d.comtesse; if(d.accro) MSG._accro=d.accro; }
+    if(d.flake) MSG.flake=d.flake; if(d.comtesse) MSG.comtesse=d.comtesse; if(d.accro) MSG._accro=d.accro; if(d.grossiste) MSG._grossiste=d.grossiste; }
   if(L.story_comment) for(const k in L.story_comment) LINES[k]=L.story_comment[k];   // ctx→ton→[]
   if(L.action_reply) ACTION_REPLY=L.action_reply;
   if(L.reup_reply)   REUP_REPLY=L.reup_reply;
 }
 function applyProfiles(P){
   TROUPE=P.troupe||[];
-  const MEM=['accro','comtesse','kevin'];                              // gérés à part dans buildDMs
+  const MEM=['accro','comtesse','kevin','grossiste'];                  // gérés à part dans buildDMs
   // la « foule de voix neutres » devient les faces cosmétiques genuine (sami/petit/ancien + clients nommés)
   const crowd=TROUPE.filter(p=>(p.kind_default||'genuine')==='genuine' && !MEM.includes(p.id)).map(voiceFromProfile);
   if(crowd.length) CROWD_VOICES=crowd;
@@ -669,7 +686,7 @@ function openActorStory(key){
 }
 // protag = TYPE de protagoniste (visage récurrent), pas l'identité d'affichage de la foule
 function dmObj(id,v,kind,qty,ppu,msg,tone,protag){ return {id,nm:v.nm,av:v.av,kind,qty,ppu,msg,status:'pending',tone,protag,log:null}; }
-function buildDMs(good,bad,tone){
+function buildDMs(good,bad,tone,peakExpo){
   const out=[]; let id=0;
   const ppuG=Math.max(4,Math.round(C.PRIX_FAIR*(0.6+S.reput/120)));   // la demande paie selon la réput
   const ppuL=Math.max(3,Math.round(ppuG*C.LOWBALL_FACTOR));
@@ -677,6 +694,12 @@ function buildDMs(good,bad,tone){
   const push=(v,kind,qty,ppu,msg,protag)=>out.push(dmObj(id++,v,kind,qty,ppu,fillConcepts(msg.replace(/\{QTY\}/g,qty)),kind==='genuine'?tone:'mefi',protag));
   // L'ACCRO : toujours présent, quoi qu'il arrive (loyauté AVEUGLE = la blague noire), même réput à terre
   { const v=troupeVoice('accro'); push(v,'genuine',C.QTY_GENUINE[0],ppuG,accroLine(),'accro'); }
+  // LE GROSSISTE : attiré par ton BUZZ (expo) ; vient pour du gros volume à prix de gros (axe VOLUME)
+  if((peakExpo!=null?peakExpo:S.expo) >= C.GROSSISTE_SEUIL_EXPO){
+    const qty=Math.min(C.GROSSISTE_QTY_CAP, C.GROSSISTE_QTY_BASE+Math.floor((S.grossisteVolume||0)/C.GROSSISTE_QTY_STEP));
+    const ppuV=Math.max(3,Math.round(ppuG*C.GROSSISTE_FACTOR));
+    push(troupeVoice('grossiste'),'grossiste',qty,ppuV,grossisteLine(),'grossiste');
+  }
   // LA COMTESSE : présente seulement si GAGNÉE (fan) ; loyauté CONDITIONNÉE à la qualité ; paie le prix fort
   if(S.comtesseState==='fan'){ const v=troupeVoice('comtesse'); push(v,'genuine',2,Math.round(ppuG*1.6),dmOpenFor(v,'genuine',tone),'comtesse'); }
   // le reste de la demande : foule anonyme + faces cosmétiques (Kévin/Comtesse/Accro exclus, gérés ci-dessus)
@@ -706,6 +729,14 @@ function doDMAction(id, action){
       reply = replyFor(d, esc?'brade_escalade':'brade', esc ? "ahah encore toi le pigeon 😏 j'ramène TOUTE l'équipe" : "ahah merci bg 😏 je ramène les reufs");
       sys=`💸 +${tot}€ — mais brader devant ${FACE(d.protag).nm}, ça se sait…`; }
     else { t.refused++; d.status='refused'; reply=replyFor(d,'refuse',"pff radin va. 🙄"); sys="prix tenu — ton bassin reste sain."; }
+  } else if(d.kind==='grossiste'){
+    if(action==='volume'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.sold++; d.status='volume';
+      t.volume+=d.qty; t.volumeCash+=tot; S.grossisteVolume=(S.grossisteVolume||0)+d.qty;   // mémoire : volume cumulé
+      S.expo=clamp(S.expo+C.GROSSISTE_EXPO_COST,0,C.EXPO_CAP);          // heat de rue : co-effet PARALLÈLE du volume (immédiat)
+      const big=S.grossisteVolume>=120;
+      reply=replyFor(d, big?'volume_escalade':'volume', big?"toujours du lourd avec toi, à la prochaine 📦":"nickel, je reviens quand j'ai besoin de gros 📦");
+      sys=`💶 +${tot}€ (gros volume). Mais ça circule — heat de rue ↑.`; }
+    else { t.refused++; d.status='refused'; reply=replyFor(d,'refuse',"tant pis, je vois ailleurs pour le volume."); sys="volume refusé — pas de cash, mais pas de heat non plus."; }
   } else {
     if(action==='rdv'){ t.ghost++; d.status='ghost'; reply=replyFor(d,'rdv',"ouais ouais à 23h…"); sys="📍 RDV posé… 🦗 il n'est jamais venu. temps perdu."; }
     else { t.block++; d.status='block'; reply=replyFor(d,'block',''); sys="🚫 bloqué. inbox plus clean."; }
@@ -790,8 +821,8 @@ function renderBody(){
   b.innerHTML=h;
 }
 function statusPill(d){
-  if(d.status==='pending') return d.kind==='genuine'?'<span class="st go">répondre</span>':'<span class="st warn">⚠️</span>';
-  return ({sold:'<span class="st ok">vendu ✅</span>',brade:'<span class="st bad">bradé 💸</span>',
+  if(d.status==='pending') return d.kind==='genuine'?'<span class="st go">répondre</span>':d.kind==='grossiste'?'<span class="st warn">📦 voir</span>':'<span class="st warn">⚠️</span>';
+  return ({sold:'<span class="st ok">vendu ✅</span>',brade:'<span class="st bad">bradé 💸</span>',volume:'<span class="st bad">écoulé 📦</span>',
            refused:'<span class="st">refusé</span>',ghost:'<span class="st bad">🦗 posé</span>',
            block:'<span class="st">bloqué</span>'})[d.status]||'';
 }
@@ -803,11 +834,12 @@ function dmActsHTML(d){
   const tot=d.qty*d.ppu;
   if(d.kind==='genuine') return `<button class="dmbtn ok" data-act="sell">✅ Vendre ${d.qty} · ${tot}€</button><button class="dmbtn" data-act="refuse">✋ Refuser</button>`;
   if(d.kind==='lowball') return `<button class="dmbtn bad" data-act="brade">💸 Brader ${d.qty} · ${tot}€</button><button class="dmbtn" data-act="refuse">🧱 Tenir le prix</button>`;
+  if(d.kind==='grossiste') return `<button class="dmbtn bad" data-act="volume">📦 Écouler ${d.qty} · ${tot}€</button><button class="dmbtn" data-act="refuse">🧱 Refuser</button>`;
   return `<button class="dmbtn" data-act="rdv">📍 Poser un RDV</button><button class="dmbtn" data-act="block">🚫 Bloquer</button>`;
 }
 function openDM(id){
   const d=S.dms.find(x=>x.id===id); if(!d) return;
-  const sub = d.kind==='genuine'?('client · vibe '+toneWord(d.tone)) : d.kind==='lowball'?'négociateur 👀' : 'inconnu ???';
+  const sub = d.kind==='genuine'?('client · vibe '+toneWord(d.tone)) : d.kind==='lowball'?'négociateur 👀' : d.kind==='grossiste'?'grossiste 📦 — gros volume' : 'inconnu ???';
   $('dmview').innerHTML=`
     <div class="dmhdr" data-pnm="${esc(d.nm)}" data-pav="${esc(d.av)}" data-pprotag="${esc(d.protag||'client')}"><span class="dmback">‹</span><div class="av prof-link">${esc(d.av)}</div>
       <div class="prof-link"><div class="nm">${esc(d.nm)}</div><div class="sub">${sub} · voir profil ›</div></div></div>
@@ -821,7 +853,7 @@ function appendBub(cls,txt){ const bd=$('dmbody'); if(!bd||!txt) return;
   const e=document.createElement('div'); e.className='bub '+cls; e.textContent=txt; bd.appendChild(e); bd.scrollTop=bd.scrollHeight; }
 function handleDMBtn(act,id){
   const d=S.dms.find(x=>x.id===id); if(!d||d.status!=='pending') return;
-  const outTxt={sell:'Vendu. 🤝',refuse:'Non, pas aujourd’hui.',brade:'Bon ok, pour toi… 💸',rdv:'Ok je te pose un RDV.',block:''}[act];
+  const outTxt={sell:'Vendu. 🤝',refuse:'Non, pas aujourd’hui.',brade:'Bon ok, pour toi… 💸',volume:'Ok, je t’écoule ça. 📦',rdv:'Ok je te pose un RDV.',block:''}[act];
   const r=doDMAction(id,act);
   d.log=[];
   if(outTxt){ appendBub('out',outTxt); d.log.push({cls:'out',txt:outTxt}); }
@@ -862,9 +894,9 @@ function handleReup(key){
 // description(bio) / handle / tag / snaps[] / history[]. Foule : génériques par
 // archétype (crowd.json : bio_by_archetype / snaps_by_archetype) + historique
 // PROCÉDURAL dérivé du carnet (achats, dernier deal, relances). Tout opaque.
-const ARCH_OF={accro:'accro',comtesse:'connaisseur',kevin:'lowballer',sami:'regular',petit:'jeune',ancien:'ancien',flake:'flake',client:'regular'};
-const TAG_OF={accro:'ACCRO',connaisseur:'CONNAISSEUR',lowballer:'LOWBALLER',regular:'CLIENT',jeune:'CURIEUX',ancien:'ANCIEN',flake:'FLAKE',curieux:'TOURISTE'};
-const BIO_FB={accro:"Toujours là, quoi qu'il arrive.",connaisseur:'Ne prend que le meilleur, paie le prix fort.',lowballer:'Négocie tout, ramène sa clique.',regular:'Habitué discret et fiable.',jeune:'Jeune curieux, impressionnable.',ancien:'Vieux routier, sec, a tout vu.',flake:'Pose un RDV, ne vient jamais.',curieux:'Vient par le buzz, repart au matin.'};
+const ARCH_OF={accro:'accro',comtesse:'connaisseur',kevin:'lowballer',sami:'regular',petit:'jeune',ancien:'ancien',flake:'flake',client:'regular',grossiste:'grossiste'};
+const TAG_OF={accro:'ACCRO',connaisseur:'CONNAISSEUR',lowballer:'LOWBALLER',regular:'CLIENT',jeune:'CURIEUX',ancien:'ANCIEN',flake:'FLAKE',curieux:'TOURISTE',grossiste:'GROSSISTE'};
+const BIO_FB={accro:"Toujours là, quoi qu'il arrive.",connaisseur:'Ne prend que le meilleur, paie le prix fort.',lowballer:'Négocie tout, ramène sa clique.',regular:'Habitué discret et fiable.',jeune:'Jeune curieux, impressionnable.',ancien:'Vieux routier, sec, a tout vu.',flake:'Pose un RDV, ne vient jamais.',curieux:'Vient par le buzz, repart au matin.',grossiste:'Écoule en gros. Vient quand ton buzz monte ; gros volume, prix de gros.'};
 function findFullProfile(nm,protag){ if(!TROUPE.length) return null;
   return TROUPE.find(p=>p.id===protag&&p.pseudo===nm) || ((protag&&protag!=='client'&&protag!=='flake')?TROUPE.find(p=>p.id===protag):null); }
 function archetypeOf(protag,prof){ return (prof&&prof.archetype)||ARCH_OF[protag]||'regular'; }
