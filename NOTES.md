@@ -9,6 +9,38 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-06-27 — set de règles mini-jeux (R3→R8)
+
+Acté en session, formalisé dans `CLAUDE.md`. Idées-forces :
+
+- **Le tactile EST le plaisir** (R3) — leçon *Schedule I* : un crafting qui
+  « ne suce pas ». La corvée de prod doit régaler par le **geste**.
+- **Déterminisme** (R4) — *skill oui, hasard non*. Anti-exemple fondateur : la
+  vente de *The Boss Gangster* (vol aléatoire, prix au jeu d'adresse,
+  comportements imprévisibles) = frustration. Le résultat se relie au geste ;
+  le skill module la récompense, il ne punit pas.
+- **Cycle satisfaction → délégation** (R5/R6/R8) — le plaisir décroît avec la
+  maîtrise ; quand il tombe à zéro, le joueur *choisit* de déléguer (jamais
+  imposé). On délègue la **répétition sans plaisir**, jamais la décision : le
+  cœur de jeu est la case « satisfaction haute + déterministe ».
+- **Règle d'or** (R7) — automatise la satisfaction épuisée, jamais la décision
+  vivante ; bannis le hasard.
+
+Écartées de la formalisation (proposées en séance, **annulées** par le porteur) :
+
+- « Paliers = re-corser » (chaque upgrade ajoute rendement ET tension) — non
+  retenue comme règle.
+- « Qualité/pureté = levier décidé dans la coupe » — non retenue comme règle ;
+  le principe du **levier unique** reste décrit, en contexte, dans l'entrée
+  Ecstasy du 24/06 ci-dessous.
+
+Cohérence avec l'existant :
+
+- R4 (skill oui) **ne contredit pas** R1 (« pas un test d'adresse *punitif* ») :
+  le skill module la **récompense**, jamais un malus. R1 reste valable, non abrogée.
+
+---
+
 ## 2026-06-24 — nouveau proto « Ecstasy — Presse Cadencée »
 
 Core loop ecsta ajouté (`ecstasy-press/`), variation V1 d'un brief à 3 options
