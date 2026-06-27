@@ -71,6 +71,13 @@
   #act.alt { background:#ffd166; color:#2a1f00; box-shadow:0 6px 18px rgba(255,209,102,.34); }
   #act.warn { background:#ff7a8a; color:#2a0008; box-shadow:0 6px 18px rgba(255,122,138,.34); }
 
+  /* Vider la cuve : rattrape un sur-versage de liant (la coupe reste une décision réversible) */
+  #emptyvat { position:fixed; bottom:max(86px,calc(env(safe-area-inset-bottom) + 80px)); left:50%; transform:translateX(-50%);
+    pointer-events:auto; display:none; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.25);
+    color:rgba(255,255,255,.85); font-weight:700; font-size:13px; padding:8px 16px; border-radius:12px; backdrop-filter:blur(5px); }
+  #emptyvat.show { display:block; }
+  #emptyvat:active { background:rgba(255,255,255,.24); }
+
   /* Toast central */
   #toast { top:40%; text-align:center; font-size:24px; font-weight:900; opacity:0;
     transition:opacity .25s, transform .25s; transform:translateY(8px); }
@@ -139,6 +146,7 @@
 <button id="shopbtn">🛒</button>
 
 <div id="estim" class="hud"></div>
+<button id="emptyvat">↺ Vider la cuve</button>
 <div id="gaugelbl" class="hud">Tape dans le bleu, en rythme</div>
 <div id="gauge"><div id="gsweet"></div><div id="gcursor"></div></div>
 <div id="combo" class="hud"></div>
@@ -196,7 +204,7 @@ import * as THREE from "three";
    0) CONSTANTES NOMMEES (placeholders — reglage humain au checkpoint d'equilibre)
    ------------------------------------------------------------------------- */
 const SAVE = "ecsta_";
-const SAVE_VERSION = "1";              // bumper pour forcer un reset propre
+const SAVE_VERSION = "2";              // bumper pour forcer un reset propre (rééquilibrage R1/R2)
 
 const MASSE_PILULE_G   = 0.30;         // masse d'une pilule pressee
 const LIANT_MAX        = 0.60;         // plafond de coupe (60% liant)
@@ -204,7 +212,6 @@ const PILL_PRICE       = 8;            // € par pilule ecoulee
 const DECHET_PRICE     = 2;            // € par pilule malformee revendue aux schlags (reward reduit, pas une perte seche)
 const PRIX_MDMA_GROS_G = 5;            // €/g de MDMA en gros (achat a credit)
 const PACK_MDMA_G      = 500;          // gramme par reappro
-const RENDEMENT_BONUS  = 0.15;         // bonus de pilules pour un bon rythme (REWARD ; rater = 0, jamais de malus)
 
 const HEAT_SEUIL_QUAL  = 0.55;         // sous cette qualite, la rue parle
 const HEAT_GAIN        = 150;          // pente de la chaleur quand qualite < seuil
@@ -219,21 +226,23 @@ const HORLOGE_MENACE   = 3;            // lots de retard de dette avant menace f
 const REMBOURSE_AUTO   = 0.5;          // part du cash affectee au remboursement a chaque vente
 
 /* Les 5 niveaux d'outils.
-   - taps/vit/vert : mini-jeu rythmique (tiers manuels).
-   - auto/autoSkill : tiers automatises (le skill moteur cede a la supervision).
+   - taps/vit/vert : confort du geste rythmique (tiers manuels). proto-R2 : chaque
+     palier ALLEGE la presse — MOINS de taps, fenetre PLUS large, pas plus rapide —
+     jusqu'a l'automatiser (T4) puis l'externaliser (T5). Le rythme ne change RIEN
+     a l'economie (proto-R1) : c'est du ressenti, pas un test d'adresse.
    - neglige : liant ajoute par l'employe (DETERMINISTE, accepte a l'embauche -> R1).
    - expo : surface de chaleur ajoutee par la delegation (exposition des points).  */
 const TIERS = [
-  { n:1, nom:"Presse manuelle",            desc:"Une pilule a la fois, fenetre large. Le geste, rien que le geste.",
-    taps:8, vit:1.7, vert:0.24, charge:40,  auto:false, autoSkill:0,    neglige:0,    expo:0,    prix:0 },
-  { n:2, nom:"Presse a levier",            desc:"Des lots de pilules par cycle. Rythme regulier.",
-    taps:6, vit:2.1, vert:0.18, charge:65,  auto:false, autoSkill:0,    neglige:0,    expo:0,    prix:900 },
-  { n:3, nom:"Presse pneumatique",         desc:"Grosse capacite, fenetre etroite. Le rythme se tend.",
-    taps:5, vit:2.8, vert:0.12, charge:95,  auto:false, autoSkill:0,    neglige:0,    expo:0,    prix:2600 },
-  { n:4, nom:"Mini-ligne semi-auto",       desc:"Pressage automatique. Tu supervises et tu tries.",
-    taps:0, vit:0,   vert:0,    charge:150, auto:true,  autoSkill:0.80, neglige:0,    expo:0.05, prix:6000 },
-  { n:5, nom:"Ligne externalisee + embauche", desc:"Un operateur tient la ligne. Gros debit — mais il coupe un peu, et il t'expose.",
-    taps:0, vit:0,   vert:0,    charge:260, auto:true,  autoSkill:0.85, neglige:0.08, expo:0.15, prix:14000 },
+  { n:1, nom:"Presse manuelle",            desc:"Le geste, rien que le geste. 8 frappes, fenetre déjà large.",
+    taps:8, vit:1.5, vert:0.22, charge:40,  auto:false, neglige:0,    expo:0,    prix:0 },
+  { n:2, nom:"Presse a levier",            desc:"Moins de frappes, fenêtre plus large : le geste s'allège.",
+    taps:5, vit:1.4, vert:0.32, charge:65,  auto:false, neglige:0,    expo:0,    prix:900 },
+  { n:3, nom:"Presse pneumatique",         desc:"Grosse capacité, geste quasi trivial (3 frappes très tolérantes).",
+    taps:3, vit:1.3, vert:0.44, charge:95,  auto:false, neglige:0,    expo:0,    prix:2600 },
+  { n:4, nom:"Mini-ligne semi-auto",       desc:"Pressage automatique : plus rien à taper. Tu supervises et tu tries.",
+    taps:0, vit:0,   vert:0,    charge:150, auto:true,  neglige:0,    expo:0.05, prix:6000 },
+  { n:5, nom:"Ligne externalisee + embauche", desc:"Un opérateur tient la ligne. Gros débit — mais il coupe un peu, et il t'expose.",
+    taps:0, vit:0,   vert:0,    charge:260, auto:true,  neglige:0.08, expo:0.15, prix:14000 },
 ];
 
 /* -------------------------------------------------------------------------
@@ -245,23 +254,20 @@ function conseq(code, icon, label, cause, valeur, ton) {
   return { code, icon, label, cause, valeur, ton: ton || "neu" };
 }
 
-// La QUALITE est le levier unique, fixee par la COUPE — une DECISION, pas une
-// adresse. Le rythme de presse n'agit JAMAIS sur la qualite : il ne fait
-// qu'ajouter un BONUS de rendement (proto-R1 : un mini-jeu rate n'inflige
-// aucun malus). Zero random sur l'etat (CrimWorld-R1).
-//   tauxLiant   in [0, LIANT_MAX]  : decision de cuve (cupidite vs prudence)
-//   skillPresse in [0, 1]          : precision rythmique -> bonus de rendement seul
-function calculerLot(chargeMdmaG, tauxLiant, skillPresse) {
-  tauxLiant   = Math.max(0, Math.min(LIANT_MAX, tauxLiant));
-  skillPresse = Math.max(0, Math.min(1, skillPresse));
+// La QUALITE et le NOMBRE de pilules ne dependent QUE de la COUPE (decision de
+// cuve : charge + taux de liant). Le rythme de presse n'entre PAS dans ce calcul :
+// proto-R1 — le mini-jeu n'est pas un test d'adresse, donc l'adresse ne change
+// NI l'economie NI le rendement (ni bonus, ni malus). C'est du ressenti pur.
+// Zero random sur l'etat (CrimWorld-R1).
+//   tauxLiant in [0, LIANT_MAX] : decision de cuve (cupidite vs prudence)
+function calculerLot(chargeMdmaG, tauxLiant) {
+  tauxLiant = Math.max(0, Math.min(LIANT_MAX, tauxLiant));
   const puretePate  = 1 - tauxLiant;                            // liant ↑ => purete ↓
   const masseTotale = chargeMdmaG / Math.max(puretePate, 0.01); // liant ↑ => masse ↑
-  const baseNb      = Math.floor(masseTotale / MASSE_PILULE_G); // => plus de pilules
-  const nbPilules   = Math.round(baseNb * (1 + RENDEMENT_BONUS * skillPresse)); // bon rythme = reward
+  const nbPilules   = Math.floor(masseTotale / MASSE_PILULE_G); // => plus de pilules
   const qualite     = puretePate;                               // ← LEVIER UNIQUE (la coupe)
   return {
-    nbPilules, baseNb, qualite, tauxLiant, skillPresse, puretePate,
-    rendement: RENDEMENT_BONUS * skillPresse,
+    nbPilules, qualite, tauxLiant, puretePate,
     causeCoupe: "Coupe à " + Math.round(tauxLiant * 100) + "% de liant",
   };
 }
@@ -498,7 +504,7 @@ function floatLabel(x3, y3, z3, text, color) {
    ------------------------------------------------------------------------- */
 let phase = "CUVE";
 const lot = {
-  tauxLiant: 0, skillPresse: 0, pressTaps: 0, pressNeed: 0, pressAcc: 0,
+  tauxLiant: 0, pressTaps: 0, pressNeed: 0,
   data: null, pills: [], swept: 0,
 };
 
@@ -518,9 +524,10 @@ function refreshPaste(fill) {
 // ====== PHASE CUVE ======
 function enterCuve() {
   setPhase("CUVE", "CUVE — coupe", "Maintiens sur la cuve pour verser le liant. Plus de liant = plus de pilules, moins cristallines.");
-  lot.tauxLiant = 0; lot.skillPresse = 0; lot.pressTaps = 0; lot.pressAcc = 0; lot.data = null;
+  lot.tauxLiant = 0; lot.pressTaps = 0; lot.data = null;
   clearPills();
   const t = tier();
+  $("emptyvat").classList.remove("show");        // rien à vider tant qu'on n'a pas versé
   if (S.mdma < t.charge) {
     setPhase("CUVE", "CUVE — réappro", "Stock MDMA insuffisant pour cette presse.");
     ui.estim.classList.remove("show");
@@ -536,10 +543,11 @@ let pouring = false;
 function updateEstim() {
   const t = tier();
   const taux = effectiveTaux();
-  const d = calculerLot(t.charge, taux, 0); // base (hors bonus de rythme)
+  const d = calculerLot(t.charge, taux); // le lot ne depend que de la coupe
   ui.estim.innerHTML = "Liant <b>" + Math.round(taux * 100) + "%</b> · ~<b>" + d.nbPilules +
     "</b> pilules · cristallinité <span class='q'>" + Math.round(d.puretePate * 100) + "%</span>" +
     (taux > 1 - HEAT_SEUIL_QUAL ? " · <span style='color:#ff7a8a'>⚠ sous la ligne de qualité</span>" : "");
+  $("emptyvat").classList.toggle("show", lot.tauxLiant > 0.001); // versage rattrapable (proto-R1)
 }
 // le liant effectif inclut la negligence de l'employe (tier 5) — deterministe (R1)
 function effectiveTaux() {
@@ -550,21 +558,22 @@ function effectiveTaux() {
 let gaugePos = 0, gaugeDir = 1, gaugeSweetMid = 0.5;
 function enterPresse() {
   const t = tier();
-  lot.pressAcc = 0; lot.pressTaps = 0;
+  $("emptyvat").classList.remove("show");
+  lot.pressTaps = 0;
   if (t.auto) {
-    // Tiers automatises : le skill moteur est fixe (supervision). Zero random.
+    // Tiers automatises : plus rien a taper, meme rendement (proto-R2). Zero random.
     setPhase("PRESSE", "PRESSE — auto", t.nom + " : la ligne tourne…");
     ui.estim.classList.remove("show"); hideAct();
     let n = 0;
     const iv = setInterval(() => {
       pulsePlunger();
-      if (++n >= 6) { clearInterval(iv); finishPresse(t.autoSkill); }
+      if (++n >= 6) { clearInterval(iv); finishPresse(); }
     }, 230);
     return;
   }
-  // Tiers manuels : mini-jeu rythmique.
+  // Tiers manuels : geste rythmique de RESSENTI (n'influe pas sur l'economie).
   lot.pressNeed = t.taps;
-  setPhase("PRESSE", "PRESSE — rythme", "Tape dans le bleu à chaque passage (" + t.taps + "×). Bien tapé = bonus de pilules ; rater ne coûte rien.");
+  setPhase("PRESSE", "PRESSE — rythme", "Tape dans le bleu au passage du curseur (" + t.taps + "×). Pur plaisir du geste : le rythme ne change rien au lot.");
   ui.estim.classList.remove("show");
   gaugeSweetMid = 0.5;
   ui.gsweet.style.width = (t.vert * 100) + "%";
@@ -575,32 +584,27 @@ function enterPresse() {
 function pulsePlunger() { plungerY = 0.42; } // descend; remonte dans la loop
 function tapPress() {
   const t = tier();
-  // precision = proximite au centre du bleu (ENTREE JOUEUR, pas un tirage)
+  // Proximite au centre du bleu : sert UNIQUEMENT au feedback visuel (PRESENTATION).
+  // Aucun effet economique — proto-R1 : ce n'est pas un test d'adresse.
   const half = t.vert / 2;
-  const dist = Math.abs(gaugePos - gaugeSweetMid);
-  const hit = Math.max(0, 1 - dist / half);      // 1 = plein centre, 0 = bord
-  lot.pressAcc += hit; lot.pressTaps++;
+  const hit = Math.max(0, 1 - Math.abs(gaugePos - gaugeSweetMid) / half);
+  lot.pressTaps++;
   pulsePlunger();
-  // Feedback de REWARD (jamais de punition) : au pire « pas de bonus », pas un malus.
-  if (hit > 0.66) toast("PARFAIT +", 450);
-  else if (hit > 0.2) toast("bien", 400);
-  else toast("encore", 400);
+  // Feedback de ressenti pur : jolie ou neutre, jamais un malus.
+  if (hit > 0.66) toast("clac !", 450);
+  else toast("clac", 380);
   ui.combo.textContent = lot.pressTaps + " / " + t.taps;
   // deplace legerement le bleu pour garder le rythme vivant (PRESENTATION)
   gaugeSweetMid = 0.22 + Math.random() * 0.56;
   ui.gsweet.style.left = (gaugeSweetMid * 100 - t.vert * 50) + "%";
-  if (lot.pressTaps >= t.taps) {
-    const skill = lot.pressAcc / t.taps;          // moyenne deterministe -> [0,1]
-    finishPresse(skill);
-  }
+  if (lot.pressTaps >= t.taps) finishPresse();
 }
-function finishPresse(skill) {
-  lot.skillPresse = Math.max(0, Math.min(1, skill));
+function finishPresse() {
   ui.gauge.classList.remove("show"); ui.gaugelbl.classList.remove("show"); ui.combo.classList.remove("show");
   plungerY = plungerRest;
   const t = tier();
   S.mdma = Math.max(0, S.mdma - t.charge);        // consomme la charge MDMA
-  lot.data = calculerLot(t.charge, effectiveTaux(), lot.skillPresse);
+  lot.data = calculerLot(t.charge, effectiveTaux()); // le lot ne depend QUE de la coupe
   spawnPills(lot.data);
   setStats(); save();
   enterTri();
@@ -744,7 +748,7 @@ function showReport(lines, d, busted) {
   const head = document.createElement("div"); head.className = "repline";
   head.innerHTML = "<div class='ri'>💊</div><div><div class='rt'>" + d.nbPilules +
     " pilules · qualité " + Math.round(d.qualite * 100) + "%</div>" +
-    "<div class='rc'>" + d.causeCoupe + " · rythme +" + Math.round(d.rendement * 100) + "% de rendement</div></div>";
+    "<div class='rc'>" + d.causeCoupe + " — la coupe seule fixe qualité &amp; volume</div></div>";
   box.appendChild(head);
   for (const c of lines) {
     const row = document.createElement("div"); row.className = "repline";
@@ -782,7 +786,7 @@ function renderShop() {
     else btn = "<span class='ttag' style='color:rgba(255,255,255,.4)'>🔒 niveau " + (t.n - 1) + " requis</span>";
     div.innerHTML = "<div class='tn'>Niv." + t.n + " — " + t.nom + "</div>" +
       "<div class='td'>" + t.desc + "<br>charge " + t.charge + " g/lot" +
-      (t.auto ? " · auto (skill " + Math.round(t.autoSkill * 100) + "%)" : " · " + t.taps + " frappes") +
+      (t.auto ? " · auto (zéro frappe)" : " · " + t.taps + " frappes, fenêtre " + Math.round(t.vert * 100) + "%") +
       (t.neglige ? " · liant +" + Math.round(t.neglige * 100) + "%" : "") +
       (t.expo ? " · exposition +" + Math.round(t.expo * 100) + "%" : "") + "</div>" +
       "<div class='trow'>" + btn + "</div>";
@@ -819,6 +823,12 @@ ui.act.addEventListener("click", () => {
     // bouton de secours : balaye tout
     sweepTo(99);
   }
+});
+// Vider la cuve : annule le versage de liant (la coupe reste réversible avant pressage).
+$("emptyvat").addEventListener("click", () => {
+  if (phase !== "CUVE") return;
+  lot.tauxLiant = 0; refreshPaste(0.5); updateEstim();
+  toast("cuve vidée", 600);
 });
 $("reset").addEventListener("click", () => {
   if (!confirm("Remettre l'atelier à zéro ?")) return;

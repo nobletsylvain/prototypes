@@ -9,6 +9,33 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-06-27 — Ecstasy : conformité aux règles mini-jeux (rythme = ressenti pur)
+
+Relecture du proto à l'aune des règles (R1/R2 d'abord, confirmé ensuite par
+R3→R10). Trois écarts corrigés :
+
+- **R1 (pas un test d'adresse)** : la presse donnait un *bonus de rendement*
+  indexé sur la précision → ça en faisait une épreuve d'adresse. Supprimé.
+  **Qualité ET volume ne dépendent que de la coupe** (charge + taux de liant) ;
+  le rythme est **100 % ressenti** (combo/feedback), zéro effet éco — ni bonus,
+  ni malus. Manuelle et auto produisent le **même** lot : l'auto = *moins
+  d'effort*, pas *plus de rendement*.
+  *Nota R4* : le skill *pourrait* moduler la récompense (vers le haut, jamais
+  punir) ; j'ai choisi le ressenti pur pour ce proto — un skill-reward non
+  punitif reste réintroductible si on le souhaite.
+- **R2 / R9 (les paliers allègent, la tension vit au niveau système)** : mes
+  paliers manuels *durcissaient* le geste (fenêtre + étroite, curseur + rapide).
+  Inversé : moins de frappes + fenêtre **plus large** à chaque palier
+  (T1 8/0,22 → T2 5/0,32 → T3 3/0,44), puis T4 automatise, T5 externalise. C'est
+  exactement R9 : ce n'est pas le geste qui se re-corse.
+- **R1 ergonomie / R10** : bouton **« vider la cuve »** — le sur-versage de liant
+  n'est plus verrouillé ; la coupe reste un **levier de décision réversible**.
+
+`SAVE_VERSION` 1 → 2. Vérifs : `node --check` OK, capture headless + smoke test
+(pour → presse → tri → rapport) sans erreur.
+
+---
+
 ## 2026-06-27 — set de règles mini-jeux (R3→R10) + définition
 
 Acté en session, formalisé dans `CLAUDE.md`. **Définition** posée en tête des
