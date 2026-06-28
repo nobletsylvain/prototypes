@@ -17,14 +17,14 @@ levier). Ce référentiel **n'existe comme fichier dans aucun des deux dépôts*
 (`grep` exhaustif : seules des *citations* existent, jamais la source).
 
 Conséquence : les règles qui pilotent ces prototypes ne sont ni numérotées, ni
-définies, ni versionnées. Chaque session les paraphrase de mémoire. **C'est la
-première amélioration à faire** : écrire le référentiel comme document source,
-dans `prototypes/` (c'est là que vivent les mini-jeux).
+définies, ni versionnées. Chaque session les paraphrase de mémoire.
 
-### Reconstruction proposée (à valider — non canonique)
+> **✅ Corrigé dans ce PR** : le référentiel est désormais écrit dans
+> [`REFERENTIEL_MINIJEUX.md`](REFERENTIEL_MINIJEUX.md) (v0.1, à valider). Le
+> tableau ci-dessous en est le résumé ; le document détaille chaque règle
+> (énoncé, test de conformité, état dans les protos).
 
-Réassemblée à partir des citations éparses dans `CrimWorld/CLAUDE.md` et des
-READMEs. À corriger/compléter par toi avant d'en faire la source de vérité.
+### Résumé (détail dans `REFERENTIEL_MINIJEUX.md`)
 
 | Règle | Énoncé (reconstruit) |
 |---|---|
