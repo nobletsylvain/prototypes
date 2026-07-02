@@ -557,7 +557,7 @@ function updateFlyers(dt) {
 /* -------------------------------------------------------------------------
    9) ETAT DE PARTIE + PERSISTANCE (prefixe "gf_")
    ------------------------------------------------------------------------- */
-const SAVE_VERSION = "2";
+const SAVE_VERSION = "3";
 if (localStorage.getItem("gf_ver") !== SAVE_VERSION) {
   ["gf_cash","gf_debt","gf_rep","gf_level","gf_xp","gf_shop","gf_stocks","gf_blend","gf_trim","gf_heat"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("gf_ver", SAVE_VERSION);
@@ -843,6 +843,7 @@ function refuseFront() {
 // chaque BUCK_STRIDE px detache une poignee. Le tap simple = une poignee propre.
 const buck = { dragging: false, lastX: 0, lastY: 0, lastT: 0, acc: 0, speed: 0, flash: 0, cd: 0 };
 const BUCK_STRIDE = 30;   // px de glisse par poignee detachee
+const AUTOBUCK_LOSS = 0.15;   // R6/R9 : part de matière perdue par l'auto-bucker (contrepartie du hands-off)
 function gotoBuck() {
   setPhase("buck");
   buck.dragging = false; buck.acc = 0; buck.flash = 0; buck.cd = 0;
@@ -1090,11 +1091,14 @@ function updateAutoBuck(dt) {
   if (autoBuckTimer >= 1.6) {
     autoBuckTimer = 0;
     const batch = Math.min(lot.raw, 18);
-    const gA = batch * 0.4, gB = batch * 0.3, gS = batch * 0.3;
+    // R6/R9 : machine peu soignée -> perte de matière (le geste manuel, lui, ne
+    // perd rien). Déléguer = mains libres, mais on paie en matière et en qualité.
+    const kept = batch * (1 - AUTOBUCK_LOSS);
+    const gA = kept * 0.4, gB = kept * 0.3, gS = kept * 0.3;
     stocks.A.g += gA; stocks.A.ts += gA * lot.thc;
     stocks.B.g += gB; stocks.B.ts += gB * lot.thc * 0.9;
     stocks.S.g += gS; stocks.S.ts += gS * lot.thc * TRIM_THC_FACTOR;
-    lot.raw -= batch;
+    lot.raw -= batch;   // le lot entier est consommé ; la perte part en fumée
     saveStocks(); updateStockUI();
     if (phase === "buck") { refreshRawPile(lot.raw, lot.total); refreshBuckCard(); }
   }

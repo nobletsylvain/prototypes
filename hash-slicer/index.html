@@ -432,7 +432,7 @@ let mode = "cut";    // "cut" (coupe) | "wrap" (emballage)
 
 // --- Version de sauvegarde : on bump apres un gros rééquilibrage pour repartir
 // de zero. Si la version stockee differe, on efface la progression (une fois). ---
-const SAVE_VERSION = "4";
+const SAVE_VERSION = "5";
 if (localStorage.getItem("hash_ver") !== SAVE_VERSION) {
   ["hash_cash", "hash_waste", "hash_level", "hash_xp", "hash_shop"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("hash_ver", SAVE_VERSION);
@@ -562,7 +562,8 @@ function performCut(cutNeg, cutPos) {
   if (thick < 0.06) return;
   const skew  = Math.abs((rightNeg - cutNeg) - (rightPos - cutPos));
   const grams = thick * W * H * DENS;
-  const grade = gradeFor(thick, skew);
+  let grade = gradeFor(thick, skew);
+  if (grade === "A") grade = "B";    // R6 : la machine est propre mais generique — jamais le premium A que la coupe manuelle bien jouee decroche
   spawnBarrette(cutNeg, cutPos, grams, grade, 1);
   burstCrumbs((cutNeg + cutPos) / 2, H * 0.6, 0, 8);
   addWaste(grams * 0.05);            // machine propre : peu de perte
@@ -580,6 +581,10 @@ function manualChop() {
   else if (err <= sweet * 2.4)  { f = 0.85; grade = "B"; msg = "Bien";      col = GRADE_COL.B; }
   else if (err <= sweet * 4.5)  { f = 0.60; grade = "C"; msg = "Bof";       col = GRADE_COL.C; }
   else                          { f = 0.32; grade = "C"; msg = "Raté !";    col = "#ff6b6b"; }
+
+  // R9 : le gabarit elargit la zone verte MAIS rogne un peu le rendement — la
+  // friction de visee est deplacee vers la matiere, pas supprimee gratuitement.
+  f = Math.max(0.4, f - (owned.guide || 0) * GUIDE_YIELD_MALUS);
 
   // Epaisseur consommee = ~10 g (avec inclusion du talon en fin de savonnette).
   let cn = rightNeg - TARGET_THICK, cp = rightPos - TARGET_THICK;
@@ -602,6 +607,7 @@ function manualChop() {
 
 // Demi-largeur de la zone verte : s'elargit avec le "Gabarit" (plus facile a viser).
 function sweetHalf() { return Math.min(0.34, 0.085 + (owned.guide || 0) * 0.03); }
+const GUIDE_YIELD_MALUS = 0.02;   // R9 : chaque niveau de gabarit rogne 2% du rendement de coupe
 
 // Anime la jauge du mini-jeu (curseur qui balaie, zone verte, affichage on/off).
 const GAUGE_SPEED = 1.05;                        // aller-retour du curseur (unites/s)

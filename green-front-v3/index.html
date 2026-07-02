@@ -591,7 +591,7 @@ function updateFlyers(dt) {
 /* -------------------------------------------------------------------------
    9) ETAT DE PARTIE + PERSISTANCE (prefixe "gf3_")
    ------------------------------------------------------------------------- */
-const SAVE_VERSION = "2";
+const SAVE_VERSION = "3";
 if (localStorage.getItem("gf3_ver") !== SAVE_VERSION) {
   ["gf3_cash","gf3_debt","gf3_rep","gf3_level","gf3_xp","gf3_shop","gf3_stocks","gf3_blend","gf3_trim","gf3_heat"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("gf3_ver", SAVE_VERSION);
@@ -873,6 +873,7 @@ function refuseFront() {
 // chaque BUCK_STRIDE px detache une poignee. Le tap simple = une poignee propre.
 const buck = { dragging: false, lastX: 0, lastY: 0, lastT: 0, acc: 0, speed: 0, flash: 0, cd: 0 };
 const BUCK_STRIDE = 30;   // px de glisse par poignee detachee
+const AUTOBUCK_LOSS = 0.15;   // R6/R9 : part de matière perdue par l'auto-bucker (contrepartie du hands-off)
 function gotoBuck() {
   setPhase("buck");
   buck.dragging = false; buck.acc = 0; buck.flash = 0; buck.cd = 0;
@@ -1150,10 +1151,12 @@ function updateAutoBuck(dt) {
   if (autoBuckTimer >= 1.6) {
     autoBuckTimer = 0;
     const batch = Math.min(lot.raw, 18);
-    const gA = batch * 0.7, gS = batch * 0.3;
+    // R6/R9 : machine peu soignée -> perte de matière (le geste manuel ne perd rien).
+    const kept = batch * (1 - AUTOBUCK_LOSS);
+    const gA = kept * 0.7, gS = kept * 0.3;
     stocks.A.g += gA; stocks.A.ts += gA * lot.thc;
     stocks.S.g += gS; stocks.S.ts += gS * lot.thc * TRIM_THC_FACTOR;
-    lot.raw -= batch;
+    lot.raw -= batch;   // le lot entier est consommé ; la perte part en fumée
     saveStocks(); updateStockUI();
     if (phase === "buck") { refreshRawPile(lot.raw, lot.total); refreshBuckCard(); }
   }

@@ -205,18 +205,26 @@ Le vrai risque est ailleurs :
 3. Isoler/flaguer le chapitre 2 hors-périmètre de `crimworld`. (§6) — *repo CrimWorld, à part.*
 
 **P1 — structure mini-jeu**
-4. Écrire le **référentiel R1–R10** comme document source dans `prototypes/`. (§0)
+4. ✅ *(fait)* Écrire le **référentiel R1–R10** comme document source. (§0)
 5. Rétablir une vanne de délégation dans **hash-slicer-v2** (régression). (§4)
-6. Transformer les vannes « interrupteur » en **curseurs dosés + compensés**
-   (patron : l'auto-ensacheuse taxée de neige). (§4)
+   — *reporté : l'auteur a explicitement différé l'automatisation du fork
+   (« machines/employés à venir », `v2 Phase 1`) ; y toucher = faire sa Phase 2,
+   décision de design à valider, pas une correction.*
+6. ✅ *(fait, Lot 2 — compensation R6/R9)* Les vannes « gratuites » sont désormais
+   **compensées** : massicot hash-slicer capé au grade B (jamais le premium A) +
+   gabarit qui rogne le rendement ; auto-bucker green-front/gf-v3 avec **perte de
+   matière** (15 %) ; métronome guitar-shito capé sous le PARFAIT. Reste à faire :
+   passer ces interrupteurs en **curseurs de % délégué** (patron neige). (§4)
 7. Concevoir une **satisfaction décroissante explicite** (au moins sur un proto
    pilote) — retirer le combo qui *facilite* dans guitar-shito. (§3)
 
 **P2 — hygiène / cohérence**
 8. Brancher (ou retirer) le dosage tactile mort de **green-front-v3** et
    supprimer le slider doublon. (cf. revue gf-v3)
-9. Calculer ou retirer la `heat` morte de guitar-shito ; compenser les bonus de
-   revente. (§4)
+9. ✅ *(fait, Lot 2)* `heat` morte de guitar-shito **retirée** (CSS orphelin
+   supprimé — la logique avait déjà été retirée par l'auteur). Compensation des
+   bonus de revente : reste ouverte (pas de système d'échelle à compenser sans
+   inventer une économie de heat — décision de design). (§4)
 10. Nettoyer le code mort : machines dormantes de hash-slicer-v2, bac B fantôme
     de green-front, `SCHLAG_RATE`/`owned.waste` jamais lus.
 

@@ -17,10 +17,6 @@
   .hud { position:fixed; pointer-events:none; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.5); }
   #cash { top:max(12px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
     font-weight:800; font-size:19px; color:#9be37d; }
-  #heatwrap { top:max(12px,env(safe-area-inset-top)); left:14px; display:flex; flex-direction:column; gap:3px; }
-  #heatlbl { font-size:11px; font-weight:800; color:#ffb4a0; letter-spacing:.3px; }
-  #heatbar { width:104px; height:7px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
-  #heatfill { height:100%; width:0%; background:linear-gradient(90deg,#7ad17a,#ffd166 55%,#ff5e5e); transition:width .3s; }
   #xpwrap { top:max(12px,env(safe-area-inset-top)); right:62px; display:flex; align-items:center; gap:6px; }
   #level { background:rgba(155,227,125,.18); border:1px solid rgba(155,227,125,.55); color:#bdf0a3;
     font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; white-space:nowrap; }
@@ -595,7 +591,7 @@ function updateFlyers(dt) {
 /* -------------------------------------------------------------------------
    10) ETAT DE PARTIE + PERSISTANCE (prefixe "gs_")
    ------------------------------------------------------------------------- */
-const SAVE_VERSION = "2";   // bump : retrait dilution/blend/chaleur -> reset propre
+const SAVE_VERSION = "3";   // bump : R6 métronome capé + retrait HUD heat mort
 if (localStorage.getItem("gs_ver") !== SAVE_VERSION) {
   ["gs_cash","gs_heat","gs_level","gs_xp","gs_shop","gs_plaque","gs_stock","gs_blend","gs_fmt","gs_packfmt"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("gs_ver", SAVE_VERSION);
@@ -761,7 +757,7 @@ function showCombo() {
 }
 
 // Le joueur "strum" (tap/swipe) : on resout la note la plus proche de la barre.
-function strum(swipeRight) {
+function strum(swipeRight, auto) {
   if (phase !== "cut") return;
   // Cherche la note non resolue la plus proche de la barre, dans la fenetre.
   let best = null, bd = 1e9;
@@ -777,7 +773,10 @@ function strum(swipeRight) {
   const ac = ensureAudio();
   // Qualite de coupe selon le timing (et bonus combo : plus facile de rester net).
   let q, keep, txt, col;
-  if (bd <= 0.16)      { q = 0.95; keep = 1.0;  txt = "PARFAIT ✦"; col = "#9be37d"; }
+  // R6 : le métronome coupe "bien" tout seul, mais ne décroche JAMAIS le premium
+  // PARFAIT que seul le geste manuel bien timé obtient — déléguer = -qualité.
+  if      (auto)       { q = 0.74; keep = 0.9;  txt = "AUTO";      col = "#8fb0d6"; }
+  else if (bd <= 0.16) { q = 0.95; keep = 1.0;  txt = "PARFAIT ✦"; col = "#9be37d"; }
   else if (bd <= 0.34) { q = 0.74; keep = 0.9;  txt = "BIEN";      col = "#ffd166"; }
   else                 { q = 0.55; keep = 0.72; txt = "JUSTE";     col = "#ff9f6b"; }
   // Combo : chaque cran ajoute un petit bonus de conservation (moins de perte).
@@ -835,7 +834,7 @@ function updateCut(dt) {
       let near = null, nd = 1e9;
       for (const n of notes) { if (n.hit) continue; const d = Math.abs(n.z - HIT_Z); if (d < nd) { nd = d; near = n; } }
       if (!near) near = spawnNote();
-      if (near) { near.z = HIT_Z; near.mesh.position.z = HIT_Z; strum(true); }
+      if (near) { near.z = HIT_Z; near.mesh.position.z = HIT_Z; strum(true, true); }
     }
   }
 
