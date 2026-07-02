@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Atelier 3D</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+  html, body { width:100%; height:100%; overflow:hidden; touch-action:none;
+    font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(120% 120% at 50% 0%, #26202f 0%, #14101b 60%, #0b0810 100%); }
+  #app { position:fixed; inset:0; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+
+  .hud { position:fixed; pointer-events:none; color:#fff; text-shadow:0 2px 10px rgba(0,0,0,.55); z-index:3; }
+
+  /* Nom du poste courant */
+  #station { top:max(20px,env(safe-area-inset-top)); left:0; right:0; text-align:center; }
+  #station .idx { font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    color:rgba(255,255,255,.5); }
+  #station .name { font-size:26px; font-weight:800; letter-spacing:.3px; margin-top:2px; }
+
+  /* Indicateur de position (points) */
+  #dots { left:0; right:0; bottom:max(30px,calc(env(safe-area-inset-bottom) + 20px));
+    display:flex; gap:9px; justify-content:center; }
+  #dots .dot { width:8px; height:8px; border-radius:999px; background:rgba(255,255,255,.22);
+    transition:background .2s, transform .2s; }
+  #dots .dot.on { background:#e8c46b; transform:scale(1.35); }
+
+  /* Indice de geste */
+  #hint { left:0; right:0; bottom:max(60px,calc(env(safe-area-inset-bottom) + 50px)); text-align:center;
+    font-size:12px; font-weight:600; color:rgba(255,255,255,.4); transition:opacity .4s; }
+
+  /* Toast d'interaction */
+  #toast { top:44%; left:0; right:0; text-align:center; font-size:19px; font-weight:800; padding:0 24px;
+    opacity:0; transform:translateY(8px); transition:opacity .22s, transform .22s; color:#ffe6a6; }
+  #toast.show { opacity:1; transform:translateY(0); }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="station" class="hud">
+    <div class="idx" id="stIdx">Poste 1 / 5</div>
+    <div class="name" id="stName">—</div>
+  </div>
+  <div id="hint" class="hud">← glisse pour circuler dans l'atelier →</div>
+  <div id="toast" class="hud"></div>
+  <div id="dots" class="hud"></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from "three";
+
+/* =========================================================================
+   Atelier 3D — squelette de navigation
+   -------------------------------------------------------------------------
+   Pari validé par ce proto : longer un atelier continu au SWIPE horizontal,
+   en portrait, est-il agréable ? La caméra glisse sur un RAIL devant des
+   postes posés côte à côte dans l'ordre de production. Les activités (coupe,
+   dosage…) viendront APRÈS ; ici les postes sont des placeholders.
+
+   Gestes, sans conflit :
+     - drag HORIZONTAL  → circulation (déplace la caméra sur le rail, snap)
+     - TAP sur le poste → interaction (placeholder : toast « activité à venir »)
+   ========================================================================= */
+
+// --- Persistance (préfixe unique atelier3d_) -----------------------------
+const SAVE_VERSION = 1;
+const LS_VER = "atelier3d_ver";
+const LS_POS = "atelier3d_station";
+if (localStorage.getItem(LS_VER) !== String(SAVE_VERSION)) {
+  localStorage.setItem(LS_VER, String(SAVE_VERSION));
+  localStorage.removeItem(LS_POS);
+}
+
+// --- Définition du rail (data-driven : la chaîne de production) -----------
+const SPACING = 4.2;            // distance entre deux postes sur le rail (unités monde)
+const STATIONS = [
+  { name: "Achat",          color: 0x6d8ac0, prop: 0x9db6e0 },
+  { name: "Coupe",          color: 0xc06d6d, prop: 0xe09d9d },
+  { name: "Dosage",         color: 0x6dc08a, prop: 0x9de0b6 },
+  { name: "Conditionnement",color: 0xc0a86d, prop: 0xe0cf9d },
+  { name: "Vente",          color: 0x9a6dc0, prop: 0xc39de0 },
+];
+
+// --- Scène ----------------------------------------------------------------
+const app = document.getElementById("app");
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x14101b);
+scene.fog = new THREE.Fog(0x14101b, 10, 26);
+
+const camera = new THREE.PerspectiveCamera(56, 1, 0.1, 100);
+const CAM_Y = 2.35, CAM_Z = 5.6, LOOK_Y = 0.72;
+
+// Lumières
+scene.add(new THREE.HemisphereLight(0xcfd6ff, 0x201a2b, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+sun.position.set(3, 8, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -30; sun.shadow.camera.right = 30;
+sun.shadow.camera.top = 12;   sun.shadow.camera.bottom = -4;
+scene.add(sun);
+
+// Sol continu (renforce le « un seul atelier »)
+const railLength = (STATIONS.length - 1) * SPACING;
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(railLength + 16, 22),
+  new THREE.MeshStandardMaterial({ color:0x2a2436, roughness:0.95 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.position.set(railLength / 2, 0, -1);
+floor.receiveShadow = true;
+scene.add(floor);
+
+// Mur de fond
+const wall = new THREE.Mesh(
+  new THREE.PlaneGeometry(railLength + 16, 9),
+  new THREE.MeshStandardMaterial({ color:0x211b2c, roughness:1 })
+);
+wall.position.set(railLength / 2, 4.5, -3.2);
+wall.receiveShadow = true;
+scene.add(wall);
+
+// --- Étiquette texte -> sprite (aucune police externe à charger) ----------
+function makeLabel(text) {
+  const c = document.createElement("canvas");
+  c.width = 512; c.height = 128;
+  const g = c.getContext("2d");
+  g.fillStyle = "rgba(15,12,22,0.82)";
+  const r = 26, w = c.width, h = c.height;
+  g.beginPath();
+  g.moveTo(r, 0); g.arcTo(w, 0, w, h, r); g.arcTo(w, h, 0, h, r);
+  g.arcTo(0, h, 0, 0, r); g.arcTo(0, 0, w, 0, r); g.closePath(); g.fill();
+  g.fillStyle = "#fff";
+  g.textAlign = "center"; g.textBaseline = "middle";
+  // Ajuste la taille de police pour que les noms longs (« Conditionnement ») tiennent
+  let fs = 58;
+  do { g.font = `700 ${fs}px -apple-system, Segoe UI, Roboto, sans-serif`; fs -= 2; }
+  while (g.measureText(text).width > w - 60 && fs > 24);
+  g.fillText(text, w / 2, h / 2 + 4);
+  const tex = new THREE.CanvasTexture(c);
+  tex.anisotropy = 4;
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, transparent:true, depthWrite:false }));
+  spr.scale.set(1.7, 0.425, 1);
+  return spr;
+}
+
+// --- Construction des postes ---------------------------------------------
+// Chaque poste = un établi (placeholder) + un prop coloré + une étiquette.
+const stationGroups = [];
+STATIONS.forEach((st, i) => {
+  const grp = new THREE.Group();
+  grp.position.x = i * SPACING;
+
+  // Établi
+  const bench = new THREE.Mesh(
+    new THREE.BoxGeometry(2.6, 0.9, 1.6),
+    new THREE.MeshStandardMaterial({ color:st.color, roughness:0.7, metalness:0.05 })
+  );
+  bench.position.y = 0.45;
+  bench.castShadow = true; bench.receiveShadow = true;
+  grp.add(bench);
+
+  // Plateau
+  const top = new THREE.Mesh(
+    new THREE.BoxGeometry(2.75, 0.12, 1.75),
+    new THREE.MeshStandardMaterial({ color:0xece7f2, roughness:0.5 })
+  );
+  top.position.y = 0.96; top.castShadow = true;
+  grp.add(top);
+
+  // Prop placeholder (l'activité viendra le remplacer)
+  const prop = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(0.42, 0),
+    new THREE.MeshStandardMaterial({ color:st.prop, roughness:0.35, metalness:0.15 })
+  );
+  prop.position.set(0, 1.42, 0); prop.castShadow = true;
+  prop.userData.spin = 0.4 + i * 0.08;
+  grp.add(prop);
+
+  // Étiquette (panneau suspendu au-dessus du poste)
+  const label = makeLabel(st.name);
+  label.position.set(0, 2.75, 0);
+  grp.add(label);
+
+  scene.add(grp);
+  stationGroups.push(grp);
+});
+
+// --- État du rail ---------------------------------------------------------
+let rail = 0;                 // position caméra en unités « poste » (float)
+let target = 0;               // cible de snap
+let dragging = false;
+let velocity = 0;            // vitesse (unités/frame) pour l'inertie du flick
+
+// Restaurer le dernier poste visité
+const saved = parseInt(localStorage.getItem(LS_POS) || "0", 10);
+if (Number.isFinite(saved) && saved >= 0 && saved < STATIONS.length) {
+  rail = target = saved;
+}
+
+const clampIdx = (v) => Math.max(0, Math.min(STATIONS.length - 1, v));
+
+function applyCamera() {
+  const x = rail * SPACING;
+  camera.position.set(x, CAM_Y, CAM_Z);
+  camera.lookAt(x, LOOK_Y, 0);
+}
+
+// --- HUD ------------------------------------------------------------------
+const stIdxEl = document.getElementById("stIdx");
+const stNameEl = document.getElementById("stName");
+const hintEl = document.getElementById("hint");
+const toastEl = document.getElementById("toast");
+const dotsEl = document.getElementById("dots");
+STATIONS.forEach(() => {
+  const d = document.createElement("div"); d.className = "dot"; dotsEl.appendChild(d);
+});
+const dotEls = [...dotsEl.children];
+
+let hudIdx = -1;
+function refreshHud() {
+  const idx = clampIdx(Math.round(rail));
+  if (idx === hudIdx) return;
+  hudIdx = idx;
+  stIdxEl.textContent = `Poste ${idx + 1} / ${STATIONS.length}`;
+  stNameEl.textContent = STATIONS[idx].name;
+  dotEls.forEach((d, i) => d.classList.toggle("on", i === idx));
+}
+
+let toastT = 0;
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  toastT = 1.4;
+}
+
+// --- Gestes (Pointer Events : souris + tactile unifiés) -------------------
+let pid = null, startX = 0, startY = 0, lastX = 0, railAtStart = 0;
+let moved = false;
+const W = () => window.innerWidth;
+// ~55 % de largeur d'écran glissée = un poste
+const railPerPx = () => 1 / (W() * 0.55);
+
+app.addEventListener("pointerdown", (e) => {
+  if (pid !== null) return;
+  pid = e.pointerId;
+  app.setPointerCapture(pid);
+  startX = lastX = e.clientX; startY = e.clientY;
+  railAtStart = rail;
+  dragging = true; moved = false; velocity = 0;
+  if (hintEl) hintEl.style.opacity = "0";
+});
+
+app.addEventListener("pointermove", (e) => {
+  if (e.pointerId !== pid) return;
+  const dx = e.clientX - startX;
+  if (Math.abs(dx) > 6 || Math.abs(e.clientY - startY) > 6) moved = true;
+  // glisser vers la gauche (dx<0) → avancer dans l'atelier (rail augmente).
+  // Borné à ±1 poste depuis l'origine : ressenti « pager », un poste à la fois.
+  const base = Math.round(railAtStart);
+  const raw = railAtStart - dx * railPerPx();
+  rail = clampIdx(Math.max(base - 1, Math.min(base + 1, raw)));
+  velocity = -(e.clientX - lastX) * railPerPx();
+  lastX = e.clientX;
+});
+
+function endDrag(e) {
+  if (e.pointerId !== pid) return;
+  dragging = false;
+  try { app.releasePointerCapture(pid); } catch (_) {}
+  pid = null;
+
+  if (!moved) {
+    // TAP = interaction avec le poste courant (placeholder)
+    const idx = clampIdx(Math.round(rail));
+    toast(`${STATIONS[idx].name} — activité à venir`);
+    return;
+  }
+  // Pager : un swipe déplace d'AU PLUS un poste. La direction vient du flick
+  // (vitesse au relâché) ou d'un glissement franchi au-delà du seuil.
+  const base = Math.round(railAtStart);
+  const dragged = rail - base;               // signé : >0 = vers le poste suivant
+  let step = 0;
+  if (Math.abs(velocity) > 0.02) step = Math.sign(velocity);        // flick
+  else if (Math.abs(dragged) > 0.28) step = Math.sign(dragged);     // drag franc
+  target = clampIdx(base + step);
+  localStorage.setItem(LS_POS, String(target));
+}
+app.addEventListener("pointerup", endDrag);
+app.addEventListener("pointercancel", endDrag);
+
+// --- Boucle de rendu ------------------------------------------------------
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener("resize", resize);
+resize();
+
+let last = performance.now();
+function tick(now) {
+  const dt = Math.min((now - last) / 1000, 0.05); last = now;
+
+  if (!dragging) {
+    // Ressort vers la cible (snap doux)
+    rail += (target - rail) * Math.min(1, dt * 10);
+    if (Math.abs(target - rail) < 0.0005) rail = target;
+  }
+
+  applyCamera();
+  refreshHud();
+
+  // Anim placeholder : les props tournent doucement
+  for (const grp of stationGroups) {
+    const prop = grp.children[2];
+    if (prop) prop.rotation.y += dt * (prop.userData.spin || 0.4);
+  }
+
+  if (toastT > 0) {
+    toastT -= dt;
+    if (toastT <= 0) toastEl.classList.remove("show");
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
