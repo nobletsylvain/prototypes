@@ -195,10 +195,14 @@ Le vrai risque est ailleurs :
 ## 7. Backlog priorisé (propositions, à valider)
 
 **P0 — invariants (rapide, fort impact)**
-1. Déterminiser les 4 conséquences aléatoires : `neige:674`, `green-front:740`,
-   `green-front:1045` (+ `gf-v3:1107`), `hash-slicer:1163`. (§2)
-2. Fusionner `dilClean`/`dilHarm` de neige en un seul scalaire de pureté. (§5)
-3. Isoler/flaguer le chapitre 2 hors-périmètre de `crimworld`. (§6)
+1. ✅ *(fait, Lot 1)* Déterminiser les 4 conséquences aléatoires : `neige:674`
+   (pureté par palier de brique), `green-front:740` & `gf-v3` (cycle d'offres),
+   `green-front:1045` & `gf-v3:1107` (descente pilotée par une heat accumulée),
+   `hash-slicer:1163` (éclat piloté par la cadence de tap) — + la copie dormante
+   `crimworld/coupe.html:1163`. (§2)
+2. ✅ *(fait, Lot 1)* Fusionner `dilClean`/`dilHarm` de neige en un seul scalaire
+   `pur` (« pureté du cut ») dont dérivent qualité **et** nocivité. (§5)
+3. Isoler/flaguer le chapitre 2 hors-périmètre de `crimworld`. (§6) — *repo CrimWorld, à part.*
 
 **P1 — structure mini-jeu**
 4. Écrire le **référentiel R1–R10** comme document source dans `prototypes/`. (§0)

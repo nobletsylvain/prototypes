@@ -591,9 +591,9 @@ function updateFlyers(dt) {
 /* -------------------------------------------------------------------------
    9) ETAT DE PARTIE + PERSISTANCE (prefixe "gf3_")
    ------------------------------------------------------------------------- */
-const SAVE_VERSION = "1";
+const SAVE_VERSION = "2";
 if (localStorage.getItem("gf3_ver") !== SAVE_VERSION) {
-  ["gf3_cash","gf3_debt","gf3_rep","gf3_level","gf3_xp","gf3_shop","gf3_stocks","gf3_blend","gf3_trim"].forEach(k => localStorage.removeItem(k));
+  ["gf3_cash","gf3_debt","gf3_rep","gf3_level","gf3_xp","gf3_shop","gf3_stocks","gf3_blend","gf3_trim","gf3_heat"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("gf3_ver", SAVE_VERSION);
 }
 
@@ -603,6 +603,11 @@ let rep   = +(localStorage.getItem("gf3_rep")   || 55);   // reputation 0..100
 let level = Math.max(1, +(localStorage.getItem("gf3_level") || 1));
 let xp    = Math.max(0, +(localStorage.getItem("gf3_xp")    || 0));
 let trimMode = localStorage.getItem("gf3_trim") || "hand";
+let heat  = +(localStorage.getItem("gf3_heat")  || 0);   // R8 : visibilité accumulée par les étiquettes fake
+function setHeat(v) { heat = Math.max(0, v); localStorage.setItem("gf3_heat", heat.toFixed(2)); }
+const HEAT_PER_LABEL = 1;      // chaque vente étiquetée fake monte la heat
+const HEAT_BUST      = 4;      // seuil : la Nᵉ vente étiquetée d'affilée déclenche la descente
+const HEAT_COOL      = 1;      // une vente propre fait retomber la heat (profil bas)
 
 // Stocks (g + somme ponderee de THC pour suivre le %THC moyen par bac).
 const defStock = { A: { g: 0, ts: 0 }, B: { g: 0, ts: 0 }, S: { g: 0, ts: 0 } };
@@ -765,18 +770,27 @@ const nego = { active: false, cursor: 0, dir: 1, done: false };
 
 function maxDebt() { return 900 + rep * 26 + level * 220; }
 
+// R8 : cycle déterministe d'offres (le joueur apprend et planifie l'arbitrage).
+const OFFER_CYCLE = [
+  { thc: 14.0, hum: 16.0, trim: 0.30 },   // moyen, humide, beaucoup de trim
+  { thc: 22.0, hum: 10.0, trim: 0.16 },   // top, sec, propre
+  { thc: 18.0, hum: 13.0, trim: 0.24 },   // correct
+  { thc: 25.0, hum:  9.0, trim: 0.12 },   // top premium
+  { thc: 16.0, hum: 15.0, trim: 0.28 },   // moyen
+];
+let offerIdx = 0;                          // compteur d'offres (cycle déterministe)
 function newOffer() {
   const sizes = ["half"];
   if (level >= 2) sizes.push("pound");
-  if (owned.brick) sizes.push("pound", "brick");
-  const key = sizes[Math.floor(Math.random() * sizes.length)];
+  if (owned.brick) sizes.push("brick");
+  const key = sizes[offerIdx % sizes.length];
+  const p   = OFFER_CYCLE[offerIdx % OFFER_CYCLE.length];
+  offerIdx++;
   const f = FRONTS[key];
   offer = {
     key, g: f.g,
     wholesale: +(f.wholesale * (1 - rep / 500)).toFixed(2),  // meilleure reput -> un poil moins cher
-    thc: +(12 + Math.random() * 14).toFixed(1),               // 12..26 %
-    hum: +(8 + Math.random() * 10).toFixed(1),                // 8..18 % humidite
-    trim: +(0.12 + Math.random() * 0.22).toFixed(2),          // 12..34 % de trim/stems
+    thc: p.thc, hum: p.hum, trim: p.trim,
     mult: 1,                                                   // multiplicateur de prix (negoce)
   };
   scanState.val = 0; nego.active = false; nego.done = false;
@@ -1103,13 +1117,23 @@ function resolveSeal() {
   addPack(f); playSeal(); playSale(); addShake(0.12);
   showToast("+" + Math.round(price) + " € · " + f.name, "#9be37d");
 
-  // Risque police si etiquette fake trop visible.
-  if (opts.label && Math.random() < 0.07) {
-    const loss = Math.round(cash * 0.18);
-    setCash(cash - loss); setRep(rep - 8);
-    blend.g *= 0.7; blend.ts *= 0.7;
-    showToast("🚔 Descente ! −" + loss + " € + stock saisi", "#ff6b6b");
-    addShake(0.4);
+  // R8 : la descente n'est pas un coup de dés. L'étiquette fake accumule de la
+  // heat ; au seuil, la descente tombe — conséquence traçable. Une vente propre
+  // fait retomber la heat.
+  if (opts.label) {
+    setHeat(heat + HEAT_PER_LABEL);
+    if (heat >= HEAT_BUST) {
+      setHeat(0);
+      const loss = Math.round(cash * 0.18);
+      setCash(cash - loss); setRep(rep - 8);
+      blend.g *= 0.7; blend.ts *= 0.7;
+      showToast("🚔 Descente ! −" + loss + " € + stock saisi (étiquettes fake trop visibles)", "#ff6b6b");
+      addShake(0.4);
+    } else if (heat >= HEAT_BUST - 1) {
+      showToast("🚔 Ça se remarque… (baisse d'un cran avec une vente propre)", "#e0b050");
+    }
+  } else {
+    setHeat(heat - HEAT_COOL);
   }
   saveBlend();
   renderFormats(); refreshPackCard();

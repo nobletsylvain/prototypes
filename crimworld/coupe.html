@@ -432,7 +432,7 @@ let mode = "cut";    // "cut" (coupe) | "wrap" (emballage)
 
 // --- Version de sauvegarde : on bump apres un gros rééquilibrage pour repartir
 // de zero. Si la version stockee differe, on efface la progression (une fois). ---
-const SAVE_VERSION = "3";
+const SAVE_VERSION = "4";
 if (localStorage.getItem("cw_ver") !== SAVE_VERSION) {
   ["cw_cash", "cw_waste", "cw_level", "cw_xp", "cw_shop"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("cw_ver", SAVE_VERSION);
@@ -1102,6 +1102,9 @@ function exitWrap() {
    ------------------------------------------------------------------------- */
 const DOSE_SWEEP = 1.25;          // vitesse du curseur (hachoir)
 const DOSE_SWEET = 0.12;          // demi-largeur de la zone (hachoir)
+const SLIVER_MIN  = 0.3;          // eclat minimal par tap (balance) — tap lent, precis
+const SLIVER_SPAN = 0.6;          // supplement max quand on tape vite — tap rapide, risque de depassement
+const SLIVER_GAP  = 0.6;          // au-dela de ce delai (s) entre deux taps, on est au minimum
 // Dosage CONTINU : on puise directement dans le STOCK, dose apres dose, jusqu'a
 // ce que le joueur tape "Terminer" (le stock peut se remplir pendant ce temps).
 const dose = { active:false, method:"hachoir", cursor:0, dir:1, cal:5, grade:"B",
@@ -1159,8 +1162,13 @@ function doseTap() {
   const ac = ensureAudio();
   if (dose.method === "balance") {
     if (stock.g < 0.05) { showToast("Stock vide", "#caa15f"); return; }
-    if (dose.cur < 0.01) dose.grade = stockGrade();   // qualite figee au debut de la dose
-    const sliver = Math.min(stock.g, 0.3 + Math.random() * 0.6);
+    if (dose.cur < 0.01) { dose.grade = stockGrade(); dose.lastTap = 0; }   // qualite figee au debut de la dose
+    // R8 : l'eclat depend de la CADENCE du joueur (tap rapide = gros eclat), jamais du hasard.
+    // Horloge = performance.now() (independante de l'audio, toujours dispo).
+    const now = performance.now() / 1000;
+    const gap = dose.lastTap ? Math.min(SLIVER_GAP, now - dose.lastTap) : SLIVER_GAP;
+    dose.lastTap = now;
+    const sliver = Math.min(stock.g, SLIVER_MIN + (SLIVER_GAP - gap) / SLIVER_GAP * SLIVER_SPAN);
     takeFromStock(sliver); dose.cur += sliver;
     updateStockLabel();
     if (ac) { const t = ac.currentTime; beep(300 + Math.min(1.4, dose.cur / dose.cal) * 500, t, 0.05, 0.12); }

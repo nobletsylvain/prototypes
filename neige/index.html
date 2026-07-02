@@ -169,6 +169,7 @@ import * as THREE from "three";
      ventes) : le cheap rapporte par le volume, mais sa nocivité plombe la réput.
    ------------------------------------------------------------------------- */
 const BRICK_PRICES = { 50: 2600, 100: 4800, 250: 10500, 500: 19000 };  // ≈ 52 / 48 / 42 / 38 €/g
+const BRICK_PURITY = { 50: 0.92, 100: 0.88, 250: 0.84, 500: 0.80 };    // R8 : pureté déterministe (petit lot = plus pur)
 const FMT_PRICE    = { 1: 78, 5: 62, 25: 50 };     // €/g détail à qualité 100 % (prix réel = × qualité)
 const STARTER      = { coke: 30, purity: 0.82, dil: 50 };
 const POUR_RATE    = 26;
@@ -176,13 +177,16 @@ const MIX_DRAG_K   = 1 / 650;
 const MIX_TIME_K   = 0.55;
 const BAG_HOLD_RATE= 0.26;
 const DIL_REFILL_G = 200;
-// price = €/g réel de l'agent (centimes) · clean = propreté (→ qualité/prix) ·
-// harm = nocivité (→ réputation).
+// R10 — un seul levier : chaque agent porte UNE pureté de coupe `pur` (0..1).
+// La qualité ET la nocivité en dérivent toutes deux (cf. cutHarm) — pas de
+// second axe indépendant. price = €/g réel de l'agent (centimes).
+const CUT_HARM_K = 0.6;                                   // pente de la nocivité dérivée
+function cutHarm(pur) { return (1 - pur) * (1 - pur) * CUT_HARM_K; }  // agent sale = nocif
 const DILUANTS = [
-  { key:"leva",  name:"Lévamisole", short:"Léva",  icon:"☠️", price:0.06, clean:0.55, harm:0.12, col:0xb89086 },
-  { key:"lacto", name:"Lactose",    short:"Lacto", icon:"🧂", price:0.03, clean:0.70, harm:0.04, col:0xdad7cc },
-  { key:"manni", name:"Mannitol",   short:"Manni", icon:"⚪", price:0.07, clean:0.85, harm:0.015,col:0xc3d2df },
-  { key:"benzo", name:"Benzocaïne", short:"Benzo", icon:"💉", price:0.22, clean:1.00, harm:0.0,  col:0xa9c4e6 },
+  { key:"leva",  name:"Lévamisole", short:"Léva",  icon:"☠️", price:0.06, pur:0.55, col:0xb89086 },
+  { key:"lacto", name:"Lactose",    short:"Lacto", icon:"🧂", price:0.03, pur:0.70, col:0xdad7cc },
+  { key:"manni", name:"Mannitol",   short:"Manni", icon:"⚪", price:0.07, pur:0.85, col:0xc3d2df },
+  { key:"benzo", name:"Benzocaïne", short:"Benzo", icon:"💉", price:0.22, pur:1.00, col:0xa9c4e6 },
 ];
 const DIL_BY = Object.fromEntries(DILUANTS.map(d => [d.key, d]));
 
@@ -354,7 +358,7 @@ function setTrayTint(h) { trayHeap.material.color.lerpColors(COL_FRESH, COL_CUT,
 /* -------------------------------------------------------------------------
    5) ETAT DE PARTIE + PERSISTANCE
    ------------------------------------------------------------------------- */
-const SAVE_VERSION = "3";
+const SAVE_VERSION = "4";
 if (localStorage.getItem("neige_ver") !== SAVE_VERSION) {
   ["neige_cash", "neige_level", "neige_xp", "neige_shop", "neige_rep", "neige_waste"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("neige_ver", SAVE_VERSION);
@@ -369,7 +373,7 @@ if (!DIL_BY[curDil]) curDil = "lacto";
 
 let bulkG = 0, bulkPurity = STARTER.purity;
 const dilStock = { leva: 0, lacto: 0, manni: 0, benzo: 0 };
-const tray = { coke: 0, dil: 0, cokePure: 0, dilClean: 0, dilHarm: 0 };
+const tray = { coke: 0, dil: 0, cokePure: 0, dilPur: 0 };
 const prod = { g: 0, qsum: 0 };
 let homog = 0;
 
@@ -610,8 +614,8 @@ owned.autobag = owned.autobag || 0;
 owned.cadence = owned.cadence || 0;
 function saveShop() { localStorage.setItem("neige_shop", JSON.stringify(owned)); }
 function bagInterval() { return 3.0 * Math.pow(0.82, owned.cadence); }
-// Qualité du produit = pureté (après coupe) + propreté du diluant utilisé.
-function cutQuality(purity, clean) { return Math.max(0.2, Math.min(1, 0.25 + 0.45 * purity + 0.30 * clean)); }
+// Qualité du produit = pureté de la coke (après coupe) + pureté de l'agent de coupe (R10 : un seul levier).
+function cutQuality(cokePurity, cutPurity) { return Math.max(0.2, Math.min(1, 0.25 + 0.45 * cokePurity + 0.30 * cutPurity)); }
 function harmWord(h) { return h >= 0.1 ? "élevée" : h >= 0.03 ? "moyenne" : "faible"; }
 
 const SHOP = [
@@ -629,7 +633,7 @@ const SHOP = [
     cost:()=>BRICK_PRICES[500], can:()=>true, maxed:()=>false, buy:()=>receiveCoke(500) },
   ...DILUANTS.map(d => ({
     id:"dil_" + d.key, icon:d.icon, name:d.name + " " + DIL_REFILL_G + " g",
-    desc:()=>"Coupe : propreté " + Math.round(d.clean*100) + "% · nocivité " + harmWord(d.harm) + " · " + d.price.toFixed(2) + " €/g",
+    desc:()=>"Coupe : pureté " + Math.round(d.pur*100) + "% · nocivité " + harmWord(cutHarm(d.pur)) + " · " + d.price.toFixed(2) + " €/g",
     cost:()=>Math.round(d.price * DIL_REFILL_G), can:()=>true, maxed:()=>false, buy:()=>receiveDiluant(d.key) })),
   { id:"press", icon:"🗜️", name:"Presse à briquettes",
     desc:()=>"Débloque le format 25 g (semi-gros).",
@@ -671,7 +675,7 @@ function receiveCoke(size) {
   const cost = BRICK_PRICES[size];
   if (cash < cost) { showToast("Pas assez : " + cost + " €", "#ff6b6b"); return; }
   setCash(cash - cost); ui.shop.classList.remove("show");
-  const purity = 0.80 + Math.random() * 0.12;       // pureté d'import ~80–92 %
+  const purity = BRICK_PURITY[size];                // R8 : pureté déterministe, conséquence du lot choisi
   const tot = bulkG + size;
   bulkPurity = tot > 0 ? (bulkG * bulkPurity + size * purity) / tot : purity;
   bulkG = tot; updateResources();
@@ -698,7 +702,7 @@ function updatePour(dt) {
   if (stock <= 0.05) { pouring = null; showToast(isCoke ? "Brique finie" : "Pot « " + curDef().name + " » vide", "#e6c896"); return; }
   const g = Math.min(stock, POUR_RATE * dt);
   if (isCoke) { bulkG -= g; tray.coke += g; tray.cokePure += g * bulkPurity; }
-  else { const d = curDef(); dilStock[curDil] -= g; tray.dil += g; tray.dilClean += g * d.clean; tray.dilHarm += g * d.harm; }
+  else { const d = curDef(); dilStock[curDil] -= g; tray.dil += g; tray.dilPur += g * d.pur; }
   homog = 0; setTrayTint(0);
   updateTrayHeap(); updateResources();
   const src = isCoke ? COKE_POS : DIL_POS;
@@ -731,14 +735,13 @@ function commitMix() {
   mixing = false;
   const total = trayG();
   const purity = total > 0 ? tray.cokePure / total : 0;
-  const cleanAvg = tray.dil > 0 ? tray.dilClean / tray.dil : 1;
-  const harmAvg  = tray.dil > 0 ? tray.dilHarm / tray.dil : 0;
-  const cutFrac  = total > 0 ? tray.dil / total : 0;
-  const qual = cutQuality(purity, cleanAvg);
+  const purAvg  = tray.dil > 0 ? tray.dilPur / tray.dil : 1;    // R10 : un seul levier de coupe
+  const cutFrac = total > 0 ? tray.dil / total : 0;
+  const qual = cutQuality(purity, purAvg);
   addProd(total, qual);
-  setRep(rep + (qual - 0.55) * 0.06 - harmAvg * cutFrac);   // nocivité -> réput
+  setRep(rep + (qual - 0.55) * 0.06 - cutHarm(purAvg) * cutFrac);   // nocivité dérivée de la pureté
   const stretch = tray.coke > 0 ? total / tray.coke : 1;
-  tray.coke = tray.dil = tray.cokePure = tray.dilClean = tray.dilHarm = 0; homog = 0; setTrayTint(0); updateTrayHeap();
+  tray.coke = tray.dil = tray.cokePure = tray.dilPur = 0; homog = 0; setTrayTint(0); updateTrayHeap();
   burstPuffs(SLAB_POS, 12, PROD_POS); addShake(0.16); sSale();
   addXP(Math.max(1, Math.round(total * 0.3)));
   showToast("Coupé ×" + stretch.toFixed(2) + " → +" + Math.round(total) + " g (pureté " + Math.round(purity*100) + "%, qual " + Math.round(qual*100) + "%)", "#bfe9ff");
@@ -903,7 +906,7 @@ function discardMix() {
     showToast("Produit jeté : −" + lost + " g", "#e6c896");
   } else if (trayG() > 0.3) {
     burstPuffs(SLAB_POS, 8, null, puffMatDil); addShake(0.08); sScrape();
-    tray.coke = tray.dil = tray.cokePure = tray.dilClean = tray.dilHarm = 0; homog = 0; setTrayTint(0); updateTrayHeap();
+    tray.coke = tray.dil = tray.cokePure = tray.dilPur = 0; homog = 0; setTrayTint(0); updateTrayHeap();
     showToast("Dalle nettoyée", "#e6c896");
   } else { showToast("Rien à jeter", "#e6c896"); }
 }
