@@ -591,7 +591,7 @@ function updateFlyers(dt) {
 /* -------------------------------------------------------------------------
    10) ETAT DE PARTIE + PERSISTANCE (prefixe "gs_")
    ------------------------------------------------------------------------- */
-const SAVE_VERSION = "3";   // bump : R6 métronome capé + retrait HUD heat mort
+const SAVE_VERSION = "4";   // bump : R6 métronome capé + retrait HUD heat mort + R4 combo ne facilite plus
 if (localStorage.getItem("gs_ver") !== SAVE_VERSION) {
   ["gs_cash","gs_heat","gs_level","gs_xp","gs_shop","gs_plaque","gs_stock","gs_blend","gs_fmt","gs_packfmt"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("gs_ver", SAVE_VERSION);
@@ -782,7 +782,9 @@ function strum(swipeRight, auto) {
   // Combo : chaque cran ajoute un petit bonus de conservation (moins de perte).
   rhythm.combo++;
   rhythm.best = Math.max(rhythm.best, rhythm.combo);
-  keep = Math.min(1, keep + Math.min(rhythm.combo, 12) * 0.012);
+  // R4 : le combo NE facilite PAS le geste (il ne rachète plus la matière) — il
+  // reste une récompense de panache (son qui monte, gros COMBO à l'écran). Le
+  // geste répété ne devient jamais plus indulgent : seul le timing fait la coupe.
 
   const totalG = Math.min(cutFmt, plaque.g);
   const keptG  = totalG * keep;

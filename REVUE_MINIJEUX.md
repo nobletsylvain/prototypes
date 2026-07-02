@@ -215,8 +215,12 @@ Le vrai risque est ailleurs :
    gabarit qui rogne le rendement ; auto-bucker green-front/gf-v3 avec **perte de
    matière** (15 %) ; métronome guitar-shito capé sous le PARFAIT. Reste à faire :
    passer ces interrupteurs en **curseurs de % délégué** (patron neige). (§4)
-7. Concevoir une **satisfaction décroissante explicite** (au moins sur un proto
-   pilote) — retirer le combo qui *facilite* dans guitar-shito. (§3)
+7. ✅ *(fait, Lot 3)* **Satisfaction décroissante** — pilote sur **hash-slicer** :
+   couper en rafale « fatigue » le geste (juice qui s'éteint + rendement rogné,
+   `cutFresh`), ce qui rend le massicot tireless attractif ; se pacer/déléguer la
+   restaure. Toujours ≥ machine quand frais (R6 tenu), déterministe (cadence, pas
+   hasard — R8). Et **combo qui *facilite* retiré** dans guitar-shito (le combo
+   ne rachète plus la matière : panache seulement). (§3)
 
 **P2 — hygiène / cohérence**
 8. Brancher (ou retirer) le dosage tactile mort de **green-front-v3** et

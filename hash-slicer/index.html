@@ -432,7 +432,7 @@ let mode = "cut";    // "cut" (coupe) | "wrap" (emballage)
 
 // --- Version de sauvegarde : on bump apres un gros rééquilibrage pour repartir
 // de zero. Si la version stockee differe, on efface la progression (une fois). ---
-const SAVE_VERSION = "5";
+const SAVE_VERSION = "6";
 if (localStorage.getItem("hash_ver") !== SAVE_VERSION) {
   ["hash_cash", "hash_waste", "hash_level", "hash_xp", "hash_shop"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("hash_ver", SAVE_VERSION);
@@ -586,6 +586,9 @@ function manualChop() {
   // friction de visee est deplacee vers la matiere, pas supprimee gratuitement.
   f = Math.max(0.4, f - (owned.guide || 0) * GUIDE_YIELD_MALUS);
 
+  // R4 : la monotonie rogne le rendement (jamais sous le seuil machine quand frais).
+  f *= (1 - FRESH_YIELD * (1 - cutFresh));
+
   // Epaisseur consommee = ~10 g (avec inclusion du talon en fin de savonnette).
   let cn = rightNeg - TARGET_THICK, cp = rightPos - TARGET_THICK;
   if (cn < 0.32 && cp < 0.32) { cn = 0; cp = 0; }
@@ -599,15 +602,30 @@ function manualChop() {
   bladeChop = 1;                                // la lame chope a la ligne de coupe
   spawnBarrette(cn, cp, keptG, grade, f);
   addWaste(lostG);                              // la perte part dans le bac a boulettes
-  burstCrumbs((cn + cp) / 2, H * 0.6, 0, Math.round(6 + (1 - f) * 30));
-  addShake(grade === "A" ? 0.22 : 0.16);
+  // R4 : le juice s'éteint avec la monotonie (secousse + miettes atténuées).
+  const juice = 0.45 + 0.55 * cutFresh;
+  burstCrumbs((cn + cp) / 2, H * 0.6, 0, Math.round((6 + (1 - f) * 30) * juice));
+  addShake((grade === "A" ? 0.22 : 0.16) * juice);
   playCut(grade);
-  showToast(msg + "  " + keptG.toFixed(1) + " g · " + grade, col);
+  if (cutFresh < 0.35)                          // le geste ne « paie » plus — la vanne (massicot) devient tentante
+    showToast("Monotone…  " + keptG.toFixed(1) + " g · " + grade + "  (le massicot ne fatigue pas)", "#9aa2ad");
+  else
+    showToast(msg + "  " + keptG.toFixed(1) + " g · " + grade, col);
+  cutFresh = Math.max(0, cutFresh - FRESH_DROP);
 }
 
 // Demi-largeur de la zone verte : s'elargit avec le "Gabarit" (plus facile a viser).
 function sweetHalf() { return Math.min(0.34, 0.085 + (owned.guide || 0) * 0.03); }
 const GUIDE_YIELD_MALUS = 0.02;   // R9 : chaque niveau de gabarit rogne 2% du rendement de coupe
+
+// R4 — satisfaction décroissante : couper la même barrette en rafale « fatigue »
+// le geste (juice qui s'éteint + léger rendement en moins). On se pace, ça reste
+// frais ; on mitraille, ça retombe — et le massicot, lui, ne fatigue jamais.
+// Déterministe (fonction de la cadence du joueur), jamais du hasard.
+let cutFresh = 1;                 // 1 = geste tout frais, 0 = monotone
+const FRESH_DROP    = 0.06;       // perte de fraîcheur par coupe manuelle
+const FRESH_RECOVER = 0.12;       // récupération par seconde quand on ne coupe pas à la main
+const FRESH_YIELD   = 0.10;       // rendement rogné au maximum de la monotonie (10%)
 
 // Anime la jauge du mini-jeu (curseur qui balaie, zone verte, affichage on/off).
 const GAUGE_SPEED = 1.05;                        // aller-retour du curseur (unites/s)
@@ -1516,6 +1534,8 @@ function loop(t) {
   updateCutter(dt);
   updateMachine(dt);
   updateCrumbs(dt);
+  if (cutFresh < 1) cutFresh = Math.min(1, cutFresh + FRESH_RECOVER * dt);   // R4 : la fraîcheur revient quand on ne mitraille pas
+
   // Secousse de camera (oscille autour de la position de repos, puis s'amortit).
   if (shake > 0) { shake *= Math.pow(0.0008, dt); if (shake < 0.002) shake = 0; }
   camera.position.copy(baseCamPos);
