@@ -9,6 +9,7 @@ Petits prototypes de **core loops** jouables/testables dans le navigateur (mobil
 /green-front/         ← core loop "Green Front"
 /guitar-shito/        ← core loop "GuitarShito"
 /neige/                  ← core loop "Neige"
+/plantation/          ← core loop "Plantation"
 /tools/                  ← captures d'écran headless (voir tools/README.md)
 ```
 
@@ -98,6 +99,25 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). « Gu
 
 - En ligne : **https://nobletsylvain.github.io/prototypes/guitar-shito/** (depuis le hub).
 - En local : ouvrir `guitar-shito/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
+
+## 🌱 Plantation (core loop)
+
+Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). L'étape **amont** des autres protos : la culture. Design issu d'une étude de marché (Schedule I, Weedcraft Inc, Weed Firm, Hempire + étalons tactiles Hay Day/Viridi/Prune) — voir `plantation/DESIGN.md`.
+
+**Boucle de jeu (4 stations, un geste chacune) :**
+1. **Semer** 🌱 — **maintenir le sac de terreau** pour remplir le pot, puis **glisser une graine** de la caisse jusqu'au pot (3 variétés à rendement croissant, la 1ʳᵉ offerte).
+2. **Arroser** 💧 — **maintenir l'arrosoir** : le débit s'emballe, **la terre fonce** (on lit la matière, pas une jauge). Trop tard = flaque, pousse ralentie. La plante penche quand elle a soif.
+3. **Tailler** ✂️ — des **feuilles gourmandes** poussent pendant la pousse : **swipe vif** (seuil de vélocité) pour les trancher sans toucher les têtes — chaque coupe **redirige la vigueur** (les buds gonflent, façon *Prune*). Piège à découvrir : tailler assoiffe la plante.
+4. **Récolter** 🌿 — à maturité, **frotter la plante** : geste **lent** = têtes A au STOCK, geste **vif** = trim bradé aux schlags. Puis vente par sachets **1 / 3.5 / 7 / 28 g** (petit = €/g plus élevé, × qualité × niveau).
+
+**Le levier cupidité est physique** : on **verse un booster** dans le pot — 🌼 Engrais (+15 % qualité) ou 🧪 PGR (+70 % rendement, qualité plafonnée à 55 %). La qualité finale = soin d'eau + taille + booster, en un seul axe.
+
+**Progression :** Boutique — graines, doses, **goutte-à-goutte** (arrose seul, mais chichement), **tuteur** (moins de feuilles), **lampe LED** (+25 % vitesse), **sécateur auto** (taille seul, avec du retard : la main fait toujours mieux) — et **niveaux (XP)**, +3 % de revenus par niveau. Pousse courte (~2 min 30) : timer diégétique, jamais d'énergie sur les gestes. Persistance `localStorage` préfixée `plant_`.
+
+### Jouer
+
+- En ligne : **https://nobletsylvain.github.io/prototypes/plantation/** (depuis le hub).
+- En local : ouvrir `plantation/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
 
 ## ❄️ Neige (core loop)
 
