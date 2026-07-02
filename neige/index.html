@@ -360,7 +360,7 @@ function setTrayTint(h) { trayHeap.material.color.lerpColors(COL_FRESH, COL_CUT,
    ------------------------------------------------------------------------- */
 const SAVE_VERSION = "4";
 if (localStorage.getItem("neige_ver") !== SAVE_VERSION) {
-  ["neige_cash", "neige_level", "neige_xp", "neige_shop", "neige_rep", "neige_waste"].forEach(k => localStorage.removeItem(k));
+  ["neige_cash", "neige_level", "neige_xp", "neige_shop", "neige_rep"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("neige_ver", SAVE_VERSION);
 }
 let cash  = +(localStorage.getItem("neige_cash") || 0);

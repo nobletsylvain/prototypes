@@ -222,18 +222,34 @@ Le vrai risque est ailleurs :
    hasard — R8). Et **combo qui *facilite* retiré** dans guitar-shito (le combo
    ne rachète plus la matière : panache seulement). (§3)
 
-**P2 — hygiène / cohérence**
-8. Brancher (ou retirer) le dosage tactile mort de **green-front-v3** et
-   supprimer le slider doublon. (cf. revue gf-v3)
-9. ✅ *(fait, Lot 2)* `heat` morte de guitar-shito **retirée** (CSS orphelin
-   supprimé — la logique avait déjà été retirée par l'auteur). Compensation des
-   bonus de revente : reste ouverte (pas de système d'échelle à compenser sans
-   inventer une économie de heat — décision de design). (§4)
-10. Nettoyer le code mort : machines dormantes de hash-slicer-v2, bac B fantôme
-    de green-front, `SCHLAG_RATE`/`owned.waste` jamais lus.
+**P2 — hygiène / cohérence** *(audit Lot 4 — plusieurs constats de la revue
+initiale étaient trop sévères ; correction ci-dessous)*
+8. **Dosage tactile mort de green-front-v3** — confirmé : `startPour`/`updatePour`/
+   `stopPour` sont **définis mais jamais appelés** (le `loop()` n'appelle que
+   `updateGauges/updateFlyers/updateAutoBuck`), et le slider `#strack` reste
+   l'unique mécanique active. La feature-phare du fork est inerte. « Brancher **ou**
+   retirer » = **décision d'identité du fork**, pas de l'hygiène → laissée à valider
+   (comme la vanne de hs-v2). Non tranchée unilatéralement.
+9. ✅ *(fait, Lot 2)* `heat` morte de guitar-shito **retirée** (CSS orphelin).
+10. **Code mort — audit** :
+    - ✅ *(fait, Lot 4)* `neige_waste` (clé de reset orpheline, feature retirée) et
+      `TBUCK` (gf-v2, timer d'un mini-jeu qui n'en a plus) : **supprimés** — vrais
+      résidus accidentels, non annotés.
+    - ⚠️ **Faux positif — bac B de green-front n'est PAS fantôme** : il est produit
+      (pondération THC distincte `×0.9`), affiché (`labB`/`binB`), et **fondu dans le
+      blend** au stretch (`flowerG = A + B`). C'est un vrai palier mid-grade ;
+      le retirer = passer 3→2 paliers (ce que gf-v3 explore déjà), un choix de
+      **design**, pas du nettoyage. **Non touché.**
+    - ⚠️ **Code mort de hs-v2 = intentionnel** : `gradeVal` « (conserve, inutilise) »,
+      `SELL_POS` « (leftover, code emballage dormant) », `SCHLAG_RATE` « (reserve) »
+      (green-front + guitar-shito) sont **annotés par l'auteur comme parqués
+      volontairement**. Les retirer contredirait une intention documentée. **Non
+      touchés** — à l'auteur de décider s'il les purge.
 
 ---
 
 *Revue menée par lecture intégrale du code des 10 prototypes ; chaque constat
-chiffré renvoie à `file:line`. Document de proposition — aucune modification de
-code n'a été faite.*
+chiffré renvoie à `file:line`. Les Lots 1–4 de correction ont depuis été appliqués
+(cf. cases ✅) ; restent ouverts : la vanne de hs-v2 et le dosage de gf-v3 (deux
+décisions d'identité de fork), les curseurs de délégation, et le passage des
+faux positifs/annotés en revue par l'auteur.*
