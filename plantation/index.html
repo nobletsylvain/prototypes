@@ -74,6 +74,8 @@
     font-weight:800; font-size:13px; padding:6px 9px; border-radius:10px; }
   .fmtbtn.on { background:#7ad17a; color:#0e2a16; border-color:#7ad17a; }
   .boostbtn.on { background:#e3c05f; color:#20180a; border-color:#e3c05f; }
+  .varbtn { white-space:nowrap; }                                           /* sélecteur de variété (mode embed) */
+  .varbtn.on { background:#7ad17a; color:#0e2a16; border-color:#7ad17a; }
   .selbtn:disabled { opacity:.4; }
   .boostbtn.empty { opacity:.5; }
 
@@ -189,6 +191,72 @@
 "use strict";
 import * as THREE from "three";
 
+/* --- Mode EMBED "bigo" : le téléphone-OS « Le Bigo » (le-bigo/index.html) ouvre
+   CE proto en iframe comme app 🌱 Plantation. Contrat postMessage figé : le-bigo/BUS.md.
+   Slug "plantation". Activé par #embed=bigo. SANS ce flag, le standalone est
+   strictement inchangé. Chaîne : graines OnionMarket (bigo-state.seeds) → semis
+   (bigo-txn seedsTake) → culture → coupe → séchage → frotté → bigo-txn branchesAdd
+   vers l'app Récolte (PAS de vente locale ; le trim part en miettes). --- */
+const EMBED = /[?#&]embed=bigo/.test(location.href);
+// En mode embed, on n'écrit JAMAIS dans le save du proto autonome (plant_*) :
+// toutes les lectures/écritures passent par un shim mémoire (perdu à la fermeture).
+const memStore = (() => { const m = {}; return {
+  getItem: (k) => (k in m ? m[k] : null),
+  setItem: (k, v) => { m[k] = String(v); },
+  removeItem: (k) => { delete m[k]; },
+}; })();
+const STORE = EMBED ? memStore : localStorage;
+
+// Variétés de l'enum partagée (BUS.md / recolte). yield = placeholder déterministe
+// par variété (le soin d'eau/taille module ensuite rendement ET qualité — R4).
+const EMB_SEEDS = {
+  "Skunk":       { variety: "Skunk",       name: "Skunk",       icon: "🦨", yield: 40 },
+  "White Widow": { variety: "White Widow", name: "White Widow", icon: "❄️", yield: 48 },
+  "Lemon":       { variety: "Lemon",       name: "Lemon",       icon: "🍋", yield: 34 },
+  "Purple":      { variety: "Purple",      name: "Purple",      icon: "🍇", yield: 55 },
+};
+let BIGO = null;        // dernier {type:"bigo-state", cash, seeds:{Variete:n}, …} reçu du parent
+let bigoSeeds = {};     // miroir local des graines partagées (le bigo-state fait foi)
+let embVariety = null;  // variété sélectionnée pour le prochain semis
+let embSentG = 0, embTrimG = 0;   // cumuls de session : envoyé à la Récolte / parti en miettes
+let varbar = null;      // sélecteur de variété (créé à l'init embed)
+const NO_SEED_MSG = EMBED ? "Achète des graines sur 🧅 OnionMarket" : "Plus de graines — boutique 🛒";
+
+function seedAvail() { return EMBED ? (embVariety ? (bigoSeeds[embVariety] || 0) : 0) : (seeds[curSeed] || 0); }
+function takeSeed() {   // consomme UNE graine ; null si aucune. Embed : graine PARTAGÉE (seedsTake).
+  if (EMBED) {
+    if (seedAvail() <= 0) return null;
+    bigoSeeds[embVariety]--;   // décrément optimiste — le prochain bigo-state fait foi
+    try { parent.postMessage({ type: "bigo-txn", app: "plantation", seedsTake: { variety: embVariety, n: 1 } }, "*"); } catch (e) {}
+    return EMB_SEEDS[embVariety];
+  }
+  if ((seeds[curSeed] || 0) <= 0) return null;
+  seeds[curSeed]--; saveSeeds();
+  return SEED_BY[curSeed];
+}
+// Fin d'une branche frottée (embed) : le séché part à l'app Récolte, le trim en
+// miettes. UNE txn par branche, cause obligatoire (contrat CrimWorld / BUS.md).
+function embSendBranch(hook) {
+  const g = Math.round(hook.sentG * 10) / 10;
+  const trim = Math.round(hook.trimSent * 10) / 10;
+  const variety = hook.variety || "Skunk";
+  const msg = { type: "bigo-txn", app: "plantation" };
+  if (g > 0) {
+    const q = Math.max(1, Math.min(100, Math.round((hook.sentQsum / hook.sentG) * 100)));
+    msg.branchesAdd = { variety, g, q };
+    msg.journal = { icon: "🌱", txt: "Branchage séché prêt : " + g + " g de " + variety + " → Récolte",
+                    cause: "↩ ta culture (semis, arrosage, taille)", cls: "good" };
+  }
+  if (trim > 0) {
+    msg.miettes = trim;
+    if (!msg.journal) msg.journal = { icon: "🍂", txt: "Branche partie en trim : " + trim + " g de miettes",
+                                      cause: "↩ ton frotté trop vif (lent = têtes A)", cls: "warn" };
+  }
+  if (g > 0 || trim > 0) { try { parent.postMessage(msg, "*"); } catch (e) {} }
+  embSentG += g; embTrimG += trim;
+  updateCount();
+}
+
 /* =========================================================================
    PLANTATION — core loop "culture de weed" (proto mobile WebGL)
    -------------------------------------------------------------------------
@@ -297,7 +365,7 @@ const VIEW_TARGET = new THREE.Vector3(0.0, 1.05, 0.15);              // .x/.y gl
 const VIEW_RADIUS = Math.hypot(1.75, 1.2, 1.05);
 const BASE_TY     = 1.05;
 const baseCamPos  = new THREE.Vector3();
-let zoom = +(localStorage.getItem("plant_zoom")) || 1;
+let zoom = +(STORE.getItem("plant_zoom")) || 1;
 zoom = Math.max(0.6, Math.min(2.6, zoom));
 
 function fitView() {
@@ -678,26 +746,26 @@ seedGhost.scale.y = 1.35; seedGhost.visible = false; scene.add(seedGhost);
    6) ÉTAT DE PARTIE + PERSISTANCE
    ------------------------------------------------------------------------- */
 const SAVE_VERSION = "2";     // v2 : pots multiples (owned.pots)
-if (localStorage.getItem("plant_ver") !== SAVE_VERSION) {
-  ["plant_cash", "plant_level", "plant_xp", "plant_shop", "plant_fmt", "plant_boost", "plant_seed", "plant_doses", "plant_seeds"].forEach(k => localStorage.removeItem(k));
-  localStorage.setItem("plant_ver", SAVE_VERSION);
+if (STORE.getItem("plant_ver") !== SAVE_VERSION) {
+  ["plant_cash", "plant_level", "plant_xp", "plant_shop", "plant_fmt", "plant_boost", "plant_seed", "plant_doses", "plant_seeds"].forEach(k => STORE.removeItem(k));
+  STORE.setItem("plant_ver", SAVE_VERSION);
 }
-let cash  = +(localStorage.getItem("plant_cash") || 0);
-let level = Math.max(1, +(localStorage.getItem("plant_level") || 1));
-let xp    = Math.max(0, +(localStorage.getItem("plant_xp") || 0));
-let fmt   = +(localStorage.getItem("plant_fmt") || 1);
+let cash  = +(STORE.getItem("plant_cash") || 0);
+let level = Math.max(1, +(STORE.getItem("plant_level") || 1));
+let xp    = Math.max(0, +(STORE.getItem("plant_xp") || 0));
+let fmt   = +(STORE.getItem("plant_fmt") || 1);
 if (!FMT_PRICE[fmt]) fmt = 1;
-let curBoost = localStorage.getItem("plant_boost") || "none";
+let curBoost = STORE.getItem("plant_boost") || "none";
 if (!BOOSTS[curBoost]) curBoost = "none";
-let curSeed = localStorage.getItem("plant_seed") || "lemon";
+let curSeed = STORE.getItem("plant_seed") || "lemon";
 if (!SEED_BY[curSeed]) curSeed = "lemon";
 
 const stock = { g: 0, qsum: 0 };
 let trimG = 0;
-const doses = JSON.parse(localStorage.getItem("plant_doses") || '{"fert":0,"pgr":0}');
-const seeds = JSON.parse(localStorage.getItem("plant_seeds") || '{"lemon":2,"amnesia":0,"purple":0}');
-function saveDoses() { localStorage.setItem("plant_doses", JSON.stringify(doses)); }
-function saveSeeds() { localStorage.setItem("plant_seeds", JSON.stringify(seeds)); }
+const doses = JSON.parse(STORE.getItem("plant_doses") || '{"fert":0,"pgr":0}');
+const seeds = JSON.parse(STORE.getItem("plant_seeds") || '{"lemon":2,"amnesia":0,"purple":0}');
+function saveDoses() { STORE.setItem("plant_doses", JSON.stringify(doses)); }
+function saveSeeds() { STORE.setItem("plant_seeds", JSON.stringify(seeds)); }
 function stockQual() { return stock.g > 0 ? stock.qsum / stock.g : 0.6; }
 
 /* -------------------------------------------------------------------------
@@ -712,15 +780,29 @@ const ui = {
   shopbtn:document.getElementById("shopbtn"), potdots:document.getElementById("potdots"),
 };
 function setCash(v) {
-  cash = v; localStorage.setItem("plant_cash", String(Math.round(cash)));
+  cash = v; STORE.setItem("plant_cash", String(Math.round(cash)));
   ui.cash.textContent = "💶 " + Math.round(cash) + " €";
   if (ui.shop.classList.contains("show")) renderShop();
 }
 function updateCount() {
+  if (EMBED) {   // pas de stock vendable local : on cumule ce qui est PARTI à la Récolte
+    ui.count.textContent = "→ Récolte : " + Math.round(embSentG) + " g" +
+      (embTrimG > 0.3 ? " · miettes " + Math.round(embTrimG) + " g" : "");
+    return;
+  }
   ui.count.textContent = "Stock : " + Math.round(stock.g) + " g" +
     (stock.g > 0.3 ? " · qual " + Math.round(stockQual() * 100) + "%" : "");
 }
 function updateResources() {
+  if (EMBED) {
+    renderVarietyBar();   // d'abord : (ré)élit embVariety selon les graines dispo
+    const sd = embVariety ? EMB_SEEDS[embVariety] : null;
+    ui.title.textContent = sd ? "GRAINES " + sd.icon + " " + sd.name + " ×" + (bigoSeeds[embVariety] || 0)
+                              : "GRAINES — 🧅 OnionMarket";
+    ui.remain.textContent = "🌼 ×" + doses.fert + " · 🧪 ×" + doses.pgr;
+    updateBoostBar();
+    return;
+  }
   const sd = SEED_BY[curSeed];
   ui.title.textContent  = "GRAINES " + sd.icon + " ×" + (seeds[curSeed] || 0);
   ui.remain.textContent = "🌼 ×" + doses.fert + " · 🧪 ×" + doses.pgr;
@@ -742,8 +824,8 @@ function addXP(n) {
     if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(880, t + 0.08, 0.1, 0.2); beep(1180, t + 0.16, 0.16, 0.22); }
     renderShop();
   }
-  localStorage.setItem("plant_level", String(level));
-  localStorage.setItem("plant_xp", String(Math.round(xp)));
+  STORE.setItem("plant_level", String(level));
+  STORE.setItem("plant_xp", String(Math.round(xp)));
   updateXpUI();
 }
 
@@ -863,13 +945,13 @@ function showToast(msg, color) {
 /* -------------------------------------------------------------------------
    11) BOUTIQUE (graines, boosters, pots/étagères, vannes de délégation)
    ------------------------------------------------------------------------- */
-const owned = JSON.parse(localStorage.getItem("plant_shop") || "{}");
+const owned = JSON.parse(STORE.getItem("plant_shop") || "{}");
 owned.pots   = Math.min(MAX_POTS, Math.max(1, owned.pots || 1));
 owned.drip   = owned.drip   || 0;
 owned.tuteur = owned.tuteur || 0;
 owned.led    = owned.led    || 0;
 owned.secat  = owned.secat  || 0;
-function saveShop() { localStorage.setItem("plant_shop", JSON.stringify(owned)); }
+function saveShop() { STORE.setItem("plant_shop", JSON.stringify(owned)); }
 function ensurePots() {
   while (stations.length < owned.pots) makeStation(stations.length);
   renderPotDots();
@@ -880,7 +962,7 @@ const SHOP = [
     id:"seed_" + s.key, icon:s.icon, name:"Graine " + s.name,
     desc:()=> (level < s.lvl ? "Niv. " + s.lvl + " requis · " : "") + "~" + s.yield + " g/plante",
     cost:()=>s.cost, can:()=>level >= s.lvl, maxed:()=>false,
-    buy:()=>{ seeds[s.key] = (seeds[s.key] || 0) + 1; curSeed = s.key; localStorage.setItem("plant_seed", s.key); saveSeeds(); updateResources(); } })),
+    buy:()=>{ seeds[s.key] = (seeds[s.key] || 0) + 1; curSeed = s.key; STORE.setItem("plant_seed", s.key); saveSeeds(); updateResources(); } })),
   { id:"fert", icon:"🌼", name:"Dose d'engrais",
     desc:()=>"À verser dans le pot : +15% qualité.",
     cost:()=>BOOSTS.fert.cost, can:()=>true, maxed:()=>false,
@@ -914,6 +996,7 @@ function renderShop() {
   ui.shopcash.textContent = "💶 " + Math.round(cash) + " €";
   ui.shopitems.innerHTML = "";
   for (const it of SHOP) {
+    if (EMBED && it.id.startsWith("seed_")) continue;   // embed : les graines viennent d'OnionMarket
     const cost = it.cost(), maxed = it.maxed(), can = !maxed && it.can() && cash >= cost;
     const row = document.createElement("div"); row.className = "shopitem";
     row.innerHTML = '<div class="ic">' + it.icon + '</div><div class="info"><div class="nm">' +
@@ -927,7 +1010,13 @@ function renderShop() {
 function buy(it) {
   const cost = it.cost();
   if (it.maxed() || !it.can() || cash < cost) return;
-  setCash(cash - cost); it.buy(); saveShop();
+  if (EMBED) {   // dépense sur la caisse PARTAGÉE (BUS.md : jamais de vérité locale)
+    try { parent.postMessage({ type: "bigo-txn", app: "plantation", cash: -cost,
+      journal: { icon: "🛒", txt: "Plantation : " + it.name + " (−" + cost + " €)",
+                 cause: "↩ ton achat d'équipement de culture", cls: "" } }, "*"); } catch (e) {}
+  }
+  setCash(cash - cost);   // embed : miroir optimiste — le prochain bigo-state fait foi
+  it.buy(); saveShop();
   const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(990, t + 0.07, 0.14, 0.2); }
   renderShop();
 }
@@ -976,9 +1065,9 @@ function dropSeed() {
   if (!st || st.phase !== "soil") return;
   const d = Math.hypot(seedGhost.position.x - POT_POS.x, seedGhost.position.z - POT_POS.z);
   if (d > 0.9) { showToast("Lâche la graine dans le pot", "#e6c896"); sErr(); return; }
-  if ((seeds[curSeed] || 0) <= 0) { showToast("Plus de graines — boutique 🛒", "#ff6b6b"); sErr(); return; }
-  seeds[curSeed]--; saveSeeds();
-  st.phase = "growing"; st.seed = SEED_BY[curSeed];
+  const sd = takeSeed();   // standalone : stock local ; embed : graine PARTAGÉE (bigo-txn seedsTake)
+  if (!sd) { showToast(NO_SEED_MSG, "#ff6b6b"); sErr(); return; }
+  st.phase = "growing"; st.seed = sd;   // la plante retient sa variété (sd.variety en embed)
   st.growth = 0; st.moisture = MOIST_START; st.soggyT = 0;
   st.careWater = 0; st.qualTrim = 1; st.fert = false; st.pgr = false;
   st.leafTimer = LEAF_EVERY[0] + Math.random() * (LEAF_EVERY[1] - LEAF_EVERY[0]);
@@ -1164,6 +1253,8 @@ function tryCutdownAt(st, cx, cy, speed) {
   hook.used = true;
   hook.g = plantYield(st) / N_BRANCH;
   hook.qual = plantQuality(st);
+  hook.variety = (st.seed && st.seed.variety) || null;   // embed : la branche hérite la variété
+  hook.sentG = 0; hook.sentQsum = 0; hook.trimSent = 0;  // comptes par branche (embed → Récolte)
   attachBranch(hook);
   let hidden = 0;
   for (const b of st.buds) {
@@ -1205,14 +1296,15 @@ function tryBuckAt(cx, cy, speed) {
   const budG = hook.g / BUDS_PER_BRANCH;
   const wp = new THREE.Vector3(); bud.mesh.getWorldPosition(wp);
   if (speed > HARVEST_FAST) {
-    trimG += budG;
+    if (EMBED) hook.trimSent += budG; else trimG += budG;   // embed : partira en miettes
     spawnFlier(wp, new THREE.Vector3(TRIM_POS.x, 0.4, TRIM_POS.z), 0x6f7a3a, 0.09);
     setHeap(trimHeap, trimG, 120);
     sPop(280); showToast("Trop vif ! → trim 🍂", "#d8cf9a");
   } else {
     const q = Math.max(0.2, Math.min(1, hook.qual + DRY_QUAL_BONUS * hook.dry - WET_MALUS * (1 - hook.dry)));
     if (hook.dry < 0.99 && !hook.wetWarned) { hook.wetWarned = true; showToast("Encore humide ! qualité en baisse 💧", "#e6c896"); }
-    stock.g += budG; stock.qsum += budG * q;
+    if (EMBED) { hook.sentG += budG; hook.sentQsum += budG * q; }   // part à la Récolte en fin de branche
+    else { stock.g += budG; stock.qsum += budG * q; }
     spawnFlier(wp, new THREE.Vector3(STOCK_POS.x, 0.4, STOCK_POS.z), 0x3f7a34, 0.11);
     setHeap(stockHeap, stock.g, 200);
     sPop(700 + idx * 40);
@@ -1220,6 +1312,7 @@ function tryBuckAt(cx, cy, speed) {
   burstParts(wp, 4, leafMatP); addShake(0.05);
   updateCount(); updateResources();
   if (hook.buds.every(b => b.taken)) {
+    if (EMBED) embSendBranch(hook);   // branchage séché → app Récolte (bigo-txn branchesAdd)
     removeBranch(hook);
     burstParts(new THREE.Vector3(hook.x, LINE_Y - 0.5, LINE_Z), 5, leafMatP);
   }
@@ -1231,6 +1324,7 @@ function tryBuckAt(cx, cy, speed) {
    ------------------------------------------------------------------------- */
 let bagging = false, bagHoldT = 0;
 function sellOnce() {
+  if (EMBED) return false;   // pas de vente locale en embed : le séché part à la Récolte
   if (stock.g < 0.05) { showToast("Rien à vendre — récolte d'abord", "#e6c896"); sErr(); return false; }
   const take = Math.min(fmt, stock.g);
   const q = stockQual();
@@ -1250,6 +1344,7 @@ function updateBagging(dt) {
   if (bagHoldT >= BAG_HOLD) { bagHoldT = 0; if (!sellOnce()) bagging = false; }
 }
 function sellTrim() {
+  if (EMBED) return;   // embed : le trim part en miettes au parent, jamais vendu ici
   if (trimG < 0.5) { showToast("Pas de trim à brader", "#e6c896"); sErr(); return; }
   const price = trimG * TRIM_PRICE * levelMult();
   setCash(cash + price); addXP(Math.max(1, Math.round(price * 0.06)));
@@ -1309,7 +1404,7 @@ function stationStep(st) {
     if (st.moisture < MOIST_BAND[0]) return "water";
     return "grow";
   }
-  if (st.phase === "soil") return (seeds[curSeed] || 0) > 0 ? "seed" : "buySeed";
+  if (st.phase === "soil") return seedAvail() > 0 ? "seed" : "buySeed";
   return "empty";
 }
 function currentStep() {
@@ -1367,7 +1462,7 @@ function updateGuide(dt) {
   if (scBtns.sechoir.textContent !== sechLabel) scBtns.sechoir.textContent = sechLabel;
   [...ui.potdots.children].forEach((b, i) =>
     b.classList.toggle("pulse", i !== curPot && cur.pot === i && curScene === "culture"));
-  ui.shopbtn.classList.toggle("pulse", step === "buySeed");
+  ui.shopbtn.classList.toggle("pulse", !EMBED && step === "buySeed");   // embed : graines sur OnionMarket, pas ici
   const pos = here ? STEP_POS[step] : null;
   glow.visible = !!pos;
   if (pos) {
@@ -1410,7 +1505,7 @@ function startPinch() {
 }
 function updatePinch() {
   zoom = Math.max(0.6, Math.min(2.6, pinchStartZoom * (pinchDist() / pinchStartDist)));
-  localStorage.setItem("plant_zoom", zoom.toFixed(3)); fitView();
+  STORE.setItem("plant_zoom", zoom.toFixed(3)); fitView();
 }
 
 el.addEventListener("pointerdown", (e) => {
@@ -1421,11 +1516,15 @@ el.addEventListener("pointerdown", (e) => {
   lastX = e.clientX; lastY = e.clientY; lastT = performance.now();
 
   if (rayHit(e.clientX, e.clientY, stockBin.children.concat([stockHeap]))) {
+    if (EMBED) { showToast("Le branchage séché part à l'app 🌿 Récolte", "#bdf0a3"); return; }
     if (stock.g >= 0.05) { gesture = "bag"; bagging = true; bagHoldT = 0; sellOnce(); }
     else showToast("Récolte d'abord 🌿", "#e6c896");
     return;
   }
-  if (rayHit(e.clientX, e.clientY, trimBin.children.concat([trimHeap]))) { sellTrim(); return; }
+  if (rayHit(e.clientX, e.clientY, trimBin.children.concat([trimHeap]))) {
+    if (EMBED) { showToast("Le trim part en miettes → planque", "#d8cf9a"); return; }
+    sellTrim(); return;
+  }
 
   const st = activeStation();
   if (st) {
@@ -1437,7 +1536,7 @@ el.addEventListener("pointerdown", (e) => {
     }
     if (rayHit(e.clientX, e.clientY, st.seedCrate.children)) {
       if (st.phase !== "soil") { showToast(st.phase === "empty" ? "Verse d'abord le terreau 🟤" : "Le pot est occupé", "#e6c896"); return; }
-      if ((seeds[curSeed] || 0) <= 0) { showToast("Plus de graines — boutique 🛒", "#ff6b6b"); sErr(); return; }
+      if (seedAvail() <= 0) { showToast(NO_SEED_MSG, "#ff6b6b"); sErr(); return; }
       gesture = "seed"; dragSeed = true; dragSt = st; seedGhost.visible = true;
       dragPlane.constant = -(0.7 + st.y);
       moveSeedGhost(e.clientX, e.clientY);
@@ -1543,16 +1642,18 @@ document.getElementById("dbg-dry").addEventListener("click", () => {
 });
 document.getElementById("dbg-reset").addEventListener("click", () => {
   if (!confirm("RESET total : sauvegarde effacée. Sûr ?")) return;
-  for (const k of Object.keys(localStorage)) if (k.startsWith("plant_")) localStorage.removeItem(k);
+  // Embed : le shim mémoire disparaît au reload — on ne touche JAMAIS au localStorage.
+  if (!EMBED) for (const k of Object.keys(localStorage)) if (k.startsWith("plant_")) localStorage.removeItem(k);
   location.reload();
 });
 
 document.getElementById("reset").addEventListener("click", rescue);
 function rescue() {
+  if (EMBED) { showToast(NO_SEED_MSG, "#e6c896"); return; }   // embed : pas de graine gratuite
   const sd = SEED_BY[curSeed];
   if ((seeds[curSeed] || 0) > 0 || cash >= sd.cost) { renderShop(); ui.shop.classList.add("show"); return; }
   seeds.lemon = (seeds.lemon || 0) + 1; curSeed = "lemon";
-  localStorage.setItem("plant_seed", curSeed); saveSeeds(); updateResources();
+  STORE.setItem("plant_seed", curSeed); saveSeeds(); updateResources();
   showToast("Graine de dépannage : +1 Lemon Skunk 🍋", "#bdf0a3");
 }
 ui.shopbtn.addEventListener("click", () => { renderShop(); ui.shop.classList.add("show"); });
@@ -1562,12 +1663,12 @@ for (const b of document.querySelectorAll(".fmtbtn")) b.addEventListener("click"
 for (const b of document.querySelectorAll(".boostbtn")) b.addEventListener("click", () => setBoost(b.dataset.boost));
 
 function setFmt(f) {
-  fmt = f; localStorage.setItem("plant_fmt", String(f));
+  fmt = f; STORE.setItem("plant_fmt", String(f));
   for (const b of document.querySelectorAll(".fmtbtn")) b.classList.toggle("on", +b.dataset.fmt === f);
 }
 function setBoost(key) {
   if (!BOOSTS[key]) return;
-  curBoost = key; localStorage.setItem("plant_boost", key);
+  curBoost = key; STORE.setItem("plant_boost", key);
   if (key !== "none") for (const st of stations) st.bottleMat.color.setHex(BOOST_COLS[key]);
   updateBoostBar();
 }
@@ -1591,9 +1692,11 @@ function updateLabels() {
     } else st.potLabel.textContent = "🪴 POT " + (st.lvl + 1);
     placeLabel(st.potLabel, POT_POS.x, st.y + 2.15, POT_POS.z);
   }
-  stockLabel.textContent = "📦 STOCK " + Math.round(stock.g) + " g";
+  stockLabel.textContent = EMBED ? "📦 → RÉCOLTE " + Math.round(embSentG) + " g"
+                                 : "📦 STOCK " + Math.round(stock.g) + " g";
   placeLabel(stockLabel, STOCK_POS.x, 0.55, STOCK_POS.z);
-  trimLabel.textContent = "🍂 TRIM " + Math.round(trimG) + " g";
+  trimLabel.textContent = EMBED ? "🍂 MIETTES " + Math.round(embTrimG) + " g"
+                                : "🍂 TRIM " + Math.round(trimG) + " g";
   placeLabel(trimLabel, TRIM_POS.x, 0.55, TRIM_POS.z);
   const used = hooks.filter(h => h.used);
   if (used.length) {
@@ -1610,6 +1713,7 @@ function updateLabels() {
   window.__pl = { phase: act.phase, growth: act.growth, moisture: act.moisture,
     stockG: stock.g, trimG, leaves: activeLeaves(act), gesture, soil: act.soil,
     scene: curScene, potIdx: curPot, pots: stations.map(s => ({ phase: s.phase, growth: +s.growth.toFixed(2) })),
+    emb: EMBED ? { seeds: { ...bigoSeeds }, variety: embVariety, sentG: +embSentG.toFixed(1), trimG: +embTrimG.toFixed(1) } : null,
     plantTop: proj(POT_POS, act.y + 1.4),
     branches: hooks.map(h => h.used ? { dry: +h.dry.toFixed(2) } : null),
     sack: proj(SOIL_POS, act.y + 0.5), seed: proj(SEED_POS, act.y + 0.3), pot: proj(POT_POS, act.y + 0.4),
@@ -1675,6 +1779,57 @@ setBoost(curBoost);
 applyLamp();
 updateCount(); updateResources();
 renderPotDots();
+
+/* -------------------------------------------------------------------------
+   23) MODE EMBED "bigo" — init (contrat : le-bigo/BUS.md ; slug "plantation")
+   Handshake bigo-ready → le parent répond bigo-state {cash, seeds:{Variete:n}…}.
+   Le cash affiché est celui du PARENT ; les graines viennent d'OnionMarket ;
+   le séché part à l'app Récolte (branchesAdd), le trim en miettes.
+   ------------------------------------------------------------------------- */
+function renderVarietyBar() {
+  if (!varbar) return;
+  const avail = Object.keys(EMB_SEEDS).filter(k => (bigoSeeds[k] || 0) > 0);
+  if (embVariety && !avail.includes(embVariety)) embVariety = null;
+  if (!embVariety && avail.length) embVariety = avail[0];   // défaut : première variété dispo
+  varbar.innerHTML = "";
+  const lbl = document.createElement("span"); lbl.className = "lbl";
+  lbl.textContent = avail.length ? "Graine" : "🧅 Graines : achète sur OnionMarket";
+  varbar.appendChild(lbl);
+  for (const k of avail) {
+    const b = document.createElement("button");
+    b.className = "selbtn varbtn" + (k === embVariety ? " on" : "");
+    b.textContent = EMB_SEEDS[k].icon + " " + k + " ×" + bigoSeeds[k];
+    b.addEventListener("click", () => { embVariety = k; updateResources(); });
+    varbar.appendChild(b);
+  }
+}
+if (EMBED) {
+  ui.cash.textContent = "💶 …";                               // en attendant le premier bigo-state
+  const fb = document.getElementById("fmtbar");                // pas de vente locale : sachets masqués
+  if (fb) fb.style.display = "none";
+  const dc = document.getElementById("dbg-cash");              // debug : ni cash ni graines gratuits
+  if (dc && dc.parentElement) dc.parentElement.style.display = "none";   // (masque aussi dbg-stuff)
+  PROMPTS.buySeed = "🧅 Plus de graines — achète-en sur OnionMarket";
+  PROMPTS.sell    = "🌿 Le séché part tout seul à l'app Récolte";
+  varbar = document.createElement("div");
+  varbar.id = "varbar"; varbar.className = "selbar";
+  varbar.style.bottom = "max(12px,calc(env(safe-area-inset-bottom) + 8px))";   // à la place du fmtbar
+  document.body.appendChild(varbar);
+  renderVarietyBar();
+  // Bus entrant : origine vérifiée (same-origin, ou "null" en file:// — cf. BUS.md).
+  window.addEventListener("message", (e) => {
+    if (e.origin !== location.origin && e.origin !== "null") return;
+    const d = e.data;
+    if (!d || d.type !== "bigo-state") return;
+    BIGO = d;
+    bigoSeeds = {};
+    for (const k of Object.keys(EMB_SEEDS)) bigoSeeds[k] = Math.max(0, Math.round(+((d.seeds || {})[k]) || 0));
+    setCash(+d.cash || 0);   // miroir : la caisse du PARENT fait foi (écrit le shim mémoire, jamais localStorage)
+    updateResources();       // resynchronise titre + sélecteur de variété
+  });
+  try { parent.postMessage({ type: "bigo-ready", app: "plantation" }, "*"); } catch (e) {}
+}
+
 requestAnimationFrame(loop);
 </script>
 </body>
