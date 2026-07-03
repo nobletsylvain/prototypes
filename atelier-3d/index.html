@@ -49,6 +49,28 @@
     text-shadow:0 2px 8px rgba(0,0,0,.6); pointer-events:none; display:none; white-space:nowrap; z-index:3; }
   #presslbl.show { display:block; }
 
+  /* Conditionnement : chip « emballés » + UI d'emballage */
+  #packed { top:calc(max(20px,env(safe-area-inset-top)) + 34px); right:16px; font-weight:800; font-size:15px;
+    color:#bfe3ff; background:rgba(122,180,255,.12); border:1px solid rgba(122,180,255,.4);
+    padding:5px 11px; border-radius:999px; }
+  #wraptext { position:fixed; bottom:max(120px,calc(env(safe-area-inset-bottom) + 110px)); left:50%;
+    transform:translateX(-50%); font-size:13px; font-weight:700; color:rgba(255,255,255,.85);
+    text-shadow:0 2px 8px rgba(0,0,0,.6); pointer-events:none; display:none; white-space:nowrap; z-index:3; }
+  #wraptext.show { display:block; }
+  #wrapbar { position:fixed; bottom:max(94px,calc(env(safe-area-inset-bottom) + 84px)); left:50%;
+    transform:translateX(-50%); width:66%; max-width:320px; height:20px; background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.18); border-radius:999px; overflow:hidden; pointer-events:none;
+    display:none; box-shadow:0 4px 14px rgba(0,0,0,.4); z-index:3; }
+  #wrapbar.show { display:block; }
+  #wrapfill { position:absolute; top:0; bottom:0; left:0; width:0%;
+    background:linear-gradient(90deg,#7df9ff,#9be37d); transition:width .05s linear; }
+  #seal { position:fixed; bottom:max(88px,calc(env(safe-area-inset-bottom) + 78px)); left:50%;
+    transform:translateX(-50%); display:none; pointer-events:auto; background:#ff7a3c; border:none;
+    color:#fff; font-weight:800; font-size:16px; padding:12px 24px; border-radius:14px;
+    box-shadow:0 4px 14px rgba(255,122,60,.4); z-index:4; }
+  #seal.show { display:block; }
+  #seal:active { background:#ff5e1a; }
+
   /* Toast d'interaction */
   #toast { top:44%; left:0; right:0; text-align:center; font-size:19px; font-weight:800; padding:0 24px;
     opacity:0; transform:translateY(8px); transition:opacity .22s, transform .22s; color:#ffe6a6; }
@@ -63,8 +85,12 @@
     <div class="name" id="stName">—</div>
   </div>
   <div id="stock" class="hud">🔪 0</div>
+  <div id="packed" class="hud">📦 0</div>
   <div id="presslbl" class="hud">Maintiens pour couper</div>
   <div id="pressbar" class="hud"><div id="pressfill"></div></div>
+  <div id="wraptext" class="hud">Glisse ⬆️ pour emballer</div>
+  <div id="wrapbar" class="hud"><div id="wrapfill"></div></div>
+  <button id="seal">🔥 Sceller</button>
   <div id="hint" class="hud">← glisse pour circuler dans l'atelier →</div>
   <div id="toast" class="hud"></div>
   <div id="dots" class="hud"></div>
@@ -77,39 +103,45 @@
 import * as THREE from "three";
 
 /* =========================================================================
-   Atelier 3D — rail de postes + poste COUPE jouable
+   Atelier 3D — rail de postes, chaîne Coupe → Stock → Conditionnement
    -------------------------------------------------------------------------
    Navigation : la caméra glisse sur un RAIL devant des postes posés côte à
    côte dans l'ordre de production. Le swipe horizontal circule (pager, un
-   poste à la fois) ; en portrait on voit un poste à la fois, la continuité
-   se ressent au glissement.
+   poste à la fois) ; en portrait on voit un poste à la fois.
 
-   Poste COUPE (mécanique reprise de Hash Slicer v2, « coupe au feeling ») :
-   on MAINTIENT le doigt immobile sur la planche → la lame s'enfonce (barre
-   de pression) ; à pleine pression une barrette se détache du bord et tombe,
-   alimentant le STOCK. La chaîne est répartie : ce poste ne fait que couper.
+   La chaîne est PHYSIQUE et répartie. Le STOCK est un BAC de barrettes :
+     - COUPE : maintien immobile → la lame s'enfonce → une barrette se détache
+       et vient s'accumuler dans le bac de STOCK (compteur 🔪).
+     - CONDITIONNEMENT : bac d'entrée = ce même stock. On prend une barrette
+       (tap), on l'ENROULE au drag vertical (cellophane), on la SCELLE (🔥) ;
+       elle part en SACHET dans le bac de sortie (compteur 📦), pour la Vente.
 
-   Gestes, sans conflit :
-     - drag HORIZONTAL     → circulation (annule toute pression en cours)
-     - MAINTIEN (immobile)  → couper, au poste Coupe uniquement
-     - TAP                  → interaction du poste (recharge la savonnette
-                              quand elle est finie ; « à venir » ailleurs)
+   Gestes, sans conflit (horizontal = toujours la nav) :
+     - drag HORIZONTAL     → circulation (annule pression/emballage en cours)
+     - MAINTIEN (immobile)  → couper (poste Coupe)
+     - drag VERTICAL        → enrouler (poste Conditionnement)
+     - TAP                  → interaction du poste (prendre une barrette,
+                              recharger la savonnette, etc.)
    ========================================================================= */
 
 // --- Persistance (préfixe unique atelier3d_) -----------------------------
-const SAVE_VERSION = 2;                 // bump : ajout du stock de barrettes
+const SAVE_VERSION = 3;                 // bump : stock (barrettes) + emballés (sachets)
 const LS_VER = "atelier3d_ver";
 const LS_POS = "atelier3d_station";
 const LS_STOCK = "atelier3d_stock";
+const LS_PACKED = "atelier3d_packed";
 if (localStorage.getItem(LS_VER) !== String(SAVE_VERSION)) {
   localStorage.setItem(LS_VER, String(SAVE_VERSION));
   localStorage.removeItem(LS_POS);
   localStorage.removeItem(LS_STOCK);
+  localStorage.removeItem(LS_PACKED);
 }
 
 // --- Définition du rail (data-driven : la chaîne de production) -----------
 const SPACING = 4.2;            // distance entre deux postes sur le rail (unités monde)
 const COUPE_IDX = 1;           // index du poste Coupe dans STATIONS
+const COND_IDX  = 3;           // index du poste Conditionnement dans STATIONS
+const PILE_CAP  = 18;          // barrettes/sachets affichés au max dans un bac (compte exact à part)
 const STATIONS = [
   { name: "Achat",          color: 0x6d8ac0, prop: 0x9db6e0 },
   { name: "Coupe",          color: 0xc06d6d, prop: 0xe09d9d },
@@ -246,21 +278,55 @@ function makePrism(aNeg, aPos, bNeg, bPos) {
   return g;
 }
 
-// État de la coupe
+// État de la coupe / de la chaîne
 let rightNeg = R0, rightPos = R0;    // bord droit (frontière de coupe), talon fixe à x=0
 let slices = [];                     // barrettes détachées (physique de chute)
 let over = false;                    // savonnette finie ?
 let bladeChop = 0;                   // rebond de la lame après une coupe
-let stock = Math.max(0, +(localStorage.getItem(LS_STOCK) || 0));
+let stock  = Math.max(0, +(localStorage.getItem(LS_STOCK)  || 0));   // barrettes prêtes
+let packed = Math.max(0, +(localStorage.getItem(LS_PACKED) || 0));   // sachets emballés
 
 // Ces objets sont peuplés dans la boucle de construction des postes.
 let coupeRig = null, cakeMesh = null, bladeMesh = null;
+let coupeStockPile = null, condInPile = null, condOutPile = null, condGroup = null;
 
 function rebuildLoaf() {
   cakeMesh.geometry.dispose();
   cakeMesh.geometry = makePrism(0, 0, rightNeg, rightPos);
   cakeMesh.visible = Math.max(rightNeg, rightPos) > 0.03;
 }
+
+/* -------------------------------------------------------------------------
+   Fabriques partagées : bac (caisse ouverte) + pile de barrettes/sachets.
+   Le stock est un BAC de barrettes qui se remplit (repris de Hash Slicer v2).
+   ------------------------------------------------------------------------- */
+const slabGeo = new THREE.BoxGeometry(0.14, 0.09, 0.24);   // barrette/sachet miniature (piles)
+const celloMat = new THREE.MeshStandardMaterial({ color:0xdff3ff, transparent:true, opacity:0.5,
+  roughness:0.05, metalness:0.3, side:THREE.DoubleSide });
+
+function makeBin(w, d, h, color) {
+  const grp = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color, roughness:0.7, metalness:0.08, side:THREE.DoubleSide });
+  const th = 0.04;
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(w, th, d), mat); floor.position.y = th/2; floor.receiveShadow = true; grp.add(floor);
+  const wLR = (x) => { const m = new THREE.Mesh(new THREE.BoxGeometry(th, h, d), mat); m.position.set(x, h/2, 0); m.castShadow = true; grp.add(m); };
+  const wFB = (z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, th), mat); m.position.set(0, h/2, z); m.castShadow = true; grp.add(m); };
+  wLR(-w/2); wLR(w/2); wFB(-d/2); wFB(d/2);
+  return grp;
+}
+
+// Pile de barrettes rangées en grille, empilées par couches ; visibilité = compte.
+function makePile(cols, max, mat) {
+  const g = new THREE.Group();
+  for (let i = 0; i < max; i++) {
+    const m = new THREE.Mesh(slabGeo, mat);
+    const perLayer = cols * 2, layer = Math.floor(i / perLayer), idx = i % perLayer, col = idx % cols, row = Math.floor(idx / cols);
+    m.position.set(-((cols - 1) * 0.17) / 2 + col * 0.17, 0.06 + layer * 0.095, -0.13 + row * 0.26);
+    m.rotation.y = (Math.random() - 0.5) * 0.4; m.castShadow = true; m.visible = false; g.add(m);
+  }
+  return g;
+}
+function showPile(g, n) { for (let i = 0; i < g.children.length; i++) g.children[i].visible = i < n; }
 
 // --- Construction des postes ---------------------------------------------
 const props = [];       // props placeholder (rotation d'ambiance) des postes non-Coupe
@@ -308,6 +374,28 @@ STATIONS.forEach((st, i) => {
     for (const m of [edge, spine, handle]) { m.castShadow = true; bladeMesh.add(m); }
     bladeMesh.visible = false;
     coupeRig.add(bladeMesh);
+
+    // Bac de STOCK : les barrettes coupées viennent s'y accumuler (à droite du pain).
+    const sbin = makeBin(0.66, 0.62, 0.16, 0x2f2619);
+    sbin.position.set(0.6, 1.02, 0.82);
+    coupeStockPile = makePile(3, PILE_CAP, matCrust);
+    sbin.add(coupeStockPile);
+    grp.add(sbin);
+  } else if (i === COND_IDX) {
+    // --- Poste Conditionnement : bac d'entrée (stock) → emballage → bac de sortie (sachets) ---
+    condGroup = grp;
+    const inBin = makeBin(0.66, 0.62, 0.16, 0x2f2619);
+    inBin.position.set(-0.62, 1.02, 0.42);
+    condInPile = makePile(3, PILE_CAP, matCrust);
+    inBin.add(condInPile);
+    grp.add(inBin);
+
+    const outBin = makeBin(0.66, 0.62, 0.16, 0x243247);
+    outBin.position.set(0.62, 1.02, 0.42);
+    condOutPile = makePile(3, PILE_CAP, celloMat);
+    outBin.add(condOutPile);
+    grp.add(outBin);
+    // (le geste d'emballage fait monter une barrette entre les deux bacs : voir startWrap)
   } else {
     // Prop placeholder (l'activité viendra le remplacer)
     const prop = new THREE.Mesh(
@@ -346,9 +434,20 @@ function spawnBarrette(cutNeg, cutPos) {
   });
   rightNeg = cutNeg; rightPos = cutPos;
   rebuildLoaf();
-  // Le plateau ne garde qu'une pile raisonnable (le stock est compté à part).
-  while (slices.length > 12) { const s = slices.shift(); coupeRig.remove(s.mesh); s.mesh.geometry.dispose(); }
+  // Sécurité : borne le nombre de tranches en vol.
+  while (slices.length > 24) { const s = slices.shift(); coupeRig.remove(s.mesh); s.mesh.geometry.dispose(); }
 }
+
+// Cible (repère coupeRig) vers laquelle une barrette settlée « rentre » dans le bac de stock.
+const BIN_TARGET = new THREE.Vector3(0.6 - (-R0 / 2), 0.14, 0.82);
+
+// Le stock est le même à la Coupe (bac de sortie) et au Conditionnement (bac d'entrée).
+function refreshStockBins() {
+  const n = Math.min(stock, PILE_CAP);
+  if (coupeStockPile) showPile(coupeStockPile, n);
+  if (condInPile) showPile(condInPile, n);
+}
+function refreshOutput() { if (condOutPile) showPile(condOutPile, Math.min(packed, PILE_CAP)); }
 
 // Coupe au feeling : déclenchée à pleine pression.
 function pressCut() {
@@ -369,8 +468,20 @@ function pressCut() {
 
 function updateSlices(dt) {
   const g = 11;
-  for (const sl of slices) {
-    if (sl.settled) continue;
+  for (let i = slices.length - 1; i >= 0; i--) {
+    const sl = slices[i];
+    if (sl.collect) {                          // rentre dans le bac de stock (puis disparaît)
+      sl.mesh.position.lerp(BIN_TARGET, Math.min(1, dt * 6));
+      sl.mesh.rotation.y += dt * 9;
+      sl.mesh.scale.multiplyScalar(1 - Math.min(0.85, dt * 3.4));
+      if (sl.mesh.scale.x < 0.18) { coupeRig.remove(sl.mesh); sl.mesh.geometry.dispose(); slices.splice(i, 1); }
+      continue;
+    }
+    if (sl.settled) {                          // petit repos, puis collecte vers le bac
+      sl.restT = (sl.restT || 0) + dt;
+      if (sl.restT > 0.22) sl.collect = true;
+      continue;
+    }
     sl.vy -= g * dt;
     sl.mesh.position.x += sl.vx * dt;
     sl.mesh.position.y += sl.vy * dt;
@@ -433,12 +544,17 @@ function applyCamera() {
 const stIdxEl = document.getElementById("stIdx");
 const stNameEl = document.getElementById("stName");
 const stockEl = document.getElementById("stock");
+const packedEl = document.getElementById("packed");
 const hintEl = document.getElementById("hint");
 const toastEl = document.getElementById("toast");
 const dotsEl = document.getElementById("dots");
 const pressbarEl = document.getElementById("pressbar");
 const pressfillEl = document.getElementById("pressfill");
 const presslblEl = document.getElementById("presslbl");
+const wraptextEl = document.getElementById("wraptext");
+const wrapbarEl = document.getElementById("wrapbar");
+const wrapfillEl = document.getElementById("wrapfill");
+const sealEl = document.getElementById("seal");
 STATIONS.forEach(() => {
   const d = document.createElement("div"); d.className = "dot"; dotsEl.appendChild(d);
 });
@@ -448,8 +564,75 @@ function setStock(v) {
   stock = Math.max(0, v);
   localStorage.setItem(LS_STOCK, String(stock));
   stockEl.textContent = "🔪 " + stock;
+  refreshStockBins();
+}
+function setPacked(v) {
+  packed = Math.max(0, v);
+  localStorage.setItem(LS_PACKED, String(packed));
+  packedEl.textContent = "📦 " + packed;
+  refreshOutput();
 }
 setStock(stock);
+setPacked(packed);
+
+/* -------------------------------------------------------------------------
+   Conditionnement — emballage « façon v2 », geste adapté à la nav :
+   prendre une barrette (tap) → ENROULER au drag VERTICAL (barre) → SCELLER
+   (bouton 🔥). L'horizontal reste la circulation ; s'y mettre annule l'emballage.
+   ------------------------------------------------------------------------- */
+const wrap = { active:false, phase:"", pct:0, mesh:null, film:null };
+const WRAP_K = 0.34;    // % d'emballage par pixel de glissement vertical
+const atCond = () => target === COND_IDX && Math.abs(rail - COND_IDX) < 0.08;
+
+function flame() {
+  const f = document.createElement("div");
+  f.textContent = "🔥";
+  f.style.cssText = "position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);font-size:60px;pointer-events:none;z-index:5;transition:opacity .5s,transform .5s;";
+  document.body.appendChild(f);
+  requestAnimationFrame(() => { f.style.opacity = "0"; f.style.transform = "translate(-50%,-90%) scale(1.5)"; });
+  setTimeout(() => f.remove(), 520);
+}
+
+function startWrap() {
+  if (wrap.active || stock <= 0 || !condGroup) return;
+  setStock(stock - 1);                                  // prend une barrette du stock
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.24, 0.30), matCrust);
+  mesh.castShadow = true; mesh.position.set(0.0, 1.5, 0.55);
+  const filmMat = new THREE.MeshStandardMaterial({ color:0xdff3ff, transparent:true, opacity:0.32, roughness:0.06, metalness:0.3, side:THREE.DoubleSide });
+  const film = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.24, 0.30), filmMat);
+  film.scale.setScalar(1.3); mesh.add(film);
+  condGroup.add(mesh);
+  wrap.active = true; wrap.phase = "enroule"; wrap.pct = 0; wrap.mesh = mesh; wrap.film = film;
+  wraptextEl.textContent = "Glisse ⬆️ pour enrouler"; wraptextEl.classList.add("show");
+  wrapbarEl.classList.add("show"); wrapfillEl.style.width = "0%"; sealEl.classList.remove("show");
+}
+function enterSeal() {
+  wrap.phase = "seal";
+  if (wrap.film) { wrap.film.material.opacity = 0.5; wrap.film.scale.setScalar(1.12); }   // se resserre
+  wraptextEl.classList.remove("show");   // le bouton 🔥 se suffit
+  wrapbarEl.classList.remove("show"); sealEl.classList.add("show");
+}
+function sealWrap() {
+  if (!wrap.active || wrap.phase !== "seal") return;
+  flame(); haptic(30);
+  setPacked(packed + 1);        // le sachet part dans le bac de sortie
+  cleanupWrap();
+  toast("Emballé 📦");
+}
+function abortWrap() {
+  if (!wrap.active) return;
+  setStock(stock + 1);          // on rend la barrette au stock
+  cleanupWrap();
+}
+function cleanupWrap() {
+  if (wrap.mesh) {
+    condGroup.remove(wrap.mesh); wrap.mesh.geometry.dispose();
+    if (wrap.film) { wrap.film.geometry.dispose(); wrap.film.material.dispose(); }
+  }
+  wrap.active = false; wrap.phase = ""; wrap.pct = 0; wrap.mesh = null; wrap.film = null;
+  wraptextEl.classList.remove("show"); wrapbarEl.classList.remove("show"); sealEl.classList.remove("show");
+}
+sealEl.addEventListener("click", sealWrap);
 
 let hudIdx = -1;
 function refreshHud() {
@@ -461,6 +644,8 @@ function refreshHud() {
   dotEls.forEach((d, i) => d.classList.toggle("on", i === idx));
   hintEl.textContent = (idx === COUPE_IDX)
     ? "maintiens sur la planche pour couper une barrette"
+    : (idx === COND_IDX)
+    ? "tape pour prendre une barrette, glisse ⬆️ pour l'emballer"
     : "← glisse pour circuler dans l'atelier →";
   hintEl.style.opacity = "1";
 }
@@ -473,7 +658,7 @@ function toast(msg) {
 }
 
 // --- Gestes (Pointer Events : souris + tactile unifiés) -------------------
-let pid = null, startX = 0, startY = 0, lastX = 0, railAtStart = 0;
+let pid = null, startX = 0, startY = 0, lastX = 0, lastY = 0, railAtStart = 0;
 let moved = false;
 let holding = false;        // candidat maintien (pointeur baissé, poste Coupe)
 let pressing = false;       // pression en cours
@@ -487,7 +672,7 @@ app.addEventListener("pointerdown", (e) => {
   if (pid !== null) return;
   pid = e.pointerId;
   app.setPointerCapture(pid);
-  startX = lastX = e.clientX; startY = e.clientY;
+  startX = lastX = e.clientX; startY = lastY = e.clientY;
   railAtStart = rail;
   dragging = true; moved = false; velocity = 0;
   holding = atCoupe(); cutConsumed = false;
@@ -496,8 +681,26 @@ app.addEventListener("pointerdown", (e) => {
 
 app.addEventListener("pointermove", (e) => {
   if (e.pointerId !== pid) return;
+  const dxT = e.clientX - startX, dyT = e.clientY - startY;
+
+  // Conditionnement : enrouler au drag VERTICAL. L'horizontal franc = navigation.
+  if (wrap.active && wrap.phase === "enroule") {
+    if (Math.abs(dxT) > Math.abs(dyT) && Math.abs(dxT) > 26) {
+      abortWrap();                         // parti à l'horizontale → on abandonne l'emballage (nav)
+      moved = true;
+    } else {
+      const dyStep = e.clientY - lastY;    // enrouler avec la distance parcourue (haut ou bas)
+      wrap.pct = Math.min(100, wrap.pct + Math.abs(dyStep) * WRAP_K);
+      if (wrap.mesh) wrap.mesh.rotation.x -= dyStep * 0.03;   // la barrette roule dans le film
+      wrapfillEl.style.width = wrap.pct + "%";
+      lastX = e.clientX; lastY = e.clientY;
+      if (wrap.pct >= 100) enterSeal();
+      return;                              // geste consommé : pas de navigation
+    }
+  }
+
   const dx = e.clientX - startX;
-  if (Math.abs(dx) > 6 || Math.abs(e.clientY - startY) > 6) moved = true;
+  if (Math.abs(dx) > 6 || Math.abs(dyT) > 6) moved = true;
   if (moved) holding = false;              // dès qu'on glisse, c'est de la nav, pas une coupe
   // glisser vers la gauche (dx<0) → avancer dans l'atelier (rail augmente).
   // Borné à ±1 poste depuis l'origine : ressenti « pager », un poste à la fois.
@@ -505,7 +708,7 @@ app.addEventListener("pointermove", (e) => {
   const raw = railAtStart - dx * railPerPx();
   rail = clampIdx(Math.max(base - 1, Math.min(base + 1, raw)));
   velocity = -(e.clientX - lastX) * railPerPx();
-  lastX = e.clientX;
+  lastX = e.clientX; lastY = e.clientY;
 });
 
 function resetPress() { holding = false; pressing = false; pressT = 0; cutConsumed = false; }
@@ -521,6 +724,12 @@ function endDrag(e) {
     const idx = clampIdx(Math.round(rail));
     if (idx === COUPE_IDX) {
       if (over) { loadLoaf(); toast("Nouvelle savonnette"); }   // sinon : la coupe se fait au maintien
+    } else if (idx === COND_IDX) {
+      if (!wrap.active) {                                       // prend une barrette du stock à emballer
+        if (stock > 0) startWrap();
+        else toast("Stock vide — va couper des barrettes");
+      }
+      // en cours d'emballage : le tap ne fait rien (enrouler = glisser, sceller = bouton 🔥)
     } else {
       toast(`${STATIONS[idx].name} — activité à venir`);
     }
@@ -562,6 +771,9 @@ function tick(now) {
 
   applyCamera();
   refreshHud();
+
+  // Si on quitte le poste Conditionnement en cours d'emballage, on abandonne.
+  if (wrap.active && !atCond()) abortWrap();
 
   // Pression : se construit tant qu'on maintient immobile au poste Coupe.
   pressing = holding && pid !== null && !moved && atCoupe() && !over && !cutConsumed;
