@@ -1,0 +1,1072 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Snapshit — hub social (proto)</title>
+<!--
+  Snapshit — PROTOTYPE AUTONOME du hub social CrimWorld.
+  Refonte sur le CHÂSSIS existant (crimworld/index.html) : on RÉUTILISE le viewer
+  de story, la brique « commentaires qui tombent » (showStoryComments), genProfile
+  et l'esthétique. Aucune connexion aux autres boucles : la qualité du batch et la
+  réput (qui viendront de la sim) sont STUBBÉES pour explorer la seule EXPÉRIENCE
+  sociale. Spec : crimworld/FEATURES_HUB_SOCIAL.md (EXPO · DROP-PROMESSE · VOIX).
+
+  Invariants DNA tenus : AUCUN aléatoire ne pilote l'ÉTAT/les CONSÉQUENCES (spike,
+  cry-wolf, mauvais public, dérive réput = déterministes) ; Math.random = présentation
+  seule (qui commente, quelle variante de phrase, avatar) ; réput OPAQUE (jamais de
+  chiffre, lue dans le TON) ; chaque conséquence porte une CAUSE rendue au bilan.
+-->
+<style>
+  :root{
+    --bg:#0E0D0C; --surface:#1A1714; --surface2:#221E1A; --border:#352E28;
+    --text:#E4DED5; --muted:#8C837B; --faint:#615951;
+    --sodium:#E8A33D; --neon:#3E7CC2; --rust:#C8442F; --green:#7FA37F;
+    --snap:#FFFC00; --story1:#F44; --story2:#FB5; --story3:#9B5;
+    --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
+    --sans:-apple-system,"Segoe UI","Roboto","Helvetica Neue",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none;user-select:none}
+  html,body{height:100%}
+  body{background:radial-gradient(1200px 700px at 30% -10%,#1b1714 0,var(--bg) 60%);
+       font-family:var(--sans);color:var(--text);min-height:100vh;
+       display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;padding:18px 12px}
+
+  .phone{position:relative;width:min(390px,96vw);height:min(800px,92vh);border-radius:38px;
+       background:var(--bg);border:1px solid var(--border);overflow:hidden;
+       box-shadow:0 30px 80px -20px #000,0 0 0 8px #0a0908;display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);
+       width:130px;height:26px;background:#0a0908;border-radius:0 0 16px 16px;z-index:60}
+  .statusbar{height:38px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
+       padding:0 22px 6px;font:600 12px var(--sans);color:var(--muted)}
+
+  /* header : logo + réput OPAQUE + buzz */
+  .hdr{flex:none;display:flex;align-items:center;gap:11px;padding:8px 14px 12px;border-bottom:1px solid var(--border)}
+  .hdr .logo{font:800 18px var(--sans);letter-spacing:-.5px}
+  .hdr .logo b{color:var(--snap)}
+  .hdr .spacer{flex:1}
+  .hdr .opq{text-align:right}
+  .hdr .opq .k{font:600 8px var(--sans);letter-spacing:.06em;color:var(--faint);text-transform:uppercase}
+  .hdr .opq .v{font:800 14px var(--mono);letter-spacing:2px}
+  .hdr .opq .buzz{font:600 9px var(--mono);color:var(--muted)}
+
+  /* stories tray */
+  .tray{flex:none;display:flex;gap:14px;padding:12px 16px;overflow-x:auto;border-bottom:1px solid var(--border)}
+  .story{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;width:62px;cursor:pointer}
+  .ring{width:58px;height:58px;border-radius:50%;padding:2.5px;
+       background:conic-gradient(var(--story1),var(--story2),var(--story3),var(--story1))}
+  .ring.seen{background:#3a332c}
+  .ring.mine{background:#3a332c}
+  .ring.mine.ready{background:var(--snap);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,252,0,.5)}50%{box-shadow:0 0 0 7px rgba(255,252,0,0)}}
+  .ring .inner{width:100%;height:100%;border-radius:50%;background:var(--surface);
+       border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;
+       font-size:18px;color:var(--muted);text-align:center;line-height:1.1;overflow:hidden}
+  .ring .ph{font:700 9px var(--mono);color:var(--faint)}
+  .story .cap{font:500 10px var(--sans);color:var(--muted);max-width:62px;text-align:center;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .live{font:700 8px var(--sans);color:#fff;background:var(--rust);border-radius:4px;padding:1px 4px;letter-spacing:.05em}
+
+  /* corps : liste de DM (le bassin d'acheteurs = la demande) */
+  .body{flex:1;overflow-y:auto;position:relative}
+  .seclbl{font:600 10px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.08em;padding:12px 16px 4px}
+  .conv{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #221d18;cursor:pointer}
+  .conv:active{background:var(--surface)}
+  .conv .av{width:44px;height:44px;border-radius:50%;flex:none;font-size:19px;
+       background:linear-gradient(135deg,#3a322b,#181410);display:flex;align-items:center;
+       justify-content:center;border:1px solid var(--border);position:relative}
+  .conv .av.unread::after{content:"";position:absolute;top:-1px;right:-1px;width:12px;height:12px;
+       border-radius:50%;background:var(--snap);border:2px solid var(--bg)}
+  .conv .col{flex:1;min-width:0}
+  .conv .nm{font:700 14px var(--sans)}
+  .conv .pv{font:500 12px var(--sans);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .conv.flake .pv{color:var(--rust)}
+  .conv .tm{font:500 10px var(--sans);color:var(--faint);flex:none;align-self:flex-start;margin-top:3px}
+  .empty{padding:40px 24px;text-align:center;color:var(--faint);font:500 13px var(--sans);line-height:1.5}
+
+  .conv.contact{border-left:2px solid var(--neon)}
+  .conv.done{opacity:.5} .conv .st{font:700 10px var(--mono);color:var(--muted)}
+  .conv .st.ok{color:var(--green)} .conv .st.bad{color:var(--rust)} .conv .st.go{color:var(--snap)} .conv .st.warn{color:var(--sodium)}
+
+  /* fil de DM (négociation) */
+  .dmview{position:absolute;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:46}
+  .dmview.show{display:flex}
+  .dmhdr{flex:none;display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid var(--border)}
+  .dmhdr .dmback{font-size:26px;color:var(--muted);cursor:pointer;padding:0 4px;line-height:1}
+  .dmhdr .av{width:40px;height:40px;border-radius:50%;font-size:18px;border:1px solid var(--border);
+       background:linear-gradient(135deg,#3a322b,#181410);display:flex;align-items:center;justify-content:center}
+  .dmhdr .nm{font:700 15px var(--sans)} .dmhdr .sub{font:500 11px var(--sans);color:var(--muted)}
+  .prof-link{cursor:pointer}
+  /* profondeur de profil (overlay) */
+  .profile{position:absolute;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:48;overflow-y:auto}
+  .profile.show{display:flex}
+  .profile .phdr{flex:none;display:flex;align-items:center;gap:4px;padding:12px 14px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:2}
+  .profile .phdr .pback{font-size:26px;color:var(--muted);cursor:pointer;padding:0 6px;line-height:1}
+  .profile .phdr .ttl{font:700 14px var(--sans);color:var(--muted)}
+  .pcard{display:flex;flex-direction:column;align-items:center;gap:7px;padding:18px 16px 10px}
+  .pcard .pav{width:84px;height:84px;border-radius:50%;font-size:40px;display:flex;align-items:center;justify-content:center;border:2px solid var(--border);background:#13110f}
+  .pcard .pnm{font:800 19px var(--sans)}
+  .pcard .phandle{font:600 12px var(--mono);color:var(--snap)}
+  .pcard .ptag{font:700 9.5px var(--mono);color:var(--muted);border:1px solid var(--border);border-radius:20px;padding:3px 11px;letter-spacing:.6px}
+  .pbio{font:500 13px var(--sans);color:#cfc9c2;text-align:center;padding:2px 22px 12px;line-height:1.45}
+  .prel{display:flex;justify-content:space-around;padding:11px 12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .prel .it{display:flex;flex-direction:column;align-items:center;gap:3px}
+  .prel .it b{font:800 15px var(--sans)} .prel .it span{font:600 9px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .psec{font:700 10px var(--mono);color:var(--muted);letter-spacing:1.4px;padding:15px 16px 7px}
+  .psnaps{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:0 8px}
+  .psnap{aspect-ratio:1;background:linear-gradient(160deg,#1b1714,#0d0b0a);border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;overflow:hidden}
+  .psnap .e{font-size:30px;filter:drop-shadow(0 2px 6px #000)} .psnap .c{font:600 8.5px var(--mono);color:var(--muted);text-align:center;padding:0 4px;line-height:1.2}
+  .ptl{padding:4px 16px 8px;display:flex;flex-direction:column;gap:7px}
+  .ptl .ev{font:500 12px var(--sans);color:#bdb6ae;padding-left:11px;border-left:2px solid var(--border);line-height:1.35}
+  .pact{padding:12px 16px 24px}
+  .pact button{width:100%;background:var(--neon);border:none;color:#fff;border-radius:13px;padding:13px;font:800 13px var(--sans);cursor:pointer}
+  .pact .done{text-align:center;color:var(--muted);font:600 12px var(--mono);padding:10px}
+  .dmbody{flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:9px}
+  .bub{max-width:78%;padding:9px 13px;border-radius:15px;font:500 13px var(--sans);line-height:1.4}
+  .bub.in{align-self:flex-start;background:var(--surface2);border:1px solid var(--border);border-bottom-left-radius:5px}
+  .bub.out{align-self:flex-end;background:var(--neon);color:#fff;border-bottom-right-radius:5px}
+  .bub.sys{align-self:center;background:none;color:var(--faint);font:600 11px var(--mono);text-align:center;max-width:92%}
+  .dmacts{flex:none;display:flex;gap:9px;padding:11px 12px;border-top:1px solid var(--border)}
+  .dmbtn{flex:1;padding:12px 8px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);
+       color:var(--text);font:700 12px var(--sans);cursor:pointer}
+  .dmbtn:active{transform:scale(.97)}
+  .dmbtn.ok{background:#1e2a1e;border-color:var(--green);color:#cfe6cf}
+  .dmbtn.bad{background:#2a1410;border-color:var(--rust);color:#f0c0b6}
+  .dmdone{flex:1;text-align:center;color:var(--faint);font:600 12px var(--mono);padding:6px}
+
+  /* dock d'actions */
+  .dock{flex:none;border-top:1px solid var(--border);background:var(--surface);padding:9px 12px;display:flex;flex-direction:column;gap:8px}
+  .hint{font:500 11px var(--mono);color:var(--faint);text-align:center;min-height:14px}
+  .batch{display:flex;gap:6px}
+  .chip{flex:1;text-align:center;padding:7px 4px;border-radius:9px;border:1px solid var(--border);
+       background:var(--surface2);font:600 12px var(--sans);color:var(--muted);cursor:pointer;transition:.15s}
+  .chip small{display:block;font:500 8px var(--mono);margin-top:2px;opacity:.7}
+  .chip.q-propre[data-on="1"]{border-color:var(--green);background:#1e2a1e;color:var(--text)}
+  .chip.q-standard[data-on="1"]{border-color:var(--sodium);background:#2a230f;color:var(--text)}
+  .chip.q-arrache[data-on="1"]{border-color:var(--rust);background:#2a1410;color:var(--text)}
+  .btn{flex:1;padding:11px;border-radius:12px;border:1px solid var(--border);font:700 13px var(--sans);
+       cursor:pointer;background:var(--neon);color:#fff;border-color:var(--neon)}
+  .btn:active{transform:scale(.97)}
+
+  /* composer de story (repris) */
+  .scompose{position:absolute;inset:0;background:rgba(10,9,8,.94);display:none;flex-direction:column;
+       align-items:center;justify-content:center;gap:16px;z-index:55;padding:30px}
+  .scompose.show{display:flex}
+  .scompose .pre{width:190px;height:280px;border-radius:18px;border:1px solid var(--border);
+       background:repeating-linear-gradient(45deg,#1d1916 0 12px,#191512 12px 24px);
+       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;position:relative}
+  .scompose .pre .cap{position:absolute;bottom:16px;left:0;right:0;text-align:center;font:800 15px var(--sans);color:#fff;text-shadow:0 2px 8px #000;padding:0 10px}
+  .scompose .pre .ico{font-size:38px;opacity:.6}
+  .scompose .pre .ph{font:600 9px var(--mono);color:var(--faint)}
+  .scompose .lead{font:600 13px var(--sans);color:var(--text);text-align:center;max-width:280px;line-height:1.4}
+  .scompose .opts{display:flex;gap:9px;width:100%;max-width:300px}
+  .scompose .opt{flex:1;border-radius:14px;padding:11px 8px;border:1px solid var(--border);background:var(--surface2);
+       cursor:pointer;text-align:center;font:700 12px var(--sans);color:var(--text)}
+  .scompose .opt small{display:block;font:500 9px var(--mono);color:var(--muted);margin-top:3px}
+  .scompose .opt.drop{border-color:var(--snap)}
+  .scompose .x{position:absolute;top:18px;right:22px;font-size:24px;color:var(--muted);cursor:pointer}
+
+  /* viewer plein écran + commentaires qui tombent (repris) */
+  .viewer{position:absolute;inset:0;background:#0a0908;display:none;flex-direction:column;z-index:50}
+  .viewer.show{display:flex}
+  .vclip{flex:1;background:repeating-linear-gradient(45deg,#17130f 0 14px,#120f0c 14px 28px);
+       position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+  .vclip .ico{font-size:54px;opacity:.5}
+  .vclip .txt{font:600 12px var(--mono);color:var(--faint);letter-spacing:.05em;text-align:center;max-width:240px;line-height:1.5}
+  .progress{position:absolute;top:14px;left:14px;right:14px;display:flex;gap:5px;z-index:5}
+  .progress span{flex:1;height:3px;border-radius:3px;background:rgba(255,255,255,.25);overflow:hidden}
+  .progress span b{display:block;height:100%;width:100%;background:#fff}
+  .vhdr{position:absolute;top:26px;left:14px;right:14px;display:flex;align-items:center;gap:9px;z-index:5}
+  .vhdr .av{width:32px;height:32px;border-radius:50%;background:var(--snap);display:flex;align-items:center;justify-content:center;font-size:15px}
+  .vhdr .nm{font:700 13px var(--sans);color:#fff}
+  .vhdr .tm{font:500 11px var(--sans);color:rgba(255,255,255,.6)}
+  .vcap{position:absolute;left:16px;right:16px;top:78px;z-index:6}
+  .vcap .big{font:800 17px var(--sans);color:#fff;text-shadow:0 2px 12px #000;line-height:1.2}
+  .vcap .sub{font:600 11px var(--mono);color:var(--snap);margin-top:4px}
+  .vcomments{position:absolute;left:12px;right:12px;bottom:30px;z-index:6;display:flex;flex-direction:column;gap:8px;justify-content:flex-end;pointer-events:none}
+  .vcm{display:flex;align-items:flex-start;gap:8px;animation:cmIn .35s ease}
+  .vcm .a{width:24px;height:24px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
+       font-size:13px;background:linear-gradient(135deg,#3a322b,#181410);border:1px solid rgba(255,255,255,.18)}
+  .vcm .b{font:500 12.5px var(--sans);color:#fff;text-shadow:0 1px 8px #000;line-height:1.35}
+  .vcm .b .u{font-weight:800;margin-right:6px}
+  .vcm.warm .b .u{color:#bdf0a3} .vcm.cold .b .u{color:#ff9f6b} .vcm.mefi .b .u{color:#ffcf80} .vcm.neu .b .u{color:#fff}
+  @keyframes cmIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .vtap{position:absolute;left:0;right:0;bottom:8px;text-align:center;font:600 10px var(--mono);color:rgba(255,255,255,.4);z-index:6}
+
+  /* bilan (endscreen repris) */
+  .endscreen{position:absolute;inset:0;background:radial-gradient(700px 500px at 50% 0%,#1b1714,#0a0908);
+       display:none;flex-direction:column;z-index:70;padding:28px 22px;overflow-y:auto}
+  .endscreen.show{display:flex}
+  .endscreen h2{font:800 21px var(--sans);margin-bottom:4px}
+  .endscreen .verdict{font:600 12px var(--mono);color:var(--sodium);margin-bottom:16px;line-height:1.5}
+  .bilan{display:flex;flex-direction:column;gap:10px}
+  .bline{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 13px}
+  .bline .bt{font:700 13px var(--sans);display:flex;align-items:center;gap:7px}
+  .bline .bc{font:500 12px var(--sans);color:var(--muted);margin-top:4px;line-height:1.45}
+  .bline.good{border-color:rgba(127,163,127,.5)} .bline.bad{border-color:rgba(200,68,47,.5)} .bline.warn{border-color:rgba(232,163,61,.5)}
+  .endscreen .replay{margin-top:18px;align-self:center;background:var(--neon);border:none;color:#fff;border-radius:14px;padding:13px 30px;font:800 13px var(--sans);cursor:pointer}
+  .reset{position:absolute;bottom:5px;right:12px;z-index:80;font:500 10px var(--mono);color:var(--faint);background:none;border:none;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="statusbar"><span id="clock">21:47</span><span>jour <b id="day">1</b> · 💶 <b id="cash">0</b>€</span></div>
+
+  <div class="hdr">
+    <div class="logo">⚡ <b>Snapshit</b></div>
+    <div class="spacer"></div>
+    <div class="opq">
+      <div class="k">🔥 le block te capte</div>
+      <div class="v" id="repGauge">• • •</div>
+      <div class="buzz" id="buzz">buzz : tranquille</div>
+    </div>
+  </div>
+
+  <div class="tray" id="tray">
+    <div class="story" id="story-mine">
+      <div class="ring mine ready" id="ring-mine"><div class="inner"><span class="ph">+ TOI</span></div></div>
+      <div class="cap">Ta vitrine</div>
+    </div>
+    <div class="story" data-actor="comptoir"><div class="ring seen"><div class="inner">🏪</div></div><div class="cap">Le Comptoir</div></div>
+    <div class="story" data-actor="campus"><div class="ring seen"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
+    <div class="story" data-actor="arrivage"><div class="ring"><div class="inner">🌃</div></div><div class="cap"><span class="live">● ARRIVAGE</span></div></div>
+    <div class="story" data-actor="ruelle"><div class="ring seen"><div class="inner">🚬</div></div><div class="cap">La Ruelle</div></div>
+  </div>
+
+  <div class="body" id="body"></div>
+
+  <!-- fil de DM (négociation jouable) -->
+  <div class="dmview" id="dmview"></div>
+  <div class="profile" id="profile"></div>
+
+  <div class="dock">
+    <div class="hint" id="hint">Réponds à tes DM, coupe ton batch, poste ta vitrine, puis passe la journée.</div>
+    <div class="batch" id="batch">
+      <div class="chip q-propre"   data-q="propre"   data-on="0">propre<small>qualité haute</small></div>
+      <div class="chip q-standard" data-q="standard" data-on="1">standard<small>correct</small></div>
+      <div class="chip q-arrache"  data-q="arrache"  data-on="0">à l'arrache<small>+ de poids</small></div>
+    </div>
+    <button class="btn" id="btnDay">Passer la journée →</button>
+  </div>
+
+  <!-- composer -->
+  <div class="scompose" id="scompose">
+    <div class="x" id="composeX">✕</div>
+    <div class="pre"><span class="ico">📦</span><span class="ph">CLIP 9:16<br>(à générer)</span><div class="cap" id="preCap">fraîchement coupé 🔥💨</div></div>
+    <div class="lead">Poste ta vitrine. Un <b>drop</b> = une promesse publique : ça spike, mais le block jugera ce que tu livres.</div>
+    <div class="opts">
+      <div class="opt" data-post="vitrine">⚡ Vitrine<small>juste montrer</small></div>
+      <div class="opt drop" data-post="normal">📣 Drop normal<small>« arrivage dispo »</small></div>
+      <div class="opt drop" data-post="premium">👑 Drop PREMIUM<small>« du haut de gamme »</small></div>
+    </div>
+  </div>
+
+  <!-- viewer + commentaires qui tombent -->
+  <div class="viewer" id="viewer">
+    <div class="vclip">
+      <div class="progress" id="vprog"></div>
+      <div class="vhdr"><div class="av">⚡</div><div><div class="nm">Ta vitrine</div><div class="tm">à l'instant</div></div></div>
+      <span class="ico">📦</span>
+      <span class="txt">CLIP 9:16 — ta came, grain de nuit<br>(générée hors-ligne)</span>
+      <div class="vcap"><div class="big" id="vcap">fraîchement coupé 🔥💨</div><div class="sub" id="vsub">— vu par 🔥 ••• (opaque)</div></div>
+      <div class="vcomments" id="vcomments"></div>
+      <div class="vtap" id="vtap">tape pour accélérer · le block réagit…</div>
+    </div>
+  </div>
+
+  <!-- bilan -->
+  <div class="endscreen" id="endscreen"></div>
+
+  <button class="reset" id="btnReset">reset</button>
+</div>
+
+<script type="module">
+'use strict';
+// ============================================================================
+// SNAPSHIT — refonte sur le châssis crimworld/. Voir commentaire d'en-tête.
+// ============================================================================
+const SAVE_VERSION = 7;
+const KEY='snapshit_state', VKEY='snapshit_ver';
+
+// ---- Constantes nommées (PLACEHOLDERS — réglage humain plus tard) ----------
+const C = {
+  REPUT_INIT:50, EXPO_INIT:10,
+  QUAL:{ propre:90, standard:65, arrache:35 },
+  EXPO_PAR_DROP:30, EXPO_PAR_VITRINE:12, EXPO_DECAY:0.72, EXPO_CAP:100,
+  EXPO_SEUIL_MAUVAIS_PUBLIC:60, EXPO_DELAI_MAUVAIS_PUBLIC:2,
+  FLAKE_BASE:0.10, FLAKE_PAR_SUREXPO:0.12, FLAKE_DECAY:0.85,
+  DROP_QUAL_PROMISE:{ premium:88, normal:66 },
+  DROP_SPIKE:22, CRY_WOLF_SEUIL_ECART:18, CRY_WOLF_DELAI:2, CRY_WOLF_AMPLEUR:16,
+  CREDIBILITE_DECAY:0.55, CREDIBILITE_REGAIN:0.12,
+  REPUT_PENTE_HAUSSE:0.14, REPUT_PENTE_BAISSE:0.30, REPUT_MAX:100,
+  // --- négociation DM (la demande, jouable) ---
+  PRIX_FAIR:10, LOWBALL_FACTOR:0.55,            // €/unité ; le lowball paie ~55% du prix
+  QTY_GENUINE:[2,3,4,5], QTY_LOWBALL:[8,12,16], // un vrai client prend peu, le brader prend en gros
+  FLAKE_PAR_BRADAGE:0.07, BRADE_DELAI:2,        // brader arme le mauvais public (différé, tracé)
+  // --- grossiste : l'axe VOLUME (mémoire = volume cumulé) ---
+  GROSSISTE_SEUIL_EXPO:45,                       // ton buzz attire les grossistes (apparition déterministe)
+  GROSSISTE_FACTOR:0.7,                          // €/unité : remise volume (mieux que lowball, sous le détail)
+  GROSSISTE_QTY_BASE:20, GROSSISTE_QTY_STEP:40, GROSSISTE_QTY_CAP:60, // sa demande grossit avec la relation
+  GROSSISTE_EXPO_COST:14,                        // écouler du volume = +heat de rue (co-effet PARALLÈLE, immédiat)
+  // --- carnet / réengagement 1:1 (la liste = un actif épuisable) ---
+  GOODWILL_INIT:100, GOODWILL_AGACE:35,         // au-dessous de AGACE, le client ne veut plus qu'on le relance
+  GOODWILL_REUP_OK:5, GOODWILL_DECLINE:8, GOODWILL_SPAM:25,
+  REUP_COOLDOWN:2, REUP_QTY:3, REUP_THRESHOLD:0.5,   // relancer < COOLDOWN jours = spam ; convertit si dispo×goodwill ≥ seuil
+  REUP_BASE:{accro:1, sami:0.75, petit:0.6, comtesse:0.65, ancien:0.45, client:0.65}, // propension par archétype
+};
+
+// ---- DICO d'argot (sous-ensemble embarqué ; vrai slang/ peut l'écraser) ----
+let DICO = {
+  SELL_POINT:['le four','le tieks','le block','le terrain'],
+  CUSTOMER:['les clients','les reufs','la clientèle','les habitués'],
+  CANNABIS_WEED:['la beuh','la frappe','la verte'],
+  QUALITY_GOOD:['de la frappe','du haut de gamme','de la bonne'],
+  QUALITY_BAD:['du pneu','de la merde','du sale'],
+  MONEY:['la moula','les lovés','les bif'],
+};
+const rnd = a => a[(Math.random()*a.length)|0];          // PRÉSENTATION uniquement
+const termOf = c => DICO[c] ? rnd(DICO[c]) : c.toLowerCase();
+const fillConcepts = s => s.replace(/\{(\w+)\}/g,(_,k)=>termOf(k));
+(async()=>{ try{
+  const r=await fetch('../slang/dico-trafic.json'); if(!r.ok) return; const j=await r.json(); const m={};
+  const grab=(k,cc)=>{ const t=j.concepts?.[cc]?.terms?.fr; if(t&&t.length) m[k]=t.map(x=>x.term); };
+  grab('SELL_POINT','SELL_POINT'); grab('CUSTOMER','CUSTOMER'); grab('CANNABIS_WEED','CANNABIS_WEED'); grab('MONEY','MONEY');
+  grab('QUALITY_GOOD','QUALITY_GOOD'); grab('QUALITY_BAD','QUALITY_BAD');   // concepts v2 (auto-portés)
+  DICO=Object.assign({},DICO,m);
+}catch(e){/* proto reste autonome */} })();
+
+// ---- genProfile (REPRIS de crimworld/index.html : foule anonyme) ------------
+// Banques fallback embarquées ; content/crowd.json (si chargé) les enrichit (voir CONTENU EXTERNE).
+let CM_PRE=["Pay","Hedge","Krilo","Naps","Vex","Zko","Brth","Lome","Saff","Dru","Niko","Ylw","Mok","Ras"];
+let CM_SUF=["Li","45","_","xx","02","tn","99","z","_b","77","ka","23","oo","37"];
+let CM_AV =["🦅","🐍","🦊","👹","🐉","🦂","🌒","🥷","🦍","🐺","🎭","💉","🪙","🔥"];
+function genProfile(){
+  const Cr = CONTENT && CONTENT.crowd && CONTENT.crowd.pseudo;          // foule enrichie (patterns pondérés)
+  if(Cr){ return { nm: genPseudo(Cr), av: rnd((CONTENT.crowd.avatar&&CONTENT.crowd.avatar.emojis)||CM_AV) }; }
+  return { nm: rnd(CM_PRE)+rnd(CM_SUF), av: rnd(CM_AV) };                // fallback combinatoire d'origine
+}
+
+// ---- La TROUPE (voix récurrentes nommées — alignées sur le roster existant) -
+let VOICES = [
+  { id:'accro',    nm:"L'accro",       av:'😵' },
+  { id:'comtesse', nm:'La Comtesse',   av:'👑' },
+  { id:'kevin',    nm:'Kévin',         av:'🧃' },   // le lowballer (roster la-bascule)
+  { id:'sami',     nm:'Sami',          av:'🧢' },
+  { id:'petit',    nm:'Le petit du 4', av:'🧒' },
+  { id:'ancien',   nm:"L'ancien",      av:'🚬' },
+  { id:'grossiste',nm:'Le Grossiste',  av:'📦' },   // l'axe VOLUME (mémoire = volume cumulé)
+];
+const voice = id => VOICES.find(v=>v.id===id) || genProfile();
+// visage DÉTERMINISTE d'un TYPE de protagoniste (pour nommer les conséquences au bilan)
+const FACE = id => VOICES.find(v=>v.id===id) || {nm:'les lowballers',av:'👥'};
+// foule de voix « neutres » : on exclut les archétypes à mémoire gérés à part (Kévin/Comtesse/Accro)
+let CROWD_VOICES = VOICES.filter(v=>!['kevin','comtesse','accro','grossiste'].includes(v.id));
+const protagBreakdown = m => Object.entries(m).map(([p,n])=>{ const f=FACE(p); return `${f.av} ${f.nm}${n>1?` ×${n}`:''}`; }).join(', ');
+
+// ---- Banque de phrases : contexte × ton (gabarits {CONCEPT}) ----------------
+let LINES = {
+  ambiant:{ chaleureux:["{SELL_POINT} tourne fort en ce moment 🔥","on sait où trouver {QUALITY_GOOD} 🙏","ça parle de toi dans le quartier frérot"],
+            neutre:["{SELL_POINT} fait son truc tranquille","rien à signaler ce soir","la night est calme 🌙"],
+            mefi:["mouais… faut voir ce que ça donne 👀","j'attends de tester avant de dire","on verra bien"],
+            hostile:["{SELL_POINT} c'est n'importe quoi maintenant","les {CUSTOMER} commencent à fuir…","ça craint là sérieux"] },
+  drop:{ chaleureux:["AH il a drop !! je fonce 🏃","enfin {QUALITY_GOOD} qui arrive 🤤","premier sur le drop évidemment"],
+         neutre:["drop posté, on regarde","ok il annonce du lourd, à voir","noté le drop"],
+         mefi:["encore un drop… on y croit à moitié","tu annonces mais bon 🤨","montre, parle moins"],
+         hostile:["ENCORE tu hype ? laisse tomber","drop de mytho oui","plus personne te calcule sur tes annonces"] },
+  qualite_basse:{ neutre:["bon c'était pas fou ce soir","ça passe mais sans plus"],
+                  mefi:["c'est {QUALITY_BAD} ça non ?","goût bizarre ton truc…","t'as coupé sévère là"],
+                  hostile:["c'est de la merde frérot, remboursé ⛔","du pneu pur, j'achète plus","tu sers {QUALITY_BAD} maintenant ?? 🤬"] },
+  qualite_haute:{ chaleureux:["alors ÇA c'est {QUALITY_GOOD} 😮‍💨🔥","propre propre, respect","le plug a du bon, validé ✅"],
+                  neutre:["correct ce soir, propre","rien à dire, ça tient"] },
+  cry_wolf:{ mefi:["t'avais promis {QUALITY_GOOD} y'a {DELAI}j… et là ?","l'annonce d'avant-hier c'était du vent 🤥"],
+             hostile:["t'as hypé {QUALITY_GOOD} y'a {DELAI}j puis servi {QUALITY_BAD} — mytho 🤬","on a tous vu ton drop. menteur. {CUSTOMER} se barrent"] },
+  mauvais_public:{ mefi:["y'a des reloux qui débarquent sur {SELL_POINT}…","ça attire n'importe qui ton buzz"],
+                   hostile:["full lowballers ce soir, ça négocie {MONEY} pour rien","trop de bruit → que des emmerdeurs"] },
+  promesse_tenue:{ chaleureux:["il avait dit premium, c'était premium 👑✅","quand il annonce, il assure 🤝"] },
+};
+function lineFor(ctx,tone,extra){
+  const bank=LINES[ctx]||{}; let pool=bank[tone];
+  if(!pool){ for(const t of ['chaleureux','neutre','mefi','hostile']){ if(bank[t]){pool=bank[t];break;} } }
+  if(!pool) return null;
+  let s=rnd(pool);
+  if(extra) for(const k in extra) s=s.split('{'+k+'}').join(extra[k]);   // extra AVANT
+  return fillConcepts(s);
+}
+
+// ---- ÉTAT --------------------------------------------------------------------
+function fresh(){ return {
+  jour:1, reput:C.REPUT_INIT, expo:C.EXPO_INIT, credibilite:1, flake:C.FLAKE_BASE,
+  qualiteChoisie:'standard', promesse:null, posteAujourdhui:false, repPrev:C.REPUT_INIT,
+  pendingCryWolf:[], pendingBadPublic:[], dms:[], cash:0, protagBrade:{},
+  comtesseState:'neutre', accroStreak:0,   // mémoires d'archétype (la voix se souvient)
+  grossisteVolume:0,                        // mémoire du grossiste : volume cumulé écoulé
+  pool:[], poolSeq:0,                       // carnet de clients passés (réengagement 1:1)
+  dayTally:{sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{},muted:0,reup:0,volume:0,volumeCash:0},
+}; }
+const freshTally = () => ({sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{},muted:0,reup:0,volume:0,volumeCash:0});
+let S = load();
+function load(){ try{
+  if(localStorage.getItem(VKEY)!==String(SAVE_VERSION)) throw 0;
+  const s=JSON.parse(localStorage.getItem(KEY)); if(!s) throw 0; return s;
+}catch(e){ const s=fresh(); save(s); return s; } }
+function save(s){ localStorage.setItem(KEY,JSON.stringify(s||S)); localStorage.setItem(VKEY,String(SAVE_VERSION)); }
+
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const toneFromReput = r => r>=72?'chaleureux': r>=50?'neutre': r>=30?'mefi':'hostile';
+const $ = id => document.getElementById(id);
+
+// ============================================================================
+// MOTEUR (déterministe — aucune conséquence par hasard)
+// ============================================================================
+function posterVitrine(kind){            // kind: 'vitrine' | 'normal' | 'premium'
+  S.posteAujourdhui = true;
+  if(kind==='vitrine'){ S.expo=clamp(S.expo+C.EXPO_PAR_VITRINE,0,C.EXPO_CAP); }
+  else{
+    S.promesse={ jour:S.jour, niveau:kind, qualPromise:C.DROP_QUAL_PROMISE[kind] };
+    S.expo=clamp(S.expo+C.EXPO_PAR_DROP,0,C.EXPO_CAP);
+  }
+  // réactions IMMÉDIATES (présentation) au post
+  const tone=toneFromReput(S.reput);
+  const ctx = kind==='vitrine'?'ambiant':'drop';
+  const cs=[ reaction(ctx,tone), reaction(ctx,tone) ];
+  if(kind!=='vitrine') cs.push(reaction('drop', tone));
+  save();
+  return cs.filter(Boolean);
+}
+
+// Passer la journée : résout tout déterministement, renvoie {cons, comments}
+function passerJournee(){
+  const cons=[], comments=[]; const qLivree=C.QUAL[S.qualiteChoisie]; S.repPrev=S.reput;
+
+  // 1) différés à échéance (tracés à une décision passée)
+  S.pendingCryWolf = S.pendingCryWolf.filter(ev=>{
+    if(ev.due!==S.jour) return true;
+    S.reput=clamp(S.reput-ev.ampleur,0,C.REPUT_MAX);
+    cons.push({k:'bad',t:'RÉPUT — falaise (cry-wolf)',c:`La confiance s'effondre : tu avais hypé un drop « ${ev.niveau} » au jour ${ev.jourPromesse} puis livré bien en dessous. Le mensonge a fini par se savoir.`});
+    comments.push(reaction('cry_wolf','hostile',{DELAI:String(S.jour-ev.jourPromesse)}));
+    // La Comtesse se souvient : trahir une promesse PREMIUM, elle ne le pardonne pas → elle part
+    if(ev.niveau==='premium' && S.comtesseState!=='partie'){
+      S.comtesseState='partie';
+      cons.push({k:'bad',t:'👑 LA COMTESSE TE LÂCHE',c:`Tu avais promis du premium au jour ${ev.jourPromesse} puis servi du sale. Elle ne pardonne pas la came médiocre : elle s'en va (et avec elle, le client qui paie le prix fort). Pour la récupérer : un drop premium, et TIENS-le.`});
+      comments.push({nm:'La Comtesse',av:'👑',txt:"je te croyais du goût. déçue. 🚪👑",tone:'hostile'});
+    }
+    return false;
+  });
+  S.pendingBadPublic = S.pendingBadPublic.filter(ev=>{
+    if(ev.due!==S.jour) return true;
+    S.flake=clamp(S.flake+ev.ampleur,0,0.9);
+    const who = ev.protags ? protagBreakdown(ev.protags) : 'les lowballers';
+    const c = ev.cause==='brade'
+      ? `Tu as bradé devant ${who} au jour ${ev.jourCause} : le mot est passé, ils rappliquent avec les leurs (part flakes ↑). Tracé à TON geste — pas au hasard.`
+      : `Ton buzz d'il y a ${C.EXPO_DELAI_MAUVAIS_PUBLIC}j a attiré le mauvais monde : la part de flakes/lowballers monte. Co-effet PARALLÈLE de l'exposition.`;
+    cons.push({k:'warn',t:'BASSIN — mauvais public',c});
+    comments.push(reaction('mauvais_public', S.reput<50?'hostile':'mefi'));
+    return false;
+  });
+
+  // 2) jugement de la PROMESSE du jour
+  if(S.promesse){
+    const ecart=S.promesse.qualPromise-qLivree;
+    if(ecart>C.CRY_WOLF_SEUIL_ECART){
+      S.pendingCryWolf.push({due:S.jour+C.CRY_WOLF_DELAI,ampleur:C.CRY_WOLF_AMPLEUR,niveau:S.promesse.niveau,jourPromesse:S.promesse.jour});
+      S.credibilite=clamp(S.credibilite*C.CREDIBILITE_DECAY,0.05,1);
+      cons.push({k:'warn',t:'PROMESSE TRAHIE — bombe à retardement',c:`Promis « ${S.promesse.niveau} », livré qualité ${qLivree}. Personne ne réagit ce soir : le cry-wolf tombera au jour ${S.jour+C.CRY_WOLF_DELAI}. Ta crédibilité baisse (futurs drops moins efficaces).`});
+    } else {
+      S.credibilite=clamp(S.credibilite+C.CREDIBILITE_REGAIN,0.05,1);
+      cons.push({k:'good',t:'PROMESSE TENUE',c:`Promis « ${S.promesse.niveau} », livré à la hauteur (qualité ${qLivree}). Le spike se convertit, crédibilité ↑.`});
+      comments.push(reaction('promesse_tenue','chaleureux'));
+      // La Comtesse se souvient : un premium PROMIS ET TENU la gagne (ou la ramène)
+      if(S.promesse.niveau==='premium' && S.comtesseState!=='fan'){
+        const back=S.comtesseState==='partie'; S.comtesseState='fan';
+        cons.push({k:'good',t:'👑 LA COMTESSE'+(back?' REVIENT':' TE VALIDE'),c:`Premium promis, premium livré. La Comtesse ${back?'revient — elle te pardonne et repassera commande au prix fort':'te repère : elle achètera désormais ton premium au prix fort'}.`});
+        comments.push({nm:'La Comtesse',av:'👑',txt:back?'bon… tu te rattrapes. je reviens 👑':'enfin du sérieux. validé 👑✨',tone:'chaleureux'});
+      }
+    }
+    S.promesse=null;
+  }
+
+  // 3) EXPO : sur-exposition arme le mauvais public (différé), puis décroît
+  if(S.expo>C.EXPO_SEUIL_MAUVAIS_PUBLIC){
+    S.pendingBadPublic.push({due:S.jour+C.EXPO_DELAI_MAUVAIS_PUBLIC,ampleur:C.FLAKE_PAR_SUREXPO,cause:'expo'});
+    cons.push({k:'warn',t:'EXPO — au-dessus du radar',c:`Buzz élevé (${Math.round(S.expo)}/${C.EXPO_CAP}). Payoff immédiat (plus d'yeux) MAIS le mauvais public arrivera au jour ${S.jour+C.EXPO_DELAI_MAUVAIS_PUBLIC}. Deux sorties parallèles du même buzz.`});
+  }
+  const expoAvant=S.expo;
+  S.expo=clamp(S.expo*C.EXPO_DECAY,0,C.EXPO_CAP);
+  S.flake=clamp(C.FLAKE_BASE+(S.flake-C.FLAKE_BASE)*C.FLAKE_DECAY,C.FLAKE_BASE,0.9);
+
+  // 4) RÉPUT (la demande) dérive vers la qualité livrée
+  const er=qLivree-S.reput; S.reput=clamp(S.reput+(er>=0?C.REPUT_PENTE_HAUSSE:C.REPUT_PENTE_BAISSE)*er,0,C.REPUT_MAX);
+
+  // 5) réactions à la QUALITÉ livrée (ton = jauge opaque)
+  const tone=toneFromReput(S.reput);
+  if(qLivree<=C.QUAL.arrache+5) comments.push(reaction('qualite_basse', S.reput<45?'hostile':'mefi'));
+  else if(qLivree>=C.QUAL.propre-5) comments.push(reaction('qualite_haute', S.reput>=72?'chaleureux':'neutre'));
+  else comments.push(reaction('ambiant',tone));
+
+  // 6) BILAN des DM négociés aujourd'hui : cash = cupidité ; bradage = dette différée
+  const t=S.dayTally;
+  if(t.sold||t.brade) cons.push({k:'good',t:'CAISSE du jour',c:`Tu as encaissé ${t.cash}€ — ${t.sold} vente(s) au prix${t.brade?`, ${t.brade} bradée(s)`:''}${t.reup?`, dont ${t.reup} relance(s) du carnet`:''}.`});
+  if(t.muted>0) cons.push({k:'bad',t:'CARNET — on t\'a mute',c:`${t.muted} client(s) t'ont mute aujourd'hui et quittent ton carnet : tu les as relancés trop souvent. La liste est un actif épuisable — co-effet de TES sollicitations, tracé.`});
+  if(t.brade>0){
+    const amp=clamp(C.FLAKE_PAR_BRADAGE*t.brade,0,0.4);
+    S.pendingBadPublic.push({due:S.jour+C.BRADE_DELAI,ampleur:amp,cause:'brade',jourCause:S.jour,protags:Object.assign({},t.bradeProtags)});
+    cons.push({k:'warn',t:'BRADAGE — ça va se savoir',c:`Tu as cassé tes prix devant ${protagBreakdown(t.bradeProtags)}. Cash tout de suite, mais le mauvais public débarquera au jour ${S.jour+C.BRADE_DELAI}. Cupidité now ↔ bassin pourri later.`});
+  }
+  if(t.volume>0) cons.push({k:'warn',t:'VOLUME — ça circule',c:`Tu as écoulé ${t.volume} d'un coup au grossiste : +${t.volumeCash}€ tout de suite, mais le volume se voit (heat de rue ↑, buzz à ${Math.round(S.expo)}/${C.EXPO_CAP}). Volume écoulé et heat = deux co-effets PARALLÈLES du même deal — jamais « moins de ventes donc heat ».`});
+  const leftG=(S.dms||[]).filter(d=>d.kind==='genuine'&&d.status==='pending').length;
+  if(leftG>0) cons.push({k:'warn',t:'CLIENTS IGNORÉS',c:`${leftG} client(s) sérieux pas répondus — partis ailleurs. Pas de sanction : juste du cash laissé sur la table.`});
+
+  // 7) DEMANDE de demain -> nouveau bassin de DM (présentation : genProfile)
+  const spike = S.posteAujourdhui ? Math.round(C.DROP_SPIKE*S.credibilite) : 0;
+  const dmGood = Math.max(0, Math.round(S.reput/14 + expoAvant/22 + spike/8));
+  const dmBad  = Math.round(dmGood*S.flake);
+  S.dms = buildDMs(dmGood, dmBad, tone, expoAvant);   // le grossiste suit le pic de buzz du jour
+  cons.push({k: dmGood>0?'good':'warn',t:'DEMANDE de demain',c:`${dmGood} acheteurs vont te DM (dont ${dmBad} flakes/lowballers, part ${Math.round(S.flake*100)}%).${spike?` +${spike} de spike grâce à ton drop (×crédibilité ${S.credibilite.toFixed(2)}).`:''}`});
+
+  // clôture
+  S.accroStreak++;   // l'accro est toujours là demain (et un cran plus accro)
+  S.posteAujourdhui=false; S.qualiteChoisie='standard'; S.dayTally=freshTally(); S.jour+=1; save();
+  return { cons, comments: comments.filter(Boolean) };
+}
+
+// fabrique un commentaire {nm,av,txt,tone} — voix nommée pour la MÉMOIRE, sinon foule
+function reaction(ctx,tone,extra){
+  const txt=lineFor(ctx,tone,extra); if(!txt) return null;
+  let v;
+  if(ctx==='cry_wolf') v=voice(rnd(['comtesse','ancien','accro']));
+  else if(ctx==='promesse_tenue') v=voice('comtesse');
+  else if(ctx==='mauvais_public') v=voice('kevin');
+  else v = Math.random()<0.5 ? rnd(VOICES) : genProfile();
+  return { nm:v.nm, av:v.av, txt, tone };
+}
+// banque d'ouvertures de DM (présentation) — {QTY} substitué AVANT fillConcepts
+let MSG = {
+  genuine:{ chaleureux:["wesh frérot, tjs dispo ? je prends {QTY} 🙏","on m'a parlé de toi — je veux {QTY} ce soir 🔥","du lourd paraît-il, je prends {QTY}"],
+            neutre:["salut, tjs dispo ? besoin de {QTY}","tu peux ce soir ? {QTY} pour moi","yo, dispo pour {QTY} ?"],
+            mefi:["c'est toi le plug ? je veux {QTY}, mais je te connais pas","{QTY} si c'est clean. c'est clean ?"],
+            hostile:["bon t'es sérieux toi ? {QTY} ou j'me casse"] },
+  lowball:["je prends {QTY} mais tu me fais un prix 👀","gros volume {QTY}, lâche -40% sinon je vais ailleurs","{QTY} cash là maintenant si tu casses le prix","aller fais un effort, {QTY} d'un coup 🤝"],
+  flake:["allô ?? tjs là ?","euh je sais pas encore… {QTY} ptet","tu réponds vite au moins ? ⌛","faut que je vois avec un pote, attends…"],
+  comtesse:["du haut de gamme uniquement, j'espère 👑 {QTY}","je ne prends que le meilleur. {QTY}, au prix qu'il faut.","fais-moi honneur — {QTY} de premium 🥂"],
+};
+// L'accro : sa came le rend plus accro → sa demande escalade avec le nombre de jours
+function accroLine(){
+  const s=S.accroStreak, pal = s>=6?'desespere': s>=3?'relance':'calme';
+  const pa=TROUPE.find(p=>p.id==='accro'), fromProf=pa&&pa.lines&&pa.lines.dm_open&&pa.lines.dm_open[pal];
+  if(fromProf&&fromProf.length) return rnd(fromProf);                 // profil accro (content)
+  if(MSG._accro&&MSG._accro[pal]) return rnd(MSG._accro[pal]);        // paliers lines.json
+  const bank = s>=6 ? ["jpeux plus dormir sans 😵 file {QTY} vite stp","reup je t'en supplie, {QTY} 🙏😰","comme d'hab mais double, {QTY}"]
+             : s>=3 ? ["yo c'est encore moi 😅 {QTY} comme d'hab","re, {QTY} pour moi le sang","tjs là ? je reprends {QTY}"]
+             :        ["wesh je prends {QTY} 🙏","dispo ? {QTY} stp"];
+  return rnd(bank);
+}
+
+// Le grossiste : sa demande et son ton escaladent avec le volume déjà écoulé (paliers)
+function grossisteLine(){
+  const v=S.grossisteVolume||0, tier = v>=120?'fournisseur': v>=40?'relance':'base';
+  if(MSG._grossiste&&MSG._grossiste[tier]) return rnd(MSG._grossiste[tier]);   // content (lines.json dm_open.grossiste)
+  return tier==='fournisseur' ? "comme d'hab mon fournisseur, {QTY} d'un coup 📦"
+       : tier==='relance'     ? "rebelote, je prends {QTY} en gros 📦"
+       :                        "j'écoule en gros — {QTY} d'un coup, prix de gros 📦";
+}
+
+// ---- CONTENU EXTERNE : enrichit troupe/foule/voix via content/*.json --------
+// Best-effort (comme le dico) : si le fetch échoue, les banques embarquées restent la source.
+// Invariant : présentation uniquement — le moteur pioche (rnd), le texte ne décide rien.
+let CONTENT=null, TROUPE=[], ACTION_REPLY=null, REUP_REPLY=null;
+async function loadContent(){ try{
+  const [P,L,Cr,Vc,Re,Ac,Hi,Ev]=await Promise.all([
+    fetch('./content/profiles.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/lines.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/crowd.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/vcap.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/reactions.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/actors.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/histories.json').then(r=>r.ok?r.json():null).catch(()=>null),
+    fetch('./content/events.json').then(r=>r.ok?r.json():null).catch(()=>null),
+  ]);
+  CONTENT={profiles:P,lines:L,crowd:Cr,vcap:Vc,reactions:Re,actors:Ac,histories:Hi,events:Ev};
+  if(L) applyLines(L);
+  if(P) applyProfiles(P);
+}catch(e){/* proto reste autonome */} }
+function applyLines(L){
+  if(L.dm_open){ const d=L.dm_open;
+    if(d.genuine) MSG.genuine=d.genuine; if(d.lowball) MSG.lowball=d.lowball;
+    if(d.flake) MSG.flake=d.flake; if(d.comtesse) MSG.comtesse=d.comtesse; if(d.accro) MSG._accro=d.accro; if(d.grossiste) MSG._grossiste=d.grossiste; }
+  if(L.story_comment) for(const k in L.story_comment) LINES[k]=L.story_comment[k];   // ctx→ton→[]
+  if(L.action_reply) ACTION_REPLY=L.action_reply;
+  if(L.reup_reply)   REUP_REPLY=L.reup_reply;
+}
+function applyProfiles(P){
+  TROUPE=P.troupe||[];
+  const MEM=['accro','comtesse','kevin','grossiste'];                  // gérés à part dans buildDMs
+  // la « foule de voix neutres » devient les faces cosmétiques genuine (sami/petit/ancien + clients nommés)
+  const crowd=TROUPE.filter(p=>(p.kind_default||'genuine')==='genuine' && !MEM.includes(p.id)).map(voiceFromProfile);
+  if(crowd.length) CROWD_VOICES=crowd;
+  for(const p of TROUPE){ const v=VOICES.find(x=>x.id===p.id);         // maj visage des voix à mémoire
+    if(v){ v.nm=p.pseudo; if(p.avatar&&p.avatar.emoji) v.av=p.avatar.emoji; } }
+}
+function voiceFromProfile(p){ return { id:p.id, protag:p.id, nm:p.pseudo, av:(p.avatar&&p.avatar.emoji)||'👤', lines:p.lines, kind:p.kind_default||'genuine' }; }
+function troupeVoice(id){ const p=TROUPE.find(x=>x.id===id); return p?voiceFromProfile(p):FACE(id); }
+// pseudo de foule : choisit un pattern pondéré puis tire ses fragments
+function weightedPick(a){ const t=a.reduce((s,x)=>s+(x.weight||1),0); let r=Math.random()*t; for(const x of a){ r-=(x.weight||1); if(r<=0) return x; } return a[0]; }
+function genPseudo(Cr){
+  const digits=n=>{ let s=''; for(let i=0;i<n;i++) s+=(Math.random()*10|0); return s; };
+  const sep=()=>rnd(Cr.separators||['']);
+  switch(weightedPick(Cr.patterns||[{id:'prefix_suffix'}]).id){
+    case 'word_digits': return rnd(Cr.words)+digits(2+(Math.random()*2|0));
+    case 'name_city':   return rnd(Cr.prefixes)+sep()+rnd(Cr.cities);
+    case 'word_glued':  return rnd(Cr.words);
+    case 'leet_typo':   return rnd(Cr.leet);
+    case 'prefix_word': return rnd(Cr.prefixes)+sep()+rnd(Cr.words);
+    default:            return rnd(Cr.prefixes)+rnd(Cr.suffixes);
+  }
+}
+// ouverture de DM : la voix parle SES lignes (troupe) sinon la banque globale (lines.json/fallback)
+function dmOpenFor(v,kind,tone){
+  const L=v&&v.lines&&v.lines.dm_open;
+  if(L){ if(Array.isArray(L)){ if(L.length) return rnd(L); }
+    else if(typeof L==='object'){ const pool=L[tone]||L.neutre||L.chaleureux||L.mefi||Object.values(L)[0]; if(pool&&pool.length) return rnd(pool); } }
+  if(kind==='genuine') return rnd(MSG.genuine[tone]||MSG.genuine.neutre);
+  if(kind==='lowball') return rnd(MSG.lowball);
+  if(kind==='flake')   return rnd(MSG.flake);
+  return '';
+}
+// réplique à une action : profil spécifique → banque par kind → fallback. fillConcepts + {QTY} appliqués.
+function replyFor(d,actionKey,fallback){
+  const prof=TROUPE.find(p=>p.id===d.protag&&p.pseudo===d.nm)||TROUPE.find(p=>p.id===d.protag);
+  const pa=prof&&prof.lines&&prof.lines.action_reply&&prof.lines.action_reply[actionKey];
+  if(pa&&pa.length) return rnd(pa);
+  const ga=ACTION_REPLY&&ACTION_REPLY[d.kind]&&ACTION_REPLY[d.kind][actionKey];
+  if(ga&&ga.length) return rnd(ga);
+  return fallback;
+}
+function reupReplyFor(c,result,fallback){
+  const prof=TROUPE.find(p=>p.id===c.archetype);
+  const pr=prof&&prof.lines&&prof.lines.reup_reply&&prof.lines.reup_reply[result];
+  if(pr&&pr.length) return rnd(pr);
+  const gr=REUP_REPLY&&REUP_REPLY[result];
+  if(gr&&gr.length) return rnd(gr);
+  return fallback;
+}
+const fin=(s,qty)=>fillConcepts(String(s).replace(/\{QTY\}/g,qty));   // finalise une réplique (concepts + qty)
+const rndFrom=(arr,fb)=>(arr&&arr.length)?rnd(arr):fb;
+// vcap.json : légende de TA vitrine (par drop d'abord, sinon par qualité)
+function vcapFor(kind){
+  const V=CONTENT&&CONTENT.vcap; if(!V) return null;
+  const pool=(V.by_drop&&V.by_drop[kind]) || (V.by_quality&&V.by_quality[S.qualiteChoisie]);
+  return (pool&&pool.length)?fillConcepts(rnd(pool)):null;
+}
+// reactions.json : jauge de buzz OPAQUE (phrasé par niveau, jamais un chiffre)
+function buzzLabel(){
+  const lvl = S.expo>C.EXPO_SEUIL_MAUVAIS_PUBLIC?'high':S.expo>30?'mid':'low';
+  const R=CONTENT&&CONTENT.reactions&&CONTENT.reactions.view_gauge;
+  if(R&&R[lvl]&&R[lvl].length) return rnd(R[lvl]);
+  return lvl==='high'?'au-dessus du radar ⚠️':lvl==='mid'?'ça parle de toi':'tranquille';
+}
+// reactions.json : flash post = libellé d'engagement flou + quelques likes par ton
+function postReactionFlash(kind){
+  const base = kind==='premium'?'Drop PREMIUM posté. Faut assurer derrière 👀':kind==='normal'?'Drop posté.':'Vitrine postée.';
+  const R=CONTENT&&CONTENT.reactions; if(!R) return base;
+  const label=rndFrom(R.reaction_labels,'');
+  const likes=((R.likes_by_tone&&R.likes_by_tone[toneFromReput(S.reput)])||[]).slice(0,3).join('');
+  return base+(label?' — '+label:'')+(likes?' '+likes:'');
+}
+// actors.json : story tappable d'un acteur d'ambiance (décor, ne vend rien)
+function openActorStory(key){
+  const A=CONTENT&&CONTENT.actors&&CONTENT.actors.actors, a=A&&A[key];
+  if(!a){ flash('Story indisponible (contenu pas chargé).'); return; }
+  $('vcap').textContent = a.emoji+' '+a.nom+' — '+fillConcepts(rndFrom(a.captions,a.vibe||''));
+  const tone=toneFromReput(S.reput);
+  const cs=(a.seed_comments||[]).map(txt=>{ const v=genProfile(); return { nm:v.nm, av:v.av, txt:fillConcepts(txt), tone }; });
+  const amb=dayAmbiance(); if(amb) cs.unshift({ nm:a.nom, av:a.emoji, txt:amb, tone:'neutre' });  // ambiance de la nuit (events)
+  playComments(cs);   // réutilise le viewer + commentaires qui tombent
+}
+// protag = TYPE de protagoniste (visage récurrent), pas l'identité d'affichage de la foule
+function dmObj(id,v,kind,qty,ppu,msg,tone,protag){ return {id,nm:v.nm,av:v.av,kind,qty,ppu,msg,status:'pending',tone,protag,log:null}; }
+function buildDMs(good,bad,tone,peakExpo){
+  const out=[]; let id=0;
+  const ppuG=Math.max(4,Math.round(C.PRIX_FAIR*(0.6+S.reput/120)));   // la demande paie selon la réput
+  const ppuL=Math.max(3,Math.round(ppuG*C.LOWBALL_FACTOR));
+  const lowN=Math.round(bad*0.6), flakeN=bad-lowN;                    // split déterministe du mauvais public
+  const push=(v,kind,qty,ppu,msg,protag)=>out.push(dmObj(id++,v,kind,qty,ppu,fillConcepts(msg.replace(/\{QTY\}/g,qty)),kind==='genuine'?tone:'mefi',protag));
+  // L'ACCRO : toujours présent, quoi qu'il arrive (loyauté AVEUGLE = la blague noire), même réput à terre
+  { const v=troupeVoice('accro'); push(v,'genuine',C.QTY_GENUINE[0],ppuG,accroLine(),'accro'); }
+  // LE GROSSISTE : attiré par ton BUZZ (expo) ; vient pour du gros volume à prix de gros (axe VOLUME)
+  if((peakExpo!=null?peakExpo:S.expo) >= C.GROSSISTE_SEUIL_EXPO){
+    const qty=Math.min(C.GROSSISTE_QTY_CAP, C.GROSSISTE_QTY_BASE+Math.floor((S.grossisteVolume||0)/C.GROSSISTE_QTY_STEP));
+    const ppuV=Math.max(3,Math.round(ppuG*C.GROSSISTE_FACTOR));
+    push(troupeVoice('grossiste'),'grossiste',qty,ppuV,grossisteLine(),'grossiste');
+  }
+  // LA COMTESSE : présente seulement si GAGNÉE (fan) ; loyauté CONDITIONNÉE à la qualité ; paie le prix fort
+  if(S.comtesseState==='fan'){ const v=troupeVoice('comtesse'); push(v,'genuine',2,Math.round(ppuG*1.6),dmOpenFor(v,'genuine',tone),'comtesse'); }
+  // le reste de la demande : foule anonyme + faces cosmétiques (Kévin/Comtesse/Accro exclus, gérés ci-dessus)
+  for(let i=0;i<good;i++){ const v=(CROWD_VOICES.length&&Math.random()<0.5)?rnd(CROWD_VOICES):genProfile();
+    push(v,'genuine',C.QTY_GENUINE[i%C.QTY_GENUINE.length],ppuG,dmOpenFor(v,'genuine',tone), v.id||'client'); }
+  for(let i=0;i<lowN;i++){ const v=(i===0)?troupeVoice('kevin'):genProfile();  // Kévin le lowballer ouvre le bal
+    push(v,'lowball',C.QTY_LOWBALL[i%C.QTY_LOWBALL.length],ppuL,dmOpenFor(v,'lowball',tone),'kevin'); }
+  const flakeFaces=TROUPE.filter(p=>(p.kind_default||p.kind)==='flake');
+  for(let i=0;i<flakeN;i++){ const v=(flakeFaces.length&&Math.random()<0.4)?voiceFromProfile(rnd(flakeFaces)):genProfile();
+    push(v,'flake',C.QTY_GENUINE[i%C.QTY_GENUINE.length],ppuG,dmOpenFor(v,'flake',tone),'flake'); }
+  return out;
+}
+// applique une décision de négociation — DÉTERMINISTE, tracé. Renvoie la réplique diégétique.
+function doDMAction(id, action){
+  const d=S.dms.find(x=>x.id===id); if(!d||d.status!=='pending') return {reply:'',sys:''};
+  const t=S.dayTally; let reply='',sys='';
+  if(d.kind==='genuine'){
+    if(action==='sell'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.sold++; d.status='sold';
+      addToPool(d);                                  // il entre dans ton carnet (relançable plus tard)
+      reply=replyFor(d,'sell',"reçu, t'es le boss 🙏"); sys=`💶 +${tot}€ encaissés.`; }
+    else { t.refused++; d.status='refused'; reply=replyFor(d,'refuse',"ah… ok tant pis 😞"); sys="vente laissée filer."; }
+  } else if(d.kind==='lowball'){
+    if(action==='brade'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.brade++; d.status='brade';
+      t.bradeProtags[d.protag]=(t.bradeProtags[d.protag]||0)+1;        // tracé par TYPE de protagoniste
+      S.protagBrade[d.protag]=(S.protagBrade[d.protag]||0)+1;          // mémoire longue (la voix se souvient)
+      const esc = S.protagBrade[d.protag]>=3;                          // 3e bradage → ramène toute l'équipe
+      reply = replyFor(d, esc?'brade_escalade':'brade', esc ? "ahah encore toi le pigeon 😏 j'ramène TOUTE l'équipe" : "ahah merci bg 😏 je ramène les reufs");
+      sys=`💸 +${tot}€ — mais brader devant ${FACE(d.protag).nm}, ça se sait…`; }
+    else { t.refused++; d.status='refused'; reply=replyFor(d,'refuse',"pff radin va. 🙄"); sys="prix tenu — ton bassin reste sain."; }
+  } else if(d.kind==='grossiste'){
+    if(action==='volume'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.sold++; d.status='volume';
+      t.volume+=d.qty; t.volumeCash+=tot; S.grossisteVolume=(S.grossisteVolume||0)+d.qty;   // mémoire : volume cumulé
+      S.expo=clamp(S.expo+C.GROSSISTE_EXPO_COST,0,C.EXPO_CAP);          // heat de rue : co-effet PARALLÈLE du volume (immédiat)
+      const big=S.grossisteVolume>=120;
+      reply=replyFor(d, big?'volume_escalade':'volume', big?"toujours du lourd avec toi, à la prochaine 📦":"nickel, je reviens quand j'ai besoin de gros 📦");
+      sys=`💶 +${tot}€ (gros volume). Mais ça circule — heat de rue ↑.`; }
+    else { t.refused++; d.status='refused'; reply=replyFor(d,'refuse',"tant pis, je vois ailleurs pour le volume."); sys="volume refusé — pas de cash, mais pas de heat non plus."; }
+  } else {
+    if(action==='rdv'){ t.ghost++; d.status='ghost'; reply=replyFor(d,'rdv',"ouais ouais à 23h…"); sys="📍 RDV posé… 🦗 il n'est jamais venu. temps perdu."; }
+    else { t.block++; d.status='block'; reply=replyFor(d,'block',''); sys="🚫 bloqué. inbox plus clean."; }
+  }
+  save();
+  return {reply:fin(reply,d.qty),sys};
+}
+
+// ---- CARNET : réengagement 1:1 (la liste est un actif épuisable) -----------
+// Un client servi entre au carnet. Le relancer convertit (selon archétype×goodwill)
+// MAIS trop le solliciter brûle son goodwill -> il te mute et quitte le carnet.
+function addToPool(d){
+  const named = d.protag!=='client' && d.protag!=='flake' && d.protag!=='kevin';
+  if(named){ const c=S.pool.find(x=>x.key===d.protag);
+    if(c){ c.buys++; c.goodwill=clamp(c.goodwill+C.GOODWILL_REUP_OK,0,100); c.lastBuy=S.jour; return; } }
+  S.pool.push({ key: named?d.protag:('anon'+(S.poolSeq++)), nm:d.nm, av:d.av, archetype:d.protag,
+    pref: d.protag==='comtesse'?'premium':'any', goodwill:C.GOODWILL_INIT, buys:1, lastBuy:S.jour, lastContact:0, log:null });
+}
+function goodwillVibe(g){ return g>=70?'chaud 🟢': g>=C.GOODWILL_AGACE?'tiède 🟠':'agacé 🔴'; }
+function canReup(c){ return c.lastContact!==S.jour && c.lastBuy!==S.jour; }   // pas 2× le même jour, ni le jour de l'achat
+// résout une relance — DÉTERMINISTE (dispo = état, pas hasard). Mute le client si goodwill tombe à 0.
+function reup(c){
+  const t=S.dayTally;
+  const gap = c.lastContact ? (S.jour-c.lastContact) : 99;
+  const spam = gap < C.REUP_COOLDOWN;                                  // relancé trop tôt depuis la dernière fois
+  if(spam || c.goodwill < C.GOODWILL_AGACE){
+    c.goodwill -= spam ? C.GOODWILL_SPAM : C.GOODWILL_DECLINE;
+    if(c.goodwill<=0){ t.muted++; return {kind:'mute', reply:fin(reupReplyFor(c,'mute',"tu me harcèles… stop. 🔇"),C.REUP_QTY),
+      sys:`🔇 il te mute et quitte ton carnet. Tracé : relancé trop souvent (${spam?'< '+C.REUP_COOLDOWN+'j d\'écart':'déjà agacé'}).`}; }
+    return {kind:'annoyed', reply:fin(reupReplyFor(c,'annoyed',"oh tu me lâches un peu 🙄"),C.REUP_QTY), sys:"⚠️ ça l'agace — son goodwill baisse."};
+  }
+  const base = C.REUP_BASE[c.archetype] ?? 0.6;
+  if(base*(c.goodwill/100) >= C.REUP_THRESHOLD){
+    const ppu=Math.max(4,Math.round(C.PRIX_FAIR*(0.6+S.reput/120))), tot=C.REUP_QTY*ppu;
+    S.cash+=tot; t.cash+=tot; t.sold++; t.reup++;
+    c.goodwill=clamp(c.goodwill+C.GOODWILL_REUP_OK,0,100); c.buys++; c.lastBuy=S.jour;
+    return {kind:'buy', reply:fin(reupReplyFor(c,'buy',"ah carré, je prends 🙏"),C.REUP_QTY), sys:`💶 +${tot}€ — content que tu aies pensé à lui.`};
+  }
+  c.goodwill=clamp(c.goodwill-Math.round(C.GOODWILL_DECLINE/2),0,100);
+  return {kind:'decline', reply:fin(reupReplyFor(c,'decline',"pas ce soir, mais garde-moi au chaud 🙏"),C.REUP_QTY), sys:"pas preneur aujourd'hui."};
+}
+
+// ============================================================================
+// PRÉSENTATION
+// ============================================================================
+function renderHeader(){
+  $('day').textContent=S.jour;
+  $('cash').textContent=S.cash;
+  const tone=toneFromReput(S.reput);
+  const blocks={hostile:'◦ ◦ ◦','mefi':'● ◦ ◦',neutre:'● ● ◦',chaleureux:'● ● ●'}[tone];
+  const col={hostile:'var(--rust)','mefi':'var(--sodium)',neutre:'var(--muted)',chaleureux:'var(--green)'}[tone];
+  const g=$('repGauge'); g.textContent=blocks; g.style.color=col;
+  $('buzz').textContent='buzz : '+buzzLabel();
+}
+function renderBody(){
+  const b=$('body');
+  if((!S.dms||!S.dms.length) && (!S.pool||!S.pool.length)){ b.innerHTML='<div class="empty">Pas encore de DM.<br>Poste ta vitrine, fais-toi un nom… ou pas.</div>'; return; }
+  let h='';
+  // CARNET : clients passés, relançables 1:1 (le réengagement)
+  if(S.pool && S.pool.length){
+    h+=`<div class="seclbl">📒 ton carnet — ${S.pool.length} client${S.pool.length>1?'s':''} (relance 1:1)</div>`;
+    for(const c of S.pool){
+      const dispo=canReup(c);
+      h+=`<div class="conv contact ${dispo?'':'done'}" data-key="${esc(c.key)}">`+
+         `<div class="av">${esc(c.av)}</div>`+
+         `<div class="col"><div class="nm">${esc(c.nm)}</div><div class="pv">${c.buys} cmde${c.buys>1?'s':''} · ${goodwillVibe(c.goodwill)}</div></div>`+
+         `<div class="tm">${dispo?'<span class="st go">relancer</span>':'<span class="st">vu</span>'}</div></div>`;
+    }
+  }
+  // BASSIN du jour : les DM entrants
+  if(S.dms && S.dms.length){
+    const pend=S.dms.filter(d=>d.status==='pending').length;
+    h+=`<div class="seclbl">messages — bassin du jour · ${pend} en attente</div>`;
+    for(const d of S.dms){
+      const isBad=d.kind!=='genuine', done=d.status!=='pending';
+      h+=`<div class="conv ${isBad?'flake':''} ${done?'done':''}" data-id="${d.id}">`+
+         `<div class="av ${(!done&&d.kind==='genuine')?'unread':''}">${esc(d.av)}</div>`+
+         `<div class="col"><div class="nm">${esc(d.nm)}</div><div class="pv">${esc(d.msg)}</div></div>`+
+         `<div class="tm">${statusPill(d)}</div></div>`;
+    }
+  }
+  b.innerHTML=h;
+}
+function statusPill(d){
+  if(d.status==='pending') return d.kind==='genuine'?'<span class="st go">répondre</span>':d.kind==='grossiste'?'<span class="st warn">📦 voir</span>':'<span class="st warn">⚠️</span>';
+  return ({sold:'<span class="st ok">vendu ✅</span>',brade:'<span class="st bad">bradé 💸</span>',volume:'<span class="st bad">écoulé 📦</span>',
+           refused:'<span class="st">refusé</span>',ghost:'<span class="st bad">🦗 posé</span>',
+           block:'<span class="st">bloqué</span>'})[d.status]||'';
+}
+
+// --- fil de DM (négociation jouable) ----------------------------------------
+function toneWord(t){ return {chaleureux:'chaleureuse 🟢',neutre:'neutre',mefi:'méfiante 🟠',hostile:'froide 🔴'}[t]||'?'; }
+function dmActsHTML(d){
+  if(d.status!=='pending') return '<div class="dmdone">conversation terminée</div>';
+  const tot=d.qty*d.ppu;
+  if(d.kind==='genuine') return `<button class="dmbtn ok" data-act="sell">✅ Vendre ${d.qty} · ${tot}€</button><button class="dmbtn" data-act="refuse">✋ Refuser</button>`;
+  if(d.kind==='lowball') return `<button class="dmbtn bad" data-act="brade">💸 Brader ${d.qty} · ${tot}€</button><button class="dmbtn" data-act="refuse">🧱 Tenir le prix</button>`;
+  if(d.kind==='grossiste') return `<button class="dmbtn bad" data-act="volume">📦 Écouler ${d.qty} · ${tot}€</button><button class="dmbtn" data-act="refuse">🧱 Refuser</button>`;
+  return `<button class="dmbtn" data-act="rdv">📍 Poser un RDV</button><button class="dmbtn" data-act="block">🚫 Bloquer</button>`;
+}
+function openDM(id){
+  const d=S.dms.find(x=>x.id===id); if(!d) return;
+  const sub = d.kind==='genuine'?('client · vibe '+toneWord(d.tone)) : d.kind==='lowball'?'négociateur 👀' : d.kind==='grossiste'?'grossiste 📦 — gros volume' : 'inconnu ???';
+  $('dmview').innerHTML=`
+    <div class="dmhdr" data-pnm="${esc(d.nm)}" data-pav="${esc(d.av)}" data-pprotag="${esc(d.protag||'client')}"><span class="dmback">‹</span><div class="av prof-link">${esc(d.av)}</div>
+      <div class="prof-link"><div class="nm">${esc(d.nm)}</div><div class="sub">${sub} · voir profil ›</div></div></div>
+    <div class="dmbody" id="dmbody"><div class="bub in">${esc(d.msg)}</div></div>
+    <div class="dmacts" id="dmacts" data-id="${d.id}">${dmActsHTML(d)}</div>`;
+  if(d.log) for(const m of d.log) appendBub(m.cls,m.txt);   // rejoue l'échange si déjà résolu
+  $('dmview').classList.add('show');
+}
+function closeDM(){ $('dmview').classList.remove('show'); refresh(); }
+function appendBub(cls,txt){ const bd=$('dmbody'); if(!bd||!txt) return;
+  const e=document.createElement('div'); e.className='bub '+cls; e.textContent=txt; bd.appendChild(e); bd.scrollTop=bd.scrollHeight; }
+function handleDMBtn(act,id){
+  const d=S.dms.find(x=>x.id===id); if(!d||d.status!=='pending') return;
+  const outTxt={sell:'Vendu. 🤝',refuse:'Non, pas aujourd’hui.',brade:'Bon ok, pour toi… 💸',volume:'Ok, je t’écoule ça. 📦',rdv:'Ok je te pose un RDV.',block:''}[act];
+  const r=doDMAction(id,act);
+  d.log=[];
+  if(outTxt){ appendBub('out',outTxt); d.log.push({cls:'out',txt:outTxt}); }
+  if(r.reply){ appendBub('in',r.reply); d.log.push({cls:'in',txt:r.reply}); }
+  if(r.sys){ appendBub('sys',r.sys); d.log.push({cls:'sys',txt:r.sys}); }
+  const a=$('dmacts'); if(a) a.innerHTML='<div class="dmdone">conversation terminée</div>';
+  save();
+}
+// --- fil de RELANCE 1:1 (carnet) ---
+function openContact(key){
+  const c=S.pool.find(x=>x.key===key); if(!c) return;
+  const dispo=canReup(c);
+  const why = c.lastBuy===S.jour ? 'déjà servi aujourd\'hui' : (c.lastContact===S.jour ? 'déjà relancé aujourd\'hui' : '');
+  const acts = dispo
+    ? `<button class="dmbtn ok" data-reup="${esc(key)}">📣 Proposer l'arrivage (${C.REUP_QTY})</button><button class="dmbtn" data-act="close">Fermer</button>`
+    : `<div class="dmdone">${why}</div>`;
+  $('dmview').innerHTML=`
+    <div class="dmhdr" data-pkey="${esc(key)}"><span class="dmback">‹</span><div class="av prof-link">${esc(c.av)}</div>
+      <div class="prof-link"><div class="nm">${esc(c.nm)}</div><div class="sub">carnet · ${c.buys} cmde${c.buys>1?'s':''} · ${goodwillVibe(c.goodwill)} · profil ›</div></div></div>
+    <div class="dmbody" id="dmbody"><div class="bub sys">tu as son @ depuis vos deals. Le relancer trop souvent l'agace.</div></div>
+    <div class="dmacts" id="dmacts" data-key="${esc(key)}">${acts}</div>`;
+  if(c.log) for(const m of c.log) appendBub(m.cls,m.txt);
+  $('dmview').classList.add('show');
+}
+function handleReup(key){
+  const c=S.pool.find(x=>x.key===key); if(!c||!canReup(c)) return;
+  const out=`nouvel arrivage 🔥 je te garde ${C.REUP_QTY} ?`;
+  appendBub('out',out); c.log=[{cls:'out',txt:out}];
+  const r=reup(c); c.lastContact=S.jour;
+  if(r.reply){ appendBub('in',r.reply); c.log.push({cls:'in',txt:r.reply}); }
+  if(r.sys){ appendBub('sys',r.sys); c.log.push({cls:'sys',txt:r.sys}); }
+  if(r.kind==='mute') S.pool=S.pool.filter(x=>x.key!==key);
+  const a=$('dmacts'); if(a) a.innerHTML=`<div class="dmdone">${r.kind==='mute'?'🔇 il t\'a mute':'relancé'}</div>`;
+  save();
+}
+// ---- PROFONDEUR DE PROFIL : la « carte » d'un user -------------------------
+// Le moteur définit les SLOTS ; le contenu les remplit. Authored (troupe) :
+// description(bio) / handle / tag / snaps[] / history[]. Foule : génériques par
+// archétype (crowd.json : bio_by_archetype / snaps_by_archetype) + historique
+// PROCÉDURAL dérivé du carnet (achats, dernier deal, relances). Tout opaque.
+const ARCH_OF={accro:'accro',comtesse:'connaisseur',kevin:'lowballer',sami:'regular',petit:'jeune',ancien:'ancien',flake:'flake',client:'regular',grossiste:'grossiste'};
+const TAG_OF={accro:'ACCRO',connaisseur:'CONNAISSEUR',lowballer:'LOWBALLER',regular:'CLIENT',jeune:'CURIEUX',ancien:'ANCIEN',flake:'FLAKE',curieux:'TOURISTE',grossiste:'GROSSISTE'};
+const BIO_FB={accro:"Toujours là, quoi qu'il arrive.",connaisseur:'Ne prend que le meilleur, paie le prix fort.',lowballer:'Négocie tout, ramène sa clique.',regular:'Habitué discret et fiable.',jeune:'Jeune curieux, impressionnable.',ancien:'Vieux routier, sec, a tout vu.',flake:'Pose un RDV, ne vient jamais.',curieux:'Vient par le buzz, repart au matin.',grossiste:'Écoule en gros. Vient quand ton buzz monte ; gros volume, prix de gros.'};
+function findFullProfile(nm,protag){ if(!TROUPE.length) return null;
+  return TROUPE.find(p=>p.id===protag&&p.pseudo===nm) || ((protag&&protag!=='client'&&protag!=='flake')?TROUPE.find(p=>p.id===protag):null); }
+function archetypeOf(protag,prof){ return (prof&&prof.archetype)||ARCH_OF[protag]||'regular'; }
+function bioOf(prof,arch){ if(prof&&prof.description) return prof.description;
+  const B=CONTENT&&CONTENT.crowd&&CONTENT.crowd.bio_by_archetype; return (B&&B[arch])||BIO_FB[arch]||'Profil du block.'; }
+function snapsOf(prof,arch,av){
+  if(prof&&prof.snaps&&prof.snaps.length) return prof.snaps.slice(0,6);
+  const SB=CONTENT&&CONTENT.crowd&&CONTENT.crowd.snaps_by_archetype;
+  if(SB&&SB[arch]&&SB[arch].length) return SB[arch].slice(0,6);
+  const es=(prof&&prof.emoji_signature)||[av||'📷'];                       // fallback : signature/avatar
+  return ['story','le block','la night','arrivage','un deal','vu'].map((c,i)=>({emoji:es[i%es.length]||'📷',cap:c}));
+}
+// sélection STABLE (déterministe par seed, sans état ni Math.random) — n items consécutifs
+function pickStable(arr,seed,n){ let h=0; for(let i=0;i<seed.length;i++) h=(h*31+seed.charCodeAt(i))>>>0;
+  const L=arr.length; n=Math.min(n,L); const out=[]; for(let i=0;i<n;i++) out.push(arr[(h+i)%L]); return out; }
+// historiques de la FOULE (lot 3 : histories.by_archetype) — stables par pseudo
+function fouleHistory(nm,arch){ const H=CONTENT&&CONTENT.histories; if(!H) return [];
+  const pool=(H.by_archetype&&H.by_archetype[arch])||H.generic||[]; if(!pool.length) return [];
+  return pickStable(pool,nm||arch,3).map(fillConcepts); }
+// ambiance de la NUIT (lot 3 : events) — une occasion/saison par jour, déterministe, présentation pure
+function dayAmbiance(){ const E=CONTENT&&CONTENT.events; if(!E) return null;
+  const b=[]; if(E.occasions) for(const k in E.occasions) b.push(E.occasions[k]); if(E.saisons) for(const k in E.saisons) b.push(E.saisons[k]);
+  if(!b.length) return null; const bk=b[S.jour%b.length], caps=bk&&bk.captions||[]; if(!caps.length) return null;
+  return fillConcepts(caps[S.jour%caps.length]); }
+function timelineOf(prof,pool,nm,arch){
+  const ev=[];
+  if(prof&&prof.history) ev.push(...prof.history);            // troupe : historique authored
+  else ev.push(...fouleHistory(nm,arch));                     // foule : blips d'archétype (lot 3)
+  if(pool){ if(pool.buys) ev.push(`${pool.buys} commande${pool.buys>1?'s':''} avec toi au total`);
+    if(pool.lastBuy) ev.push(`dernier deal — il y a ${Math.max(0,S.jour-pool.lastBuy)}j`);
+    if(pool.lastContact) ev.push(`relancé — il y a ${Math.max(0,S.jour-pool.lastContact)}j`); }
+  if(!ev.length) ev.push("nouveau dans ton réseau — pas encore d'histoire.");
+  return ev;
+}
+function openProfile(src){
+  const pool = src.key ? S.pool.find(x=>x.key===src.key) : S.pool.find(x=>x.nm===src.nm&&x.archetype===src.protag);
+  const nm=src.nm||(pool&&pool.nm)||'?', av=src.av||(pool&&pool.av)||'👤', protag=src.protag||(pool&&pool.archetype)||'client';
+  const prof=findFullProfile(nm,protag), arch=archetypeOf(protag,prof), handle=(prof&&prof.handle)||'';
+  const snaps=snapsOf(prof,arch,av), tl=timelineOf(prof,pool,nm,arch);
+  let relHTML='';
+  if(pool){ const gv=goodwillVibe(pool.goodwill).split(' '), seen=pool.lastBuy?('il y a '+Math.max(0,S.jour-pool.lastBuy)+'j'):'—';
+    relHTML=`<div class="prel">
+      <div class="it"><b>${pool.buys||0}</b><span>commande${(pool.buys||0)>1?'s':''}</span></div>
+      <div class="it"><b>${esc(gv[1]||'·')}</b><span>${esc(gv[0]||'vibe')}</span></div>
+      <div class="it"><b>${pool.pref==='premium'?'👑':'—'}</b><span>${pool.pref==='premium'?'premium':'standard'}</span></div>
+      <div class="it"><b>${esc(seen)}</b><span>dernier deal</span></div></div>`; }
+  let actHTML='';
+  if(pool){ actHTML = canReup(pool)
+    ? `<div class="pact"><button data-reup-key="${esc(pool.key)}">📣 Proposer l'arrivage (${C.REUP_QTY})</button></div>`
+    : `<div class="pact"><div class="done">${pool.lastBuy===S.jour?'déjà servi aujourd\'hui':'déjà relancé aujourd\'hui'}</div></div>`; }
+  $('profile').innerHTML=`
+    <div class="phdr"><span class="pback">‹</span><div class="ttl">profil</div></div>
+    <div class="pcard">
+      <div class="pav">${esc(av)}</div>
+      <div class="pnm">${esc(nm)}</div>
+      ${handle?`<div class="phandle">${esc(handle)}</div>`:''}
+      <div class="ptag">${esc(TAG_OF[arch]||(prof&&prof.tag)||'CLIENT')}</div>
+    </div>
+    <div class="pbio">${esc(fillConcepts(bioOf(prof,arch)))}</div>
+    ${relHTML}
+    <div class="psec">SNAPS PASSÉS</div>
+    <div class="psnaps">${snaps.map(s=>`<div class="psnap"><div class="e">${esc(s.emoji||'📷')}</div><div class="c">${esc(fillConcepts(s.cap||''))}</div></div>`).join('')}</div>
+    <div class="psec">HISTORIQUE</div>
+    <div class="ptl">${tl.map(e=>`<div class="ev">${esc(fillConcepts(e))}</div>`).join('')}</div>
+    ${actHTML}`;
+  $('profile').classList.add('show');
+}
+function closeProfile(){ $('profile').classList.remove('show'); }
+
+function renderDock(){ document.querySelectorAll('#batch .chip').forEach(c=>c.dataset.on=(c.dataset.q===S.qualiteChoisie)?'1':'0'); }
+function esc(s){ return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+// --- viewer + commentaires qui tombent (brique reprise/adaptée) -------------
+let vTimer=null, vTapHandler=null;
+function playComments(comments, onDone){
+  const v=$('viewer'), box=$('vcomments'); box.innerHTML='';
+  $('vsub').textContent='— vu par 🔥 '+{hostile:'◦◦◦','mefi':'●◦◦',neutre:'●●◦',chaleureux:'●●●'}[toneFromReput(S.reput)]+' (opaque)';
+  v.classList.add('show');
+  const list=comments.slice(); let i=0, done=false;
+  const toneCls=t=>({chaleureux:'warm',hostile:'cold',mefi:'mefi',neutre:'neu'}[t]||'neu');
+  const addOne=cm=>{ if(!cm) return;
+    const el=document.createElement('div'); el.className='vcm '+toneCls(cm.tone);
+    const a=document.createElement('div'); a.className='a'; a.textContent=cm.av;
+    const bd=document.createElement('div'); bd.className='b';
+    const u=document.createElement('span'); u.className='u'; u.textContent=cm.nm;
+    bd.appendChild(u); bd.appendChild(document.createTextNode(cm.txt));
+    el.appendChild(a); el.appendChild(bd); box.appendChild(el);
+    while(box.children.length>5) box.removeChild(box.firstChild);
+  };
+  const finish=()=>{ if(done) return; done=true; clearTimeout(vTimer);
+    v.removeEventListener('click',vTapHandler);
+    v.classList.remove('show'); box.innerHTML=''; onDone&&onDone(); };
+  const pump=()=>{ if(i>=list.length){ vTimer=setTimeout(finish,750); return; }
+    const cm=list[i++]; addOne(cm); vTimer=setTimeout(pump, Math.min(1500,650+(cm?cm.txt.length:0)*15)); };
+  vTapHandler=(e)=>{ e.stopPropagation(); if(i<list.length){ clearTimeout(vTimer); while(i<list.length) addOne(list[i++]); vTimer=setTimeout(finish,650);} else finish(); };
+  v.addEventListener('click',vTapHandler);
+  vTimer=setTimeout(pump,450);
+}
+
+// --- bilan (endscreen) ------------------------------------------------------
+function showReport(cons){
+  const trend=S.reput>S.repPrev+0.5?'↗ ça remonte':S.reput<S.repPrev-0.5?'↘ ça descend':'→ stable';
+  let h=`<h2>🌙 Rapport de nuit — jour ${S.jour-1}</h2>
+    <div class="verdict">Le bilan NOMME la cause. (le feed, lui, ne fait que la ressentir)</div><div class="bilan">`;
+  if(cons.length===0) h+=`<div class="bline"><div class="bc">Rien de notable. Le block dort.</div></div>`;
+  for(const c of cons) h+=`<div class="bline ${c.k}"><div class="bt">${esc(c.t)}</div><div class="bc">${esc(c.c)}</div></div>`;
+  h+=`<div class="bline"><div class="bc">Tendance réput (opaque) : <b>${trend}</b> — lis-la dans le ton du feed, pas dans un chiffre.</div></div>`;
+  h+=`</div><button class="replay" id="repOk">Continuer →</button>`;
+  const e=$('endscreen'); e.innerHTML=h; e.classList.add('show');
+  $('repOk').addEventListener('click',()=>{ e.classList.remove('show'); refresh(); });
+}
+
+// --- composer ---------------------------------------------------------------
+function openComposer(){
+  if(S.posteAujourdhui){ flash("T'as déjà posté aujourd'hui."); return; }
+  $('preCap').textContent = S.qualiteChoisie==='arrache'?'gros son ce soir 🔥':'fraîchement coupé 🔥💨';
+  $('scompose').classList.add('show');
+}
+function closeComposer(){ $('scompose').classList.remove('show'); }
+
+let hintTimer=null;
+function flash(m){ const h=$('hint'); h.textContent=m; clearTimeout(hintTimer);
+  hintTimer=setTimeout(()=>{ h.textContent='Réponds à tes DM, coupe ton batch, poste ta vitrine, puis passe la journée.'; },2600); }
+
+function refresh(){ renderHeader(); renderBody(); renderDock(); }
+
+// ---- WIRING ----------------------------------------------------------------
+document.querySelectorAll('#batch .chip').forEach(c=>c.addEventListener('click',()=>{
+  S.qualiteChoisie=c.dataset.q; renderDock(); save();
+  flash(c.dataset.q==='arrache'?"À l'arrache = + de poids, mais ça se sent…":c.dataset.q==='propre'?'Propre : la qualité parle pour toi.':'Standard.');
+}));
+$('story-mine').addEventListener('click',openComposer);
+$('composeX').addEventListener('click',closeComposer);
+document.querySelectorAll('#scompose .opt').forEach(o=>o.addEventListener('click',()=>{
+  const kind=o.dataset.post; closeComposer();
+  const cs=posterVitrine(kind);
+  const cap=vcapFor(kind); if(cap) $('vcap').textContent=cap;   // légende de vitrine (vcap.json)
+  refresh();
+  playComments(cs, ()=>{ flash(postReactionFlash(kind)); });
+}));
+document.querySelectorAll('.story[data-actor]').forEach(s=>s.addEventListener('click',()=>openActorStory(s.dataset.actor)));
+$('btnDay').addEventListener('click',()=>{
+  const { cons, comments } = passerJournee();
+  refresh();
+  playComments(comments, ()=>showReport(cons));
+});
+$('body').addEventListener('click',e=>{
+  const contact=e.target.closest('.contact[data-key]'); if(contact){ openProfile({key:contact.dataset.key}); return; }  // carnet → profil (depth-first)
+  const row=e.target.closest('.conv[data-id]'); if(row) openDM(+row.dataset.id);
+});
+$('dmview').addEventListener('click',e=>{
+  const pl=e.target.closest('.prof-link');                                   // tap nom/avatar → profil
+  if(pl){ const h=e.target.closest('.dmhdr'); if(h){ h.dataset.pkey?openProfile({key:h.dataset.pkey}):openProfile({nm:h.dataset.pnm,av:h.dataset.pav,protag:h.dataset.pprotag}); } return; }
+  if(e.target.closest('.dmback')){ closeDM(); return; }
+  const btn=e.target.closest('.dmbtn'); if(!btn) return;
+  if(btn.dataset.reup){ handleReup(btn.dataset.reup); return; }
+  if(btn.dataset.act==='close'){ closeDM(); return; }
+  handleDMBtn(btn.dataset.act, +$('dmacts').dataset.id);
+});
+$('profile').addEventListener('click',e=>{
+  if(e.target.closest('.pback')){ closeProfile(); return; }
+  const rb=e.target.closest('[data-reup-key]'); if(rb){ closeProfile(); openContact(rb.dataset.reupKey); }   // relance via le fil carnet
+});
+$('btnReset').addEventListener('click',()=>{ if(confirm('Reset le proto ?')){ S=fresh(); save(); refresh(); flash('Reset.'); } });
+
+// ---- BOOT ------------------------------------------------------------------
+// barres de progression du viewer (cosmétique)
+$('vprog').innerHTML='<span><b></b></span>';
+refresh();
+loadContent().then(refresh);   // enrichit troupe/foule/voix dès que content/*.json est dispo (sinon fallback)
+</script>
+</body>
+</html>

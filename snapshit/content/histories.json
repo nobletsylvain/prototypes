@@ -1,0 +1,106 @@
+{
+  "_meta": {
+    "doc": "Snapshit — historiques GÉNÉRIQUES de la foule (anonymes éphémères). Pool de blips de passé, piochables quand on ouvre une fiche foule. Pure présentation.",
+    "version": 1,
+    "updated": "2026-06-23",
+    "regles": [
+      "Clés = archétypes foule de crowd.json (client/flake/lowballer/connaisseur/accro/regular/jeune/ancien/curieux/touriste) → 1:1 avec les avatars générés.",
+      "La troupe nommée (profiles.json) a SES propres historiques bespoke ; ceci ne sert qu'aux anonymes.",
+      "Blips courts (≤ ~45 car.), au passé, opaques : ZÉRO chiffre (ni cote, ni heure, ni compteur). Le temps précis vient du moteur via {DELAI}.",
+      "Gabarits {SELL_POINT}/{CUSTOMER}/{MONEY}/{QUALITY_GOOD}/{QUALITY_BAD} ok. 'generic' = fond commun mélangeable.",
+      "Rappel périmètre : touriste est backlog moteur (data dormante tant que non câblé) — fourni pour cohérence 1:1."
+    ]
+  },
+
+  "by_archetype": {
+    "client": [
+      "a pris, a payé, rien à signaler",
+      "DM court, deal rapide",
+      "satisfait, repassera peut-être",
+      "transaction sans accroc",
+      "venu sur recommandation",
+      "anonyme parmi d'autres"
+    ],
+    "flake": [
+      "a dit « j'arrive » puis plus rien",
+      "RDV posé, jamais venu",
+      "« vu » sans réponse",
+      "a annulé à la dernière seconde",
+      "se réveille quand c'est fermé",
+      "promet, disparaît, réapparaît"
+    ],
+    "lowballer": [
+      "a tenté de négocier le {MONEY}",
+      "« t'as pas moins cher ? »",
+      "compare les prix du {SELL_POINT}",
+      "voulait deux pour le prix d'un",
+      "marchande même les petites doses",
+      "« allez frérot, fais un geste »"
+    ],
+    "connaisseur": [
+      "demande toujours {QUALITY_GOOD}",
+      "renifle avant de valider",
+      "refuse poliment {QUALITY_BAD}",
+      "fidèle tant que c'est propre",
+      "« la dernière était parfaite »",
+      "exigeant, mais respectueux"
+    ],
+    "accro": [
+      "a redemandé la même nuit, encore",
+      "DM tard : « tjs dispo ? »",
+      "promet d'arrêter, revient le lendemain",
+      "premier sur chaque story 👀",
+      "a relancé plusieurs fois d'affilée",
+      "« juste un dernier » (bis)"
+    ],
+    "regular": [
+      "passe à heure fixe, sans bruit",
+      "salue, prend, repart",
+      "jamais d'histoires, jamais en retard",
+      "connaît le {SELL_POINT} par cœur",
+      "petit signe de tête, c'est réglé",
+      "fidèle depuis le début"
+    ],
+    "jeune": [
+      "écrit en abrégé, plein de fautes",
+      "demande s'il faut payer d'avance",
+      "trop de smileys dans les DM 😅",
+      "budget serré, paie en pièces",
+      "venu avec un pote curieux",
+      "« c'est ma première fois »"
+    ],
+    "ancien": [
+      "parle d'avant, quand c'était mieux",
+      "paie cash, compte lentement",
+      "raconte une histoire à chaque fois",
+      "fidèle mais lent à répondre",
+      "« de mon temps… »",
+      "connaît tout le monde dans le block"
+    ],
+    "curieux": [
+      "regarde les stories, n'achète pas",
+      "pose mille questions, hésite",
+      "« je réfléchis encore »",
+      "a liké sans jamais écrire",
+      "tourne autour du {SELL_POINT}",
+      "observe de loin 👀"
+    ],
+    "touriste": [
+      "de passage, repart demain",
+      "« où je trouve ça ici ? »",
+      "perdu, demande son chemin",
+      "paie sans négocier, pressé",
+      "vient pour une nuit, c'est tout",
+      "ne reviendra sans doute jamais"
+    ]
+  },
+
+  "generic": [
+    "rien de notable, une fois de plus",
+    "croisé sous le même réverbère",
+    "un visage de plus dans le flux",
+    "passé vite, reparti vite",
+    "ni bon ni mauvais, juste là",
+    "le block en a vu d'autres"
+  ]
+}

@@ -1,0 +1,1952 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>CrimWorld — Le Bigo</title>
+<style>
+  /* =========================================================================
+     LE BIGO — le telephone comme hub de jeu.
+     Preambule guide (le fournisseur te front un lot) puis boucle systemique :
+     OnionMarket (achat) -> Atelier (conditionnement) -> Planque (stockage)
+     -> SnapShit (story + clients + conversations) -> BeuherEats (livraisons).
+     Meme langue visuelle que le proto crimworld/ (sodium/neon, mono).
+     AUCUN aleatoire ne pilote une consequence : tout est trace (app Karnet).
+     ========================================================================= */
+  :root{
+    --bg:#0E0D0C; --surface:#1A1714; --surface2:#221E1A; --border:#352E28;
+    --text:#E4DED5; --muted:#8C837B; --faint:#615951;
+    --sodium:#E8A33D; --neon:#3E7CC2; --rust:#C8442F; --green:#7FA37F;
+    --snap:#FFFC00; --onion:#B08CFF; --eats:#3ECF8E;
+    --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
+    --sans:-apple-system,"Segoe UI","Roboto","Helvetica Neue",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none;user-select:none}
+  html,body{height:100%}
+  body{background:radial-gradient(1200px 700px at 30% -10%,#1b1714 0,var(--bg) 60%);
+       font-family:var(--sans);color:var(--text);min-height:100vh;
+       display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;
+       padding:18px 12px}
+
+  /* ---- coque ---- */
+  .phone{position:relative;width:min(390px,96vw);height:min(800px,92vh);border-radius:38px;
+       background:var(--bg);border:1px solid var(--border);overflow:hidden;
+       box-shadow:0 30px 80px -20px #000,0 0 0 8px #0a0908;display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);
+       width:130px;height:26px;background:#0a0908;border-radius:0 0 16px 16px;z-index:60}
+  .statusbar{height:38px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
+       padding:0 20px 6px;font:600 12px var(--sans);color:var(--muted)}
+
+  /* ---- barre d'enjeu : caisse / heat / note ---- */
+  .stake{flex:none;display:flex;gap:7px;padding:7px 11px;border-bottom:1px solid var(--border);background:#120f0c}
+  .stake .seg{flex:1;display:flex;flex-direction:column;gap:1px;padding:5px 9px;min-width:0;
+       border-radius:9px;background:#1a1511;border:1px solid #241d17}
+  .stake .seg .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);
+       text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stake .seg b{font:800 15px var(--mono);line-height:1.1}
+  .stake .cash b{color:var(--green)}
+  .stake .heat b{color:var(--sodium)}
+  .stake .heat.hot b{color:var(--rust)}
+  .stake .note b{color:var(--neon)}
+
+  /* ---- ecrans ---- */
+  .screen{position:absolute;inset:0;top:86px;bottom:22px;display:none;flex-direction:column;overflow:hidden}
+  .screen.show{display:flex}
+  .screen.app.show{animation:appIn .22s cubic-bezier(.2,.8,.3,1)}
+  @keyframes appIn{from{transform:translateX(46px);opacity:.4}to{transform:none;opacity:1}}
+  #scr-home.show{animation:homeIn .2s ease}
+  @keyframes homeIn{from{transform:scale(.96);opacity:.5}to{transform:none;opacity:1}}
+
+  /* ---- barre home (geste natif : tap ou swipe vers le haut = accueil) ---- */
+  .homebar{position:absolute;left:50%;bottom:7px;transform:translateX(-50%);width:120px;height:22px;
+       display:flex;align-items:center;justify-content:center;z-index:70;cursor:pointer;touch-action:none}
+  .homebar::after{content:"";width:110px;height:5px;border-radius:3px;background:rgba(255,255,255,.35)}
+  /* pendant un swipe-back, l'ecran suit legerement le doigt */
+  .screen.swiping{transition:none}
+
+  /* ---- accueil : grille d'apps ---- */
+  #scr-home{background:radial-gradient(500px 340px at 70% 10%,#221a12 0,transparent 70%)}
+  .apps{display:grid;grid-template-columns:repeat(4,1fr);gap:18px 8px;padding:26px 18px}
+  .appic{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;position:relative}
+  .appic .bx{width:58px;height:58px;border-radius:15px;display:flex;align-items:center;justify-content:center;
+       font-size:28px;background:linear-gradient(160deg,var(--surface2),#15110e);
+       border:1px solid var(--border);box-shadow:0 4px 10px -4px #000}
+  .appic .lb{font:600 10px var(--sans);color:var(--muted);max-width:76px;text-align:center;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .appic.locked{opacity:.32;filter:grayscale(.7)}
+  .appic .badge{position:absolute;top:-5px;right:6px;min-width:18px;height:18px;border-radius:9px;
+       background:var(--rust);color:#fff;font:800 11px var(--mono);display:flex;align-items:center;
+       justify-content:center;padding:0 5px;border:2px solid var(--bg)}
+  .homefoot{margin-top:auto;padding:0 22px 22px;text-align:center;font:500 11px var(--mono);color:var(--faint);line-height:1.6}
+  .homefoot b{color:var(--sodium)}
+
+  /* ---- header d'app ---- */
+  .ahdr{flex:none;display:flex;align-items:center;gap:11px;padding:10px 14px;border-bottom:1px solid var(--border)}
+  .ahdr .back{font-size:22px;color:var(--muted);padding:2px 8px 2px 0;cursor:pointer}
+  .ahdr .aic{font-size:20px}
+  .ahdr .anm{font:800 15px var(--sans)}
+  .ahdr .asub{font:500 10px var(--mono);color:var(--faint)}
+  .ahdr .spacer{flex:1}
+  .abody{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+
+  /* ---- cartes generiques ---- */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px}
+  .card .ct{font:700 13px var(--sans);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .card .cs{font:500 11.5px var(--sans);color:var(--muted);margin-top:4px;line-height:1.45}
+  .card .cm{font:600 11px var(--mono);color:var(--faint);margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 12px}
+  .card .trace{font:600 10.5px var(--mono);color:var(--neon);margin-top:6px}
+  .card.good{border-color:rgba(127,163,127,.5)}
+  .card.bad{border-color:rgba(200,68,47,.5)}
+  .card.warn{border-color:rgba(232,163,61,.5)}
+  .pill{font:700 9px var(--mono);padding:2px 7px;border-radius:5px;background:#141110;border:1px solid var(--border);color:var(--muted)}
+  .pill.on{color:#0a0908;background:var(--snap);border-color:var(--snap)}
+  .btn{border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:12px;
+       padding:11px 14px;font:700 13px var(--sans);cursor:pointer;transition:transform .05s}
+  .btn:active{transform:scale(.98)}
+  .btn.go{border-color:var(--green);color:#cfe3cf}
+  .btn.warn{border-color:var(--sodium);color:#f0d3a3}
+  .btn.no{border-color:var(--faint);color:var(--muted)}
+  .btn:disabled{opacity:.35;pointer-events:none}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap}
+  .btnrow .btn{flex:1;min-width:100px}
+  .empty{font:500 12px var(--sans);color:var(--faint);text-align:center;padding:26px 12px;line-height:1.6}
+
+  /* ---- OnionMarket ---- */
+  #scr-onion .ahdr .anm{color:var(--onion)}
+  .vend .av{font-size:26px}
+  .vend .ct{gap:10px}
+  .vend .stars{color:var(--onion);font-size:11px;letter-spacing:1px}
+
+  /* ---- Atelier ---- */
+  .lot{display:flex;align-items:center;gap:10px;cursor:pointer}
+  .lot.sel{border-color:var(--sodium)}
+  .lot .ic{font-size:24px}
+  .gauge{height:190px;border-radius:14px;border:1px solid var(--border);background:#141110;
+       position:relative;overflow:hidden;display:flex;align-items:flex-end;touch-action:none;cursor:pointer}
+  .gauge .fill{width:100%;background:linear-gradient(180deg,var(--sodium),#8a5f22);height:0%}
+  .gauge .zone{position:absolute;left:0;right:0;border-top:2px dashed rgba(127,163,127,.9);
+       border-bottom:2px dashed rgba(127,163,127,.9);background:rgba(127,163,127,.12)}
+  .gauge .gtxt{position:absolute;top:10px;left:0;right:0;text-align:center;font:700 12px var(--mono);color:var(--muted)}
+  .gauge .gval{position:absolute;top:28px;left:0;right:0;text-align:center;font:800 22px var(--mono);color:var(--text)}
+
+  /* ---- Planque ---- */
+  .stockcols{display:flex;gap:10px}
+  .stockcol{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px}
+  .stockcol h4{font:700 12px var(--sans);display:flex;justify-content:space-between;align-items:center}
+  .capbar{height:5px;border-radius:3px;background:#141110;margin:7px 0 9px;overflow:hidden}
+  .capbar b{display:block;height:100%;background:var(--green)}
+  .capbar b.hot{background:var(--rust)}
+  .srow{display:flex;align-items:center;justify-content:space-between;padding:6px 2px;font:600 12px var(--mono)}
+  .srow .mv{width:30px;height:30px;border-radius:9px;border:1px solid var(--border);background:var(--surface2);
+       color:var(--text);font:800 15px var(--mono);cursor:pointer}
+  .srow .mv:disabled{opacity:.25}
+
+  /* ---- SnapShit : tray + chats + fil ---- */
+  #scr-snap .ahdr .anm{color:var(--snap)}
+  .tray{flex:none;display:flex;gap:14px;padding:12px 16px;overflow-x:auto;border-bottom:1px solid var(--border)}
+  .story{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;width:62px;cursor:pointer}
+  .ring{width:58px;height:58px;border-radius:50%;padding:2.5px;
+       background:conic-gradient(#F44,#FB5,#9B5,#F44)}
+  .ring.seen{background:#3a332c}
+  .ring.mine{background:var(--snap)}
+  .ring .inner{width:100%;height:100%;border-radius:50%;background:var(--surface);
+       border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;
+       font-size:18px;color:var(--muted);overflow:hidden}
+  .ring .ph{font:700 9px var(--mono);color:var(--faint)}
+  .story .cap{font:500 10px var(--sans);color:var(--muted);max-width:62px;text-align:center;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .snapbody{flex:1;overflow-y:auto;position:relative}
+  .conv{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid #221d18;cursor:pointer}
+  .conv:active{background:var(--surface)}
+  .conv .av{width:46px;height:46px;border-radius:50%;flex:none;font-size:20px;
+       background:linear-gradient(135deg,#3a322b,#181410);display:flex;align-items:center;
+       justify-content:center;border:1px solid var(--border);position:relative}
+  .conv .av.unread::after{content:"";position:absolute;top:-1px;right:-1px;width:13px;height:13px;
+       border-radius:50%;background:var(--snap);border:2px solid var(--bg)}
+  .conv .col{flex:1;min-width:0}
+  .conv .nm{font:700 14px var(--sans)}
+  .conv .pv{font:500 12px var(--sans);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .conv.un .pv{color:var(--text);font-weight:600}
+  .thread{padding:14px;display:flex;flex-direction:column;gap:9px}
+  .row{display:flex;gap:8px;max-width:86%;animation:pop .2s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .row.in{align-self:flex-start}
+  .row.out{align-self:flex-end;justify-content:flex-end}
+  .bub{padding:9px 13px;border-radius:18px;font:400 13.5px/1.4 var(--sans);word-wrap:break-word}
+  .in .bub{background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:5px}
+  .out .bub{background:var(--neon);color:#fff;border-bottom-right-radius:5px}
+  .sysline{align-self:center;font:600 10px var(--mono);color:var(--faint);text-align:center;max-width:90%;line-height:1.5}
+  .choices{align-self:stretch;display:flex;flex-direction:column;gap:8px;padding:6px 2px 2px}
+  .choice{width:100%;text-align:left;background:var(--surface2);border:1px solid var(--border);
+       color:var(--text);border-radius:14px;padding:12px 14px;font:600 13px var(--sans);cursor:pointer;
+       display:flex;align-items:center;gap:9px}
+  .choice:active{transform:scale(.985)}
+  .choice.go{border-color:var(--green);color:#cfe3cf}
+  .choice.neg{border-color:var(--sodium);color:#f0d3a3}
+  .choice.no{border-color:var(--faint);color:var(--muted)}
+  .choice:disabled{opacity:.35;pointer-events:none}
+
+  /* ---- fiche profil client ---- */
+  .sheet{position:absolute;inset:0;background:rgba(10,9,8,.9);display:none;z-index:56;
+       align-items:flex-end;justify-content:center}
+  .sheet.show{display:flex}
+  .sheet .panel{width:100%;background:var(--surface);border-top:1px solid var(--border);
+       border-radius:22px 22px 0 0;padding:20px 18px 26px;display:flex;flex-direction:column;gap:10px;
+       max-height:72%;overflow-y:auto}
+  .sheet .pav{width:64px;height:64px;border-radius:50%;font-size:30px;align-self:center;
+       background:linear-gradient(135deg,#3a322b,#181410);border:1px solid var(--border);
+       display:flex;align-items:center;justify-content:center}
+  .sheet .pnm{font:800 17px var(--sans);text-align:center}
+  .sheet .ptag{font:600 11px var(--mono);color:var(--sodium);text-align:center}
+  .sheet .pstats{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:4px}
+  .sheet .pstats .pill{font-size:10px;padding:4px 9px}
+
+  /* ---- composer de story ---- */
+  .scompose{position:absolute;inset:0;background:rgba(10,9,8,.94);display:none;flex-direction:column;
+       z-index:55;padding:22px 18px;overflow-y:auto;gap:12px}
+  .scompose.show{display:flex}
+  .scompose h3{font:800 16px var(--sans)}
+  .scompose .grp{display:flex;flex-direction:column;gap:7px}
+  .scompose .glb{font:600 10px var(--mono);color:var(--faint);letter-spacing:.06em;text-transform:uppercase}
+  .segrow{display:flex;gap:7px;flex-wrap:wrap}
+  .segbtn{flex:1;min-width:86px;border:1px solid var(--border);background:var(--surface);color:var(--text);
+       border-radius:12px;padding:10px 8px;font:600 12px var(--sans);cursor:pointer;text-align:center}
+  .segbtn small{display:block;font:500 10px var(--mono);color:var(--faint);margin-top:3px}
+  .segbtn.sel{border-color:var(--snap);color:var(--snap)}
+  .segbtn:disabled{opacity:.3;pointer-events:none}
+  .prix{display:flex;align-items:center;gap:14px;justify-content:center}
+  .prix .pv{font:800 26px var(--mono)}
+  .prix .adj{width:42px;height:42px;border-radius:12px;border:1px solid var(--border);
+       background:var(--surface2);color:var(--text);font:800 20px var(--mono);cursor:pointer}
+  .prixhint{font:600 10.5px var(--mono);color:var(--faint);text-align:center}
+  .scompose .post{background:var(--snap);color:#0a0908;border:none;border-radius:24px;
+       padding:14px 28px;font:800 14px var(--sans);cursor:pointer;margin-top:6px}
+  .scompose .post:disabled{opacity:.4}
+  .scompose .cancel{background:none;border:none;color:var(--faint);font:600 12px var(--sans);cursor:pointer;padding:8px}
+
+  /* ---- viewer story ---- */
+  .viewer{position:absolute;inset:0;background:#0a0908;display:none;flex-direction:column;z-index:57}
+  .viewer.show{display:flex}
+  .vclip{flex:1;background:repeating-linear-gradient(45deg,#17130f 0 14px,#120f0c 14px 28px);
+       position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+  .vclip .badge{position:absolute;top:16px;left:14px;font:700 10px var(--mono);color:#0a0908;
+       background:var(--snap);padding:3px 7px;border-radius:5px}
+  .vclip .ico{font-size:54px;opacity:.5}
+  .vclip .txt{font:600 12px var(--mono);color:var(--faint);text-align:center;max-width:250px;line-height:1.5}
+  .vhdr2{position:absolute;top:44px;left:14px;right:14px;display:flex;align-items:center;gap:9px}
+  .vhdr2 .av{width:32px;height:32px;border-radius:50%;background:var(--snap);display:flex;align-items:center;
+       justify-content:center;font-size:15px}
+  .vhdr2 .nm{font:700 13px var(--sans);color:#fff}
+  .vhdr2 .tm{font:500 11px var(--sans);color:rgba(255,255,255,.6)}
+  .vcap{position:absolute;left:0;right:0;bottom:110px;text-align:center;padding:0 30px}
+  .vcap .big{font:800 20px var(--sans);color:#fff;text-shadow:0 2px 12px #000;line-height:1.25}
+  .vcap .sub{font:600 12px var(--mono);color:var(--snap);margin-top:8px}
+  .vcomments{position:absolute;left:12px;right:12px;bottom:56px;display:flex;
+       flex-direction:column;gap:8px;justify-content:flex-end;pointer-events:none}
+  .vcm{display:flex;align-items:flex-start;gap:8px;animation:cmIn .35s ease}
+  .vcm .a{width:24px;height:24px;border-radius:50%;flex:none;display:flex;align-items:center;
+       justify-content:center;font-size:13px;background:linear-gradient(135deg,#3a322b,#181410);
+       border:1px solid rgba(255,255,255,.18)}
+  .vcm .b{font:500 12.5px var(--sans);color:#fff;text-shadow:0 1px 8px #000;line-height:1.35}
+  .vcm .b .u{font-weight:800;margin-right:6px}
+  @keyframes cmIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .vclose{position:absolute;bottom:16px;left:0;right:0;text-align:center;font:600 11px var(--mono);color:var(--faint)}
+
+  /* ---- BeuherEats ---- */
+  #scr-beuher .ahdr .anm{color:var(--eats)}
+  .order{display:flex;flex-direction:column;gap:6px}
+  .order .oh{display:flex;align-items:center;gap:9px}
+  .order .oav{font-size:22px}
+  .order .onm{font:700 13px var(--sans);flex:1}
+  .order .otot{font:800 15px var(--mono);color:var(--eats)}
+  .order .oline{font:600 11.5px var(--mono);color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+  .order .tick{width:20px;height:20px;border-radius:6px;border:1px solid var(--border);flex:none;
+       display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--eats)}
+  .order.sel{border-color:var(--eats)}
+  .order.late .oline .dl{color:var(--rust)}
+  .tourneebar{flex:none;padding:12px 14px;border-top:1px solid var(--border);background:#120f0c;
+       display:flex;flex-direction:column;gap:8px}
+  .tourneebar .warn{font:600 11px var(--mono);color:var(--rust);line-height:1.5}
+  .tourneebar .info{font:600 11px var(--mono);color:var(--faint)}
+  .tbtn{background:var(--eats);color:#06231a;border:none;border-radius:14px;padding:14px;
+       font:800 14px var(--sans);cursor:pointer}
+  .tbtn:disabled{opacity:.35}
+
+  /* ---- Karnet ---- */
+  .kline{border-left:3px solid var(--border);padding:2px 0 2px 10px}
+  .kline .kt{font:600 12.5px var(--sans);line-height:1.4}
+  .kline .kc{font:600 10.5px var(--mono);color:var(--neon);margin-top:3px}
+  .kline .km{font:500 10px var(--mono);color:var(--faint);margin-top:2px}
+  .kline.bad{border-color:var(--rust)}
+  .kline.good{border-color:var(--green)}
+
+  /* ---- ETABLI (coupe 3D reprise de hash-slicer via etabli.html) ---- */
+  .etabli{position:absolute;inset:0;background:#0d0b09;display:none;flex-direction:column;z-index:64}
+  .etabli.show{display:flex}
+  .etabli .ehdr{flex:none;display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+  .etabli .ehdr .back{font-size:20px;color:var(--muted);cursor:pointer;padding:2px 8px 2px 0}
+  .etabli .ehdr .enm{font:800 15px var(--sans)}
+  #etabli-frame{flex:1;width:100%;border:0;background:#0d0b09;display:block}
+  .efallback{flex:none;padding:8px 16px 16px;text-align:center}
+  .efallback .link{font:600 12px var(--sans);color:var(--faint);text-decoration:underline;cursor:pointer}
+  .efallback .fbtns{display:none;flex-direction:column;gap:10px;margin-top:8px}
+  .efallback.open .fbtns{display:flex}
+  .efallback.open .link{display:none}
+
+  /* ---- OnionMarket : chrome darkweb + tiers (repris de darkweb-market) ---- */
+  .onionbrand{font:500 10px var(--mono);color:var(--faint)}
+  .tierbadge{font:800 9px var(--mono);padding:2px 7px;border-radius:5px;letter-spacing:.04em;text-transform:uppercase}
+  .tierbadge.cheap{background:#2a1f14;color:#c98d4b;border:1px solid #4a3319}
+  .tierbadge.mid{background:#14212a;color:#6db3d8;border:1px solid #1d3a4a}
+  .tierbadge.premium{background:#2a2414;color:var(--gold,#E8B84B);border:1px solid #4a3f19;color:#E8B84B}
+  .stars{color:#E8B84B;font-size:11px;letter-spacing:1px}
+
+  /* ---- SnapShit : jauge de reput OPAQUE (reprise de snapshit) ---- */
+  .opq{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+  .opq .k{font:600 8.5px var(--sans);color:var(--faint);letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+  .opq .v{font:800 12px var(--mono);letter-spacing:2px}
+
+  /* indicateur "ecrit..." (repris de crimworld) */
+  .typing{align-self:flex-start;background:var(--surface);border:1px solid var(--border);
+       border-radius:18px;border-bottom-left-radius:5px;padding:11px 14px;display:flex;gap:4px}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--faint);animation:blink 1.2s infinite}
+  .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,60%,100%{opacity:.3}30%{opacity:1}}
+  /* commentaires du viewer colores par ton (reput opaque) */
+  .vcm.warm .b .u{color:#bdf0a3}
+  .vcm.cold .b .u{color:#ff9f6b}
+  .vcm.mefi .b .u{color:#ffcf80}
+
+  /* ---- BeuherEats : selecteur de coursier + chip de risque (repris de beuhereats) ---- */
+  .couriers{display:flex;gap:7px;overflow-x:auto;padding:2px 0}
+  .cour{flex:none;width:92px;border:1px solid var(--border);border-radius:11px;padding:8px 6px;text-align:center;
+       background:var(--surface);cursor:pointer}
+  .cour.sel{border-color:var(--eats);background:#12211a}
+  .cour .cav{font-size:20px}
+  .cour .cnm{font:700 11px var(--sans);margin-top:2px}
+  .cour .cmeta{font:600 9px var(--mono);color:var(--faint);margin-top:2px;line-height:1.4}
+  .risk{font:800 10px var(--mono);padding:2px 8px;border-radius:999px;display:inline-block;margin-top:4px}
+  .risk.ok{background:#12211a;color:#7fd8a8}
+  .risk.mid{background:#2a2414;color:#e8b84b}
+  .risk.hot{background:#2a1414;color:#ff7b66}
+
+  /* ---- toast ---- */
+  .toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);
+       background:#0a0908;border:1px solid var(--sodium);color:var(--sodium);font:600 12px var(--sans);
+       padding:9px 14px;border-radius:12px;max-width:84%;text-align:center;opacity:0;pointer-events:none;
+       transition:opacity .25s,transform .25s;z-index:80;line-height:1.45}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .devnote{font:500 11px var(--mono);color:var(--faint);text-align:center;max-width:390px;line-height:1.5}
+</style>
+</head>
+<body>
+
+<div class="phone" id="phone">
+  <div class="notch"></div>
+  <div class="statusbar"><span id="sb-clock">J1 · 18:00</span><span>▲ ▮▮ 42%</span></div>
+
+  <div class="stake">
+    <span class="seg cash"><span class="k">💶 Caisse</span><b id="st-cash">0€</b></span>
+    <span class="seg heat" id="st-heat-seg"><span class="k">🌡️ Heat</span><b id="st-heat">0</b></span>
+    <span class="seg note"><span class="k">⭐ Note</span><b id="st-note">—</b></span>
+  </div>
+
+  <!-- ===================== ACCUEIL ===================== -->
+  <div class="screen show" id="scr-home">
+    <div class="apps" id="apps"></div>
+    <div class="homefoot" id="homefoot"></div>
+  </div>
+
+  <!-- ===================== ONIONMARKET ===================== -->
+  <div class="screen app" id="scr-onion">
+    <div class="ahdr"><span class="back" data-back>‹</span><span class="aic">🧅</span>
+      <div><div class="anm">Onion<b>Market</b></div><div class="asub onionbrand">onionmkt7r…xq.onion · 🔒 PGP · escrow</div></div></div>
+    <div class="abody" id="onion-body"></div>
+  </div>
+
+  <!-- ===================== ATELIER ===================== -->
+  <div class="screen app" id="scr-atelier">
+    <div class="ahdr"><span class="back" data-back>‹</span><span class="aic">🧰</span>
+      <div><div class="anm">Atelier</div><div class="asub">conditionnement — brut → pochons</div></div></div>
+    <div class="abody" id="atelier-body"></div>
+  </div>
+
+  <!-- ===================== PLANQUE ===================== -->
+  <div class="screen app" id="scr-stock">
+    <div class="ahdr"><span class="back" data-back>‹</span><span class="aic">📦</span>
+      <div><div class="anm">Planque</div><div class="asub">stockage — planque ↔ sacoche</div></div></div>
+    <div class="abody" id="stock-body"></div>
+  </div>
+
+  <!-- ===================== SNAPSHIT ===================== -->
+  <div class="screen app" id="scr-snap">
+    <div class="ahdr" id="snap-hdr">
+      <span class="back" id="snap-back">‹</span><span class="aic" id="snap-av">👻</span>
+      <div><div class="anm" id="snap-nm">SnapShit</div><div class="asub" id="snap-sub">ta vitrine · tes clients</div></div>
+      <div class="spacer"></div>
+      <span class="pill" id="snap-followers">0 abonnés</span>
+      <div class="opq"><div class="k">🔥 le block te capte</div><div class="v" id="repgauge">● ● ◦</div></div>
+    </div>
+    <div class="tray" id="snap-tray"></div>
+    <div class="snapbody" id="snap-body">
+      <div id="snap-list"></div>
+      <div class="thread" id="snap-thread" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- ===================== BEUHEREATS ===================== -->
+  <div class="screen app" id="scr-beuher">
+    <div class="ahdr"><span class="back" data-back>‹</span><span class="aic">🛵</span>
+      <div><div class="anm">BeuherEats</div><div class="asub" id="beuher-sub">livraison de quartier</div></div></div>
+    <div class="abody" id="beuher-body"></div>
+    <div class="tourneebar" id="tourneebar" style="display:none"></div>
+  </div>
+
+  <!-- ===================== KARNET ===================== -->
+  <div class="screen app" id="scr-karnet">
+    <div class="ahdr"><span class="back" data-back>‹</span><span class="aic">📓</span>
+      <div><div class="anm">Karnet</div><div class="asub">chaque conséquence a une cause</div></div></div>
+    <div class="abody" id="karnet-body"></div>
+  </div>
+
+  <!-- ETABLI : coupe 3D (hash-slicer, via etabli.html) -->
+  <div class="etabli" id="etabli">
+    <div class="ehdr"><span class="back" id="etabli-back">‹</span><span class="enm">🔪 L'établi — coupe</span></div>
+    <iframe id="etabli-frame" title="établi — coupe 3D"></iframe>
+    <div class="efallback" id="etabli-fallback">
+      <span class="link" id="fallback-link">La 3D ne charge pas ? Couper en mode simple</span>
+      <div class="fbtns">
+        <button class="btn go" data-cut="A">✂️ Couper propre (soigné)</button>
+        <button class="btn warn" data-cut="C">🪓 À l'arrache (des miettes)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- overlays -->
+  <div class="scompose" id="scompose"></div>
+  <div class="viewer" id="viewer"></div>
+  <div class="sheet" id="sheet"></div>
+  <div class="toast" id="toast"></div>
+  <div class="homebar" id="homebar" title="accueil"></div>
+</div>
+
+<div class="devnote">Le Bigo — boucle systémique : 🧅 acheter → 🧰 conditionner → 📦 stocker → 👻 poster/répondre → 🛵 livrer.
+Économie déterministe (constantes nommées) ; l'app 📓 Karnet trace la cause de chaque conséquence.</div>
+
+<script type="module">
+"use strict";
+/* =========================================================================
+   CONSTANTES D'ECONOMIE (placeholders — reglage humain, pas d'auto-tuning)
+   ========================================================================= */
+const SAVE_VERSION = 2;
+const LS = "bigo_";                        // prefixe localStorage du proto
+const FAST = /[?&]fast\b/.test(location.search);
+const SPEED = (() => { const m = location.search.match(/[?&]speed=(\d+)/); return m ? +m[1] : 0; })();
+
+const K = {
+  MIN_PER_SEC: SPEED || (FAST ? 30 : 1),   // minutes de jeu par seconde reelle (?speed=N pour les tests)
+  START_CASH: 20,
+  // preambule : le front du fournisseur (50€ pour 10 g ≈ prix de gros du Hollandais)
+  FRONT_G: 10, FRONT_Q: 60, FRONT_DEBT: 50,
+  // stockage
+  PLANQUE_CAP: 40, SACOCHE_CAP: 10,
+  HEAT_STOCK_PCT: 0.75,         // planque remplie au-dela -> l'immeuble jase
+  HEAT_STOCK_EVERY: 10,         // +1 heat toutes les X min tant que ca deborde
+  // conditionnement
+  SIZES: [1, 3, 5],             // tailles de pochon (g)
+  AUTO_BATCH: 10,               // pochons par fournee auto
+  AUTO_LOSS_PCT: 0.08,          // pertes (miettes) de l'ensachage auto
+  AUTO_TIME: 15,                // minutes de jeu par fournee auto
+  // vente
+  PRICE_SUGGESTED: { 1: 12, 3: 11, 5: 10 },  // €/g conseille par taille
+  PRICE_STEP: 0.5, PRICE_MIN: 6, PRICE_MAX: 18,
+  FAIR_BASE: 6, FAIR_PER_Q: 0.08,            // valeur percue €/g = base + q * pente
+  HINT_HIGH: 1.15, HINT_LOW: 0.9,            // seuils du conseil de prix dans le composer
+  // negociation (multiplicateurs sur le prix affiche, par style)
+  NEGO_RADIN: 0.8, NEGO_GROS: 0.85, NEGO_PREMIUM: 1.15,
+  // jauge d'ensachage
+  GAUGE_TOL: 0.05,              // tolerance "dose pile" (± fraction de la cible)
+  GAUGE_FILL_FRAMES: 90,        // frames pour remplir la jauge a fond (vitesse)
+  HEAT_CAP: 120,                // plafond dur du heat
+  // stories
+  TONES: {
+    discret:   { label: "🤫 Discret",   reach: 0.6, heat: 0  },
+    classique: { label: "😎 Classique", reach: 1.0, heat: 8  },
+    bling:     { label: "🔥 Bling",     reach: 1.7, heat: 22 },
+  },
+  FOLLOW_START: 90,
+  REACH_PER_CLIENT: 40,         // vues necessaires par client qui DM
+  DM_OFFSETS: [2, 5, 9, 14, 20, 27],  // minutes apres la story
+  FOLLOW_PER_SALE: 12, FOLLOW_PER_FAIL: -8,
+  // heat
+  HEAT_DECAY_EVERY: 3,          // -1 heat toutes les X min
+  HEAT_TOURNEE: 5,
+  CONTROLE_HEAT: 70, CONTROLE_CHARGE: 6,  // sortir charge ET chaud = controle
+  CONTROLE_HEAT_AFTER: 45,
+  DESCENTE_HEAT: 100,
+  DESCENTE_PLANQUE_LOSS: 0.5,   // fraction de la planque perdue a la descente
+  DESCENTE_HEAT_AFTER: 30,
+  // tournee
+  TOURNEE_BASE: 6, TOURNEE_PER_STOP: 5,   // minutes
+  // dechets : les miettes se bradent aux schlags (recompense reduite, jamais un malus sec — R1)
+  SCHLAG_PRICE: 3,              // €/g
+  // etabli (coupe 3D) : le geste module la RECOMPENSE, jamais un malus sec (R1/R4)
+  CUT_BONUS_Q: 5,               // grade A : coupe nette -> +qualite
+  CUT_LOSS_B: 0.02, CUT_LOSS_C: 0.06,   // grades B/C : part du lot en miettes (revendables)
+  // reput opaque (reprise de snapshit) : monte lentement, descend vite
+  REPUT_UP: 0.14, REPUT_DOWN: 0.30, REPUT_FAIL_HIT: 8,
+  REPUT_REACH: { hostile: 0.6, mefi: 0.85, neutre: 1, chaleureux: 1.25 },  // portee des stories selon le ton
+  // drop-promesse / cry-wolf (reprise de snapshit) : le bluff se paie en differe, trace
+  DROP_PROMISE_Q: 75,           // ce que "premium" promet au block
+  DROP_BOOST: 1.5,              // portee x1.5 quand la promesse est credible
+  CRY_WOLF_GAP: 18,             // ecart promesse/reel qui declenche la bombe
+  CRY_WOLF_DELAI: 120,          // minutes avant que le block goute et parle
+  CRY_WOLF_HIT: 16,             // chute de reput au retour de baton
+  CRED_DECAY: 0.55, CRED_REGAIN: 0.12,  // credibilite des futurs drops
+  // coursiers (reprise de beuhereats) : risque de tournee PROJETE avant le depart
+  RISK_BUST: 0.45, RISK_MID: 0.27,      // seuils du chip discret/tendu/CHAUD
+  CHARGE_REF: 5,                        // pochons de reference du calcul de risque
+  PONCTION_SEUIL: 0.70,                 // fiab en-dessous -> le coursier se sert
+};
+
+/* Coursiers BeuherEats — deleguer coute et expose, mais ca porte a ta place (R6).
+   "toi" garde la regle historique : sortir charge (>=CONTROLE_CHARGE) en etant
+   chaud (>=CONTROLE_HEAT) = controle assure. */
+const COURIERS = [
+  { id: "toi",    nm: "Toi-même", av: "🚶", fiab: 1,    expo: 0,    etaMult: 1,   base: 0,  perStop: 0,
+    desc: "gratuit · sacoche · c'est TOI qui portes" },
+  { id: "velib",  nm: "Vélib'",   av: "🚲", fiab: 0.90, expo: 0.20, etaMult: 1.6, base: 5,  perStop: 1.5,
+    desc: "lent mais invisible" },
+  { id: "tmax",   nm: "T-Max",    av: "🛵", fiab: 0.82, expo: 0.40, etaMult: 1,   base: 9,  perStop: 1.5,
+    desc: "le standard du quartier" },
+  { id: "gofast", nm: "GoFast",   av: "🚗", fiab: 0.66, expo: 0.62, etaMult: 0.5, base: 18, perStop: 2,
+    desc: "rapide, cher, cramé — et il se sert" },
+];
+const courById = (id) => COURIERS.find(c => c.id === id) || COURIERS[0];
+/* risque d'une tournee deleguee : expo x (1-fiab) x charge relative (deterministe) */
+const courRisk = (c, charge) => c.expo * (1 - c.fiab) * (charge / K.CHARGE_REF);
+
+/* Vendeurs OnionMarket — roster et mecanique repris de darkweb-market :
+   un vendeur ANNONCE une qualite ; ce qui arrive vraiment = annonce x fiabilite(rating).
+   Le rating dit la verite — l'ecart est trace au Karnet a la livraison. */
+const VENDORS = [
+  { id:"frost", nm:"FrostbiteLab",  av:"❄️", tier:"premium", rating:4.8, eurG:7,   annoncee:94, min:10, ship:45,
+    desc:"première coulée. cher, propre, ponctuel." },
+  { id:"atlas", nm:"AtlasFinest",   av:"⛰️", tier:"mid",     rating:4.2, eurG:5,   annoncee:85, min:25, ship:90,
+    desc:"du Ketama carré. ce qui est annoncé arrive." },
+  { id:"pneu",  nm:"PneuDeSecours", av:"🛞", tier:"cheap",   rating:2.1, eurG:3.5, annoncee:74, min:50, ship:180,
+    desc:"du marocain de coffre. l'annonce est… optimiste." },
+];
+const reliab = (r) => Math.min(1, 0.5 + 0.1 * r);                 // fiabilite 0..1 depuis le rating
+const realQual = (v) => Math.round(v.annoncee * reliab(v.rating)); // qualite REELLEMENT livree
+const stars = (r) => "★".repeat(Math.round(r)) + "☆".repeat(5 - Math.round(r));
+const LOYALTY = [[10, 8], [5, 5], [2, 2]];   // [nb commandes, % de remise fidelite]
+const loyaltyPct = (id) => { const c = (st.rel[id] || {}).count || 0; for (const [n, p] of LOYALTY) if (c >= n) return p; return 0; };
+
+/* Valeur percue €/g d'une qualite donnee. */
+const fair = (q) => K.FAIR_BASE + q * K.FAIR_PER_Q;
+
+/* =========================================================================
+   ROSTER CLIENTS — profils fixes, regles d'interet DETERMINISTES.
+   elig(story, ctx) -> false | { pourquoi } ; nego = style de negociation.
+   ========================================================================= */
+const ROSTER = [
+  { id:"kevin", nm:"Kévin", av:"🧃", tag:"étudiant · radin", size:1, n:2, deadline:60,
+    nego:"radin",
+    elig:(s)=> s.prix <= fair(s.q) * 1.05,
+    open:(s)=>[`wesh, vu ta story 👀`, `t'as des ${s.size}g ? c'est pour ce soir`] },
+  { id:"lea", nm:"Léa", av:"🎧", tag:"habituée du quartier", size:3, n:1, deadline:75,
+    nego:"cash",
+    elig:(s)=> s.prix <= fair(s.q) * 1.15,
+    open:(s)=>[`salut ! t'es re-up ? 🙌`, `je te prends du ${s.size}g comme sur ta story`] },
+  { id:"comtesse", nm:"La Comtesse", av:"👑", tag:"exigeante · paie bien", size:5, n:1, deadline:90,
+    nego:"premium",
+    elig:(s)=> s.q >= 70,
+    open:()=>[`On m'a montré votre… vitrine.`, `Si c'est propre, le prix m'indiffère.`] },
+  { id:"parano", nm:"Le Parano", av:"🕶️", tag:"discret · flippe vite", size:3, n:1, deadline:45,
+    nego:"cash",
+    elig:(s,ctx)=> s.tone === "discret" && ctx.heat < 40,
+    open:(s)=>[`t'es sérieux avec ta story ?`, `bon. du ${s.size}g. et tu supprimes ce fil.`] },
+  { id:"sami", nm:"Sami", av:"🧢", tag:"pressé · bon client", size:1, n:3, deadline:30,
+    nego:"presse",
+    elig:(s)=> s.prix <= fair(s.q) * 1.2,
+    open:(s)=>[`frérot 🔥`, `des ${s.size}g, je suis DEVANT le tabac là`] },
+  { id:"nadia", nm:"Nadia", av:"💅", tag:"ramène ses copines", size:3, n:2, deadline:75,
+    nego:"radin",
+    elig:(s)=> s.prix <= fair(s.q) * 1.1,
+    open:(s)=>[`coucou 💅 c'est nadia`, `du ${s.size}g pour ce soir, tu fais un prix ?`] },
+  { id:"accro", nm:"L'accro", av:"😵", tag:"prend tout · jamais loin", size:5, n:2, deadline:40,
+    nego:"cash",
+    elig:(s)=> true,
+    open:()=>[`GARS`, `t'as quoi la MAINTENANT. je prends. je bouge pas`] },
+  { id:"comptoir", nm:"Le Comptoir", av:"🏪", tag:"revendeur · gros volume", size:5, n:4, deadline:120,
+    nego:"gros",
+    elig:(s,ctx)=> ctx.phase === "libre" && ctx.stockTotal >= 15,
+    open:()=>[`c'est le Comptoir.`, `t'as du stock on dirait. je prends en gros si tu tiens le volume.`] },
+];
+const BYID = Object.fromEntries(ROSTER.map(c => [c.id, c]));
+const FOURNISSEUR = { id:"youss", nm:"Youss", av:"🐺", tag:"fournisseur · t'a front" };
+
+/* =========================================================================
+   ETAT + SAUVEGARDE
+   ========================================================================= */
+const freshState = () => ({
+  ver: SAVE_VERSION,
+  phase: "pre",              // "pre" (preambule) | "libre"
+  step: 0,                   // etape du preambule
+  cash: K.START_CASH,
+  debt: K.FRONT_DEBT,        // ce qu'on doit a Youss (preambule)
+  clock: 1080,               // minutes (J1 18:00)
+  day: 1,
+  heat: 0,
+  heatLog: {},               // {source: points cumules} -> trace de la descente
+  followers: K.FOLLOW_START,
+  reput: 50,                 // reput OPAQUE (jamais affichee en chiffre) — snapshit
+  credibilite: 1,            // efficacite des futurs "drops premium" — cry-wolf
+  rel: {},                   // relation par vendeur OnionMarket {count} -> fidelite
+  reviews: [],               // notes BeuherEats (5 = livre, 1 = plante)
+  lots: [],                  // [{id,g,q,src}] brut a l'atelier
+  miettes: 0,                // grammes perdus (ensachage)
+  planque: {}, sacoche: {},  // {size: {n, qsum}}
+  shipments: [],             // [{vendor,g,q,eta}] colis OnionMarket
+  stories: [],               // [{size,prix,tone,q,at,views}]
+  storyCount: 0,
+  threads: {},               // {clientId: {msgs:[], unread, pending, stats:{ok,fail,spent}}}
+  orders: [],                // [{id,client,size,n,prix,total,deadline,status,eta}]
+  orderSeq: 1, lotSeq: 1,
+  events: [],                // [{at,type,data}] file d'evenements (minute de jeu absolue)
+  journal: [],               // [{at,icon,txt,cause,cls}]
+  seed: 7,                   // compteur du LCG de PRESENTATION (jamais une consequence)
+  unlocked: { snap:true, atelier:false, stock:false, beuher:false, onion:false, karnet:true },
+  descentes: 0,
+  precises: 0,               // doses "pile" d'affilee (bonus reput du geste)
+});
+
+let st = freshState();
+try {
+  if (localStorage.getItem(LS + "ver") === String(SAVE_VERSION)) {
+    const raw = localStorage.getItem(LS + "state");
+    if (raw) st = Object.assign(freshState(), JSON.parse(raw));
+  }
+} catch (e) { /* stockage indisponible -> partie en memoire */ }
+
+let saveTimer = 0;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(LS + "ver", String(SAVE_VERSION));
+      localStorage.setItem(LS + "state", JSON.stringify(st));
+    } catch (e) { /* ignore */ }
+  }, 250);
+}
+
+/* LCG de PRESENTATION (pseudos/commentaires). Jamais utilise pour une consequence. */
+function prand() { st.seed = (st.seed * 1103515245 + 12345) & 0x7fffffff; return st.seed / 0x7fffffff; }
+const ppick = (a) => a[(prand() * a.length) | 0];
+const CM_PRE = ["Pay","Hedge","Krilo","Naps","Vex","Zko","Brth","Lome","Saff","Dru","Niko","Ylw","Mok","Ras"];
+const CM_SUF = ["Li","45","_","xx","02","tn","99","z","_b","77","ka","23","oo","37"];
+const CM_AV  = ["🦅","🐍","🦊","👹","🐉","🦂","🌒","🥷","🦍","🐺","🎭","🪙","🔥","🧿"];
+const genProfile = () => ({ nm: ppick(CM_PRE) + ppick(CM_SUF), av: ppick(CM_AV) });
+
+/* =========================================================================
+   HELPERS
+   ========================================================================= */
+const $ = (id) => document.getElementById(id);
+const eur = (n) => (Math.round(n * 10) / 10) + "€";
+const pad = (n) => String(n).padStart(2, "0");
+const clockTxt = () => `J${st.day} · ${pad(Math.floor((st.clock % 1440) / 60))}:${pad(st.clock % 1440 % 60)}`;
+const inMin = (m) => st.clock + m;
+
+function bucketAdd(store, size, n, q) {
+  const b = store[size] || (store[size] = { n: 0, qsum: 0 });
+  b.n += n; b.qsum += q * n;
+}
+function bucketTake(store, size, n) {   // retire n pochons, renvoie la qualite moyenne
+  const b = store[size]; if (!b || b.n < n) return null;
+  const q = b.qsum / b.n;
+  b.n -= n; b.qsum -= q * n;
+  if (b.n <= 0) { b.n = 0; b.qsum = 0; }
+  return q;
+}
+const bucketCount = (store) => Object.values(store).reduce((s, b) => s + b.n, 0);
+const bucketQ = (store, size) => (store[size] && store[size].n) ? store[size].qsum / store[size].n : 0;
+const stockOf = (size) => (st.planque[size]?.n || 0) + (st.sacoche[size]?.n || 0);
+const stockQ = (size) => {
+  const p = st.planque[size] || { n: 0, qsum: 0 }, s = st.sacoche[size] || { n: 0, qsum: 0 };
+  const n = p.n + s.n; return n ? (p.qsum + s.qsum) / n : 0;
+};
+
+function journal(icon, txt, cause, cls) {
+  st.journal.unshift({ at: clockTxt(), icon, txt, cause, cls: cls || "" });
+  if (st.journal.length > 60) st.journal.pop();
+  save();
+}
+function addHeat(pts, source) {
+  if (pts <= 0) return;
+  st.heat = Math.min(K.HEAT_CAP, st.heat + pts);
+  st.heatLog[source] = (st.heatLog[source] || 0) + pts;
+}
+
+let toastTimer = 0;
+function toast(txt, ms) {
+  const t = $("toast"); t.textContent = txt; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), ms || 3200);
+}
+
+/* =========================================================================
+   NAVIGATION
+   ========================================================================= */
+const SCREENS = ["home", "onion", "atelier", "stock", "snap", "beuher", "karnet"];
+let cur = "home";
+function show(id) {
+  cur = id;
+  if (gaugeAnim && id !== "atelier") { cancelAnimationFrame(gaugeAnim); gaugeAnim = null; gaugeHolding = false; gaugeLot = null; }
+  for (const s of SCREENS) $("scr-" + s).classList.toggle("show", s === id);
+  renderCur();
+}
+function renderCur() {
+  renderStake();
+  if (cur === "home") renderHome();
+  if (cur === "onion") renderOnion();
+  if (cur === "atelier") renderAtelier();
+  if (cur === "stock") renderStock();
+  if (cur === "snap") renderSnap();
+  if (cur === "beuher") renderBeuher();
+  if (cur === "karnet") renderKarnet();
+}
+/* Retour "natif" : ferme l'overlay le plus haut, sinon remonte d'un niveau. */
+function goBack() {
+  if ($("etabli").classList.contains("show")) { closeEtabli(); return; }
+  if ($("sheet").classList.contains("show")) { $("sheet").classList.remove("show"); return; }
+  if ($("scompose").classList.contains("show")) { $("scompose").classList.remove("show"); return; }
+  if ($("viewer").classList.contains("show")) { $("viewer").classList.remove("show"); renderCur(); return; }
+  if (cur === "snap" && snapView === "thread") { snapView = "list"; snapThread = null; renderSnap(); return; }
+  if (cur !== "home") show("home");
+}
+document.querySelectorAll("[data-back]").forEach(b => b.addEventListener("click", goBack));
+
+/* --- gestes natifs --- */
+/* swipe -> depuis le bord gauche = retour */
+const phoneEl = $("phone");
+let swipeStart = null;
+phoneEl.addEventListener("pointerdown", (e) => {
+  const r = phoneEl.getBoundingClientRect();
+  if (e.clientX - r.left > 30) return;          // seulement depuis le bord gauche
+  if (e.target.closest(".gauge")) return;       // ne pas voler le geste d'ensachage
+  swipeStart = { x: e.clientX, y: e.clientY };
+});
+phoneEl.addEventListener("pointerup", (e) => {
+  if (!swipeStart) return;
+  const dx = e.clientX - swipeStart.x, dy = Math.abs(e.clientY - swipeStart.y);
+  swipeStart = null;
+  if (dx > 55 && dy < 60) goBack();
+});
+/* homebar : tap ou swipe vers le haut = accueil (ferme tout) */
+$("homebar").addEventListener("pointerup", () => {
+  ["sheet", "scompose", "viewer"].forEach(id => $(id).classList.remove("show"));
+  if (snapView === "thread") { snapView = "list"; snapThread = null; }
+  if (cur !== "home") show("home"); else renderCur();
+});
+
+function renderStake() {
+  $("sb-clock").textContent = clockTxt();
+  $("st-cash").textContent = eur(st.cash);
+  $("st-heat").textContent = Math.round(st.heat);
+  $("st-heat-seg").classList.toggle("hot", st.heat >= K.CONTROLE_HEAT);
+  const r = st.reviews;
+  $("st-note").textContent = r.length ? (r.reduce((a, b) => a + b, 0) / r.length).toFixed(1) + "★" : "—";
+}
+
+/* =========================================================================
+   ACCUEIL — grille d'apps
+   ========================================================================= */
+const APPS = [
+  { id: "onion",   ic: "🧅", lb: "OnionMarket" },
+  { id: "atelier", ic: "🧰", lb: "Atelier" },
+  { id: "stock",   ic: "📦", lb: "Planque" },
+  { id: "snap",    ic: "👻", lb: "SnapShit" },
+  { id: "beuher",  ic: "🛵", lb: "BeuherEats" },
+  { id: "karnet",  ic: "📓", lb: "Karnet" },
+];
+function badgeOf(id) {
+  if (id === "snap") return Object.values(st.threads).filter(t => t.unread).length;
+  if (id === "beuher") return st.orders.filter(o => o.status === "pending").length;
+  if (id === "onion") return st.shipments.length;
+  if (id === "atelier") return st.lots.length;
+  return 0;
+}
+function renderHome() {
+  const grid = $("apps"); grid.innerHTML = "";
+  for (const a of APPS) {
+    const locked = !st.unlocked[a.id];
+    const d = document.createElement("div");
+    d.className = "appic" + (locked ? " locked" : "");
+    const n = locked ? 0 : badgeOf(a.id);
+    d.innerHTML = `<div class="bx">${locked ? "🔒" : a.ic}</div><div class="lb">${a.lb}</div>` +
+      (n ? `<span class="badge">${n}</span>` : "");
+    if (!locked) d.addEventListener("click", () => show(a.id));
+    else d.addEventListener("click", () => toast("Pas encore. Suis le fil 👻"));
+    grid.appendChild(d);
+  }
+  $("homefoot").innerHTML = st.phase === "pre"
+    ? `préambule — <b>${preHint()}</b>`
+    : `la boucle : 🧅 acheter → 🧰 conditionner → 📦 stocker → 👻 poster/répondre → 🛵 livrer`;
+}
+
+/* =========================================================================
+   HORLOGE + FILE D'EVENEMENTS
+   ========================================================================= */
+function schedule(at, type, data) { st.events.push({ at, type, data }); st.events.sort((a, b) => a.at - b.at); }
+
+function tick() {
+  st.clock += K.MIN_PER_SEC;
+  st.day = Math.floor(st.clock / 1440) + 1;
+
+  // decroissance du heat
+  heatAcc += K.MIN_PER_SEC;
+  while (heatAcc >= K.HEAT_DECAY_EVERY) { heatAcc -= K.HEAT_DECAY_EVERY; if (st.heat > 0) st.heat -= 1; }
+
+  // la planque qui deborde fait jaser l'immeuble
+  stockAcc += K.MIN_PER_SEC;
+  while (stockAcc >= K.HEAT_STOCK_EVERY) {
+    stockAcc -= K.HEAT_STOCK_EVERY;
+    if (bucketCount(st.planque) > K.PLANQUE_CAP * K.HEAT_STOCK_PCT) {
+      addHeat(1, "planque pleine (l'immeuble jase)");
+    }
+  }
+
+  // descente si heat au plafond
+  if (st.heat >= K.DESCENTE_HEAT) descente();
+
+  // evenements dus
+  while (st.events.length && st.events[0].at <= st.clock) fire(st.events.shift());
+
+  // deadlines de commandes
+  for (const o of st.orders) {
+    if (o.status === "pending" && st.clock > o.deadline) failOrder(o, "délai dépassé — jamais livré");
+  }
+
+  tickRender();
+  save();
+}
+let heatAcc = 0, stockAcc = 0;
+
+/* Rendu du tick : seulement les ecrans qui affichent du temps qui passe.
+   L'atelier (jauge en cours) et les fils Snap se re-rendent sur interaction. */
+function tickRender() {
+  renderStake();
+  if (cur === "home") renderHome();
+  if (cur === "onion") renderOnion();
+  if (cur === "beuher") renderBeuher();
+}
+
+function fire(ev) {
+  if (ev.type === "ship") {
+    const v = VENDORS.find(x => x.id === ev.data.vendor);
+    const i = st.shipments.findIndex(s => s.vendor === ev.data.vendor && s.g === ev.data.g);
+    if (i >= 0) st.shipments.splice(i, 1);
+    st.lots.push({ id: st.lotSeq++, g: ev.data.g, q: ev.data.q, src: v ? v.nm : "?" });
+    const gap = (ev.data.annoncee || ev.data.q) - ev.data.q;
+    if (gap >= 10) {
+      journal("🧅", `Colis arrivé : ${ev.data.g} g à ${ev.data.q}% réels — loin des ${ev.data.annoncee}% annoncés.`,
+        `↩ l'annonce de ${v ? v.nm : "?"} était optimiste : son rating (${v ? v.rating : "?"}★) le disait`, "bad");
+    } else {
+      journal("🧅", `Colis arrivé à l'atelier : ${ev.data.g} g, qualité ${ev.data.q}% (conforme).`, `↩ ta commande chez ${v ? v.nm : "?"}`, "good");
+    }
+    toast("🧰 Colis arrivé à l'atelier");
+  }
+  if (ev.type === "dm") clientOpens(ev.data.client, ev.data.story);
+  if (ev.type === "dmline") dmLine(ev.data.client);
+  if (ev.type === "tournee") resolveTournee(ev.data);
+  if (ev.type === "msg") {
+    pushMsg(ev.data.client, { dir: "in", text: ev.data.text });
+  }
+  if (ev.type === "crywolf") {
+    // le retour de baton du bluff : differe, et TRACE (repris de snapshit)
+    st.reput = Math.max(0, st.reput - K.CRY_WOLF_HIT);
+    st.credibilite = Math.max(0.2, st.credibilite * K.CRED_DECAY);
+    journal("🤥", `Le block a goûté ton « drop premium » : la came était à ${ev.data.q}. Et le block parle.`,
+      `↩ ta promesse du ${ev.data.promisedAt} — réput en chute, tes prochains drops porteront moins`, "bad");
+    toast("🤥 Le block a goûté ton drop. Karnet 📓.", 5000);
+  }
+}
+
+/* =========================================================================
+   ONIONMARKET
+   ========================================================================= */
+function renderOnion() {
+  const b = $("onion-body"); b.innerHTML = "";
+  if (st.shipments.length) {
+    for (const sh of st.shipments) {
+      const v = VENDORS.find(x => x.id === sh.vendor);
+      const c = document.createElement("div"); c.className = "card warn";
+      c.innerHTML = `<div class="ct">📦 En route — ${sh.g} g <span class="pill">escrow</span></div>
+        <div class="cm"><span>vendeur ${v.nm}</span><span>arrivée ~${Math.max(0, sh.eta - st.clock)} min</span></div>`;
+      b.appendChild(c);
+    }
+  }
+  for (const v of VENDORS) {
+    const fid = loyaltyPct(v.id);
+    const rel = st.rel[v.id] || { count: 0 };
+    const price = (g) => Math.round(v.eurG * g * (1 - fid / 100) * 10) / 10;
+    const c = document.createElement("div"); c.className = "card vend";
+    c.innerHTML = `<div class="ct"><span class="av">${v.av}</span> ${v.nm}
+        <span class="tierbadge ${v.tier}">${v.tier}</span>
+        <span class="stars">${stars(v.rating)}</span></div>
+      <div class="onionbrand">${v.id}@onion · PGP ✓ · escrow${rel.count ? ` · ${rel.count} commande${rel.count > 1 ? "s" : ""}` : ""}</div>
+      <div class="cs">${v.desc}</div>
+      <div class="cm"><span>annoncé ${v.annoncee}%</span><span>${v.eurG}€/g</span><span>min ${v.min} g</span><span>livré en ${v.ship} min</span>${fid ? `<span style="color:#7fd8a8">fidélité −${fid}%</span>` : ""}</div>
+      <div class="btnrow" style="margin-top:9px">
+        <button class="btn go" data-buy="${v.id}" data-mult="1" ${st.cash < price(v.min) ? "disabled" : ""}>${v.min} g · ${eur(price(v.min))}</button>
+        <button class="btn" data-buy="${v.id}" data-mult="2" ${st.cash < price(v.min * 2) ? "disabled" : ""}>${v.min * 2} g · ${eur(price(v.min * 2))}</button>
+      </div>`;
+    b.appendChild(c);
+  }
+  const note = document.createElement("div"); note.className = "card";
+  note.innerHTML = `<div class="cs">💡 Le <b>rating</b> dit la vérité : un vendeur annonce ce qu'il veut,
+    mais ce qui arrive vaut <span style="color:#E8B84B">annoncé × fiabilité(★)</span>. L'écart se lit au Karnet 📓 à la livraison.</div>`;
+  b.appendChild(note);
+  b.querySelectorAll("[data-buy]").forEach(btn => btn.addEventListener("click", () => {
+    const v = VENDORS.find(x => x.id === btn.dataset.buy);
+    const g = v.min * (+btn.dataset.mult);
+    const fid = loyaltyPct(v.id);
+    const cost = Math.round(v.eurG * g * (1 - fid / 100) * 10) / 10;
+    if (st.cash < cost) return;
+    st.cash -= cost;
+    const rel = st.rel[v.id] || (st.rel[v.id] = { count: 0 });
+    rel.count++;
+    const q = realQual(v);                 // ce qui arrivera VRAIMENT (deterministe)
+    const eta = inMin(v.ship);
+    st.shipments.push({ vendor: v.id, g, q, eta });
+    schedule(eta, "ship", { vendor: v.id, g, q, annoncee: v.annoncee });
+    journal("🧅", `Commande passée : ${g} g chez ${v.nm}, annoncé ${v.annoncee}% (−${eur(cost)}${fid ? `, fidélité −${fid}%` : ""}).`, "↩ ton achat OnionMarket", "");
+    toast(`🧅 Commandé. Arrivée dans ~${v.ship} min`);
+    renderCur();
+  }));
+}
+
+/* =========================================================================
+   ATELIER — conditionnement (jauge a maintenir + fournee auto)
+   ========================================================================= */
+let selLot = null, gaugeAnim = null, gaugeVal = 0, gaugeTarget = 0, gaugeHolding = false, gaugeLot = null;
+
+/* UN SEUL ecouteur global : relacher n'importe ou termine le geste en cours. */
+window.addEventListener("pointerup", () => {
+  if (!gaugeHolding || !gaugeLot) return;
+  gaugeHolding = false;
+  settleGauge(gaugeLot);
+});
+
+function renderAtelier() {
+  const b = $("atelier-body"); b.innerHTML = "";
+  if (gaugeAnim) { cancelAnimationFrame(gaugeAnim); gaugeAnim = null; gaugeHolding = false; }
+  if (!st.lots.length) {
+    b.innerHTML = `<div class="empty">Pas de brut à conditionner.<br>${st.unlocked.onion ? "Commande sur 🧅 OnionMarket." : "Attends ton premier lot…"}</div>`;
+    renderMiettes(b);
+    return;
+  }
+  if (!st.lots.find(l => l.id === selLot)) selLot = st.lots[0].id;
+  for (const l of st.lots) {
+    const c = document.createElement("div");
+    c.className = "card lot" + (l.id === selLot ? " sel" : "");
+    c.innerHTML = `<span class="ic">🧱</span><div><div class="ct">Lot #${l.id} — ${l.g.toFixed(1)} g
+        ${l.prep ? `<span class="pill on">coupé · ${l.prep}</span>` : `<span class="pill">brut</span>`}</div>
+      <div class="cs">qualité ${Math.round(l.q)} · ${l.src}</div></div>`;
+    c.addEventListener("click", () => { selLot = l.id; renderAtelier(); });
+    b.appendChild(c);
+  }
+  const lot = st.lots.find(l => l.id === selLot);
+
+  // etape 1 : la COUPE a l'etabli (3D reprise de hash-slicer) — avant d'ensacher
+  if (!lot.prep) {
+    const e = document.createElement("div"); e.className = "card warn";
+    e.innerHTML = `<div class="ct">🔪 Ce lot est brut — passe-le à l'établi</div>
+      <div class="cs">La vraie coupe 3D (hash-slicer). Coupe nette = qualité +${K.CUT_BONUS_Q} ;
+      à l'arrache = des miettes pour les schlags. Le geste module la récompense, jamais un malus sec.</div>
+      <div class="btnrow" style="margin-top:9px"><button class="btn go" id="etabli-open">🔪 Passer à l'établi</button></div>`;
+    b.appendChild(e);
+    $("etabli-open").addEventListener("click", () => openEtabli(lot));
+    renderMiettes(b);
+    return;
+  }
+
+  // choix de taille
+  const grp = document.createElement("div"); grp.className = "card";
+  grp.innerHTML = `<div class="ct">✂️ Pochon à faire</div>
+    <div class="segrow" style="margin-top:9px">` +
+    K.SIZES.map(s => `<button class="segbtn ${s === atelierSize ? "sel" : ""}" data-sz="${s}" ${lot.g < s ? "disabled" : ""}>${s} g<small>vente ~${K.PRICE_SUGGESTED[s]}€/g</small></button>`).join("") +
+    `</div>`;
+  b.appendChild(grp);
+  grp.querySelectorAll("[data-sz]").forEach(x => x.addEventListener("click", () => { atelierSize = +x.dataset.sz; renderAtelier(); }));
+
+  // jauge : maintenir pour remplir, relacher dans la zone
+  const g = document.createElement("div"); g.className = "gauge"; g.id = "gauge";
+  const max = atelierSize * 1.6;
+  const lo = atelierSize * (1 - K.GAUGE_TOL), hi = atelierSize * (1 + K.GAUGE_TOL);
+  g.innerHTML = `<div class="fill" id="gfill"></div>
+    <div class="zone" style="bottom:${lo / max * 100}%;height:${(hi - lo) / max * 100}%"></div>
+    <div class="gtxt">maintiens pour remplir · relâche dans la zone</div>
+    <div class="gval" id="gval">0.0 g</div>`;
+  b.appendChild(g);
+  gaugeVal = 0; gaugeTarget = atelierSize; gaugeLot = lot;
+  const gfill = g.querySelector("#gfill"), gval = g.querySelector("#gval");
+  const paint = () => { gfill.style.height = Math.min(100, gaugeVal / max * 100) + "%"; gval.textContent = gaugeVal.toFixed(1) + " g"; };
+  const step = () => {
+    if (gaugeHolding) { gaugeVal = Math.min(max, lot.g, gaugeVal + max / K.GAUGE_FILL_FRAMES); paint(); }
+    gaugeAnim = requestAnimationFrame(step);
+  };
+  gaugeAnim = requestAnimationFrame(step);
+  g.addEventListener("pointerdown", (e) => { e.preventDefault(); if (lot.g < 1) return; gaugeHolding = true; });
+  g.addEventListener("pointercancel", () => { if (gaugeHolding) { gaugeHolding = false; settleGauge(lot); } });
+
+  // fournee auto
+  const auto = document.createElement("div"); auto.className = "card";
+  const can = lot.g >= atelierSize * K.AUTO_BATCH;
+  auto.innerHTML = `<div class="ct">⚙️ Ensacheuse (auto)</div>
+    <div class="cs">${K.AUTO_BATCH} pochons de ${atelierSize} g d'un coup · ${Math.round(K.AUTO_LOSS_PCT * 100)}% de miettes · +${K.AUTO_TIME} min</div>
+    <div class="btnrow" style="margin-top:9px"><button class="btn warn" id="autobtn" ${can ? "" : "disabled"}>Lancer ×${K.AUTO_BATCH}</button></div>`;
+  b.appendChild(auto);
+  $("autobtn")?.addEventListener("click", () => {
+    if (lot.g < atelierSize * K.AUTO_BATCH) return;
+    const gross = atelierSize * K.AUTO_BATCH;
+    lot.g -= gross;
+    const loss = gross * K.AUTO_LOSS_PCT;
+    st.miettes += loss;
+    const made = Math.floor((gross - loss) / atelierSize);
+    storePochons(made, atelierSize, lot.q);
+    st.clock += K.AUTO_TIME;
+    st.precises = 0;
+    cleanupLot(lot);
+    toast(`⚙️ ${made} pochons de ${atelierSize} g → planque (miettes : ${loss.toFixed(1)} g)`);
+    onEnsache();
+    renderCur();
+  });
+
+  renderMiettes(b);
+}
+let atelierSize = 1;
+
+/* --- ETABLI : la coupe 3D de hash-slicer, embarquee (etabli.html) --- */
+let etabliLot = null;
+function openEtabli(lot) {
+  etabliLot = lot;
+  $("etabli").classList.add("show");
+  $("etabli-fallback").classList.remove("open");
+  requestAnimationFrame(() => {
+    const fr = $("etabli-frame");
+    fr.addEventListener("load", () => {
+      try { fr.contentWindow.dispatchEvent(new Event("resize")); } catch (e) { /* cross-origin */ }
+    }, { once: true });
+    fr.src = `./etabli.html#embed=bigo&g=${Math.max(10, Math.round(lot.g))}`;
+  });
+}
+function closeEtabli() {
+  $("etabli").classList.remove("show");
+  $("etabli-frame").src = "about:blank";
+  etabliLot = null;
+}
+function resolveEtabli(grade) {
+  const lot = etabliLot; if (!lot) return;
+  lot.prep = grade;
+  if (grade === "A") {
+    lot.q = Math.min(100, lot.q + K.CUT_BONUS_Q);
+    toast(`✂️ Coupe nette : qualité +${K.CUT_BONUS_Q} (→ ${Math.round(lot.q)})`);
+  } else {
+    const lossPct = grade === "B" ? K.CUT_LOSS_B : K.CUT_LOSS_C;
+    const loss = Math.round(lot.g * lossPct * 10) / 10;
+    lot.g -= loss; st.miettes += loss;
+    toast(grade === "B" ? `Coupe correcte — ${loss} g de miettes` : `🪓 À l'arrache — ${loss} g de miettes (pour les schlags)`);
+  }
+  journal("🔪", `Lot #${lot.id} coupé à l'établi : grade ${grade}.`, "↩ ton geste de coupe", grade === "A" ? "good" : "");
+  closeEtabli();
+  onCut();
+  renderCur(); save();
+}
+window.addEventListener("message", (e) => {
+  if (e.origin !== window.location.origin && e.origin !== "null") return;
+  const d = e.data;
+  if (d && d.type === "bigo-cut-done") resolveEtabli(d.grade === "C" ? "C" : d.grade === "B" ? "B" : "A");
+});
+$("etabli-back").addEventListener("click", closeEtabli);
+$("fallback-link").addEventListener("click", () => $("etabli-fallback").classList.add("open"));
+$("etabli-fallback").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-cut]"); if (!btn) return;
+  resolveEtabli(btn.dataset.cut);
+});
+
+/* Bac a miettes : bradees aux schlags (comme le bac dechets de Hash Slicer). */
+function renderMiettes(container) {
+  if (st.miettes <= 0) return;
+  const val = Math.round(st.miettes * K.SCHLAG_PRICE * 10) / 10;
+  const m = document.createElement("div"); m.className = "card";
+  m.innerHTML = `<div class="ct">🧹 Miettes : ${st.miettes.toFixed(1)} g</div>
+    <div class="cs">Pertes d'ensachage — ça se brade aux schlags du hall.</div>
+    <div class="btnrow" style="margin-top:9px"><button class="btn warn" id="schlagbtn">Refourguer aux schlags · +${eur(val)}</button></div>`;
+  container.appendChild(m);
+  m.querySelector("#schlagbtn").addEventListener("click", () => {
+    st.cash += val;
+    journal("🧹", `Miettes refourguées aux schlags : ${st.miettes.toFixed(1)} g pour ${eur(val)}.`, "↩ tes pertes d'ensachage, bradées", "");
+    st.miettes = 0;
+    toast(`🧹 +${eur(val)} — les schlags disent merci`);
+    renderCur(); save();
+  });
+}
+
+function settleGauge(lot) {
+  const lo = gaugeTarget * (1 - K.GAUGE_TOL), hi = gaugeTarget * (1 + K.GAUGE_TOL);
+  if (gaugeVal < lo) { toast("Trop léger — personne n'achète un pochon vide. Recommence."); gaugeVal = 0; renderAtelier(); return; }
+  const over = Math.max(0, gaugeVal - gaugeTarget);
+  lot.g -= gaugeVal;
+  if (gaugeVal <= hi) {
+    st.precises++;
+    storePochons(1, gaugeTarget, lot.q);
+    if (st.precises % 5 === 0) {
+      st.followers += 3;
+      toast(`⚖️ Pochon dosé pile (${st.precises} d'affilée) — la réput du geste : +3 abonnés`);
+    } else toast("⚖️ Dosé pile → planque");
+  } else {
+    st.precises = 0;
+    st.miettes += over;
+    storePochons(1, gaugeTarget, lot.q);
+    toast(`Pochon fait, mais ${over.toFixed(1)} g partis en miettes (trop rempli)`);
+  }
+  cleanupLot(lot);
+  onEnsache();
+  renderAtelier();
+}
+function storePochons(n, size, q) {
+  const room = K.PLANQUE_CAP - bucketCount(st.planque);
+  const toPlanque = Math.min(n, room);
+  if (toPlanque > 0) bucketAdd(st.planque, size, toPlanque, q);
+  const rest = n - toPlanque;
+  if (rest > 0) {
+    const roomSac = K.SACOCHE_CAP - bucketCount(st.sacoche);
+    const toSac = Math.min(rest, roomSac);
+    if (toSac > 0) bucketAdd(st.sacoche, size, toSac, q);
+    if (rest - toSac > 0) {
+      st.miettes += (rest - toSac) * size;
+      journal("📦", `${rest - toSac} pochon(s) perdus : plus de place nulle part.`, "↩ planque ET sacoche pleines", "bad");
+    }
+  }
+  save();
+}
+function cleanupLot(lot) {
+  if (lot.g < Math.min(...K.SIZES)) {   // en dessous du plus petit pochon : fond de lot -> miettes
+    st.miettes += Math.max(0, lot.g);
+    st.lots = st.lots.filter(l => l.id !== lot.id);
+    selLot = st.lots.length ? st.lots[0].id : null;
+  }
+}
+
+/* =========================================================================
+   PLANQUE — stockage planque <-> sacoche
+   ========================================================================= */
+function renderStock() {
+  const b = $("stock-body"); b.innerHTML = "";
+  const nP = bucketCount(st.planque), nS = bucketCount(st.sacoche);
+  const hot = nP > K.PLANQUE_CAP * K.HEAT_STOCK_PCT;
+  const col = (title, store, cap, other, otherCap, dir) => {
+    const n = bucketCount(store);
+    const rows = K.SIZES.map(sz => {
+      const cnt = store[sz]?.n || 0;
+      const q = cnt ? Math.round(bucketQ(store, sz)) : 0;
+      const canMove = cnt > 0 && bucketCount(other) < otherCap;
+      return `<div class="srow"><span>${sz} g ×${cnt}${cnt ? ` <span style="color:var(--faint)">q${q}</span>` : ""}</span>
+        <button class="mv" data-mv="${dir}" data-sz="${sz}" ${canMove ? "" : "disabled"}>${dir === "out" ? "›" : "‹"}</button></div>`;
+    }).join("");
+    return `<div class="stockcol"><h4>${title}<span class="pill">${n}/${cap}</span></h4>
+      <div class="capbar"><b class="${title.includes("Planque") && hot ? "hot" : ""}" style="width:${Math.min(100, n / cap * 100)}%"></b></div>${rows}</div>`;
+  };
+  const wrap = document.createElement("div"); wrap.className = "stockcols";
+  wrap.innerHTML = col("🏚️ Planque", st.planque, K.PLANQUE_CAP, st.sacoche, K.SACOCHE_CAP, "out")
+                 + col("🎒 Sacoche", st.sacoche, K.SACOCHE_CAP, st.planque, K.PLANQUE_CAP, "in");
+  b.appendChild(wrap);
+  wrap.querySelectorAll("[data-mv]").forEach(btn => btn.addEventListener("click", () => {
+    const sz = +btn.dataset.sz;
+    const from = btn.dataset.mv === "out" ? st.planque : st.sacoche;
+    const to = btn.dataset.mv === "out" ? st.sacoche : st.planque;
+    const cap = btn.dataset.mv === "out" ? K.SACOCHE_CAP : K.PLANQUE_CAP;
+    if (bucketCount(to) >= cap) return;
+    const q = bucketTake(from, sz, 1);
+    if (q === null) return;
+    bucketAdd(to, sz, 1, q);
+    renderStock(); save();
+  }));
+
+  const info = document.createElement("div"); info.className = "card" + (hot ? " warn" : "");
+  info.innerHTML = `<div class="ct">ℹ️ Les règles du stock</div>
+    <div class="cs">• La <b>sacoche</b> part en tournée : pas de pochon dedans = pas de livraison.<br>
+    • Planque remplie à plus de ${Math.round(K.HEAT_STOCK_PCT * 100)}% → <b>l'immeuble jase</b> (+heat régulier).<br>
+    • Sortir <b>chargé</b> (≥${K.CONTROLE_CHARGE} pochons) quand t'es <b>chaud</b> (heat ≥${K.CONTROLE_HEAT}) = contrôle assuré.</div>`
+    + (hot ? `<div class="trace">↩ en ce moment : planque ${nP}/${K.PLANQUE_CAP} → +1 heat / ${K.HEAT_STOCK_EVERY} min</div>` : "");
+  b.appendChild(info);
+}
+
+/* =========================================================================
+   SNAPSHIT — stories, chats, conversations
+   ========================================================================= */
+let snapView = "list", snapThread = null;
+
+function threadOf(id) {
+  return st.threads[id] || (st.threads[id] = { msgs: [], unread: false, pending: null, stats: { ok: 0, fail: 0, spent: 0 } });
+}
+function pushMsg(clientId, m) {
+  const t = threadOf(clientId);
+  t.msgs.push(m);
+  if (m.dir === "in") t.unread = !(cur === "snap" && snapView === "thread" && snapThread === clientId);
+  if (cur === "snap") renderSnap();
+  save();
+}
+
+/* Reput OPAQUE (reprise de snapshit) : jamais un chiffre — un ton, des pastilles, une couleur. */
+function toneFromReput(r) { return r >= 72 ? "chaleureux" : r >= 50 ? "neutre" : r >= 30 ? "mefi" : "hostile"; }
+function renderRepGauge() {
+  const tone = toneFromReput(st.reput);
+  const blocks = { hostile: "◦ ◦ ◦", mefi: "● ◦ ◦", neutre: "● ● ◦", chaleureux: "● ● ●" }[tone];
+  const col = { hostile: "var(--rust)", mefi: "var(--sodium)", neutre: "var(--muted)", chaleureux: "var(--green)" }[tone];
+  const g = $("repgauge"); g.textContent = blocks; g.style.color = col;
+}
+/* La reput derive vers la qualite livree : monte lentement, descend vite. */
+function reputDelivered(q) {
+  const er = q - st.reput;
+  st.reput = Math.max(0, Math.min(100, st.reput + (er >= 0 ? K.REPUT_UP : K.REPUT_DOWN) * er));
+}
+
+function renderSnap() {
+  $("snap-followers").textContent = st.followers + " abonnés";
+  renderRepGauge();
+  const hdrBack = $("snap-back");
+  if (snapView === "thread" && snapThread) {
+    const c = snapThread === "youss" ? FOURNISSEUR : BYID[snapThread];
+    $("snap-av").textContent = c.av; $("snap-nm").textContent = c.nm; $("snap-sub").textContent = c.tag;
+    $("snap-tray").style.display = "none";
+    $("snap-list").style.display = "none";
+    const th = $("snap-thread"); th.style.display = "flex";
+    threadOf(snapThread).unread = false;
+    paintThread();
+  } else {
+    $("snap-av").textContent = "👻"; $("snap-nm").textContent = "SnapShit"; $("snap-sub").textContent = "ta vitrine · tes clients";
+    $("snap-tray").style.display = "flex";
+    $("snap-list").style.display = "block";
+    $("snap-thread").style.display = "none";
+    renderTray(); renderConvList();
+  }
+  hdrBack.onclick = goBack;
+}
+
+/* --- tray de stories --- */
+const FLAVOR_STORIES = [
+  { id: "comptoir", av: "🏪", cap: "Le Comptoir", big: "réassort mercredi 🔒", txt: "CLIP 9:16 — rideau de fer, néon" },
+  { id: "campus", av: "🎓", cap: "Le Campus", big: "soirée intégration jeudi 🎉", txt: "CLIP 9:16 — amphi, gobelets" },
+  { id: "ruelle", av: "🚬", cap: "La Ruelle", big: "ça bouge pas ici", txt: "CLIP 9:16 — lampadaire, pluie" },
+];
+function renderTray() {
+  const tray = $("snap-tray"); tray.innerHTML = "";
+  const mine = document.createElement("div"); mine.className = "story";
+  const hasStock = K.SIZES.some(sz => stockOf(sz) > 0);
+  mine.innerHTML = `<div class="ring mine"><div class="inner"><span class="ph">+ TOI</span></div></div><div class="cap">Ta vitrine</div>`;
+  mine.addEventListener("click", () => {
+    if (!hasStock) { toast("Rien à montrer — conditionne d'abord 🧰"); return; }
+    openCompose();
+  });
+  tray.appendChild(mine);
+  const last = st.stories[st.stories.length - 1];
+  if (last) {
+    const s = document.createElement("div"); s.className = "story";
+    s.innerHTML = `<div class="ring"><div class="inner">📦</div></div><div class="cap">il y a ${Math.max(0, st.clock - last.at)} min</div>`;
+    s.addEventListener("click", () => openViewer(last));
+    tray.appendChild(s);
+  }
+  for (const f of FLAVOR_STORIES) {
+    const s = document.createElement("div"); s.className = "story";
+    s.innerHTML = `<div class="ring seen"><div class="inner">${f.av}</div></div><div class="cap">${f.cap}</div>`;
+    s.addEventListener("click", () => openFlavor(f));
+    tray.appendChild(s);
+  }
+}
+
+/* --- liste des conversations --- */
+function renderConvList() {
+  const list = $("snap-list"); list.innerHTML = "";
+  const ids = Object.keys(st.threads);
+  if (!ids.length) { list.innerHTML = `<div class="empty">Personne encore.<br>Poste ta vitrine — les clients te DM.</div>`; return; }
+  // non-lus d'abord, puis dernier message le plus recent
+  ids.sort((a, b) => (threadOf(b).unread - threadOf(a).unread));
+  for (const id of ids) {
+    const t = threadOf(id);
+    const c = id === "youss" ? FOURNISSEUR : BYID[id];
+    if (!c || !t.msgs.length) continue;
+    const lastM = t.msgs[t.msgs.length - 1];
+    const d = document.createElement("div"); d.className = "conv" + (t.unread ? " un" : "");
+    d.innerHTML = `<div class="av${t.unread ? " unread" : ""}">${c.av}</div>
+      <div class="col"><div class="nm">${c.nm}</div><div class="pv">${lastM.text || "…"}</div></div>`;
+    d.addEventListener("click", () => { snapView = "thread"; snapThread = id; renderSnap(); });
+    list.appendChild(d);
+  }
+}
+
+/* --- fil --- */
+function paintThread() {
+  const th = $("snap-thread"); th.innerHTML = "";
+  const t = threadOf(snapThread);
+  const c = snapThread === "youss" ? FOURNISSEUR : BYID[snapThread];
+  // Youss re-tend la main si la dette attend et que la caisse suffit
+  if (snapThread === "youss" && st.phase === "pre" && st.step === 5 && !t.pending && st.debt > 0 && st.cash >= st.debt) {
+    t.msgs.push({ dir: "in", text: `la caisse est là, je le sens. mes ${eur(st.debt)}. 🐺` });
+    t.pending = { kind: "paydebt" };
+  }
+  // fiche profil au tap sur la ligne systeme
+  const head = document.createElement("div"); head.className = "sysline";
+  head.textContent = `👤 ${c.nm} — ${c.tag} · tape ici pour la fiche`;
+  head.style.cursor = "pointer";
+  head.addEventListener("click", () => openProfile(snapThread));
+  th.appendChild(head);
+  for (const m of t.msgs) {
+    if (m.sys) { const s = document.createElement("div"); s.className = "sysline"; s.textContent = m.text; th.appendChild(s); continue; }
+    const row = document.createElement("div"); row.className = "row " + (m.dir === "out" ? "out" : "in");
+    const bub = document.createElement("div"); bub.className = "bub"; bub.textContent = m.text;
+    row.appendChild(bub); th.appendChild(row);
+  }
+  if (t.queue) {                     // le client « écrit… » (la suite arrive par la file)
+    const dots = document.createElement("div"); dots.className = "typing";
+    dots.innerHTML = "<i></i><i></i><i></i>";
+    th.appendChild(dots);
+  }
+  if (t.pending) renderChoices(th, t);
+  $("snap-body").scrollTop = $("snap-body").scrollHeight;
+}
+
+function renderChoices(container, t) {
+  const box = document.createElement("div"); box.className = "choices";
+  for (const opt of choicesFor(snapThread, t.pending)) {
+    const btn = document.createElement("button");
+    btn.className = "choice " + (opt.cls || "");
+    btn.innerHTML = `<span>${opt.k || "•"}</span><span>${opt.label}</span>`;
+    if (opt.disabled) btn.disabled = true;
+    btn.addEventListener("click", () => resolveChoice(snapThread, opt.act));
+    box.appendChild(btn);
+  }
+  container.appendChild(box);
+}
+
+/* --- fiche profil client --- */
+function openProfile(id) {
+  const c = id === "youss" ? FOURNISSEUR : BYID[id];
+  const t = threadOf(id);
+  const sheet = $("sheet");
+  const fiab = t.stats.ok + t.stats.fail > 0
+    ? Math.round(t.stats.ok / (t.stats.ok + t.stats.fail) * 100) + "% de deals menés au bout"
+    : "aucun deal encore";
+  sheet.innerHTML = `<div class="panel">
+    <div class="pav">${c.av}</div><div class="pnm">${c.nm}</div><div class="ptag">${c.tag}</div>
+    <div class="pstats">
+      <span class="pill">🤝 ${t.stats.ok} deals</span>
+      <span class="pill">👎 ${t.stats.fail} plantés</span>
+      <span class="pill">💶 ${eur(t.stats.spent)} dépensés</span>
+    </div>
+    <div class="card"><div class="cs">${fiab}</div></div>
+    <button class="btn no" id="sheet-close">fermer</button></div>`;
+  sheet.classList.add("show");
+  $("sheet-close").addEventListener("click", () => sheet.classList.remove("show"));
+  sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.classList.remove("show"); });
+}
+
+/* =========================================================================
+   COMPOSER + POSTER UNE STORY (le moteur de demande)
+   ========================================================================= */
+let composeSel = { size: null, prix: 0, tone: "classique", drop: false };
+function openCompose() {
+  const sc = $("scompose");
+  if (composeSel.size === null || stockOf(composeSel.size) === 0)
+    composeSel.size = K.SIZES.find(sz => stockOf(sz) > 0);
+  composeSel.prix = K.PRICE_SUGGESTED[composeSel.size];
+  paintCompose();
+  sc.classList.add("show");
+}
+function paintCompose() {
+  const sc = $("scompose");
+  const q = Math.round(stockQ(composeSel.size));
+  const f = fair(q);
+  const hint = composeSel.prix > f * K.HINT_HIGH ? "⚠️ au-dessus de la valeur perçue — peu de clients suivront"
+    : composeSel.prix < f * K.HINT_LOW ? "💸 bradé — ça partira vite, marge en moins"
+    : "✅ dans la zone — cohérent avec la qualité";
+  sc.innerHTML = `<h3>⚡ Poster ta vitrine</h3>
+    <div class="grp"><div class="glb">Produit (photo)</div><div class="segrow">` +
+    K.SIZES.map(sz => `<button class="segbtn ${sz === composeSel.size ? "sel" : ""}" data-csz="${sz}" ${stockOf(sz) ? "" : "disabled"}>
+       ${sz} g ×${stockOf(sz)}<small>qualité ${Math.round(stockQ(sz)) || "—"}</small></button>`).join("") +
+    `</div></div>
+    <div class="grp"><div class="glb">Prix affiché (€/g)</div>
+      <div class="prix"><button class="adj" id="px-dn">−</button><span class="pv">${composeSel.prix.toFixed(1)}</span><button class="adj" id="px-up">+</button></div>
+      <div class="prixhint">valeur perçue ~${f.toFixed(1)}€/g (qualité ${q}) · ${hint}</div></div>
+    <div class="grp"><div class="glb">Ton de la story</div><div class="segrow">` +
+    Object.entries(K.TONES).map(([k, tn]) => `<button class="segbtn ${k === composeSel.tone ? "sel" : ""}" data-ctn="${k}">
+       ${tn.label}<small>portée ×${tn.reach} · +${tn.heat} heat</small></button>`).join("") +
+    `</div></div>
+    <div class="grp"><div class="glb">Annonce (promesse publique)</div><div class="segrow">
+      <button class="segbtn ${!composeSel.drop ? "sel" : ""}" data-cdr="0">😐 Honnête<small>tu montres, c'est tout</small></button>
+      <button class="segbtn ${composeSel.drop ? "sel" : ""}" data-cdr="1">🥇 Drop premium<small>promet du ≥${K.DROP_PROMISE_Q} · portée ×${(K.DROP_BOOST * st.credibilite).toFixed(1)}</small></button>
+    </div>${composeSel.drop && q < K.DROP_PROMISE_Q - K.CRY_WOLF_GAP ? `<div class="prixhint" style="color:var(--rust)">⚠️ ta came est à ${q} — le block va goûter, et le block parle</div>` : ""}</div>
+    <button class="post" id="compose-post">⚡ Poster (portée ~${previewViews()} vues)</button>
+    <button class="cancel" id="compose-cancel">annuler</button>`;
+  sc.querySelectorAll("[data-csz]").forEach(x => x.addEventListener("click", () => {
+    composeSel.size = +x.dataset.csz; composeSel.prix = K.PRICE_SUGGESTED[composeSel.size]; paintCompose();
+  }));
+  sc.querySelectorAll("[data-ctn]").forEach(x => x.addEventListener("click", () => { composeSel.tone = x.dataset.ctn; paintCompose(); }));
+  sc.querySelectorAll("[data-cdr]").forEach(x => x.addEventListener("click", () => { composeSel.drop = x.dataset.cdr === "1"; paintCompose(); }));
+  $("px-dn").addEventListener("click", () => { composeSel.prix = Math.max(K.PRICE_MIN, composeSel.prix - K.PRICE_STEP); paintCompose(); });
+  $("px-up").addEventListener("click", () => { composeSel.prix = Math.min(K.PRICE_MAX, composeSel.prix + K.PRICE_STEP); paintCompose(); });
+  $("compose-cancel").addEventListener("click", () => sc.classList.remove("show"));
+  $("compose-post").addEventListener("click", postStory);
+}
+
+/* Portee d'une story : abonnes x ton x reput opaque (x drop credible eventuel). */
+function previewViews() {
+  const tone = K.TONES[composeSel.tone];
+  let v = st.followers * tone.reach * K.REPUT_REACH[toneFromReput(st.reput)];
+  if (composeSel.drop) v *= K.DROP_BOOST * st.credibilite;
+  return Math.round(v);
+}
+
+function postStory() {
+  $("scompose").classList.remove("show");
+  const size = composeSel.size, tone = K.TONES[composeSel.tone];
+  const q = stockQ(size);
+  const views = previewViews();
+  const story = { size, prix: composeSel.prix, tone: composeSel.tone, q, at: st.clock, views, drop: composeSel.drop };
+  st.stories.push(story); st.storyCount++;
+  addHeat(tone.heat, `story ${tone.label}`);
+  if (tone.heat > 0) journal("👻", `Story ${tone.label} postée (+${tone.heat} heat).`, "↩ ton choix de ton", "");
+  // drop-promesse (cry-wolf, repris de snapshit) : le bluff se paie en differe, trace
+  if (story.drop) {
+    if (q < K.DROP_PROMISE_Q - K.CRY_WOLF_GAP) {
+      schedule(inMin(K.CRY_WOLF_DELAI), "crywolf", { promisedAt: clockTxt(), q: Math.round(q) });
+      journal("🥇", `Drop premium annoncé (promesse : ≥${K.DROP_PROMISE_Q}).`, "↩ ta story — le block va goûter", "warn");
+    } else {
+      st.credibilite = Math.min(1, st.credibilite + K.CRED_REGAIN);
+      journal("🥇", `Drop premium annoncé — et la came suit (${Math.round(q)}). Ta parole vaut plus.`, "↩ promesse tenable", "good");
+    }
+  }
+
+  // moteur de demande DETERMINISTE : qui repond, et combien
+  const ctx = { heat: st.heat, phase: st.phase, stockTotal: bucketCount(st.planque) + bucketCount(st.sacoche) };
+  const eligible = [];
+  const start = st.storyCount % ROSTER.length;      // rotation deterministe
+  for (let i = 0; i < ROSTER.length; i++) {
+    const c = ROSTER[(start + i) % ROSTER.length];
+    const t = st.threads[c.id];
+    if (t && (t.pending || t.queue || st.orders.some(o => o.client === c.id && (o.status === "pending" || o.status === "run")))) continue;
+    if (c.elig(story, ctx)) eligible.push(c);
+  }
+  const nContacts = Math.min(eligible.length, Math.max(eligible.length ? 1 : 0, Math.floor(views / K.REACH_PER_CLIENT)));
+  const contacts = eligible.slice(0, nContacts);
+  contacts.forEach((c, i) => schedule(inMin(K.DM_OFFSETS[i] || (20 + i * 6)), "dm", { client: c.id, story }));
+
+  openViewer(story, contacts.length);
+  onStoryPosted(contacts.length);
+  renderCur(); save();
+}
+
+/* --- viewer (story a soi + flavor) --- */
+function openViewer(story, incoming) {
+  const v = $("viewer");
+  const tn = K.TONES[story.tone];
+  v.innerHTML = `<div class="vclip">
+    <div class="badge">CLIP IA · placeholder</div>
+    <div class="vhdr2"><div class="av">⚡</div><div><div class="nm">Ta vitrine</div><div class="tm">il y a ${Math.max(0, st.clock - story.at)} min</div></div></div>
+    <span class="ico">📦</span>
+    <span class="txt">VIDÉO 9:16 — ${story.size} g sous plastique, grain de nuit<br>(générée hors-ligne → bakée .mp4)</span>
+    <div class="vcap"><div class="big">${story.size} g · ${story.prix.toFixed(1)}€/g ${tn.label.split(" ")[0]}</div>
+      <div class="sub">— vu par 🔥 ~${story.views} (opaque)</div></div>
+    <div class="vcomments" id="vcm"></div>
+    <div class="vclose">tape pour fermer</div></div>`;
+  v.classList.add("show");
+  // commentaires qui tombent : PRESENTATION, colores par le ton de ta reput (snapshit)
+  const CMS_BY_TONE = {
+    chaleureux: ["🔥🔥🔥", "enfin du sérieux", "mp direct", "le S toujours propre 👌", "👀👀"],
+    neutre:     ["👀👀", "c'est propre ça ?", "dispo sur le block ?", "🔥", "mp"],
+    mefi:       ["mouais, à voir", "c'est le même que la dernière fois ?", "👀", "on m'a dit bof…", "mp si t'es sérieux"],
+    hostile:    ["encore lui 🙄", "demande à ceux qui ont goûté…", "passe ton tour", "…", "le block oublie pas"],
+  };
+  const repTone = toneFromReput(st.reput);
+  const cmCls = { chaleureux: "warm", neutre: "", mefi: "mefi", hostile: "cold" }[repTone];
+  const cms = CMS_BY_TONE[repTone];
+  const nCm = typeof incoming === "number" ? Math.min(cms.length, incoming + 1) : 2;
+  let i = 0;
+  const timer = setInterval(() => {
+    if (i >= nCm || !v.classList.contains("show")) { clearInterval(timer); return; }
+    const p = genProfile();
+    const el = document.createElement("div"); el.className = "vcm" + (cmCls ? " " + cmCls : "");
+    const a = document.createElement("div"); a.className = "a"; a.textContent = p.av;
+    const b = document.createElement("div"); b.className = "b";
+    const u = document.createElement("span"); u.className = "u"; u.textContent = p.nm;
+    b.appendChild(u); b.appendChild(document.createTextNode(cms[i++]));
+    el.appendChild(a); el.appendChild(b);
+    $("vcm")?.appendChild(el);
+  }, 700);
+  v.onclick = () => { clearInterval(timer); v.classList.remove("show"); renderCur(); };
+}
+function openFlavor(f) {
+  const v = $("viewer");
+  v.innerHTML = `<div class="vclip">
+    <div class="badge">STORY · éphémère</div>
+    <div class="vhdr2"><div class="av">${f.av}</div><div><div class="nm">${f.cap}</div><div class="tm">aujourd'hui</div></div></div>
+    <span class="ico">${f.av}</span><span class="txt">${f.txt}</span>
+    <div class="vcap"><div class="big">${f.big}</div></div>
+    <div class="vclose">tape pour fermer</div></div>`;
+  v.classList.add("show");
+  v.onclick = () => { v.classList.remove("show"); renderCur(); };
+}
+
+/* =========================================================================
+   CONVERSATIONS CLIENTS — negociation deterministe par trait
+   ========================================================================= */
+function clientOpens(clientId, story) {
+  const c = BYID[clientId]; if (!c) return;
+  const t = threadOf(clientId);
+  if (t.pending || t.queue) return;   // deja en pleine nego : on n'ecrase pas
+  const lines = c.open(story);
+  // les messages tombent UN PAR UN (indicateur « écrit… ») via la file persistee
+  pushMsg(clientId, { dir: "in", text: lines[0] });
+  t.unread = true;
+  t.queue = { lines: lines.slice(1), story: { size: story.size, prix: story.prix, q: story.q } };
+  schedule(inMin(1), "dmline", { client: clientId });
+  if (cur !== "snap") toast(`👻 ${c.nm} t'a DM`);
+  save();
+}
+function dmLine(clientId) {
+  const t = threadOf(clientId);
+  if (!t.queue) return;
+  if (t.queue.lines.length) {
+    pushMsg(clientId, { dir: "in", text: t.queue.lines.shift() });
+    t.unread = true;
+    schedule(inMin(1), "dmline", { client: clientId });
+  } else {
+    const story = t.queue.story;
+    t.queue = null;
+    makeOffer(clientId, story);
+  }
+  save();
+}
+/* L'offre du client : taille MONTREE dans la story, budget habituel, style de nego. */
+function makeOffer(clientId, story) {
+  const c = BYID[clientId];
+  const t = threadOf(clientId);
+  const oSize = story.size;
+  const oN = Math.max(1, Math.round((c.size * c.n) / oSize));
+  const base = story.prix;
+  let offer = base;
+  if (c.nego === "radin") offer = Math.round(base * K.NEGO_RADIN * 10) / 10;
+  if (c.nego === "gros")  offer = Math.round(base * K.NEGO_GROS * 10) / 10;
+  if (c.nego === "premium") offer = Math.round(base * K.NEGO_PREMIUM * 10) / 10;
+  const total = Math.round(oSize * oN * offer * 10) / 10;
+  pushMsg(clientId, { dir: "in", text: `${oN}× ${oSize}g à ${offer}€/g ? (${eur(total)})` });
+  t.unread = true;
+  t.pending = { kind: "offer", story, offer, oSize, oN };
+  if (cur === "snap") renderSnap();
+  save();
+}
+
+function choicesFor(clientId, pending) {
+  const c = BYID[clientId];
+  if (pending.kind === "front") {      // preambule : accepter le front de Youss
+    return [{ k: "🤝", cls: "go", label: "C'est parti. Envoie.", act: "front" }];
+  }
+  if (pending.kind === "paydebt") {
+    return [
+      { k: "💸", cls: "go", label: `Payer Youss (${eur(st.debt)})`, act: "pay", disabled: st.cash < st.debt },
+      { k: "🙏", cls: "no", label: "Pas encore la somme…", act: "later" },
+    ];
+  }
+  if (pending.kind === "offer") {
+    const tot = (p) => eur(Math.round(pending.oSize * pending.oN * p * 10) / 10);
+    const opts = [
+      { k: "✅", cls: "go", label: `Ça marche — ${pending.oN}× ${pending.oSize}g à ${pending.offer}€/g (${tot(pending.offer)})`, act: "accept" },
+    ];
+    if (pending.offer < pending.story.prix)
+      opts.push({ k: "💪", cls: "neg", label: `Non. C'est ${pending.story.prix}€/g, à prendre ou à laisser (${tot(pending.story.prix)})`, act: "hold" });
+    opts.push({ k: "❌", cls: "no", label: "Laisse tomber", act: "refuse" });
+    return opts;
+  }
+  return [];
+}
+
+function resolveChoice(clientId, act) {
+  const t = threadOf(clientId);
+  const p = t.pending;
+  if (!p) return;
+  if (act === "front") {               // preambule : Youss envoie le lot, l'Atelier s'ouvre
+    t.pending = null;
+    pushMsg("youss", { dir: "out", text: "c'est parti. envoie." });
+    pushMsg("youss", { dir: "in", text: "le paquet est dans ta boîte aux lettres. atelier : tu COUPES à l'établi, tu ensaches, tu postes. dans cet ordre." });
+    st.lots.push({ id: st.lotSeq++, g: K.FRONT_G, q: K.FRONT_Q, src: "front de Youss" });
+    st.unlocked.atelier = true;
+    st.step = 1;
+    journal("🐺", `Youss t'a front ${K.FRONT_G} g (qualité ${K.FRONT_Q}). Tu lui dois ${eur(K.FRONT_DEBT)}.`, "↩ ton deal avec Youss", "warn");
+    toast("🧰 L'Atelier est débloqué (accueil)");
+    paintThread(); renderCur(); save();
+    return;
+  }
+  if (p.kind === "paydebt") {
+    if (act === "pay") {
+      t.pending = null;
+      st.cash -= st.debt;
+      pushMsg("youss", { dir: "out", text: `tiens. ${eur(st.debt)}. on est bon.` });
+      st.debt = 0;
+      onDebtPaid();
+    } else {
+      t.pending = null;
+      pushMsg("youss", { dir: "out", text: "j'y suis presque, laisse-moi la soirée" });
+      pushMsg("youss", { dir: "in", text: "la soirée. pas plus. il te reste des pochons : re-poste, re-vends. 🐺" });
+      // Youss re-tend la main des que la caisse suffit (voir paintThread)
+    }
+    paintThread(); save(); return;
+  }
+  const c = BYID[clientId];
+  if (act === "refuse") {
+    t.pending = null;
+    pushMsg(clientId, { dir: "out", text: "laisse tomber" });
+    pushMsg(clientId, { dir: "in", text: c.nego === "premium" ? "Quel dommage." : "sérieux ?? 🙄" });
+    t.msgs.push({ sys: true, text: "— pas de deal —" });
+    paintThread(); save(); return;
+  }
+  if (act === "accept") { confirmOrder(clientId, p.offer); return; }
+  if (act === "hold") {
+    pushMsg(clientId, { dir: "out", text: `non. c'est ${p.story.prix}€/g, à prendre ou à laisser` });
+    // reaction DETERMINISTE par trait
+    const q = p.story.q;
+    let takes, line;
+    if (c.nego === "radin")  { takes = q >= 70; line = takes ? "…bon. c'est vrai qu'elle est propre. ok." : `à ${p.story.prix} pour ÇA ? nan. ciao`; }
+    else if (c.nego === "gros") { takes = bucketCount(st.planque) + bucketCount(st.sacoche) >= p.oN * 2; line = takes ? "t'as du répondant. ok, plein pot." : "sans le volume tu me tiens pas tête. ciao."; }
+    else { takes = true; line = "ok ok, t'es dur en affaires"; }
+    pushMsg(clientId, { dir: "in", text: line });
+    if (takes) { confirmOrder(clientId, p.story.prix); }
+    else {
+      t.pending = null;
+      t.stats.fail++;
+      t.msgs.push({ sys: true, text: `— parti : il voulait ${p.offer}€/g, la qualité (${Math.round(q)}) ne justifiait pas ton prix —` });
+      journal("💬", `${c.nm} est parti sans acheter.`, `↩ tu as campé sur ${p.story.prix}€/g avec une qualité ${Math.round(q)}`, "bad");
+      paintThread(); save();
+    }
+  }
+}
+
+const ZONES = ["le tabac", "le parking Lidl", "la dalle", "le hall B", "l'arrêt de tram", "le kebab"];
+function confirmOrder(clientId, prix) {
+  const c = BYID[clientId];
+  const t = threadOf(clientId);
+  const p = t.pending;                       // taille/quantite de la nego en cours
+  t.pending = null;
+  const total = Math.round(p.oSize * p.oN * prix * 10) / 10;
+  const zone = ZONES[(st.orderSeq) % ZONES.length];   // deterministe
+  const o = { id: st.orderSeq++, client: clientId, size: p.oSize, n: p.oN, prix, total,
+              deadline: inMin(c.deadline), status: "pending", zone };
+  st.orders.push(o);
+  pushMsg(clientId, { dir: "out", text: "ça marche. bouge pas." });
+  pushMsg(clientId, { dir: "in", text: `${zone}. t'as ${c.deadline} min. je compte.` });
+  t.msgs.push({ sys: true, text: `— commande #${o.id} → BeuherEats 🛵 —` });
+  journal("🤝", `Commande #${o.id} : ${c.nm}, ${o.n}× ${o.size}g à ${prix}€/g (${eur(total)}).`, "↩ ta négo dans le fil", "good");
+  onOrderConfirmed();
+  if (cur === "snap") paintThread();
+  renderCur(); save();
+}
+
+/* =========================================================================
+   BEUHEREATS — commandes + tournee
+   ========================================================================= */
+let tourneeSel = new Set(), tourneeCour = "toi";
+function renderBeuher() {
+  const b = $("beuher-body"); b.innerHTML = "";
+  const r = st.reviews;
+  $("beuher-sub").textContent = r.length
+    ? `note livreur ${(r.reduce((a, x) => a + x, 0) / r.length).toFixed(1)}★ (${r.length} avis)` : "livraison de quartier";
+  const actives = st.orders.filter(o => o.status === "pending" || o.status === "run");
+  if (!actives.length) b.innerHTML = `<div class="empty">Pas de commande en cours.<br>Les deals conclus sur 👻 SnapShit atterrissent ici.</div>`;
+  for (const o of actives) {
+    const c = BYID[o.client];
+    const left = o.deadline - st.clock;
+    const inSac = st.sacoche[o.size]?.n || 0;
+    const late = o.status === "pending" && left < 15;
+    const card = document.createElement("div");
+    card.className = "card order" + (tourneeSel.has(o.id) ? " sel" : "") + (late ? " late" : "");
+    card.innerHTML = `<div class="oh"><span class="oav">${c.av}</span><span class="onm">${c.nm} · #${o.id}</span>
+        <span class="otot">${eur(o.total)}</span>${o.status === "pending" ? `<span class="tick">${tourneeSel.has(o.id) ? "✓" : ""}</span>` : ""}</div>
+      <div class="oline"><span>${o.n}× ${o.size}g à ${o.prix}€/g</span><span>📍 ${o.zone}</span>
+        <span class="dl">${o.status === "run" ? "🛵 en cours…" : left > 0 ? `⏳ ${left} min` : "⏳ 0 min"}</span></div>` +
+      (o.status === "pending" && inSac < o.n ? `<div class="oline"><span style="color:var(--rust)">🎒 il manque ${o.n - inSac}× ${o.size}g dans la sacoche</span></div>` : "");
+    if (o.status === "pending") card.addEventListener("click", () => {
+      if (tourneeSel.has(o.id)) tourneeSel.delete(o.id); else tourneeSel.add(o.id);
+      renderBeuher();
+    });
+    b.appendChild(card);
+  }
+  // barre de tournee : selecteur de coursier + risque PROJETE (repris de beuhereats)
+  const bar = $("tourneebar");
+  const sel = st.orders.filter(o => tourneeSel.has(o.id) && o.status === "pending");
+  if (!sel.length) { bar.style.display = "none"; return; }
+  bar.style.display = "flex";
+  const charge = sel.reduce((s, o) => s + o.n, 0);
+  const total = sel.reduce((s, o) => s + o.total, 0);
+  const cour = courById(tourneeCour);
+  const dur = Math.max(3, Math.round((K.TOURNEE_BASE + K.TOURNEE_PER_STOP * sel.length) * cour.etaMult));
+  const fee = cour.base + cour.perStop * sel.length;
+  // couverture : toi = sacoche seule ; coursier = il passe a la planque (planque + sacoche)
+  const need = {};
+  for (const o of sel) need[o.size] = (need[o.size] || 0) + o.n;
+  const availOf = (sz) => cour.id === "toi" ? (st.sacoche[sz]?.n || 0) : (st.planque[sz]?.n || 0) + (st.sacoche[sz]?.n || 0);
+  const missing = Object.entries(need).filter(([sz, n]) => availOf(sz) < n);
+  // chip de risque par coursier (projete AVANT de partir — anticipable, deterministe)
+  const chipOf = (c) => {
+    if (c.id === "toi") {
+      const hot = st.heat >= K.CONTROLE_HEAT && charge >= K.CONTROLE_CHARGE;
+      const mid = st.heat >= K.CONTROLE_HEAT || charge >= K.CONTROLE_CHARGE;
+      return hot ? ["hot", "CHAUD"] : mid ? ["mid", "tendu"] : ["ok", "discret"];
+    }
+    const r = courRisk(c, charge);
+    return r >= K.RISK_BUST ? ["hot", "CHAUD"] : r >= K.RISK_MID ? ["mid", "tendu"] : ["ok", "discret"];
+  };
+  const lateRisk = sel.some(o => o.deadline < st.clock + dur);
+  const [selCls, selLbl] = chipOf(cour);
+  bar.innerHTML =
+    `<div class="couriers">` + COURIERS.map(c => {
+      const [cls, lbl] = chipOf(c);
+      const f = c.base + c.perStop * sel.length;
+      return `<div class="cour ${c.id === tourneeCour ? "sel" : ""}" data-cour="${c.id}">
+        <div class="cav">${c.av}</div><div class="cnm">${c.nm}</div>
+        <div class="cmeta">${f ? eur(f) : "gratuit"} · ~${Math.max(3, Math.round((K.TOURNEE_BASE + K.TOURNEE_PER_STOP * sel.length) * c.etaMult))} min</div>
+        <span class="risk ${cls}">${lbl}</span></div>`;
+    }).join("") + `</div>` +
+    `<div class="info">${sel.length} arrêt(s) · ${charge} pochons · ${cour.desc}</div>` +
+    `<div class="info">${eur(total)} à encaisser${fee ? ` − ${eur(fee)} de course` : ""}${cour.fiab < K.PONCTION_SEUIL ? ` − il va se servir (~${Math.round((K.PONCTION_SEUIL - cour.fiab) * 100)}%)` : ""}</div>` +
+    (missing.length ? `<div class="warn">${cour.id === "toi" ? "🎒 sacoche incomplète" : "📦 stock insuffisant"} : ${missing.map(([sz, n]) => `${n - availOf(sz)}× ${sz}g`).join(", ")}${cour.id === "toi" ? " — passe par 📦 Planque" : ""}</div>` : "") +
+    (selCls === "hot" ? `<div class="warn">⚠️ ${cour.id === "toi" ? `T'es CHAUD (heat ${Math.round(st.heat)}) et CHARGÉ (${charge} pochons) : contrôle assuré.` : `${cour.nm} chargé comme ça, à son exposition : saisie assurée.`} Cupidité ou prudence ?</div>` : "") +
+    (lateRisk ? `<div class="warn">⏳ à cette vitesse, au moins une commande sera hors délai</div>` : "") +
+    `<button class="tbtn" id="go-tournee" ${missing.length ? "disabled" : ""}>${cour.id === "toi" ? "🛵 Lancer la tournée" : `${cour.av} Envoyer ${cour.nm}${fee ? " · " + eur(fee) : ""}`}</button>`;
+  bar.querySelectorAll("[data-cour]").forEach(el => el.addEventListener("click", () => { tourneeCour = el.dataset.cour; renderBeuher(); }));
+  $("go-tournee")?.addEventListener("click", () => launchTournee(sel, charge, dur, cour, fee));
+}
+
+function launchTournee(sel, charge, dur, cour, fee) {
+  // le sort de la tournee se decide a l'INSTANT du depart (deterministe, projete par le chip)
+  const controlled = cour.id === "toi"
+    ? (st.heat >= K.CONTROLE_HEAT && charge >= K.CONTROLE_CHARGE)
+    : (courRisk(cour, charge) >= K.RISK_BUST);
+  // on sort les pochons MAINTENANT (toi : sacoche ; coursier : planque puis sacoche)
+  for (const o of sel) {
+    let q;
+    if (cour.id === "toi") {
+      q = bucketTake(st.sacoche, o.size, o.n);
+    } else {
+      const fromPlanque = Math.min(o.n, st.planque[o.size]?.n || 0);
+      const q1 = fromPlanque > 0 ? bucketTake(st.planque, o.size, fromPlanque) : null;
+      const q2 = o.n - fromPlanque > 0 ? bucketTake(st.sacoche, o.size, o.n - fromPlanque) : null;
+      q = q1 !== null && q2 !== null ? (q1 * fromPlanque + q2 * (o.n - fromPlanque)) / o.n : (q1 ?? q2);
+    }
+    if (q === null || q === undefined) { toast("📦 Stock insuffisant"); renderBeuher(); return; }
+    o.q = q; o.status = "run";
+  }
+  tourneeSel.clear();
+  if (cour.id === "toi") addHeat(K.HEAT_TOURNEE, "tournée dans la rue");
+  else if (cour.expo > 0) addHeat(Math.round(cour.expo * 5), `tournée ${cour.nm}`);
+  schedule(inMin(dur), "tournee", { ids: sel.map(o => o.id), controlled, charge,
+    heatAtLaunch: Math.round(st.heat), cour: cour.id, fee });
+  toast(cour.id === "toi" ? `🛵 Parti. Retour dans ~${dur} min.` : `${cour.av} ${cour.nm} est parti. ~${dur} min.`);
+  renderCur(); save();
+}
+
+function resolveTournee(data) {
+  const orders = st.orders.filter(o => data.ids.includes(o.id));
+  const cour = courById(data.cour || "toi");
+  if (data.controlled) {
+    // CONSEQUENCE deterministe : le chip disait CHAUD, la tournee part avec eux
+    const lost = orders.reduce((s, o) => s + o.n, 0);
+    for (const o of orders) failOrder(o, cour.id === "toi" ? "contrôle BAC — la came est partie avec eux" : `${cour.nm} saisi — la came est partie avec lui`, true);
+    st.descentes++;
+    if (cour.id === "toi") {
+      st.heat = K.CONTROLE_HEAT_AFTER; st.heatLog = {};
+      journal("🚨", `Contrôle au rond-point : ${lost} pochons confisqués, ${orders.length} commande(s) plantée(s).`,
+        `↩ tu es sorti avec ${data.charge} pochons alors que t'étais à ${data.heatAtLaunch} de heat (seuils : ${K.CONTROLE_CHARGE} / ${K.CONTROLE_HEAT})`, "bad");
+      toast("🚨 CONTRÔLE. Tout est parti. (Karnet 📓 : la cause est tracée)", 5200);
+    } else {
+      addHeat(10, `saisie de ${cour.nm}`);
+      journal("🚨", `${cour.nm} s'est fait serrer : ${lost} pochons saisis, ${orders.length} commande(s) plantée(s).`,
+        `↩ tu l'as envoyé avec ${data.charge} pochons — à son exposition (${cour.expo}) et sa fiabilité (${cour.fiab}), le chip disait CHAUD`, "bad");
+      toast(`🚨 ${cour.nm} s'est fait serrer. Le chip le disait. (Karnet 📓)`, 5200);
+    }
+    renderCur(); save();
+    return;
+  }
+  let total = 0;
+  for (const o of orders) {
+    o.status = "done";
+    total += o.total;
+    const c = BYID[o.client];
+    const t = threadOf(o.client);
+    t.stats.ok++; t.stats.spent += o.total;
+    st.reviews.push(5);
+    st.followers += K.FOLLOW_PER_SALE;
+    reputDelivered(o.q);              // la reput derive vers la qualite VRAIMENT livree
+    pushMsg(o.client, { dir: "in", text: c.nego === "premium" ? "Impeccable. Je reparlerai de vous." : "bien reçu 🤝" });
+    if (c.id === "nadia") {
+      st.followers += 10;
+      journal("💅", "Nadia a montré le pochon à ses copines : +10 abonnés.", "↩ sa livraison réussie", "good");
+    }
+  }
+  const fee = data.fee || 0;
+  const ponction = cour.fiab < K.PONCTION_SEUIL ? Math.round(total * (K.PONCTION_SEUIL - cour.fiab) * 10) / 10 : 0;
+  const net = Math.round((total - fee - ponction) * 10) / 10;
+  st.cash += net;
+  if (cour.id === "toi") {
+    journal("🛵", `Tournée finie : ${orders.length} livraison(s), +${eur(total)}.`, "↩ ta tournée BeuherEats", "good");
+  } else {
+    journal(cour.av, `${cour.nm} a livré ${orders.length} commande(s) : +${eur(net)} net (${eur(total)} − ${eur(fee)} de course${ponction ? ` − ${eur(ponction)} qu'il s'est gardés` : ""}).`,
+      ponction ? `↩ ta délégation — un coursier à ${cour.fiab} de fiabilité se sert au passage` : "↩ ta délégation BeuherEats", "good");
+  }
+  toast(`${cour.av} Tournée finie : +${eur(net)}`);
+  onTourneeDone();
+  renderCur(); save();
+}
+
+function failOrder(o, why, silent) {
+  o.status = "failed";
+  const c = BYID[o.client];
+  const t = threadOf(o.client);
+  t.stats.fail++;
+  st.reviews.push(1);
+  st.followers = Math.max(20, st.followers + K.FOLLOW_PER_FAIL);
+  st.reput = Math.max(0, st.reput - K.REPUT_FAIL_HIT);   // un client plante, le block le sait
+  pushMsg(o.client, { dir: "in", text: c.nego === "premium" ? "Vous m'avez fait attendre. Adieu." : "t'es pas sérieux. bloqué. 🙄" });
+  if (!silent) journal("👎", `Commande #${o.id} plantée (${c.nm}) : note 1★, ${K.FOLLOW_PER_FAIL} abonnés.`, `↩ ${why}`, "bad");
+}
+
+/* =========================================================================
+   HEAT MAX — LA DESCENTE (consequence tracee)
+   ========================================================================= */
+function descente() {
+  const topSrc = Object.entries(st.heatLog).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([s, p]) => `${s} (+${Math.round(p)})`).join(" · ") || "accumulation";
+  const sacLost = bucketCount(st.sacoche);
+  st.sacoche = {};
+  let planqueLost = 0;
+  for (const sz of Object.keys(st.planque)) {
+    const b = st.planque[sz];
+    const lose = Math.floor(b.n * K.DESCENTE_PLANQUE_LOSS);
+    if (lose > 0) { const q = b.qsum / b.n; b.n -= lose; b.qsum -= q * lose; planqueLost += lose; }
+  }
+  st.heat = K.DESCENTE_HEAT_AFTER;
+  st.heatLog = {};
+  st.descentes++;
+  journal("🚔", `DESCENTE : ${sacLost + planqueLost} pochons saisis (sacoche vidée, la moitié de la planque).`,
+    `↩ heat à ${K.DESCENTE_HEAT} — d'où il venait : ${topSrc}`, "bad");
+  toast("🚔 DESCENTE. Ouvre le Karnet 📓 : la cause est tracée.", 6000);
+}
+
+/* =========================================================================
+   KARNET — le contrat de cause
+   ========================================================================= */
+function renderKarnet() {
+  const b = $("karnet-body"); b.innerHTML = "";
+  if (!st.journal.length) b.innerHTML = `<div class="empty">Rien encore. Tout ce qui t'arrive finira ici,<br>avec sa cause.</div>`;
+  for (const j of st.journal) {
+    const d = document.createElement("div"); d.className = "kline " + j.cls;
+    d.innerHTML = `<div class="kt">${j.icon} ${j.txt}</div>` +
+      (j.cause ? `<div class="kc">${j.cause}</div>` : "") + `<div class="km">${j.at}</div>`;
+    b.appendChild(d);
+  }
+  const rst = document.createElement("button"); rst.className = "btn no"; rst.style.marginTop = "12px";
+  rst.textContent = "↻ Recommencer de zéro";
+  rst.addEventListener("click", () => {
+    if (!confirm("Effacer la partie ?")) return;
+    localStorage.removeItem(LS + "state"); localStorage.removeItem(LS + "ver");
+    location.reload();
+  });
+  b.appendChild(rst);
+}
+
+/* =========================================================================
+   PREAMBULE — FSM guidee : Youss te front, tu prouves que tu tournes
+   step 0: accepter le front   step 1: ensacher   step 2: poster
+   step 3: conclure un deal    step 4: livrer     step 5: payer -> libre
+   ========================================================================= */
+function preHint() {
+  return ["réponds à Youss 👻", "conditionne le lot 🧰", "poste ta vitrine 👻",
+          "réponds aux clients 👻", "sacoche 📦 puis tournée 🛵", "paie Youss 👻"][st.step] || "";
+}
+function startPreambule() {
+  const t = threadOf("youss");
+  t.msgs.push({ dir: "in", text: "c'est Youss. on m'a parlé de toi." });
+  t.msgs.push({ dir: "in", text: `je te front ${K.FRONT_G} g de correcte (q${K.FRONT_Q}). tu me rends ${K.FRONT_DEBT}€ ce soir.` });
+  t.msgs.push({ dir: "in", text: "déçois-moi pas. 🐺" });
+  t.unread = true;
+  t.pending = { kind: "front" };
+  toast("👻 On t'a écrit. Ouvre SnapShit.");
+}
+function onCut() {
+  if (st.phase === "pre" && st.step === 1) {
+    pushMsg("youss", { dir: "in", text: "coupé. maintenant ensache — des pochons, pas des pavés." });
+  }
+  save();
+}
+function onEnsache() {
+  if (st.phase === "pre" && st.step === 1 && bucketCount(st.planque) + bucketCount(st.sacoche) >= 5) {
+    st.step = 2;
+    st.unlocked.stock = true;
+    pushMsg("youss", { dir: "in", text: "5 pochons, pas mal. maintenant la vitrine. SnapShit, story, et tu attends pas 3 heures." });
+    toast("📦 Planque débloquée · poste ta vitrine 👻");
+  }
+  save();
+}
+function onStoryPosted(nIncoming) {
+  if (st.phase === "pre" && st.step === 2) {
+    st.step = 3;
+    pushMsg("youss", { dir: "in", text: nIncoming ? "ça mord déjà. réponds-leur, et tiens tes prix." : "personne ? ton prix ou ton ton. reposte mieux." });
+  }
+  save();
+}
+function onOrderConfirmed() {
+  if (st.phase === "pre" && st.step === 3) {
+    st.step = 4;
+    st.unlocked.beuher = true;
+    pushMsg("youss", { dir: "in", text: "un deal conclu = une livraison. remplis ta sacoche (📦) et lance la tournée (🛵)." });
+    toast("🛵 BeuherEats débloqué");
+  }
+  save();
+}
+function onTourneeDone() {
+  if (st.phase === "pre" && st.step === 4) {
+    st.step = 5;
+    const t = threadOf("youss");
+    pushMsg("youss", { dir: "in", text: `t'as livré. bien. mes ${eur(st.debt)} maintenant.` });
+    t.pending = { kind: "paydebt" };
+    t.unread = true;
+  } else if (st.phase === "pre" && st.step === 5 && !threadOf("youss").pending && st.cash >= st.debt) {
+    const t = threadOf("youss");
+    pushMsg("youss", { dir: "in", text: `la caisse est là, je le sens. mes ${eur(st.debt)}. 🐺` });
+    t.pending = { kind: "paydebt" };
+    t.unread = true;
+  }
+  save();
+}
+function onDebtPaid() {
+  st.phase = "libre";
+  st.step = 6;
+  st.unlocked.onion = true;
+  pushMsg("youss", { dir: "in", text: "réglo. t'es dans le circuit maintenant." });
+  pushMsg("youss", { dir: "in", text: "OnionMarket. mon pseudo c'est Le_Hollandais… ou prends chez les autres, je m'en fous. tourne." });
+  journal("🐺", "Dette de Youss soldée. Le bigo est à toi.", "↩ ta première tournée payée", "good");
+  toast("🧅 OnionMarket débloqué — la boucle est à toi", 5000);
+  renderCur(); save();
+}
+
+/* =========================================================================
+   BOOT
+   ========================================================================= */
+if (st.phase === "pre" && st.step === 0 && !st.threads.youss) startPreambule();
+show("home");
+setInterval(tick, 1000);
+</script>
+</body>
+</html>

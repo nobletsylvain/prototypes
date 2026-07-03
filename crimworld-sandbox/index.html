@@ -3,416 +3,650 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CrimWorld — Sandbox 24h</title>
+<title>CrimWorld — Sandbox</title>
 <style>
   /* =========================================================================
-     CrimWorld — Sandbox 24h. REPREND LA LANGUE VISUELLE du proto « La Bascule »
-     (mêmes tokens sodium/néon, coque téléphone, rapport diégétique .bilan).
-     Logique de jeu = crimworld-sandbox/sim.mjs (importé, NON modifié).
+     CrimWorld — Sandbox v2.1. Langue visuelle du proto « La Bascule ».
+     Snap = story + DM (clients qui te DM en temps réel). Logique = sim.mjs.
      ========================================================================= */
   :root{
     --bg:#0E0D0C; --surface:#1A1714; --surface2:#221E1A; --border:#352E28;
     --text:#E4DED5; --muted:#8C837B; --faint:#615951;
     --sodium:#E8A33D; --neon:#3E7CC2; --rust:#C8442F; --green:#7FA37F;
-    --snap:#FFFC00; --story1:#F44; --story2:#FB5; --story3:#9B5;
+    --snap:#FFFC00; --tor:#7E57C2; --story1:#F44; --story2:#FB5; --story3:#9B5;
     --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
     --sans:-apple-system,"Segoe UI","Roboto","Helvetica Neue",sans-serif;
   }
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
-    -webkit-user-select:none;user-select:none}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
   html,body{height:100%}
   body{background:radial-gradient(1200px 700px at 30% -10%,#1b1714 0,var(--bg) 60%);
        font-family:var(--sans);color:var(--text);min-height:100vh;
-       display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;
-       padding:18px 12px}
+       display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;padding:18px 12px}
 
-  /* ---- coque téléphone ---- */
   .phone{position:relative;width:min(390px,96vw);height:min(800px,92vh);border-radius:38px;
        background:var(--bg);border:1px solid var(--border);overflow:hidden;
        box-shadow:0 30px 80px -20px #000,0 0 0 8px #0a0908;display:flex;flex-direction:column}
-  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);
-       width:130px;height:26px;background:#0a0908;border-radius:0 0 16px 16px;z-index:60}
-  .statusbar{height:38px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
-       padding:0 22px 6px;font:600 12px var(--sans);color:var(--muted)}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:130px;height:26px;background:#0a0908;border-radius:0 0 16px 16px;z-index:60}
+  .statusbar{height:38px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 22px 6px;font:600 12px var(--sans);color:var(--muted)}
   .statusbar #clock{font:700 12px var(--mono);color:var(--text)}
   .statusbar b{color:var(--sodium)}
 
-  /* ---- enjeu : segments lisibles (caisse · loyer) ---- */
-  .stake{flex:none;display:flex;gap:7px;padding:7px 11px;
-       border-bottom:1px solid var(--border);background:#120f0c}
-  .stake .seg{flex:1;display:flex;flex-direction:column;gap:1px;padding:5px 9px;min-width:0;
-       border-radius:9px;background:#1a1511;border:1px solid #241d17}
-  .stake .seg .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);
-       text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stake{flex:none;display:flex;gap:7px;padding:7px 11px;border-bottom:1px solid var(--border);background:#120f0c}
+  .stake .seg{flex:1;display:flex;flex-direction:column;gap:1px;padding:5px 9px;min-width:0;border-radius:9px;background:#1a1511;border:1px solid #241d17}
+  .stake .seg .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .stake .seg b{font:800 15px var(--mono);line-height:1.1}
-  .stake .cash b{color:var(--green)}
-  .stake .loyer b{color:var(--rust)}
-  .stake .doses b{color:var(--sodium)}
+  .stake .cash b{color:var(--green)} .stake .frais b{color:var(--rust)} .stake .vente b{color:var(--sodium)}
 
-  /* ---- bandeau corner + jauges opaques ---- */
-  .corner{flex:none;margin:9px 11px 4px;border-radius:11px;padding:9px 13px;
-       border:1px solid var(--border);background:var(--surface);
-       display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .corner .cl{font:700 12px var(--sans);display:flex;align-items:center;gap:7px}
-  .corner .cs{font:800 12px var(--mono);color:var(--green);letter-spacing:.04em}
-  .corner.conteste{border-color:var(--rust);background:rgba(200,68,47,.1);animation:throb 1.6s infinite}
-  .corner.conteste .cs{color:var(--rust)}
-  @keyframes throb{0%,100%{box-shadow:0 0 0 0 rgba(200,68,47,.0)}50%{box-shadow:0 0 0 4px rgba(200,68,47,.12)}}
-  .gauges{flex:none;display:flex;gap:7px;padding:0 11px 4px}
-  .gauge{flex:1;border-radius:9px;border:1px solid var(--border);background:var(--surface);padding:7px 11px}
-  .gauge .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase}
-  .gauge .v{font:700 13px var(--mono);margin-top:2px;letter-spacing:.05em}
+  .reputbar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:9px 11px 2px;border-radius:11px;padding:8px 13px;border:1px solid var(--border);background:var(--surface)}
+  .reputbar .k{font:700 11px var(--sans);color:var(--text)}
+  .reputbar .v{font:800 13px var(--mono);color:var(--sodium);letter-spacing:.05em}
+  .inv{flex:none;display:flex;gap:7px;padding:2px 11px 4px}
+  .invc{flex:1;border-radius:9px;border:1px solid var(--border);background:var(--surface);padding:6px 9px;min-width:0}
+  .invc.lock{opacity:.45}
+  .invc .nm{font:700 11px var(--sans);display:flex;align-items:center;gap:5px}
+  .invc .g{font:600 10px var(--mono);color:var(--muted);margin-top:2px}
+  .invc .g b{color:var(--text)}
 
-  /* ---- corps : le corner (placeholder) + journal ---- */
-  .body{flex:1;overflow-y:auto;display:flex;flex-direction:column}
-  .scene{margin:8px 11px;flex:none;height:118px;border-radius:14px;border:1px dashed var(--border);
-       background:repeating-linear-gradient(45deg,#17130f 0 14px,#120f0c 14px 28px);
-       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;position:relative}
-  .scene .badge{position:absolute;top:8px;left:8px;font:700 9px var(--mono);color:#0a0908;
-       background:var(--snap);padding:2px 6px;border-radius:4px;letter-spacing:.03em}
-  .scene .ico{font-size:40px;opacity:.6}
-  .scene .txt{font:600 11px var(--mono);color:var(--faint);letter-spacing:.04em;text-align:center}
+  .body{flex:1;overflow-y:auto;position:relative}
+  .view{display:none;flex-direction:column;padding:10px 12px 14px;gap:10px}
+  .view.show{display:flex}
+  .vtitle{font:800 14px var(--sans);display:flex;align-items:center;gap:7px;color:var(--text)}
+  .vsub{font:500 11px var(--sans);color:var(--muted);margin-top:-4px;line-height:1.4}
 
-  /* journal du jour (fil léger des actions, ton Snapshit) */
-  .log{flex:1;display:flex;flex-direction:column;gap:7px;padding:4px 14px 10px}
-  .logsep{align-self:center;font:600 10px var(--sans);color:var(--faint);letter-spacing:.08em;
-       text-transform:uppercase;margin:2px 0}
-  .li{align-self:flex-start;max-width:88%;background:var(--surface);border:1px solid var(--border);
-       border-bottom-left-radius:5px;border-radius:16px;padding:8px 12px;font:400 13px/1.4 var(--sans);
-       animation:pop .2s ease}
+  /* ---- Snap : story tray + DM ---- */
+  .tray{display:flex;gap:14px;padding:4px 2px 6px;border-bottom:1px solid var(--border)}
+  .story{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;width:64px;cursor:pointer}
+  .ring{width:58px;height:58px;border-radius:50%;padding:2.5px;background:#3a332c}
+  .ring.ready{background:var(--snap);animation:pulse 1.4s infinite}
+  .ring.posted{background:conic-gradient(var(--story1),var(--story2),var(--story3),var(--story1))}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,252,0,.5)}50%{box-shadow:0 0 0 7px rgba(255,252,0,0)}}
+  .ring .inner{width:100%;height:100%;border-radius:50%;background:var(--surface);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--muted)}
+  .story .cap{font:500 10px var(--sans);color:var(--muted);max-width:64px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dmempty{font:500 12px var(--sans);color:var(--faint);font-style:italic;text-align:center;padding:22px 10px;line-height:1.5}
+  .dm{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:9px 11px;animation:pop .2s ease}
   @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .dm .av{width:38px;height:38px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:18px;background:linear-gradient(135deg,#3a322b,#181410);border:1px solid var(--border)}
+  .dm .col{flex:1;min-width:0}
+  .dm .nm{font:700 12px var(--sans);display:flex;align-items:center;gap:6px}
+  .dm .msg{font:400 12px var(--sans);color:var(--muted);margin-top:1px}
+  .dm .disc{font:600 10px var(--mono);color:var(--faint);margin-top:2px}
+  .dm .serve{flex:none;border:1px solid var(--neon);color:#bcd6f0;background:var(--surface2);border-radius:11px;padding:8px 11px;font:800 12px var(--sans);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px}
+  .dm .serve .px{font:600 9px var(--mono);color:var(--muted)}
+  .dm .serve:active{transform:scale(.97)}
 
-  /* ---- panneau d'actions ---- */
-  .actions{flex:none;border-top:1px solid var(--border);background:var(--bg);padding:10px 12px 12px;
-       display:flex;flex-direction:column;gap:8px}
-  .arow{display:flex;gap:8px}
-  .abtn{flex:1;border-radius:13px;padding:11px 10px;border:1px solid var(--border);
-       background:var(--surface2);color:var(--text);cursor:pointer;font:700 13px var(--sans);
-       display:flex;flex-direction:column;align-items:center;gap:2px;transition:transform .05s,border-color .15s}
-  .abtn:active{transform:scale(.98)}
-  .abtn .es{font:500 10px var(--mono);color:var(--muted)}
-  .abtn.clean{border-color:var(--green);color:#cfe3cf}
-  .abtn.dirty{border-color:var(--sodium);color:#f0d3a3}
-  .abtn.snap{border-color:var(--snap);color:var(--snap)}
-  .abtn.ghost{flex:none;background:none;border-style:dashed;color:var(--muted);font:600 12px var(--sans)}
-  /* stepper de doses */
-  .stepper{display:flex;align-items:center;gap:8px;flex:1;justify-content:center;
-       background:var(--surface2);border:1px solid var(--border);border-radius:13px;padding:6px 10px}
-  .stepper button{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);
-       background:var(--surface);color:var(--text);font:800 16px var(--sans);cursor:pointer}
-  .stepper .n{flex:1;text-align:center;font:800 15px var(--mono);color:var(--sodium)}
-  .stepper .u{font:500 10px var(--mono);color:var(--faint)}
-  .sell{border-color:var(--neon);color:#bcd6f0}
-  /* sous-panneau coupe */
-  .subcut{display:none;gap:8px}
-  .subcut.show{display:flex}
+  /* tarifs vitrine : prix par format (levier joueur) */
+  .tarifs{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:9px 11px;margin-top:8px}
+  .tarifs .tarh{font:700 11px var(--sans);color:var(--muted);margin-bottom:7px}
+  .qsel{display:flex;gap:6px;margin-bottom:8px}
+  .qsel .qbtn{flex:1;border:1px solid var(--border);background:#1a1511;color:var(--muted);border-radius:8px;padding:6px 4px;font:700 10px var(--sans);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .qsel .qbtn.on{border-color:var(--sodium);color:var(--sodium);background:var(--surface2)}
+  .tcell .mk{font:600 9px var(--mono);margin-top:4px}
+  .tcell .mk.eq{color:var(--muted)} .tcell .mk.lo{color:var(--green)} .tcell .mk.hi{color:var(--sodium)}
+  .poshint{margin-top:9px;border-radius:8px;padding:7px 9px;font:600 10px var(--sans);line-height:1.35;border:1px solid var(--border)}
+  .poshint.eq{color:var(--muted);background:#1a1511}
+  .poshint.lo{color:var(--green);background:rgba(60,160,90,.10);border-color:rgba(60,160,90,.35)}
+  .poshint.hi{color:var(--sodium);background:rgba(210,120,40,.10);border-color:rgba(210,120,40,.35)}
+  .trow{display:flex;gap:8px}
+  .tcell{flex:1;background:#1a1511;border:1px solid #241d17;border-radius:9px;padding:6px 4px;text-align:center}
+  .tcell .tf{font:700 11px var(--mono);color:var(--text)}
+  .tctr{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:4px}
+  .tctr .tbtn{width:22px;height:22px;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font:800 14px var(--sans);cursor:pointer;line-height:1;padding:0}
+  .tctr .tbtn:active{transform:scale(.94)}
+  .tctr .tval{font:800 12px var(--mono);color:var(--green);min-width:34px}
 
-  /* vitesse (dans la statusbar) */
-  .spd{color:var(--sodium);cursor:pointer;font:700 12px var(--mono)}
+  /* feed : vitrine sociale (preuve sociale) */
+  .post{border:1px solid var(--border);background:var(--surface);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:9px}
+  .post .ph{display:flex;align-items:center;gap:10px}
+  .post .ph .av{width:40px;height:40px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:19px;background:linear-gradient(135deg,#3a322b,#181410);border:1px solid var(--border)}
+  .post .nm{font:800 13px var(--sans)} .post .meta{font:600 10px var(--mono);color:var(--muted);margin-top:1px}
+  .post .stat{font:700 12px var(--mono);color:var(--muted)}
+  .drop{align-self:flex-start;border:1px solid var(--sodium);color:var(--sodium);background:var(--surface2);border-radius:11px;padding:9px 15px;font:800 12px var(--sans);cursor:pointer}
+  .drop:active{transform:scale(.98)} .drop:disabled{opacity:.45;cursor:default;border-color:var(--border);color:var(--muted)}
+  .cmt{display:flex;gap:9px;align-items:flex-start;padding:8px 2px;border-bottom:1px solid #241d17;animation:pop .2s ease}
+  .cmt .av{width:30px;height:30px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:15px;background:linear-gradient(135deg,#322b25,#16120e);border:1px solid var(--border)}
+  .cmt .col{flex:1;min-width:0}
+  .cmt .nm{font:700 11px var(--sans)} .cmt .tx{font:400 12px var(--sans);color:var(--text);margin-top:1px}
+  .cmt .lk{font:600 10px var(--mono);color:var(--faint);flex:none;align-self:center}
 
-  /* ---- toast / coach ---- */
-  .toast{position:absolute;left:50%;bottom:150px;transform:translateX(-50%) translateY(10px);
-       background:#0a0908;border:1px solid var(--sodium);color:var(--sodium);font:600 12px var(--sans);
-       padding:9px 14px;border-radius:12px;max-width:80%;text-align:center;opacity:0;pointer-events:none;
-       transition:opacity .25s,transform .25s;z-index:58}
+  /* DM : actions (servir / proposer) + panneau de négociation */
+  .dm .acts{display:flex;flex-direction:column;gap:5px;flex:none;align-items:stretch}
+  .dm .prop{border:1px solid var(--sodium);color:#f0d3a3;background:var(--surface2);border-radius:10px;padding:7px 11px;font:800 11px var(--sans);cursor:pointer}
+  .dm .prop:active{transform:scale(.97)}
+  .dm .vide{font:600 10px var(--mono);color:var(--faint);text-align:center}
+  .nego{background:#16120e;border:1px solid var(--border);border-radius:12px;margin-top:-3px;padding:10px 11px;display:flex;flex-direction:column;gap:9px;animation:pop .15s ease}
+  .nego .of{font:600 12px var(--sans);color:var(--text);line-height:1.4} .nego .of b{color:var(--sodium)}
+  .nego .qline{font:600 10px var(--mono);color:var(--muted)} .nego .qline.down{color:var(--rust)}
+  .nego .pr{display:flex;align-items:center;gap:7px;font:700 11px var(--sans);color:var(--muted)}
+  .nego .pbtn{width:26px;height:26px;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font:800 16px var(--sans);cursor:pointer;padding:0;line-height:1}
+  .nego .pv{font:800 14px var(--mono);color:var(--green);min-width:46px;text-align:center}
+  .nego .act{display:flex;gap:8px}
+  .nego .send{flex:1;border:1px solid var(--green);color:#cfe3cf;background:var(--surface2);border-radius:10px;padding:10px;font:800 12px var(--sans);cursor:pointer}
+  .nego .send:active{transform:scale(.99)}
+  .nego .cancel{border:1px solid var(--border);color:var(--muted);background:none;border-radius:10px;padding:10px 13px;font:700 12px var(--sans);cursor:pointer}
+  .nego .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .nego .chip{display:flex;align-items:center;gap:6px;background:#1a1511;border:1px solid #241d17;border-radius:9px;padding:5px 7px}
+  .nego .chip .cf{font:700 11px var(--mono);color:var(--text)}
+  .nego .chip .cbtn{width:22px;height:22px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font:800 13px var(--sans);cursor:pointer;padding:0;line-height:1}
+  .nego .chip .cbtn:disabled{opacity:.35;cursor:default}
+  .nego .chip .cn{font:700 11px var(--mono);color:var(--muted);min-width:32px;text-align:center}
+  .nego .send:disabled{opacity:.4;cursor:default}
+
+  /* cartes produit (labo) + offres (darkweb) */
+  .card{border-radius:13px;border:1px solid var(--border);background:var(--surface);padding:11px 13px;display:flex;flex-direction:column;gap:9px}
+  .card.lock{opacity:.5}
+  .card .hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .card .nm{font:800 14px var(--sans);display:flex;align-items:center;gap:7px}
+  .card .meta{font:600 11px var(--mono);color:var(--muted);text-align:right;line-height:1.4}
+  .card .meta b{color:var(--text)}
+  .row{display:flex;gap:8px;align-items:center}
+  .btn{flex:1;border-radius:11px;padding:10px 12px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font:700 13px var(--sans);display:flex;flex-direction:column;align-items:center;gap:1px;transition:transform .05s}
+  .btn:active{transform:scale(.98)}
+  .btn .es{font:500 10px var(--mono);color:var(--muted)}
+  .btn.clean{border-color:var(--green);color:#cfe3cf} .btn.dirty{border-color:var(--sodium);color:#f0d3a3}
+  .btn.buy{border-color:var(--tor);color:#cdbce8} .btn:disabled{opacity:.4;cursor:default}
+  .torhead{border-radius:12px;border:1px solid var(--tor);background:rgba(126,87,194,.1);padding:10px 13px}
+  .torhead .t{font:800 13px var(--sans);color:#cdbce8;display:flex;align-items:center;gap:7px}
+  .torhead .s{font:500 10px var(--mono);color:var(--muted);margin-top:3px}
+  .offer{border-radius:12px;border:1px solid var(--border);background:var(--surface);padding:10px 12px;display:flex;align-items:center;gap:10px}
+  .offer .av{width:34px;height:34px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;font-size:17px;background:linear-gradient(135deg,#2a2540,#161320);border:1px solid var(--tor)}
+  .offer .col{flex:1;min-width:0}
+  .offer .nm{font:700 12px var(--sans)} .offer .ds{font:500 10px var(--mono);color:var(--muted);margin-top:2px}
+  .offer .px{font:800 13px var(--mono);color:var(--sodium)}
+  .offer .btn{flex:none}
+
+  /* metrics */
+  .mday{border-radius:12px;border:1px solid var(--border);background:var(--surface);padding:11px 13px}
+  .mday .hd{display:flex;align-items:center;justify-content:space-between;font:800 13px var(--sans)}
+  .mday .net{font:800 13px var(--mono)} .net.pos{color:var(--green)} .net.neg{color:var(--rust)}
+  .mday .nums{font:600 10px var(--mono);color:var(--muted);margin-top:5px;line-height:1.5}
+  .mline{font:500 11px var(--sans);color:var(--muted);margin-top:6px;padding-left:4px;border-left:2px solid var(--border)}
+  .mline .ca{display:block;font:600 10px var(--mono);color:var(--faint);margin-top:1px}
+  .empty{font:500 12px var(--sans);color:var(--faint);font-style:italic;text-align:center;padding:24px 0}
+
+  .nav{flex:none;display:flex;border-top:1px solid var(--border);background:#0a0908}
+  .navbtn{flex:1;padding:9px 4px 11px;background:none;border:none;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font:700 9.5px var(--sans);position:relative}
+  .navbtn .ic{font-size:19px;filter:grayscale(.4);opacity:.7}
+  .navbtn.on{color:var(--snap)} .navbtn.on .ic{filter:none;opacity:1}
+  .navbtn .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:15px;height:15px;border-radius:8px;background:var(--rust);color:#fff;font:800 9px var(--mono);display:flex;align-items:center;justify-content:center;padding:0 3px}
+
+  .toast{position:absolute;left:50%;bottom:74px;transform:translateX(-50%) translateY(10px);background:#0a0908;border:1px solid var(--sodium);color:var(--sodium);font:600 12px var(--sans);padding:9px 14px;border-radius:12px;max-width:80%;text-align:center;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:58}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-
-  /* ---- RAPPORT de fin de jour — bilan diégétique (pièce maîtresse) ---- */
-  .endscreen{position:absolute;inset:0;background:radial-gradient(700px 500px at 50% 0%,#1b1714,#0a0908);
-       display:none;flex-direction:column;z-index:70;padding:30px 22px;overflow-y:auto}
-  .endscreen.show{display:flex}
-  .endscreen h2{font:800 22px var(--sans);color:var(--text);margin-bottom:4px}
-  .endscreen .verdict{font:600 13px var(--sans);color:var(--sodium);margin-bottom:18px;line-height:1.5}
-  .bilan{display:flex;flex-direction:column;gap:10px}
-  .bline{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
-  .bline .bt{font:700 13px var(--sans);display:flex;align-items:center;gap:7px;justify-content:space-between}
-  .bline .bt .lbl{display:flex;align-items:center;gap:7px;min-width:0}
-  .bline .bt .m{font:800 13px var(--mono);flex:none}
-  .bline .bc{font:500 12px var(--sans);color:var(--muted);margin-top:4px;line-height:1.45}
-  .bline .trace{font:600 11px var(--mono);color:var(--neon);margin-top:6px}
-  .bline.good{border-color:rgba(127,163,127,.5)}
-  .bline.bad{border-color:rgba(200,68,47,.5)}
-  .bline.tracebox{border-color:rgba(62,124,194,.5);background:rgba(62,124,194,.07)}
-  .m.pos{color:var(--green)} .m.neg{color:var(--rust)}
-  .rsum{margin-top:16px;display:flex;gap:7px}
-  .rsum .seg{flex:1;border-radius:10px;border:1px solid var(--border);background:var(--surface);padding:9px 11px}
-  .rsum .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);text-transform:uppercase}
-  .rsum b{font:800 15px var(--mono);display:block;margin-top:2px}
-  .rstate{margin-top:14px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;
-       padding:12px 14px;font:600 12px var(--sans);color:var(--text);line-height:1.6}
-  .rstate .o{font:700 11px var(--mono);color:var(--muted)}
-  .rstate.conteste{border-color:var(--rust)}
-  .cont{margin-top:20px;align-self:stretch;background:var(--snap);color:#0a0908;border:none;border-radius:24px;
-       padding:14px;font:800 15px var(--sans);cursor:pointer}
-
   .devnote{font:500 11px var(--mono);color:var(--faint);text-align:center;max-width:390px;line-height:1.5}
+
+  /* ---- overlay LABO : un proto (iframe) en mode atelier ---- */
+  .labov{position:absolute;inset:0;z-index:70;background:#0a0908;display:none;flex-direction:column}
+  .labov.show{display:flex}
+  .labov .lh{flex:none;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);background:#120f0c}
+  .labov .lh .t{font:800 13px var(--sans);color:var(--text);display:flex;align-items:center;gap:7px}
+  .labov .lh .x{border:1px solid var(--border);background:var(--surface2);color:var(--muted);border-radius:9px;padding:7px 12px;font:700 12px var(--sans);cursor:pointer}
+  .labov iframe{flex:1;width:100%;border:0;background:#000;display:block}
 </style>
 </head>
 <body>
 
-<div class="phone" id="phone">
+<div class="phone">
   <div class="notch"></div>
-  <div class="statusbar"><span id="clock">08:00</span><span>JOUR <b id="jour">1</b> · <span id="speed" class="spd">▶ ×1</span></span></div>
+  <div class="statusbar"><span id="clock">08:00</span><span>JOUR <b id="jour">1</b></span></div>
 
-  <!-- enjeu : caisse · loyer · doses du jour -->
   <div class="stake">
     <span class="seg cash"><span class="k">💵 Caisse</span><b id="cash">0€</b></span>
-    <span class="seg loyer"><span class="k">🏚️ Loyer dû</span><b id="loyer">0€</b></span>
-    <span class="seg doses"><span class="k">📦 Doses/j</span><b id="doses">0</b></span>
+    <span class="seg frais"><span class="k">💸 Frais (cumul)</span><b id="frais">0€</b></span>
+    <span class="seg vente"><span class="k">📈 Ventes/j</span><b id="ventesj">0€</b></span>
   </div>
 
-  <!-- corner (la tension) -->
-  <div class="corner" id="corner">
-    <span class="cl">⚔️ Ton corner — block C</span>
-    <span class="cs" id="corner-state">tenu</span>
+  <div class="reputbar">
+    <span class="k">🔥 Réput conso <span style="color:var(--faint);font-weight:500">(la demande)</span></span>
+    <span class="v" id="reput">🔥 •••</span>
   </div>
+  <div class="inv" id="inv"></div>
 
-  <!-- jauges opaques -->
-  <div class="gauges">
-    <div class="gauge"><div class="k">Réput conso</div><div class="v" id="reput">🔥 •••</div></div>
-    <div class="gauge"><div class="k">Pression</div><div class="v" id="pression">•</div></div>
-  </div>
-
-  <!-- corps : scène + journal -->
   <div class="body">
-    <div class="scene">
-      <span class="badge">TON SPOT</span>
-      <span class="ico">🏙️</span>
-      <span class="txt">le corner du block C — il est à toi (pour l'instant)</span>
-    </div>
-    <div class="log" id="log">
-      <div class="logsep">Jour 1 · à toi de jouer</div>
-    </div>
+    <div class="view show" id="view-snap"></div>
+    <div class="view" id="view-feed"></div>
+    <div class="view" id="view-dark"></div>
+    <div class="view" id="view-labo"></div>
+    <div class="view" id="view-metrics"></div>
   </div>
 
-  <!-- actions -->
-  <div class="actions">
-    <div class="arow subcut" id="subcut">
-      <button class="abtn clean" data-grade="A">✂️ Couper propre<span class="es">qualité haute</span></button>
-      <button class="abtn dirty" data-grade="C">🪓 À l'arrache<span class="es">vite, mais sale</span></button>
-    </div>
-    <div class="arow">
-      <button class="abtn" id="btn-couper">🔪 Couper<span class="es">la qualité = ton levier</span></button>
-      <button class="abtn snap" id="btn-vitrine">⚡ Vitrine<span class="es">exposition</span></button>
-    </div>
-    <div class="arow">
-      <div class="stepper">
-        <button id="dose-moins">−</button>
-        <div class="n"><span id="dose-n">5</span> <span class="u">doses</span></div>
-        <button id="dose-plus">+</button>
-      </div>
-      <button class="abtn sell" id="btn-vendre">🤝 Vendre<span class="es" id="prix-hint">au détail</span></button>
-    </div>
+  <div class="nav" id="nav">
+    <button class="navbtn on" data-v="snap"><span class="ic">⚡</span>Snap</button>
+    <button class="navbtn" data-v="feed"><span class="ic">📣</span>Feed</button>
+    <button class="navbtn" data-v="dark"><span class="ic">🧅</span>Darkweb</button>
+    <button class="navbtn" data-v="labo"><span class="ic">⚗️</span>Labo</button>
+    <button class="navbtn" data-v="metrics"><span class="ic">📊</span>Metrics</button>
   </div>
 
-  <!-- toast -->
+  <div class="labov" id="labov">
+    <div class="lh"><span class="t" id="labotitle">⚗️ Labo</span><button class="x" id="laboclose">✕ Fermer</button></div>
+    <iframe id="laboframe" title="labo"></iframe>
+  </div>
+
   <div class="toast" id="toast"></div>
-
-  <!-- RAPPORT de fin de jour -->
-  <div class="endscreen" id="endscreen"></div>
 </div>
 
-<div class="devnote">Sandbox 24h — boucle ouverte, horloge temps réel. Le rapport remonte chaque conséquence à sa cause.</div>
+<div class="devnote">Sandbox v2.1 — mets ta vitrine en vente, sers les clients qui te DM (jusqu’à épuisement du stock). Horloge temps réel, données dans Metrics.</div>
 
 <script type="module">
-import { createSim, C, jaugeOpaque } from './sim.mjs';
+import { createSim, C, jaugeOpaque, DISCERNEMENT } from './sim.mjs';
 
-/* reset de save propre au changement de version (scaffolding ; persistance
-   complète du sim hors scope de cette UI minimale) */
-const SAVE_VERSION = '2';
-const SBX_VER = 'sbx_ver';
-if (localStorage.getItem(SBX_VER) !== SAVE_VERSION){
+const SAVE_VERSION = '12';
+if (localStorage.getItem('sbx_ver') !== SAVE_VERSION){
   for (const k of Object.keys(localStorage)) if (k.startsWith('sbx_')) localStorage.removeItem(k);
-  localStorage.setItem(SBX_VER, SAVE_VERSION);
+  localStorage.setItem('sbx_ver', SAVE_VERSION);
 }
 
 const sim = createSim();
+window.sim = sim;          // inspection en console (DNA : « inspectable en console »)
 const $ = id => document.getElementById(id);
 
-/* ---- état UI local ---- */
-let paused = false, lastJour = 0, doseN = 5, speed = 1, subOpen = false;  // lastJour=0 → le rapport du JOUR 1 s'affiche
-let _reputLast = null, _reputNoise = '';      // brouillage réput STABLE (re-tiré au changement)
+const META = { hash:{nm:'Hash',ic:'🟫'}, weed:{nm:'Weed',ic:'🌿'}, neige:{nm:'Neige',ic:'❄️'} };
+const QMETA = { A:{ic:'🟢',cl:'qa'}, B:{ic:'🟡',cl:'qb'}, C:{ic:'🟤',cl:'qc'} };  // présentation qualité
+const QAVATAR = { A:'🏔️', B:'🟡', C:'🧱' };
+/* labo : chaque produit ouvre SON proto en mode atelier (embed) */
+const LABO_PROTO = { hash:'../hash-slicer-v2/', weed:'../green-front-v3/', neige:'../neige/' };
+/* présentation des DM (pseudo/avatar aléatoires = présentation autorisée) */
+const CM_PRE=['Kalo','Naps','Vex','Zko','Brth','Lome','Saff','Dru','Niko','Ylw','Mok','Ras','Tina','Momo'];
+const CM_SUF=['Li','45','_','xx','02','tn','99','z','_b','77','ka','23'];
+const CM_AV=['🦅','🐍','🦊','👹','🐺','🥷','🎭','🪙','😶‍🌫️','🧃','🧢','😵'];
+const MSGS=['yo tu dépanne ?','besoin vite frère 🙏','t’as de quoi ?','wesh dispo ?','un petit truc stp','tu peux me sortir ça ?'];
+const pick = a => a[(Math.random()*a.length)|0];
 
-/* ---- journal du jour (présentation) ---- */
-function logLine(txt){
-  const el = document.createElement('div'); el.className = 'li'; el.textContent = txt;
-  $('log').appendChild(el);
-  const log = $('log'); log.scrollTop = log.scrollHeight;
-  while (log.children.length > 24) log.removeChild(log.children[1]); // garde le séparateur [0]
-}
-function toast(t){ const e=$('toast'); e.textContent=t; e.classList.add('show');
-  clearTimeout(toast._t); toast._t=setTimeout(()=>e.classList.remove('show'),1900); }
+let view = 'snap', lastJour = sim.state.jour, lastDmKey = '', nego = null, tarifQ = 'C';
+let _reputLast = null, _reputNoise = '';
+const dmProfile = new Map();   // profil stable par id de client (présentation)
 
-/* ---- horloge ---- */
-function heureStr(h){
-  const hh = Math.floor(h)%24, mm = Math.floor((h-Math.floor(h))*60);
-  return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
-}
+const el = (t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>e.classList.remove('show'),1800);}
+function heureStr(h){const hh=Math.floor(h)%24,mm=Math.floor((h-Math.floor(h))*60);return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');}
 
-/* ---- HUD ---- */
 function updateHUD(){
   const s = sim.state;
-  $('clock').textContent  = heureStr(s.heure);
-  $('jour').textContent   = s.jour;
-  $('cash').textContent   = s.cash + '€';
-  $('loyer').textContent  = s.loyerDu + '€';
-  $('doses').textContent  = s.jourEnCours.doses;
-
-  // réput OPAQUE : brouillage de PRÉSENTATION (autorisé par la DNA) ; ne touche
-  // jamais l'état, re-tiré seulement quand la réput change (sinon ça clignote).
-  if (s.reput !== _reputLast){
-    _reputLast = s.reput;
-    _reputNoise = jaugeOpaque(Math.max(0,Math.min(100, s.reput + (Math.random()<.5?0:(Math.random()<.5?5:-5)))), 100);
-  }
-  $('reput').textContent    = _reputNoise;
-  $('pression').textContent = jaugeOpaque(s.pression, C.SEUIL_CONTESTE, '•', '⚔️');
-
-  const cornerEl = $('corner');
-  if (s.corner === 'contesté'){
-    cornerEl.classList.add('conteste');
-    $('corner-state').textContent = 'CONTESTÉ';
-  } else {
-    cornerEl.classList.remove('conteste');
-    $('corner-state').textContent = 'tenu';
+  $('clock').textContent=heureStr(s.heure);
+  $('jour').textContent=s.jour;
+  $('cash').textContent=s.cash+'€';
+  $('frais').textContent=s.loyerDu+'€';
+  $('ventesj').textContent=sim.metricsDuJour().ventesEUR+'€';
+  if (s.reput!==_reputLast){ _reputLast=s.reput;
+    _reputNoise=jaugeOpaque(Math.max(0,Math.min(100,s.reput+(Math.random()<.5?0:(Math.random()<.5?5:-5)))),100); }
+  $('reput').textContent=_reputNoise;
+  // badge DM sur l'onglet Snap
+  const n=sim.dmEnAttente().length;
+  const snapBtn=document.querySelector('[data-v="snap"]');
+  let b=snapBtn.querySelector('.badge');
+  if(n>0){ if(!b){b=el('span','badge');snapBtn.appendChild(b);} b.textContent=n; }
+  else if(b){ b.remove(); }
+  renderInv();
+}
+function renderInv(){
+  const box=$('inv'); box.replaceChildren();
+  for(const p of C.PRODUITS){
+    const c=el('div','invc'+(sim.state.debloques[p]?'':' lock'));
+    c.appendChild(el('div','nm',META[p].ic+' '+META[p].nm));
+    const matTot=C.QUALITES.reduce((a,q)=>a+sim.state.matiere[p][q],0);
+    const g=el('div','g'); g.append('brut '); g.appendChild(el('b',null,matTot+'g')); c.appendChild(g);
+    const sa=el('div','g');     // sachets par qualité (total tous formats)
+    C.QUALITES.forEach((q,i)=>{ if(i) sa.append(' '); sa.append(q+'·'); const tot=C.FORMATS.reduce((a,f)=>a+sim.state.stock[p][q][f],0); sa.appendChild(el('b',null,String(tot))); });
+    c.appendChild(sa);
+    box.appendChild(c);
   }
 }
 
-/* ---- actions joueur (tout passe par l'API du sim) ---- */
-$('btn-couper').addEventListener('click', () => {
-  subOpen = !subOpen; $('subcut').classList.toggle('show', subOpen);
-});
-$('subcut').addEventListener('click', e => {
-  const b = e.target.closest('[data-grade]'); if (!b) return;
-  const g = b.dataset.grade;
-  sim.couper(g);
-  subOpen = false; $('subcut').classList.remove('show');
-  toast(g === 'A' ? 'Coupe propre 👌' : 'Coupe à l’arrache 🪓');
-  logLine(g === 'A' ? '✂️ Tu coupes propre — la came est nette.' : '🪓 Tu coupes à l’arrache — vite fait, mal fait.');
-  updateHUD();
-});
-$('btn-vitrine').addEventListener('click', () => {
-  sim.posterVitrine();
-  toast('Vitrine postée ⚡'); logLine('⚡ Tu postes ta vitrine sur Snapshit — ça s’expose.');
-  updateHUD();
-});
-$('dose-moins').addEventListener('click', () => { doseN = Math.max(1, doseN-1); $('dose-n').textContent = doseN; });
-$('dose-plus').addEventListener('click',  () => { doseN = Math.min(50, doseN+1); $('dose-n').textContent = doseN; });
-$('btn-vendre').addEventListener('click', () => {
-  sim.vendre(doseN);
-  toast('+' + (doseN*C.PRIX_DOSE) + '€'); logLine('🤝 Tu écoules ' + doseN + ' doses (+' + (doseN*C.PRIX_DOSE) + '€).');
-  updateHUD();
-});
-$('prix-hint').textContent = C.PRIX_DOSE + '€/dose';
+/* ===================== SNAP : story + DM ===================== */
+function renderSnap(){
+  const v=$('view-snap'); v.replaceChildren();
+  v.appendChild(el('div','vtitle','⚡ Snap — ta vitrine'));
 
-/* ---- vitesse (présentation) ---- */
-$('speed').addEventListener('click', () => {
-  speed = speed === 1 ? 4 : 1;
-  $('speed').textContent = (speed === 1 ? '▶ ×1' : '▶▶ ×4');
-});
+  const tray=el('div','tray');
+  const story=el('div','story');
+  const ring=el('div','ring '+(sim.state.vitrine?'posted':'ready'));
+  const inner=el('div','inner',sim.state.vitrine?'🟢':'＋'); ring.appendChild(inner);
+  story.appendChild(ring);
+  story.appendChild(el('div','cap',sim.state.vitrine?'En vente':'Mettre en vente'));
+  story.addEventListener('click',()=>{
+    if(sim.state.vitrine){toast('déjà en vente — ton stock part jusqu’à épuisement');return;}
+    sim.ouvrirVitrine(); toast('Vitrine en vente 🟢 — les clients vont DM'); renderSnap();
+  });
+  tray.appendChild(story);
+  v.appendChild(tray);
 
-/* ---- boucle TEMPS RÉEL ---- */
-let lastTs = null;
-function loop(ts){
-  if (lastTs === null) lastTs = ts;
-  const dtReel = Math.min(ts - lastTs, 100);   // clamp anti-saut (retour d'onglet)
-  lastTs = ts;
-  if (!paused){
-    sim.tick(dtReel * speed);
-    if (sim.state.dernierRapport && sim.state.dernierRapport.jour !== lastJour){
-      lastJour = sim.state.dernierRapport.jour;
-      ouvrirRapport(sim.state.dernierRapport);
-    }
-    updateHUD();
+  // tarifs : prix par QUALITÉ × format + repère marché — modifiables à tout moment
+  const tar=el('div','tarifs');
+  tar.appendChild(el('div','tarh','💶 Tes prix — '+C.QUALITE_NOM[tarifQ]+' ('+tarifQ+') / sachet'));
+  const qsel=el('div','qsel');
+  for(const q of C.QUALITES){
+    const qb=el('button','qbtn'+(q===tarifQ?' on':''),null); qb.textContent=C.QUALITE_NOM[q]+' ('+q+')';
+    qb.addEventListener('click',()=>{ tarifQ=q; renderSnap(); });
+    qsel.appendChild(qb);
   }
+  tar.appendChild(qsel);
+  // positionnement GLOBAL vs marché → effet (avec retard) sur la demande. Demande tenue opaque
+  // (cue qualitatif, pas de multiplicateur brut).
+  const posHint=el('div','poshint');
+  const setPos=()=>{
+    const e=sim.positionPrix().ecart, pct=Math.round(e*100), tol=C.TOLERANCE_PRIX;
+    if(e>tol){ posHint.className='poshint hi'; posHint.textContent='📉 ~+'+pct+'% au-dessus du marché — tu fais fuir des clients (la demande baisse avec retard).'; }
+    else if(e<-tol){ posHint.className='poshint lo'; posHint.textContent='📈 ~'+pct+'% sous le marché — tu casses les prix, l’undercut ramène du monde (avec retard).'; }
+    else { posHint.className='poshint eq'; posHint.textContent='⚖️ Aligné sur le marché — demande stable.'; }
+  };
+  const trow=el('div','trow');
+  for(const f of C.FORMATS){
+    const cell=el('div','tcell'); cell.appendChild(el('div','tf',f+'g'));
+    const ctr=el('div','tctr');
+    const minus=el('button','tbtn',null); minus.textContent='−';
+    const val=el('span','tval',sim.state.prix.hash[tarifQ][f]+'€');
+    const plus=el('button','tbtn',null); plus.textContent='+';
+    const marche=C.PRIX_DEFAUT[tarifQ][f], mk=el('div',null,null);
+    const setMk=()=>{ const my=sim.state.prix.hash[tarifQ][f]; mk.textContent='marché ~'+marche+'€'; mk.className='mk '+(my>marche?'hi':my<marche?'lo':'eq'); };
+    const maj=()=>{ val.textContent=sim.state.prix.hash[tarifQ][f]+'€'; setMk(); setPos(); renderDMs(); };
+    minus.addEventListener('click',()=>{ sim.setPrix('hash',tarifQ,f,sim.state.prix.hash[tarifQ][f]-2); maj(); });
+    plus .addEventListener('click',()=>{ sim.setPrix('hash',tarifQ,f,sim.state.prix.hash[tarifQ][f]+2); maj(); });
+    ctr.append(minus,val,plus); cell.appendChild(ctr); setMk(); cell.appendChild(mk); trow.appendChild(cell);
+  }
+  tar.appendChild(trow);
+  setPos(); tar.appendChild(posHint);
+  v.appendChild(tar);
+
+  const list=el('div',null); list.id='dmlist'; list.style.cssText='display:flex;flex-direction:column;gap:8px;margin-top:6px';
+  v.appendChild(list);
+  renderDMs();
+}
+// construit le meilleur lot ≥ want depuis le stock (gloutons du plus grand au plus petit ;
+// si le stock total < want, donne ce qu'il reste). Pour les contre-offres.
+function bestFill(want, st){
+  const offre={}; C.FORMATS.forEach(f=>offre[f]=0);
+  // 1) un seul sachet du plus PETIT format ≥ want (évite de sur-servir : 10g pour un 2g)
+  const single=C.FORMATS.filter(f=>f>=want && st[f]>0).sort((a,b)=>a-b)[0];
+  if(single){ offre[single]=1; return { offre, g:single }; }
+  // 2) sinon, combine du plus grand au plus petit (gros besoin, ou stock partiel)
+  const avail={}; C.FORMATS.forEach(f=>avail[f]=st[f]); let need=want;
+  for(const f of [...C.FORMATS].sort((a,b)=>b-a)){ while(need>0 && avail[f]>0){ offre[f]++; avail[f]--; need-=f; } }
+  return { offre, g: C.FORMATS.reduce((a,f)=>a+offre[f]*f,0) };
+}
+// qualité (la moins bonne acceptable, dispo) qui serait servie pour CE format → pour estimer le prix
+function qFmt(produit,f,qMin){ const ord=sim.negPool(qMin); for(const q of ord) if(sim.state.stock[produit][q][f]>0) return q; return ord[0]; }
+const prixUnit=(produit,f,qMin)=>{ const q=qFmt(produit,f,qMin); return q?sim.state.prix[produit][q][f]:0; };
+const prixDefaut=(produit,offre,qMin)=>C.FORMATS.reduce((a,f)=>a+(offre[f]||0)*prixUnit(produit,f,qMin),0);
+
+function renderDMs(){
+  const list=$('dmlist'); if(!list) return;
+  list.replaceChildren();
+  const dms=sim.dmEnAttente();
+  if(nego && !dms.some(c=>c.id===nego.id)) nego=null;   // le client négocié est parti
+  if(!sim.state.vitrine){
+    list.appendChild(el('div','dmempty','Mets ta vitrine en vente 👆 — ton stock partira jusqu’à épuisement.')); return;
+  }
+  if(!dms.length){
+    list.appendChild(el('div','dmempty','Vitrine en vente 🟢 — les clients arrivent au fil de la journée.')); return;
+  }
+  for(const c of dms){
+    if(!dmProfile.has(c.id)) dmProfile.set(c.id,{nm:pick(CM_PRE)+pick(CM_SUF),av:pick(CM_AV),msg:pick(MSGS)});
+    const p=dmProfile.get(c.id);
+    const accept=C.QUALITES.filter(q=>C.QRANK[q]>=C.QRANK[c.qMin]);   // qualités acceptables (Servir auto)
+    const pool=sim.negPool(c.qMin);                                   // acceptable + downsell (≤1 cran sous)
+    const st={}; let negoTot=0;                                        // stock NÉGOCIABLE par format (Proposer/chips)
+    for(const f of C.FORMATS){ st[f]=pool.reduce((s,q)=>s+sim.state.stock[c.produit][q][f],0); negoTot+=st[f]; }
+    const stockExact=accept.reduce((s,q)=>s+sim.state.stock[c.produit][q][c.format],0);   // acceptable du format demandé
+    const qServ=sim.qualiteServie(c);
+    const dm=el('div','dm');
+    dm.appendChild(el('div','av',p.av));
+    const col=el('div','col');
+    col.appendChild(el('div','nm',p.nm));
+    col.appendChild(el('div','msg',p.msg+' · veut un '+c.format+'g'));
+    col.appendChild(el('div','disc',DISCERNEMENT[c.qMin]+(qServ?' · tu files du '+C.QUALITE_NOM[qServ]+' ('+qServ+')':' · rien d’assez bien')));
+    dm.appendChild(col);
+    const acts=el('div','acts');
+    if(stockExact>0){
+      const serve=el('button','serve'); serve.appendChild(el('span',null,'Servir'));
+      serve.appendChild(el('span','px',sim.state.prix[c.produit][qServ][c.format]+'€'));   // prix de la qualité servie
+      serve.addEventListener('click',()=>{ const g=sim.servir(c.id); if(g>0){toast('+'+g+'€');dmProfile.delete(c.id);} nego=null; renderDMs(); updateHUD(); });
+      acts.appendChild(serve);
+    }
+    if(negoTot>0){
+      const prop=el('button','prop',null); prop.textContent=(nego&&nego.id===c.id)?'Fermer':'Proposer';
+      prop.addEventListener('click',()=>{
+        if(nego&&nego.id===c.id){ nego=null; }
+        else { const o=bestFill(c.format,st); nego={ id:c.id, offre:o.offre, gDonne:o.g, prix:prixDefaut(c.produit,o.offre,c.qMin) }; }
+        renderDMs();
+      });
+      acts.appendChild(prop);
+    }
+    if(stockExact<=0 && negoTot<=0) acts.appendChild(el('div','vide','produis ⚗️'));
+    dm.appendChild(acts);
+    list.appendChild(dm);
+
+    if(nego && nego.id===c.id && negoTot>0){
+      const np=el('div','nego');
+      const gDonne=C.FORMATS.reduce((a,f)=>a+nego.offre[f]*f,0);
+      const detail=C.FORMATS.filter(f=>nego.offre[f]>0).map(f=>nego.offre[f]+'×'+f+'g').join(' + ')||'—';
+      const of=el('div','of'); of.append('Tu proposes '); of.appendChild(el('b',null,detail)); of.append(' = '+gDonne+'g  (il voulait '+c.format+'g)'); np.appendChild(of);
+      const ap=sim.apercuNego(c.id,nego.offre);   // quelle qualité tu donnerais + downsell ?
+      if(ap){ const ql=el('div','qline'+(ap.downsell?' down':'')); ql.textContent=(ap.downsell?'⚠️ tu refiles du ':'tu donnes du ')+C.QUALITE_NOM[ap.qLow]+' ('+ap.qLow+')'+(ap.downsell?' — sous son standard, réput ↓':''); np.appendChild(ql); }
+      // conditionnement au choix : on assemble les sachets à la main (par format dispo)
+      const chips=el('div','chips');
+      for(const f of C.FORMATS){
+        if(st[f]<=0) continue;
+        const ch=el('div','chip'); ch.appendChild(el('span','cf',f+'g'));
+        const mm=el('button','cbtn',null); mm.textContent='−'; if(nego.offre[f]<=0) mm.disabled=true;
+        const cn=el('span','cn',nego.offre[f]+'/'+st[f]);
+        const pp=el('button','cbtn',null); pp.textContent='+'; if(nego.offre[f]>=st[f]) pp.disabled=true;
+        mm.addEventListener('click',()=>{ if(nego.offre[f]>0){ nego.offre[f]--; nego.prix=Math.max(0,nego.prix-prixUnit(c.produit,f,c.qMin)); renderDMs(); } });
+        pp.addEventListener('click',()=>{ if(nego.offre[f]<st[f]){ nego.offre[f]++; nego.prix+=prixUnit(c.produit,f,c.qMin); renderDMs(); } });
+        ch.append(mm,cn,pp); chips.appendChild(ch);
+      }
+      np.appendChild(chips);
+      const pr=el('div','pr');
+      const m=el('button','pbtn',null); m.textContent='−'; const pv=el('span','pv',nego.prix+'€'); const pl=el('button','pbtn',null); pl.textContent='+';
+      m.addEventListener('click',()=>{ nego.prix=Math.max(0,nego.prix-5); pv.textContent=nego.prix+'€'; });
+      pl.addEventListener('click',()=>{ nego.prix+=5; pv.textContent=nego.prix+'€'; });
+      pr.append('Prix',m,pv,pl); np.appendChild(pr);
+      const act=el('div','act');
+      const send=el('button','send',null); send.textContent='Envoyer l’offre'; if(gDonne<=0) send.disabled=true;
+      send.addEventListener('click',()=>{ const r=sim.negocier(c.id,nego.offre,nego.prix); if(r.ok){toast(r.downsell?'Refilé ✓ +'+r.prix+'€ (réput ↓)':'Deal ✓ +'+r.prix+'€');dmProfile.delete(c.id);nego=null;} else {toast('Refus : '+r.raison);} renderDMs(); updateHUD(); });
+      const cancel=el('button','cancel',null); cancel.textContent='Annuler';
+      cancel.addEventListener('click',()=>{ nego=null; renderDMs(); });
+      act.append(send,cancel); np.appendChild(act);
+      list.appendChild(np);
+    }
+  }
+}
+
+/* ===================== DARKWEB : réassort ===================== */
+function renderDark(){
+  const v=$('view-dark'); v.replaceChildren();
+  v.appendChild(el('div','vtitle','🧅 Réassort — réseau oignon'));
+  const head=el('div','torhead');
+  head.appendChild(el('div','t','🧅 SilkRoad — semi-grossistes'));
+  head.appendChild(el('div','s','la qualité se débloque avec ton standing · paiement crypto'));
+  v.appendChild(head);
+  for(const t of sim.tiersReassort()){
+    const off=el('div','offer'); if(!t.dispo) off.style.opacity='.5';
+    off.appendChild(el('div','av',QAVATAR[t.q]||'📦'));
+    const col=el('div','col');
+    col.appendChild(el('div','nm','🟫 '+t.nom+' ('+t.q+')'));
+    col.appendChild(el('div','ds',t.ds+' · '+t.g+'g'));
+    off.appendChild(col);
+    if(t.dispo){
+      const buy=el('button','btn buy'); buy.appendChild(el('span',null,t.px+'€')); buy.appendChild(el('span','es','acheter'));
+      buy.addEventListener('click',()=>{ sim.acheterMatiere('hash',t.q,t.g,t.px,'acheté au réseau (darkweb)'); toast('+'+t.g+'g '+C.QUALITE_NOM[t.q]+' (−'+t.px+'€)'); updateHUD(); if(view==='dark') renderDark(); });
+      off.appendChild(buy);
+    } else { off.appendChild(el('div','px','🔒')); }
+    v.appendChild(off);
+  }
+  v.appendChild(el('div','vsub','Monte ton standing (sers de la qualité, poste des drops) → pollen puis népalais se débloquent. Weed / Neige : plus tard.'));
+}
+
+/* ===================== LABO : atelier (proto en iframe, mode embed) ===================== */
+function renderLabo(){
+  const v=$('view-labo'); v.replaceChildren();
+  v.appendChild(el('div','vtitle','⚗️ Le labo'));
+  v.appendChild(el('div','vsub','Choisis une matière à transformer : ouvre l’atelier, coupe à la main, renvoie le batch (il garde sa qualité). Tu peux bosser pendant que les clients te DM.'));
+  let any=false;
+  for(const p of C.PRODUITS){
+    if(!sim.state.debloques[p]) continue;
+    for(const q of C.QUALITES){
+      const raw=sim.state.matiere[p][q]; if(raw<=0) continue; any=true;
+      const card=el('div','card');
+      const hd=el('div','hd'); hd.appendChild(el('div','nm',META[p].ic+' '+C.QUALITE_NOM[q]+' ('+q+')'));
+      const meta=el('div','meta'); const m=el('div'); m.append('matière '); m.appendChild(el('b',null,raw+'g')); meta.appendChild(m);
+      hd.appendChild(meta); card.appendChild(hd);
+      const row=el('div','row');
+      const open=el('button','btn clean'); open.appendChild(el('span',null,'⚗️ Ouvrir l’atelier')); open.appendChild(el('span','es','couper '+Math.min(250,raw)+'g'));
+      open.addEventListener('click',()=>openLabo(p,q));
+      row.appendChild(open); card.appendChild(row);
+      v.appendChild(card);
+    }
+  }
+  if(!any) v.appendChild(el('div','empty','Pas de matière. Va au 🧅 Darkweb sourcer de la came.'));
+}
+function openLabo(produit, qualite){
+  const path=LABO_PROTO[produit]; if(!path){toast('atelier indisponible');return;}
+  const g=sim.state.matiere[produit][qualite]||0;
+  if(g<=0){toast('pas de matière — passe au Darkweb');return;}
+  $('labotitle').textContent='⚗️ Atelier — '+C.QUALITE_NOM[qualite]+' ('+qualite+')';
+  $('laboframe').src=path+'#embed=lab&produit='+encodeURIComponent(produit)+'&qualite='+qualite+'&matiere='+Math.round(g);
+  $('labov').classList.add('show');
+}
+function closeLabo(){ $('labov').classList.remove('show'); $('laboframe').src='about:blank'; renderLabo(); }
+/* réception d'un batch depuis le proto embarqué (même origine seulement) */
+window.addEventListener('message',e=>{
+  if(e.origin!==location.origin) return;                       // même origine seulement
+  if(e.source!==$('laboframe').contentWindow) return;          // …et seulement depuis NOTRE atelier
+  const d=e.data;
+  if(!d||d.type!=='crimworld-lab-batch') return;
+  const produit=C.PRODUITS.includes(d.produit)?d.produit:null;
+  const qualite=C.QUALITES.includes(d.qualite)?d.qualite:null;
+  const raw=Math.max(0,Math.round(+d.grammesRaw||0));
+  const formats={}; let nSach=0;
+  for(const f of C.FORMATS){ const k=Math.max(0,Math.round(+((d.formats||{})[f])||0)); formats[f]=k; nSach+=k; }
+  try{
+    if(produit&&qualite&&raw>0&&nSach>0){
+      sim.produireBatch({produit,qualite,grammesRaw:raw,formats});
+      toast('📦 +'+nSach+' sachets '+C.QUALITE_NOM[qualite]+' au stock');
+    } else { toast('atelier fermé — rien produit'); }
+  } finally { closeLabo(); updateHUD(); }
+});
+$('laboclose').addEventListener('click',closeLabo);
+
+/* ===================== METRICS ===================== */
+function mkLigne(l){
+  const d=el('div','mline');
+  const m=l.montant?(l.montant>0?' +'+l.montant+'€':' '+l.montant+'€'):'';
+  d.textContent=(l.ic?l.ic+' ':'')+l.label+m;
+  if(l.cause) d.appendChild(el('span','ca','↳ '+l.cause));
+  return d;
+}
+function mkDay(s,label){
+  const d=el('div','mday');
+  const hd=el('div','hd'); hd.appendChild(el('span',null,label||('Jour '+s.jour)));
+  hd.appendChild(el('span','net '+(s.net>=0?'pos':'neg'),(s.net>=0?'+':'')+s.net+'€')); d.appendChild(hd);
+  const nums=el('div','nums');
+  const sTot=q=>C.FORMATS.reduce((a,f)=>a+s.stock.hash[q][f],0);
+  nums.textContent='ventes '+s.ventesEUR+'€ · achats '+s.achatsEUR+'€ · caisse '+s.cash+'€ · '+s.sachetsVendus+' sachets · stock A·'+sTot('A')+' B·'+sTot('B')+' C·'+sTot('C')+' · réput '+s.reputOpaque;
+  d.appendChild(nums);
+  for(const l of s.lignes) d.appendChild(mkLigne(l));
+  return d;
+}
+function renderMetrics(){
+  const v=$('view-metrics'); v.replaceChildren();
+  v.appendChild(el('div','vtitle','📊 Metrics — jour par jour'));
+  v.appendChild(el('div','vsub','Pas de bilan qui interrompt : les données de chaque jour s’empilent ici.'));
+  v.appendChild(mkDay(sim.metricsDuJour(),'Jour '+sim.state.jour+' (en cours)'));
+  const past=sim.state.metrics.slice().reverse();
+  if(!past.length) v.appendChild(el('div','empty','Aucun jour clos pour l’instant.'));
+  for(const s of past) v.appendChild(mkDay(s));
+}
+
+/* ===================== FEED : vitrine sociale (preuve sociale) ===================== */
+/* le TEXTE des commentaires = présentation (pools combinés) ; le ton est pondéré par
+   ta réput/qualité/service. Le lien réput→demande reste la seule courbe (sim). */
+const FB_HYPE=['frappe de ouf 🔥','best plug du tieks','qualité au top frérot','jamais déçu 🙌','c’est de la bombe 💣','propre comme d’hab','le S assure'];
+const FB_SERVICE=['nickel merci 🙏','rapide en plus','toujours dispo lui','réglo le sang','service au top'];
+const FB_DECU=['c’est coupé ton truc 😤','déçu là franchement','pas comme avant ça','bof la came','ça pique les yeux'];
+const FB_RUPT=['jamais dispo ce sang 😩','t’as plus rien ?','réassort quand ?','en rupture h24','toujours à sec'];
+const FB_DROP=['ça drop 🔥🔥','vasy je fonce','je te DM direct','arrivage de fou','enfin du frais'];
+const FB_NEUTRE=['tu livres ?','t’es où ?','dispo ?','des news ?','tu fais quoi en prix ?'];
+function feedPool(){
+  const s=sim.state, pool=[];
+  const pos=Math.round(s.reput/16);                          // 0..6 selon réput
+  const last=s.batches[s.batches.length-1];
+  const stockTot=C.QUALITES.reduce((a,q)=>a+C.FORMATS.reduce((b,f)=>b+s.stock.hash[q][f],0),0);
+  for(let i=0;i<pos;i++) pool.push(...FB_HYPE);
+  for(let i=0;i<Math.max(0,3-pos);i++) pool.push(...FB_DECU);
+  if(last&&last.qualite==='C') pool.push(...FB_DECU,...FB_DECU); // dernier batch à l'arrache
+  if(s.vitrine&&stockTot===0) pool.push(...FB_RUPT,...FB_RUPT); // à sec
+  if(sim.metricsDuJour().sachetsVendus>0) pool.push(...FB_SERVICE);
+  if(s.dropAujourdhui) pool.push(...FB_DROP,...FB_DROP);
+  pool.push(...FB_NEUTRE);
+  return pool;
+}
+function mkCmt(){
+  const d=el('div','cmt');
+  d.appendChild(el('div','av',pick(CM_AV)));
+  const col=el('div','col');
+  col.appendChild(el('div','nm',pick(CM_PRE)+pick(CM_SUF)));
+  col.appendChild(el('div','tx',pick(feedPool())));
+  d.appendChild(col);
+  d.appendChild(el('div','lk','♥ '+((Math.random()*40)|0)));
+  return d;
+}
+function pushFeedComment(){
+  const list=$('feedlist'); if(!list) return;
+  list.insertBefore(mkCmt(), list.firstChild);
+  while(list.children.length>24) list.removeChild(list.lastChild);
+}
+function renderFeed(){
+  const v=$('view-feed'); v.replaceChildren();
+  v.appendChild(el('div','vtitle','📣 Feed — ta vitrine sociale'));
+  v.appendChild(el('div','vsub','Les retours des clients reflètent ta came et ton service : c’est ta preuve sociale (et ta demande).'));
+  const post=el('div','post');
+  const ph=el('div','ph'); ph.appendChild(el('div','av','🧢'));
+  const pc=el('div','col'); pc.appendChild(el('div','nm','Toi — @le_plug'));
+  pc.appendChild(el('div','meta',sim.state.vitrine?'🟢 vitrine en vente':'vitrine fermée')); ph.appendChild(pc);
+  post.appendChild(ph);
+  post.appendChild(el('div','stat','👥 '+(40+Math.round(sim.state.reput*6))+' followers'));
+  const drop=el('button','drop'); drop.textContent=sim.state.dropAujourdhui?'✅ drop posté aujourd’hui':'🔥 Poster un drop';
+  if(sim.state.dropAujourdhui) drop.disabled=true;
+  else drop.addEventListener('click',()=>{ sim.posterDrop(); toast('Drop posté 🔥 — ça buzze (+demande)'); renderFeed(); updateHUD(); });
+  post.appendChild(drop);
+  v.appendChild(post);
+  const list=el('div',null); list.id='feedlist'; list.style.cssText='display:flex;flex-direction:column;margin-top:6px';
+  v.appendChild(list);
+  for(let i=0;i<9;i++) list.appendChild(mkCmt());
+}
+
+function renderActive(){
+  if(view==='snap') renderSnap();
+  else if(view==='feed') renderFeed();
+  else if(view==='dark') renderDark();
+  else if(view==='labo') renderLabo();
+  else renderMetrics();
+}
+
+$('nav').addEventListener('click',e=>{
+  const b=e.target.closest('[data-v]'); if(!b) return;
+  view=b.dataset.v;
+  for(const btn of $('nav').children) btn.classList.toggle('on',btn===b);
+  for(const id of ['snap','feed','dark','labo','metrics']) $('view-'+id).classList.toggle('show',id===view);
+  renderActive();
+});
+
+/* ---- boucle TEMPS RÉEL (vitesse unique, pas de popup) ---- */
+let lastTs=null, feedTs=0;
+function loop(ts){
+  if(lastTs===null) lastTs=ts;
+  const dt=Math.min(ts-lastTs,100); lastTs=ts;
+  sim.tick(dt);
+  if(sim.state.jour!==lastJour){ lastJour=sim.state.jour; dmProfile.clear(); toast('Jour '+sim.state.jour+' — bilan dans 📊 Metrics'); if(view==='snap'||view==='metrics'||view==='feed') renderActive(); }
+  // rafraîchir la liste de DM quand l'ensemble change (clients qui arrivent)
+  if(view==='snap'){ const key=sim.dmEnAttente().map(c=>c.id).join(','); if(key!==lastDmKey){ lastDmKey=key; renderDMs(); } }
+  // feed vivant : un nouveau commentaire toutes les ~3,5 s
+  if(view==='feed' && ts-feedTs>3500){ feedTs=ts; pushFeedComment(); }
+  updateHUD();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
-/* ---- RAPPORT (pièce maîtresse) : rend la CAUSE verbatim, jamais inventée ---- */
-function mkBline(l){
-  const d = document.createElement('div');
-  d.className = 'bline ' + (l.montant > 0 ? 'good' : (l.montant < 0 ? 'bad' : ''));
-  const bt = document.createElement('div'); bt.className = 'bt';
-  const lbl = document.createElement('span'); lbl.className = 'lbl';
-  lbl.textContent = (l.ic ? l.ic + ' ' : '') + l.label;
-  bt.appendChild(lbl);
-  if (l.montant){
-    const m = document.createElement('span');
-    m.className = 'm ' + (l.montant > 0 ? 'pos' : 'neg');
-    m.textContent = (l.montant > 0 ? '+' : '') + l.montant + '€';
-    bt.appendChild(m);
-  }
-  d.appendChild(bt);
-  if (l.cause){ const c = document.createElement('div'); c.className = 'bc'; c.textContent = l.cause; d.appendChild(c); }
-  return d;
-}
-
-function ouvrirRapport(r){
-  paused = true;
-  const e = $('endscreen');
-  e.replaceChildren();
-
-  const h = document.createElement('h2'); h.textContent = 'Rapport — Jour ' + r.jour; e.appendChild(h);
-  const v = document.createElement('div'); v.className = 'verdict';
-  v.textContent = r.corner === 'contesté'
-    ? 'Ton corner est contesté. Le succès attire les rivaux.'
-    : 'Tu tiens le corner. Pour l’instant.';
-  e.appendChild(v);
-
-  const bilan = document.createElement('div'); bilan.className = 'bilan';
-  if (!r.lignes.length){
-    const p = document.createElement('div'); p.className = 'bline';
-    p.textContent = 'Journée calme — rien à signaler.'; bilan.appendChild(p);
-  } else {
-    for (const l of r.lignes) bilan.appendChild(mkBline(l));
-  }
-  // TRACE inter-jours — le cœur du concept : problème d'aujourd'hui ↩ décision passée
-  for (const t of (r.trace || [])){
-    const d = document.createElement('div'); d.className = 'bline tracebox';
-    const bt = document.createElement('div'); bt.className = 'bt';
-    const lbl = document.createElement('span'); lbl.className = 'lbl';
-    lbl.textContent = (t.ic ? t.ic + ' ' : '') + t.label; bt.appendChild(lbl);
-    d.appendChild(bt);
-    const tr = document.createElement('div'); tr.className = 'trace'; tr.textContent = '↩ ' + t.cause;
-    d.appendChild(tr);
-    bilan.appendChild(d);
-  }
-  e.appendChild(bilan);
-
-  // sommaire chiffré
-  const sum = document.createElement('div'); sum.className = 'rsum';
-  const mkSeg = (k, val, cls) => {
-    const s = document.createElement('div'); s.className = 'seg';
-    const kk = document.createElement('div'); kk.className = 'k'; kk.textContent = k;
-    const b = document.createElement('b'); if (cls) b.style.color = cls; b.textContent = val;
-    s.appendChild(kk); s.appendChild(b); return s;
-  };
-  sum.appendChild(mkSeg('Total jour', (r.total>=0?'+':'') + r.total + '€', r.total>=0?'var(--green)':'var(--rust)'));
-  sum.appendChild(mkSeg('Caisse', r.cash + '€', 'var(--green)'));
-  sum.appendChild(mkSeg('Loyer dû', r.loyerDu + '€', 'var(--rust)'));
-  e.appendChild(sum);
-
-  // état opaque + corner
-  const st = document.createElement('div'); st.className = 'rstate' + (r.corner==='contesté'?' conteste':'');
-  const line1 = document.createElement('div');
-  line1.textContent = (r.corner === 'contesté' ? '⚔️ Corner CONTESTÉ' : '🟢 Corner tenu');
-  const line2 = document.createElement('div'); line2.className = 'o';
-  line2.textContent = 'réput ' + r.reputOpaque + '   ·   pression ' + r.pressionOpaque;
-  st.appendChild(line1); st.appendChild(line2);
-  e.appendChild(st);
-
-  const cont = document.createElement('button'); cont.className = 'cont'; cont.textContent = 'Continuer →';
-  cont.addEventListener('click', () => {
-    e.classList.remove('show'); paused = false;
-    $('log').replaceChildren();
-    const sep = document.createElement('div'); sep.className = 'logsep';
-    sep.textContent = 'Jour ' + sim.state.jour + ' · nouvelle journée'; $('log').appendChild(sep);
-  });
-  e.appendChild(cont);
-
-  e.classList.add('show');
-}
-
+renderActive();
 updateHUD();
 </script>
 </body>
