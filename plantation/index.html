@@ -329,9 +329,9 @@ const LEAF_SLOW    = 0.10;   // ralentissement de pousse par feuille présente
 const LEAF_MAX     = 3;
 const SWIPE_CUT    = 650;    // px/s mini pour trancher (feuille ou branche — l'intention compte)
 const HARVEST_FAST = 1150;   // px/s au-delà : le bud part en trim
-const N_BUDS       = 8;
+const N_BUDS       = 14;    // façon colas de recolte/ : des têtes sur toute la hauteur
 const N_BRANCH     = 4;      // le plant se coupe en 4 branches (2 têtes visibles chacune)
-const BUDS_PER_BRANCH = 2;
+const BUDS_PER_BRANCH = 3;
 const LINE_HOOKS   = 4;      // places sur le fil de séchage
 const DRY_TIME     = FAST_MODE ? 8 : 55;   // s de séchage par branche — timer diégétique
 const DRY_QUAL_BONUS = 0.12; // sécher jusqu'au bout monte la qualité
@@ -483,7 +483,7 @@ const leafBaseTex = grainTex(172, 194, 142, 30, 0, 2);
 const budTex = grainTex(86, 126, 52, 44, 45, 2);
 // Têtes du séchoir : grain neutre × couleur (lerp verte -> brune au séchage)
 const budNeutralTex = grainTex(172, 180, 152, 42, 42, 2);
-const PLANT_H = 2.0;
+const PLANT_H = 2.45;
 
 // Nug (tête) : icosaèdre bosselé — LA forme organique de recolte/.
 function makeNugGeo(r) {
@@ -597,13 +597,13 @@ function makeStation(lvl) {
   }
   // Ampoule de l'étage — le câble s'attache à la planche de l'étage du dessus
   // (réalisme du rack : rien ne flotte), ou file vers le plafond au dernier étage.
-  const bulb = new THREE.Mesh(bulbGeo, bulbMat); bulb.position.set(0, Y + 3.1, 0); scene.add(bulb);
-  const cableLen = lvl < MAX_POTS - 1 ? (LEVEL_H - 0.2 - 3.1) : 1.6;
+  const bulb = new THREE.Mesh(bulbGeo, bulbMat); bulb.position.set(0, Y + 3.45, 0); scene.add(bulb);
+  const cableLen = lvl < MAX_POTS - 1 ? (LEVEL_H - 0.2 - 3.45) : 1.6;
   const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, cableLen, 6), cableMat);
-  cable.position.set(0, Y + 3.1 + 0.08 + cableLen / 2, 0); scene.add(cable);
+  cable.position.set(0, Y + 3.45 + 0.08 + cableLen / 2, 0); scene.add(cable);
   st.bulb = bulb;
   st.light = new THREE.PointLight(0xffe9b0, lvl === 0 ? 12 : 9, 8, 2);
-  st.light.position.set(0, Y + 3.05, 0); scene.add(st.light);
+  st.light.position.set(0, Y + 3.4, 0); scene.add(st.light);
 
   // POT en terre cuite
   const pot = new THREE.Group(); pot.position.set(POT_POS.x, Y, POT_POS.z);
@@ -623,31 +623,43 @@ function makeStation(lvl) {
   st.puddle.rotation.x = -Math.PI / 2; st.puddle.position.set(POT_POS.x + 0.5, Y + 0.011, POT_POS.z + 0.4);
   st.puddle.visible = false; scene.add(st.puddle);
 
-  // SAC DE TERREAU (toile de jute + bande imprimée + col roulé)
+  // SAC DE TERREAU : vrai sac plastique imprimé, affalé, gueule ouverte avec
+  // la terre qui déborde (plus de « pot de terre » ambigu ; le geste
+  // maintenir-verser est inchangé, et le visuel accueillera les futurs types
+  // de terre — étiquette/couleur par qualité).
   st.soilSack = new THREE.Group(); st.soilSack.position.set(SOIL_POS.x, Y, SOIL_POS.z);
-  const sackBody = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.95, 14),
-    new THREE.MeshStandardMaterial({ map: grainTex(118, 89, 60, 40, 0, 3), roughness: 0.98 }));
-  sackBody.position.y = 0.48; sackBody.castShadow = true; st.soilSack.add(sackBody);
-  const sackBand = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.48, 0.3, 14),
-    new THREE.MeshStandardMaterial({ map: grainTex(216, 199, 154, 22, 0, 2), roughness: 0.85 }));
-  sackBand.position.y = 0.5; st.soilSack.add(sackBand);
-  const sackRoll = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.07, 8, 14),
-    new THREE.MeshStandardMaterial({ map: grainTex(104, 78, 52, 40, 0, 2), roughness: 0.98 }));
-  sackRoll.position.y = 0.96; sackRoll.rotation.x = Math.PI / 2; st.soilSack.add(sackRoll);
-  // De la terre qui affleure au col du sac
-  const sackSoil = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.08, 12), st.soilMat.clone());
-  sackSoil.material.color.setHex(0x6d5138); sackSoil.position.y = 0.96; st.soilSack.add(sackSoil);
+  st.soilSack.rotation.y = 0.35;
+  const bagMat = new THREE.MeshStandardMaterial({ map: matteTex(0x3e6034, 24, 2), roughness: 0.55 });
+  const sackBody = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.92, 0.5), bagMat);
+  sackBody.position.y = 0.46; sackBody.rotation.z = -0.06;   // affalé
+  sackBody.castShadow = true; st.soilSack.add(sackBody);
+  // Étiquette imprimée (bande claire sur la face avant)
+  const sackLabel = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.34, 0.52),
+    new THREE.MeshStandardMaterial({ map: matteTex(0xe4dcc4, 16, 1), roughness: 0.6 }));
+  sackLabel.position.y = 0.48; sackLabel.rotation.z = -0.06; st.soilSack.add(sackLabel);
+  const sackLogo = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.18, 0.53),
+    new THREE.MeshStandardMaterial({ map: matteTex(0x4a7a3a, 20, 1), roughness: 0.6 }));
+  sackLogo.position.set(0, 0.48, 0); sackLogo.rotation.z = -0.06; st.soilSack.add(sackLogo);
+  // Gueule ouverte : bourrelet du sac replié + terre qui déborde
+  const sackFold = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.12, 0.56), bagMat);
+  sackFold.position.set(-0.04, 0.94, 0); sackFold.rotation.z = -0.12; st.soilSack.add(sackFold);
+  const sackSoil = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, 0.14, 12), st.soilMat.clone());
+  sackSoil.material.color.setHex(0x6d5138);
+  sackSoil.position.set(-0.05, 1.02, 0); sackSoil.rotation.z = -0.12; st.soilSack.add(sackSoil);
   scene.add(st.soilSack);
-  st.sackPick = [sackBody, sackBand, sackRoll, sackSoil];
+  st.sackPick = [sackBody, sackLabel, sackLogo, sackFold, sackSoil];
 
-  // CAISSE DE GRAINES (bois + lattes + graines visibles)
+  // CAISSE DE GRAINES (bois) — les graines ne sont visibles QUE s'il y en a
+  // en stock (visibilité mise à jour chaque frame dans updateLabels).
   st.seedCrate = new THREE.Group(); st.seedCrate.position.set(SEED_POS.x, Y, SEED_POS.z);
   const crate = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.4, 0.55), crateMat);
   crate.position.y = 0.2; crate.castShadow = true; st.seedCrate.add(crate);
+  st.crateSeeds = [];
   for (let i = 0; i < 3; i++) {
     const seedIn = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), seedMat);
     seedIn.position.set(-0.15 + i * 0.16, 0.44, (i % 2 ? 0.09 : -0.07));
     seedIn.scale.y = 1.35; seedIn.rotation.z = i * 0.5; st.seedCrate.add(seedIn);
+    st.crateSeeds.push(seedIn);
   }
   scene.add(st.seedCrate);
 
@@ -690,12 +702,12 @@ function makeStation(lvl) {
     new THREE.MeshBasicMaterial({ visible: false }));
   st.plantGroup.add(st.plantHit);
   st.branches = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 7; i++) {
     const lvlG = new THREE.Group();
-    const t = 0.18 + i * 0.17;
+    const t = 0.1 + i * 0.13;
     for (let k = 0; k < 4; k++) {
       const s = k % 2 === 0 ? 1 : -1;
-      const blade = leafBlade(0.62 - i * 0.07, 0.3 - i * 0.035, leafDecoMat);
+      const blade = leafBlade(0.6 - i * 0.055, 0.28 - i * 0.024, leafDecoMat);
       blade.position.x = s * 0.05;
       blade.rotation.z = s * (1.05 + (k > 1 ? 0.45 : 0));
       const holder = new THREE.Group();
@@ -730,8 +742,9 @@ function makeStation(lvl) {
       lf.rotation.z = p ? -1.9 : 1.9;
       grp.add(lf);
     }
-    const t = isCola ? 1.0 : 0.42 + (i / (N_BUDS - 1)) * 0.52;
-    grp.userData = { t, ang: i * 2.4, off: isCola ? 0 : 0.15, taken: false, g: 0, mat };
+    const t = isCola ? 1.0 : 0.26 + (i / (N_BUDS - 1)) * 0.7;
+    const ang = (i % 2 ? 0.5 : Math.PI - 0.5) + Math.sin(i * 2.1) * 0.55;   // alterné + variation
+    grp.userData = { t, ang, off: isCola ? 0 : 0.11 + (i % 3) * 0.03, taken: false, g: 0, mat };
     grp.visible = false;
     st.buds.push(grp); st.plantGroup.add(grp);
   }
@@ -783,12 +796,13 @@ function attachBranch(hook) {
   grp.position.set(hook.x, LINE_Y, LINE_Z);
   const tie = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.015, 6, 10), wireMat);
   tie.position.y = -0.03; grp.add(tie);
-  // Tige de branche légèrement courbée (tube), tête en bas
-  const bBend = (Math.random() - 0.5) * 0.12;
+  // Tige de branche légèrement courbée (tube), tête en bas — plus longue :
+  // elle porte 3 têtes maintenant que les plants sont plus fournis.
+  const bBend = (Math.random() - 0.5) * 0.14;
   const pts = [];
   for (let i = 0; i <= 5; i++) {
     const u = i / 5;
-    pts.push(new THREE.Vector3(Math.sin(u * 2.2) * bBend, -0.05 - u * 0.75, 0));
+    pts.push(new THREE.Vector3(Math.sin(u * 2.2) * bBend, -0.05 - u * 1.05, 0));
   }
   const stM = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.024, 6, false), matTwig);
   stM.castShadow = true; grp.add(stM);
@@ -798,7 +812,7 @@ function attachBranch(hook) {
     // séchage vert -> brun vit dans material.color).
     const mat = new THREE.MeshStandardMaterial({ map: budNeutralTex, color: 0x93c25a, roughness: 0.85 });
     const budGrp = new THREE.Group();
-    budGrp.position.set((i % 2 === 0 ? 0.11 : -0.11), -0.3 - i * 0.32, 0.02);
+    budGrp.position.set((i % 2 === 0 ? 0.11 : -0.11), -0.28 - i * 0.31, 0.02);
     const main = makeNug(mat, nugGeoMid); main.scale.setScalar(1.25); budGrp.add(main);
     const side = makeNug(mat, nugGeoSm); side.position.set(0.05, -0.11, 0.03); budGrp.add(side);
     grp.add(budGrp);
@@ -812,7 +826,7 @@ function attachBranch(hook) {
   for (let i = 0; i < 2; i++) {
     const mat = new THREE.MeshStandardMaterial({ map: leafBaseTex, color: 0x27632c, roughness: 0.85, side: THREE.DoubleSide });
     const blade = leafBlade(0.3, 0.14, mat);
-    blade.position.set(i === 0 ? 0.1 : -0.1, -0.55 - i * 0.15, 0);
+    blade.position.set(i === 0 ? 0.1 : -0.1, -0.7 - i * 0.25, 0);
     blade.rotation.z = Math.PI + (i === 0 ? 0.5 : -0.5);
     grp.add(blade);
     hook.leafMats.push(mat);
@@ -1415,8 +1429,9 @@ function tryCutdownAt(st, cx, cy, speed) {
   hook.sentG = 0; hook.sentQsum = 0; hook.trimSent = 0;  // comptes par branche (embed → Récolte)
   attachBranch(hook);
   let hidden = 0;
+  const quota = Math.ceil(N_BUDS / N_BRANCH);
   for (const b of st.buds) {
-    if (hidden >= 2) break;
+    if (hidden >= quota) break;
     if (b.visible && !b.userData.taken) { b.userData.taken = true; b.visible = false; hidden++; }
   }
   st.branchesLeft--;
@@ -1842,6 +1857,7 @@ function updateBoostBar() {
    20) ÉTIQUETTES + état debug (captures de test)
    ------------------------------------------------------------------------- */
 function updateLabels() {
+  const nSeeds = Math.min(3, seedAvail());
   for (const st of stations) {
     if (st.phase === "growing" || st.phase === "mature") {
       const pct = Math.round(st.growth * 100);
@@ -1849,6 +1865,8 @@ function updateLabels() {
         "🌱 " + st.seed.name + " " + pct + "%" + (st.moisture < MOIST_BAND[0] ? " · 💧!" : "");
     } else st.potLabel.textContent = "🪴 POT " + (st.lvl + 1);
     placeLabel(st.potLabel, POT_POS.x, st.y + 2.15, POT_POS.z);
+    // Pas de graines en stock = pas de graines visibles dans la caisse
+    st.crateSeeds.forEach((m, i) => { m.visible = i < nSeeds; });
   }
   stockLabel.textContent = EMBED ? "📦 → RÉCOLTE " + Math.round(embSentG) + " g"
                                  : "📦 STOCK " + Math.round(stock.g) + " g";
