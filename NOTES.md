@@ -9,6 +9,38 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-03 — Plantation : navigation au swipe + pots multiples en étagères
+
+Retours de test sur le proto Plantation (le travelling entre scènes « super
+smooth ») → deux évolutions demandées, plus un garde-fou :
+
+- **Boutons → swipe (mobile natif)** : la navigation Culture ↔ Séchoir passe au
+  **swipe horizontal**, l'alternance entre pots au **swipe vertical**. Les
+  pastilles/points ne sont plus que des **indicateurs de position** (tappables
+  en secours — utile aussi pour le pilote headless). Désambiguïsation
+  jeu/navigation : un geste qui **commence sur une station** (sac, arrosoir…)
+  ou qui **touche quelque chose** en route (feuille, plant, tête) est consommé
+  par le jeu ; sinon, au relâcher, ample et directionnel = navigation. Aucun
+  seuil de vélocité sur la nav : c'est la **distance + la dominance d'axe** qui
+  décident (`NAV_DIST`, `NAV_RATIO`).
+- **Pots multiples** : jusqu'à **3 étages** débloqués en boutique (800 / 2500 €),
+  empilés en **rack vertical** — chaque étage est une **station complète**
+  (pot, terreau, graines, arrosoir, booster, lampe) qui vit en continu hors
+  écran. Refactor : les singletons plante/pot sont devenus une **factory de
+  stations** ; les gestes ne visent que l'étage cadré (le raycast ne touche
+  que ce qui est à l'écran — pas de verrou explicite).
+- **Balance réalisme de la station** (rappel de Sylvain en cours de refactor) :
+  le rack vertical avec lampe par étage EST la pratique réelle (vertical
+  farming) ; l'espacement d'étage a été élargi (`LEVEL_H` 4.4 → 5.6) pour
+  cadrer un étage net avec un simple **liseré** des voisins (contexte sans
+  fouillis), et le **câble de l'ampoule s'attache à la planche du dessus**
+  (rien ne flotte). Concessions assumées côté gameplay : outils dupliqués par
+  étage (un seul arrosoir « qui suit » serait plus réaliste mais plus
+  frictionnel), vol instantané des branches vers le séchoir.
+- Question ouverte : le guidage multi-pots (« ⬆️ SWIPE — Pot 2 : 💧 soif »)
+  suffit-il, ou faudra-t-il un mini-état par point (couleur des dots) quand on
+  jouera longtemps avec 3 étages ?
+
 ## 2026-06-27 — Ecstasy : conformité aux règles mini-jeux (rythme = ressenti pur)
 
 Relecture du proto à l'aune des règles (R1/R2 d'abord, confirmé ensuite par
