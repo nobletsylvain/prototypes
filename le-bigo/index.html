@@ -263,6 +263,8 @@ const K = {
   DESCENTE_FINI_LOSS: 0.5,      // fraction du fini perdue a la descente
   DESCENTE_HEAT_AFTER: 30,
   SNAP_UNLOCK_G: 8,             // preambule : du fini a montrer avant la vitrine
+  REFRONT_FLOOR: 42,            // anti-softlock : sous ce cash ET planque vide, Youss re-front
+                                //   (42 € = le plus petit re-up OnionMarket, 10 g de cheap)
   SIMPLE_LOSS: 0.05,            // conditionnement "mode simple" (sans 3D) : 5% de pertes
   SCHLAG_PRICE: 3,              // €/g — les miettes se bradent (R1 : jamais un malus sec)
 };
@@ -613,9 +615,26 @@ function tick() {
     if (st.fini.g > K.PLANQUE_CAP_G * K.HEAT_STOCK_PCT) addHeat(1, "planque pleine (l'immeuble jase)");
   }
   if (st.heat >= K.DESCENTE_HEAT) descente();
+  softlockCheck();
   renderStake();
   if (cur === "home") renderHome();
   save();
+}
+
+/* Anti-softlock : en phase libre, caisse a sec ET plus rien a transformer/vendre
+   -> Youss re-front (meme deal que le preambule). Deterministe et trace. */
+function softlockCheck() {
+  if (st.phase !== "libre" || st.debt > 0 || st.youss.pending) return;
+  if (st.cash >= K.REFRONT_FLOOR) return;
+  const stockG = st.fini.g + st.brut.reduce((s, l) => s + l.g, 0)
+               + st.branches.reduce((s, b) => s + b.g, 0) + st.miettes;
+  const seeds = Object.values(st.seeds).reduce((s, n) => s + n, 0);
+  if (stockG >= 1 || seeds > 0) return;
+  st.youss.msgs.push({ dir: "in", text: `t'es à sec et ta planque est vide, je le sens d'ici. je te re-front ${K.FRONT_G} g, tu me rends ${eur(K.FRONT_DEBT)}. même deal. 🐺` });
+  st.youss.pending = "refront";
+  st.youss.unread = true;
+  toast("🐺 Youss te tend la main");
+  if (cur === "youss") renderYouss();
 }
 function descente() {
   const topSrc = Object.entries(st.heatLog).sort((a, b) => b[1] - a[1]).slice(0, 3)
@@ -819,16 +838,16 @@ function renderYouss() {
     const bub = document.createElement("div"); bub.className = "bub"; bub.textContent = m.text;
     row.appendChild(bub); th.appendChild(row);
   }
-  // Youss re-tend la main si la dette attend et que la caisse suffit
-  if (st.phase === "pre" && st.step === 3 && !st.youss.pending && st.debt > 0 && st.cash >= st.debt) {
+  // Youss re-tend la main si une dette attend et que la caisse suffit (preambule OU re-front)
+  if (!st.youss.pending && st.debt > 0 && st.cash >= st.debt) {
     st.youss.msgs.push({ dir: "in", text: `la caisse est là, je le sens. mes ${eur(st.debt)}. 🐺` });
     st.youss.pending = "paydebt";
     renderYouss(); return;
   }
   if (st.youss.pending) {
     const box = document.createElement("div"); box.className = "choices";
-    const opts = st.youss.pending === "front"
-      ? [{ k: "🤝", cls: "go", label: "C'est parti. Envoie.", act: "front" }]
+    const opts = (st.youss.pending === "front" || st.youss.pending === "refront")
+      ? [{ k: "🤝", cls: "go", label: "C'est parti. Envoie.", act: st.youss.pending }]
       : [{ k: "💸", cls: "go", label: `Payer Youss (${eur(st.debt)})`, act: "pay", disabled: st.cash < st.debt },
          { k: "🙏", cls: "no", label: "Pas encore la somme…", act: "later" }];
     for (const o of opts) {
@@ -855,18 +874,35 @@ function resolveYouss(act) {
     renderYouss(); renderStake(); save();
     return;
   }
+  if (act === "refront") {           // anti-softlock : Youss te remet en selle, meme deal
+    st.youss.pending = null;
+    pushYouss("out", "c'est parti. envoie.");
+    pushYouss("in", "boîte aux lettres. et cette fois tu gères ta caisse. 🐺");
+    st.brut.push({ id: st.lotSeq++, g: K.FRONT_G, q: K.FRONT_Q, family: "resine", label: "re-front de Youss" });
+    st.debt += K.FRONT_DEBT;
+    journal("🐺", `Youss t'a re-front ${K.FRONT_G} g (qualité ${K.FRONT_Q}). Tu lui dois ${eur(st.debt)}.`,
+      "↩ caisse à sec et planque vide — sa main tendue a un prix", "warn");
+    toast("🧰 Le lot est à l'Atelier");
+    renderYouss(); renderStake(); broadcast(); save();
+    return;
+  }
   if (act === "pay") {
     if (st.cash < st.debt) return;
     st.youss.pending = null;
     st.cash -= st.debt;
     pushYouss("out", `tiens. ${eur(st.debt)}. on est bon.`);
     st.debt = 0;
-    st.phase = "libre"; st.step = 4;
-    st.unlocked.onion = true; st.unlocked.beuher = true; st.unlocked.plantation = true;
-    pushYouss("in", "réglo. t'es dans le circuit maintenant.");
-    pushYouss("in", "OnionMarket pour l'appro — même des graines si tu veux cultiver ta propre came. BeuherEats pour écouler en volume. le bigo est à toi. tourne.");
-    journal("🐺", "Dette de Youss soldée. Le bigo est à toi.", "↩ tes premières ventes", "good");
-    toast("🧅 OnionMarket + 🛵 BeuherEats débloqués", 5000);
+    if (st.phase === "pre") {
+      st.phase = "libre"; st.step = 4;
+      st.unlocked.onion = true; st.unlocked.beuher = true; st.unlocked.plantation = true;
+      pushYouss("in", "réglo. t'es dans le circuit maintenant.");
+      pushYouss("in", "OnionMarket pour l'appro — même des graines si tu veux cultiver ta propre came. BeuherEats pour écouler en volume. le bigo est à toi. tourne.");
+      journal("🐺", "Dette de Youss soldée. Le bigo est à toi.", "↩ tes premières ventes", "good");
+      toast("🧅 OnionMarket + 🛵 BeuherEats débloqués", 5000);
+    } else {
+      pushYouss("in", "réglo. 🐺");
+      journal("🐺", "Re-front de Youss remboursé.", "↩ tes ventes", "good");
+    }
     renderYouss(); renderStake(); broadcast(); save();
     return;
   }

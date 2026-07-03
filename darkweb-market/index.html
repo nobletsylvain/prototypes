@@ -501,6 +501,17 @@ function repRank(s){ const c = rel(s.id).count; return c>=10?3 : c>=5?2 : c>=2?1
 function qtyBase(s){
   if(s.family === 'graines') return s.qtys;                       // sachets 3/5/10 graines (roster embed uniquement)
   if(s.family === 'fournitures') return s.qtys;                   // paliers hétérogènes par item (coupe/matériel/ressource)
+  // Mode Bigo : l'économie partagée démarre ~10x plus petite que le standalone
+  // (20 € vs 1600 €) — paliers d'entrée réduits, même échelle relative, pour que
+  // le premier re-up après Youss reste atteignable (équilibrage systémique, R9).
+  if(EMBED){
+    if(s.family === 'coke')    return [2,5,10,25,50];
+    if(s.family === 'mdma')    return [5,10,25,50,100];
+    if(s.family === 'cachets') return [10,25,50,100,250];
+    if(s.family === 'speed')   return [10,25,50,100,250];
+    if(s.family === 'weed')    return [25,50,100,250];
+    return [10,25,50,100,250];                                    // résine & co
+  }
   if(s.family === 'cachets') return [50,100,250,500,1000];        // à l'unité
   if(s.family === 'coke')    return [10,25,50,100,250];           // cher, petits paliers
   if(s.family === 'mdma')    return [25,50,100,250,500];
