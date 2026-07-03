@@ -9,6 +9,26 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-03 — Plantation : un plant = une tige, coupe au pied
+
+Décision de Sylvain : chaque plante REPRÉSENTE une tige — elle part donc
+ENTIÈRE au séchoir, et le fil (4 crochets) fait sécher jusqu'à 4 récoltes
+en parallèle. Conséquences :
+
+- **Plant plus grand** (PLANT_H 3.0) : c'est une tige à part entière, têtes
+  sur toute la hauteur. Ampoules remontées (+4.3) — corrige au passage le
+  chevauchement lampe/plante signalé en test à maturité.
+- **La coupe change de geste** : plus de 4 swipes de branches — UN SEUL
+  swipe vif AU PIED du plant (zone de hit au bas de la tige) tranche tout.
+  Le pot se libère aussitôt, la tige vole au crochet libre.
+- **Tige pendue** = longue cola courbée (2.15) à 10 têtes alternées +
+  mains de chanvre tombantes, façon recolte/. Le frotté (lent = A, vif =
+  trim) et l'arbitrage sec/humide sont inchangés ; en embed les comptes
+  par tige (variety, sentG, qsum, trim) sont conservés tels quels.
+- Fil rehaussé (LINE_Y 2.75), cadrage caméra ajusté (BASE_TY 1.35).
+- Prépare le terrain aux fils d'étendage supplémentaires + bac de récolte
+  sous le fil (cf. feuille de route).
+
 ## 2026-07-03 — Plantation : retours visuels + feuille de route outils
 
 Retours de Sylvain sur le refresh visuel (« très chouette, j'aime beaucoup la

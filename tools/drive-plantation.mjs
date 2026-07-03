@@ -62,14 +62,14 @@ for (let i = 0; i < 300 && s.phase === "growing"; i++) {
 console.log("mature ?", s.phase, "growth", s.growth.toFixed(2), "humidité", s.moisture.toFixed(2));
 await shot("06-mature.png");
 
-// 4) Couper le plant : swipes VIFS -> les branches partent pendre au fil
-for (let i = 0; i < 30 && s.phase === "mature"; i++) {
-  const p = s.plantTop;
-  await swipe(p.x - 70, p.y - 15, p.x + 70, p.y + 15, 60, 4);
-  await sleep(250);
+// 4) Couper la tige : UN swipe VIF au pied du plant -> tige entière au séchoir
+for (let i = 0; i < 10 && s.phase === "mature"; i++) {
+  const p = s.plantBase;
+  await swipe(p.x - 80, p.y - 10, p.x + 80, p.y + 10, 60, 4);
+  await sleep(400);
   s = await st();
 }
-console.log("après coupe:", s.phase, "branches au fil:", s.branches.filter(Boolean).length);
+console.log("après coupe:", s.phase, "tiges au fil:", s.branches.filter(Boolean).length);
 
 // 5) Changement de scène : Culture -> Séchoir (stepper), puis attendre le séchage
 await page.click("#sc-sechoir");
