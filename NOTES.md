@@ -9,6 +9,33 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-03 — Plantation : refresh visuel complet aligné sur recolte/
+
+Le feeling validé, passe visuelle en reprenant le vocabulaire de `recolte/`
+(le proto au meilleur niveau de détail) :
+
+- **Textures procédurales en grain** (canvas 96×96, zéro fichier) sur TOUT :
+  sol en terre battue, murs de pierre (3 teintes de moellons), pot en
+  terre cuite, sac de jute (+ col roulé + terre affleurante), caisse à
+  graines en bois (graines visibles), étagères, bacs.
+- **Têtes = nugs** : icosaèdres bosselés (makeNugGeo) en grappes de 2-3,
+  pistils dans la texture — sur la plante, sur les branches du séchoir,
+  dans le bac STOCK (vraie pile de têtes au lieu d'un cône) et sur les
+  objets qui volent vers les bacs.
+- **Vraies lames de feuilles** (plans déformés : pointe, pli central,
+  courbure) partout — feuillage d'étages, feuilles gourmandes (avec deux
+  folioles), sugar leaves au cul des têtes, feuilles des branches sèches.
+- **Tiges courbées** (CatmullRom + tube) : silhouette retirée à CHAQUE
+  semis (dérive + cambrure), les têtes/feuilles suivent la courbe via
+  st.cx/st.cz. Branches du séchoir en petit tube courbé aussi.
+- **Bac TRIM** : déchet végétal (brindilles, lames sèches, miettes) façon
+  recolte/. Fil du séchoir en métal (metalness), arrosoir métallisé + pomme.
+- **Éclairage recalé** : après la première passe (trop claire, ambiance
+  cave perdue), sol/murs/têtes assombris, pistils adoucis, halo de
+  guidage plus discret.
+- Boucle et navigation revalidées headless après chaque passe (32 g → 372 €,
+  zéro erreur console).
+
 ## 2026-07-03 — Plantation : navigation au swipe + pots multiples en étagères
 
 Retours de test sur le proto Plantation (le travelling entre scènes « super

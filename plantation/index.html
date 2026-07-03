@@ -390,16 +390,16 @@ window.addEventListener("resize", resize);
 /* -------------------------------------------------------------------------
    2) LUMIÈRES + CAVE (mur de pierre + ampoules nues, deux pièces)
    ------------------------------------------------------------------------- */
-scene.add(new THREE.HemisphereLight(0xe8ffd8, 0x1a2416, 0.55));
-const sun = new THREE.DirectionalLight(0xfff2d8, 1.2);
+scene.add(new THREE.HemisphereLight(0xe8ffd8, 0x1a2416, 0.42));
+const sun = new THREE.DirectionalLight(0xffffe8, 1.1);
 sun.position.set(3, 9, 5); sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024); sun.shadow.bias = -0.0004;
 const sc = sun.shadow.camera; sc.left = -7; sc.right = 7; sc.top = 14; sc.bottom = -7; sc.near = 1; sc.far = 30;
 scene.add(sun);
-const fill = new THREE.DirectionalLight(0xa8ffc0, 0.35); fill.position.set(-4, 3, 6); scene.add(fill);
+const fill = new THREE.DirectionalLight(0xbce0ff, 0.32); fill.position.set(-4, 3, 6); scene.add(fill);
 
-const floorMat = new THREE.MeshStandardMaterial({ color: 0x4a3a2c, roughness: 0.9 });
-const wallMat  = new THREE.MeshStandardMaterial({ color: 0x585d63, roughness: 0.95 });
+const floorMat = new THREE.MeshStandardMaterial({ map: grainTex(64, 50, 36, 30, 26, 6), roughness: 0.92 });   // terre battue
+const wallMat  = new THREE.MeshStandardMaterial({ map: grainTex(72, 76, 83, 24, 0, 6), roughness: 0.95 });   // pierre
 const floor = new THREE.Mesh(new THREE.BoxGeometry(18, 0.3, 9), floorMat);
 floor.position.set(SECHOIR_X / 2, -0.15, 0.6); floor.receiveShadow = true; scene.add(floor);
 const WALL_H = 6 + MAX_POTS * LEVEL_H;
@@ -408,15 +408,20 @@ wall.position.set(SECHOIR_X / 2, WALL_H / 2 - 0.3, -2.2); wall.receiveShadow = t
 // Cloison entre les deux pièces (la caméra passe devant, l'œil comprend « à côté »)
 const divider = new THREE.Mesh(new THREE.BoxGeometry(0.35, WALL_H, 2.2), wallMat);
 divider.position.set(SECHOIR_X / 2, WALL_H / 2 - 0.3, -1.2); scene.add(divider);
-// Moellons en relief (décor, positions figées) — un pan par pièce et par étage
-const stoneMat = new THREE.MeshStandardMaterial({ color: 0x5d6268, roughness: 1 });
+// Moellons en relief (décor, positions figées) — un pan par pièce et par étage,
+// trois teintes de pierre pour casser la répétition.
+const stoneMats = [
+  new THREE.MeshStandardMaterial({ map: grainTex(80, 84, 91, 28, 0, 1), roughness: 1 }),
+  new THREE.MeshStandardMaterial({ map: grainTex(70, 74, 80, 28, 0, 1), roughness: 1 }),
+  new THREE.MeshStandardMaterial({ map: grainTex(86, 88, 82, 28, 0, 1), roughness: 1 }),
+];
 for (const ox of [0, SECHOIR_X]) {
   for (let lvl = 0; lvl < (ox === 0 ? MAX_POTS : 1); lvl++) {
     for (let i = 0; i < 26; i++) {
-      const s = new THREE.Mesh(new THREE.SphereGeometry(0.22 + (i % 5) * 0.05, 8, 6), stoneMat);
+      const s = new THREE.Mesh(new THREE.SphereGeometry(0.22 + (i % 5) * 0.05, 8, 6), stoneMats[i % 3]);
       s.position.set(ox - 4.2 + (i % 7) * 1.4 + (i % 3) * 0.2,
         lvl * LEVEL_H + 0.5 + Math.floor(i / 7) * 1.15, -2.05);
-      s.scale.z = 0.1; scene.add(s);
+      s.scale.z = 0.12; s.rotation.z = (i % 5) * 0.4; scene.add(s);
     }
   }
 }
@@ -431,25 +436,102 @@ const bulbLight2 = new THREE.PointLight(0xffd9a0, 9, 8, 2);
 bulbLight2.position.set(SECHOIR_X, 3.0, -0.6); scene.add(bulbLight2);
 
 /* -------------------------------------------------------------------------
-   3) GÉOMÉTRIES & MATÉRIAUX PARTAGÉS
+   3) TEXTURES PROCÉDURALES + GÉOMÉTRIES & MATÉRIAUX PARTAGÉS
+   Grain canvas façon recolte/ (aucun fichier externe) : casse l'aspect
+   « plastique plat » de tous les matériaux.
    ------------------------------------------------------------------------- */
-const potMat   = new THREE.MeshStandardMaterial({ color: 0xa8563a, roughness: 0.8 });
+function grainTex(r, g, b, contrast, spots, rep) {
+  const c = document.createElement("canvas"); c.width = c.height = 96;
+  const x = c.getContext("2d");
+  const img = x.createImageData(96, 96);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * contrast;
+    img.data[i]   = Math.max(0, Math.min(255, r + n));
+    img.data[i+1] = Math.max(0, Math.min(255, g + n));
+    img.data[i+2] = Math.max(0, Math.min(255, b + n));
+    img.data[i+3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  for (let k = 0; k < (spots || 0); k++) {                 // pistils / taches
+    x.fillStyle = "rgba(230,206,140," + (Math.random() * 0.32) + ")";
+    x.fillRect(Math.random() * 96, Math.random() * 96, Math.random() * 2 + 1, Math.random() * 2 + 1);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep || 2, rep || 2);
+  return t;
+}
+function hexRGB(c) { return [(c >> 16) & 255, (c >> 8) & 255, c & 255]; }
+function matteTex(col, contrast, rep) {
+  const [r, g, b] = hexRGB(col);
+  return grainTex(r, g, b, contrast == null ? 14 : contrast, 0, rep || 2);
+}
+
+const potMat   = new THREE.MeshStandardMaterial({ map: matteTex(0x8f4630, 30, 2), roughness: 0.85 });
 const SOIL_DRY = new THREE.Color(0x9a7248), SOIL_WET = new THREE.Color(0x3f2d1d);
-const stemMat  = new THREE.MeshStandardMaterial({ color: 0x3f6b2e, roughness: 0.85 });
-const leafDecoMat = new THREE.MeshStandardMaterial({ color: 0x27632c, roughness: 0.85, side: THREE.DoubleSide });
-const canMat   = new THREE.MeshStandardMaterial({ color: 0x3f7fae, roughness: 0.45, metalness: 0.3 });
-const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a6a42, roughness: 0.9 });
-const seedMat  = new THREE.MeshStandardMaterial({ color: 0x5d4426, roughness: 0.6 });
-const shelfMat = new THREE.MeshStandardMaterial({ color: 0x6e5638, roughness: 0.85 });
+// Terre : grain neutre × couleur (la couleur lit l'humidité, le grain la matière)
+const soilBaseTex = grainTex(200, 178, 152, 46, 26, 2);
+const stemMat  = new THREE.MeshStandardMaterial({ map: grainTex(88, 122, 62, 34, 0, 2), roughness: 0.9 });
+const leafDecoMat = new THREE.MeshStandardMaterial({ map: grainTex(40, 86, 40, 28, 0, 2), roughness: 0.9, side: THREE.DoubleSide });
+const canMat   = new THREE.MeshStandardMaterial({ map: matteTex(0x3f7fae, 18, 2), roughness: 0.35, metalness: 0.5 });
+const crateMat = new THREE.MeshStandardMaterial({ map: grainTex(138, 106, 66, 40, 0, 2), roughness: 0.9 });
+const seedMat  = new THREE.MeshStandardMaterial({ map: grainTex(96, 70, 40, 36, 10, 1), roughness: 0.6 });
+const shelfMat = new THREE.MeshStandardMaterial({ map: grainTex(110, 86, 56, 42, 0, 3), roughness: 0.85 });
 const LEAF_FRESH = new THREE.Color(0x8ecf4a), LEAF_HARD = new THREE.Color(0x5d7a2a);
+// Feuille gourmande : grain neutre × couleur (lerp fraîche -> durcie)
+const leafBaseTex = grainTex(172, 194, 142, 30, 0, 2);
+// Têtes : grain vert + pistils clairs (façon nugs de recolte/)
+const budTex = grainTex(86, 126, 52, 44, 45, 2);
+// Têtes du séchoir : grain neutre × couleur (lerp verte -> brune au séchage)
+const budNeutralTex = grainTex(172, 180, 152, 42, 42, 2);
 const PLANT_H = 2.0;
 
+// Nug (tête) : icosaèdre bosselé — LA forme organique de recolte/.
+function makeNugGeo(r) {
+  const g = new THREE.IcosahedronGeometry(r, 1);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const f = 0.74 + Math.random() * 0.5;
+    p.setXYZ(i, p.getX(i) * f, p.getY(i) * f, p.getZ(i) * f);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+const nugGeoBig = makeNugGeo(0.15), nugGeoMid = makeNugGeo(0.11), nugGeoSm = makeNugGeo(0.08);
+function makeNug(mat, geo) {
+  const m = new THREE.Mesh(geo || nugGeoBig, mat);
+  m.castShadow = true;
+  m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+  return m;
+}
+
+// Vraie LAME de feuille : plan déformé (pointe, pli central, courbure) — recolte/.
+function bladeGeo(len, wid) {
+  const g = new THREE.PlaneGeometry(wid, len, 4, 6);
+  const p = g.attributes.position;
+  for (let k = 0; k < p.count; k++) {
+    const u = p.getX(k) / wid, v = p.getY(k) / len;             // -0.5..0.5
+    const taper = Math.cos(v * Math.PI) * 0.5 + 0.5;            // pointes aux deux bouts
+    p.setX(k, p.getX(k) * (0.3 + taper * 0.9));
+    p.setZ(k, Math.cos(u * Math.PI) * wid * 0.16 - Math.abs(v) * len * 0.1);  // pli + courbure
+  }
+  g.translate(0, len / 2, 0);                                   // origine à la base (comme avant)
+  g.computeVertexNormals();
+  return g;
+}
+const bladeCache = {};
 function leafBlade(len, wid, mat) {
-  const shp = new THREE.Shape();
-  shp.moveTo(0, 0); shp.lineTo(wid * 0.5, len * 0.45); shp.lineTo(0, len); shp.lineTo(-wid * 0.5, len * 0.45); shp.closePath();
-  const m = new THREE.Mesh(new THREE.ShapeGeometry(shp), mat);
+  const key = len.toFixed(2) + "_" + wid.toFixed(2);
+  if (!bladeCache[key]) bladeCache[key] = bladeGeo(len, wid);
+  const m = new THREE.Mesh(bladeCache[key], mat);
   m.rotation.x = -Math.PI / 3; return m;
 }
+
+// Brindilles & miettes (bac TRIM, débris)
+const twigGeo  = new THREE.CylinderGeometry(0.016, 0.010, 0.28, 8);
+const crumbGeo = new THREE.IcosahedronGeometry(0.07, 1);
+const matTwig  = new THREE.MeshStandardMaterial({ map: grainTex(108, 84, 46, 30, 18, 2), roughness: 0.95 });
+const matCrumb = new THREE.MeshStandardMaterial({ map: grainTex(120, 112, 62, 26, 12, 2), roughness: 0.92 });
+const matWasteLeaf = new THREE.MeshStandardMaterial({ map: grainTex(96, 120, 60, 26, 14, 2), roughness: 0.9, side: THREE.DoubleSide });
 
 // Positions LOCALES d'une station (x/z ; y = étage)
 const POT_POS   = new THREE.Vector3(0, 0, 0.15);
@@ -471,6 +553,26 @@ function makeLabel(text, color) {
 }
 
 const stations = [];
+// Silhouette de tige : dérive + cambrure retirées à chaque semis. Le tube est
+// construit en hauteur normalisée (0..1) puis étiré par scale.y = hauteur —
+// les décalages x/z de la courbe restent constants, les têtes/feuilles se
+// placent avec les mêmes fonctions st.cx/st.cz.
+function buildStemCurve(st) {
+  const bend = (Math.random() - 0.5) * 0.28;
+  const lean = (Math.random() - 0.5) * 0.16;
+  const ph   = 1.6 + Math.random() * 1.2;
+  const zb   = (Math.random() - 0.5) * 0.2;
+  st.cx = (u) => Math.sin(u * ph) * bend * (0.3 + u) + u * lean;
+  st.cz = (u) => Math.sin(u * 1.4 + 0.8) * zb * u;
+  const pts = [];
+  for (let i = 0; i <= 8; i++) {
+    const u = i / 8;
+    pts.push(new THREE.Vector3(st.cx(u), u, st.cz(u)));
+  }
+  const tube = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.045, 6, false);
+  if (st.stem.geometry) st.stem.geometry.dispose();
+  st.stem.geometry = tube;
+}
 function makeStation(lvl) {
   const Y = lvl * LEVEL_H;
   const st = {
@@ -513,31 +615,40 @@ function makeStation(lvl) {
   potSaucer.position.y = 0.04; pot.add(potSaucer);
   scene.add(pot);
 
-  st.soilMat = new THREE.MeshStandardMaterial({ color: 0x9a7248, roughness: 1 });
+  st.soilMat = new THREE.MeshStandardMaterial({ map: soilBaseTex, color: 0x9a7248, roughness: 1 });
   st.soilDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.1, 22), st.soilMat);
   st.soilDisc.position.set(POT_POS.x, Y + 0.2, POT_POS.z); st.soilDisc.visible = false; scene.add(st.soilDisc);
   st.puddle = new THREE.Mesh(new THREE.CircleGeometry(0.7, 24),
-    new THREE.MeshStandardMaterial({ color: 0x4d7ba6, transparent: true, opacity: 0.55, roughness: 0.1 }));
+    new THREE.MeshStandardMaterial({ color: 0x4d7ba6, transparent: true, opacity: 0.5, roughness: 0.06, metalness: 0.3 }));
   st.puddle.rotation.x = -Math.PI / 2; st.puddle.position.set(POT_POS.x + 0.5, Y + 0.011, POT_POS.z + 0.4);
   st.puddle.visible = false; scene.add(st.puddle);
 
-  // SAC DE TERREAU
+  // SAC DE TERREAU (toile de jute + bande imprimée + col roulé)
   st.soilSack = new THREE.Group(); st.soilSack.position.set(SOIL_POS.x, Y, SOIL_POS.z);
   const sackBody = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.95, 14),
-    new THREE.MeshStandardMaterial({ color: 0x6b4f35, roughness: 0.95 }));
+    new THREE.MeshStandardMaterial({ map: grainTex(118, 89, 60, 40, 0, 3), roughness: 0.98 }));
   sackBody.position.y = 0.48; sackBody.castShadow = true; st.soilSack.add(sackBody);
   const sackBand = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.48, 0.3, 14),
-    new THREE.MeshStandardMaterial({ color: 0xd8c79a, roughness: 0.8 }));
+    new THREE.MeshStandardMaterial({ map: grainTex(216, 199, 154, 22, 0, 2), roughness: 0.85 }));
   sackBand.position.y = 0.5; st.soilSack.add(sackBand);
+  const sackRoll = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.07, 8, 14),
+    new THREE.MeshStandardMaterial({ map: grainTex(104, 78, 52, 40, 0, 2), roughness: 0.98 }));
+  sackRoll.position.y = 0.96; sackRoll.rotation.x = Math.PI / 2; st.soilSack.add(sackRoll);
+  // De la terre qui affleure au col du sac
+  const sackSoil = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.08, 12), st.soilMat.clone());
+  sackSoil.material.color.setHex(0x6d5138); sackSoil.position.y = 0.96; st.soilSack.add(sackSoil);
   scene.add(st.soilSack);
-  st.sackPick = [sackBody, sackBand];
+  st.sackPick = [sackBody, sackBand, sackRoll, sackSoil];
 
-  // CAISSE DE GRAINES
+  // CAISSE DE GRAINES (bois + lattes + graines visibles)
   st.seedCrate = new THREE.Group(); st.seedCrate.position.set(SEED_POS.x, Y, SEED_POS.z);
   const crate = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.4, 0.55), crateMat);
   crate.position.y = 0.2; crate.castShadow = true; st.seedCrate.add(crate);
-  const seedInCrate = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), seedMat);
-  seedInCrate.position.set(0.05, 0.45, 0); seedInCrate.scale.y = 1.35; st.seedCrate.add(seedInCrate);
+  for (let i = 0; i < 3; i++) {
+    const seedIn = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), seedMat);
+    seedIn.position.set(-0.15 + i * 0.16, 0.44, (i % 2 ? 0.09 : -0.07));
+    seedIn.scale.y = 1.35; seedIn.rotation.z = i * 0.5; st.seedCrate.add(seedIn);
+  }
   scene.add(st.seedCrate);
 
   // ARROSOIR
@@ -549,6 +660,8 @@ function makeStation(lvl) {
   canSpout.position.set(-0.38, 0.42, 0); canSpout.rotation.z = 0.9; st.can.add(canSpout);
   const canHandle = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.035, 8, 16), canMat);
   canHandle.position.set(0.28, 0.42, 0); st.can.add(canHandle);
+  const canRose = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.05, 0.07, 10), canMat);
+  canRose.position.set(-0.66, 0.62, 0); canRose.rotation.z = 0.9; st.can.add(canRose);
   scene.add(st.can);
 
   // BOUTEILLE DE BOOSTER
@@ -563,12 +676,14 @@ function makeStation(lvl) {
   bottleCap.position.y = 0.76; st.boostBottle.add(bottleCap);
   scene.add(st.boostBottle);
 
-  // LA PLANTE
+  // LA PLANTE — tige COURBÉE (tube CatmullRom, silhouette retirée à chaque
+  // semis) : chaque plante a sa dérive et sa cambrure, façon colas de recolte/.
   st.plantGroup = new THREE.Group();
   st.plantGroup.position.set(POT_POS.x, Y + 0.62, POT_POS.z);
   scene.add(st.plantGroup);
-  st.stem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.06, 1, 8), stemMat);
+  st.stem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.055, 1, 8), stemMat);
   st.stem.castShadow = true; st.plantGroup.add(st.stem);
+  buildStemCurve(st);
   // Cylindre de hit invisible : la coupe au swipe est indulgente (au pouce,
   // on tranche « à travers la plante », pas une tige fine).
   st.plantHit = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1, 8),
@@ -595,26 +710,42 @@ function makeStation(lvl) {
   for (let i = 0; i < N_BUDS; i++) {
     const isCola = i === N_BUDS - 1;
     const grp = new THREE.Group();
-    const size = isCola ? 0.27 : 0.16;
-    const m = new THREE.Mesh(new THREE.ConeGeometry(size, size * 2.4, 9),
-      new THREE.MeshStandardMaterial({ color: 0x93c25a, roughness: 0.8, emissive: 0x2a4d0e, emissiveIntensity: 0.0 }));
-    m.castShadow = true; grp.add(m);
-    for (let p = 0; p < 3; p++) {
-      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, size * 1.4, 4),
-        new THREE.MeshStandardMaterial({ color: 0xead9a0, roughness: 0.9 }));
-      h.position.set((p - 1) * size * 0.4, size * 0.6, 0); h.rotation.z = (p - 1) * 0.5;
-      grp.add(h);
+    // Une tête = grappe de nugs bosselés (2-3), un matériau par tête pour le
+    // pulse émissif à maturité. La cola du sommet est une pile de 3.
+    const mat = new THREE.MeshStandardMaterial({ map: budTex, roughness: 0.85, emissive: 0x2a4d0e, emissiveIntensity: 0.0 });
+    const main = makeNug(mat, isCola ? nugGeoBig : nugGeoMid);
+    if (isCola) main.scale.setScalar(1.3);
+    grp.add(main);
+    const side = makeNug(mat, nugGeoSm);
+    side.position.set(0.08, isCola ? -0.16 : -0.1, 0.04);
+    grp.add(side);
+    if (isCola) {
+      const top = makeNug(mat, nugGeoMid);
+      top.position.set(-0.03, 0.17, -0.02); grp.add(top);
+    }
+    // Deux petites lames au cul de la tête (sugar leaves)
+    for (let p = 0; p < 2; p++) {
+      const lf = leafBlade(0.16, 0.08, leafDecoMat);
+      lf.position.set((p ? 0.07 : -0.07), -0.1, 0);
+      lf.rotation.z = p ? -1.9 : 1.9;
+      grp.add(lf);
     }
     const t = isCola ? 1.0 : 0.42 + (i / (N_BUDS - 1)) * 0.52;
-    grp.userData = { t, ang: i * 2.4, off: isCola ? 0 : 0.15, taken: false, g: 0 };
+    grp.userData = { t, ang: i * 2.4, off: isCola ? 0 : 0.15, taken: false, g: 0, mat };
     grp.visible = false;
     st.buds.push(grp); st.plantGroup.add(grp);
   }
   st.gLeaves = [];
   for (let i = 0; i < LEAF_MAX; i++) {
     const grp = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({ color: 0x8ecf4a, roughness: 0.8, side: THREE.DoubleSide });
+    const mat = new THREE.MeshStandardMaterial({ map: leafBaseTex, color: 0x8ecf4a, roughness: 0.85, side: THREE.DoubleSide });
     grp.add(leafBlade(0.55, 0.3, mat));
+    // Deux folioles latérales : la feuille gourmande a une vraie main de cannabis
+    for (const s of [-1, 1]) {
+      const sub = leafBlade(0.36, 0.16, mat);
+      sub.rotation.z = s * 0.85; sub.position.y = 0.04;
+      grp.add(sub);
+    }
     const hit = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 6),
       new THREE.MeshBasicMaterial({ visible: false }));
     hit.position.y = 0.3; grp.add(hit);
@@ -633,7 +764,7 @@ function makeStation(lvl) {
    ------------------------------------------------------------------------- */
 const LINE_Y = 2.0, LINE_Z = -1.55;
 const LINE_POS = new THREE.Vector3(SECHOIR_X, 0, -1.1);
-const wireMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.7 });
+const wireMat = new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 0.4, roughness: 0.5 });
 const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 4.6, 6), wireMat);
 wire.rotation.z = Math.PI / 2; wire.position.set(SECHOIR_X, LINE_Y, LINE_Z); scene.add(wire);
 for (const nx of [SECHOIR_X - 2.3, SECHOIR_X + 2.3]) {
@@ -652,24 +783,34 @@ function attachBranch(hook) {
   grp.position.set(hook.x, LINE_Y, LINE_Z);
   const tie = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.015, 6, 10), wireMat);
   tie.position.y = -0.03; grp.add(tie);
-  const stM = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.035, 0.75, 7), stemMat);
-  stM.position.y = -0.42; stM.castShadow = true; grp.add(stM);
+  // Tige de branche légèrement courbée (tube), tête en bas
+  const bBend = (Math.random() - 0.5) * 0.12;
+  const pts = [];
+  for (let i = 0; i <= 5; i++) {
+    const u = i / 5;
+    pts.push(new THREE.Vector3(Math.sin(u * 2.2) * bBend, -0.05 - u * 0.75, 0));
+  }
+  const stM = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.024, 6, false), matTwig);
+  stM.castShadow = true; grp.add(stM);
   hook.buds = []; hook.budMats = []; hook.leafMats = [];
   for (let i = 0; i < BUDS_PER_BRANCH; i++) {
-    const mat = new THREE.MeshStandardMaterial({ color: 0x93c25a, roughness: 0.8 });
-    const bud = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.34, 9), mat);
-    bud.rotation.x = Math.PI;
-    bud.position.set((i % 2 === 0 ? 0.09 : -0.09), -0.3 - i * 0.32, 0.02);
-    bud.castShadow = true; grp.add(bud);
+    // Tête = grappe de 2 nugs bosselés ; grain neutre × couleur (le lerp de
+    // séchage vert -> brun vit dans material.color).
+    const mat = new THREE.MeshStandardMaterial({ map: budNeutralTex, color: 0x93c25a, roughness: 0.85 });
+    const budGrp = new THREE.Group();
+    budGrp.position.set((i % 2 === 0 ? 0.11 : -0.11), -0.3 - i * 0.32, 0.02);
+    const main = makeNug(mat, nugGeoMid); main.scale.setScalar(1.25); budGrp.add(main);
+    const side = makeNug(mat, nugGeoSm); side.position.set(0.05, -0.11, 0.03); budGrp.add(side);
+    grp.add(budGrp);
     const hit = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 6),
       new THREE.MeshBasicMaterial({ visible: false }));
-    hit.position.copy(bud.position); grp.add(hit);
+    hit.position.copy(budGrp.position); grp.add(hit);
     hit.userData.ref = { hook, idx: i };
-    hook.buds.push({ mesh: bud, hit, taken: false });
+    hook.buds.push({ mesh: budGrp, hit, taken: false });
     hook.budMats.push(mat);
   }
   for (let i = 0; i < 2; i++) {
-    const mat = new THREE.MeshStandardMaterial({ color: 0x27632c, roughness: 0.85, side: THREE.DoubleSide });
+    const mat = new THREE.MeshStandardMaterial({ map: leafBaseTex, color: 0x27632c, roughness: 0.85, side: THREE.DoubleSide });
     const blade = leafBlade(0.3, 0.14, mat);
     blade.position.set(i === 0 ? 0.1 : -0.1, -0.55 - i * 0.15, 0);
     blade.rotation.z = Math.PI + (i === 0 ? 0.5 : -0.5);
@@ -705,29 +846,44 @@ function updateLine(dt) {
   }
 }
 
-function makeBin(pos, col) {
+// Bacs façon recolte/ : caisse plastique matte texturée, fond plus sombre,
+// avec un TAS de vraies têtes (ou de déchet végétal) dont la taille suit le poids.
+const budPileMat = new THREE.MeshStandardMaterial({ map: budTex, roughness: 0.88 });
+function dressWasteBit(m, i) {
+  const kind = i % 3;
+  if (kind === 0) { m.geometry = twigGeo; m.material = matTwig; m.rotation.set((i % 3 - 1) * 0.5, i * 1.7, Math.PI / 2 + (i % 2 ? 0.4 : -0.4)); }
+  else if (kind === 1) { m.geometry = bladeCache["0.30_0.14"] || (bladeCache["0.30_0.14"] = bladeGeo(0.3, 0.14)); m.material = matWasteLeaf; m.scale.setScalar(0.9 + (i % 3) * 0.12); m.rotation.set(-Math.PI / 2 + (i % 3 - 1) * 0.35, i * 0.9, (i % 2 ? 1 : -1) * 0.6); }
+  else { m.geometry = crumbGeo; m.material = matCrumb; m.scale.setScalar(0.85 + (i % 4) * 0.16); m.rotation.set(i, i * 2.1, i * 0.7); }
+  m.castShadow = true;
+  return m;
+}
+function makeBin(pos, col, isWaste) {
   const grp = new THREE.Group(); grp.position.copy(pos);
-  const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, metalness: 0.1, side: THREE.DoubleSide });
+  const mat = new THREE.MeshStandardMaterial({ map: matteTex(col, 18, 1), roughness: 0.78, metalness: 0.08, side: THREE.DoubleSide });
+  const floorM = new THREE.MeshStandardMaterial({ map: matteTex((col >> 1) & 0x7f7f7f, 12, 1), roughness: 0.9, side: THREE.DoubleSide });
   const w = 1.35, d = 1.0, h = 0.4, th = 0.07;
-  const fl = new THREE.Mesh(new THREE.BoxGeometry(w, th, d), mat); fl.position.y = th / 2; fl.receiveShadow = true; grp.add(fl);
-  const wLR = (x) => { const m = new THREE.Mesh(new THREE.BoxGeometry(th, h, d), mat); m.position.set(x, h / 2, 0); grp.add(m); };
-  const wFB = (z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, th), mat); m.position.set(0, h / 2, z); grp.add(m); };
+  const fl = new THREE.Mesh(new THREE.BoxGeometry(w, th, d), floorM); fl.position.y = th / 2; fl.receiveShadow = true; grp.add(fl);
+  const wLR = (x) => { const m = new THREE.Mesh(new THREE.BoxGeometry(th, h, d), mat); m.position.set(x, h / 2, 0); m.castShadow = true; grp.add(m); };
+  const wFB = (z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, th), mat); m.position.set(0, h / 2, z); m.castShadow = true; grp.add(m); };
   wLR(-w / 2); wLR(w / 2); wFB(-d / 2); wFB(d / 2);
+  // Pile de contenu (visibilité pilotée par les grammes)
+  const pile = new THREE.Group(); grp.add(pile);
+  const PMAX = 14;
+  for (let i = 0; i < PMAX; i++) {
+    const m = isWaste ? dressWasteBit(new THREE.Mesh(twigGeo, matTwig), i) : makeNug(budPileMat, i % 3 ? nugGeoMid : nugGeoBig);
+    const layer = Math.floor(i / 7), idx = i % 7, cx = idx % 4, rz = Math.floor(idx / 4);
+    m.position.set(-0.42 + cx * 0.28, 0.14 + layer * 0.14, -0.2 + rz * 0.4);
+    m.visible = false; pile.add(m);
+  }
+  grp.userData.pile = pile; grp.userData.PMAX = PMAX;
   scene.add(grp); return grp;
 }
 const stockBin = makeBin(STOCK_POS, 0x2f8a4e);
-const trimBin  = makeBin(TRIM_POS, 0x7a6a3a);
-function makeHeap(col) {
-  const m = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.42, 16),
-    new THREE.MeshStandardMaterial({ color: col, roughness: 0.95 }));
-  m.castShadow = true; m.visible = false; scene.add(m); return m;
-}
-const stockHeap = makeHeap(0x3f7a34); stockHeap.position.set(STOCK_POS.x, 0.18, STOCK_POS.z);
-const trimHeap  = makeHeap(0x6f7a3a); trimHeap.position.set(TRIM_POS.x, 0.18, TRIM_POS.z);
-function setHeap(mesh, g, maxG) {
-  const k = Math.min(1, g / maxG);
-  const s = 0.2 + 0.9 * Math.cbrt(k);
-  mesh.visible = g > 0.3; mesh.scale.set(s, 0.5 + 0.65 * k, s);
+const trimBin  = makeBin(TRIM_POS, 0x7a6a3a, true);
+function setHeap(bin, g, maxG) {
+  const pile = bin.userData.pile, PMAX = bin.userData.PMAX;
+  const n = Math.max(0, Math.min(PMAX, Math.ceil(g / maxG * PMAX)));
+  for (let i = 0; i < PMAX; i++) pile.children[i].visible = i < n;
 }
 
 // Halo de guidage
@@ -901,8 +1057,9 @@ function updateParts(dt) {
 }
 const fliers = [];
 function spawnFlier(from, to, col, size) {
-  const m = new THREE.Mesh(new THREE.ConeGeometry(size || 0.1, (size || 0.1) * 2.2, 8),
-    new THREE.MeshStandardMaterial({ color: col, roughness: 0.85 }));
+  // Ce qui vole est une vraie tête (nug), teintée selon la destination.
+  const m = makeNug(new THREE.MeshStandardMaterial({ map: budNeutralTex, color: col, roughness: 0.85 }), nugGeoMid);
+  m.scale.setScalar((size || 0.1) * 12);
   m.position.copy(from); scene.add(m);
   fliers.push({ mesh: m, from: from.clone(), to: to.clone(), t: 0 });
 }
@@ -1067,6 +1224,7 @@ function dropSeed() {
   if (d > 0.9) { showToast("Lâche la graine dans le pot", "#e6c896"); sErr(); return; }
   const sd = takeSeed();   // standalone : stock local ; embed : graine PARTAGÉE (bigo-txn seedsTake)
   if (!sd) { showToast(NO_SEED_MSG, "#ff6b6b"); sErr(); return; }
+  buildStemCurve(st);                       // nouvelle silhouette pour la nouvelle plante
   st.phase = "growing"; st.seed = sd;   // la plante retient sa variété (sd.variety en embed)
   st.growth = 0; st.moisture = MOIST_START; st.soggyT = 0;
   st.careWater = 0; st.qualTrim = 1; st.fert = false; st.pgr = false;
@@ -1135,7 +1293,7 @@ function spawnLeaf(st) {
 }
 function placeLeaf(st, L) {
   const y = L.t * PLANT_H * Math.max(0.25, st.growth);
-  L.grp.position.set(Math.cos(L.ang) * 0.1, y, Math.sin(L.ang) * 0.1);
+  L.grp.position.set(st.cx(L.t) + Math.cos(L.ang) * 0.1, y, st.cz(L.t) + Math.sin(L.ang) * 0.1);
   L.grp.rotation.y = L.ang;
   L.grp.rotation.z = 0.9;
 }
@@ -1216,12 +1374,12 @@ function updatePlantVisual(st, dt) {
   st.plantGroup.visible = show;
   if (!show) return;
   const h = Math.max(0.1, g) * PLANT_H;
-  st.stem.scale.set(1, h, 1); st.stem.position.y = h / 2;
+  st.stem.scale.set(1, h, 1); st.stem.position.y = 0;   // tube 0..1 étiré en hauteur
   st.plantHit.scale.set(1, h + 0.3, 1); st.plantHit.position.y = h / 2;
   for (const br of st.branches) {
     const t = br.userData.t;
     const k = Math.max(0, Math.min(1, (g - t * 0.6) * 3));
-    br.position.y = t * h;
+    br.position.set(st.cx(t), t * h, st.cz(t));
     br.scale.setScalar(0.15 + 0.85 * k * Math.max(0.3, g));
     br.visible = k > 0.02;
   }
@@ -1230,11 +1388,11 @@ function updatePlantVisual(st, dt) {
     if (u.taken) { b.visible = false; continue; }
     const appear = Math.max(0, Math.min(1, (g - 0.55) * 3.2));
     b.visible = appear > 0.02;
-    b.position.set(Math.cos(u.ang) * u.off, u.t * h, Math.sin(u.ang) * u.off);
+    b.position.set(st.cx(u.t) + Math.cos(u.ang) * u.off, u.t * h, st.cz(u.t) + Math.sin(u.ang) * u.off);
     const swell = 1 + (u.g || 0) * 0.5;
     const pulse = st.phase === "mature" ? 1 + 0.06 * Math.sin(performance.now() / 240 + u.ang) : 1;
     b.scale.setScalar(appear * swell * pulse);
-    b.children[0].material.emissiveIntensity = st.phase === "mature" ? 0.5 : 0.0;
+    u.mat.emissiveIntensity = st.phase === "mature" ? 0.5 : 0.0;
   }
   const droop = st.phase === "growing" && st.moisture < MOIST_BAND[0] ? 0.14 : 0;
   st.plantGroup.rotation.z += (droop - st.plantGroup.rotation.z) * Math.min(1, dt * 3);
@@ -1298,7 +1456,7 @@ function tryBuckAt(cx, cy, speed) {
   if (speed > HARVEST_FAST) {
     if (EMBED) hook.trimSent += budG; else trimG += budG;   // embed : partira en miettes
     spawnFlier(wp, new THREE.Vector3(TRIM_POS.x, 0.4, TRIM_POS.z), 0x6f7a3a, 0.09);
-    setHeap(trimHeap, trimG, 120);
+    setHeap(trimBin, trimG, 120);
     sPop(280); showToast("Trop vif ! → trim 🍂", "#d8cf9a");
   } else {
     const q = Math.max(0.2, Math.min(1, hook.qual + DRY_QUAL_BONUS * hook.dry - WET_MALUS * (1 - hook.dry)));
@@ -1306,7 +1464,7 @@ function tryBuckAt(cx, cy, speed) {
     if (EMBED) { hook.sentG += budG; hook.sentQsum += budG * q; }   // part à la Récolte en fin de branche
     else { stock.g += budG; stock.qsum += budG * q; }
     spawnFlier(wp, new THREE.Vector3(STOCK_POS.x, 0.4, STOCK_POS.z), 0x3f7a34, 0.11);
-    setHeap(stockHeap, stock.g, 200);
+    setHeap(stockBin, stock.g, 200);
     sPop(700 + idx * 40);
   }
   burstParts(wp, 4, leafMatP); addShake(0.05);
@@ -1333,7 +1491,7 @@ function sellOnce() {
   if (stock.g < 0.05) { stock.g = 0; stock.qsum = 0; }
   const price = take * FMT_PRICE[fmt] * q * levelMult();
   setCash(cash + price); addXP(Math.max(1, Math.round(price * 0.06)));
-  setHeap(stockHeap, stock.g, 200);
+  setHeap(stockBin, stock.g, 200);
   sPop(760); burstParts(new THREE.Vector3(STOCK_POS.x, 0.3, STOCK_POS.z), 3, leafMatP);
   updateCount();
   return true;
@@ -1349,7 +1507,7 @@ function sellTrim() {
   const price = trimG * TRIM_PRICE * levelMult();
   setCash(cash + price); addXP(Math.max(1, Math.round(price * 0.06)));
   showToast("Trim bradé : " + Math.round(trimG) + " g → +" + Math.round(price) + " €", "#d8cf9a");
-  trimG = 0; setHeap(trimHeap, 0, 120);
+  trimG = 0; setHeap(trimBin, 0, 120);
   sSale(); updateResources();
 }
 
@@ -1470,7 +1628,7 @@ function updateGuide(dt) {
     const p = 0.5 + 0.5 * Math.sin(glowPhase);
     glow.position.x = pos.x; glow.position.z = pos.z;
     glow.position.y = (scn === "culture" && cur.pot !== undefined ? stations[cur.pot].y : 0) + 0.04;
-    glow.material.opacity = 0.12 + 0.16 * p;
+    glow.material.opacity = 0.09 + 0.12 * p;
     const s = 0.85 + 0.18 * p; glow.scale.set(s, s, s);
   }
 }
@@ -1515,13 +1673,13 @@ el.addEventListener("pointerdown", (e) => {
   ensureAudio();
   lastX = e.clientX; lastY = e.clientY; lastT = performance.now();
 
-  if (rayHit(e.clientX, e.clientY, stockBin.children.concat([stockHeap]))) {
+  if (rayHit(e.clientX, e.clientY, [stockBin], true)) {
     if (EMBED) { showToast("Le branchage séché part à l'app 🌿 Récolte", "#bdf0a3"); return; }
     if (stock.g >= 0.05) { gesture = "bag"; bagging = true; bagHoldT = 0; sellOnce(); }
     else showToast("Récolte d'abord 🌿", "#e6c896");
     return;
   }
-  if (rayHit(e.clientX, e.clientY, trimBin.children.concat([trimHeap]))) {
+  if (rayHit(e.clientX, e.clientY, [trimBin], true)) {
     if (EMBED) { showToast("Le trim part en miettes → planque", "#d8cf9a"); return; }
     sellTrim(); return;
   }
