@@ -330,13 +330,12 @@ const LEAF_MAX     = 3;
 const SWIPE_CUT    = 650;    // px/s mini pour trancher (feuille ou branche — l'intention compte)
 const HARVEST_FAST = 1150;   // px/s au-delà : le bud part en trim
 const N_BUDS       = 14;    // façon colas de recolte/ : des têtes sur toute la hauteur
-const N_BRANCH     = 4;      // le plant se coupe en 4 branches (2 têtes visibles chacune)
-const BUDS_PER_BRANCH = 3;
+const TIGE_BUDS    = 10;     // têtes à frotter sur une tige pendue au séchoir
 const LINE_HOOKS   = 4;      // places sur le fil de séchage
 const DRY_TIME     = FAST_MODE ? 8 : 55;   // s de séchage par branche — timer diégétique
 const DRY_QUAL_BONUS = 0.12; // sécher jusqu'au bout monte la qualité
 const WET_MALUS    = 0.15;   // frotter humide la dégrade (l'impatience se paie)
-const CUT_COOLDOWN = 0.3;    // s entre deux coupes de branche (un swipe = une branche)
+const CUT_COOLDOWN = 0.5;    // anti double-coupe (un swipe au pied = toute la tige)
 const BAG_HOLD     = 0.28;   // s entre deux sachets en maintien
 const QUAL_BASE    = 0.30, QUAL_WATER = 0.45, QUAL_TRIM = 0.25;   // qualité = base + eau + taille
 const YIELD_FLOOR  = 0.75;   // rendement mini (le reste vient du soin d'eau)
@@ -362,8 +361,8 @@ app.appendChild(renderer.domElement);
 const SECHOIR_X   = 7;       // la zone séchoir : la pièce d'à côté, dans la même cave
 const VIEW_DIR    = new THREE.Vector3(0.0, 0.42, 0.91).normalize();  // plus frontal : la plante est verticale
 const VIEW_TARGET = new THREE.Vector3(0.0, 1.05, 0.15);              // .x/.y glissent (travelling)
-const VIEW_RADIUS = Math.hypot(1.75, 1.2, 1.05);
-const BASE_TY     = 1.05;
+const VIEW_RADIUS = Math.hypot(1.8, 1.45, 1.05);
+const BASE_TY     = 1.35;
 const baseCamPos  = new THREE.Vector3();
 let zoom = +(STORE.getItem("plant_zoom")) || 1;
 zoom = Math.max(0.6, Math.min(2.6, zoom));
@@ -430,10 +429,10 @@ const bulbGeo = new THREE.SphereGeometry(0.16, 14, 12);
 const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff6c8, emissive: 0xffe9a0, emissiveIntensity: 0.9, roughness: 0.3 });
 const cableGeo = new THREE.CylinderGeometry(0.015, 0.015, 1.6, 6);
 const cableMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-const bulb2 = new THREE.Mesh(bulbGeo, bulbMat); bulb2.position.set(SECHOIR_X, 3.1, -0.6); scene.add(bulb2);
-const cable2 = new THREE.Mesh(cableGeo, cableMat); cable2.position.set(SECHOIR_X, 3.95, -0.6); scene.add(cable2);
+const bulb2 = new THREE.Mesh(bulbGeo, bulbMat); bulb2.position.set(SECHOIR_X, 3.7, -0.6); scene.add(bulb2);
+const cable2 = new THREE.Mesh(cableGeo, cableMat); cable2.position.set(SECHOIR_X, 4.55, -0.6); scene.add(cable2);
 const bulbLight2 = new THREE.PointLight(0xffd9a0, 9, 8, 2);
-bulbLight2.position.set(SECHOIR_X, 3.0, -0.6); scene.add(bulbLight2);
+bulbLight2.position.set(SECHOIR_X, 3.6, -0.6); scene.add(bulbLight2);
 
 /* -------------------------------------------------------------------------
    3) TEXTURES PROCÉDURALES + GÉOMÉTRIES & MATÉRIAUX PARTAGÉS
@@ -483,7 +482,7 @@ const leafBaseTex = grainTex(172, 194, 142, 30, 0, 2);
 const budTex = grainTex(86, 126, 52, 44, 45, 2);
 // Têtes du séchoir : grain neutre × couleur (lerp verte -> brune au séchage)
 const budNeutralTex = grainTex(172, 180, 152, 42, 42, 2);
-const PLANT_H = 2.45;
+const PLANT_H = 3.0;    // le plant EST une tige entière
 
 // Nug (tête) : icosaèdre bosselé — LA forme organique de recolte/.
 function makeNugGeo(r) {
@@ -598,7 +597,7 @@ function makeStation(lvl) {
     lvl, y: Y,
     phase: "empty", soil: 0, growth: 0, moisture: 0, soggyT: 0,
     careWater: 0, qualTrim: 1, fert: false, pgr: false, seed: null,
-    leafTimer: 0, branchesLeft: 0,
+    leafTimer: 0,
     watering: false, waterFlow: 0, waterSndT: 0,
     pouringSoil: false, soilSndT: 0,
     pouringBoost: false, boostT: 0,
@@ -616,13 +615,13 @@ function makeStation(lvl) {
   }
   // Ampoule de l'étage — le câble s'attache à la planche de l'étage du dessus
   // (réalisme du rack : rien ne flotte), ou file vers le plafond au dernier étage.
-  const bulb = new THREE.Mesh(bulbGeo, bulbMat); bulb.position.set(0, Y + 3.45, 0); scene.add(bulb);
-  const cableLen = lvl < MAX_POTS - 1 ? (LEVEL_H - 0.2 - 3.45) : 1.6;
+  const bulb = new THREE.Mesh(bulbGeo, bulbMat); bulb.position.set(0, Y + 4.3, 0); scene.add(bulb);
+  const cableLen = lvl < MAX_POTS - 1 ? (LEVEL_H - 0.2 - 4.3) : 1.1;
   const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, cableLen, 6), cableMat);
-  cable.position.set(0, Y + 3.45 + 0.08 + cableLen / 2, 0); scene.add(cable);
+  cable.position.set(0, Y + 4.3 + 0.08 + cableLen / 2, 0); scene.add(cable);
   st.bulb = bulb;
   st.light = new THREE.PointLight(0xffe9b0, lvl === 0 ? 12 : 9, 8, 2);
-  st.light.position.set(0, Y + 3.4, 0); scene.add(st.light);
+  st.light.position.set(0, Y + 4.25, 0); scene.add(st.light);
 
   // POT en terre cuite
   const pot = new THREE.Group(); pot.position.set(POT_POS.x, Y, POT_POS.z);
@@ -715,10 +714,11 @@ function makeStation(lvl) {
   st.stem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.055, 1, 8), stemMat);
   st.stem.castShadow = true; st.plantGroup.add(st.stem);
   buildStemCurve(st);
-  // Cylindre de hit invisible : la coupe au swipe est indulgente (au pouce,
-  // on tranche « à travers la plante », pas une tige fine).
-  st.plantHit = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1, 8),
+  // Zone de coupe invisible : le PIED du plant (bas de tige) — un seul swipe
+  // vif y tranche toute la tige, qui part entière au séchoir.
+  st.plantHit = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.9, 8),
     new THREE.MeshBasicMaterial({ visible: false }));
+  st.plantHit.position.y = 0.45;
   st.plantGroup.add(st.plantHit);
   // Feuillage : des MAINS de chanvre retombantes à chaque nœud (réf. Weed
   // Firm) — version allégée (5 folioles), 3 mains par étage en quinconce.
@@ -790,7 +790,7 @@ function makeStation(lvl) {
 /* -------------------------------------------------------------------------
    5) SÉCHOIR : fil, crochets, branches pendues, bacs
    ------------------------------------------------------------------------- */
-const LINE_Y = 2.0, LINE_Z = -1.55;
+const LINE_Y = 2.75, LINE_Z = -1.55;
 const LINE_POS = new THREE.Vector3(SECHOIR_X, 0, -1.1);
 const wireMat = new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 0.4, roughness: 0.5 });
 const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 4.6, 6), wireMat);
@@ -806,44 +806,55 @@ const hooks = [-1.5, -0.5, 0.5, 1.5].slice(0, LINE_HOOKS).map((dx) => SECHOIR_X 
   x, used: false, grp: null, g: 0, qual: 0, dry: 0, pop: 0, sway: x * 2.1,
   buds: [], budMats: [], leafMats: [], wetWarned: false, dryToasted: false,
 }));
-function attachBranch(hook) {
+function attachTige(hook) {
+  // Une TIGE ENTIÈRE pend au crochet (la récolte complète d'un pot) : long
+  // tube courbé + têtes alternées sur toute la longueur + mains de chanvre —
+  // la cola de recolte/, tête en bas. 4 crochets = 4 récoltes qui sèchent
+  // en parallèle.
   const grp = new THREE.Group();
   grp.position.set(hook.x, LINE_Y, LINE_Z);
   const tie = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.015, 6, 10), wireMat);
   tie.position.y = -0.03; grp.add(tie);
-  // Tige de branche légèrement courbée (tube), tête en bas — plus longue :
-  // elle porte 3 têtes maintenant que les plants sont plus fournis.
-  const bBend = (Math.random() - 0.5) * 0.14;
+  const TIGE_LEN = 2.15;
+  const bBend = (Math.random() - 0.5) * 0.3;
+  const lean = (Math.random() - 0.5) * 0.14;
   const pts = [];
-  for (let i = 0; i <= 5; i++) {
-    const u = i / 5;
-    pts.push(new THREE.Vector3(Math.sin(u * 2.2) * bBend, -0.05 - u * 1.05, 0));
+  for (let i = 0; i <= 7; i++) {
+    const u = i / 7;
+    pts.push(new THREE.Vector3(Math.sin(u * 2.4) * bBend * (0.3 + u) + u * lean, -0.05 - u * TIGE_LEN, 0));
   }
-  const stM = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.024, 6, false), matTwig);
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const stM = new THREE.Mesh(new THREE.TubeGeometry(curve, 14, 0.03, 6, false), matTwig);
   stM.castShadow = true; grp.add(stM);
   hook.buds = []; hook.budMats = []; hook.leafMats = [];
-  for (let i = 0; i < BUDS_PER_BRANCH; i++) {
-    // Tête = grappe de 2 nugs bosselés ; grain neutre × couleur (le lerp de
-    // séchage vert -> brun vit dans material.color).
+  for (let i = 0; i < TIGE_BUDS; i++) {
+    // Tête = grappe de 2 nugs ; grain neutre × couleur (le lerp de séchage
+    // vert -> brun vit dans material.color).
     const mat = new THREE.MeshStandardMaterial({ map: budNeutralTex, color: 0x93c25a, roughness: 0.85 });
+    const u = 0.08 + 0.88 * (i / (TIGE_BUDS - 1));
+    const pnt = curve.getPoint(u);
+    const side = i % 2 ? 1 : -1;
     const budGrp = new THREE.Group();
-    budGrp.position.set((i % 2 === 0 ? 0.11 : -0.11), -0.28 - i * 0.31, 0.02);
-    const main = makeNug(mat, nugGeoMid); main.scale.setScalar(1.25); budGrp.add(main);
-    const side = makeNug(mat, nugGeoSm); side.position.set(0.05, -0.11, 0.03); budGrp.add(side);
+    budGrp.position.set(pnt.x + side * (0.09 + (i % 3) * 0.025), pnt.y, pnt.z + (i % 2 ? 0.05 : -0.04));
+    const main = makeNug(mat, nugGeoMid); main.scale.setScalar(1.15 + (1 - u) * 0.25); budGrp.add(main);
+    const sideNug = makeNug(mat, nugGeoSm); sideNug.position.set(0.05, -0.1, 0.03); budGrp.add(sideNug);
     grp.add(budGrp);
-    const hit = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 6),
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6),
       new THREE.MeshBasicMaterial({ visible: false }));
     hit.position.copy(budGrp.position); grp.add(hit);
     hit.userData.ref = { hook, idx: i };
     hook.buds.push({ mesh: budGrp, hit, taken: false });
     hook.budMats.push(mat);
   }
-  for (let i = 0; i < 2; i++) {
+  // Quelques mains de chanvre le long de la tige, tombantes
+  for (let i = 0; i < 4; i++) {
     const mat = new THREE.MeshStandardMaterial({ map: leafBaseTex, color: 0x27632c, roughness: 0.85, side: THREE.DoubleSide });
-    const blade = leafBlade(0.3, 0.14, mat);
-    blade.position.set(i === 0 ? 0.1 : -0.1, -0.7 - i * 0.25, 0);
-    blade.rotation.z = Math.PI + (i === 0 ? 0.5 : -0.5);
-    grp.add(blade);
+    const u = 0.18 + i * 0.22;
+    const pnt = curve.getPoint(u);
+    const hand = hempLeaf(mat, 0.4, true);
+    hand.position.set(pnt.x + (i % 2 ? 0.12 : -0.12), pnt.y, pnt.z);
+    hand.rotation.set(0.4, i * 1.4, Math.PI + (i % 2 ? 0.6 : -0.6));
+    grp.add(hand);
     hook.leafMats.push(mat);
   }
   grp.scale.setScalar(0.001);
@@ -865,7 +876,7 @@ function updateLine(dt) {
     h.dry = Math.min(1, h.dry + dt / DRY_TIME);
     if (!wasDry && h.dry >= 0.99 && !h.dryToasted) {
       h.dryToasted = true;
-      showToast("Une branche est sèche 🌿 frotte-la !", "#bdf0a3");
+      showToast("Une tige est sèche 🌿 frotte-la !", "#bdf0a3");
       sPop(880);
     }
     for (const m of h.budMats)  m.color.lerpColors(BUD_DRY_COL.from, BUD_DRY_COL.to, h.dry);
@@ -1382,10 +1393,9 @@ function updateGrow(st, dt) {
   st.growth = Math.min(1, st.growth + (dt / GROW_TIME) * mf * Math.max(0.5, slow) * lamp);
   if (st.growth >= 1) {
     st.phase = "mature";
-    st.branchesLeft = N_BRANCH;
     for (const L of st.gLeaves) { L.active = false; L.grp.visible = false; }
     sSale(); addShake(0.15);
-    showToast("Pot " + (st.lvl + 1) + " mûr ! Coupe-le en branches ✂️", "#bdf0a3");
+    showToast("Pot " + (st.lvl + 1) + " mûr ! Tranche la tige au pied ✂️", "#bdf0a3");
   }
 }
 function plantQuality(st) {
@@ -1406,7 +1416,6 @@ function updatePlantVisual(st, dt) {
   if (!show) return;
   const h = Math.max(0.1, g) * PLANT_H;
   st.stem.scale.set(1, h, 1); st.stem.position.y = 0;   // tube 0..1 étiré en hauteur
-  st.plantHit.scale.set(1, h + 0.3, 1); st.plantHit.position.y = h / 2;
   for (const br of st.branches) {
     const t = br.userData.t;
     const k = Math.max(0, Math.min(1, (g - t * 0.6) * 3));
@@ -1437,37 +1446,28 @@ function tryCutdownAt(st, cx, cy, speed) {
   if (!st || st.phase !== "mature" || speed < SWIPE_CUT || st.cutCd > 0) return false;
   if (!rayHit(cx, cy, [st.plantHit])) return false;
   const hook = hooks.find(h => !h.used);
-  if (!hook) { showToast("Le séchoir est plein — frotte les branches sèches 🪢", "#e6c896"); sErr(); st.cutCd = 0.6; return true; }
+  if (!hook) { showToast("Le séchoir est plein — frotte les tiges sèches 🪢", "#e6c896"); sErr(); st.cutCd = 0.6; return true; }
   st.cutCd = CUT_COOLDOWN;
+  // Toute la tige part d'un coup : le crochet porte la récolte ENTIÈRE du pot.
   hook.used = true;
-  hook.g = plantYield(st) / N_BRANCH;
+  hook.g = plantYield(st);
   hook.qual = plantQuality(st);
-  hook.variety = (st.seed && st.seed.variety) || null;   // embed : la branche hérite la variété
-  hook.sentG = 0; hook.sentQsum = 0; hook.trimSent = 0;  // comptes par branche (embed → Récolte)
-  attachBranch(hook);
-  let hidden = 0;
-  const quota = Math.ceil(N_BUDS / N_BRANCH);
-  for (const b of st.buds) {
-    if (hidden >= quota) break;
-    if (b.visible && !b.userData.taken) { b.userData.taken = true; b.visible = false; hidden++; }
-  }
-  st.branchesLeft--;
-  const wp = new THREE.Vector3(POT_POS.x, st.y + 1.4, POT_POS.z);
-  spawnFlier(wp, new THREE.Vector3(hook.x, LINE_Y - 0.4, LINE_Z), 0x3f7a34, 0.12);
-  burstParts(wp, 5, leafMatP, st.y + 0.06);
-  sSnip(); addShake(0.1);
-  if (st.branchesLeft <= 0) finishCutdown(st);
-  return true;
-}
-function finishCutdown(st) {
+  hook.variety = (st.seed && st.seed.variety) || null;   // embed : la tige hérite la variété
+  hook.sentG = 0; hook.sentQsum = 0; hook.trimSent = 0;  // comptes par tige (embed → Récolte)
+  attachTige(hook);
   const q = plantQuality(st), y = Math.round(plantYield(st));
   addXP(Math.max(4, Math.round(y * 0.3)));
-  showToast("Plant coupé : ~" + y + " g au séchage 🌬️ (qualité " + Math.round(q * 100) + "%" +
+  showToast("Tige coupée : ~" + y + " g au séchage 🌬️ (qualité " + Math.round(q * 100) + "%" +
     (st.pgr ? ", PGR" : st.fert ? ", engrais" : "") + ")", "#bdf0a3");
-  sSale(); addShake(0.2);
+  const wp = new THREE.Vector3(POT_POS.x, st.y + 1.6, POT_POS.z);
+  spawnFlier(wp, new THREE.Vector3(hook.x, LINE_Y - 0.8, LINE_Z), 0x3f7a34, 0.16);
+  burstParts(new THREE.Vector3(POT_POS.x, st.y + 0.6, POT_POS.z), 8, leafMatP, st.y + 0.06);
+  sSnip(); sSale(); addShake(0.22);
+  // Le pot se libère aussitôt : on resème pendant que ça sèche.
   st.phase = "empty"; st.soil = 0; st.growth = 0; st.moisture = 0;
   st.soilDisc.visible = false; st.puddle.visible = false;
   st.plantGroup.rotation.z = 0;
+  return true;
 }
 
 /* -------------------------------------------------------------------------
@@ -1483,7 +1483,7 @@ function tryBuckAt(cx, cy, speed) {
   const bud = hook.buds[idx];
   if (bud.taken) return false;
   bud.taken = true; bud.mesh.visible = false; bud.hit.position.set(0, 99, 0);
-  const budG = hook.g / BUDS_PER_BRANCH;
+  const budG = hook.g / TIGE_BUDS;
   const wp = new THREE.Vector3(); bud.mesh.getWorldPosition(wp);
   if (speed > HARVEST_FAST) {
     if (EMBED) hook.trimSent += budG; else trimG += budG;   // embed : partira en miettes
@@ -1619,8 +1619,8 @@ const PROMPTS = {
   water:    "💧 Maintiens l'ARROSOIR — lâche quand la terre est sombre",
   cut:      "✂️ SWIPE VIF sur la feuille gourmande (sans toucher les têtes)",
   grow:     "🌱 Ça pousse… surveille la soif et les feuilles gourmandes",
-  cutdown:  "✂️ SWIPE VIF sur le plant — chaque coupe part au séchoir",
-  buck:     "🌿 FROTTE une branche SÈCHE — LENT = têtes A, vif = trim",
+  cutdown:  "✂️ SWIPE VIF au PIED du plant — la tige part entière au séchoir",
+  buck:     "🌿 FROTTE une tige SÈCHE — LENT = têtes A, vif = trim",
   dryWait:  "🌬️ Ça sèche à côté… resème en attendant (frotter humide = −qualité)",
   sell:     "📦 Tape (ou maintiens) le bac STOCK pour vendre",
 };
@@ -1907,7 +1907,7 @@ function updateLabels() {
     stockG: stock.g, trimG, leaves: activeLeaves(act), gesture, soil: act.soil,
     scene: curScene, potIdx: curPot, pots: stations.map(s => ({ phase: s.phase, growth: +s.growth.toFixed(2) })),
     emb: EMBED ? { seeds: { ...bigoSeeds }, variety: embVariety, sentG: +embSentG.toFixed(1), trimG: +embTrimG.toFixed(1) } : null,
-    plantTop: proj(POT_POS, act.y + 1.4),
+    plantTop: proj(POT_POS, act.y + 1.4), plantBase: proj(POT_POS, act.y + 0.75),
     branches: hooks.map(h => h.used ? { dry: +h.dry.toFixed(2) } : null),
     sack: proj(SOIL_POS, act.y + 0.5), seed: proj(SEED_POS, act.y + 0.3), pot: proj(POT_POS, act.y + 0.4),
     can: proj(CAN_POS, act.y + 0.4), boost: proj(BOOST_POS, act.y + 0.4), stock: proj(STOCK_POS, 0.2),
