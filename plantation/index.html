@@ -77,6 +77,23 @@
   .selbtn:disabled { opacity:.4; }
   .boostbtn.empty { opacity:.5; }
 
+  /* Panneau DEBUG (outil de test : temps, cash, reset) */
+  #dbgbtn { position:fixed; left:12px; bottom:max(12px,env(safe-area-inset-bottom)); pointer-events:auto; z-index:5;
+    width:38px; height:38px; border-radius:12px; font-size:17px;
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); color:#fff; opacity:.55; }
+  #dbgbtn:active { background:rgba(255,255,255,.2); }
+  #dbg { position:fixed; left:12px; bottom:max(58px,calc(env(safe-area-inset-bottom) + 46px)); z-index:5;
+    display:none; flex-direction:column; gap:6px; padding:10px; border-radius:14px;
+    background:rgba(8,14,8,.88); border:1px solid rgba(255,255,255,.18); backdrop-filter:blur(8px); }
+  #dbg.show { display:flex; }
+  #dbg .dhead { color:rgba(255,255,255,.5); font-size:11px; font-weight:800; letter-spacing:.5px; }
+  #dbg .drow { display:flex; gap:6px; }
+  .dbtn { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.22); color:#fff;
+    font-weight:700; font-size:12px; padding:7px 10px; border-radius:9px; }
+  .dbtn:active { background:rgba(255,255,255,.25); }
+  .dbtn.on { background:#e3c05f; color:#20180a; border-color:#e3c05f; }
+  .dbtn.danger { background:rgba(255,80,80,.15); border-color:rgba(255,110,110,.5); color:#ffb3b3; }
+
   #shopbtn { position:fixed; right:14px; top:calc(max(10px,env(safe-area-inset-top)) + 46px); pointer-events:auto;
     background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff; font-size:18px;
     width:46px; height:42px; border-radius:12px; }
@@ -136,6 +153,28 @@
   <button class="selbtn fmtbtn" data-fmt="3.5">3.5g</button>
   <button class="selbtn fmtbtn" data-fmt="7">7g</button>
   <button class="selbtn fmtbtn" data-fmt="28">28g</button>
+</div>
+
+<button id="dbgbtn" title="Debug">🐛</button>
+<div id="dbg">
+  <span class="dhead">🐛 DEBUG</span>
+  <div class="drow">
+    <span class="dhead" style="align-self:center">⏩</span>
+    <button class="dbtn tsbtn on" data-ts="1">×1</button>
+    <button class="dbtn tsbtn" data-ts="5">×5</button>
+    <button class="dbtn tsbtn" data-ts="20">×20</button>
+  </div>
+  <div class="drow">
+    <button class="dbtn" id="dbg-cash">💶 +1 000 €</button>
+    <button class="dbtn" id="dbg-stuff">🌱 +5 graines/doses</button>
+  </div>
+  <div class="drow">
+    <button class="dbtn" id="dbg-grow">⏭️ Finir la pousse</button>
+    <button class="dbtn" id="dbg-dry">🌬️ Finir le séchage</button>
+  </div>
+  <div class="drow">
+    <button class="dbtn danger" id="dbg-reset">🔄 RESET total</button>
+  </div>
 </div>
 
 <div id="shop">
@@ -1469,6 +1508,45 @@ function onUp(e) {
 el.addEventListener("pointerup", onUp, { passive:false });
 el.addEventListener("pointercancel", onUp, { passive:false });
 
+/* -------------------------------------------------------------------------
+   19bis) DEBUG (outil de test) : échelle de temps, cash, raccourcis, reset.
+   L'échelle de temps n'accélère QUE les timers diégétiques (pousse, soif,
+   feuilles, séchage) — jamais les gestes ni la caméra.
+   ------------------------------------------------------------------------- */
+let timeScale = 1;
+const dbgPanel = document.getElementById("dbg");
+document.getElementById("dbgbtn").addEventListener("click", () => dbgPanel.classList.toggle("show"));
+for (const b of document.querySelectorAll(".tsbtn")) b.addEventListener("click", () => {
+  timeScale = +b.dataset.ts;
+  for (const x of document.querySelectorAll(".tsbtn")) x.classList.toggle("on", x === b);
+  showToast("Temps ×" + timeScale, "#e3c05f");
+});
+document.getElementById("dbg-cash").addEventListener("click", () => {
+  setCash(cash + 1000); sSale(); showToast("+1 000 € (debug)", "#9be37d");
+});
+document.getElementById("dbg-stuff").addEventListener("click", () => {
+  seeds[curSeed] = (seeds[curSeed] || 0) + 5; saveSeeds();
+  doses.fert += 5; doses.pgr += 5; saveDoses();
+  updateResources(); sPop(700); showToast("+5 graines, +5 doses 🌼/🧪 (debug)", "#bdf0a3");
+});
+document.getElementById("dbg-grow").addEventListener("click", () => {
+  let n = 0;
+  for (const st of stations) if (st.phase === "growing") { st.growth = 1; n++; }
+  if (n) { sPop(880); showToast(n + " pousse(s) terminée(s) (debug)", "#bdf0a3"); }
+  else showToast("Rien ne pousse", "#e6c896");
+});
+document.getElementById("dbg-dry").addEventListener("click", () => {
+  let n = 0;
+  for (const h of hooks) if (h.used && h.dry < 0.99) { h.dry = 0.995; n++; }
+  if (n) { sPop(880); showToast(n + " branche(s) séchée(s) (debug)", "#bdf0a3"); }
+  else showToast("Rien à sécher", "#e6c896");
+});
+document.getElementById("dbg-reset").addEventListener("click", () => {
+  if (!confirm("RESET total : sauvegarde effacée. Sûr ?")) return;
+  for (const k of Object.keys(localStorage)) if (k.startsWith("plant_")) localStorage.removeItem(k);
+  location.reload();
+});
+
 document.getElementById("reset").addEventListener("click", rescue);
 function rescue() {
   const sd = SEED_BY[curSeed];
@@ -1552,15 +1630,16 @@ function updateLabels() {
 let last = 0;
 function loop(t) {
   const dt = Math.min((t - last) / 1000 || 0, 0.05); last = t;
+  const dts = dt * timeScale;          // temps diégétique (debug : accéléré)
   for (const st of stations) {
     updateSoil(st, dt);
     updateWater(st, dt);
     updateBoost(st, dt);
-    updateGrow(st, dt);
+    updateGrow(st, dts);
     updatePlantVisual(st, dt);
     st.cutCd = Math.max(0, st.cutCd - dt);
   }
-  updateLine(dt);
+  updateLine(dts);
   updateBagging(dt);
   updateParts(dt);
   updateFliers(dt);

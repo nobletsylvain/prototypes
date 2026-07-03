@@ -119,6 +119,8 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). L'ét
 
 **Progression :** Boutique — graines, doses, **goutte-à-goutte** (arrose seul, mais chichement), **tuteur** (moins de feuilles), **lampe LED** (+25 % vitesse), **sécateur auto** (taille seul, avec du retard : la main fait toujours mieux) — et **niveaux (XP)**, +3 % de revenus par niveau. Pousse courte (~2 min 30) : timer diégétique, jamais d'énergie sur les gestes. Persistance `localStorage` préfixée `plant_`.
 
+**Debug (tests)** : bouton **🐛** en bas à gauche — vitesse du temps diégétique ×1/×5/×20 (pousse, soif, séchage ; jamais les gestes), +1 000 €, +5 graines/doses, finir la pousse / le séchage, **RESET total** (avec confirmation). Le mode `?fast` dans l'URL reste dispo (pousse 12 s / séchage 8 s).
+
 ### Jouer
 
 - En ligne : **https://nobletsylvain.github.io/prototypes/plantation/** (depuis le hub).
