@@ -526,6 +526,23 @@ function leafBlade(len, wid, mat) {
   m.rotation.x = -Math.PI / 3; return m;
 }
 
+// VRAIE main de chanvre : 7 folioles lancéolées en éventail (la centrale la
+// plus longue) + pétiole. Les folioles partent toutes de la base, légèrement
+// creusées vers l'arrière — la silhouette iconique, lisible de loin.
+function hempLeaf(mat, scale) {
+  const grp = new THREE.Group();
+  const FOLIOLES = [[0, 0.62], [0.42, 0.52], [-0.42, 0.52], [0.85, 0.38], [-0.85, 0.38], [1.3, 0.22], [-1.3, 0.22]];
+  for (const [rot, len] of FOLIOLES) {
+    const b = leafBlade(len * scale, len * 0.24 * scale, mat);
+    b.rotation.x = -0.12 - Math.abs(rot) * 0.1;   // éventail à plat, léger creux
+    b.rotation.z = -rot;
+    grp.add(b);
+  }
+  const pet = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.016, 0.2 * scale, 5), stemMat);
+  pet.position.y = -0.1 * scale; grp.add(pet);
+  return grp;
+}
+
 // Brindilles & miettes (bac TRIM, débris)
 const twigGeo  = new THREE.CylinderGeometry(0.016, 0.010, 0.28, 8);
 const crumbGeo = new THREE.IcosahedronGeometry(0.07, 1);
@@ -751,15 +768,10 @@ function makeStation(lvl) {
   st.gLeaves = [];
   for (let i = 0; i < LEAF_MAX; i++) {
     const grp = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({ map: leafBaseTex, color: 0x8ecf4a, roughness: 0.85, side: THREE.DoubleSide });
-    grp.add(leafBlade(0.55, 0.3, mat));
-    // Deux folioles latérales : la feuille gourmande a une vraie main de cannabis
-    for (const s of [-1, 1]) {
-      const sub = leafBlade(0.36, 0.16, mat);
-      sub.rotation.z = s * 0.85; sub.position.y = 0.04;
-      grp.add(sub);
-    }
-    const hit = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 6),
+    const mat = new THREE.MeshStandardMaterial({ map: leafBaseTex, color: 0x8ecf4a, roughness: 0.85, side: THREE.DoubleSide,
+      emissive: 0x16290b, emissiveIntensity: 0.35 });   // léger glow : c'est la cible du geste
+    grp.add(hempLeaf(mat, 0.85));        // vraie main de chanvre à 7 folioles
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6),
       new THREE.MeshBasicMaterial({ visible: false }));
     hit.position.y = 0.3; grp.add(hit);
     grp.visible = false;
@@ -1295,11 +1307,14 @@ function updateBoost(st, dt) {
    ------------------------------------------------------------------------- */
 function activeLeaves(st) { let n = 0; for (const L of st.gLeaves) if (L.active) n++; return n; }
 function spawnLeaf(st) {
-  for (const L of st.gLeaves) {
+  for (let i = 0; i < st.gLeaves.length; i++) {
+    const L = st.gLeaves[i];
     if (L.active) continue;
     L.active = true; L.age = 0;
     L.t = 0.3 + Math.random() * 0.55;
-    L.ang = Math.random() * Math.PI * 2;
+    // Face caméra, en secteurs séparés (une main par tiers) : la silhouette de
+    // feuille de chanvre doit se LIRE — c'est la cible du geste de taille.
+    L.ang = (i - 1) * 0.8 + (Math.random() - 0.5) * 0.25;
     L.grp.visible = true; L.mat.color.copy(LEAF_FRESH);
     sPop(300);
     return;
@@ -1307,9 +1322,8 @@ function spawnLeaf(st) {
 }
 function placeLeaf(st, L) {
   const y = L.t * PLANT_H * Math.max(0.25, st.growth);
-  L.grp.position.set(st.cx(L.t) + Math.cos(L.ang) * 0.1, y, st.cz(L.t) + Math.sin(L.ang) * 0.1);
-  L.grp.rotation.y = L.ang;
-  L.grp.rotation.z = 0.9;
+  L.grp.position.set(st.cx(L.t) + Math.sin(L.ang) * 0.16, y, st.cz(L.t) + Math.cos(L.ang) * 0.14);
+  L.grp.rotation.set(-0.55, L.ang * 0.45, 0);   // main inclinée vers le joueur
 }
 function cutLeaf(st, L) {
   L.active = false; L.grp.visible = false;
