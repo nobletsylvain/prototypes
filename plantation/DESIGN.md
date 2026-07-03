@@ -157,14 +157,16 @@ Un dossier `plantation/`, un `index.html`, Three.js via import-map, préfixe
    sève. C'est le levier qualité actif : bien taillé = têtes plus grosses et
    plus riches. Séquencement à la Weedcraft : tailler assoiffe légèrement la
    plante (l'ordre eau→taille se découvre).
-4. **Récolter** 🌿 — en deux temps (décision post-étude) : à maturité, **swipe
-   vif sur le plant** pour le **couper en branches** qui partent pendre au
-   **fil de séchage** (le pot se libère : on resème pendant que ça sèche) ;
-   puis **frotter/faucher les buds de la branche sèche en un drag continu**
-   (bucking Green Front + faucille Hay Day) : geste **lent et net** = têtes A
-   entières, geste **vif** = ça part en trim. Sec = bonus de qualité, humide =
-   malus. Feedback par bud détaché (pop + ding + haptique). Le produit tombe
-   dans le bac STOCK.
+4. **Récolter** 🌿 — en deux temps et **deux scènes** (décision post-étude) :
+   à maturité, **swipe vif sur le plant** pour le **couper en branches** qui
+   partent pendre au **séchoir** — une seconde scène reliée par un stepper
+   (travelling caméra dans la même cave), le raccord avec le bloc récolte.
+   Le pot se libère : on resème pendant que ça sèche. Au séchoir, **frotter
+   les buds de la branche sèche en un drag continu** (bucking Green Front +
+   faucille Hay Day) : geste **lent et net** = têtes A entières, geste
+   **vif** = ça part en trim. Sec = bonus de qualité, humide = malus.
+   Feedback par bud détaché (pop + ding + haptique). Le produit tombe dans
+   le bac STOCK, qui se vend sur place.
 
 ### Le levier cupidité (un seul, physique)
 

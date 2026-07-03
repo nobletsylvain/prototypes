@@ -70,9 +70,13 @@ for (let i = 0; i < 30 && s.phase === "mature"; i++) {
   s = await st();
 }
 console.log("après coupe:", s.phase, "branches au fil:", s.branches.filter(Boolean).length);
-await shot("07-fil.png");
 
-// 5) Séchage : attendre que toutes les branches soient sèches
+// 5) Changement de scène : Culture -> Séchoir (stepper), puis attendre le séchage
+await page.click("#sc-sechoir");
+await sleep(2500);                       // travelling caméra
+s = await st();
+console.log("scène:", s.scene);
+await shot("07-fil.png");
 for (let i = 0; i < 400; i++) {
   const br = s.branches.filter(Boolean);
   if (br.length && br.every((b) => b.dry >= 0.99)) break;
