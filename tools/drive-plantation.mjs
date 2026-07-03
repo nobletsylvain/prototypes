@@ -62,18 +62,39 @@ for (let i = 0; i < 300 && s.phase === "growing"; i++) {
 console.log("mature ?", s.phase, "growth", s.growth.toFixed(2), "humidité", s.moisture.toFixed(2));
 await shot("06-mature.png");
 
-// 4) Récolte : frotter lentement chaque tête
+// 4) Couper le plant : swipes VIFS -> les branches partent pendre au fil
 for (let i = 0; i < 30 && s.phase === "mature"; i++) {
-  if (s.budPos && s.budPos.length) { const b = s.budPos[0]; await swipe(b.x - 25, b.y - 10, b.x + 25, b.y + 10, 500, 10); }
+  const p = s.plantTop;
+  await swipe(p.x - 70, p.y - 15, p.x + 70, p.y + 15, 60, 4);
+  await sleep(250);
+  s = await st();
+}
+console.log("après coupe:", s.phase, "branches au fil:", s.branches.filter(Boolean).length);
+await shot("07-fil.png");
+
+// 5) Séchage : attendre que toutes les branches soient sèches
+for (let i = 0; i < 400; i++) {
+  const br = s.branches.filter(Boolean);
+  if (br.length && br.every((b) => b.dry >= 0.99)) break;
+  await sleep(500);
+  s = await st();
+}
+console.log("séchage:", s.branches.filter(Boolean).map((b) => b.dry).join(", "));
+await shot("08-sec.png");
+
+// 6) Récolte au fil : frotter LENTEMENT chaque tête des branches sèches
+for (let i = 0; i < 40 && s.branchBuds.length; i++) {
+  const b = s.branchBuds[0];
+  await swipe(b.x - 25, b.y - 10, b.x + 25, b.y + 10, 500, 10);
   await sleep(120);
   s = await st();
 }
-console.log("après récolte:", s.phase, "stock", s.stockG.toFixed(1), "g · trim", s.trimG.toFixed(1), "g");
-await shot("07-recolte.png");
+console.log("après récolte:", "stock", s.stockG.toFixed(1), "g · trim", s.trimG.toFixed(1), "g");
+await shot("09-recolte.png");
 
-// 5) Vente : maintenir le bac STOCK
+// 7) Vente : maintenir le bac STOCK
 for (let i = 0; i < 20 && s.stockG > 0.05; i++) { await hold(s.stock.x, s.stock.y, 1500); s = await st(); }
 console.log("cash:", await page.evaluate(() => document.getElementById("cash").textContent));
-await shot("08-vente.png");
+await shot("10-vente.png");
 console.log("Erreurs page:", errors.length ? errors.join(" | ") : "aucune");
 await browser.close();

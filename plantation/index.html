@@ -139,9 +139,13 @@ import * as THREE from "three";
      3) TAILLER  : des FEUILLES GOURMANDES poussent sur la tige -> SWIPE vif
                    pour les trancher sans gadget : chaque coupe redirige la
                    vigueur (les têtes gonflent). Tailler assoiffe la plante.
-     4) RÉCOLTER : à maturité, FROTTER la plante -> geste LENT = têtes A,
-                   geste VIF = ça part en trim (bradé). Puis vendre le STOCK
-                   par sachets 1 / 3.5 / 7 / 28 g (petit = €/g plus élevé).
+     4) COUPER    : à maturité, SWIPE VIF sur le plant -> chaque coupe détache
+                    une BRANCHE qui part pendre au FIL DE SÉCHAGE. Le pot se
+                    libère aussitôt : on peut resemer pendant que ça sèche.
+     5) RÉCOLTER  : une fois la branche SÈCHE, FROTTER ses têtes -> geste LENT
+                    = têtes A, geste VIF = trim (bradé). Frotter une branche
+                    encore humide coûte de la qualité (l'impatience se paie).
+                    Puis vendre le STOCK par sachets 1 / 3.5 / 7 / 28 g.
 
    Le levier cupidité est PHYSIQUE : on verse un booster dans le pot —
    🌼 Engrais (+qualité, cher) ou 🧪 PGR (+rendement, qualité plafonnée bas).
@@ -167,8 +171,8 @@ const BOOSTS = {
   fert: { name:"Engrais", icon:"🌼", cost:8, qualBonus:0.15 },
   pgr:  { name:"PGR",     icon:"🧪", cost:4, yieldMult:1.7, qualCap:0.55 },
 };
-const GROW_TIME    = new URLSearchParams(location.search).has("fast") ? 12 : 150;
-                             // s de pousse de base (2 min 30) — timer diégétique ; ?fast = mode test
+const FAST_MODE    = new URLSearchParams(location.search).has("fast");   // ?fast = mode test
+const GROW_TIME    = FAST_MODE ? 12 : 150;   // s de pousse de base (2 min 30) — timer diégétique
 const SOIL_TIME    = 1.2;    // s de versage de terreau
 const MOIST_START  = 0.55;   // humidité au semis
 const MOIST_DRAIN  = 0.016;  // /s — la plante boit (~2 arrosages par pousse)
@@ -183,9 +187,16 @@ const LEAF_HARDEN  = 15;     // s avant que la feuille "durcisse" (draine double
 const LEAF_DRAIN   = 0.006;  // qualité de taille perdue /s et /feuille présente
 const LEAF_SLOW    = 0.10;   // ralentissement de pousse par feuille présente
 const LEAF_MAX     = 3;
-const SWIPE_CUT    = 650;    // px/s mini pour trancher une feuille (l'intention compte)
+const SWIPE_CUT    = 650;    // px/s mini pour trancher (feuille ou branche — l'intention compte)
 const HARVEST_FAST = 1150;   // px/s au-delà : le bud part en trim
 const N_BUDS       = 8;
+const N_BRANCH     = 4;      // le plant se coupe en 4 branches (2 têtes visibles chacune)
+const BUDS_PER_BRANCH = 2;
+const LINE_HOOKS   = 4;      // places sur le fil de séchage
+const DRY_TIME     = FAST_MODE ? 8 : 55;   // s de séchage par branche — timer diégétique
+const DRY_QUAL_BONUS = 0.12; // sécher jusqu'au bout monte la qualité
+const WET_MALUS    = 0.15;   // frotter humide la dégrade (l'impatience se paie)
+const CUT_COOLDOWN = 0.3;    // s entre deux coupes de branche (un swipe = une branche)
 const BAG_HOLD     = 0.28;   // s entre deux sachets en maintien
 const QUAL_BASE    = 0.30, QUAL_WATER = 0.45, QUAL_TRIM = 0.25;   // qualité = base + eau + taille
 const YIELD_FLOOR  = 0.75;   // rendement mini (le reste vient du soin d'eau)
@@ -376,6 +387,81 @@ function setHeap(mesh, g, maxG) {
   mesh.visible = g > 0.3; mesh.scale.set(s, 0.5 + 0.65 * k, s);
 }
 
+// FIL DE SÉCHAGE tendu devant le mur : les branches coupées y pendent tête en bas.
+const LINE_Y = 2.25, LINE_Z = -1.55;
+const LINE_POS = new THREE.Vector3(0, 0, -1.1);          // ancrage du halo de guidage au sol
+const wireMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.7 });
+const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 4.6, 6), wireMat);
+wire.rotation.z = Math.PI / 2; wire.position.set(0, LINE_Y, LINE_Z); scene.add(wire);
+for (const nx of [-2.3, 2.3]) {
+  const nail = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.2, 8),
+    new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.4, metalness: 0.6 }));
+  nail.rotation.x = Math.PI / 2; nail.position.set(nx, LINE_Y, LINE_Z - 0.15); scene.add(nail);
+}
+const BUD_DRY_COL  = { from: new THREE.Color(0x93c25a), to: new THREE.Color(0xa08a48) };
+const LEAF_DRY_COL = { from: new THREE.Color(0x27632c), to: new THREE.Color(0x6b5a2e) };
+const hooks = [-1.5, -0.5, 0.5, 1.5].slice(0, LINE_HOOKS).map((x) => ({
+  x, used: false, grp: null, g: 0, qual: 0, dry: 0, pop: 0, sway: x * 2.1,
+  buds: [], budMats: [], leafMats: [], wetWarned: false, dryToasted: false,
+}));
+function attachBranch(hook) {
+  const grp = new THREE.Group();
+  grp.position.set(hook.x, LINE_Y, LINE_Z);
+  const tie = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.015, 6, 10), wireMat);
+  tie.position.y = -0.03; grp.add(tie);
+  const st = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.035, 0.75, 7), stemMat);
+  st.position.y = -0.42; st.castShadow = true; grp.add(st);
+  hook.buds = []; hook.budMats = []; hook.leafMats = [];
+  for (let i = 0; i < BUDS_PER_BRANCH; i++) {
+    const mat = new THREE.MeshStandardMaterial({ color: 0x93c25a, roughness: 0.8 });
+    const bud = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.34, 9), mat);
+    bud.rotation.x = Math.PI;                              // tête en bas
+    bud.position.set((i % 2 === 0 ? 0.09 : -0.09), -0.3 - i * 0.32, 0.02);
+    bud.castShadow = true; grp.add(bud);
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 6),
+      new THREE.MeshBasicMaterial({ visible: false }));
+    hit.position.copy(bud.position); grp.add(hit);
+    hit.userData.ref = { hook, idx: i };
+    hook.buds.push({ mesh: bud, hit, taken: false });
+    hook.budMats.push(mat);
+  }
+  for (let i = 0; i < 2; i++) {
+    const mat = new THREE.MeshStandardMaterial({ color: 0x27632c, roughness: 0.85, side: THREE.DoubleSide });
+    const blade = leafBlade(0.3, 0.14, mat);
+    blade.position.set(i === 0 ? 0.1 : -0.1, -0.55 - i * 0.15, 0);
+    blade.rotation.z = Math.PI + (i === 0 ? 0.5 : -0.5);   // feuilles vers le bas
+    grp.add(blade);
+    hook.leafMats.push(mat);
+  }
+  grp.scale.setScalar(0.001);
+  hook.grp = grp; hook.pop = 0; hook.dry = 0; hook.wetWarned = false; hook.dryToasted = false;
+  scene.add(grp);
+}
+function removeBranch(hook) {
+  if (hook.grp) scene.remove(hook.grp);
+  hook.grp = null; hook.used = false; hook.buds = [];
+}
+function anyBranch()    { return hooks.some(h => h.used); }
+function anyDryBranch() { return hooks.some(h => h.used && h.dry >= 0.99); }
+function updateLine(dt) {
+  for (const h of hooks) {
+    if (!h.used || !h.grp) continue;
+    h.pop = Math.min(1, h.pop + dt * 5);
+    h.grp.scale.setScalar(0.2 + 0.8 * h.pop);
+    const wasDry = h.dry >= 0.99;
+    h.dry = Math.min(1, h.dry + dt / DRY_TIME);
+    if (!wasDry && h.dry >= 0.99 && !h.dryToasted) {
+      h.dryToasted = true;
+      showToast("Une branche est sèche 🌿 frotte-la !", "#bdf0a3");
+      sPop(880);
+    }
+    for (const m of h.budMats)  m.color.lerpColors(BUD_DRY_COL.from, BUD_DRY_COL.to, h.dry);
+    for (const m of h.leafMats) m.color.lerpColors(LEAF_DRY_COL.from, LEAF_DRY_COL.to, h.dry);
+    h.sway += dt * 1.4;
+    h.grp.rotation.z = Math.sin(h.sway) * 0.06;            // léger balancement (pivot au fil)
+  }
+}
+
 // Halo de guidage
 const glow = new THREE.Mesh(
   new THREE.CircleGeometry(0.95, 28),
@@ -394,6 +480,11 @@ scene.add(plantGroup);
 const stemMat = new THREE.MeshStandardMaterial({ color: 0x3f6b2e, roughness: 0.85 });
 const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.06, 1, 8), stemMat);
 stem.castShadow = true; plantGroup.add(stem);
+// Cylindre de hit invisible autour du plant entier : la coupe au swipe est
+// indulgente (au pouce, on tranche « à travers la plante », pas une tige fine).
+const plantHit = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1, 8),
+  new THREE.MeshBasicMaterial({ visible: false }));
+plantGroup.add(plantHit);
 
 // Feuille de déco : losange plat (deux triangles), penché
 const leafDecoMat = new THREE.MeshStandardMaterial({ color: 0x27632c, roughness: 0.85, side: THREE.DoubleSide });
@@ -492,7 +583,7 @@ const plant = {
   fert: false, pgr: false,
   seed: null,           // variété plantée
   leafTimer: 0,
-  budsLeft: 0,
+  branchesLeft: 0,
 };
 const stock = { g: 0, qsum: 0 };
 let trimG = 0;
@@ -656,6 +747,7 @@ const potLabel   = makeLabel("🪴 POT", "#f0c9a8");
 const stockLabel = makeLabel("📦 STOCK 0 g", "#bdf0a3");
 const trimLabel  = makeLabel("🍂 TRIM 0 g", "#d8cf9a");
 const canLabel   = makeLabel("💧", "#bfe9ff");
+const lineLabel  = makeLabel("🪢 SÉCHAGE", "#d8cf9a");
 const _lv = new THREE.Vector3();
 function placeLabel(div, x, y, z) {
   _lv.set(x, y, z).project(camera);
@@ -667,9 +759,16 @@ function placeLabel(div, x, y, z) {
 function updateLabels() {
   if (plant.phase === "growing" || plant.phase === "mature") {
     const pct = Math.round(plant.growth * 100);
-    potLabel.textContent = plant.phase === "mature" ? "🌿 MÛRE !" :
+    potLabel.textContent = plant.phase === "mature" ? "✂️ MÛR — COUPE !" :
       "🌱 " + plant.seed.name + " " + pct + "%" + (plant.moisture < MOIST_BAND[0] ? " · 💧!" : "");
   } else potLabel.textContent = "🪴 POT";
+  const used = hooks.filter(h => h.used);
+  if (used.length) {
+    const minDry = Math.min(...used.map(h => h.dry));
+    lineLabel.textContent = minDry >= 0.99 ? "🪢 SEC — frotte 🌿" :
+      "🪢 SÉCHAGE " + Math.round(minDry * 100) + "%";
+    placeLabel(lineLabel, 0, LINE_Y + 0.3, LINE_Z);
+  } else lineLabel.style.display = "none";
   placeLabel(potLabel, POT_POS.x, 2.15, POT_POS.z);
   stockLabel.textContent = "📦 STOCK " + Math.round(stock.g) + " g";
   placeLabel(stockLabel, STOCK_POS.x, 0.55, STOCK_POS.z);
@@ -685,12 +784,15 @@ function updateLabels() {
     sack: proj(SOIL_POS, 0.5), seed: proj(SEED_POS, 0.3), pot: proj(POT_POS, 0.4),
     can: proj(CAN_POS, 0.4), boost: proj(BOOST_POS, 0.4), stock: proj(STOCK_POS, 0.2),
     trim: proj(TRIM_POS, 0.2),
+    plantTop: proj(POT_POS, 1.4),
+    branches: hooks.map(h => h.used ? { dry: +h.dry.toFixed(2) } : null),
     leafPos: gLeaves.filter(L => L.active).map(L => { const wp = new THREE.Vector3(); L.hit.getWorldPosition(wp);
       _lv.copy(wp).project(camera);
       return { x: (_lv.x * 0.5 + 0.5) * window.innerWidth, y: (-_lv.y * 0.5 + 0.5) * window.innerHeight }; }),
-    budPos: buds.filter(b => b.visible && !b.userData.taken).map(b => { const wp = new THREE.Vector3(); b.getWorldPosition(wp);
+    branchBuds: hooks.flatMap(h => h.used ? h.buds.filter(b => !b.taken).map(b => {
+      const wp = new THREE.Vector3(); b.mesh.getWorldPosition(wp);
       _lv.copy(wp).project(camera);
-      return { x: (_lv.x * 0.5 + 0.5) * window.innerWidth, y: (-_lv.y * 0.5 + 0.5) * window.innerHeight }; }) };
+      return { x: (_lv.x * 0.5 + 0.5) * window.innerWidth, y: (-_lv.y * 0.5 + 0.5) * window.innerHeight }; }) : []) };
 }
 
 /* -------------------------------------------------------------------------
@@ -950,10 +1052,10 @@ function updateGrow(dt) {
   plant.growth = Math.min(1, plant.growth + (dt / GROW_TIME) * mf * Math.max(0.5, slow) * lamp);
   if (plant.growth >= 1) {
     plant.phase = "mature";
-    plant.budsLeft = N_BUDS;
+    plant.branchesLeft = N_BRANCH;
     for (const L of gLeaves) { L.active = false; L.grp.visible = false; }
     sSale(); addShake(0.15);
-    showToast("Plante mûre ! Frotte-la pour récolter 🌿", "#bdf0a3");
+    showToast("Plant mûr ! Coupe-le en branches ✂️", "#bdf0a3");
   }
 }
 function plantQuality() {
@@ -978,6 +1080,7 @@ function updatePlantVisual(dt) {
   if (!show) return;
   const h = Math.max(0.1, g) * PLANT_H;
   stem.scale.set(1, h, 1); stem.position.y = h / 2;
+  plantHit.scale.set(1, h + 0.3, 1); plantHit.position.y = h / 2;
   for (const br of branches) {
     const t = br.userData.t;
     const k = Math.max(0, Math.min(1, (g - t * 0.6) * 3));
@@ -1004,44 +1107,80 @@ function updatePlantVisual(dt) {
 }
 
 /* -------------------------------------------------------------------------
-   18) GESTE 4 — RÉCOLTER (frotter : lent = têtes A, vif = trim)
+   18) GESTE 4 — COUPER LE PLANT (swipe vif : une branche part sécher au fil)
    ------------------------------------------------------------------------- */
-function tryHarvestAt(cx, cy, speed) {
-  if (plant.phase !== "mature") return;
-  const hits = rayHits(cx, cy, buds.filter(b => !b.userData.taken), true);
+let cutCd = 0;
+function tryCutdownAt(cx, cy, speed) {
+  if (plant.phase !== "mature" || speed < SWIPE_CUT || cutCd > 0) return;
+  if (!rayHit(cx, cy, [plantHit])) return;
+  const hook = hooks.find(h => !h.used);
+  if (!hook) { showToast("Le fil est plein — frotte les branches sèches 🪢", "#e6c896"); sErr(); cutCd = 0.6; return; }
+  cutCd = CUT_COOLDOWN;
+  hook.used = true;
+  hook.g = plantYield() / N_BRANCH;
+  hook.qual = plantQuality();
+  attachBranch(hook);
+  // Deux têtes quittent visuellement le plant avec la branche
+  let hidden = 0;
+  for (const b of buds) {
+    if (hidden >= 2) break;
+    if (b.visible && !b.userData.taken) { b.userData.taken = true; b.visible = false; hidden++; }
+  }
+  plant.branchesLeft--;
+  const wp = new THREE.Vector3(POT_POS.x, 1.4, POT_POS.z);
+  spawnFlier(wp, new THREE.Vector3(hook.x, LINE_Y - 0.4, LINE_Z), 0x3f7a34, 0.12);
+  burstParts(wp, 5, leafMatP);
+  sSnip(); addShake(0.1);
+  if (plant.branchesLeft <= 0) finishCutdown();
+}
+function finishCutdown() {
+  const q = plantQuality(), y = Math.round(plantYield());
+  addXP(Math.max(4, Math.round(y * 0.3)));
+  showToast("Plant coupé : ~" + y + " g au séchage 🌬️ (qualité " + Math.round(q * 100) + "%" +
+    (plant.pgr ? ", PGR" : plant.fert ? ", engrais" : "") + ")", "#bdf0a3");
+  sSale(); addShake(0.2);
+  // Le pot se libère tout de suite : on peut resemer pendant que ça sèche.
+  plant.phase = "empty"; plant.soil = 0; plant.growth = 0; plant.moisture = 0;
+  soilDisc.visible = false; puddle.visible = false;
+  plantGroup.rotation.z = 0;
+}
+
+/* -------------------------------------------------------------------------
+   18bis) GESTE 5 — RÉCOLTER AU FIL (frotter la branche sèche :
+          lent = têtes A, vif = trim ; humide = qualité en moins)
+   ------------------------------------------------------------------------- */
+function tryBuckAt(cx, cy, speed) {
+  const hitObjs = [];
+  for (const h of hooks) if (h.used) for (const b of h.buds) if (!b.taken) hitObjs.push(b.hit);
+  if (!hitObjs.length) return;
+  const hits = rayHits(cx, cy, hitObjs);
   if (!hits.length) return;
-  let grp = hits[0].object;
-  while (grp.parent && !buds.includes(grp)) grp = grp.parent;
-  if (!buds.includes(grp) || grp.userData.taken) return;
-  grp.userData.taken = true; grp.visible = false;
-  plant.budsLeft--;
-  const budG = plantYield() / N_BUDS;
-  const wp = new THREE.Vector3(); grp.getWorldPosition(wp);
+  const { hook, idx } = hits[0].object.userData.ref;
+  const bud = hook.buds[idx];
+  if (bud.taken) return;
+  bud.taken = true; bud.mesh.visible = false; bud.hit.position.set(0, 99, 0);
+  const budG = hook.g / BUDS_PER_BRANCH;
+  const wp = new THREE.Vector3(); bud.mesh.getWorldPosition(wp);
   if (speed > HARVEST_FAST) {              // trop vif : ça part en trim
     trimG += budG;
     spawnFlier(wp, new THREE.Vector3(TRIM_POS.x, 0.4, TRIM_POS.z), 0x6f7a3a, 0.09);
     setHeap(trimHeap, trimG, 120);
     sPop(280); showToast("Trop vif ! → trim 🍂", "#d8cf9a");
   } else {
-    const q = plantQuality();
+    // Sec = bonus, humide = malus : l'impatience a une cause lisible.
+    const q = Math.max(0.2, Math.min(1, hook.qual + DRY_QUAL_BONUS * hook.dry - WET_MALUS * (1 - hook.dry)));
+    if (hook.dry < 0.99 && !hook.wetWarned) { hook.wetWarned = true; showToast("Encore humide ! qualité en baisse 💧", "#e6c896"); }
     stock.g += budG; stock.qsum += budG * q;
     spawnFlier(wp, new THREE.Vector3(STOCK_POS.x, 0.4, STOCK_POS.z), 0x3f7a34, 0.11);
     setHeap(stockHeap, stock.g, 200);
-    sPop(700 + plant.budsLeft * 30);
+    sPop(700 + idx * 40);
   }
   burstParts(wp, 4, leafMatP); addShake(0.05);
   updateCount(); updateResources();
-  if (plant.budsLeft <= 0) endHarvest();
-}
-function endHarvest() {
-  const q = plantQuality(), y = Math.round(plantYield());
-  addXP(Math.max(4, Math.round(y * 0.5)));
-  showToast("Récolte : ~" + y + " g · qualité " + Math.round(q * 100) + "%" +
-    (plant.pgr ? " (PGR)" : plant.fert ? " (engrais)" : ""), "#bdf0a3");
-  sSale(); addShake(0.2);
-  plant.phase = "empty"; plant.soil = 0; plant.growth = 0; plant.moisture = 0;
-  soilDisc.visible = false; puddle.visible = false;
-  plantGroup.rotation.z = 0;
+  if (hook.buds.every(b => b.taken)) {
+    removeBranch(hook);
+    burstParts(new THREE.Vector3(hook.x, LINE_Y - 0.5, LINE_Z), 5, leafMatP);
+  }
 }
 
 /* -------------------------------------------------------------------------
@@ -1080,14 +1219,17 @@ function sellTrim() {
    20) GUIDAGE
    ------------------------------------------------------------------------- */
 function currentStep() {
-  if (plant.phase === "mature")  return "harvest";
+  if (plant.phase === "mature")  return "cutdown";
   if (plant.phase === "growing") {
     for (const L of gLeaves) if (L.active) return "cut";
     if (plant.moisture < MOIST_BAND[0]) return "water";
+    if (anyDryBranch()) return "buck";
     return "grow";
   }
+  if (anyDryBranch())           return "buck";
   if (plant.phase === "soil")   return (seeds[curSeed] || 0) > 0 ? "seed" : "buySeed";
   if (stock.g >= 0.05)          return "sell";
+  if (anyBranch())              return "dryWait";
   return "soilPour";
 }
 const PROMPTS = {
@@ -1097,10 +1239,13 @@ const PROMPTS = {
   water:    "💧 Maintiens l'ARROSOIR — lâche quand la terre est sombre",
   cut:      "✂️ SWIPE VIF sur la feuille gourmande (sans toucher les têtes)",
   grow:     "🌱 Ça pousse… surveille la soif et les feuilles gourmandes",
-  harvest:  "🌿 FROTTE la plante — LENT = têtes A, vif = trim",
+  cutdown:  "✂️ SWIPE VIF sur le plant — chaque coupe envoie une branche au fil",
+  buck:     "🌿 FROTTE une branche SÈCHE du fil — LENT = têtes A, vif = trim",
+  dryWait:  "🌬️ Ça sèche au fil… resème en attendant (frotter humide = −qualité)",
   sell:     "📦 Tape (ou maintiens) le bac STOCK pour vendre",
 };
-const STEP_POS = { soilPour: SOIL_POS, seed: SEED_POS, water: CAN_POS, cut: POT_POS, harvest: POT_POS, sell: STOCK_POS };
+const STEP_POS = { soilPour: SOIL_POS, seed: SEED_POS, water: CAN_POS, cut: POT_POS,
+  cutdown: POT_POS, buck: LINE_POS, dryWait: SOIL_POS, sell: STOCK_POS };
 let glowPhase = 0;
 function updateGuide(dt) {
   const step = currentStep();
@@ -1203,8 +1348,10 @@ el.addEventListener("pointermove", (e) => {
         if (L && L.active) cutLeaf(L);
       }
     }
-    // Récolter : chaque passage détache une tête, la vitesse fait le tri
-    if (plant.phase === "mature") tryHarvestAt(e.clientX, e.clientY, speed);
+    // Couper le plant mûr : chaque swipe vif détache une branche vers le fil
+    tryCutdownAt(e.clientX, e.clientY, speed);
+    // Récolter au fil : frotter les branches, la vitesse fait le tri A/trim
+    tryBuckAt(e.clientX, e.clientY, speed);
   }
   lastX = e.clientX; lastY = e.clientY; lastT = now;
 }, { passive:false });
@@ -1266,6 +1413,8 @@ function loop(t) {
   updateWater(dt);
   updateBoost(dt);
   updateGrow(dt);
+  updateLine(dt);
+  cutCd = Math.max(0, cutCd - dt);
   updatePlantVisual(dt);
   updateBagging(dt);
   updateParts(dt);

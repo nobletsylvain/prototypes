@@ -157,10 +157,14 @@ Un dossier `plantation/`, un `index.html`, Three.js via import-map, préfixe
    sève. C'est le levier qualité actif : bien taillé = têtes plus grosses et
    plus riches. Séquencement à la Weedcraft : tailler assoiffe légèrement la
    plante (l'ordre eau→taille se découvre).
-4. **Récolter** 🌿 — à maturité, **frotter/faucher les buds en un drag
-   continu** (bucking Green Front + faucille Hay Day) : geste **lent et net**
-   = têtes A entières, geste **vif** = ça part en trim. Feedback par bud
-   détaché (pop + ding + haptique). Le produit tombe dans le bac STOCK.
+4. **Récolter** 🌿 — en deux temps (décision post-étude) : à maturité, **swipe
+   vif sur le plant** pour le **couper en branches** qui partent pendre au
+   **fil de séchage** (le pot se libère : on resème pendant que ça sèche) ;
+   puis **frotter/faucher les buds de la branche sèche en un drag continu**
+   (bucking Green Front + faucille Hay Day) : geste **lent et net** = têtes A
+   entières, geste **vif** = ça part en trim. Sec = bonus de qualité, humide =
+   malus. Feedback par bud détaché (pop + ding + haptique). Le produit tombe
+   dans le bac STOCK.
 
 ### Le levier cupidité (un seul, physique)
 
@@ -181,9 +185,10 @@ Le joueur verse littéralement sa cupidité dans le pot. Un seul axe de qualité
   (auto-arrosage), tuteur (moins de feuilles gourmandes), lampe (vitesse),
   sécateur auto (taille passive médiocre — le manuel reste meilleur, comme
   Weedcraft), et à terme le jardinier.
-- **Séchage optionnel** : étendre la récolte prend un cycle de plus mais monte
-  la qualité d'un cran — l'arbitrage patience/cash immédiat, cohérent avec la
-  slice CrimWorld (cupidité vs prudence).
+- **Séchage au fil** (intégré à la boucle) : la branche pendue monte en
+  qualité en séchant ; la frotter encore humide coûte de la qualité —
+  l'arbitrage patience/cash immédiat, cohérent avec la slice CrimWorld
+  (cupidité vs prudence).
 - **XP/niveaux** : +%/niveau sur les ventes, comme les autres protos.
 - Chaînage futur possible : la récolte de `plantation/` est exactement le
   « front » que reçoit Green Front.

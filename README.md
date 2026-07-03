@@ -104,11 +104,12 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). « Gu
 
 Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). L'étape **amont** des autres protos : la culture. Design issu d'une étude de marché (Schedule I, Weedcraft Inc, Weed Firm, Hempire + étalons tactiles Hay Day/Viridi/Prune) — voir `plantation/DESIGN.md`.
 
-**Boucle de jeu (4 stations, un geste chacune) :**
+**Boucle de jeu (5 stations, un geste chacune) :**
 1. **Semer** 🌱 — **maintenir le sac de terreau** pour remplir le pot, puis **glisser une graine** de la caisse jusqu'au pot (3 variétés à rendement croissant, la 1ʳᵉ offerte).
 2. **Arroser** 💧 — **maintenir l'arrosoir** : le débit s'emballe, **la terre fonce** (on lit la matière, pas une jauge). Trop tard = flaque, pousse ralentie. La plante penche quand elle a soif.
 3. **Tailler** ✂️ — des **feuilles gourmandes** poussent pendant la pousse : **swipe vif** (seuil de vélocité) pour les trancher sans toucher les têtes — chaque coupe **redirige la vigueur** (les buds gonflent, façon *Prune*). Piège à découvrir : tailler assoiffe la plante.
-4. **Récolter** 🌿 — à maturité, **frotter la plante** : geste **lent** = têtes A au STOCK, geste **vif** = trim bradé aux schlags. Puis vente par sachets **1 / 3.5 / 7 / 28 g** (petit = €/g plus élevé, × qualité × niveau).
+4. **Couper** ✂️ — à maturité, **swipe vif sur le plant** : chaque coupe détache une **branche** qui part pendre au **fil de séchage** (tête en bas, elle brunit en séchant). Le pot se libère aussitôt : **on resème pendant que ça sèche**.
+5. **Récolter** 🌿 — **frotter une branche sèche** du fil : geste **lent** = têtes A au STOCK, geste **vif** = trim bradé aux schlags. Sec = **bonus de qualité** ; frotter **humide = malus** (l'impatience se paie). Puis vente par sachets **1 / 3.5 / 7 / 28 g** (petit = €/g plus élevé, × qualité × niveau).
 
 **Le levier cupidité est physique** : on **verse un booster** dans le pot — 🌼 Engrais (+15 % qualité) ou 🧪 PGR (+70 % rendement, qualité plafonnée à 55 %). La qualité finale = soin d'eau + taille + booster, en un seul axe.
 
