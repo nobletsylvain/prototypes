@@ -9,6 +9,14 @@ gagne un mode `#embed=bigo`, **inerte en standalone** (précédent :
 
 - `#embed=bigo` — active le mode embarqué.
 - Protos d'atelier uniquement : `&g=<grammes>&q=<qualité 0-100>` (le lot brut à travailler).
+- Récolte uniquement : `&b=<Variete>:<g>:<q>,<Variete>:<g>:<q>,…` (le branchage séché à travailler ;
+  noms de variété URL-encodés).
+
+## Variétés (filière weed)
+
+Enum partagée, celle de `recolte/` : `Skunk`, `White Widow`, `Lemon`, `Purple`.
+Les graines achetées sur OnionMarket portent une variété ; la plante et ses
+branches l'héritent ; la Récolte trie par variété.
 
 ## iframe → parent (`parent.postMessage(msg, "*")`)
 
@@ -23,6 +31,10 @@ gagne un mode `#embed=bigo`, **inerte en standalone** (précédent :
   lotConsumed: true,                          // optionnel (atelier) : le lot passé en URL est soldé
   brutLeft: <g>,                              // optionnel (atelier) : grammes NON travaillés — le
                                               //   parent recrée un lot brut du restant (rien n'est perdu, R1)
+  seedsAdd: { variety, n },                   // optionnel (onion) : graines achetées
+  seedsTake: { variety, n },                  // optionnel (plantation) : graines semées
+  branchesAdd: { variety, g, q },             // optionnel (plantation) : branchage SÉCHÉ prêt pour la Récolte
+  branchesConsumed: true,                     // optionnel (récolte) : le branchage passé en URL est soldé
   miettes: <g>,                               // optionnel : déchets (bradables aux schlags)
   journal: { icon, txt, cause, cls }          // optionnel : entrée Karnet — cause OBLIGATOIRE
 }                                             //   pour toute conséquence (contrat CrimWorld)
@@ -32,7 +44,9 @@ gagne un mode `#embed=bigo`, **inerte en standalone** (précédent :
 ## parent → iframe (après `bigo-ready` et après chaque txn)
 
 ```js
-{ type: "bigo-state", cash, heat, fini: { g, q }, brutCount, day, clock }
+{ type: "bigo-state", cash, heat, fini: { g, q }, brutCount,
+  seeds: { "<Variete>": n, … },               // graines dispo (plantation les sème)
+  branchesCount, day, clock }
 ```
 
 ## Règles pour chaque proto patché
