@@ -66,20 +66,32 @@
   /* iframes des vrais protos */
   .appframe{flex:1;width:100%;border:0;background:#0a0908;display:block}
   /* bande invisible au bord gauche : capte le swipe-back au-dessus des iframes */
-  .edgestrip{position:absolute;left:0;top:86px;bottom:22px;width:18px;z-index:55;touch-action:none}
+  .edgestrip{position:absolute;left:0;top:86px;bottom:22px;width:18px;z-index:66;touch-action:none}
 
-  /* ---- barre home ---- */
-  .homebar{position:absolute;left:50%;bottom:7px;transform:translateX(-50%);width:120px;height:22px;
-       display:flex;align-items:center;justify-content:center;z-index:70;cursor:pointer;touch-action:none}
-  .homebar::after{content:"";width:110px;height:5px;border-radius:3px;background:rgba(255,255,255,.35)}
+  /* ---- zone de geste "home" : pleine largeur en bas, au-dessus des iframes ---- */
+  .gesturezone{position:absolute;left:0;right:0;bottom:0;height:26px;z-index:70;cursor:pointer;
+       display:flex;align-items:flex-end;justify-content:center;padding-bottom:7px;touch-action:none}
+  .gesturezone .hpill{width:110px;height:5px;border-radius:3px;background:rgba(255,255,255,.35);
+       transition:background .2s}
+  .gesturezone:active .hpill{background:rgba(255,255,255,.7)}
 
-  /* ---- accueil ---- */
-  #scr-home{background:radial-gradient(500px 340px at 70% 10%,#221a12 0,transparent 70%)}
-  .apps{display:grid;grid-template-columns:repeat(4,1fr);gap:18px 8px;padding:26px 18px}
+  /* ---- accueil : wallpaper + horloge ---- */
+  #scr-home{background:
+       radial-gradient(420px 300px at 78% 4%,rgba(232,163,61,.14) 0,transparent 70%),
+       radial-gradient(500px 420px at 12% 88%,rgba(62,124,194,.10) 0,transparent 70%),
+       radial-gradient(700px 500px at 50% 40%,#191410 0,#0d0b09 75%)}
+  .homeclock{padding:26px 22px 4px;text-align:center}
+  .homeclock .hc{font:200 54px/1 var(--sans);letter-spacing:.02em;color:var(--text);
+       text-shadow:0 2px 18px rgba(0,0,0,.6)}
+  .homeclock .hd{font:600 11px var(--mono);color:var(--faint);margin-top:6px;letter-spacing:.12em;text-transform:uppercase}
+  .apps{display:grid;grid-template-columns:repeat(4,1fr);gap:18px 8px;padding:22px 18px}
   .appic{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;position:relative}
   .appic .bx{width:58px;height:58px;border-radius:15px;display:flex;align-items:center;justify-content:center;
        font-size:28px;background:linear-gradient(160deg,var(--surface2),#15110e);
-       border:1px solid var(--border);box-shadow:0 4px 10px -4px #000}
+       border:1px solid rgba(255,255,255,.09);
+       box-shadow:0 6px 14px -6px #000,inset 0 1px 0 rgba(255,255,255,.07);
+       transition:transform .08s}
+  .appic:active .bx{transform:scale(.9)}
   .appic .lb{font:600 10px var(--sans);color:var(--muted);max-width:76px;text-align:center;
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .appic.locked{opacity:.32;filter:grayscale(.7)}
@@ -178,12 +190,14 @@
 
   <!-- ===================== ACCUEIL ===================== -->
   <div class="screen show" id="scr-home">
+    <div class="homeclock"><div class="hc" id="home-clock">18:00</div><div class="hd" id="home-date">jour 1</div></div>
     <div class="apps" id="apps"></div>
     <div class="homefoot" id="homefoot"></div>
   </div>
 
   <!-- ===================== APPS = LES VRAIS PROTOS (iframes) ===================== -->
   <div class="screen app" id="scr-onion"><iframe class="appframe" id="fr-onion" title="OnionMarket (darkweb-market)"></iframe></div>
+  <div class="screen app" id="scr-plantation"><iframe class="appframe" id="fr-plantation" title="Plantation (plantation)"></iframe></div>
   <div class="screen app" id="scr-snap"><iframe class="appframe" id="fr-snap" title="SnapShit (snapshit)"></iframe></div>
   <div class="screen app" id="scr-beuher"><iframe class="appframe" id="fr-beuher" title="BeuherEats (beuhereats)"></iframe></div>
 
@@ -223,7 +237,7 @@
 
   <div class="edgestrip" id="edgestrip"></div>
   <div class="toast" id="toast"></div>
-  <div class="homebar" id="homebar" title="accueil"></div>
+  <div class="gesturezone" id="gesturezone" title="accueil"><span class="hpill"></span></div>
 </div>
 
 <div class="devnote">Le Bigo — le téléphone-OS : chaque app est le VRAI proto du dépôt, embarqué en iframe
@@ -257,17 +271,20 @@ const K = {
   SCHLAG_PRICE: 3,              // €/g — les miettes se bradent (R1 : jamais un malus sec)
 };
 
-/* Les vrais protos embarques (contrat : BUS.md). */
+/* Les vrais protos embarques (contrat : BUS.md). tint = degrade de l'icone. */
 const APPS = [
-  { id: "onion",   ic: "🧅", lb: "OnionMarket", src: "../darkweb-market/index.html#embed=bigo" },
-  { id: "atelier", ic: "🧰", lb: "Atelier" },                       // lanceur natif -> hash-slicer-v2
-  { id: "planque", ic: "📦", lb: "Planque" },
-  { id: "snap",    ic: "👻", lb: "SnapShit",    src: "../snapshit/index.html#embed=bigo" },
-  { id: "beuher",  ic: "🛵", lb: "BeuherEats",  src: "../beuhereats/index.html#embed=bigo" },
-  { id: "youss",   ic: "🐺", lb: "Youss" },
-  { id: "karnet",  ic: "📓", lb: "Karnet" },
+  { id: "onion",      ic: "🧅", lb: "OnionMarket", src: "../darkweb-market/index.html#embed=bigo", tint: ["#233318", "#101a0b"] },
+  { id: "plantation", ic: "🌱", lb: "Plantation",  src: "../plantation/index.html#embed=bigo",     tint: ["#1c3320", "#0c1a0e"] },
+  { id: "atelier",    ic: "🧰", lb: "Atelier",     tint: ["#33270f", "#1a1208"] },   // lanceur natif -> hash-slicer-v2 / recolte
+  { id: "planque",    ic: "📦", lb: "Planque",     tint: ["#2b2313", "#16110a"] },
+  { id: "snap",       ic: "👻", lb: "SnapShit",    src: "../snapshit/index.html#embed=bigo",       tint: ["#333010", "#1a1808"] },
+  { id: "beuher",     ic: "🛵", lb: "BeuherEats",  src: "../beuhereats/index.html#embed=bigo",     tint: ["#0f2b1f", "#0a1a14"] },
+  { id: "youss",      ic: "🐺", lb: "Youss",       tint: ["#2f1c14", "#180d08"] },
+  { id: "karnet",     ic: "📓", lb: "Karnet",      tint: ["#22222c", "#111117"] },
 ];
 const ATELIER_SRC = "../hash-slicer-v2/index.html";
+const RECOLTE_SRC = "../recolte/index.html";
+const VARIETIES = ["Skunk", "White Widow", "Lemon", "Purple"];   // enum partagee (recolte)
 
 /* =========================================================================
    ETAT PARTAGE + SAUVEGARDE
@@ -281,11 +298,13 @@ const freshState = () => ({
   heat: 0, heatLog: {}, descentes: 0,
   brut: [],                    // [{id,g,q,family,label}]
   fini: { g: 0, qsum: 0 },     // produit fini (grammes, qualite ponderee)
+  seeds: {},                   // {Variete: n} — graines (OnionMarket -> Plantation)
+  branches: [],                // [{id,variety,g,q}] — branchage SECHE (Plantation -> Recolte)
   miettes: 0,
   lotSeq: 1,
   journal: [],
   youss: { msgs: [], pending: null, unread: false },
-  unlocked: { youss: true, karnet: true, atelier: false, planque: false, snap: false, onion: false, beuher: false },
+  unlocked: { youss: true, karnet: true, atelier: false, planque: false, snap: false, onion: false, beuher: false, plantation: false },
 });
 
 let st = freshState();
@@ -338,12 +357,14 @@ function toast(txt, ms) {
    BUS — l'economie partagee (contrat : BUS.md)
    ========================================================================= */
 const FRAMES = {};   // app -> iframe pret (a recu bigo-ready)
-let workLot = null;  // lot en cours de travail a l'atelier (overlay)
+let workLot = null;      // lot brut en cours de travail (overlay hash-slicer-v2)
+let workBranches = [];   // ids des lots de branchage envoyes a la Recolte (overlay)
 
 function stateMsg() {
   return { type: "bigo-state", cash: Math.round(st.cash * 10) / 10, heat: Math.round(st.heat),
            fini: { g: Math.round(st.fini.g * 10) / 10, q: Math.round(finiQ()) },
-           brutCount: st.brut.length, day: st.day, clock: st.clock };
+           brutCount: st.brut.length, seeds: { ...st.seeds }, branchesCount: st.branches.length,
+           day: st.day, clock: st.clock };
 }
 function broadcast() {
   const msg = stateMsg();
@@ -406,6 +427,30 @@ function applyTxn(d) {
     st.brut = st.brut.filter(l => l.id !== workLot.id);
     workLot = null;
   }
+  // --- filiere weed : graines et branchage (BUS.md) ---
+  if (d.seedsAdd && VARIETIES.includes(d.seedsAdd.variety)) {
+    const n = Math.round(clampN(+d.seedsAdd.n, 0, 1000));
+    if (n > 0) st.seeds[d.seedsAdd.variety] = (st.seeds[d.seedsAdd.variety] || 0) + n;
+  }
+  if (d.seedsTake && VARIETIES.includes(d.seedsTake.variety)) {
+    const n = Math.round(clampN(+d.seedsTake.n, 0, 1000));
+    st.seeds[d.seedsTake.variety] = Math.max(0, (st.seeds[d.seedsTake.variety] || 0) - n);
+  }
+  if (d.branchesAdd && VARIETIES.includes(d.branchesAdd.variety) && d.branchesAdd.g > 0) {
+    st.branches.push({ id: st.lotSeq++, variety: d.branchesAdd.variety,
+                       g: clampN(+d.branchesAdd.g, 0.1, 10000), q: clampN(+d.branchesAdd.q, 1, 100) || 60 });
+  }
+  if (d.branchesConsumed && workBranches.length) {
+    const ids = new Set(workBranches);
+    st.branches = st.branches.filter(b => !ids.has(b.id));
+    workBranches = [];
+  }
+  if (Array.isArray(d.branchesLeft)) {   // recolte : branches non entamees, remises en stock
+    for (const b of d.branchesLeft.slice(0, 20)) {
+      if (b && VARIETIES.includes(b.variety) && b.g > 0.5)
+        st.branches.push({ id: st.lotSeq++, variety: b.variety, g: clampN(+b.g, 0.5, 10000), q: clampN(+b.q, 1, 100) || 60 });
+    }
+  }
   if (d.journal && d.journal.txt) {
     journal(String(d.journal.icon || "•").slice(0, 4), String(d.journal.txt).slice(0, 200),
             String(d.journal.cause || "").slice(0, 200), ["good", "bad", "warn", ""].includes(d.journal.cls) ? d.journal.cls : "");
@@ -419,7 +464,7 @@ function applyTxn(d) {
 /* =========================================================================
    NAVIGATION + GESTES
    ========================================================================= */
-const SCREENS = ["home", "onion", "atelier", "planque", "snap", "beuher", "youss", "karnet"];
+const SCREENS = ["home", "onion", "plantation", "atelier", "planque", "snap", "beuher", "youss", "karnet"];
 let cur = "home";
 function show(id) {
   cur = id;
@@ -447,23 +492,74 @@ function goBack() {
 }
 document.querySelectorAll("[data-back]").forEach(b => b.addEventListener("click", goBack));
 
-/* swipe -> depuis le bord gauche = retour ; la bande edgestrip capte le geste
-   au-dessus des iframes (qui avalent sinon les pointer events). */
-let swipeStart = null;
-function armSwipe(e) { swipeStart = { x: e.clientX, y: e.clientY }; }
-function endSwipe(e) {
-  if (!swipeStart) return;
-  const dx = e.clientX - swipeStart.x, dy = Math.abs(e.clientY - swipeStart.y);
-  swipeStart = null;
-  if (dx > 55 && dy < 60) goBack();
+/* Swipe-back INTERACTIF depuis le bord gauche : l'ecran suit le doigt (UX
+   native iOS/Android). La bande edgestrip capte le geste au-dessus des iframes
+   (qui avalent sinon les pointer events). Relacher au-dela du tiers (ou d'un
+   flick rapide) = retour ; sinon l'ecran revient en place. */
+let swipe = null;
+function swipeTarget() {
+  if ($("worklay").classList.contains("show")) return $("worklay");
+  return cur !== "home" ? $("scr-" + cur) : null;
 }
-$("edgestrip").addEventListener("pointerdown", armSwipe);
+function armSwipe(e, captureEl) {
+  const t = swipeTarget(); if (!t) return;
+  // capture du pointeur : meme si le doigt passe au-dessus d'une iframe,
+  // les move/up continuent d'arriver au parent (pas d'ecran fige a mi-course)
+  try { (captureEl || e.currentTarget || e.target).setPointerCapture(e.pointerId); } catch (er) { /* indisponible */ }
+  swipe = { x: e.clientX, y: e.clientY, t, w: $("phone").getBoundingClientRect().width, at: performance.now(), dx: 0 };
+  t.classList.add("swiping");
+}
+function moveSwipe(e) {
+  if (!swipe) return;
+  swipe.dx = Math.max(0, e.clientX - swipe.x);
+  if (Math.abs(e.clientY - swipe.y) > 80 && swipe.dx < 30) { cancelSwipe(); return; }
+  swipe.t.style.transform = `translateX(${swipe.dx}px)`;
+  swipe.t.style.opacity = String(1 - swipe.dx / swipe.w * 0.4);
+}
+function cancelSwipe() {
+  if (!swipe) return;
+  const t = swipe.t;
+  t.classList.remove("swiping");
+  t.style.transition = "transform .18s ease, opacity .18s ease";
+  t.style.transform = ""; t.style.opacity = "";
+  setTimeout(() => { t.style.transition = ""; }, 200);
+  swipe = null;
+}
+function endSwipe() {
+  if (!swipe) return;
+  const { dx, w, t, at } = swipe;
+  const vel = dx / Math.max(1, performance.now() - at);   // px/ms
+  if (dx > w * 0.34 || (dx > 50 && vel > 0.55)) {
+    // complete : glisse dehors puis retour
+    t.classList.remove("swiping");
+    t.style.transition = "transform .16s ease-out, opacity .16s ease-out";
+    t.style.transform = `translateX(${w}px)`; t.style.opacity = "0";
+    const done = t;
+    swipe = null;
+    setTimeout(() => {
+      done.style.transition = ""; done.style.transform = ""; done.style.opacity = "";
+      goBack();
+    }, 160);
+  } else cancelSwipe();
+}
+$("edgestrip").addEventListener("pointerdown", (e) => armSwipe(e, $("edgestrip")));
 $("phone").addEventListener("pointerdown", (e) => {
   const r = $("phone").getBoundingClientRect();
-  if (e.clientX - r.left <= 30) armSwipe(e);
+  if (e.clientX - r.left <= 30 && !swipe) armSwipe(e, $("phone"));
 });
+window.addEventListener("pointermove", moveSwipe);
 window.addEventListener("pointerup", endSwipe);
-$("homebar").addEventListener("pointerup", () => { closeWork(); if (cur !== "home") show("home"); else renderCur(); });
+window.addEventListener("pointercancel", cancelSwipe);
+
+/* Zone de geste en bas (pleine largeur, au-dessus des iframes) : tap ou
+   swipe vers le haut = accueil — le geste natif « home ». */
+let homeStart = null;
+$("gesturezone").addEventListener("pointerdown", (e) => { homeStart = e.clientY; });
+$("gesturezone").addEventListener("pointerup", () => {
+  homeStart = null;
+  closeWork();
+  if (cur !== "home") show("home"); else renderCur();
+});
 
 function renderStake() {
   $("sb-clock").textContent = clockTxt();
@@ -478,20 +574,24 @@ function renderStake() {
    ========================================================================= */
 function badgeOf(id) {
   if (id === "youss") return st.youss.unread ? 1 : 0;
-  if (id === "atelier") return st.brut.length;
+  if (id === "atelier") return st.brut.length + (st.branches.length ? 1 : 0);
+  if (id === "plantation") return Object.values(st.seeds).reduce((s, n) => s + n, 0);
   return 0;
 }
 function preHint() {
   return ["réponds à Youss 🐺", "atelier : conditionne le lot 🧰", "vends sur SnapShit 👻", "rembourse Youss 🐺"][Math.min(st.step, 3)] || "";
 }
 function renderHome() {
+  $("home-clock").textContent = `${pad(Math.floor((st.clock % 1440) / 60))}:${pad(st.clock % 1440 % 60)}`;
+  $("home-date").textContent = `jour ${st.day} · le block`;
   const grid = $("apps"); grid.innerHTML = "";
   for (const a of APPS) {
     const locked = !st.unlocked[a.id];
     const d = document.createElement("div");
     d.className = "appic" + (locked ? " locked" : "");
     const n = locked ? 0 : badgeOf(a.id);
-    d.innerHTML = `<div class="bx">${locked ? "🔒" : a.ic}</div><div class="lb">${a.lb}</div>` +
+    const bg = a.tint ? `style="background:linear-gradient(160deg,${a.tint[0]},${a.tint[1]})"` : "";
+    d.innerHTML = `<div class="bx" ${bg}>${locked ? "🔒" : a.ic}</div><div class="lb">${a.lb}</div>` +
       (n ? `<span class="badge">${n}</span>` : "");
     if (!locked) d.addEventListener("click", () => show(a.id));
     else d.addEventListener("click", () => toast("Pas encore. Suis le fil 🐺"));
@@ -499,7 +599,7 @@ function renderHome() {
   }
   $("homefoot").innerHTML = st.phase === "pre"
     ? `préambule — <b>${preHint()}</b>`
-    : `chaque app est le VRAI proto : 🧅 darkweb-market · 🧰 hash-slicer-v2 · 👻 snapshit · 🛵 beuhereats`;
+    : `‹ swipe le bord gauche = retour · barre du bas = accueil ›`;
 }
 
 /* =========================================================================
@@ -541,8 +641,25 @@ function descente() {
    ========================================================================= */
 function renderAtelier() {
   const b = $("atelier-body"); b.innerHTML = "";
-  if (!st.brut.length) {
-    b.innerHTML = `<div class="empty">Pas de lot brut.<br>${st.unlocked.onion ? "Commande sur 🧅 OnionMarket." : "Attends ton premier lot…"}</div>`;
+  if (!st.brut.length && !st.branches.length) {
+    b.innerHTML = `<div class="empty">Rien à travailler.<br>${st.unlocked.onion ? "Commande sur 🧅 OnionMarket, ou cultive sur 🌱 Plantation." : "Attends ton premier lot…"}</div>`;
+  }
+  // --- branchage seche (Plantation) -> le VRAI proto Recolte ---
+  if (st.branches.length) {
+    const byVar = {};
+    for (const br of st.branches) {
+      const v = byVar[br.variety] || (byVar[br.variety] = { g: 0, qsum: 0 });
+      v.g += br.g; v.qsum += br.g * br.q;
+    }
+    const lines = Object.entries(byVar).map(([v, x]) => `${v} ${x.g.toFixed(1)} g (q${Math.round(x.qsum / x.g)})`).join(" · ");
+    const totG = st.branches.reduce((s, x) => s + x.g, 0);
+    const c = document.createElement("div"); c.className = "card good";
+    c.innerHTML = `<div class="ct">🌿 Branchage séché — ${totG.toFixed(1)} g</div>
+      <div class="cs">${lines}</div>
+      <div class="cs">Effeuillage, tri par variété, coupe et mise en pots : le VRAI proto Récolte.</div>
+      <div class="btnrow" style="margin-top:9px"><button class="btn go" id="recolte-open">🌿 Passer à la Récolte</button></div>`;
+    b.appendChild(c);
+    $("recolte-open").addEventListener("click", openRecolte);
   }
   for (const l of st.brut) {
     const c = document.createElement("div"); c.className = "card";
@@ -583,12 +700,30 @@ function openWork(lotId) {
 function closeWork() {
   $("worklay").classList.remove("show");
   const fr = $("work-frame");
-  delete FRAMES.atelier;
+  delete FRAMES.atelier; delete FRAMES.recolte;
   fr.src = "about:blank";
-  workLot = null;
+  workLot = null; workBranches = [];
   renderCur();
 }
 $("work-back").addEventListener("click", closeWork);
+
+/* Recolte : envoie TOUT le branchage seche au vrai proto (agrege par variete). */
+function openRecolte() {
+  if (!st.branches.length) return;
+  const byVar = {};
+  for (const br of st.branches) {
+    const v = byVar[br.variety] || (byVar[br.variety] = { g: 0, qsum: 0 });
+    v.g += br.g; v.qsum += br.g * br.q;
+  }
+  const b = Object.entries(byVar)
+    .map(([v, x]) => `${encodeURIComponent(v)}:${Math.round(x.g)}:${Math.round(x.qsum / x.g)}`)
+    .join(",");
+  workBranches = st.branches.map(x => x.id);
+  workLot = null;
+  $("work-nm").textContent = `🌿 Récolte — ${st.branches.reduce((s, x) => s + x.g, 0).toFixed(0)} g de branchage`;
+  $("worklay").classList.add("show");
+  $("work-frame").src = `${RECOLTE_SRC}#embed=bigo&b=${b}`;
+}
 
 /* Vanne de delegation (R6) : conditionner sans le geste, avec des pertes. */
 function simpleCondition(lotId) {
@@ -624,14 +759,27 @@ function renderPlanque() {
       <div class="cs">qualité ${Math.round(l.q)} · ${l.label} · à travailler sur 🧰 Atelier</div>`;
     b.appendChild(c);
   }
+  const seedsTot = Object.values(st.seeds).reduce((s, n) => s + n, 0);
+  if (seedsTot > 0) {
+    const sd = document.createElement("div"); sd.className = "card";
+    sd.innerHTML = `<div class="ct">🌱 Graines — ${seedsTot}</div>
+      <div class="cs">${Object.entries(st.seeds).filter(([, n]) => n > 0).map(([v, n]) => `${v} ×${n}`).join(" · ")} · à semer sur 🌱 Plantation</div>`;
+    b.appendChild(sd);
+  }
+  for (const br of st.branches) {
+    const c = document.createElement("div"); c.className = "card";
+    c.innerHTML = `<div class="ct">🌿 Branchage — ${br.g.toFixed(1)} g <span class="pill">${br.variety}</span></div>
+      <div class="cs">qualité ${Math.round(br.q)} · séché, prêt pour la Récolte (🧰 Atelier)</div>`;
+    b.appendChild(c);
+  }
   if (st.miettes > 0) {
     const m = document.createElement("div"); m.className = "card";
     m.innerHTML = `<div class="ct">🧹 Miettes — ${st.miettes.toFixed(1)} g</div><div class="cs">bradables aux schlags (🧰 Atelier)</div>`;
     b.appendChild(m);
   }
   const info = document.createElement("div"); info.className = "card";
-  info.innerHTML = `<div class="cs">Le stock est <b>partagé</b> : l'Atelier le produit, SnapShit et BeuherEats le vendent,
-    la descente le saisit. Une seule vérité, tracée au Karnet 📓.</div>`;
+  info.innerHTML = `<div class="cs">Le stock est <b>partagé</b> : 🧅 fournit (lots, graines), 🌱 cultive, 🧰 transforme,
+    👻 et 🛵 vendent, la descente saisit. Une seule vérité, tracée au Karnet 📓.</div>`;
   b.appendChild(info);
 }
 
@@ -718,9 +866,9 @@ function resolveYouss(act) {
     pushYouss("out", `tiens. ${eur(st.debt)}. on est bon.`);
     st.debt = 0;
     st.phase = "libre"; st.step = 4;
-    st.unlocked.onion = true; st.unlocked.beuher = true;
+    st.unlocked.onion = true; st.unlocked.beuher = true; st.unlocked.plantation = true;
     pushYouss("in", "réglo. t'es dans le circuit maintenant.");
-    pushYouss("in", "OnionMarket pour l'appro, BeuherEats pour écouler en volume. le bigo est à toi. tourne.");
+    pushYouss("in", "OnionMarket pour l'appro — même des graines si tu veux cultiver ta propre came. BeuherEats pour écouler en volume. le bigo est à toi. tourne.");
     journal("🐺", "Dette de Youss soldée. Le bigo est à toi.", "↩ tes premières ventes", "good");
     toast("🧅 OnionMarket + 🛵 BeuherEats débloqués", 5000);
     renderYouss(); renderStake(); broadcast(); save();

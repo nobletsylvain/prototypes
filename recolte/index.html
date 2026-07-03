@@ -278,6 +278,21 @@
 "use strict";
 import * as THREE from "three";
 
+/* --- Mode EMBED "bigo" : le telephone-OS « Le Bigo » (le-bigo/index.html) ouvre
+   CE proto en iframe quand le joueur a du branchage seche (app Plantation).
+   Contrat postMessage fige : le-bigo/BUS.md. Slug "recolte".
+   Active par #embed=bigo&b=<Variete>:<g>:<q>,… (branchage a travailler).
+   SANS ce flag, le comportement standalone est strictement inchange. --- */
+const EMBED = /[?#&]embed=bigo/.test(location.href);
+// En mode embed bigo, on n'ecrit JAMAIS dans le save du proto autonome (rc_*) :
+// toutes les lectures/ecritures passent par un shim memoire (perdu a la fermeture).
+const memStore = (() => { const m = {}; return {
+  getItem: (k) => (k in m ? m[k] : null),
+  setItem: (k, v) => { m[k] = String(v); },
+  removeItem: (k) => { delete m[k]; },
+}; })();
+const STORE = EMBED ? memStore : localStorage;
+
 /* =========================================================================
    RECOLTE — core loop de transfo multi-varietes (proto mobile 3D)
    -------------------------------------------------------------------------
@@ -309,6 +324,35 @@ const STRAINS = {
   purple: { name: "Purple Kush",  emoji: "🍇", col: [129,97,166],  tint: "#c4a3e8", lbl: "#cba8ec" },
 };
 const STR_IDS = ["skunk", "widow", "lemon", "purple"];
+
+/* --- Mode EMBED "bigo" (suite) : branchage passe en URL.
+   #embed=bigo&b=<Variete>:<g>:<q>,…  (noms URL-encodes, q sur 0-100).
+   En embed, CE branchage-la est la matiere a travailler : pas de recolte a
+   credit, pas de choix de quantite. Les noms du bus ("Skunk", "White Widow",
+   "Lemon", "Purple" — cf. BUS.md) sont rapproches des varietes du proto par
+   prefixe ("Lemon" -> "Lemon Haze"). Une variete inconnue n'est pas chargee :
+   elle repart TELLE QUELLE dans branchesLeft (rien n'est perdu, R1). --- */
+const EMBED_B = [];            // branches reconnues : { id, name, g, q(0-1) }
+const EMBED_B_UNKNOWN = [];    // varietes inconnues : rendues au parent en branchesLeft
+const EMBED_NAME = {};         // id -> nom exact recu (le parent garde SA nomenclature)
+if (EMBED) {
+  const mb = location.href.match(/[?#&]b=([^&#]*)/);
+  for (const part of (mb ? mb[1] : "").split(",")) {
+    if (!part) continue;
+    const bits = part.split(":");
+    let name = ""; try { name = decodeURIComponent(bits[0] || "").trim(); } catch (e) { name = (bits[0] || "").trim(); }
+    const g = Math.max(0, +bits[1] || 0);
+    const q = Math.max(0, Math.min(100, +bits[2] || 0)) / 100;
+    if (!name || g <= 0) continue;
+    const v = name.toLowerCase();
+    const id = STR_IDS.find(sid => {
+      const n = STRAINS[sid].name.toLowerCase();
+      return n === v || n.startsWith(v + " ") || n.split(" ")[0] === v.split(" ")[0];
+    });
+    if (id) { EMBED_B.push({ id, name, g, q }); if (!EMBED_NAME[id]) EMBED_NAME[id] = name; }
+    else EMBED_B_UNKNOWN.push({ variety: name, g: Math.round(g), q: Math.round(q * 100) });
+  }
+}
 
 // Recoltes prises a credit. €/g de gros baisse avec le volume. nbVar = nb de
 // varietes presentes dans la recolte. (La quantite est choisie a la main, cf. QUANTITIES.)
@@ -349,7 +393,7 @@ const baseCamPos  = new THREE.Vector3();
 const dispPos = new THREE.Vector3();       // position camera AFFICHEE (ease entre phases)
 const dispTgt = new THREE.Vector3();
 let camLerp = 0;                           // >0 : transition de phase en cours (sinon snap : zoom/resize instant)
-let zoom = +(localStorage.getItem("rc_zoom")) || 1;
+let zoom = +(STORE.getItem("rc_zoom")) || 1;
 zoom = Math.max(0.6, Math.min(2.4, zoom));
 
 function fitView() {
@@ -1053,24 +1097,24 @@ function floatEuro(text, color) {
    9) ETAT DE PARTIE + PERSISTANCE (prefixe "rc_")
    ------------------------------------------------------------------------- */
 const SAVE_VERSION = "1";
-if (localStorage.getItem("rc_ver") !== SAVE_VERSION) {
-  ["rc_cash","rc_debt","rc_rep","rc_level","rc_xp","rc_shop","rc_bins","rc_waste","rc_storage"].forEach(k => localStorage.removeItem(k));
-  localStorage.setItem("rc_ver", SAVE_VERSION);
+if (STORE.getItem("rc_ver") !== SAVE_VERSION) {
+  ["rc_cash","rc_debt","rc_rep","rc_level","rc_xp","rc_shop","rc_bins","rc_waste","rc_storage"].forEach(k => STORE.removeItem(k));
+  STORE.setItem("rc_ver", SAVE_VERSION);
 }
 
-let cash  = +(localStorage.getItem("rc_cash")  || 0);
-let debt  = +(localStorage.getItem("rc_debt")  || 0);
-let rep   = +(localStorage.getItem("rc_rep")   || 55);   // reputation 0..100
-let level = Math.max(1, +(localStorage.getItem("rc_level") || 1));
-let xp    = Math.max(0, +(localStorage.getItem("rc_xp")    || 0));
+let cash  = +(STORE.getItem("rc_cash")  || 0);
+let debt  = +(STORE.getItem("rc_debt")  || 0);
+let rep   = +(STORE.getItem("rc_rep")   || 55);   // reputation 0..100
+let level = Math.max(1, +(STORE.getItem("rc_level") || 1));
+let xp    = Math.max(0, +(STORE.getItem("rc_xp")    || 0));
 
 // Bacs tries par variete : g = grammes, qs = somme ponderee de qualite (q = qs/g).
 function freshBins() { const o = {}; for (const id of STR_IDS) o[id] = { g: 0, qs: 0 }; return o; }
-let bins  = Object.assign(freshBins(), JSON.parse(localStorage.getItem("rc_bins") || "null") || {});
-let waste = +(localStorage.getItem("rc_waste") || 0);              // dechet vegetal (pour la dilution)
-let storage = JSON.parse(localStorage.getItem("rc_storage") || "[]");  // pots scelles : {strain,name,grade,q,g,price}
+let bins  = Object.assign(freshBins(), JSON.parse(STORE.getItem("rc_bins") || "null") || {});
+let waste = +(STORE.getItem("rc_waste") || 0);              // dechet vegetal (pour la dilution)
+let storage = JSON.parse(STORE.getItem("rc_storage") || "[]");  // pots scelles : {strain,name,grade,q,g,price}
 
-const owned = JSON.parse(localStorage.getItem("rc_shop") || "{}");
+const owned = JSON.parse(STORE.getItem("rc_shop") || "{}");
 owned.secateur= owned.secateur|| 0;   // sécateur : moins de dechet a l'effeuillage
 owned.tray    = owned.tray    || 0;   // tapis trieur : plus de tetes triees par frottee
 owned.hygro   = owned.hygro   || 0;   // pochons hygro (curing) debloques
@@ -1086,9 +1130,9 @@ let fresh = null;                     // tas frais a trier { skunk, widow, lemon
 let batch = null;                     // recette validée à mettre en pot { strain, name, q, g, comp }
 let optHygro = false;                 // option pochon hygro au conditionnement
 
-function saveBins()    { localStorage.setItem("rc_bins", JSON.stringify(bins)); localStorage.setItem("rc_waste", String(Math.round(waste))); }
-function saveStorage() { localStorage.setItem("rc_storage", JSON.stringify(storage)); }
-function saveShop()    { localStorage.setItem("rc_shop", JSON.stringify(owned)); }
+function saveBins()    { STORE.setItem("rc_bins", JSON.stringify(bins)); STORE.setItem("rc_waste", String(Math.round(waste))); }
+function saveStorage() { STORE.setItem("rc_storage", JSON.stringify(storage)); }
+function saveShop()    { STORE.setItem("rc_shop", JSON.stringify(owned)); }
 
 /* -------------------------------------------------------------------------
    10) UI : references + setters HUD
@@ -1108,20 +1152,20 @@ function repMult()   { return (0.8 + rep / 100 * 0.5) + owned.network * 0.04; } 
 
 function setCash(v) {
   cash = Math.max(0, Math.round(v));
-  localStorage.setItem("rc_cash", String(cash));
+  STORE.setItem("rc_cash", String(cash));
   ui.cash.textContent = "💶 " + cash + " €";
   if (ui.shop.classList.contains("show")) renderShop();
 }
 function setDebt(v) {
   debt = Math.max(0, Math.round(v));
-  localStorage.setItem("rc_debt", String(debt));
+  STORE.setItem("rc_debt", String(debt));
   ui.debt.textContent = debt > 0 ? "🧾 dette " + debt + " €" : "🧾 à jour";
   ui.debt.style.color = debt > 0 ? "#ff9f6b" : "#9be37d";
 }
 function setRep(v) {
   const was = rep;
   rep = Math.max(0, Math.min(100, v));
-  localStorage.setItem("rc_rep", String(Math.round(rep)));
+  STORE.setItem("rc_rep", String(Math.round(rep)));
   ui.replbl.textContent = "⭐ Réput. " + Math.round(rep);
   ui.repfill.style.width = rep + "%";
   if (Math.round(rep) !== Math.round(was)) {
@@ -1155,8 +1199,8 @@ function addXP(n) {
     addShake(0.16); buzz([0, 30, 40, 30, 40, 70]);
     const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(990, t + 0.08, 0.14, 0.22); }
   }
-  localStorage.setItem("rc_level", String(level));
-  localStorage.setItem("rc_xp", String(Math.round(xp)));
+  STORE.setItem("rc_level", String(level));
+  STORE.setItem("rc_xp", String(Math.round(xp)));
   updateXpUI();
 }
 
@@ -1262,7 +1306,7 @@ function maxDebt() { return 800 + rep * 24 + level * 200; }
 // Quantite de branchage brut "achetee" (g). Dans le vrai jeu elle vient du proto
 // d'appro (branchage brut -30%) ; ici on la choisit a la main pour TESTER l'affichage.
 const QUANTITIES = [250, 500, 750, 1000];
-let qtyChoice = +(localStorage.getItem("rc_qty") || 500);
+let qtyChoice = +(STORE.getItem("rc_qty") || 500);
 // Parametres derives de la quantite : €/g de gros (gros volume = moins cher),
 // nb de varietes presentes, part de feuille.
 function qtyParams(g) {
@@ -1276,6 +1320,20 @@ function colaCount(g) { return Math.max(2, Math.min(COLA_POOL, Math.round(g / 85
 // Compose une nouvelle recolte de `grams` g : varietes + parts. Pas de dette ici
 // (on credite seulement au passage au tri) pour pouvoir re-tester l'affichage.
 function newHarvest(grams) {
+  if (EMBED) {
+    // Branchage impose par Le Bigo : varietes/grammes du parametre &b=, pas de
+    // credit (credited:true court-circuite la dette de gotoTri), pas d'achat.
+    // qv = qualite de base des tetes PAR variete (0-1) : elle module la qualite
+    // versee dans les bacs au tri (cf. budQ), la ou le standalone trie a 1.0.
+    const acc = {};
+    for (const b of EMBED_B) { const a = acc[b.id] || (acc[b.id] = { g: 0, qs: 0 }); a.g += b.g; a.qs += b.g * b.q; }
+    const pool = Object.keys(acc);
+    const total = pool.reduce((s, id) => s + acc[id].g, 0);
+    const fr = {}, qv = {};
+    for (const id of pool) { fr[id] = acc[id].g / Math.max(1e-6, total); qv[id] = acc[id].qs / Math.max(1e-6, acc[id].g); }
+    harvest = { raw: total, total, wholesale: 0, fr, qv, leafFr: 0.26, varieties: pool, credited: true };
+    return;
+  }
   const p = qtyParams(grams);
   const pool = STR_IDS.slice().sort(() => Math.random() - 0.5).slice(0, p.nbVar);
   const fr = {}; let s = 0;
@@ -1338,11 +1396,12 @@ function gotoEffeuille() {
   refreshBasket(0, harvest.total);
   setQtyUI();
   refreshEffCard();
-  setHint("Choisis la quantité de branchage, puis glisse le long des colas pour détacher les têtes.");
+  setHint(EMBED ? "Glisse le long des colas pour détacher les têtes de ton branchage."
+    : "Choisis la quantité de branchage, puis glisse le long des colas pour détacher les têtes.");
 }
 // Rejoue une recolte a la quantite choisie (boutons 250/500/750/1000) — affichage seul.
 function chooseQty(g) {
-  qtyChoice = g; localStorage.setItem("rc_qty", String(g));
+  qtyChoice = g; STORE.setItem("rc_qty", String(g));
   newHarvest(g);
   fresh = { skunk: 0, widow: 0, lemon: 0, purple: 0, leaf: 0 };
   setupColas();
@@ -1362,8 +1421,8 @@ function colaBudsLeft() {
 function refreshEffCard() {
   const names = harvest.varieties.map(id => STRAINS[id].emoji + " " + STRAINS[id].name.split(" ")[0]).join(" · ");
   ui.effcard.innerHTML =
-    "🌿 Branchage brut : <b>" + harvest.total + " g</b> · " + activeColas.length + " colas · crédit " +
-    Math.round(harvest.total * harvest.wholesale) + " €<br>" + names +
+    "🌿 Branchage brut : <b>" + Math.round(harvest.total) + " g</b> · " + activeColas.length + " colas · " +
+    (EMBED ? "reçu du Bigo" : "crédit " + Math.round(harvest.total * harvest.wholesale) + " €") + "<br>" + names +
     "<br>Panier : <b>" + Math.round(freshBud()) + " g</b> têtes · " + Math.round(fresh.leaf) + " g feuilles";
 }
 // Détache toute tete croisee par le segment de glisse (a->b en pixels ecran).
@@ -1421,7 +1480,8 @@ const tri = { dragging: false, lastX: 0, lastY: 0, acc: 0, flash: 0, _done: fals
 const TRI_STRIDE = 24;            // px de glisse par poignee triee
 function gotoTri() {
   // On valide la quantite choisie -> le branchage est pris a credit (une seule fois).
-  if (harvest && !harvest.credited) {
+  // En embed bigo, jamais : la matiere vient du parent (credited est deja true).
+  if (!EMBED && harvest && !harvest.credited) {
     harvest.credited = true;
     setDebt(debt + Math.round(harvest.total * harvest.wholesale));
     showToast("Branchage pris à crédit", "#bdf0a3");
@@ -1443,6 +1503,9 @@ function gotoTri() {
     : "Frotte le tas — les têtes filent toutes seules dans leur bac. (Boutique : tapis trieur, trieuse auto.)");
 }
 function freshTotal() { return freshBud() + fresh.leaf; }
+// Qualite de base d'une tete au tri : 1.0 en standalone (comme avant), la
+// qualite recue du Bigo par variete en embed (le mix/dilution module ENSUITE).
+function budQ(id) { return EMBED && harvest && harvest.qv && harvest.qv[id] != null ? harvest.qv[id] : 1.0; }
 function triPerStride() { return (8 + Math.random() * 4) * (1 + owned.tray * 0.7); }   // tapis = poignee + grosse
 function refreshTriCard() {
   const left = freshTotal(), pct = Math.max(0, Math.min(100, (1 - left / (tri.total || 1)) * 100));
@@ -1462,7 +1525,7 @@ function sortHandful(amount) {
     if (fresh[id] <= 0) continue;
     const take = fresh[id] / total * amount;
     if (take <= 0) continue;
-    fresh[id] -= take; bins[id].g += take; bins[id].qs += take * 1.0;     // qualite pleine
+    fresh[id] -= take; bins[id].g += take; bins[id].qs += take * budQ(id);   // qualite pleine (standalone) / du lot (embed)
     flyNug(matStrain[id], 0.5, BIN_POS[id], true);
     any = true;
   }
@@ -1745,7 +1808,8 @@ function gotoStock() {
   setPhase("stock");
   refreshShelf();
   refreshStockCard();
-  setHint("Tes pots sont en stock. Vends pour rembourser la dette puis encaisser, ou repars sur une récolte.");
+  setHint(EMBED ? "Tes pots sont prêts — ✓ Terminer pour renvoyer le bilan au Bigo."
+    : "Tes pots sont en stock. Vends pour rembourser la dette puis encaisser, ou repars sur une récolte.");
 }
 function stockValue() { return storage.reduce((s, j) => s + j.price, 0); }
 function refreshStockCard() {
@@ -1912,7 +1976,7 @@ el.addEventListener("pointermove", (e) => {
   if (pinching && pointers.size >= 2) {
     e.preventDefault();
     zoom = Math.max(0.6, Math.min(2.4, pinchStartZoom * (pinchDist() / pinchStartDist)));
-    localStorage.setItem("rc_zoom", zoom.toFixed(3));
+    STORE.setItem("rc_zoom", zoom.toFixed(3));
     fitView();
   } else if (phase === "effeuille" && eff.dragging && eff.prev && pointers.size < 2) {
     // Effeuillage au glisse : vitesse instantanee (px/ms) -> rendement.
@@ -2089,6 +2153,95 @@ updateBinsUI();
 // On reprend a l'effeuillage (bins/storage/dette conserves).
 gotoEffeuille();
 dispPos.copy(baseCamPos); dispTgt.copy(VIEW_TARGET); camLerp = 0;   // pas de fly-in au demarrage
+
+/* --- Mode EMBED "bigo" (poste Recolte du telephone-OS Le Bigo, contrat :
+   le-bigo/BUS.md). L'economie propre du proto est masquee (dette, reput, XP,
+   boutique, choix de quantite, vente — le save est deja shime en memoire via
+   STORE) ; le GESTE reste inchange : effeuillage -> tri -> mix/coupe -> pots.
+   La dilution au dechet du mix reste LE levier de qualite (R10), et l'etape
+   « vendre » est remplacee par « ✓ Terminer » qui renvoie le bilan au parent :
+   bigo-txn puis bigo-close. --- */
+if (EMBED) {
+  // HUD : cash affiche = celui du PARENT (recu via bigo-state). Le reste de
+  // l'economie locale n'existe pas a ce poste.
+  for (const id of ["debt", "repwrap", "xpwrap", "shopbtn", "shop", "qtyrow", "stockSell", "stockNew"]) {
+    const e = document.getElementById(id); if (e) e.style.display = "none";
+  }
+  ui.cash.textContent = "💶 …";
+
+  // Bus entrant : origine verifiee (same-origin, ou "null" en file:// — cf. BUS.md).
+  window.addEventListener("message", (e) => {
+    if (e.origin !== location.origin && e.origin !== "null") return;
+    const d = e.data;
+    if (d && d.type === "bigo-state") ui.cash.textContent = "💶 " + Math.round(+d.cash || 0) + " €";
+  });
+
+  // branchesLeft : les branches (colas) JAMAIS entamees — pas un gramme preleve.
+  // Champ hors contrat de base de BUS.md, ajoute pour la Recolte : le branchage
+  // passe en URL est solde par branchesConsumed, et branchesLeft en rend la part
+  // NON entamee ({variety, g, q}) pour que le parent la REMETTE en stock (rien
+  // n'est perdu, R1). La matiere a moitie travaillee (cola entamee, tas non trie,
+  // bacs non mixes, mix pas encore en pot) part elle en miettes : c'est la
+  // consequence tracable d'avoir abandonne en cours de geste, pas une punition.
+  function embedBranchesLeft() {
+    const acc = {};
+    for (const c of activeColas) {
+      if (!c.buds.length || !c.buds.every(b => b.on)) continue;   // entamee (ou deja videe au tri)
+      acc[c.variety] = (acc[c.variety] || 0) + c.buds.reduce((s, b) => s + b.mass, 0);
+    }
+    const out = [];
+    for (const id in acc) out.push({
+      variety: EMBED_NAME[id] || STRAINS[id].name,               // nomenclature DU PARENT
+      g: Math.round(acc[id]),
+      q: Math.round((harvest && harvest.qv && harvest.qv[id] != null ? harvest.qv[id] : 0.5) * 100),
+    });
+    for (const u of EMBED_B_UNKNOWN) out.push(u);                // varietes inconnues : rendues telles quelles
+    return out;
+  }
+
+  // ✓ Terminer : bilan du travail fait, quel qu'il soit (aucun etat "rate" — R1).
+  // Place en haut a droite (le shopbtn masque libere l'emplacement ; le bas de
+  // l'ecran est occupe par les panneaux de phase).
+  const done = document.createElement("button");
+  done.id = "bigodone";
+  done.textContent = "✓ Terminer";
+  done.style.cssText = "position:fixed;right:14px;top:max(10px,env(safe-area-inset-top));z-index:50;pointer-events:auto;" +
+    "background:#3a6b3a;color:#fff;border:none;font:800 14px system-ui;padding:11px 14px;border-radius:12px;box-shadow:0 8px 24px -6px #000";
+  done.addEventListener("click", () => {
+    if (done.disabled) return;                    // anti double-clic (pattern hash-slicer-v2)
+    done.disabled = true;
+    // POTS produits -> finiAdd : grammes + qualite ponderee (0-100). La qualite
+    // de chaque pot porte deja tri + dilution/coupe + curing (levier qualite).
+    let potG = 0, potQs = 0;
+    for (const j of storage) { potG += j.g; potQs += j.g * j.q; }
+    const finiG = Math.round(potG);
+    const finiQ = potG > 0 ? Math.round(potQs / potG * 100) : 0;
+    // Miettes : toute la matiere ENTAMEE mais pas menee jusqu'au pot.
+    let halfG = 0;
+    for (const c of activeColas) {
+      if (c.buds.every(b => b.on)) continue;                     // non entamee -> branchesLeft
+      for (const b of c.buds) if (b.on) halfG += b.mass;         // tetes restees sur cola entamee
+    }
+    const binsG = STR_IDS.reduce((s, id) => s + bins[id].g, 0);  // trie mais pas mixe
+    const pertes = Math.round(halfG + (fresh ? freshTotal() : 0) + binsG + waste + (batch ? batch.g : 0));
+    parent.postMessage({
+      type: "bigo-txn", app: "recolte",
+      finiAdd: { g: finiG, q: finiQ },            // produit fini -> planque du parent
+      miettes: pertes,                            // dechets/pertes (bradables cote parent)
+      branchesConsumed: true,                     // le branchage passe en URL est solde…
+      branchesLeft: embedBranchesLeft(),          // …sauf les branches non entamees, rendues
+      journal: { icon: "🌿",
+        txt: "Récolte : " + finiG + " g en pots (qualité " + finiQ + "), " + pertes + " g de déchets.",
+        cause: "↩ ton effeuillage, ton tri et ta coupe",
+        cls: "good" },
+    }, "*");
+    parent.postMessage({ type: "bigo-close", app: "recolte" }, "*");
+  });
+  document.body.appendChild(done);
+
+  parent.postMessage({ type: "bigo-ready", app: "recolte" }, "*");
+}
+
 requestAnimationFrame(loop);
 </script>
 </body>
