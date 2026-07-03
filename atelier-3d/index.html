@@ -205,7 +205,7 @@ const LOAF_W = 0.55;            // largeur (axe Z)
 const LOAF_H = 0.34;            // épaisseur (axe Y)
 const PER_LEN = 100;            // grammes par unité de longueur (poids = épaisseur * PER_LEN)
 const LOAF_FULL_G = 150;        // savonnette pleine (g)
-const BAR_G = 10;               // barrette découpée à chaque coupe (g)
+const BAR_G = 8;                // barrette découpée à chaque coupe (g) — un poil plus fine
 const PRESS_TIME = 0.6;         // s de maintien pour enfoncer la lame et couper
 const R0 = Math.min(LOAF_L, LOAF_FULL_G / PER_LEN);  // longueur initiale
 
@@ -239,9 +239,9 @@ function bumpTex() {
 }
 const _bump = bumpTex();
 // crust = peau pressée brun foncé ; pale = dessous ; sponge = faces coupées (mie blonde).
-const matCrust  = new THREE.MeshStandardMaterial({ map: grainTex(46, 31, 18, 44, 220), bumpMap: _bump, bumpScale: 0.02, roughness: 0.5, metalness: 0.2, side: THREE.DoubleSide });
-const matPale   = new THREE.MeshStandardMaterial({ map: grainTex(96, 74, 46, 32, 120), bumpMap: _bump, bumpScale: 0.02, roughness: 0.82, side: THREE.DoubleSide });
-const matSponge = new THREE.MeshStandardMaterial({ map: grainTex(196, 168, 116, 46, 100), bumpMap: _bump, bumpScale: 0.03, roughness: 0.96, side: THREE.DoubleSide });
+const matCrust  = new THREE.MeshStandardMaterial({ map: grainTex(46, 31, 18, 52, 260), bumpMap: _bump, bumpScale: 0.05, roughness: 0.6, metalness: 0.12, side: THREE.DoubleSide });
+const matPale   = new THREE.MeshStandardMaterial({ map: grainTex(96, 74, 46, 38, 140), bumpMap: _bump, bumpScale: 0.035, roughness: 0.85, side: THREE.DoubleSide });
+const matSponge = new THREE.MeshStandardMaterial({ map: grainTex(196, 168, 116, 52, 130), bumpMap: _bump, bumpScale: 0.055, roughness: 0.97, side: THREE.DoubleSide });
 const loafMats  = [matCrust, matPale, matSponge];
 
 // Prisme droit x[xL..xR] z[±W/2] y[0..H], dessus chanfreiné (repris de v2).
@@ -249,7 +249,8 @@ function makePrism(aNeg, aPos, bNeg, bPos) {
   const xL = (aNeg + aPos) / 2, xR = (bNeg + bPos) / 2;
   const zN = -LOAF_W / 2, zP = LOAF_W / 2, H = LOAF_H;
   const dx = Math.max(0.0001, xR - xL);
-  const bv = Math.min(0.05, dx * 0.32, LOAF_W * 0.08, H * 0.32);
+  // Chanfrein généreux → arêtes bien arrondies, aspect artisanal (moins « boîte »).
+  const bv = Math.min(0.10, dx * 0.45, LOAF_W * 0.18, H * 0.48);
   const A=[xL,0,zN], B=[xR,0,zN], C=[xR,0,zP], D=[xL,0,zP];
   const Ap=[xL,H-bv,zN], Bp=[xR,H-bv,zN], Cp=[xR,H-bv,zP], Dp=[xL,H-bv,zP];
   const At=[xL+bv,H,zN+bv], Bt=[xR-bv,H,zN+bv], Ct=[xR-bv,H,zP-bv], Dt=[xL+bv,H,zP-bv];
@@ -300,9 +301,20 @@ function rebuildLoaf() {
    Fabriques partagées : bac (caisse ouverte) + pile de barrettes/sachets.
    Le stock est un BAC de barrettes qui se remplit (repris de Hash Slicer v2).
    ------------------------------------------------------------------------- */
-const slabGeo = new THREE.BoxGeometry(0.14, 0.09, 0.24);   // barrette/sachet miniature (piles)
-const celloMat = new THREE.MeshStandardMaterial({ color:0xdff3ff, transparent:true, opacity:0.5,
-  roughness:0.05, metalness:0.3, side:THREE.DoubleSide });
+const slabGeo = new THREE.BoxGeometry(0.13, 0.07, 0.22);   // barrette miniature (piles de stock)
+
+// Paquet fini = PAPILLOTE : brique brune sous plastique OPAQUE, bouts torsadés.
+const wrapBodyMat = new THREE.MeshStandardMaterial({ color:0x6f5733, roughness:0.34, metalness:0.14 });
+const plasticMat  = new THREE.MeshStandardMaterial({ color:0xded7c2, roughness:0.16, metalness:0.18, transparent:true, opacity:0.85, side:THREE.DoubleSide });
+const twistGeo    = new THREE.ConeGeometry(0.045, 0.06, 6);    // bout torsadé (pile de sortie)
+const twistGeoBig = new THREE.ConeGeometry(0.09, 0.14, 6);     // bout torsadé (barrette présentée)
+function makePapillote() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.075, 0.18), wrapBodyMat); body.castShadow = true; g.add(body);
+  const eL = new THREE.Mesh(twistGeo, plasticMat); eL.castShadow = true; eL.rotation.z =  Math.PI / 2; eL.position.x = -0.085; g.add(eL);
+  const eR = new THREE.Mesh(twistGeo, plasticMat); eR.castShadow = true; eR.rotation.z = -Math.PI / 2; eR.position.x =  0.085; g.add(eR);
+  return g;
+}
 
 function makeBin(w, d, h, color) {
   const grp = new THREE.Group();
@@ -315,14 +327,15 @@ function makeBin(w, d, h, color) {
   return grp;
 }
 
-// Pile de barrettes rangées en grille, empilées par couches ; visibilité = compte.
-function makePile(cols, max, mat) {
+// Pile d'objets rangés en grille, empilés par couches ; visibilité = compte.
+// `factory()` fabrique chaque élément (barrette pour le stock, papillote en sortie).
+function makePile(cols, max, factory) {
   const g = new THREE.Group();
   for (let i = 0; i < max; i++) {
-    const m = new THREE.Mesh(slabGeo, mat);
+    const m = factory();
     const perLayer = cols * 2, layer = Math.floor(i / perLayer), idx = i % perLayer, col = idx % cols, row = Math.floor(idx / cols);
     m.position.set(-((cols - 1) * 0.17) / 2 + col * 0.17, 0.06 + layer * 0.095, -0.13 + row * 0.26);
-    m.rotation.y = (Math.random() - 0.5) * 0.4; m.castShadow = true; m.visible = false; g.add(m);
+    m.rotation.y = (Math.random() - 0.5) * 0.4; if (m.isMesh) m.castShadow = true; m.visible = false; g.add(m);
   }
   return g;
 }
@@ -378,7 +391,7 @@ STATIONS.forEach((st, i) => {
     // Bac de STOCK : les barrettes coupées viennent s'y accumuler (à droite du pain).
     const sbin = makeBin(0.66, 0.62, 0.16, 0x2f2619);
     sbin.position.set(0.6, 1.02, 0.82);
-    coupeStockPile = makePile(3, PILE_CAP, matCrust);
+    coupeStockPile = makePile(3, PILE_CAP, () => new THREE.Mesh(slabGeo, matCrust));
     sbin.add(coupeStockPile);
     grp.add(sbin);
   } else if (i === COND_IDX) {
@@ -386,13 +399,13 @@ STATIONS.forEach((st, i) => {
     condGroup = grp;
     const inBin = makeBin(0.66, 0.62, 0.16, 0x2f2619);
     inBin.position.set(-0.62, 1.02, 0.42);
-    condInPile = makePile(3, PILE_CAP, matCrust);
+    condInPile = makePile(3, PILE_CAP, () => new THREE.Mesh(slabGeo, matCrust));
     inBin.add(condInPile);
     grp.add(inBin);
 
     const outBin = makeBin(0.66, 0.62, 0.16, 0x243247);
     outBin.position.set(0.62, 1.02, 0.42);
-    condOutPile = makePile(3, PILE_CAP, celloMat);
+    condOutPile = makePile(3, PILE_CAP, makePapillote);
     outBin.add(condOutPile);
     grp.add(outBin);
     // (le geste d'emballage fait monter une barrette entre les deux bacs : voir startWrap)
@@ -580,7 +593,7 @@ setPacked(packed);
    prendre une barrette (tap) → ENROULER au drag VERTICAL (barre) → SCELLER
    (bouton 🔥). L'horizontal reste la circulation ; s'y mettre annule l'emballage.
    ------------------------------------------------------------------------- */
-const wrap = { active:false, phase:"", pct:0, mesh:null, film:null };
+const wrap = { active:false, phase:"", pct:0, mesh:null, film:null, twists:null };
 const WRAP_K = 0.34;    // % d'emballage par pixel de glissement vertical
 const atCond = () => target === COND_IDX && Math.abs(rail - COND_IDX) < 0.08;
 
@@ -596,10 +609,10 @@ function flame() {
 function startWrap() {
   if (wrap.active || stock <= 0 || !condGroup) return;
   setStock(stock - 1);                                  // prend une barrette du stock
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.24, 0.30), matCrust);
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.14, 0.26), matCrust);
   mesh.castShadow = true; mesh.position.set(0.0, 1.5, 0.55);
   const filmMat = new THREE.MeshStandardMaterial({ color:0xdff3ff, transparent:true, opacity:0.32, roughness:0.06, metalness:0.3, side:THREE.DoubleSide });
-  const film = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.24, 0.30), filmMat);
+  const film = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.14, 0.26), filmMat);
   film.scale.setScalar(1.3); mesh.add(film);
   condGroup.add(mesh);
   wrap.active = true; wrap.phase = "enroule"; wrap.pct = 0; wrap.mesh = mesh; wrap.film = film;
@@ -608,7 +621,21 @@ function startWrap() {
 }
 function enterSeal() {
   wrap.phase = "seal";
-  if (wrap.film) { wrap.film.material.opacity = 0.5; wrap.film.scale.setScalar(1.12); }   // se resserre
+  // le film devient un plastique OPAQUE (plus de transparent) et se resserre
+  if (wrap.film) {
+    // plastique translucide « laiteux » : on voit le brun du hash à travers,
+    // mais ce n'est plus une cellophane transparente.
+    wrap.film.material.color.set(0xe6dfca); wrap.film.material.opacity = 0.6;
+    wrap.film.material.roughness = 0.14; wrap.film.material.metalness = 0.18;
+    wrap.film.scale.set(1.05, 1.1, 1.05);
+  }
+  // bouts torsadés → papillote
+  if (wrap.mesh && !wrap.twists) {
+    const s = (wrap.mesh.geometry.parameters.width || 0.5) * 0.5;
+    const tL = new THREE.Mesh(twistGeoBig, plasticMat); tL.rotation.z =  Math.PI / 2; tL.position.x = -s - 0.03; tL.castShadow = true;
+    const tR = new THREE.Mesh(twistGeoBig, plasticMat); tR.rotation.z = -Math.PI / 2; tR.position.x =  s + 0.03; tR.castShadow = true;
+    wrap.mesh.add(tL); wrap.mesh.add(tR); wrap.twists = [tL, tR];
+  }
   wraptextEl.classList.remove("show");   // le bouton 🔥 se suffit
   wrapbarEl.classList.remove("show"); sealEl.classList.add("show");
 }
@@ -629,7 +656,7 @@ function cleanupWrap() {
     condGroup.remove(wrap.mesh); wrap.mesh.geometry.dispose();
     if (wrap.film) { wrap.film.geometry.dispose(); wrap.film.material.dispose(); }
   }
-  wrap.active = false; wrap.phase = ""; wrap.pct = 0; wrap.mesh = null; wrap.film = null;
+  wrap.active = false; wrap.phase = ""; wrap.pct = 0; wrap.mesh = null; wrap.film = null; wrap.twists = null;
   wraptextEl.classList.remove("show"); wrapbarEl.classList.remove("show"); sealEl.classList.remove("show");
 }
 sealEl.addEventListener("click", sealWrap);
@@ -683,19 +710,25 @@ app.addEventListener("pointermove", (e) => {
   if (e.pointerId !== pid) return;
   const dxT = e.clientX - startX, dyT = e.clientY - startY;
 
-  // Conditionnement : enrouler au drag VERTICAL. L'horizontal franc = navigation.
-  if (wrap.active && wrap.phase === "enroule") {
-    if (Math.abs(dxT) > Math.abs(dyT) && Math.abs(dxT) > 26) {
-      abortWrap();                         // parti à l'horizontale → on abandonne l'emballage (nav)
+  // Conditionnement : tant qu'un emballage est en cours (enroule OU seal), le geste
+  // lui appartient — sinon, une fois à 100 %, les derniers pixels du drag partaient
+  // en navigation et scrollaient la scène avant qu'on puisse sceller. Seul un
+  // glissement horizontal FRANC abandonne l'emballage.
+  if (wrap.active) {
+    if (Math.abs(dxT) > Math.abs(dyT) && Math.abs(dxT) > 40) {
+      abortWrap();                         // parti franchement à l'horizontale → nav
       moved = true;
     } else {
-      const dyStep = e.clientY - lastY;    // enrouler avec la distance parcourue (haut ou bas)
-      wrap.pct = Math.min(100, wrap.pct + Math.abs(dyStep) * WRAP_K);
-      if (wrap.mesh) wrap.mesh.rotation.x -= dyStep * 0.03;   // la barrette roule dans le film
-      wrapfillEl.style.width = wrap.pct + "%";
+      if (wrap.phase === "enroule") {
+        const dyStep = e.clientY - lastY;  // enrouler avec la distance parcourue (haut ou bas)
+        wrap.pct = Math.min(100, wrap.pct + Math.abs(dyStep) * WRAP_K);
+        if (wrap.mesh) wrap.mesh.rotation.x -= dyStep * 0.03;   // la barrette roule dans le film
+        wrapfillEl.style.width = wrap.pct + "%";
+        if (wrap.pct >= 100) enterSeal();
+      }
+      // phase "seal" : geste consommé (le scellage se fait au bouton 🔥)
       lastX = e.clientX; lastY = e.clientY;
-      if (wrap.pct >= 100) enterSeal();
-      return;                              // geste consommé : pas de navigation
+      return;                              // pas de navigation tant qu'on emballe
     }
   }
 
