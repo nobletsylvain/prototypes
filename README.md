@@ -111,7 +111,9 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). L'ét
 4. **Couper** ✂️ — à maturité, **swipe vif sur le plant** : chaque coupe détache une **branche** qui part pendre au **séchoir**. Le pot se libère aussitôt : **on resème pendant que ça sèche**.
 5. **Récolter** 🌿 — au **séchoir** (2ᵉ scène, stepper en haut, **travelling caméra** dans la même cave) : les branches pendent au fil tête en bas et **brunissent en séchant**. **Frotter une branche sèche** : geste **lent** = têtes A au STOCK, geste **vif** = trim bradé aux schlags. Sec = **bonus de qualité** ; frotter **humide = malus** (l'impatience se paie). Puis vente par sachets **1 / 3.5 / 7 / 28 g** (petit = €/g plus élevé, × qualité × niveau).
 
-**Deux scènes raccordées** : Culture (pot, outils) et Séchoir (fil, bacs STOCK/TRIM, vente) — le stepper fait le lien, le guidage vous renvoie d'une scène à l'autre selon l'étape (badge « Séchoir · n » quand des branches pendent).
+**Navigation mobile-native, tout au swipe** : **swipe ⬅️➡️** = Culture ↔ Séchoir (travelling caméra le long de la cave), **swipe ⬆️⬇️** = changer d'**étage de culture**. Les pastilles en haut et les points à droite n'indiquent que la position (tappables en secours). Un swipe qui touche quelque chose (feuille, plant, tête) est consommé par le jeu ; sinon, ample et directionnel = navigation.
+
+**Pots multiples (étagères)** : la boutique débloque jusqu'à **3 étages de culture** (rack vertical façon grow-op, une lampe par étage). Chaque étage est une station complète qui vit en continu, même hors écran — on tuile les pousses, le séchage et la vente. Le guidage pointe l'étage qui réclame (💧 soif, ✂️ feuille, plant mûr) avec la direction du swipe.
 
 **Le levier cupidité est physique** : on **verse un booster** dans le pot — 🌼 Engrais (+15 % qualité) ou 🧪 PGR (+70 % rendement, qualité plafonnée à 55 %). La qualité finale = soin d'eau + taille + booster, en un seul axe.
 

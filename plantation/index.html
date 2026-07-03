@@ -36,13 +36,24 @@
   #xpbar { width:120px; height:7px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
   #xpfill { height:100%; width:0%; background:linear-gradient(90deg,#7ad17a,#bdf0a3); border-radius:999px; transition:width .25s; }
 
-  /* Stepper de scènes : Culture <-> Séchoir (le raccord entre les blocs) */
+  /* Indicateur de scènes : le SWIPE horizontal navigue, les pastilles ne font
+     qu'indiquer (elles restent tappables en secours). */
   #scenes { position:fixed; top:calc(max(14px,env(safe-area-inset-top)) + 76px); left:50%; transform:translateX(-50%);
-    display:flex; gap:6px; z-index:4; pointer-events:auto; }
-  .scbtn { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.22); color:rgba(255,255,255,.75);
-    font-weight:800; font-size:13px; padding:7px 12px; border-radius:999px; }
-  .scbtn.on { background:rgba(155,227,125,.2); border-color:rgba(155,227,125,.6); color:#dfffce; }
+    display:flex; align-items:center; gap:8px; z-index:4; pointer-events:auto; }
+  #scenes .arr { color:rgba(255,255,255,.35); font-size:15px; font-weight:800; pointer-events:none; }
+  .scbtn { background:transparent; border:none; color:rgba(255,255,255,.45);
+    font-weight:800; font-size:13px; padding:5px 8px; border-radius:999px; }
+  .scbtn.on { color:#dfffce; background:rgba(155,227,125,.16); }
   .scbtn.pulse { animation:pulsebtn 1.1s ease-in-out infinite; }
+
+  /* Indicateur de pots (étagères) : points verticaux à droite, SWIPE vertical
+     pour changer d'étage. Tappables en secours. */
+  #potdots { position:fixed; right:12px; top:50%; transform:translateY(-50%);
+    display:flex; flex-direction:column-reverse; gap:10px; z-index:4; pointer-events:auto; }
+  .potdot { width:14px; height:14px; border-radius:50%; border:1px solid rgba(255,255,255,.4);
+    background:rgba(255,255,255,.12); padding:0; }
+  .potdot.on { background:#9be37d; border-color:#9be37d; }
+  .potdot.pulse { animation:pulsebtn 1.1s ease-in-out infinite; }
 
   #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
   .blabel { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
@@ -99,9 +110,12 @@
 <div id="cash">💶 0 €</div>
 <div id="xpwrap"><span id="level">Niv. 1</span><div id="xpbar"><div id="xpfill"></div></div></div>
 <div id="scenes">
+  <span class="arr">‹</span>
   <button id="sc-culture" class="scbtn on">🌱 Culture</button>
   <button id="sc-sechoir" class="scbtn">🌬️ Séchoir</button>
+  <span class="arr">›</span>
 </div>
+<div id="potdots"></div>
 <div class="hud" id="title">GRAINES</div>
 <div class="hud" id="remain">Trim</div>
 <button id="reset">🔄 Graine</button>
@@ -149,20 +163,24 @@ import * as THREE from "three";
                    (on lit la matière, pas une jauge). Trop = flaque, pousse
                    ralentie un temps. La plante boit vite : y revenir.
      3) TAILLER  : des FEUILLES GOURMANDES poussent sur la tige -> SWIPE vif
-                   pour les trancher sans gadget : chaque coupe redirige la
-                   vigueur (les têtes gonflent). Tailler assoiffe la plante.
-     4) COUPER    : à maturité, SWIPE VIF sur le plant -> chaque coupe détache
-                    une BRANCHE qui part pendre au FIL DE SÉCHAGE. Le pot se
-                    libère aussitôt : on peut resemer pendant que ça sèche.
-     5) RÉCOLTER  : une fois la branche SÈCHE, FROTTER ses têtes -> geste LENT
-                    = têtes A, geste VIF = trim (bradé). Frotter une branche
-                    encore humide coûte de la qualité (l'impatience se paie).
-                    Puis vendre le STOCK par sachets 1 / 3.5 / 7 / 28 g.
+                   pour les trancher : chaque coupe redirige la vigueur (les
+                   têtes gonflent). Tailler assoiffe la plante.
+     4) COUPER   : à maturité, SWIPE VIF sur le plant -> chaque coupe détache
+                   une BRANCHE qui part pendre au SÉCHOIR. Le pot se libère
+                   aussitôt : on peut resemer pendant que ça sèche.
+     5) RÉCOLTER : une fois la branche SÈCHE, FROTTER ses têtes -> geste LENT
+                   = têtes A, geste VIF = trim (bradé). Frotter humide coûte
+                   de la qualité. Vente en sachets 1 / 3.5 / 7 / 28 g.
 
-   DEUX SCÈNES reliées par un stepper (le raccord entre les blocs) : la
-   CULTURE (pot, semer/arroser/tailler/couper) et le SÉCHOIR (fil, frotter,
-   bacs, vente). Les branches coupées volent vers le séchoir hors-champ ;
-   la caméra fait un travelling d'une zone à l'autre de la même cave.
+   NAVIGATION MOBILE-NATIVE, tout au SWIPE (les pastilles n'indiquent que la
+   position, tappables en secours) :
+     - SWIPE HORIZONTAL : Culture <-> Séchoir (travelling caméra le long de
+       la cave). Un swipe qui touche quelque chose (feuille, plant, tête) est
+       consommé par le jeu ; sinon, ample et horizontal = navigation.
+     - SWIPE VERTICAL : changer d'ÉTAGE de culture (pots multiples débloqués
+       en boutique, empilés en étagères de grow-op ; la caméra grimpe).
+   Chaque étage est une station complète (pot, sac, graines, arrosoir,
+   booster) qui vit en continu, même hors écran.
 
    Le levier cupidité est PHYSIQUE : on verse un booster dans le pot —
    🌼 Engrais (+qualité, cher) ou 🧪 PGR (+rendement, qualité plafonnée bas).
@@ -172,8 +190,6 @@ import * as THREE from "three";
 
 /* -------------------------------------------------------------------------
    0) ÉCONOMIE & CONSTANTES DE RÉGLAGE (réglage humain : tout est ici)
-   - Weed détail (UE) : ~7–12 €/g selon le format ; trim bradé ~2.5 €/g.
-   - Graines féminisées : ~10–60 € ; une plante d'intérieur : ~30–65 g.
    ------------------------------------------------------------------------- */
 const FMT_PRICE  = { 1: 12, 3.5: 10, 7: 9, 28: 7 };  // €/g à qualité 100 % (prix réel = × qualité)
 const TRIM_PRICE = 2.5;                               // €/g, forfaitaire (les schlags)
@@ -217,6 +233,12 @@ const CUT_COOLDOWN = 0.3;    // s entre deux coupes de branche (un swipe = une b
 const BAG_HOLD     = 0.28;   // s entre deux sachets en maintien
 const QUAL_BASE    = 0.30, QUAL_WATER = 0.45, QUAL_TRIM = 0.25;   // qualité = base + eau + taille
 const YIELD_FLOOR  = 0.75;   // rendement mini (le reste vient du soin d'eau)
+const MAX_POTS     = 3;      // étages de culture (pot 1 offert, 2-3 en boutique)
+const POT_COSTS    = [0, 800, 2500];
+const LEVEL_H      = 5.6;    // hauteur d'un étage d'étagère (assez pour cadrer un étage
+                             // sans que le voisin déborde — on n'en voit qu'un liseré)
+const NAV_DIST     = 70;     // px de swipe mini pour naviguer
+const NAV_RATIO    = 1.5;    // dominance d'axe requise (|dx| vs |dy|)
 
 /* -------------------------------------------------------------------------
    1) SCÈNE, CAMÉRA, RENDU
@@ -232,8 +254,9 @@ app.appendChild(renderer.domElement);
 
 const SECHOIR_X   = 7;       // la zone séchoir : la pièce d'à côté, dans la même cave
 const VIEW_DIR    = new THREE.Vector3(0.0, 0.42, 0.91).normalize();  // plus frontal : la plante est verticale
-const VIEW_TARGET = new THREE.Vector3(0.0, 1.05, 0.15);              // .x glisse vers SECHOIR_X (travelling)
+const VIEW_TARGET = new THREE.Vector3(0.0, 1.05, 0.15);              // .x/.y glissent (travelling)
 const VIEW_RADIUS = Math.hypot(1.75, 1.2, 1.05);
+const BASE_TY     = 1.05;
 const baseCamPos  = new THREE.Vector3();
 let zoom = +(localStorage.getItem("plant_zoom")) || 1;
 zoom = Math.max(0.6, Math.min(2.6, zoom));
@@ -258,13 +281,13 @@ function resize() {
 window.addEventListener("resize", resize);
 
 /* -------------------------------------------------------------------------
-   2) LUMIÈRES + CAVE (mur de pierre + ampoule nue, l'ambiance Weed Firm)
+   2) LUMIÈRES + CAVE (mur de pierre + ampoules nues, deux pièces)
    ------------------------------------------------------------------------- */
 scene.add(new THREE.HemisphereLight(0xe8ffd8, 0x1a2416, 0.55));
 const sun = new THREE.DirectionalLight(0xfff2d8, 1.2);
 sun.position.set(3, 9, 5); sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024); sun.shadow.bias = -0.0004;
-const sc = sun.shadow.camera; sc.left = -7; sc.right = 7; sc.top = 8; sc.bottom = -7; sc.near = 1; sc.far = 30;
+const sc = sun.shadow.camera; sc.left = -7; sc.right = 7; sc.top = 14; sc.bottom = -7; sc.near = 1; sc.far = 30;
 scene.add(sun);
 const fill = new THREE.DirectionalLight(0xa8ffc0, 0.35); fill.position.set(-4, 3, 6); scene.add(fill);
 
@@ -272,39 +295,56 @@ const floorMat = new THREE.MeshStandardMaterial({ color: 0x4a3a2c, roughness: 0.
 const wallMat  = new THREE.MeshStandardMaterial({ color: 0x585d63, roughness: 0.95 });
 const floor = new THREE.Mesh(new THREE.BoxGeometry(18, 0.3, 9), floorMat);
 floor.position.set(SECHOIR_X / 2, -0.15, 0.6); floor.receiveShadow = true; scene.add(floor);
-const wall = new THREE.Mesh(new THREE.BoxGeometry(18, 7, 0.4), wallMat);
-wall.position.set(SECHOIR_X / 2, 3.2, -2.2); wall.receiveShadow = true; scene.add(wall);
+const WALL_H = 6 + MAX_POTS * LEVEL_H;
+const wall = new THREE.Mesh(new THREE.BoxGeometry(18, WALL_H, 0.4), wallMat);
+wall.position.set(SECHOIR_X / 2, WALL_H / 2 - 0.3, -2.2); wall.receiveShadow = true; scene.add(wall);
 // Cloison entre les deux pièces (la caméra passe devant, l'œil comprend « à côté »)
-const divider = new THREE.Mesh(new THREE.BoxGeometry(0.35, 7, 2.2), wallMat);
-divider.position.set(SECHOIR_X / 2, 3.2, -1.2); scene.add(divider);
-// Moellons en relief (décor, positions figées pour un mur stable)
+const divider = new THREE.Mesh(new THREE.BoxGeometry(0.35, WALL_H, 2.2), wallMat);
+divider.position.set(SECHOIR_X / 2, WALL_H / 2 - 0.3, -1.2); scene.add(divider);
+// Moellons en relief (décor, positions figées) — un pan par pièce et par étage
 const stoneMat = new THREE.MeshStandardMaterial({ color: 0x5d6268, roughness: 1 });
 for (const ox of [0, SECHOIR_X]) {
-  for (let i = 0; i < 26; i++) {
-    const s = new THREE.Mesh(new THREE.SphereGeometry(0.22 + (i % 5) * 0.05, 8, 6), stoneMat);
-    s.position.set(ox - 4.2 + (i % 7) * 1.4 + (i % 3) * 0.2, 0.5 + Math.floor(i / 7) * 1.15, -2.05);
-    s.scale.z = 0.1; scene.add(s);
+  for (let lvl = 0; lvl < (ox === 0 ? MAX_POTS : 1); lvl++) {
+    for (let i = 0; i < 26; i++) {
+      const s = new THREE.Mesh(new THREE.SphereGeometry(0.22 + (i % 5) * 0.05, 8, 6), stoneMat);
+      s.position.set(ox - 4.2 + (i % 7) * 1.4 + (i % 3) * 0.2,
+        lvl * LEVEL_H + 0.5 + Math.floor(i / 7) * 1.15, -2.05);
+      s.scale.z = 0.1; scene.add(s);
+    }
   }
 }
-
-// Ampoule nue suspendue au-dessus du pot ; la LAMPE achetée la rend horticole.
-const bulbCable = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1.6, 6),
-  new THREE.MeshStandardMaterial({ color: 0x222222 }));
-bulbCable.position.set(0, 3.95, 0); scene.add(bulbCable);
-const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 12),
-  new THREE.MeshStandardMaterial({ color: 0xfff6c8, emissive: 0xffe9a0, emissiveIntensity: 0.9, roughness: 0.3 }));
-bulb.position.set(0, 3.1, 0); scene.add(bulb);
-const bulbLight = new THREE.PointLight(0xffe9b0, 12, 8, 2);
-bulbLight.position.set(0, 3.05, 0); scene.add(bulbLight);
 // L'ampoule du séchoir : plus chaude, plus faible (on y suspend, on n'y cultive pas)
-const bulb2 = bulb.clone(); bulb2.position.set(SECHOIR_X, 3.1, -0.6); scene.add(bulb2);
-const bulbCable2 = bulbCable.clone(); bulbCable2.position.set(SECHOIR_X, 3.95, -0.6); scene.add(bulbCable2);
+const bulbGeo = new THREE.SphereGeometry(0.16, 14, 12);
+const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff6c8, emissive: 0xffe9a0, emissiveIntensity: 0.9, roughness: 0.3 });
+const cableGeo = new THREE.CylinderGeometry(0.015, 0.015, 1.6, 6);
+const cableMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+const bulb2 = new THREE.Mesh(bulbGeo, bulbMat); bulb2.position.set(SECHOIR_X, 3.1, -0.6); scene.add(bulb2);
+const cable2 = new THREE.Mesh(cableGeo, cableMat); cable2.position.set(SECHOIR_X, 3.95, -0.6); scene.add(cable2);
 const bulbLight2 = new THREE.PointLight(0xffd9a0, 9, 8, 2);
 bulbLight2.position.set(SECHOIR_X, 3.0, -0.6); scene.add(bulbLight2);
 
 /* -------------------------------------------------------------------------
-   3) STATIONS : pot, terreau, graines, arrosoir, booster, bacs
+   3) GÉOMÉTRIES & MATÉRIAUX PARTAGÉS
    ------------------------------------------------------------------------- */
+const potMat   = new THREE.MeshStandardMaterial({ color: 0xa8563a, roughness: 0.8 });
+const SOIL_DRY = new THREE.Color(0x9a7248), SOIL_WET = new THREE.Color(0x3f2d1d);
+const stemMat  = new THREE.MeshStandardMaterial({ color: 0x3f6b2e, roughness: 0.85 });
+const leafDecoMat = new THREE.MeshStandardMaterial({ color: 0x27632c, roughness: 0.85, side: THREE.DoubleSide });
+const canMat   = new THREE.MeshStandardMaterial({ color: 0x3f7fae, roughness: 0.45, metalness: 0.3 });
+const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a6a42, roughness: 0.9 });
+const seedMat  = new THREE.MeshStandardMaterial({ color: 0x5d4426, roughness: 0.6 });
+const shelfMat = new THREE.MeshStandardMaterial({ color: 0x6e5638, roughness: 0.85 });
+const LEAF_FRESH = new THREE.Color(0x8ecf4a), LEAF_HARD = new THREE.Color(0x5d7a2a);
+const PLANT_H = 2.0;
+
+function leafBlade(len, wid, mat) {
+  const shp = new THREE.Shape();
+  shp.moveTo(0, 0); shp.lineTo(wid * 0.5, len * 0.45); shp.lineTo(0, len); shp.lineTo(-wid * 0.5, len * 0.45); shp.closePath();
+  const m = new THREE.Mesh(new THREE.ShapeGeometry(shp), mat);
+  m.rotation.x = -Math.PI / 3; return m;
+}
+
+// Positions LOCALES d'une station (x/z ; y = étage)
 const POT_POS   = new THREE.Vector3(0, 0, 0.15);
 const SOIL_POS  = new THREE.Vector3(-1.65, 0, -0.55);
 const SEED_POS  = new THREE.Vector3(-1.75, 0, 1.15);
@@ -312,107 +352,180 @@ const CAN_POS   = new THREE.Vector3(1.6, 0, 0.35);
 const BOOST_POS = new THREE.Vector3(2.0, 0, -0.45);
 const STOCK_POS = new THREE.Vector3(SECHOIR_X - 0.85, 0, 1.7);   // les bacs vivent au séchoir
 const TRIM_POS  = new THREE.Vector3(SECHOIR_X + 0.95, 0, 1.7);
+const BOOST_COLS = { fert: 0xe3c05f, pgr: 0xd06060 };
 
-// POT en terre cuite (façon la réf : évasé + soucoupe)
-const potMat = new THREE.MeshStandardMaterial({ color: 0xa8563a, roughness: 0.8 });
-const pot = new THREE.Group(); pot.position.copy(POT_POS);
-const potBody = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.38, 0.62, 22, 1, true), potMat);
-potBody.position.y = 0.31; potBody.castShadow = true; potBody.receiveShadow = true; pot.add(potBody);
-const potRim = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 0.14, 22), potMat);
-potRim.position.y = 0.60; potRim.castShadow = true; pot.add(potRim);
-const potSaucer = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.52, 0.08, 22), potMat);
-potSaucer.position.y = 0.04; pot.add(potSaucer);
-scene.add(pot);
-const potPick = [potBody, potRim];
-
-// Terre dans le pot : le disque monte quand on verse, sa couleur lit l'humidité.
-const SOIL_DRY = new THREE.Color(0x9a7248), SOIL_WET = new THREE.Color(0x3f2d1d);
-const soilMat = new THREE.MeshStandardMaterial({ color: 0x9a7248, roughness: 1 });
-const soilDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.1, 22), soilMat);
-soilDisc.position.set(POT_POS.x, 0.2, POT_POS.z); soilDisc.visible = false; scene.add(soilDisc);
-// Flaque de sur-arrosage au pied du pot
-const puddle = new THREE.Mesh(new THREE.CircleGeometry(0.7, 24),
-  new THREE.MeshStandardMaterial({ color: 0x4d7ba6, transparent: true, opacity: 0.55, roughness: 0.1 }));
-puddle.rotation.x = -Math.PI / 2; puddle.position.set(POT_POS.x + 0.5, 0.011, POT_POS.z + 0.4);
-puddle.visible = false; scene.add(puddle);
-
-// SAC DE TERREAU (gros sac mou + étiquette)
-const soilSack = new THREE.Group(); soilSack.position.copy(SOIL_POS);
-const sackBody = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.95, 14),
-  new THREE.MeshStandardMaterial({ color: 0x6b4f35, roughness: 0.95 }));
-sackBody.position.y = 0.48; sackBody.castShadow = true; soilSack.add(sackBody);
-const sackBand = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.48, 0.3, 14),
-  new THREE.MeshStandardMaterial({ color: 0xd8c79a, roughness: 0.8 }));
-sackBand.position.y = 0.5; soilSack.add(sackBand);
-scene.add(soilSack);
-
-// CAISSE DE GRAINES (petite caisse en bois, une graine dépasse)
-const seedCrate = new THREE.Group(); seedCrate.position.copy(SEED_POS);
-const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a6a42, roughness: 0.9 });
-const crate = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.4, 0.55), crateMat);
-crate.position.y = 0.2; crate.castShadow = true; seedCrate.add(crate);
-const seedMat = new THREE.MeshStandardMaterial({ color: 0x5d4426, roughness: 0.6 });
-const seedInCrate = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), seedMat);
-seedInCrate.position.set(0.05, 0.45, 0); seedInCrate.scale.y = 1.35; seedCrate.add(seedInCrate);
-scene.add(seedCrate);
-// Graine fantôme qui suit le doigt pendant le drag
-const seedGhost = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8),
-  new THREE.MeshStandardMaterial({ color: 0x7a5a30, roughness: 0.5, emissive: 0x332200, emissiveIntensity: 0.6 }));
-seedGhost.scale.y = 1.35; seedGhost.visible = false; scene.add(seedGhost);
-
-// ARROSOIR (corps + bec) — il se penche vers le pot quand on arrose
-const can = new THREE.Group(); can.position.copy(CAN_POS);
-const canMat = new THREE.MeshStandardMaterial({ color: 0x3f7fae, roughness: 0.45, metalness: 0.3 });
-const canBody = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.55, 16), canMat);
-canBody.position.y = 0.28; canBody.castShadow = true; can.add(canBody);
-const canSpout = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.65, 8), canMat);
-canSpout.position.set(-0.38, 0.42, 0); canSpout.rotation.z = 0.9; can.add(canSpout);
-const canHandle = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.035, 8, 16), canMat);
-canHandle.position.set(0.28, 0.42, 0); can.add(canHandle);
-scene.add(can);
-
-// BOUTEILLE DE BOOSTER (teintée selon le boost sélectionné)
-const boostBottle = new THREE.Group(); boostBottle.position.copy(BOOST_POS);
-const bottleMat = new THREE.MeshStandardMaterial({ color: 0xe3c05f, roughness: 0.3, metalness: 0.1 });
-const bottleBody = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.55, 12), bottleMat);
-bottleBody.position.y = 0.28; bottleBody.castShadow = true; boostBottle.add(bottleBody);
-const bottleNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.2, 10), bottleMat);
-bottleNeck.position.y = 0.63; boostBottle.add(bottleNeck);
-const bottleCap = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.08, 10),
-  new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.6 }));
-bottleCap.position.y = 0.76; boostBottle.add(bottleCap);
-scene.add(boostBottle);
-
-// BACS STOCK / TRIM
-function makeBin(pos, col) {
-  const grp = new THREE.Group(); grp.position.copy(pos);
-  const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, metalness: 0.1, side: THREE.DoubleSide });
-  const w = 1.35, d = 1.0, h = 0.4, th = 0.07;
-  const fl = new THREE.Mesh(new THREE.BoxGeometry(w, th, d), mat); fl.position.y = th / 2; fl.receiveShadow = true; grp.add(fl);
-  const wLR = (x) => { const m = new THREE.Mesh(new THREE.BoxGeometry(th, h, d), mat); m.position.set(x, h / 2, 0); grp.add(m); };
-  const wFB = (z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, th), mat); m.position.set(0, h / 2, z); grp.add(m); };
-  wLR(-w / 2); wLR(w / 2); wFB(-d / 2); wFB(d / 2);
-  scene.add(grp); return grp;
-}
-const stockBin = makeBin(STOCK_POS, 0x2f8a4e);
-const trimBin  = makeBin(TRIM_POS, 0x7a6a3a);
-// Tas de têtes dans les bacs (grossit avec le contenu)
-function makeHeap(col) {
-  const m = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.42, 16),
-    new THREE.MeshStandardMaterial({ color: col, roughness: 0.95 }));
-  m.castShadow = true; m.visible = false; scene.add(m); return m;
-}
-const stockHeap = makeHeap(0x3f7a34); stockHeap.position.set(STOCK_POS.x, 0.18, STOCK_POS.z);
-const trimHeap  = makeHeap(0x6f7a3a); trimHeap.position.set(TRIM_POS.x, 0.18, TRIM_POS.z);
-function setHeap(mesh, g, maxG) {
-  const k = Math.min(1, g / maxG);
-  const s = 0.2 + 0.9 * Math.cbrt(k);
-  mesh.visible = g > 0.3; mesh.scale.set(s, 0.5 + 0.65 * k, s);
+/* -------------------------------------------------------------------------
+   4) STATION DE CULTURE (un étage complet : pot, outils, plante) — FACTORY
+   ------------------------------------------------------------------------- */
+const labelsEl = document.getElementById("labels");
+function makeLabel(text, color) {
+  const d = document.createElement("div"); d.className = "blabel"; d.textContent = text; d.style.color = color;
+  labelsEl.appendChild(d); return d;
 }
 
-// FIL DE SÉCHAGE tendu devant le mur DU SÉCHOIR : les branches y pendent tête en bas.
+const stations = [];
+function makeStation(lvl) {
+  const Y = lvl * LEVEL_H;
+  const st = {
+    lvl, y: Y,
+    phase: "empty", soil: 0, growth: 0, moisture: 0, soggyT: 0,
+    careWater: 0, qualTrim: 1, fert: false, pgr: false, seed: null,
+    leafTimer: 0, branchesLeft: 0,
+    watering: false, waterFlow: 0, waterSndT: 0,
+    pouringSoil: false, soilSndT: 0,
+    pouringBoost: false, boostT: 0,
+    secatT: 0, cutCd: 0,
+  };
+
+  // Étagère (plateau + équerres) pour les étages > 0
+  if (lvl > 0) {
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.2, 3.5), shelfMat);
+    plank.position.set(0.15, Y - 0.1, 0.35); plank.receiveShadow = true; plank.castShadow = true; scene.add(plank);
+    for (const bx of [-2.2, 2.4]) {
+      const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 1.6), shelfMat);
+      bracket.position.set(bx, Y - 0.5, -1.2); scene.add(bracket);
+    }
+  }
+  // Ampoule de l'étage — le câble s'attache à la planche de l'étage du dessus
+  // (réalisme du rack : rien ne flotte), ou file vers le plafond au dernier étage.
+  const bulb = new THREE.Mesh(bulbGeo, bulbMat); bulb.position.set(0, Y + 3.1, 0); scene.add(bulb);
+  const cableLen = lvl < MAX_POTS - 1 ? (LEVEL_H - 0.2 - 3.1) : 1.6;
+  const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, cableLen, 6), cableMat);
+  cable.position.set(0, Y + 3.1 + 0.08 + cableLen / 2, 0); scene.add(cable);
+  st.bulb = bulb;
+  st.light = new THREE.PointLight(0xffe9b0, lvl === 0 ? 12 : 9, 8, 2);
+  st.light.position.set(0, Y + 3.05, 0); scene.add(st.light);
+
+  // POT en terre cuite
+  const pot = new THREE.Group(); pot.position.set(POT_POS.x, Y, POT_POS.z);
+  const potBody = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.38, 0.62, 22, 1, true), potMat);
+  potBody.position.y = 0.31; potBody.castShadow = true; potBody.receiveShadow = true; pot.add(potBody);
+  const potRim = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 0.14, 22), potMat);
+  potRim.position.y = 0.60; potRim.castShadow = true; pot.add(potRim);
+  const potSaucer = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.52, 0.08, 22), potMat);
+  potSaucer.position.y = 0.04; pot.add(potSaucer);
+  scene.add(pot);
+
+  st.soilMat = new THREE.MeshStandardMaterial({ color: 0x9a7248, roughness: 1 });
+  st.soilDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.1, 22), st.soilMat);
+  st.soilDisc.position.set(POT_POS.x, Y + 0.2, POT_POS.z); st.soilDisc.visible = false; scene.add(st.soilDisc);
+  st.puddle = new THREE.Mesh(new THREE.CircleGeometry(0.7, 24),
+    new THREE.MeshStandardMaterial({ color: 0x4d7ba6, transparent: true, opacity: 0.55, roughness: 0.1 }));
+  st.puddle.rotation.x = -Math.PI / 2; st.puddle.position.set(POT_POS.x + 0.5, Y + 0.011, POT_POS.z + 0.4);
+  st.puddle.visible = false; scene.add(st.puddle);
+
+  // SAC DE TERREAU
+  st.soilSack = new THREE.Group(); st.soilSack.position.set(SOIL_POS.x, Y, SOIL_POS.z);
+  const sackBody = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.95, 14),
+    new THREE.MeshStandardMaterial({ color: 0x6b4f35, roughness: 0.95 }));
+  sackBody.position.y = 0.48; sackBody.castShadow = true; st.soilSack.add(sackBody);
+  const sackBand = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.48, 0.3, 14),
+    new THREE.MeshStandardMaterial({ color: 0xd8c79a, roughness: 0.8 }));
+  sackBand.position.y = 0.5; st.soilSack.add(sackBand);
+  scene.add(st.soilSack);
+  st.sackPick = [sackBody, sackBand];
+
+  // CAISSE DE GRAINES
+  st.seedCrate = new THREE.Group(); st.seedCrate.position.set(SEED_POS.x, Y, SEED_POS.z);
+  const crate = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.4, 0.55), crateMat);
+  crate.position.y = 0.2; crate.castShadow = true; st.seedCrate.add(crate);
+  const seedInCrate = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), seedMat);
+  seedInCrate.position.set(0.05, 0.45, 0); seedInCrate.scale.y = 1.35; st.seedCrate.add(seedInCrate);
+  scene.add(st.seedCrate);
+
+  // ARROSOIR
+  st.can = new THREE.Group(); st.can.position.set(CAN_POS.x, Y, CAN_POS.z);
+  st.canHome = new THREE.Vector3(CAN_POS.x, Y, CAN_POS.z);
+  const canBody = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.55, 16), canMat);
+  canBody.position.y = 0.28; canBody.castShadow = true; st.can.add(canBody);
+  const canSpout = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.65, 8), canMat);
+  canSpout.position.set(-0.38, 0.42, 0); canSpout.rotation.z = 0.9; st.can.add(canSpout);
+  const canHandle = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.035, 8, 16), canMat);
+  canHandle.position.set(0.28, 0.42, 0); st.can.add(canHandle);
+  scene.add(st.can);
+
+  // BOUTEILLE DE BOOSTER
+  st.boostBottle = new THREE.Group(); st.boostBottle.position.set(BOOST_POS.x, Y, BOOST_POS.z);
+  st.bottleMat = new THREE.MeshStandardMaterial({ color: 0xe3c05f, roughness: 0.3, metalness: 0.1 });
+  const bottleBody = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.55, 12), st.bottleMat);
+  bottleBody.position.y = 0.28; bottleBody.castShadow = true; st.boostBottle.add(bottleBody);
+  const bottleNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.2, 10), st.bottleMat);
+  bottleNeck.position.y = 0.63; st.boostBottle.add(bottleNeck);
+  const bottleCap = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.08, 10),
+    new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.6 }));
+  bottleCap.position.y = 0.76; st.boostBottle.add(bottleCap);
+  scene.add(st.boostBottle);
+
+  // LA PLANTE
+  st.plantGroup = new THREE.Group();
+  st.plantGroup.position.set(POT_POS.x, Y + 0.62, POT_POS.z);
+  scene.add(st.plantGroup);
+  st.stem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.06, 1, 8), stemMat);
+  st.stem.castShadow = true; st.plantGroup.add(st.stem);
+  // Cylindre de hit invisible : la coupe au swipe est indulgente (au pouce,
+  // on tranche « à travers la plante », pas une tige fine).
+  st.plantHit = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1, 8),
+    new THREE.MeshBasicMaterial({ visible: false }));
+  st.plantGroup.add(st.plantHit);
+  st.branches = [];
+  for (let i = 0; i < 5; i++) {
+    const lvlG = new THREE.Group();
+    const t = 0.18 + i * 0.17;
+    for (let k = 0; k < 4; k++) {
+      const s = k % 2 === 0 ? 1 : -1;
+      const blade = leafBlade(0.62 - i * 0.07, 0.3 - i * 0.035, leafDecoMat);
+      blade.position.x = s * 0.05;
+      blade.rotation.z = s * (1.05 + (k > 1 ? 0.45 : 0));
+      const holder = new THREE.Group();
+      holder.rotation.y = k * Math.PI / 2 + i * 0.6;
+      holder.add(blade);
+      lvlG.add(holder);
+    }
+    lvlG.userData.t = t;
+    st.branches.push(lvlG); st.plantGroup.add(lvlG);
+  }
+  st.buds = [];
+  for (let i = 0; i < N_BUDS; i++) {
+    const isCola = i === N_BUDS - 1;
+    const grp = new THREE.Group();
+    const size = isCola ? 0.27 : 0.16;
+    const m = new THREE.Mesh(new THREE.ConeGeometry(size, size * 2.4, 9),
+      new THREE.MeshStandardMaterial({ color: 0x93c25a, roughness: 0.8, emissive: 0x2a4d0e, emissiveIntensity: 0.0 }));
+    m.castShadow = true; grp.add(m);
+    for (let p = 0; p < 3; p++) {
+      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, size * 1.4, 4),
+        new THREE.MeshStandardMaterial({ color: 0xead9a0, roughness: 0.9 }));
+      h.position.set((p - 1) * size * 0.4, size * 0.6, 0); h.rotation.z = (p - 1) * 0.5;
+      grp.add(h);
+    }
+    const t = isCola ? 1.0 : 0.42 + (i / (N_BUDS - 1)) * 0.52;
+    grp.userData = { t, ang: i * 2.4, off: isCola ? 0 : 0.15, taken: false, g: 0 };
+    grp.visible = false;
+    st.buds.push(grp); st.plantGroup.add(grp);
+  }
+  st.gLeaves = [];
+  for (let i = 0; i < LEAF_MAX; i++) {
+    const grp = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x8ecf4a, roughness: 0.8, side: THREE.DoubleSide });
+    grp.add(leafBlade(0.55, 0.3, mat));
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 6),
+      new THREE.MeshBasicMaterial({ visible: false }));
+    hit.position.y = 0.3; grp.add(hit);
+    grp.visible = false;
+    st.gLeaves.push({ grp, mat, hit, active: false, age: 0, t: 0, ang: 0 });
+    st.plantGroup.add(grp);
+  }
+
+  st.potLabel = makeLabel("🪴 POT " + (lvl + 1), "#f0c9a8");
+  stations.push(st);
+  return st;
+}
+
+/* -------------------------------------------------------------------------
+   5) SÉCHOIR : fil, crochets, branches pendues, bacs
+   ------------------------------------------------------------------------- */
 const LINE_Y = 2.0, LINE_Z = -1.55;
-const LINE_POS = new THREE.Vector3(SECHOIR_X, 0, -1.1);  // ancrage du halo de guidage au sol
+const LINE_POS = new THREE.Vector3(SECHOIR_X, 0, -1.1);
 const wireMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.7 });
 const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 4.6, 6), wireMat);
 wire.rotation.z = Math.PI / 2; wire.position.set(SECHOIR_X, LINE_Y, LINE_Z); scene.add(wire);
@@ -432,13 +545,13 @@ function attachBranch(hook) {
   grp.position.set(hook.x, LINE_Y, LINE_Z);
   const tie = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.015, 6, 10), wireMat);
   tie.position.y = -0.03; grp.add(tie);
-  const st = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.035, 0.75, 7), stemMat);
-  st.position.y = -0.42; st.castShadow = true; grp.add(st);
+  const stM = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.035, 0.75, 7), stemMat);
+  stM.position.y = -0.42; stM.castShadow = true; grp.add(stM);
   hook.buds = []; hook.budMats = []; hook.leafMats = [];
   for (let i = 0; i < BUDS_PER_BRANCH; i++) {
     const mat = new THREE.MeshStandardMaterial({ color: 0x93c25a, roughness: 0.8 });
     const bud = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.34, 9), mat);
-    bud.rotation.x = Math.PI;                              // tête en bas
+    bud.rotation.x = Math.PI;
     bud.position.set((i % 2 === 0 ? 0.09 : -0.09), -0.3 - i * 0.32, 0.02);
     bud.castShadow = true; grp.add(bud);
     const hit = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 6),
@@ -452,7 +565,7 @@ function attachBranch(hook) {
     const mat = new THREE.MeshStandardMaterial({ color: 0x27632c, roughness: 0.85, side: THREE.DoubleSide });
     const blade = leafBlade(0.3, 0.14, mat);
     blade.position.set(i === 0 ? 0.1 : -0.1, -0.55 - i * 0.15, 0);
-    blade.rotation.z = Math.PI + (i === 0 ? 0.5 : -0.5);   // feuilles vers le bas
+    blade.rotation.z = Math.PI + (i === 0 ? 0.5 : -0.5);
     grp.add(blade);
     hook.leafMats.push(mat);
   }
@@ -481,8 +594,33 @@ function updateLine(dt) {
     for (const m of h.budMats)  m.color.lerpColors(BUD_DRY_COL.from, BUD_DRY_COL.to, h.dry);
     for (const m of h.leafMats) m.color.lerpColors(LEAF_DRY_COL.from, LEAF_DRY_COL.to, h.dry);
     h.sway += dt * 1.4;
-    h.grp.rotation.z = Math.sin(h.sway) * 0.06;            // léger balancement (pivot au fil)
+    h.grp.rotation.z = Math.sin(h.sway) * 0.06;
   }
+}
+
+function makeBin(pos, col) {
+  const grp = new THREE.Group(); grp.position.copy(pos);
+  const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, metalness: 0.1, side: THREE.DoubleSide });
+  const w = 1.35, d = 1.0, h = 0.4, th = 0.07;
+  const fl = new THREE.Mesh(new THREE.BoxGeometry(w, th, d), mat); fl.position.y = th / 2; fl.receiveShadow = true; grp.add(fl);
+  const wLR = (x) => { const m = new THREE.Mesh(new THREE.BoxGeometry(th, h, d), mat); m.position.set(x, h / 2, 0); grp.add(m); };
+  const wFB = (z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, th), mat); m.position.set(0, h / 2, z); grp.add(m); };
+  wLR(-w / 2); wLR(w / 2); wFB(-d / 2); wFB(d / 2);
+  scene.add(grp); return grp;
+}
+const stockBin = makeBin(STOCK_POS, 0x2f8a4e);
+const trimBin  = makeBin(TRIM_POS, 0x7a6a3a);
+function makeHeap(col) {
+  const m = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.42, 16),
+    new THREE.MeshStandardMaterial({ color: col, roughness: 0.95 }));
+  m.castShadow = true; m.visible = false; scene.add(m); return m;
+}
+const stockHeap = makeHeap(0x3f7a34); stockHeap.position.set(STOCK_POS.x, 0.18, STOCK_POS.z);
+const trimHeap  = makeHeap(0x6f7a3a); trimHeap.position.set(TRIM_POS.x, 0.18, TRIM_POS.z);
+function setHeap(mesh, g, maxG) {
+  const k = Math.min(1, g / maxG);
+  const s = 0.2 + 0.9 * Math.cbrt(k);
+  mesh.visible = g > 0.3; mesh.scale.set(s, 0.5 + 0.65 * k, s);
 }
 
 // Halo de guidage
@@ -492,94 +630,15 @@ const glow = new THREE.Mesh(
 );
 glow.rotation.x = -Math.PI / 2; glow.position.y = 0.04; scene.add(glow);
 
-/* -------------------------------------------------------------------------
-   4) LA PLANTE (procédurale : tige, branches, feuilles, têtes)
-   ------------------------------------------------------------------------- */
-const PLANT_H = 2.0;                         // hauteur adulte de la tige
-const plantGroup = new THREE.Group();
-plantGroup.position.set(POT_POS.x, 0.62, POT_POS.z);
-scene.add(plantGroup);
-
-const stemMat = new THREE.MeshStandardMaterial({ color: 0x3f6b2e, roughness: 0.85 });
-const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.06, 1, 8), stemMat);
-stem.castShadow = true; plantGroup.add(stem);
-// Cylindre de hit invisible autour du plant entier : la coupe au swipe est
-// indulgente (au pouce, on tranche « à travers la plante », pas une tige fine).
-const plantHit = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1, 8),
-  new THREE.MeshBasicMaterial({ visible: false }));
-plantGroup.add(plantHit);
-
-// Feuille de déco : losange plat (deux triangles), penché
-const leafDecoMat = new THREE.MeshStandardMaterial({ color: 0x27632c, roughness: 0.85, side: THREE.DoubleSide });
-function leafBlade(len, wid, mat) {
-  const shp = new THREE.Shape();
-  shp.moveTo(0, 0); shp.lineTo(wid * 0.5, len * 0.45); shp.lineTo(0, len); shp.lineTo(-wid * 0.5, len * 0.45); shp.closePath();
-  const g = new THREE.ShapeGeometry(shp);
-  const m = new THREE.Mesh(g, mat);
-  m.rotation.x = -Math.PI / 3; return m;
-}
-// Étages de branches décoratives (grandissent avec la pousse)
-const branches = [];
-for (let i = 0; i < 5; i++) {
-  const lvl = new THREE.Group();
-  const t = 0.18 + i * 0.17;                      // hauteur relative sur la tige
-  for (let k = 0; k < 4; k++) {
-    const s = k % 2 === 0 ? 1 : -1;
-    const blade = leafBlade(0.62 - i * 0.07, 0.3 - i * 0.035, leafDecoMat);
-    blade.position.x = s * 0.05;
-    blade.rotation.z = s * (1.05 + (k > 1 ? 0.45 : 0));
-    const holder = new THREE.Group();
-    holder.rotation.y = k * Math.PI / 2 + i * 0.6;   // étages en quinconce
-    holder.add(blade);
-    lvl.add(holder);
-  }
-  lvl.userData.t = t;
-  branches.push(lvl); plantGroup.add(lvl);
-}
-
-// Têtes (buds) : cônes trapus le long du haut de la tige + cola au sommet
-const budMat = new THREE.MeshStandardMaterial({ color: 0x93c25a, roughness: 0.8, emissive: 0x2a4d0e, emissiveIntensity: 0.0 });
-const buds = [];
-for (let i = 0; i < N_BUDS; i++) {
-  const isCola = i === N_BUDS - 1;
-  const grp = new THREE.Group();
-  const size = isCola ? 0.27 : 0.16;
-  const m = new THREE.Mesh(new THREE.ConeGeometry(size, size * 2.4, 9), budMat.clone());
-  m.castShadow = true; grp.add(m);
-  // pistils (petits traits clairs)
-  for (let p = 0; p < 3; p++) {
-    const h = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, size * 1.4, 4),
-      new THREE.MeshStandardMaterial({ color: 0xead9a0, roughness: 0.9 }));
-    h.position.set((p - 1) * size * 0.4, size * 0.6, 0); h.rotation.z = (p - 1) * 0.5;
-    grp.add(h);
-  }
-  const t = isCola ? 1.0 : 0.42 + (i / (N_BUDS - 1)) * 0.52;   // hauteur relative
-  const ang = i * 2.4;
-  grp.userData = { t, ang, off: isCola ? 0 : 0.15, taken: false, g: 0 };
-  grp.visible = false;
-  buds.push(grp); plantGroup.add(grp);
-}
-
-// FEUILLES GOURMANDES : grandes feuilles claires à trancher (pool)
-const LEAF_FRESH = new THREE.Color(0x8ecf4a), LEAF_HARD = new THREE.Color(0x5d7a2a);
-const gLeaves = [];
-for (let i = 0; i < LEAF_MAX; i++) {
-  const grp = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: 0x8ecf4a, roughness: 0.8, side: THREE.DoubleSide });
-  const blade = leafBlade(0.55, 0.3, mat);
-  grp.add(blade);
-  const hit = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 6),
-    new THREE.MeshBasicMaterial({ visible: false }));
-  hit.position.y = 0.3; grp.add(hit);
-  grp.visible = false;
-  gLeaves.push({ grp, mat, hit, active: false, age: 0, t: 0, ang: 0 });
-  plantGroup.add(grp);
-}
+// Graine fantôme qui suit le doigt pendant le drag
+const seedGhost = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8),
+  new THREE.MeshStandardMaterial({ color: 0x7a5a30, roughness: 0.5, emissive: 0x332200, emissiveIntensity: 0.6 }));
+seedGhost.scale.y = 1.35; seedGhost.visible = false; scene.add(seedGhost);
 
 /* -------------------------------------------------------------------------
-   5) ÉTAT DE PARTIE + PERSISTANCE
+   6) ÉTAT DE PARTIE + PERSISTANCE
    ------------------------------------------------------------------------- */
-const SAVE_VERSION = "1";
+const SAVE_VERSION = "2";     // v2 : pots multiples (owned.pots)
 if (localStorage.getItem("plant_ver") !== SAVE_VERSION) {
   ["plant_cash", "plant_level", "plant_xp", "plant_shop", "plant_fmt", "plant_boost", "plant_seed", "plant_doses", "plant_seeds"].forEach(k => localStorage.removeItem(k));
   localStorage.setItem("plant_ver", SAVE_VERSION);
@@ -594,20 +653,6 @@ if (!BOOSTS[curBoost]) curBoost = "none";
 let curSeed = localStorage.getItem("plant_seed") || "lemon";
 if (!SEED_BY[curSeed]) curSeed = "lemon";
 
-// La plante en cours (non persistée, comme le stock des autres protos)
-const plant = {
-  phase: "empty",       // empty -> soil -> growing -> mature -> (harvest) -> empty
-  soil: 0,              // 0..1 versage du terreau
-  growth: 0,            // 0..1
-  moisture: 0,
-  soggyT: 0,            // s restantes de pénalité "détrempé"
-  careWater: 0,         // ∫ temps passé dans la bande / GROW_TIME
-  qualTrim: 1,          // érodé par les feuilles gourmandes présentes
-  fert: false, pgr: false,
-  seed: null,           // variété plantée
-  leafTimer: 0,
-  branchesLeft: 0,
-};
 const stock = { g: 0, qsum: 0 };
 let trimG = 0;
 const doses = JSON.parse(localStorage.getItem("plant_doses") || '{"fert":0,"pgr":0}');
@@ -617,7 +662,7 @@ function saveSeeds() { localStorage.setItem("plant_seeds", JSON.stringify(seeds)
 function stockQual() { return stock.g > 0 ? stock.qsum / stock.g : 0.6; }
 
 /* -------------------------------------------------------------------------
-   6) UI
+   7) UI, XP
    ------------------------------------------------------------------------- */
 const ui = {
   count:document.getElementById("count"), cash:document.getElementById("cash"),
@@ -625,7 +670,7 @@ const ui = {
   title:document.getElementById("title"), remain:document.getElementById("remain"),
   prompt:document.getElementById("prompt").firstElementChild, toast:document.getElementById("toast"),
   shop:document.getElementById("shop"), shopitems:document.getElementById("shopitems"), shopcash:document.getElementById("shopcash"),
-  shopbtn:document.getElementById("shopbtn"),
+  shopbtn:document.getElementById("shopbtn"), potdots:document.getElementById("potdots"),
 };
 function setCash(v) {
   cash = v; localStorage.setItem("plant_cash", String(Math.round(cash)));
@@ -642,10 +687,6 @@ function updateResources() {
   ui.remain.textContent = "🌼 ×" + doses.fert + " · 🧪 ×" + doses.pgr;
   updateBoostBar();
 }
-
-/* -------------------------------------------------------------------------
-   7) NIVEAUX / XP
-   ------------------------------------------------------------------------- */
 function xpNeed(lvl)  { return Math.round(220 * Math.pow(1.45, lvl - 1)); }
 function levelMult()  { return 1 + (level - 1) * 0.03; }
 function updateXpUI() {
@@ -706,25 +747,26 @@ const sPop   = (f) => { const ac = ensureAudio(); if (ac) beep(f || (620 + Math.
 const sErr   = () => { const ac = ensureAudio(); if (ac) beep(150, ac.currentTime, 0.12, 0.2); };
 function sSale() { const ac = ensureAudio(); if (!ac) return; const t = ac.currentTime; beep(880, t, 0.12, 0.24); beep(1320, t + 0.08, 0.16, 0.22); }
 function sSeve() { const ac = ensureAudio(); if (!ac) return; const t = ac.currentTime; beep(340, t, 0.08, 0.1); beep(480, t + 0.06, 0.1, 0.12); }
+function sWhoosh() { noiseBurst(0.25, 300, 1400, 0.18, "bandpass", 0.6); }
 
 /* -------------------------------------------------------------------------
-   9) PARTICULES (gouttes, terre, miettes) + secousse + objets volants
+   9) PARTICULES + secousse + objets volants
    ------------------------------------------------------------------------- */
 const parts = [];
 const partGeo = new THREE.BoxGeometry(0.05, 0.05, 0.05);
 const dropMat = new THREE.MeshStandardMaterial({ color: 0x7fc4ef, roughness: 0.2 });
 const dirtMat = new THREE.MeshStandardMaterial({ color: 0x6b4f35, roughness: 1 });
 const leafMatP = new THREE.MeshStandardMaterial({ color: 0x8ecf4a, roughness: 1 });
-function spawnPart(pos, vx, vy, vz, mat) {
+function spawnPart(pos, vx, vy, vz, mat, floorY) {
   const m = new THREE.Mesh(partGeo, mat || dropMat);
   m.position.copy(pos); scene.add(m);
-  parts.push({ mesh: m, vx, vy, vz, dead: false });
+  parts.push({ mesh: m, vx, vy, vz, dead: false, floorY: floorY || 0.06 });
   while (parts.length > 90) { const p = parts.shift(); scene.remove(p.mesh); }
 }
-function burstParts(pos, n, mat) {
+function burstParts(pos, n, mat, floorY) {
   for (let i = 0; i < n; i++)
     spawnPart(new THREE.Vector3(pos.x + (Math.random()-0.5)*0.4, pos.y + 0.15, pos.z + (Math.random()-0.5)*0.4),
-      (Math.random()-0.5)*1.4, 1.4 + Math.random()*1.0, (Math.random()-0.5)*1.4, mat);
+      (Math.random()-0.5)*1.4, 1.4 + Math.random()*1.0, (Math.random()-0.5)*1.4, mat, floorY);
 }
 function updateParts(dt) {
   for (const p of parts) {
@@ -732,11 +774,10 @@ function updateParts(dt) {
     p.vy -= 9 * dt;
     p.mesh.position.x += p.vx * dt; p.mesh.position.y += p.vy * dt; p.mesh.position.z += p.vz * dt;
     p.mesh.rotation.x += dt * 6; p.mesh.rotation.y += dt * 4;
-    if (p.mesh.position.y <= 0.06) { scene.remove(p.mesh); p.dead = true; }
+    if (p.mesh.position.y <= p.floorY) { scene.remove(p.mesh); p.dead = true; }
   }
   for (let i = parts.length - 1; i >= 0; i--) if (parts[i].dead) parts.splice(i, 1);
 }
-// Objets qui VOLENT vers un bac (têtes récoltées) — la récompense qui se voit
 const fliers = [];
 function spawnFlier(from, to, col, size) {
   const m = new THREE.Mesh(new THREE.ConeGeometry(size || 0.1, (size || 0.1) * 2.2, 8),
@@ -750,7 +791,7 @@ function updateFliers(dt) {
     f.t = Math.min(1, f.t + dt * 2.2);
     const k = f.t;
     f.mesh.position.lerpVectors(f.from, f.to, k);
-    f.mesh.position.y += Math.sin(k * Math.PI) * 1.1;   // arc
+    f.mesh.position.y += Math.sin(k * Math.PI) * 1.1;
     f.mesh.rotation.x += dt * 7; f.mesh.rotation.z += dt * 5;
     if (f.t >= 1) { scene.remove(f.mesh); fliers.splice(i, 1); }
   }
@@ -759,17 +800,10 @@ let shake = 0;
 function addShake(a) { shake = Math.min(0.6, shake + a); }
 
 /* -------------------------------------------------------------------------
-   10) ÉTIQUETTES FLOTTANTES
+   10) ÉTIQUETTES FLOTTANTES + TOAST
    ------------------------------------------------------------------------- */
-const labelsEl = document.getElementById("labels");
-function makeLabel(text, color) {
-  const d = document.createElement("div"); d.className = "blabel"; d.textContent = text; d.style.color = color;
-  labelsEl.appendChild(d); return d;
-}
-const potLabel   = makeLabel("🪴 POT", "#f0c9a8");
 const stockLabel = makeLabel("📦 STOCK 0 g", "#bdf0a3");
 const trimLabel  = makeLabel("🍂 TRIM 0 g", "#d8cf9a");
-const canLabel   = makeLabel("💧", "#bfe9ff");
 const lineLabel  = makeLabel("🪢 SÉCHAGE", "#d8cf9a");
 const _lv = new THREE.Vector3();
 function placeLabel(div, x, y, z) {
@@ -779,48 +813,6 @@ function placeLabel(div, x, y, z) {
   div.style.left = ((_lv.x * 0.5 + 0.5) * window.innerWidth) + "px";
   div.style.top  = ((-_lv.y * 0.5 + 0.5) * window.innerHeight) + "px";
 }
-function updateLabels() {
-  if (plant.phase === "growing" || plant.phase === "mature") {
-    const pct = Math.round(plant.growth * 100);
-    potLabel.textContent = plant.phase === "mature" ? "✂️ MÛR — COUPE !" :
-      "🌱 " + plant.seed.name + " " + pct + "%" + (plant.moisture < MOIST_BAND[0] ? " · 💧!" : "");
-  } else potLabel.textContent = "🪴 POT";
-  const used = hooks.filter(h => h.used);
-  if (used.length) {
-    const minDry = Math.min(...used.map(h => h.dry));
-    lineLabel.textContent = minDry >= 0.99 ? "🪢 SEC — frotte 🌿" :
-      "🪢 SÉCHAGE " + Math.round(minDry * 100) + "%";
-    placeLabel(lineLabel, SECHOIR_X, LINE_Y + 0.3, LINE_Z);
-  } else lineLabel.style.display = "none";
-  placeLabel(potLabel, POT_POS.x, 2.15, POT_POS.z);
-  stockLabel.textContent = "📦 STOCK " + Math.round(stock.g) + " g";
-  placeLabel(stockLabel, STOCK_POS.x, 0.55, STOCK_POS.z);
-  trimLabel.textContent = "🍂 TRIM " + Math.round(trimG) + " g";
-  placeLabel(trimLabel, TRIM_POS.x, 0.55, TRIM_POS.z);
-  canLabel.style.display = (plant.phase === "growing") ? "block" : "none";
-  if (plant.phase === "growing") placeLabel(canLabel, CAN_POS.x, 0.95, CAN_POS.z);
-  // État + positions écran des stations, pour les captures de test (tools/)
-  const proj = (p, y) => { _lv.set(p.x, y || 0.4, p.z).project(camera);
-    return { x: (_lv.x * 0.5 + 0.5) * window.innerWidth, y: (-_lv.y * 0.5 + 0.5) * window.innerHeight }; };
-  window.__pl = { phase: plant.phase, growth: plant.growth, moisture: plant.moisture,
-    stockG: stock.g, trimG, leaves: activeLeaves(), gesture, soil: plant.soil, scene: curScene,
-    sack: proj(SOIL_POS, 0.5), seed: proj(SEED_POS, 0.3), pot: proj(POT_POS, 0.4),
-    can: proj(CAN_POS, 0.4), boost: proj(BOOST_POS, 0.4), stock: proj(STOCK_POS, 0.2),
-    trim: proj(TRIM_POS, 0.2),
-    plantTop: proj(POT_POS, 1.4),
-    branches: hooks.map(h => h.used ? { dry: +h.dry.toFixed(2) } : null),
-    leafPos: gLeaves.filter(L => L.active).map(L => { const wp = new THREE.Vector3(); L.hit.getWorldPosition(wp);
-      _lv.copy(wp).project(camera);
-      return { x: (_lv.x * 0.5 + 0.5) * window.innerWidth, y: (-_lv.y * 0.5 + 0.5) * window.innerHeight }; }),
-    branchBuds: hooks.flatMap(h => h.used ? h.buds.filter(b => !b.taken).map(b => {
-      const wp = new THREE.Vector3(); b.mesh.getWorldPosition(wp);
-      _lv.copy(wp).project(camera);
-      return { x: (_lv.x * 0.5 + 0.5) * window.innerWidth, y: (-_lv.y * 0.5 + 0.5) * window.innerHeight }; }) : []) };
-}
-
-/* -------------------------------------------------------------------------
-   11) TOAST
-   ------------------------------------------------------------------------- */
 let toastTimer = 0;
 function showToast(msg, color) {
   ui.toast.textContent = msg; ui.toast.style.color = color || "#fff";
@@ -830,14 +822,19 @@ function showToast(msg, color) {
 }
 
 /* -------------------------------------------------------------------------
-   12) BOUTIQUE (graines, boosters, vannes de délégation)
+   11) BOUTIQUE (graines, boosters, pots/étagères, vannes de délégation)
    ------------------------------------------------------------------------- */
 const owned = JSON.parse(localStorage.getItem("plant_shop") || "{}");
-owned.drip   = owned.drip   || 0;   // goutte-à-goutte : humidité auto (mais dans le bas de la bande)
-owned.tuteur = owned.tuteur || 0;   // feuilles gourmandes plus rares
-owned.led    = owned.led    || 0;   // pousse plus vite
-owned.secat  = owned.secat  || 0;   // sécateur auto : taille seul, avec du retard
+owned.pots   = Math.min(MAX_POTS, Math.max(1, owned.pots || 1));
+owned.drip   = owned.drip   || 0;
+owned.tuteur = owned.tuteur || 0;
+owned.led    = owned.led    || 0;
+owned.secat  = owned.secat  || 0;
 function saveShop() { localStorage.setItem("plant_shop", JSON.stringify(owned)); }
+function ensurePots() {
+  while (stations.length < owned.pots) makeStation(stations.length);
+  renderPotDots();
+}
 
 const SHOP = [
   ...SEEDS.map(s => ({
@@ -853,14 +850,22 @@ const SHOP = [
     desc:()=>"+70% rendement… qualité plafonnée à 55%. La cupidité en bouteille.",
     cost:()=>BOOSTS.pgr.cost, can:()=>true, maxed:()=>false,
     buy:()=>{ doses.pgr++; saveDoses(); updateResources(); } },
+  { id:"pot2", icon:"🪜", name:"Étagère — Pot 2",
+    desc:()=>"Un 2ᵉ étage de culture. Swipe ⬆️/⬇️ pour alterner.",
+    cost:()=>POT_COSTS[1], can:()=>owned.pots === 1, maxed:()=>owned.pots >= 2,
+    buy:()=>{ owned.pots = 2; ensurePots(); showToast("Étagère installée — swipe ⬆️ !", "#bdf0a3"); } },
+  { id:"pot3", icon:"🪜", name:"Étagère — Pot 3",
+    desc:()=>"Un 3ᵉ étage de culture, tout en haut.",
+    cost:()=>POT_COSTS[2], can:()=>owned.pots === 2, maxed:()=>owned.pots >= 3,
+    buy:()=>{ owned.pots = 3; ensurePots(); showToast("3ᵉ étage installé — swipe ⬆️ !", "#bdf0a3"); } },
   { id:"drip", icon:"💧", name:"Goutte-à-goutte",
-    desc:()=>"Arrose seul, mais chichement : la main fait mieux.",
+    desc:()=>"Arrose seul (tous les pots), mais chichement : la main fait mieux.",
     cost:()=>400, can:()=>owned.drip < 1, maxed:()=>owned.drip >= 1, buy:()=>{ owned.drip = 1; } },
   { id:"tuteur", icon:"🪴", name:"Tuteur & palissage",
     desc:()=>"Feuilles gourmandes nettement plus rares.",
     cost:()=>250, can:()=>owned.tuteur < 1, maxed:()=>owned.tuteur >= 1, buy:()=>{ owned.tuteur = 1; } },
   { id:"led", icon:"💡", name:"Lampe LED horticole",
-    desc:()=>"Pousse +25% plus vite.",
+    desc:()=>"Pousse +25% plus vite (tous les pots).",
     cost:()=>600, can:()=>owned.led < 1, maxed:()=>owned.led >= 1, buy:()=>{ owned.led = 1; applyLamp(); } },
   { id:"secat", icon:"🤖", name:"Sécateur auto",
     desc:()=>"Taille seul… avec du retard : la main fait mieux.",
@@ -888,35 +893,36 @@ function buy(it) {
   renderShop();
 }
 function applyLamp() {
-  if (owned.led) {
-    bulb.material.color.setHex(0xe8d5ff); bulb.material.emissive.setHex(0xc9a0ff);
-    bulbLight.color.setHex(0xd9b8ff); bulbLight.intensity = 16;
+  if (!owned.led) return;
+  for (const st of stations) {
+    st.bulb.material = st.bulb.material.clone();
+    st.bulb.material.color.setHex(0xe8d5ff); st.bulb.material.emissive.setHex(0xc9a0ff);
+    st.light.color.setHex(0xd9b8ff); st.light.intensity = 16;
   }
 }
 
 /* -------------------------------------------------------------------------
-   13) GESTE 1 — TERREAU (maintenir) puis GRAINE (glisser)
+   12) GESTES DE STATION — terreau, graine, arrosage, booster (par étage)
    ------------------------------------------------------------------------- */
-let pouringSoil = false, soilSndT = 0;
-function updateSoil(dt) {
-  if (!pouringSoil || plant.phase !== "empty") return;
-  plant.soil = Math.min(1, plant.soil + dt / SOIL_TIME);
-  soilDisc.visible = plant.soil > 0.05;
-  soilDisc.position.y = 0.12 + plant.soil * 0.36;
-  soilSack.rotation.z = -0.35;
-  spawnPart(new THREE.Vector3(SOIL_POS.x + 0.4, 0.9, SOIL_POS.z + 0.2),
-    (POT_POS.x - SOIL_POS.x) * 1.2, 0.6 + Math.random() * 0.4, (POT_POS.z - SOIL_POS.z) * 1.2, dirtMat);
-  soilSndT += dt;
-  if (soilSndT > 0.1) { soilSndT = 0; sSoil(); }
-  if (plant.soil >= 1) {
-    pouringSoil = false; soilSack.rotation.z = 0;
-    plant.phase = "soil"; sPop(420); addShake(0.06);
+function updateSoil(st, dt) {
+  if (!st.pouringSoil || st.phase !== "empty") return;
+  st.soil = Math.min(1, st.soil + dt / SOIL_TIME);
+  st.soilDisc.visible = st.soil > 0.05;
+  st.soilDisc.position.y = st.y + 0.12 + st.soil * 0.36;
+  st.soilSack.rotation.z = -0.35;
+  spawnPart(new THREE.Vector3(SOIL_POS.x + 0.4, st.y + 0.9, SOIL_POS.z + 0.2),
+    (POT_POS.x - SOIL_POS.x) * 1.2, 0.6 + Math.random() * 0.4, (POT_POS.z - SOIL_POS.z) * 1.2, dirtMat, st.y + 0.06);
+  st.soilSndT += dt;
+  if (st.soilSndT > 0.1) { st.soilSndT = 0; sSoil(); }
+  if (st.soil >= 1) {
+    st.pouringSoil = false; st.soilSack.rotation.z = 0;
+    st.phase = "soil"; sPop(420); addShake(0.06);
     showToast("Terreau prêt — sème une graine 🌱", "#d8c79a");
   }
 }
 
-let dragSeed = false;
-const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.7);   // plan de drag à hauteur du pot
+let dragSeed = false, dragSt = null;
+const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.7);
 const _dragPt = new THREE.Vector3();
 function moveSeedGhost(cx, cy) {
   const r = renderer.domElement.getBoundingClientRect();
@@ -927,270 +933,244 @@ function moveSeedGhost(cx, cy) {
 }
 function dropSeed() {
   seedGhost.visible = false;
-  if (plant.phase !== "soil") return;
+  const st = dragSt; dragSt = null;
+  if (!st || st.phase !== "soil") return;
   const d = Math.hypot(seedGhost.position.x - POT_POS.x, seedGhost.position.z - POT_POS.z);
   if (d > 0.9) { showToast("Lâche la graine dans le pot", "#e6c896"); sErr(); return; }
   if ((seeds[curSeed] || 0) <= 0) { showToast("Plus de graines — boutique 🛒", "#ff6b6b"); sErr(); return; }
   seeds[curSeed]--; saveSeeds();
-  plant.phase = "growing"; plant.seed = SEED_BY[curSeed];
-  plant.growth = 0; plant.moisture = MOIST_START; plant.soggyT = 0;
-  plant.careWater = 0; plant.qualTrim = 1; plant.fert = false; plant.pgr = false;
-  plant.leafTimer = LEAF_EVERY[0] + Math.random() * (LEAF_EVERY[1] - LEAF_EVERY[0]);
-  for (const b of buds) { b.visible = false; b.userData.taken = false; }
-  for (const L of gLeaves) { L.active = false; L.grp.visible = false; }
-  sPop(520); burstParts(new THREE.Vector3(POT_POS.x, 0.7, POT_POS.z), 5, dirtMat);
+  st.phase = "growing"; st.seed = SEED_BY[curSeed];
+  st.growth = 0; st.moisture = MOIST_START; st.soggyT = 0;
+  st.careWater = 0; st.qualTrim = 1; st.fert = false; st.pgr = false;
+  st.leafTimer = LEAF_EVERY[0] + Math.random() * (LEAF_EVERY[1] - LEAF_EVERY[0]);
+  for (const b of st.buds) { b.visible = false; b.userData.taken = false; b.userData.g = 0; }
+  for (const L of st.gLeaves) { L.active = false; L.grp.visible = false; }
+  sPop(520); burstParts(new THREE.Vector3(POT_POS.x, st.y + 0.7, POT_POS.z), 5, dirtMat, st.y + 0.06);
   addShake(0.08); updateResources();
-  showToast(plant.seed.name + " semée 🌱", "#bdf0a3");
+  showToast(st.seed.name + " semée 🌱", "#bdf0a3");
 }
 
-/* -------------------------------------------------------------------------
-   14) GESTE 2 — ARROSER (maintenir : le débit s'emballe, la terre fonce)
-   ------------------------------------------------------------------------- */
-let watering = false, waterFlow = 0, waterSndT = 0;
-function updateWater(dt) {
-  if (watering && (plant.phase === "growing" || plant.phase === "soil")) {
-    waterFlow = Math.min(1, waterFlow + dt * WATER_RAMP);       // l'inertie qui piège
-    plant.moisture = Math.min(MOIST_MAX, plant.moisture + WATER_RATE * waterFlow * dt);
-    can.rotation.z = -0.5 - 0.25 * waterFlow;
-    can.position.set(CAN_POS.x - 0.55, 0.55, CAN_POS.z - 0.1);
-    const n = 1 + Math.round(waterFlow * 2);
+function updateWater(st, dt) {
+  if (st.watering && (st.phase === "growing" || st.phase === "soil")) {
+    st.waterFlow = Math.min(1, st.waterFlow + dt * WATER_RAMP);
+    st.moisture = Math.min(MOIST_MAX, st.moisture + WATER_RATE * st.waterFlow * dt);
+    st.can.rotation.z = -0.5 - 0.25 * st.waterFlow;
+    st.can.position.set(CAN_POS.x - 0.55, st.y + 0.55, CAN_POS.z - 0.1);
+    const n = 1 + Math.round(st.waterFlow * 2);
     for (let i = 0; i < n; i++)
-      spawnPart(new THREE.Vector3(CAN_POS.x - 1.0, 0.95, CAN_POS.z - 0.1),
+      spawnPart(new THREE.Vector3(CAN_POS.x - 1.0, st.y + 0.95, CAN_POS.z - 0.1),
         (POT_POS.x - CAN_POS.x + 0.8) * 1.6 + (Math.random()-0.5)*0.3, 0.4 + Math.random()*0.5,
-        (POT_POS.z - CAN_POS.z) * 1.6 + (Math.random()-0.5)*0.3, dropMat);
-    waterSndT += dt;
-    if (waterSndT > 0.09) { waterSndT = 0; sWater(); }
-    if (plant.moisture >= MOIST_MAX) { watering = false; }
+        (POT_POS.z - CAN_POS.z) * 1.6 + (Math.random()-0.5)*0.3, dropMat, st.y + 0.06);
+    st.waterSndT += dt;
+    if (st.waterSndT > 0.09) { st.waterSndT = 0; sWater(); }
+    if (st.moisture >= MOIST_MAX) { st.watering = false; }
   } else {
-    waterFlow = Math.max(0, waterFlow - dt * 4);
-    can.rotation.z *= 0.8;
-    can.position.lerp(CAN_POS, 0.2);
-    if (can.position.y < 0.02) can.position.y = 0;
+    st.waterFlow = Math.max(0, st.waterFlow - dt * 4);
+    st.can.rotation.z *= 0.8;
+    st.can.position.lerp(st.canHome, 0.2);
   }
 }
 
-/* -------------------------------------------------------------------------
-   15) GESTE 3 — BOOSTER (maintenir la bouteille : une dose se verse)
-   ------------------------------------------------------------------------- */
-let pouringBoost = false, boostT = 0;
-const BOOST_COLS = { fert: 0xe3c05f, pgr: 0xd06060 };
-function updateBoost(dt) {
-  if (!pouringBoost) { boostBottle.rotation.z *= 0.8; return; }
-  if (plant.phase !== "growing" || curBoost === "none") { pouringBoost = false; return; }
-  if (plant[curBoost === "fert" ? "fert" : "pgr"]) { pouringBoost = false; showToast("Déjà versé sur cette plante", "#e6c896"); return; }
-  if ((doses[curBoost] || 0) <= 0) { pouringBoost = false; showToast("Plus de doses — boutique 🛒", "#ff6b6b"); sErr(); return; }
-  boostBottle.rotation.z = -0.6;
-  boostT += dt;
-  spawnPart(new THREE.Vector3(BOOST_POS.x - 0.3, 0.7, BOOST_POS.z),
+function updateBoost(st, dt) {
+  if (!st.pouringBoost) { st.boostBottle.rotation.z *= 0.8; return; }
+  if (st.phase !== "growing" || curBoost === "none") { st.pouringBoost = false; return; }
+  if (st[curBoost === "fert" ? "fert" : "pgr"]) { st.pouringBoost = false; showToast("Déjà versé sur cette plante", "#e6c896"); return; }
+  if ((doses[curBoost] || 0) <= 0) { st.pouringBoost = false; showToast("Plus de doses — boutique 🛒", "#ff6b6b"); sErr(); return; }
+  st.boostBottle.rotation.z = -0.6;
+  st.boostT += dt;
+  spawnPart(new THREE.Vector3(BOOST_POS.x - 0.3, st.y + 0.7, BOOST_POS.z),
     (POT_POS.x - BOOST_POS.x) * 1.5, 0.5 + Math.random() * 0.4, (POT_POS.z - BOOST_POS.z) * 1.5,
-    new THREE.MeshStandardMaterial({ color: BOOST_COLS[curBoost], roughness: 0.6 }));
-  if (boostT >= 0.7) {
-    pouringBoost = false; boostT = 0;
+    new THREE.MeshStandardMaterial({ color: BOOST_COLS[curBoost], roughness: 0.6 }), st.y + 0.06);
+  if (st.boostT >= 0.7) {
+    st.pouringBoost = false; st.boostT = 0;
     doses[curBoost]--; saveDoses();
-    if (curBoost === "fert") { plant.fert = true; showToast("Engrais versé 🌼 +qualité", "#e3c05f"); }
-    else { plant.pgr = true; showToast("PGR versé 🧪 +rendement, qualité plafonnée", "#d06060"); }
+    if (curBoost === "fert") { st.fert = true; showToast("Engrais versé 🌼 +qualité", "#e3c05f"); }
+    else { st.pgr = true; showToast("PGR versé 🧪 +rendement, qualité plafonnée", "#d06060"); }
     sPop(460); addShake(0.06); updateResources();
   }
 }
 
 /* -------------------------------------------------------------------------
-   16) POUSSE : humidité, feuilles gourmandes, croissance, maturité
+   13) POUSSE : humidité, feuilles gourmandes, croissance, maturité (par étage)
    ------------------------------------------------------------------------- */
-function activeLeaves() { let n = 0; for (const L of gLeaves) if (L.active) n++; return n; }
-function spawnLeaf() {
-  for (const L of gLeaves) {
+function activeLeaves(st) { let n = 0; for (const L of st.gLeaves) if (L.active) n++; return n; }
+function spawnLeaf(st) {
+  for (const L of st.gLeaves) {
     if (L.active) continue;
     L.active = true; L.age = 0;
-    L.t = 0.3 + Math.random() * 0.55;                 // hauteur sur la tige (présentation)
+    L.t = 0.3 + Math.random() * 0.55;
     L.ang = Math.random() * Math.PI * 2;
     L.grp.visible = true; L.mat.color.copy(LEAF_FRESH);
     sPop(300);
     return;
   }
 }
-function placeLeaf(L) {
-  const y = L.t * PLANT_H * Math.max(0.25, plant.growth);
+function placeLeaf(st, L) {
+  const y = L.t * PLANT_H * Math.max(0.25, st.growth);
   L.grp.position.set(Math.cos(L.ang) * 0.1, y, Math.sin(L.ang) * 0.1);
   L.grp.rotation.y = L.ang;
   L.grp.rotation.z = 0.9;
 }
-function cutLeaf(L) {
+function cutLeaf(st, L) {
   L.active = false; L.grp.visible = false;
-  plant.moisture = Math.max(0, plant.moisture - CUT_THIRST);       // tailler assoiffe
-  // La vigueur se redirige : les têtes gonflent visiblement (Prune).
-  for (const b of buds) if (!b.userData.taken) b.userData.g = Math.min(1, (b.userData.g || 0) + 0.15);
+  st.moisture = Math.max(0, st.moisture - CUT_THIRST);       // tailler assoiffe
+  for (const b of st.buds) if (!b.userData.taken) b.userData.g = Math.min(1, (b.userData.g || 0) + 0.15);
   const wp = new THREE.Vector3();
   L.grp.getWorldPosition(wp);
-  burstParts(wp, 6, leafMatP);
+  burstParts(wp, 6, leafMatP, st.y + 0.06);
   sSnip(); sSeve(); addShake(0.1);
 }
-let secatT = 0;
-function updateGrow(dt) {
-  if (plant.phase !== "growing") return;
-  // Humidité : la plante boit ; le goutte-à-goutte maintient CHICHEMENT (bas de bande)
-  plant.moisture = Math.max(0, plant.moisture - MOIST_DRAIN * dt);
-  if (owned.drip && plant.moisture < MOIST_BAND[0] + 0.05) plant.moisture += (MOIST_DRAIN + 0.004) * dt * 2;
-  if (plant.moisture > SOGGY_UNTIL) plant.soggyT = 4;              // détrempé : pénalité qui s'égoutte
-  else plant.soggyT = Math.max(0, plant.soggyT - dt);
-  puddle.visible = plant.moisture > SOGGY_UNTIL;
+function updateGrow(st, dt) {
+  if (st.phase !== "growing") return;
+  st.moisture = Math.max(0, st.moisture - MOIST_DRAIN * dt);
+  if (owned.drip && st.moisture < MOIST_BAND[0] + 0.05) st.moisture += (MOIST_DRAIN + 0.004) * dt * 2;
+  if (st.moisture > SOGGY_UNTIL) st.soggyT = 4;
+  else st.soggyT = Math.max(0, st.soggyT - dt);
+  st.puddle.visible = st.moisture > SOGGY_UNTIL;
 
-  // Facteur d'eau : sec = quasi-stop (punition douce), bande = plein régime
-  const m = plant.moisture;
+  const m = st.moisture;
   let mf;
   if (m < 0.1) mf = 0.15;
   else if (m < MOIST_BAND[0]) mf = 0.5;
   else if (m <= MOIST_BAND[1]) mf = 1;
   else mf = 0.6;
-  if (plant.soggyT > 0) mf = Math.min(mf, 0.5);
-  plant.careWater += ((m >= MOIST_BAND[0] && m <= MOIST_BAND[1]) ? 1 : (m < 0.1 ? 0 : 0.5)) * dt / GROW_TIME;
+  if (st.soggyT > 0) mf = Math.min(mf, 0.5);
+  st.careWater += ((m >= MOIST_BAND[0] && m <= MOIST_BAND[1]) ? 1 : (m < 0.1 ? 0 : 0.5)) * dt / GROW_TIME;
 
-  // Feuilles gourmandes : chacune ralentit ET érode la qualité de taille
-  plant.leafTimer -= dt;
+  st.leafTimer -= dt;
   const leafMult = owned.tuteur ? 1.8 : 1;
-  if (plant.leafTimer <= 0 && activeLeaves() < LEAF_MAX && plant.growth > 0.15 && plant.growth < 0.97) {
-    spawnLeaf();
-    plant.leafTimer = (LEAF_EVERY[0] + Math.random() * (LEAF_EVERY[1] - LEAF_EVERY[0])) * leafMult;
+  if (st.leafTimer <= 0 && activeLeaves(st) < LEAF_MAX && st.growth > 0.15 && st.growth < 0.97) {
+    spawnLeaf(st);
+    st.leafTimer = (LEAF_EVERY[0] + Math.random() * (LEAF_EVERY[1] - LEAF_EVERY[0])) * leafMult;
   }
   let slow = 1;
-  for (const L of gLeaves) {
+  for (const L of st.gLeaves) {
     if (!L.active) continue;
     L.age += dt;
     const hard = L.age > LEAF_HARDEN;
     L.mat.color.lerpColors(LEAF_FRESH, LEAF_HARD, Math.min(1, L.age / LEAF_HARDEN));
-    plant.qualTrim = Math.max(0.4, plant.qualTrim - LEAF_DRAIN * (hard ? 2 : 1) * dt);
+    st.qualTrim = Math.max(0.4, st.qualTrim - LEAF_DRAIN * (hard ? 2 : 1) * dt);
     slow -= LEAF_SLOW;
-    placeLeaf(L);
+    placeLeaf(st, L);
   }
-  // Sécateur auto : coupe seul, mais tard (la feuille a déjà drainé)
   if (owned.secat) {
-    secatT += dt;
-    if (secatT > 1.5) {
-      secatT = 0;
-      for (const L of gLeaves) if (L.active && L.age > 7) { cutLeaf(L); break; }
+    st.secatT += dt;
+    if (st.secatT > 1.5) {
+      st.secatT = 0;
+      for (const L of st.gLeaves) if (L.active && L.age > 7) { cutLeaf(st, L); break; }
     }
   }
 
-  // Croissance
   const lamp = owned.led ? 1.25 : 1;
-  plant.growth = Math.min(1, plant.growth + (dt / GROW_TIME) * mf * Math.max(0.5, slow) * lamp);
-  if (plant.growth >= 1) {
-    plant.phase = "mature";
-    plant.branchesLeft = N_BRANCH;
-    for (const L of gLeaves) { L.active = false; L.grp.visible = false; }
+  st.growth = Math.min(1, st.growth + (dt / GROW_TIME) * mf * Math.max(0.5, slow) * lamp);
+  if (st.growth >= 1) {
+    st.phase = "mature";
+    st.branchesLeft = N_BRANCH;
+    for (const L of st.gLeaves) { L.active = false; L.grp.visible = false; }
     sSale(); addShake(0.15);
-    showToast("Plant mûr ! Coupe-le en branches ✂️", "#bdf0a3");
+    showToast("Pot " + (st.lvl + 1) + " mûr ! Coupe-le en branches ✂️", "#bdf0a3");
   }
 }
-function plantQuality() {
-  let q = QUAL_BASE + QUAL_WATER * Math.min(1, plant.careWater) + QUAL_TRIM * plant.qualTrim;
-  if (plant.fert) q += BOOSTS.fert.qualBonus;
-  if (plant.pgr) q = Math.min(q, BOOSTS.pgr.qualCap);
+function plantQuality(st) {
+  let q = QUAL_BASE + QUAL_WATER * Math.min(1, st.careWater) + QUAL_TRIM * st.qualTrim;
+  if (st.fert) q += BOOSTS.fert.qualBonus;
+  if (st.pgr) q = Math.min(q, BOOSTS.pgr.qualCap);
   return Math.max(0.2, Math.min(1, q));
 }
-function plantYield() {
-  let y = plant.seed.yield * (YIELD_FLOOR + (1 - YIELD_FLOOR) * Math.min(1, plant.careWater));
-  if (plant.pgr) y *= BOOSTS.pgr.yieldMult;
+function plantYield(st) {
+  let y = st.seed.yield * (YIELD_FLOOR + (1 - YIELD_FLOOR) * Math.min(1, st.careWater));
+  if (st.pgr) y *= BOOSTS.pgr.yieldMult;
   return y;
 }
-
-/* -------------------------------------------------------------------------
-   17) VISUEL DE LA PLANTE (échelle, penché quand elle a soif, têtes)
-   ------------------------------------------------------------------------- */
-function updatePlantVisual(dt) {
-  const g = plant.growth;
-  const show = plant.phase === "growing" || plant.phase === "mature";
-  plantGroup.visible = show;
+function updatePlantVisual(st, dt) {
+  const g = st.growth;
+  const show = st.phase === "growing" || st.phase === "mature";
+  st.plantGroup.visible = show;
   if (!show) return;
   const h = Math.max(0.1, g) * PLANT_H;
-  stem.scale.set(1, h, 1); stem.position.y = h / 2;
-  plantHit.scale.set(1, h + 0.3, 1); plantHit.position.y = h / 2;
-  for (const br of branches) {
+  st.stem.scale.set(1, h, 1); st.stem.position.y = h / 2;
+  st.plantHit.scale.set(1, h + 0.3, 1); st.plantHit.position.y = h / 2;
+  for (const br of st.branches) {
     const t = br.userData.t;
     const k = Math.max(0, Math.min(1, (g - t * 0.6) * 3));
     br.position.y = t * h;
     br.scale.setScalar(0.15 + 0.85 * k * Math.max(0.3, g));
     br.visible = k > 0.02;
   }
-  for (const b of buds) {
+  for (const b of st.buds) {
     const u = b.userData;
     if (u.taken) { b.visible = false; continue; }
     const appear = Math.max(0, Math.min(1, (g - 0.55) * 3.2));
     b.visible = appear > 0.02;
     b.position.set(Math.cos(u.ang) * u.off, u.t * h, Math.sin(u.ang) * u.off);
-    const swell = 1 + (u.g || 0) * 0.5;                     // le bonus des tailles (Prune)
-    const pulse = plant.phase === "mature" ? 1 + 0.06 * Math.sin(performance.now() / 240 + u.ang) : 1;
+    const swell = 1 + (u.g || 0) * 0.5;
+    const pulse = st.phase === "mature" ? 1 + 0.06 * Math.sin(performance.now() / 240 + u.ang) : 1;
     b.scale.setScalar(appear * swell * pulse);
-    b.children[0].material.emissiveIntensity = plant.phase === "mature" ? 0.5 : 0.0;
+    b.children[0].material.emissiveIntensity = st.phase === "mature" ? 0.5 : 0.0;
   }
-  // Elle penche quand elle a soif (on lit la plante, pas une jauge)
-  const droop = plant.phase === "growing" && plant.moisture < MOIST_BAND[0] ? 0.14 : 0;
-  plantGroup.rotation.z += (droop - plantGroup.rotation.z) * Math.min(1, dt * 3);
-  // La terre lit l'humidité
-  soilMat.color.lerpColors(SOIL_DRY, SOIL_WET, Math.min(1, plant.moisture));
+  const droop = st.phase === "growing" && st.moisture < MOIST_BAND[0] ? 0.14 : 0;
+  st.plantGroup.rotation.z += (droop - st.plantGroup.rotation.z) * Math.min(1, dt * 3);
+  st.soilMat.color.lerpColors(SOIL_DRY, SOIL_WET, Math.min(1, st.moisture));
 }
 
 /* -------------------------------------------------------------------------
-   18) GESTE 4 — COUPER LE PLANT (swipe vif : une branche part sécher au fil)
+   14) COUPER LE PLANT (swipe vif : une branche part sécher au séchoir)
    ------------------------------------------------------------------------- */
-let cutCd = 0;
-function tryCutdownAt(cx, cy, speed) {
-  if (plant.phase !== "mature" || speed < SWIPE_CUT || cutCd > 0) return;
-  if (!rayHit(cx, cy, [plantHit])) return;
+function tryCutdownAt(st, cx, cy, speed) {
+  if (!st || st.phase !== "mature" || speed < SWIPE_CUT || st.cutCd > 0) return false;
+  if (!rayHit(cx, cy, [st.plantHit])) return false;
   const hook = hooks.find(h => !h.used);
-  if (!hook) { showToast("Le fil est plein — frotte les branches sèches 🪢", "#e6c896"); sErr(); cutCd = 0.6; return; }
-  cutCd = CUT_COOLDOWN;
+  if (!hook) { showToast("Le séchoir est plein — frotte les branches sèches 🪢", "#e6c896"); sErr(); st.cutCd = 0.6; return true; }
+  st.cutCd = CUT_COOLDOWN;
   hook.used = true;
-  hook.g = plantYield() / N_BRANCH;
-  hook.qual = plantQuality();
+  hook.g = plantYield(st) / N_BRANCH;
+  hook.qual = plantQuality(st);
   attachBranch(hook);
-  // Deux têtes quittent visuellement le plant avec la branche
   let hidden = 0;
-  for (const b of buds) {
+  for (const b of st.buds) {
     if (hidden >= 2) break;
     if (b.visible && !b.userData.taken) { b.userData.taken = true; b.visible = false; hidden++; }
   }
-  plant.branchesLeft--;
-  const wp = new THREE.Vector3(POT_POS.x, 1.4, POT_POS.z);
+  st.branchesLeft--;
+  const wp = new THREE.Vector3(POT_POS.x, st.y + 1.4, POT_POS.z);
   spawnFlier(wp, new THREE.Vector3(hook.x, LINE_Y - 0.4, LINE_Z), 0x3f7a34, 0.12);
-  burstParts(wp, 5, leafMatP);
+  burstParts(wp, 5, leafMatP, st.y + 0.06);
   sSnip(); addShake(0.1);
-  if (plant.branchesLeft <= 0) finishCutdown();
+  if (st.branchesLeft <= 0) finishCutdown(st);
+  return true;
 }
-function finishCutdown() {
-  const q = plantQuality(), y = Math.round(plantYield());
+function finishCutdown(st) {
+  const q = plantQuality(st), y = Math.round(plantYield(st));
   addXP(Math.max(4, Math.round(y * 0.3)));
   showToast("Plant coupé : ~" + y + " g au séchage 🌬️ (qualité " + Math.round(q * 100) + "%" +
-    (plant.pgr ? ", PGR" : plant.fert ? ", engrais" : "") + ")", "#bdf0a3");
+    (st.pgr ? ", PGR" : st.fert ? ", engrais" : "") + ")", "#bdf0a3");
   sSale(); addShake(0.2);
-  // Le pot se libère tout de suite : on peut resemer pendant que ça sèche.
-  plant.phase = "empty"; plant.soil = 0; plant.growth = 0; plant.moisture = 0;
-  soilDisc.visible = false; puddle.visible = false;
-  plantGroup.rotation.z = 0;
+  st.phase = "empty"; st.soil = 0; st.growth = 0; st.moisture = 0;
+  st.soilDisc.visible = false; st.puddle.visible = false;
+  st.plantGroup.rotation.z = 0;
 }
 
 /* -------------------------------------------------------------------------
-   18bis) GESTE 5 — RÉCOLTER AU FIL (frotter la branche sèche :
-          lent = têtes A, vif = trim ; humide = qualité en moins)
+   15) RÉCOLTER AU SÉCHOIR (frotter : lent = têtes A, vif = trim ; humide = malus)
    ------------------------------------------------------------------------- */
 function tryBuckAt(cx, cy, speed) {
   const hitObjs = [];
   for (const h of hooks) if (h.used) for (const b of h.buds) if (!b.taken) hitObjs.push(b.hit);
-  if (!hitObjs.length) return;
+  if (!hitObjs.length) return false;
   const hits = rayHits(cx, cy, hitObjs);
-  if (!hits.length) return;
+  if (!hits.length) return false;
   const { hook, idx } = hits[0].object.userData.ref;
   const bud = hook.buds[idx];
-  if (bud.taken) return;
+  if (bud.taken) return false;
   bud.taken = true; bud.mesh.visible = false; bud.hit.position.set(0, 99, 0);
   const budG = hook.g / BUDS_PER_BRANCH;
   const wp = new THREE.Vector3(); bud.mesh.getWorldPosition(wp);
-  if (speed > HARVEST_FAST) {              // trop vif : ça part en trim
+  if (speed > HARVEST_FAST) {
     trimG += budG;
     spawnFlier(wp, new THREE.Vector3(TRIM_POS.x, 0.4, TRIM_POS.z), 0x6f7a3a, 0.09);
     setHeap(trimHeap, trimG, 120);
     sPop(280); showToast("Trop vif ! → trim 🍂", "#d8cf9a");
   } else {
-    // Sec = bonus, humide = malus : l'impatience a une cause lisible.
     const q = Math.max(0.2, Math.min(1, hook.qual + DRY_QUAL_BONUS * hook.dry - WET_MALUS * (1 - hook.dry)));
     if (hook.dry < 0.99 && !hook.wetWarned) { hook.wetWarned = true; showToast("Encore humide ! qualité en baisse 💧", "#e6c896"); }
     stock.g += budG; stock.qsum += budG * q;
@@ -1204,15 +1184,16 @@ function tryBuckAt(cx, cy, speed) {
     removeBranch(hook);
     burstParts(new THREE.Vector3(hook.x, LINE_Y - 0.5, LINE_Z), 5, leafMatP);
   }
+  return true;
 }
 
 /* -------------------------------------------------------------------------
-   19) VENDRE : STOCK par sachets (tap / maintenir), TRIM bradé
+   16) VENDRE : STOCK par sachets (tap / maintenir), TRIM bradé
    ------------------------------------------------------------------------- */
 let bagging = false, bagHoldT = 0;
 function sellOnce() {
   if (stock.g < 0.05) { showToast("Rien à vendre — récolte d'abord", "#e6c896"); sErr(); return false; }
-  const take = Math.min(fmt, stock.g);          // le dernier sachet peut être partiel
+  const take = Math.min(fmt, stock.g);
   const q = stockQual();
   const r = Math.min(1, take / stock.g);
   stock.qsum *= (1 - r); stock.g = Math.max(0, stock.g - take);
@@ -1239,21 +1220,73 @@ function sellTrim() {
 }
 
 /* -------------------------------------------------------------------------
-   20) GUIDAGE
+   17) NAVIGATION : scènes (swipe ←→) et étages (swipe ↑↓)
    ------------------------------------------------------------------------- */
-function currentStep() {
-  if (plant.phase === "mature")  return "cutdown";
-  if (plant.phase === "growing") {
-    for (const L of gLeaves) if (L.active) return "cut";
-    if (plant.moisture < MOIST_BAND[0]) return "water";
-    if (anyDryBranch()) return "buck";
+let curScene = "culture", curPot = 0, wantX = 0, wantY = BASE_TY;
+const scBtns = { culture: document.getElementById("sc-culture"), sechoir: document.getElementById("sc-sechoir") };
+function goScene(k) {
+  if (curScene === k) return;
+  curScene = k;
+  wantX = k === "sechoir" ? SECHOIR_X : 0;
+  wantY = k === "sechoir" ? BASE_TY : BASE_TY + curPot * LEVEL_H;
+  scBtns.culture.classList.toggle("on", k === "culture");
+  scBtns.sechoir.classList.toggle("on", k === "sechoir");
+  ensureAudio(); sWhoosh();
+  renderPotDots();
+}
+function goPot(i) {
+  i = Math.max(0, Math.min(stations.length - 1, i));
+  if (curScene !== "culture") { curPot = i; goScene("culture"); return; }
+  if (i === curPot) return;
+  curPot = i;
+  wantY = BASE_TY + curPot * LEVEL_H;
+  ensureAudio(); sWhoosh();
+  renderPotDots();
+}
+scBtns.culture.addEventListener("click", () => goScene("culture"));
+scBtns.sechoir.addEventListener("click", () => goScene("sechoir"));
+function renderPotDots() {
+  ui.potdots.style.display = (curScene === "culture" && stations.length > 1) ? "flex" : "none";
+  if (ui.potdots.childElementCount !== stations.length) {
+    ui.potdots.innerHTML = "";
+    stations.forEach((s, i) => {
+      const b = document.createElement("button");
+      b.className = "potdot"; b.dataset.pot = i;
+      b.addEventListener("click", () => goPot(i));
+      ui.potdots.appendChild(b);
+    });
+  }
+  [...ui.potdots.children].forEach((b, i) => b.classList.toggle("on", i === curPot));
+}
+function activeStation() { return curScene === "culture" ? stations[curPot] : null; }
+
+/* -------------------------------------------------------------------------
+   18) GUIDAGE
+   ------------------------------------------------------------------------- */
+function stationStep(st) {
+  if (st.phase === "mature") return "cutdown";
+  if (st.phase === "growing") {
+    if (st.gLeaves.some(L => L.active)) return "cut";
+    if (st.moisture < MOIST_BAND[0]) return "water";
     return "grow";
   }
-  if (anyDryBranch())           return "buck";
-  if (plant.phase === "soil")   return (seeds[curSeed] || 0) > 0 ? "seed" : "buySeed";
-  if (stock.g >= 0.05)          return "sell";
-  if (anyBranch())              return "dryWait";
-  return "soilPour";
+  if (st.phase === "soil") return (seeds[curSeed] || 0) > 0 ? "seed" : "buySeed";
+  return "empty";
+}
+function currentStep() {
+  const act = stationStep(stations[curPot]);
+  if (act === "cutdown" || act === "cut" || act === "water" || act === "seed" || act === "buySeed")
+    return { step: act, pot: curPot };
+  for (let i = 0; i < stations.length; i++) {
+    if (i === curPot) continue;
+    const s2 = stationStep(stations[i]);
+    if (s2 === "cutdown" || s2 === "cut" || s2 === "water") return { step: s2, pot: i };
+  }
+  if (anyDryBranch()) return { step: "buck" };
+  if (act === "empty") return { step: "soilPour", pot: curPot };
+  if (stock.g >= 0.05) return { step: "sell" };
+  if (anyBranch()) return { step: "dryWait", pot: curPot };
+  return { step: "grow", pot: curPot };
 }
 const PROMPTS = {
   soilPour: "🟤 Maintiens le SAC DE TERREAU pour remplir le pot",
@@ -1269,34 +1302,47 @@ const PROMPTS = {
 };
 const STEP_POS = { soilPour: SOIL_POS, seed: SEED_POS, water: CAN_POS, cut: POT_POS,
   cutdown: POT_POS, buck: LINE_POS, dryWait: SOIL_POS, sell: STOCK_POS };
-const STEP_SCENE = { buck: "sechoir", sell: "sechoir" };   // où vit chaque étape
+const STEP_SCENE = { buck: "sechoir", sell: "sechoir" };
+const STEP_SHORT = { water: "💧 soif", cut: "✂️ feuille", cutdown: "✂️ mûr !" };
 let glowPhase = 0;
 function updateGuide(dt) {
-  const step = currentStep();
-  const sc = STEP_SCENE[step] || "culture";
-  // Si l'étape vit dans l'autre scène, le prompt fait le raccord.
-  const text = sc === curScene ? PROMPTS[step] :
-    (sc === "sechoir" ? "🌬️ → Passe au SÉCHOIR (bouton en haut)" : "🌱 → Retourne à la CULTURE (bouton en haut)");
+  const cur = currentStep();
+  const step = cur.step;
+  const scn = STEP_SCENE[step] || "culture";
+  let text = PROMPTS[step];
+  let here = true;
+  if (scn !== curScene) {
+    here = false;
+    text = scn === "sechoir" ? "⬅️ SWIPE vers le SÉCHOIR — " + (step === "sell" ? "vends le stock" : "branches sèches")
+                             : "➡️ SWIPE vers la CULTURE";
+  } else if (cur.pot !== undefined && cur.pot !== curPot && curScene === "culture") {
+    here = false;
+    const dir = cur.pot > curPot ? "⬆️" : "⬇️";
+    text = dir + " SWIPE — Pot " + (cur.pot + 1) + " : " + (STEP_SHORT[step] || step);
+  }
   if (ui.prompt.textContent !== text) ui.prompt.textContent = text;
-  scBtns.sechoir.classList.toggle("pulse", curScene === "culture" && sc === "sechoir");
-  scBtns.culture.classList.toggle("pulse", curScene === "sechoir" && sc === "culture");
+  scBtns.sechoir.classList.toggle("pulse", curScene === "culture" && scn === "sechoir");
+  scBtns.culture.classList.toggle("pulse", curScene === "sechoir" && scn === "culture");
   const nBr = hooks.filter(h => h.used).length;
   const sechLabel = "🌬️ Séchoir" + (nBr ? " · " + nBr : "");
   if (scBtns.sechoir.textContent !== sechLabel) scBtns.sechoir.textContent = sechLabel;
+  [...ui.potdots.children].forEach((b, i) =>
+    b.classList.toggle("pulse", i !== curPot && cur.pot === i && curScene === "culture"));
   ui.shopbtn.classList.toggle("pulse", step === "buySeed");
-  const pos = sc === curScene ? STEP_POS[step] : null;
+  const pos = here ? STEP_POS[step] : null;
   glow.visible = !!pos;
   if (pos) {
     glowPhase += dt * 3.5;
     const p = 0.5 + 0.5 * Math.sin(glowPhase);
     glow.position.x = pos.x; glow.position.z = pos.z;
+    glow.position.y = (scn === "culture" && cur.pot !== undefined ? stations[cur.pot].y : 0) + 0.04;
     glow.material.opacity = 0.12 + 0.16 * p;
     const s = 0.85 + 0.18 * p; glow.scale.set(s, s, s);
   }
 }
 
 /* -------------------------------------------------------------------------
-   21) ENTRÉES (raycast stations + swipes à vélocité)
+   19) ENTRÉES : stations raycastées, swipes de jeu, swipes de NAVIGATION
    ------------------------------------------------------------------------- */
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
@@ -1313,11 +1359,14 @@ function rayHit(cx, cy, objs, recursive) { return rayHits(cx, cy, objs, recursiv
 const pointers = new Map();
 let pinching = false, pinchStartDist = 0, pinchStartZoom = 1;
 let gesture = null, lastX = 0, lastY = 0, lastT = 0;
+let navX0 = 0, navY0 = 0, navConsumed = false;   // le swipe libre : jeu d'abord, navigation sinon
 function pinchDist() { const a = [...pointers.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
+function stopAllGestures() {
+  for (const st of stations) { st.pouringSoil = false; st.watering = false; st.pouringBoost = false; }
+  bagging = false; dragSeed = false; dragSt = null; seedGhost.visible = false;
+}
 function startPinch() {
-  pinching = true; gesture = null;
-  pouringSoil = false; watering = false; pouringBoost = false; bagging = false;
-  dragSeed = false; seedGhost.visible = false;
+  pinching = true; gesture = null; stopAllGestures();
   pinchStartDist = pinchDist() || 1; pinchStartZoom = zoom;
 }
 function updatePinch() {
@@ -1338,31 +1387,37 @@ el.addEventListener("pointerdown", (e) => {
     return;
   }
   if (rayHit(e.clientX, e.clientY, trimBin.children.concat([trimHeap]))) { sellTrim(); return; }
-  if (rayHit(e.clientX, e.clientY, [sackBody, sackBand])) {
-    if (plant.phase === "empty") { gesture = "soil"; pouringSoil = true; }
-    else if (plant.phase === "soil") showToast("Le pot est prêt — sème 🌱", "#e6c896");
-    else showToast("Le pot est occupé", "#e6c896");
-    return;
+
+  const st = activeStation();
+  if (st) {
+    if (rayHit(e.clientX, e.clientY, st.sackPick)) {
+      if (st.phase === "empty") { gesture = "soil"; st.pouringSoil = true; }
+      else if (st.phase === "soil") showToast("Le pot est prêt — sème 🌱", "#e6c896");
+      else showToast("Le pot est occupé", "#e6c896");
+      return;
+    }
+    if (rayHit(e.clientX, e.clientY, st.seedCrate.children)) {
+      if (st.phase !== "soil") { showToast(st.phase === "empty" ? "Verse d'abord le terreau 🟤" : "Le pot est occupé", "#e6c896"); return; }
+      if ((seeds[curSeed] || 0) <= 0) { showToast("Plus de graines — boutique 🛒", "#ff6b6b"); sErr(); return; }
+      gesture = "seed"; dragSeed = true; dragSt = st; seedGhost.visible = true;
+      dragPlane.constant = -(0.7 + st.y);
+      moveSeedGhost(e.clientX, e.clientY);
+      return;
+    }
+    if (rayHit(e.clientX, e.clientY, st.can.children)) {
+      if (st.phase === "growing" || st.phase === "soil") { gesture = "water"; st.watering = true; }
+      else showToast("Rien à arroser", "#e6c896");
+      return;
+    }
+    if (rayHit(e.clientX, e.clientY, st.boostBottle.children)) {
+      if (curBoost === "none") showToast("Choisis un boost en bas (🌼 ou 🧪)", "#e6c896");
+      else if (st.phase !== "growing") showToast("À verser pendant la pousse", "#e6c896");
+      else { gesture = "boost"; st.pouringBoost = true; st.boostT = 0; }
+      return;
+    }
   }
-  if (rayHit(e.clientX, e.clientY, seedCrate.children)) {
-    if (plant.phase !== "soil") { showToast(plant.phase === "empty" ? "Verse d'abord le terreau 🟤" : "Le pot est occupé", "#e6c896"); return; }
-    if ((seeds[curSeed] || 0) <= 0) { showToast("Plus de graines — boutique 🛒", "#ff6b6b"); sErr(); return; }
-    gesture = "seed"; dragSeed = true; seedGhost.visible = true;
-    moveSeedGhost(e.clientX, e.clientY);
-    return;
-  }
-  if (rayHit(e.clientX, e.clientY, can.children)) {
-    if (plant.phase === "growing" || plant.phase === "soil") { gesture = "water"; watering = true; }
-    else showToast("Rien à arroser", "#e6c896");
-    return;
-  }
-  if (rayHit(e.clientX, e.clientY, boostBottle.children)) {
-    if (curBoost === "none") showToast("Choisis un boost en bas (🌼 ou 🧪)", "#e6c896");
-    else if (plant.phase !== "growing") showToast("À verser pendant la pousse", "#e6c896");
-    else { gesture = "boost"; pouringBoost = true; boostT = 0; }
-    return;
-  }
-  gesture = "free";       // swipe libre : taille & récolte sur la plante
+  // Swipe libre : jeu (taille/coupe/frotté) s'il touche, sinon NAVIGATION au relâcher.
+  gesture = "free"; navX0 = e.clientX; navY0 = e.clientY; navConsumed = false;
 }, { passive:false });
 
 el.addEventListener("pointermove", (e) => {
@@ -1373,18 +1428,19 @@ el.addEventListener("pointermove", (e) => {
   const speed = Math.hypot(e.clientX - lastX, e.clientY - lastY) / dtms * 1000;   // px/s
   if (gesture === "seed") moveSeedGhost(e.clientX, e.clientY);
   if (gesture === "free") {
+    const st = activeStation();
     // Tailler : il faut de l'intention (seuil de vélocité, façon Fruit Ninja)
-    if (plant.phase === "growing" && speed >= SWIPE_CUT) {
-      const hits = rayHits(e.clientX, e.clientY, gLeaves.filter(L => L.active).map(L => L.hit));
+    if (st && st.phase === "growing" && speed >= SWIPE_CUT) {
+      const hits = rayHits(e.clientX, e.clientY, st.gLeaves.filter(L => L.active).map(L => L.hit));
       if (hits.length) {
-        const L = gLeaves.find(x => x.hit === hits[0].object);
-        if (L && L.active) cutLeaf(L);
+        const L = st.gLeaves.find(x => x.hit === hits[0].object);
+        if (L && L.active) { cutLeaf(st, L); navConsumed = true; }
       }
     }
-    // Couper le plant mûr : chaque swipe vif détache une branche vers le fil
-    tryCutdownAt(e.clientX, e.clientY, speed);
-    // Récolter au fil : frotter les branches, la vitesse fait le tri A/trim
-    tryBuckAt(e.clientX, e.clientY, speed);
+    // Couper le plant mûr : chaque swipe vif détache une branche vers le séchoir
+    if (tryCutdownAt(st, e.clientX, e.clientY, speed)) navConsumed = true;
+    // Récolter au séchoir : frotter les branches, la vitesse fait le tri A/trim
+    if (tryBuckAt(e.clientX, e.clientY, speed)) navConsumed = true;
   }
   lastX = e.clientX; lastY = e.clientY; lastT = now;
 }, { passive:false });
@@ -1395,10 +1451,19 @@ function onUp(e) {
   if (pinching && pointers.size < 2) pinching = false;
   if (pointers.size === 0) {
     if (gesture === "seed") dropSeed();
-    dragSeed = false;
-    pouringSoil = false; watering = false; pouringBoost = false; bagging = false;
+    // Navigation au swipe : uniquement un geste libre qui n'a rien touché.
+    if (gesture === "free" && !navConsumed && e) {
+      const dx = e.clientX - navX0, dy = e.clientY - navY0;
+      if (Math.abs(dx) > NAV_DIST && Math.abs(dx) > Math.abs(dy) * NAV_RATIO) {
+        // Contenu tiré vers la gauche = on va voir ce qu'il y a à droite (séchoir).
+        goScene(dx < 0 ? "sechoir" : "culture");
+      } else if (Math.abs(dy) > NAV_DIST && Math.abs(dy) > Math.abs(dx) * NAV_RATIO && curScene === "culture") {
+        // Swipe vers le haut = étage suivant (au-dessus), vers le bas = en dessous.
+        goPot(dy < 0 ? curPot + 1 : curPot - 1);
+      }
+    }
+    stopAllGestures();
     gesture = null;
-    soilSack.rotation.z = 0;
   }
 }
 el.addEventListener("pointerup", onUp, { passive:false });
@@ -1425,22 +1490,9 @@ function setFmt(f) {
 function setBoost(key) {
   if (!BOOSTS[key]) return;
   curBoost = key; localStorage.setItem("plant_boost", key);
-  if (key !== "none") bottleBody.material.color.setHex(BOOST_COLS[key]);
+  if (key !== "none") for (const st of stations) st.bottleMat.color.setHex(BOOST_COLS[key]);
   updateBoostBar();
 }
-
-// Stepper de scènes : Culture <-> Séchoir (travelling caméra dans la même cave)
-let curScene = "culture", wantX = 0;
-const scBtns = { culture: document.getElementById("sc-culture"), sechoir: document.getElementById("sc-sechoir") };
-function goScene(k) {
-  if (curScene === k) return;
-  curScene = k; wantX = k === "sechoir" ? SECHOIR_X : 0;
-  scBtns.culture.classList.toggle("on", k === "culture");
-  scBtns.sechoir.classList.toggle("on", k === "sechoir");
-  ensureAudio(); sPop(k === "sechoir" ? 520 : 660);
-}
-scBtns.culture.addEventListener("click", () => goScene("culture"));
-scBtns.sechoir.addEventListener("click", () => goScene("sechoir"));
 function updateBoostBar() {
   for (const b of document.querySelectorAll(".boostbtn")) {
     const k = b.dataset.boost;
@@ -1450,25 +1502,73 @@ function updateBoostBar() {
 }
 
 /* -------------------------------------------------------------------------
-   22) BOUCLE PRINCIPALE
+   20) ÉTIQUETTES + état debug (captures de test)
+   ------------------------------------------------------------------------- */
+function updateLabels() {
+  for (const st of stations) {
+    if (st.phase === "growing" || st.phase === "mature") {
+      const pct = Math.round(st.growth * 100);
+      st.potLabel.textContent = st.phase === "mature" ? "✂️ MÛR — COUPE !" :
+        "🌱 " + st.seed.name + " " + pct + "%" + (st.moisture < MOIST_BAND[0] ? " · 💧!" : "");
+    } else st.potLabel.textContent = "🪴 POT " + (st.lvl + 1);
+    placeLabel(st.potLabel, POT_POS.x, st.y + 2.15, POT_POS.z);
+  }
+  stockLabel.textContent = "📦 STOCK " + Math.round(stock.g) + " g";
+  placeLabel(stockLabel, STOCK_POS.x, 0.55, STOCK_POS.z);
+  trimLabel.textContent = "🍂 TRIM " + Math.round(trimG) + " g";
+  placeLabel(trimLabel, TRIM_POS.x, 0.55, TRIM_POS.z);
+  const used = hooks.filter(h => h.used);
+  if (used.length) {
+    const minDry = Math.min(...used.map(h => h.dry));
+    lineLabel.textContent = minDry >= 0.99 ? "🪢 SEC — frotte 🌿" :
+      "🪢 SÉCHAGE " + Math.round(minDry * 100) + "%";
+    placeLabel(lineLabel, SECHOIR_X, LINE_Y + 0.3, LINE_Z);
+  } else lineLabel.style.display = "none";
+
+  // État + positions écran pour les captures de test (tools/drive-plantation.mjs)
+  const act = stations[curPot];
+  const proj = (p, y) => { _lv.set(p.x, (y || 0.4), p.z).project(camera);
+    return { x: (_lv.x * 0.5 + 0.5) * window.innerWidth, y: (-_lv.y * 0.5 + 0.5) * window.innerHeight }; };
+  window.__pl = { phase: act.phase, growth: act.growth, moisture: act.moisture,
+    stockG: stock.g, trimG, leaves: activeLeaves(act), gesture, soil: act.soil,
+    scene: curScene, potIdx: curPot, pots: stations.map(s => ({ phase: s.phase, growth: +s.growth.toFixed(2) })),
+    plantTop: proj(POT_POS, act.y + 1.4),
+    branches: hooks.map(h => h.used ? { dry: +h.dry.toFixed(2) } : null),
+    sack: proj(SOIL_POS, act.y + 0.5), seed: proj(SEED_POS, act.y + 0.3), pot: proj(POT_POS, act.y + 0.4),
+    can: proj(CAN_POS, act.y + 0.4), boost: proj(BOOST_POS, act.y + 0.4), stock: proj(STOCK_POS, 0.2),
+    trim: proj(TRIM_POS, 0.2),
+    leafPos: act.gLeaves.filter(L => L.active).map(L => { const wp = new THREE.Vector3(); L.hit.getWorldPosition(wp);
+      _lv.copy(wp).project(camera);
+      return { x: (_lv.x * 0.5 + 0.5) * window.innerWidth, y: (-_lv.y * 0.5 + 0.5) * window.innerHeight }; }),
+    branchBuds: hooks.flatMap(h => h.used ? h.buds.filter(b => !b.taken).map(b => {
+      const wp = new THREE.Vector3(); b.mesh.getWorldPosition(wp);
+      _lv.copy(wp).project(camera);
+      return { x: (_lv.x * 0.5 + 0.5) * window.innerWidth, y: (-_lv.y * 0.5 + 0.5) * window.innerHeight }; }) : []) };
+}
+
+/* -------------------------------------------------------------------------
+   21) BOUCLE PRINCIPALE
    ------------------------------------------------------------------------- */
 let last = 0;
 function loop(t) {
   const dt = Math.min((t - last) / 1000 || 0, 0.05); last = t;
-  updateSoil(dt);
-  updateWater(dt);
-  updateBoost(dt);
-  updateGrow(dt);
+  for (const st of stations) {
+    updateSoil(st, dt);
+    updateWater(st, dt);
+    updateBoost(st, dt);
+    updateGrow(st, dt);
+    updatePlantVisual(st, dt);
+    st.cutCd = Math.max(0, st.cutCd - dt);
+  }
   updateLine(dt);
-  cutCd = Math.max(0, cutCd - dt);
-  updatePlantVisual(dt);
   updateBagging(dt);
   updateParts(dt);
   updateFliers(dt);
   updateGuide(dt);
-  // Travelling entre les scènes (la caméra glisse le long de la cave)
-  if (Math.abs(VIEW_TARGET.x - wantX) > 0.002) {
+  // Travelling entre scènes/étages (la caméra glisse le long de la cave)
+  if (Math.abs(VIEW_TARGET.x - wantX) > 0.002 || Math.abs(VIEW_TARGET.y - wantY) > 0.002) {
     VIEW_TARGET.x += (wantX - VIEW_TARGET.x) * Math.min(1, dt * 5);
+    VIEW_TARGET.y += (wantY - VIEW_TARGET.y) * Math.min(1, dt * 5);
     fitView();
   }
   if (shake > 0) { shake *= Math.pow(0.0008, dt); if (shake < 0.002) shake = 0; }
@@ -1485,14 +1585,17 @@ function loop(t) {
 }
 
 /* -------------------------------------------------------------------------
-   23) BOOTSTRAP
+   22) BOOTSTRAP
    ------------------------------------------------------------------------- */
+makeStation(0);
+ensurePots();
 resize();
 setCash(cash); updateXpUI();
 setFmt(FMT_PRICE[fmt] ? fmt : 1);
 setBoost(curBoost);
 applyLamp();
 updateCount(); updateResources();
+renderPotDots();
 requestAnimationFrame(loop);
 </script>
 </body>
