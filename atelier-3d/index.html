@@ -20,6 +20,11 @@
     color:rgba(255,255,255,.5); }
   #station .name { font-size:26px; font-weight:800; letter-spacing:.3px; margin-top:2px; }
 
+  /* Stock de barrettes produites (compteur global) */
+  #stock { top:max(20px,env(safe-area-inset-top)); right:16px; font-weight:800; font-size:15px;
+    color:#e8c46b; background:rgba(232,196,107,.12); border:1px solid rgba(232,196,107,.4);
+    padding:5px 11px; border-radius:999px; }
+
   /* Indicateur de position (points) */
   #dots { left:0; right:0; bottom:max(30px,calc(env(safe-area-inset-bottom) + 20px));
     display:flex; gap:9px; justify-content:center; }
@@ -30,6 +35,19 @@
   /* Indice de geste */
   #hint { left:0; right:0; bottom:max(60px,calc(env(safe-area-inset-bottom) + 50px)); text-align:center;
     font-size:12px; font-weight:600; color:rgba(255,255,255,.4); transition:opacity .4s; }
+
+  /* Coupe au feeling : barre de PRESSION (se remplit tant qu'on maintient) */
+  #pressbar { position:fixed; bottom:max(94px,calc(env(safe-area-inset-bottom) + 84px)); left:50%;
+    transform:translateX(-50%); width:66%; max-width:320px; height:20px; background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.18); border-radius:999px; overflow:hidden; pointer-events:none;
+    display:none; box-shadow:0 4px 14px rgba(0,0,0,.4); z-index:3; }
+  #pressbar.show { display:block; }
+  #pressfill { position:absolute; top:0; bottom:0; left:0; width:0%;
+    background:linear-gradient(90deg,#ff9f6b,#ff5e1a); transition:width .04s linear; }
+  #presslbl { position:fixed; bottom:max(120px,calc(env(safe-area-inset-bottom) + 110px)); left:50%;
+    transform:translateX(-50%); font-size:13px; font-weight:700; color:rgba(255,255,255,.85);
+    text-shadow:0 2px 8px rgba(0,0,0,.6); pointer-events:none; display:none; white-space:nowrap; z-index:3; }
+  #presslbl.show { display:block; }
 
   /* Toast d'interaction */
   #toast { top:44%; left:0; right:0; text-align:center; font-size:19px; font-weight:800; padding:0 24px;
@@ -44,6 +62,9 @@
     <div class="idx" id="stIdx">Poste 1 / 5</div>
     <div class="name" id="stName">—</div>
   </div>
+  <div id="stock" class="hud">🔪 0</div>
+  <div id="presslbl" class="hud">Maintiens pour couper</div>
+  <div id="pressbar" class="hud"><div id="pressfill"></div></div>
   <div id="hint" class="hud">← glisse pour circuler dans l'atelier →</div>
   <div id="toast" class="hud"></div>
   <div id="dots" class="hud"></div>
@@ -56,29 +77,39 @@
 import * as THREE from "three";
 
 /* =========================================================================
-   Atelier 3D — squelette de navigation
+   Atelier 3D — rail de postes + poste COUPE jouable
    -------------------------------------------------------------------------
-   Pari validé par ce proto : longer un atelier continu au SWIPE horizontal,
-   en portrait, est-il agréable ? La caméra glisse sur un RAIL devant des
-   postes posés côte à côte dans l'ordre de production. Les activités (coupe,
-   dosage…) viendront APRÈS ; ici les postes sont des placeholders.
+   Navigation : la caméra glisse sur un RAIL devant des postes posés côte à
+   côte dans l'ordre de production. Le swipe horizontal circule (pager, un
+   poste à la fois) ; en portrait on voit un poste à la fois, la continuité
+   se ressent au glissement.
+
+   Poste COUPE (mécanique reprise de Hash Slicer v2, « coupe au feeling ») :
+   on MAINTIENT le doigt immobile sur la planche → la lame s'enfonce (barre
+   de pression) ; à pleine pression une barrette se détache du bord et tombe,
+   alimentant le STOCK. La chaîne est répartie : ce poste ne fait que couper.
 
    Gestes, sans conflit :
-     - drag HORIZONTAL  → circulation (déplace la caméra sur le rail, snap)
-     - TAP sur le poste → interaction (placeholder : toast « activité à venir »)
+     - drag HORIZONTAL     → circulation (annule toute pression en cours)
+     - MAINTIEN (immobile)  → couper, au poste Coupe uniquement
+     - TAP                  → interaction du poste (recharge la savonnette
+                              quand elle est finie ; « à venir » ailleurs)
    ========================================================================= */
 
 // --- Persistance (préfixe unique atelier3d_) -----------------------------
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2;                 // bump : ajout du stock de barrettes
 const LS_VER = "atelier3d_ver";
 const LS_POS = "atelier3d_station";
+const LS_STOCK = "atelier3d_stock";
 if (localStorage.getItem(LS_VER) !== String(SAVE_VERSION)) {
   localStorage.setItem(LS_VER, String(SAVE_VERSION));
   localStorage.removeItem(LS_POS);
+  localStorage.removeItem(LS_STOCK);
 }
 
 // --- Définition du rail (data-driven : la chaîne de production) -----------
 const SPACING = 4.2;            // distance entre deux postes sur le rail (unités monde)
+const COUPE_IDX = 1;           // index du poste Coupe dans STATIONS
 const STATIONS = [
   { name: "Achat",          color: 0x6d8ac0, prop: 0x9db6e0 },
   { name: "Coupe",          color: 0xc06d6d, prop: 0xe09d9d },
@@ -131,32 +162,106 @@ wall.position.set(railLength / 2, 4.5, -3.2);
 wall.receiveShadow = true;
 scene.add(wall);
 
-// --- Étiquette texte -> sprite (aucune police externe à charger) ----------
-function makeLabel(text) {
-  const c = document.createElement("canvas");
-  c.width = 512; c.height = 128;
-  const g = c.getContext("2d");
-  g.fillStyle = "rgba(15,12,22,0.82)";
-  const r = 26, w = c.width, h = c.height;
-  g.beginPath();
-  g.moveTo(r, 0); g.arcTo(w, 0, w, h, r); g.arcTo(w, h, 0, h, r);
-  g.arcTo(0, h, 0, 0, r); g.arcTo(0, 0, w, 0, r); g.closePath(); g.fill();
-  g.fillStyle = "#fff";
-  g.textAlign = "center"; g.textBaseline = "middle";
-  // Ajuste la taille de police pour que les noms longs (« Conditionnement ») tiennent
-  let fs = 58;
-  do { g.font = `700 ${fs}px -apple-system, Segoe UI, Roboto, sans-serif`; fs -= 2; }
-  while (g.measureText(text).width > w - 60 && fs > 24);
-  g.fillText(text, w / 2, h / 2 + 4);
-  const tex = new THREE.CanvasTexture(c);
-  tex.anisotropy = 4;
-  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, transparent:true, depthWrite:false }));
-  spr.scale.set(1.7, 0.425, 1);
-  return spr;
+/* =========================================================================
+   POSTE COUPE — la savonnette (prisme) + la lame, repris de Hash Slicer v2
+   ========================================================================= */
+// Dimensions de la savonnette (unités monde), à l'échelle de l'établi.
+const LOAF_L = 1.7;             // longueur max (axe X local, du talon x=0 au bord droit)
+const LOAF_W = 0.55;            // largeur (axe Z)
+const LOAF_H = 0.34;            // épaisseur (axe Y)
+const PER_LEN = 100;            // grammes par unité de longueur (poids = épaisseur * PER_LEN)
+const LOAF_FULL_G = 150;        // savonnette pleine (g)
+const BAR_G = 10;               // barrette découpée à chaque coupe (g)
+const PRESS_TIME = 0.6;         // s de maintien pour enfoncer la lame et couper
+const R0 = Math.min(LOAF_L, LOAF_FULL_G / PER_LEN);  // longueur initiale
+
+// Textures procédurales (grain résine / mie) — présentation, repris de v2.
+function grainTex(r, g, b, contrast, spots) {
+  const S = 256, c = document.createElement("canvas"); c.width = c.height = S;
+  const x = c.getContext("2d"); const cl = (v) => Math.max(0, Math.min(255, v));
+  const img = x.createImageData(S, S);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * contrast;
+    img.data[i] = cl(r + n); img.data[i+1] = cl(g + n); img.data[i+2] = cl(b + n); img.data[i+3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  for (let k = 0; k < spots; k++) {
+    x.fillStyle = "rgba(0,0,0," + (Math.random() * 0.2) + ")";
+    x.fillRect(Math.random() * S, Math.random() * S, Math.random() * 4 + 1, Math.random() * 4 + 1);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 2);
+  return t;
+}
+function bumpTex() {
+  const S = 256, c = document.createElement("canvas"); c.width = c.height = S;
+  const x = c.getContext("2d"); const img = x.createImageData(S, S);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 128 + (Math.random() - 0.5) * 120; img.data[i] = img.data[i+1] = img.data[i+2] = v; img.data[i+3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3);
+  return t;
+}
+const _bump = bumpTex();
+// crust = peau pressée brun foncé ; pale = dessous ; sponge = faces coupées (mie blonde).
+const matCrust  = new THREE.MeshStandardMaterial({ map: grainTex(46, 31, 18, 44, 220), bumpMap: _bump, bumpScale: 0.02, roughness: 0.5, metalness: 0.2, side: THREE.DoubleSide });
+const matPale   = new THREE.MeshStandardMaterial({ map: grainTex(96, 74, 46, 32, 120), bumpMap: _bump, bumpScale: 0.02, roughness: 0.82, side: THREE.DoubleSide });
+const matSponge = new THREE.MeshStandardMaterial({ map: grainTex(196, 168, 116, 46, 100), bumpMap: _bump, bumpScale: 0.03, roughness: 0.96, side: THREE.DoubleSide });
+const loafMats  = [matCrust, matPale, matSponge];
+
+// Prisme droit x[xL..xR] z[±W/2] y[0..H], dessus chanfreiné (repris de v2).
+function makePrism(aNeg, aPos, bNeg, bPos) {
+  const xL = (aNeg + aPos) / 2, xR = (bNeg + bPos) / 2;
+  const zN = -LOAF_W / 2, zP = LOAF_W / 2, H = LOAF_H;
+  const dx = Math.max(0.0001, xR - xL);
+  const bv = Math.min(0.05, dx * 0.32, LOAF_W * 0.08, H * 0.32);
+  const A=[xL,0,zN], B=[xR,0,zN], C=[xR,0,zP], D=[xL,0,zP];
+  const Ap=[xL,H-bv,zN], Bp=[xR,H-bv,zN], Cp=[xR,H-bv,zP], Dp=[xL,H-bv,zP];
+  const At=[xL+bv,H,zN+bv], Bt=[xR-bv,H,zN+bv], Ct=[xR-bv,H,zP-bv], Dt=[xL+bv,H,zP-bv];
+  const pos = [], uv = [], grp = [];
+  const quad = (mat, p0, p1, p2, p3) => {
+    const s = pos.length / 3;
+    pos.push(...p0,...p1,...p2,  ...p0,...p2,...p3);
+    uv.push(0,0, 1,0, 1,1,  0,0, 1,1, 0,1);
+    grp.push([s, 6, mat]);                       // 0=crust 1=pale 2=sponge
+  };
+  quad(1, A, B, C, D);              // dessous
+  quad(0, A, Ap, Bp, B);           // côté z-
+  quad(0, C, Cp, Dp, D);           // côté z+
+  quad(2, D, Dp, Ap, A);           // bout gauche (coupe)
+  quad(2, B, Bp, Cp, C);           // bout droit (coupe)
+  quad(0, Ap, At, Bt, Bp);         // chanfreins
+  quad(0, Bp, Bt, Ct, Cp);
+  quad(0, Cp, Ct, Dt, Dp);
+  quad(0, Dp, Dt, At, Ap);
+  quad(0, At, Bt, Ct, Dt);         // dessus
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  for (const [s, c, m] of grp) g.addGroup(s, c, m);
+  g.computeVertexNormals();
+  return g;
+}
+
+// État de la coupe
+let rightNeg = R0, rightPos = R0;    // bord droit (frontière de coupe), talon fixe à x=0
+let slices = [];                     // barrettes détachées (physique de chute)
+let over = false;                    // savonnette finie ?
+let bladeChop = 0;                   // rebond de la lame après une coupe
+let stock = Math.max(0, +(localStorage.getItem(LS_STOCK) || 0));
+
+// Ces objets sont peuplés dans la boucle de construction des postes.
+let coupeRig = null, cakeMesh = null, bladeMesh = null;
+
+function rebuildLoaf() {
+  cakeMesh.geometry.dispose();
+  cakeMesh.geometry = makePrism(0, 0, rightNeg, rightPos);
+  cakeMesh.visible = Math.max(rightNeg, rightPos) > 0.03;
 }
 
 // --- Construction des postes ---------------------------------------------
-// Chaque poste = un établi (placeholder) + un prop coloré + une étiquette.
+const props = [];       // props placeholder (rotation d'ambiance) des postes non-Coupe
 const stationGroups = [];
 STATIONS.forEach((st, i) => {
   const grp = new THREE.Group();
@@ -171,7 +276,7 @@ STATIONS.forEach((st, i) => {
   bench.castShadow = true; bench.receiveShadow = true;
   grp.add(bench);
 
-  // Plateau
+  // Plateau (surface de travail, dessus à y≈1.02)
   const top = new THREE.Mesh(
     new THREE.BoxGeometry(2.75, 0.12, 1.75),
     new THREE.MeshStandardMaterial({ color:0xece7f2, roughness:0.5 })
@@ -179,14 +284,38 @@ STATIONS.forEach((st, i) => {
   top.position.y = 0.96; top.castShadow = true;
   grp.add(top);
 
-  // Prop placeholder (l'activité viendra le remplacer)
-  const prop = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(0.42, 0),
-    new THREE.MeshStandardMaterial({ color:st.prop, roughness:0.35, metalness:0.15 })
-  );
-  prop.position.set(0, 1.42, 0); prop.castShadow = true;
-  prop.userData.spin = 0.4 + i * 0.08;
-  grp.add(prop);
+  if (i === COUPE_IDX) {
+    // --- Poste Coupe : la savonnette + la lame ---
+    coupeRig = new THREE.Group();
+    coupeRig.position.set(-R0 / 2, 1.02, 0);   // pose la savonnette sur le plateau, ~centrée
+    grp.add(coupeRig);
+
+    cakeMesh = new THREE.Mesh(makePrism(0, 0, rightNeg, rightPos), loafMats);
+    cakeMesh.castShadow = true; cakeMesh.receiveShadow = true;
+    coupeRig.add(cakeMesh);
+
+    // Lame (compacte, à l'échelle de la savonnette)
+    const steel = new THREE.MeshStandardMaterial({ color:0xd7dee6, metalness:0.9, roughness:0.18 });
+    const bladeLen = LOAF_W + 0.22;
+    bladeMesh = new THREE.Group();
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.30, bladeLen), steel);   edge.position.y = 0.16;
+    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, bladeLen), steel);  spine.position.y = 0.33;
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.12, bladeLen * 0.42),
+      new THREE.MeshStandardMaterial({ color:0x1d1410, roughness:0.6 }));              handle.position.y = 0.42;
+    for (const m of [edge, spine, handle]) { m.castShadow = true; bladeMesh.add(m); }
+    bladeMesh.visible = false;
+    coupeRig.add(bladeMesh);
+  } else {
+    // Prop placeholder (l'activité viendra le remplacer)
+    const prop = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.42, 0),
+      new THREE.MeshStandardMaterial({ color:st.prop, roughness:0.35, metalness:0.15 })
+    );
+    prop.position.set(0, 1.42, 0); prop.castShadow = true;
+    prop.userData.spin = 0.4 + i * 0.08;
+    grp.add(prop);
+    props.push(prop);
+  }
 
   // Étiquette (panneau suspendu au-dessus du poste)
   const label = makeLabel(st.name);
@@ -196,6 +325,112 @@ STATIONS.forEach((st, i) => {
   scene.add(grp);
   stationGroups.push(grp);
 });
+
+// --- Étiquette texte -> sprite (aucune police externe à charger) ----------
+function makeLabel(text) {
+  const c = document.createElement("canvas");
+  c.width = 512; c.height = 128;
+  const g = c.getContext("2d");
+  g.fillStyle = "rgba(15,12,22,0.82)";
+  const r = 26, w = c.width, h = c.height;
+  g.beginPath();
+  g.moveTo(r, 0); g.arcTo(w, 0, w, h, r); g.arcTo(w, h, 0, h, r);
+  g.arcTo(0, h, 0, 0, r); g.arcTo(0, 0, w, 0, r); g.closePath(); g.fill();
+  g.fillStyle = "#fff";
+  g.textAlign = "center"; g.textBaseline = "middle";
+  let fs = 58;
+  do { g.font = `700 ${fs}px -apple-system, Segoe UI, Roboto, sans-serif`; fs -= 2; }
+  while (g.measureText(text).width > w - 60 && fs > 24);
+  g.fillText(text, w / 2, h / 2 + 4);
+  const tex = new THREE.CanvasTexture(c);
+  tex.anisotropy = 4;
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, transparent:true, depthWrite:false }));
+  spr.scale.set(1.7, 0.425, 1);
+  return spr;
+}
+
+/* -------------------------------------------------------------------------
+   Coupe : détacher une barrette, physique de chute, pression, lame
+   ------------------------------------------------------------------------- */
+function haptic(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch (_) {} }
+
+// Détache une barrette [cut .. bord droit] et la fait tomber sur le plateau.
+function spawnBarrette(cutNeg, cutPos) {
+  const geo = makePrism(cutNeg, cutPos, rightNeg, rightPos);
+  geo.computeBoundingBox();
+  const c = new THREE.Vector3(); geo.boundingBox.getCenter(c);
+  geo.translate(-c.x, -c.y, -c.z); geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, loafMats);
+  mesh.castShadow = true; mesh.position.copy(c);
+  coupeRig.add(mesh);
+  slices.push({
+    mesh,
+    vx: 0.4 + Math.random() * 0.35, vy: 1.3 + Math.random() * 0.7, vz: 0.25 + Math.random() * 0.3,
+    vrx: 1.4 + Math.random() * 1.4, vrz: (Math.random() - 0.5) * 2.2,
+    rest: 0.12 + geo.boundingSphere.radius * 0.15, settled: false,
+  });
+  rightNeg = cutNeg; rightPos = cutPos;
+  rebuildLoaf();
+  // Le plateau ne garde qu'une pile raisonnable (le stock est compté à part).
+  while (slices.length > 12) { const s = slices.shift(); coupeRig.remove(s.mesh); s.mesh.geometry.dispose(); }
+}
+
+// Coupe au feeling : déclenchée à pleine pression.
+function pressCut() {
+  if (over) return;
+  const thick = BAR_G / PER_LEN;
+  let cn = rightNeg - thick, cp = rightPos - thick;
+  if (cn < 0.001 && cp < 0.001) { cn = 0; cp = 0; }   // talon -> inclus
+  cn = Math.max(0, cn); cp = Math.max(0, cp);
+  bladeChop = 1;
+  spawnBarrette(cn, cp);
+  setStock(stock + 1);
+  haptic(40);
+  if (Math.max(rightNeg, rightPos) < 0.05) {
+    over = true;
+    toast("Savonnette finie 🎉");
+  }
+}
+
+function updateSlices(dt) {
+  const g = 11;
+  for (const sl of slices) {
+    if (sl.settled) continue;
+    sl.vy -= g * dt;
+    sl.mesh.position.x += sl.vx * dt;
+    sl.mesh.position.y += sl.vy * dt;
+    sl.mesh.position.z += sl.vz * dt;
+    sl.mesh.rotation.x += sl.vrx * dt;
+    sl.mesh.rotation.z += sl.vrz * dt;
+    if (sl.mesh.position.y < sl.rest) {
+      sl.mesh.position.y = sl.rest;
+      sl.vy *= -0.32; sl.vx *= 0.6; sl.vz *= 0.6; sl.vrx *= 0.4; sl.vrz *= 0.4;
+      if (Math.abs(sl.vy) < 0.5) { sl.vy = 0; sl.settled = true; }
+    }
+  }
+}
+
+// Position + enfoncement de la lame au-dessus de la prochaine ligne de coupe.
+function updateKnife(dt) {
+  const show = atCoupe() && !over;
+  bladeMesh.visible = show;
+  const right = (rightNeg + rightPos) / 2;
+  const cutX = Math.max(0, right - BAR_G / PER_LEN);
+  let y = LOAF_H + 0.10 - (pressing ? (pressT / PRESS_TIME) * 0.5 : 0);
+  if (bladeChop > 0) {
+    bladeChop = Math.max(0, bladeChop - dt * 4.5);
+    y = LOAF_H + 0.10 - Math.sin(Math.min(1, 1 - bladeChop) * Math.PI) * 0.32;
+  }
+  bladeMesh.position.set(cutX, y, 0);
+}
+
+// Recharge une savonnette neuve (gratuit — la matière viendra du poste Achat).
+function loadLoaf() {
+  for (const s of slices) { coupeRig.remove(s.mesh); s.mesh.geometry.dispose(); }
+  slices = [];
+  rightNeg = rightPos = R0; over = false;
+  rebuildLoaf();
+}
 
 // --- État du rail ---------------------------------------------------------
 let rail = 0;                 // position caméra en unités « poste » (float)
@@ -210,6 +445,8 @@ if (Number.isFinite(saved) && saved >= 0 && saved < STATIONS.length) {
 }
 
 const clampIdx = (v) => Math.max(0, Math.min(STATIONS.length - 1, v));
+// Vrai quand la caméra est calée sur le poste Coupe (snap atteint).
+const atCoupe = () => target === COUPE_IDX && Math.abs(rail - COUPE_IDX) < 0.08;
 
 function applyCamera() {
   const x = rail * SPACING;
@@ -220,13 +457,24 @@ function applyCamera() {
 // --- HUD ------------------------------------------------------------------
 const stIdxEl = document.getElementById("stIdx");
 const stNameEl = document.getElementById("stName");
+const stockEl = document.getElementById("stock");
 const hintEl = document.getElementById("hint");
 const toastEl = document.getElementById("toast");
 const dotsEl = document.getElementById("dots");
+const pressbarEl = document.getElementById("pressbar");
+const pressfillEl = document.getElementById("pressfill");
+const presslblEl = document.getElementById("presslbl");
 STATIONS.forEach(() => {
   const d = document.createElement("div"); d.className = "dot"; dotsEl.appendChild(d);
 });
 const dotEls = [...dotsEl.children];
+
+function setStock(v) {
+  stock = Math.max(0, v);
+  localStorage.setItem(LS_STOCK, String(stock));
+  stockEl.textContent = "🔪 " + stock;
+}
+setStock(stock);
 
 let hudIdx = -1;
 function refreshHud() {
@@ -236,6 +484,10 @@ function refreshHud() {
   stIdxEl.textContent = `Poste ${idx + 1} / ${STATIONS.length}`;
   stNameEl.textContent = STATIONS[idx].name;
   dotEls.forEach((d, i) => d.classList.toggle("on", i === idx));
+  hintEl.textContent = (idx === COUPE_IDX)
+    ? "maintiens sur la planche pour couper une barrette"
+    : "← glisse pour circuler dans l'atelier →";
+  hintEl.style.opacity = "1";
 }
 
 let toastT = 0;
@@ -248,9 +500,13 @@ function toast(msg) {
 // --- Gestes (Pointer Events : souris + tactile unifiés) -------------------
 let pid = null, startX = 0, startY = 0, lastX = 0, railAtStart = 0;
 let moved = false;
-const W = () => window.innerWidth;
+let holding = false;        // candidat maintien (pointeur baissé, poste Coupe)
+let pressing = false;       // pression en cours
+let pressT = 0;             // avancement de la pression (s)
+let cutConsumed = false;    // une coupe par maintien : re-taper pour la suivante
+const Wpx = () => window.innerWidth;
 // ~55 % de largeur d'écran glissée = un poste
-const railPerPx = () => 1 / (W() * 0.55);
+const railPerPx = () => 1 / (Wpx() * 0.55);
 
 app.addEventListener("pointerdown", (e) => {
   if (pid !== null) return;
@@ -259,6 +515,7 @@ app.addEventListener("pointerdown", (e) => {
   startX = lastX = e.clientX; startY = e.clientY;
   railAtStart = rail;
   dragging = true; moved = false; velocity = 0;
+  holding = atCoupe(); cutConsumed = false;
   if (hintEl) hintEl.style.opacity = "0";
 });
 
@@ -266,6 +523,7 @@ app.addEventListener("pointermove", (e) => {
   if (e.pointerId !== pid) return;
   const dx = e.clientX - startX;
   if (Math.abs(dx) > 6 || Math.abs(e.clientY - startY) > 6) moved = true;
+  if (moved) holding = false;              // dès qu'on glisse, c'est de la nav, pas une coupe
   // glisser vers la gauche (dx<0) → avancer dans l'atelier (rail augmente).
   // Borné à ±1 poste depuis l'origine : ressenti « pager », un poste à la fois.
   const base = Math.round(railAtStart);
@@ -275,6 +533,8 @@ app.addEventListener("pointermove", (e) => {
   lastX = e.clientX;
 });
 
+function resetPress() { holding = false; pressing = false; pressT = 0; cutConsumed = false; }
+
 function endDrag(e) {
   if (e.pointerId !== pid) return;
   dragging = false;
@@ -282,20 +542,25 @@ function endDrag(e) {
   pid = null;
 
   if (!moved) {
-    // TAP = interaction avec le poste courant (placeholder)
+    // TAP (pas de glissement) = interaction du poste
     const idx = clampIdx(Math.round(rail));
-    toast(`${STATIONS[idx].name} — activité à venir`);
+    if (idx === COUPE_IDX) {
+      if (over) { loadLoaf(); toast("Nouvelle savonnette"); }   // sinon : la coupe se fait au maintien
+    } else {
+      toast(`${STATIONS[idx].name} — activité à venir`);
+    }
+    resetPress();
     return;
   }
-  // Pager : un swipe déplace d'AU PLUS un poste. La direction vient du flick
-  // (vitesse au relâché) ou d'un glissement franchi au-delà du seuil.
+  // Pager : un swipe déplace d'AU PLUS un poste. Direction par flick ou drag franc.
   const base = Math.round(railAtStart);
-  const dragged = rail - base;               // signé : >0 = vers le poste suivant
+  const dragged = rail - base;
   let step = 0;
-  if (Math.abs(velocity) > 0.02) step = Math.sign(velocity);        // flick
-  else if (Math.abs(dragged) > 0.28) step = Math.sign(dragged);     // drag franc
+  if (Math.abs(velocity) > 0.02) step = Math.sign(velocity);
+  else if (Math.abs(dragged) > 0.28) step = Math.sign(dragged);
   target = clampIdx(base + step);
   localStorage.setItem(LS_POS, String(target));
+  resetPress();
 }
 app.addEventListener("pointerup", endDrag);
 app.addEventListener("pointercancel", endDrag);
@@ -310,9 +575,9 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-let last = performance.now();
+let lastT = performance.now();
 function tick(now) {
-  const dt = Math.min((now - last) / 1000, 0.05); last = now;
+  const dt = Math.min((now - lastT) / 1000, 0.05); lastT = now;
 
   if (!dragging) {
     // Ressort vers la cible (snap doux)
@@ -323,11 +588,24 @@ function tick(now) {
   applyCamera();
   refreshHud();
 
-  // Anim placeholder : les props tournent doucement
-  for (const grp of stationGroups) {
-    const prop = grp.children[2];
-    if (prop) prop.rotation.y += dt * (prop.userData.spin || 0.4);
+  // Pression : se construit tant qu'on maintient immobile au poste Coupe.
+  pressing = holding && pid !== null && !moved && atCoupe() && !over && !cutConsumed;
+  if (pressing) {
+    pressT += dt;
+    if (pressT >= PRESS_TIME) { pressCut(); pressT = 0; cutConsumed = true; pressing = false; }
+  } else if (!holding) {
+    pressT = 0;
   }
+  const showPress = atCoupe() && !over;
+  presslblEl.classList.toggle("show", showPress);
+  pressbarEl.classList.toggle("show", showPress && pressing);
+  pressfillEl.style.width = (pressing ? Math.min(100, (pressT / PRESS_TIME) * 100) : 0) + "%";
+
+  updateSlices(dt);
+  updateKnife(dt);
+
+  // Anim d'ambiance : les props placeholder tournent doucement.
+  for (const prop of props) prop.rotation.y += dt * (prop.userData.spin || 0.4);
 
   if (toastT > 0) {
     toastT -= dt;
