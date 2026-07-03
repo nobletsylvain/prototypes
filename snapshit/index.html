@@ -207,6 +207,12 @@
   .bline.good{border-color:rgba(127,163,127,.5)} .bline.bad{border-color:rgba(200,68,47,.5)} .bline.warn{border-color:rgba(232,163,61,.5)}
   .endscreen .replay{margin-top:18px;align-self:center;background:var(--neon);border:none;color:#fff;border-radius:14px;padding:13px 30px;font:800 13px var(--sans);cursor:pointer}
   .reset{position:absolute;bottom:5px;right:12px;z-index:80;font:500 10px var(--mono);color:var(--faint);background:none;border:none;cursor:pointer}
+
+  /* --- mode embarqué « Le Bigo » (#embed=bigo) : coque masquée, plein cadre --- */
+  body.embed{padding:0}
+  body.embed .phone{width:100%;height:100%;border-radius:0;border:none;box-shadow:none}
+  body.embed .notch,body.embed .statusbar,body.embed .reset,body.embed #batch .chip{display:none}
+  body.embed #embedStock{flex:1;text-align:center}
 </style>
 </head>
 <body>
@@ -289,6 +295,19 @@
 // ============================================================================
 const SAVE_VERSION = 7;
 const KEY='snapshit_state', VKEY='snapshit_ver';
+
+// ---- MODE EMBARQUÉ « Le Bigo » (contrat : le-bigo/BUS.md ; slug app "snap") --
+// #embed=bigo : le proto tourne en iframe dans le téléphone-OS à économie
+// partagée. TOUT ce qui suit le flag est INERTE en standalone. En embed :
+// cash affiché = cash du PARENT ; la qualité vendue = le stock fini réel
+// (fini.q) ; les ventes du jour sont PLAFONNÉES au stock fini (fini.g) ;
+// aucune écriture localStorage (shim mémoire) ; coque masquée.
+const EMBED = /[?#&]embed=bigo/.test(location.href);
+let BIGO = null;         // dernier {type:'bigo-state', cash, heat, fini:{g,q}, …} reçu du parent
+let EMBED_LEDGER = [];   // ventes du jour {g, cash, undo} — plafonnées au stock à la résolution
+// la qualité VENDUE dérive du stock réel (via l'Atelier), pas d'un choix local
+const embedQual = () => { const q=(BIGO&&BIGO.fini)?BIGO.fini.q:65;
+  return q>=80?'propre':q>=55?'standard':'arrache'; };
 
 // ---- Constantes nommées (PLACEHOLDERS — réglage humain plus tard) ----------
 const C = {
@@ -406,12 +425,18 @@ function fresh(){ return {
   dayTally:{sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{},muted:0,reup:0,volume:0,volumeCash:0},
 }; }
 const freshTally = () => ({sold:0,cash:0,brade:0,refused:0,ghost:0,block:0,bradeProtags:{},muted:0,reup:0,volume:0,volumeCash:0});
+// stockage : localStorage en standalone ; SHIM MÉMOIRE en embed — aucune écriture
+// localStorage (la partie embarquée repart proprement à chaque session d'iframe).
+const MEMSTORE={};
+const stGet=k=>EMBED ? (Object.prototype.hasOwnProperty.call(MEMSTORE,k)?MEMSTORE[k]:null) : localStorage.getItem(k);
+const stSet=(k,v)=>{ if(EMBED) MEMSTORE[k]=String(v); else localStorage.setItem(k,v); };
 let S = load();
+let embedExpoStart = S.expo;   // repère du delta d'expo du jour (→ heat posté au parent)
 function load(){ try{
-  if(localStorage.getItem(VKEY)!==String(SAVE_VERSION)) throw 0;
-  const s=JSON.parse(localStorage.getItem(KEY)); if(!s) throw 0; return s;
+  if(stGet(VKEY)!==String(SAVE_VERSION)) throw 0;
+  const s=JSON.parse(stGet(KEY)); if(!s) throw 0; return s;
 }catch(e){ const s=fresh(); save(s); return s; } }
-function save(s){ localStorage.setItem(KEY,JSON.stringify(s||S)); localStorage.setItem(VKEY,String(SAVE_VERSION)); }
+function save(s){ stSet(KEY,JSON.stringify(s||S)); stSet(VKEY,String(SAVE_VERSION)); }
 
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const toneFromReput = r => r>=72?'chaleureux': r>=50?'neutre': r>=30?'mefi':'hostile';
@@ -440,9 +465,26 @@ function posterVitrine(kind){            // kind: 'vitrine' | 'normal' | 'premiu
 function passerJournee(){
   const cons=[], comments=[]; const qLivree=C.QUAL[S.qualiteChoisie]; S.repPrev=S.reput;
 
+  // --- EMBED : on ne vend que ce que la planque PARTAGÉE contient (BUS.md) ---
+  // Le volume total vendu est PLAFONNÉ à fini.g du parent ; les deals au-delà
+  // du plafond (dans l'ordre où tu les as conclus) deviennent des refus
+  // « plus de stock », défaits EXACTEMENT (undo LIFO) et tracés à leur cause.
+  let embedDay=null, embedCryWolf=null, embedBadPublic=null;
+  if(EMBED){
+    const stock=Math.max(0,Math.round((BIGO&&BIGO.fini&&BIGO.fini.g)||0));
+    let used=0, cut=EMBED_LEDGER.length;
+    for(let i=0;i<EMBED_LEDGER.length;i++){ if(used+EMBED_LEDGER[i].g>stock){ cut=i; break; } used+=EMBED_LEDGER[i].g; }
+    const nRef=EMBED_LEDGER.length-cut, gRef=EMBED_LEDGER.slice(cut).reduce((s,x)=>s+x.g,0);
+    for(let i=EMBED_LEDGER.length-1;i>=cut;i--) EMBED_LEDGER[i].undo();   // LIFO : undo exact
+    if(nRef>0) cons.push({k:'warn',t:'PLUS DE STOCK — deals annulés',c:`${nRef} deal(s) (${gRef} g) refusés « plus de stock » : ta planque n'avait que ${stock} g (via l'Atelier). Cause : tu as promis plus que ce que tu as produit — le stock partagé plafonne tes ventes.`});
+    embedDay={ n:cut, g:used, cash:EMBED_LEDGER.slice(0,cut).reduce((s,x)=>s+x.cash,0) };
+    EMBED_LEDGER=[];
+  }
+
   // 1) différés à échéance (tracés à une décision passée)
   S.pendingCryWolf = S.pendingCryWolf.filter(ev=>{
     if(ev.due!==S.jour) return true;
+    embedCryWolf=ev;                                  // EMBED : événement majeur → journal parent
     S.reput=clamp(S.reput-ev.ampleur,0,C.REPUT_MAX);
     cons.push({k:'bad',t:'RÉPUT — falaise (cry-wolf)',c:`La confiance s'effondre : tu avais hypé un drop « ${ev.niveau} » au jour ${ev.jourPromesse} puis livré bien en dessous. Le mensonge a fini par se savoir.`});
     comments.push(reaction('cry_wolf','hostile',{DELAI:String(S.jour-ev.jourPromesse)}));
@@ -456,6 +498,7 @@ function passerJournee(){
   });
   S.pendingBadPublic = S.pendingBadPublic.filter(ev=>{
     if(ev.due!==S.jour) return true;
+    embedBadPublic=ev;                                // EMBED : événement majeur → journal parent
     S.flake=clamp(S.flake+ev.ampleur,0,0.9);
     const who = ev.protags ? protagBreakdown(ev.protags) : 'les lowballers';
     const c = ev.cause==='brade'
@@ -528,6 +571,25 @@ function passerJournee(){
   // clôture
   S.accroStreak++;   // l'accro est toujours là demain (et un cran plus accro)
   S.posteAujourdhui=false; S.qualiteChoisie='standard'; S.dayTally=freshTally(); S.jour+=1; save();
+
+  // --- EMBED : rapport de journée au parent — UNE txn, cause OBLIGATOIRE -----
+  if(EMBED){
+    const d=embedDay||{n:0,g:0,cash:0};
+    // heat = co-effet PARALLÈLE du buzz que TU as généré aujourd'hui (posts,
+    // volume écoulé) : delta d'expo du jour / 4 — déterministe, jamais tiré.
+    const heat=Math.round(Math.max(0,expoAvant-embedExpoStart)/4);
+    embedExpoStart=S.expo;
+    S.qualiteChoisie=embedQual(); save();   // le sélecteur local reste verrouillé sur le stock réel
+    try{ parent.postMessage({type:'bigo-txn',app:'snap',cash:d.cash,finiTake:d.g,heat,
+      journal:{icon:'👻',txt:`Journée Snapshit : ${d.n} vente${d.n>1?'s':''}, ${d.g} g écoulés, +${d.cash}€.`,cause:'↩ tes stories et tes DM du jour',cls:'good'}},'*'); }catch(e){}
+    // événement négatif majeur du jour → 2e txn journal-seule, avec SA cause
+    const neg = embedCryWolf
+      ? {icon:'🤥',txt:'Snapshit : le cry-wolf tombe — le block a vu ton mytho, la confiance s\'effondre.',cause:`↩ ton drop « ${embedCryWolf.niveau} » du jour ${embedCryWolf.jourPromesse}, jamais livré à la hauteur`,cls:'bad'}
+      : embedBadPublic
+      ? {icon:'🦗',txt:'Snapshit : le mauvais public débarque — flakes et lowballers pourrissent tes DM.',cause: embedBadPublic.cause==='brade'?`↩ tes prix cassés au jour ${embedBadPublic.jourCause}`:'↩ ton buzz resté trop haut, trop longtemps',cls:'bad'}
+      : null;
+    if(neg){ try{ parent.postMessage({type:'bigo-txn',app:'snap',journal:neg},'*'); }catch(e){} }
+  }
   return { cons, comments: comments.filter(Boolean) };
 }
 
@@ -717,14 +779,19 @@ function doDMAction(id, action){
   const d=S.dms.find(x=>x.id===id); if(!d||d.status!=='pending') return {reply:'',sys:''};
   const t=S.dayTally; let reply='',sys='';
   if(d.kind==='genuine'){
-    if(action==='sell'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.sold++; d.status='sold';
+    if(action==='sell'){ const tot=d.qty*d.ppu; const ps=EMBED?poolSnap(d):null;
+      S.cash+=tot; t.cash+=tot; t.sold++; d.status='sold';
       addToPool(d);                                  // il entre dans ton carnet (relançable plus tard)
+      if(EMBED) EMBED_LEDGER.push({g:d.qty,cash:tot,undo:()=>{S.cash-=tot;t.cash-=tot;t.sold--;d.status='nostock';poolRestore(ps);}});
       reply=replyFor(d,'sell',"reçu, t'es le boss 🙏"); sys=`💶 +${tot}€ encaissés.`; }
     else { t.refused++; d.status='refused'; reply=replyFor(d,'refuse',"ah… ok tant pis 😞"); sys="vente laissée filer."; }
   } else if(d.kind==='lowball'){
     if(action==='brade'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.brade++; d.status='brade';
       t.bradeProtags[d.protag]=(t.bradeProtags[d.protag]||0)+1;        // tracé par TYPE de protagoniste
       S.protagBrade[d.protag]=(S.protagBrade[d.protag]||0)+1;          // mémoire longue (la voix se souvient)
+      if(EMBED) EMBED_LEDGER.push({g:d.qty,cash:tot,undo:()=>{S.cash-=tot;t.cash-=tot;t.brade--;d.status='nostock';
+        if(--t.bradeProtags[d.protag]<=0) delete t.bradeProtags[d.protag];
+        if(--S.protagBrade[d.protag]<=0) delete S.protagBrade[d.protag];}});
       const esc = S.protagBrade[d.protag]>=3;                          // 3e bradage → ramène toute l'équipe
       reply = replyFor(d, esc?'brade_escalade':'brade', esc ? "ahah encore toi le pigeon 😏 j'ramène TOUTE l'équipe" : "ahah merci bg 😏 je ramène les reufs");
       sys=`💸 +${tot}€ — mais brader devant ${FACE(d.protag).nm}, ça se sait…`; }
@@ -733,6 +800,9 @@ function doDMAction(id, action){
     if(action==='volume'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.sold++; d.status='volume';
       t.volume+=d.qty; t.volumeCash+=tot; S.grossisteVolume=(S.grossisteVolume||0)+d.qty;   // mémoire : volume cumulé
       S.expo=clamp(S.expo+C.GROSSISTE_EXPO_COST,0,C.EXPO_CAP);          // heat de rue : co-effet PARALLÈLE du volume (immédiat)
+      if(EMBED) EMBED_LEDGER.push({g:d.qty,cash:tot,undo:()=>{S.cash-=tot;t.cash-=tot;t.sold--;d.status='nostock';
+        t.volume-=d.qty;t.volumeCash-=tot;S.grossisteVolume-=d.qty;
+        S.expo=clamp(S.expo-C.GROSSISTE_EXPO_COST,0,C.EXPO_CAP);}});
       const big=S.grossisteVolume>=120;
       reply=replyFor(d, big?'volume_escalade':'volume', big?"toujours du lourd avec toi, à la prochaine 📦":"nickel, je reviens quand j'ai besoin de gros 📦");
       sys=`💶 +${tot}€ (gros volume). Mais ça circule — heat de rue ↑.`; }
@@ -755,6 +825,17 @@ function addToPool(d){
   S.pool.push({ key: named?d.protag:('anon'+(S.poolSeq++)), nm:d.nm, av:d.av, archetype:d.protag,
     pref: d.protag==='comtesse'?'premium':'any', goodwill:C.GOODWILL_INIT, buys:1, lastBuy:S.jour, lastContact:0, log:null });
 }
+// EMBED : photo du carnet AVANT addToPool, pour défaire EXACTEMENT une vente
+// annulée « plus de stock » (undo LIFO → un push se défait par pop).
+function poolSnap(d){
+  const named = d.protag!=='client' && d.protag!=='flake' && d.protag!=='kevin';
+  const c = named ? S.pool.find(x=>x.key===d.protag) : null;
+  return c ? {c, goodwill:c.goodwill, buys:c.buys, lastBuy:c.lastBuy} : {isNew:true, named};
+}
+function poolRestore(s){ if(!s) return;
+  if(s.isNew){ S.pool.pop(); if(!s.named) S.poolSeq=Math.max(0,S.poolSeq-1); }
+  else { s.c.goodwill=s.goodwill; s.c.buys=s.buys; s.c.lastBuy=s.lastBuy; }
+}
 function goodwillVibe(g){ return g>=70?'chaud 🟢': g>=C.GOODWILL_AGACE?'tiède 🟠':'agacé 🔴'; }
 function canReup(c){ return c.lastContact!==S.jour && c.lastBuy!==S.jour; }   // pas 2× le même jour, ni le jour de l'achat
 // résout une relance — DÉTERMINISTE (dispo = état, pas hasard). Mute le client si goodwill tombe à 0.
@@ -771,8 +852,11 @@ function reup(c){
   const base = C.REUP_BASE[c.archetype] ?? 0.6;
   if(base*(c.goodwill/100) >= C.REUP_THRESHOLD){
     const ppu=Math.max(4,Math.round(C.PRIX_FAIR*(0.6+S.reput/120))), tot=C.REUP_QTY*ppu;
+    const prev=EMBED?{goodwill:c.goodwill,buys:c.buys,lastBuy:c.lastBuy}:null;
     S.cash+=tot; t.cash+=tot; t.sold++; t.reup++;
     c.goodwill=clamp(c.goodwill+C.GOODWILL_REUP_OK,0,100); c.buys++; c.lastBuy=S.jour;
+    if(EMBED) EMBED_LEDGER.push({g:C.REUP_QTY,cash:tot,undo:()=>{S.cash-=tot;t.cash-=tot;t.sold--;t.reup--;
+      c.goodwill=prev.goodwill;c.buys=prev.buys;c.lastBuy=prev.lastBuy;}});
     return {kind:'buy', reply:fin(reupReplyFor(c,'buy',"ah carré, je prends 🙏"),C.REUP_QTY), sys:`💶 +${tot}€ — content que tu aies pensé à lui.`};
   }
   c.goodwill=clamp(c.goodwill-Math.round(C.GOODWILL_DECLINE/2),0,100);
@@ -784,7 +868,9 @@ function reup(c){
 // ============================================================================
 function renderHeader(){
   $('day').textContent=S.jour;
-  $('cash').textContent=S.cash;
+  $('cash').textContent=(EMBED&&BIGO)?BIGO.cash:S.cash;   // en embed, le cash du PARENT fait foi
+  if(EMBED){ const el=$('embedStock'); if(el){ const f=(BIGO&&BIGO.fini)||{g:0,q:0};
+    el.textContent=`stock : ${Math.round(f.g)} g · qualité ${Math.round(f.q)} → ${embedQual()} (via l'Atelier) · 💶 ${BIGO?BIGO.cash:'…'}€`; } }
   const tone=toneFromReput(S.reput);
   const blocks={hostile:'◦ ◦ ◦','mefi':'● ◦ ◦',neutre:'● ● ◦',chaleureux:'● ● ●'}[tone];
   const col={hostile:'var(--rust)','mefi':'var(--sodium)',neutre:'var(--muted)',chaleureux:'var(--green)'}[tone];
@@ -824,6 +910,7 @@ function statusPill(d){
   if(d.status==='pending') return d.kind==='genuine'?'<span class="st go">répondre</span>':d.kind==='grossiste'?'<span class="st warn">📦 voir</span>':'<span class="st warn">⚠️</span>';
   return ({sold:'<span class="st ok">vendu ✅</span>',brade:'<span class="st bad">bradé 💸</span>',volume:'<span class="st bad">écoulé 📦</span>',
            refused:'<span class="st">refusé</span>',ghost:'<span class="st bad">🦗 posé</span>',
+           nostock:'<span class="st bad">plus de stock ⛔</span>',
            block:'<span class="st">bloqué</span>'})[d.status]||'';
 }
 
@@ -1025,6 +1112,7 @@ function refresh(){ renderHeader(); renderBody(); renderDock(); }
 
 // ---- WIRING ----------------------------------------------------------------
 document.querySelectorAll('#batch .chip').forEach(c=>c.addEventListener('click',()=>{
+  if(EMBED) return;   // en embed, la qualité vendue = le stock réel (sélecteur verrouillé)
   S.qualiteChoisie=c.dataset.q; renderDock(); save();
   flash(c.dataset.q==='arrache'?"À l'arrache = + de poids, mais ça se sent…":c.dataset.q==='propre'?'Propre : la qualité parle pour toi.':'Standard.');
 }));
@@ -1039,6 +1127,10 @@ document.querySelectorAll('#scompose .opt').forEach(o=>o.addEventListener('click
 }));
 document.querySelectorAll('.story[data-actor]').forEach(s=>s.addEventListener('click',()=>openActorStory(s.dataset.actor)));
 $('btnDay').addEventListener('click',()=>{
+  const btn=$('btnDay');
+  if(btn.disabled) return;                       // anti double-clic (la resolution est synchrone,
+  btn.disabled=true;                             // seul l'habillage est async) : simple debounce
+  setTimeout(()=>{ btn.disabled=false; }, 1500);
   const { cons, comments } = passerJournee();
   refresh();
   playComments(comments, ()=>showReport(cons));
@@ -1065,6 +1157,19 @@ $('btnReset').addEventListener('click',()=>{ if(confirm('Reset le proto ?')){ S=
 // ---- BOOT ------------------------------------------------------------------
 // barres de progression du viewer (cosmétique)
 $('vprog').innerHTML='<span><b></b></span>';
+if(EMBED){
+  document.body.classList.add('embed');                       // coque masquée : la page remplit l'iframe
+  const es=document.createElement('div'); es.id='embedStock'; es.className='hint';
+  $('batch').appendChild(es);                                 // discret, à la place des chips (masqués)
+  window.addEventListener('message',e=>{
+    if(e.origin!==location.origin && e.origin!=='null') return;   // same-origin ou file://
+    const d=e.data; if(!d||d.type!=='bigo-state') return;
+    BIGO=d;                                                   // dernière vérité du parent
+    S.qualiteChoisie=embedQual(); save();                     // la qualité vendue suit le stock réel
+    refresh();
+  });
+  try{ parent.postMessage({type:'bigo-ready',app:'snap'},'*'); }catch(e){}
+}
 refresh();
 loadContent().then(refresh);   // enrichit troupe/foule/voix dès que content/*.json est dispo (sinon fallback)
 </script>

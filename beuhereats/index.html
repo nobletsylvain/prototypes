@@ -111,6 +111,9 @@
   .over{text-align:center;padding:48px 16px;}
   .over .e{font-size:54px;} .over h1{margin:12px 0 6px;font-size:22px;} .over p{color:var(--mut);font-weight:600;line-height:1.6;font-size:14px;}
   .over button{margin-top:20px;background:var(--green);color:#fff;border:none;border-radius:12px;padding:13px 22px;font-weight:800;font-size:15px;cursor:pointer;}
+
+  /* ---- mode embarqué (Le Bigo) : la page remplit l'iframe, sans cap 520px ---- */
+  body.embed, body.embed .nav, body.embed .cta{max-width:none;}
 </style>
 </head>
 <body>
@@ -152,9 +155,26 @@
 const SAVE_VERSION = 1;
 const KEY = 'beuhereats_state';
 
+/* --- Mode embarqué « Le Bigo » (contrat : le-bigo/BUS.md) --------------- */
+// #embed=bigo : le téléphone-OS parent possède la vérité (caisse, heat 0-100,
+// stock fini partagé). SANS ce flag, le standalone est strictement inchangé.
+const EMBED = /[?#&]embed=bigo/.test(location.href);
+const EMBED_PROD = 'shit';   // le produit du Bigo : la résine (= le stock fini du parent)
+// Le parent travaille le heat sur 0-100 ; le standalone sur un cap 60.
+// HEAT_SCALE convertit les constantes internes calibrées cap-60 vers l'échelle parent.
+const HEAT_SCALE = EMBED ? 100 / 60 : 1;
+// En embed : AUCUNE écriture localStorage — shim mémoire jetable.
+const STORE = EMBED
+  ? (m => ({ getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, v) }))(new Map())
+  : localStorage;
+if (EMBED) document.body.classList.add('embed');
+
 /* --- Économie : PLACEHOLDERS nommés ------------------------------------ */
 const CAPITAL_DEPART  = 300;
-const HEAT_CAP        = 60, HEAT_BUST = 15, HEAT_EXPO_K = 4, HEAT_DECAY = 5;
+const HEAT_CAP        = Math.round(60 * HEAT_SCALE);   // 60 standalone · 100 embed (échelle parent)
+const HEAT_BUST       = Math.round(15 * HEAT_SCALE);   // heat d'une saisie (25 en embed)
+const HEAT_EXPO_K     = 4 * HEAT_SCALE;                // heat d'exposition par tournée
+const HEAT_DECAY      = 5;    // standalone seulement : en embed le parent gère sa propre descente
 const SEUIL_BUST      = 0.45;
 const SEUIL_DISCRET_G = 52;      // grammes cumulés "sous le radar" sur une tournée (go fast saisi ~111 g)
 const RETARD_PCT      = 0.40;
@@ -169,6 +189,8 @@ const PRODUCTS = {
   shit: { nm:'Shit', emoji:'🟫', retail:8,  whole:4,  grad:'linear-gradient(135deg,#e6d3bd,#c69b6d)' },
 };
 const prodList = Object.entries(PRODUCTS).map(([id,p]) => ({ id, ...p }));
+// En embed, UN SEUL produit circule (celui du Bigo) ; les autres sont masqués.
+const activeProds = EMBED ? prodList.filter(p => p.id === EMBED_PROD) : prodList;
 
 /* --- Points de deal (tes "restos" sur la plateforme) ------------------- */
 // premium = multiplie le prix payé par le client ; expo = sensibilité heat de la zone.
@@ -230,12 +252,15 @@ function riskChip(c, totalG) {
   return { cls:'ok', txt:'discret' };
 }
 
-// Commandes d'un service : 4 du pool par rotation, qty mise à l'échelle.
+// Commandes d'un service : rotation sur le pool, qty mise à l'échelle.
+// En embed, le pool est filtré sur le produit du Bigo (les autres n'existent pas).
+const POOL = EMBED ? ORDER_POOL.filter(o => o.prod === EMBED_PROD) : ORDER_POOL;
+const ORDERS_PER_SERVICE = Math.min(4, POOL.length);   // 4 standalone · 3 embed
 function serviceOrders(service) {
-  const n = ORDER_POOL.length, start = ((service - 1) * 4) % n;
+  const n = POOL.length, start = ((service - 1) * ORDERS_PER_SERVICE) % n;
   const scale = 1 + 0.05 * (service - 1);
-  return [0,1,2,3].map(k => {
-    const t = ORDER_POOL[(start + k) % n];
+  return Array.from({ length: ORDERS_PER_SERVICE }, (_, k) => {
+    const t = POOL[(start + k) % n];
     return { id:`s${service}-${k}`, ...t, qty: Math.max(1, Math.round(t.qty * scale)) };
   });
 }
@@ -244,8 +269,9 @@ function serviceOrders(service) {
 function freshState() {
   return {
     v: SAVE_VERSION, tab:'home', service:1,
-    cash: CAPITAL_DEPART, debt:0, echeance: DELAI_ECHEANCE + 1, heat:0,
-    stock: { beuh:80, coke:12, shit:60 },
+    // en embed, caisse/heat/stock arrivent du parent via bigo-state (vérité unique)
+    cash: EMBED ? 0 : CAPITAL_DEPART, debt:0, echeance: DELAI_ECHEANCE + 1, heat:0,
+    stock: EMBED ? { beuh:0, coke:0, shit:0 } : { beuh:80, coke:12, shit:60 },
     assign: {},          // orderId -> courierId
     report: null, over:null,
     earned:0, delivered:0, busts:0,   // cumulés (stats)
@@ -254,7 +280,7 @@ function freshState() {
 let S = load();
 function load() {
   try {
-    const r = JSON.parse(localStorage.getItem(KEY));
+    const r = JSON.parse(STORE.getItem(KEY));
     if (r && r.v === SAVE_VERSION) {
       if (!['home','orders','whouse','stats','track'].includes(r.tab)) r.tab = 'home';  // garde state trafiqué
       return r;
@@ -262,7 +288,7 @@ function load() {
   } catch(e){}
   return freshState();
 }
-const save  = () => localStorage.setItem(KEY, JSON.stringify(S));
+const save  = () => STORE.setItem(KEY, JSON.stringify(S));
 const reset = () => { S = freshState(); save(); render(); };
 
 /* =============================== Résolution ============================= */
@@ -320,26 +346,53 @@ function resolveService() {
   return { blocks, dCash, dHeat, delivered, busts };
 }
 
+// bus « Le Bigo » : poste une txn au parent (no-op hors embed / si postMessage échoue)
+const postTxn = t => { try { parent.postMessage({ type:'bigo-txn', app:'beuher', ...t }, '*'); } catch(e){} };
+
 function cloturer() {
   const r = resolveService();
   // débit du stock (toute came assignée quitte l'entrepôt, livrée ou saisie)
-  for (const b of r.blocks) for (const l of b.lines) S.stock[l.o.prod] = Math.max(0, S.stock[l.o.prod] - l.o.qty);
+  let takeG = 0;
+  for (const b of r.blocks) for (const l of b.lines) { S.stock[l.o.prod] = Math.max(0, S.stock[l.o.prod] - l.o.qty); takeG += l.o.qty; }
   S.cash += r.dCash;
-  S.heat  = Math.max(0, S.heat + r.dHeat - HEAT_DECAY);
+  // en embed : pas de HEAT_DECAY local (le parent gère sa descente) ; la valeur
+  // locale n'est qu'un affichage optimiste, resynchronisé au prochain bigo-state.
+  S.heat  = EMBED ? Math.min(HEAT_CAP, S.heat + r.dHeat) : Math.max(0, S.heat + r.dHeat - HEAT_DECAY);
   S.earned += Math.max(0, r.dCash);
   S.delivered += r.delivered; S.busts += r.busts;
   S.report = { blocks:r.blocks, dCash:r.dCash, service:S.service };
   S.service += 1; S.assign = {}; S.tab = 'track';   // suivi sur la map avant le récap
 
-  if (S.heat >= HEAT_CAP) S.over = { e:'🚨', t:'Quartier grillé', p:`La heat de rue a atteint ${HEAT_CAP}. Trop de tournées voyantes, trop de saisies : BeuherEats ferme le secteur.` };
-  else if (S.cash < 0)    S.over = { e:'💸', t:'Compte à découvert', p:`Les frais de livraison et les saisies ont mis le compte à ${S.cash} €.` };
-  else if (S.service > S.echeance && S.debt > 0) S.over = { e:'⏰', t:'Échéance impayée', p:`Dette de ${S.debt} € non soldée au service ${S.echeance}. Le grossiste coupe l'appro.` };
+  if (EMBED) {
+    // Clôture = UNE txn vers le parent : net encaissé (frais/ponctions déjà
+    // déduits dans dCash), grammes sortis (livrés + saisis), heat du service.
+    const seized  = r.blocks.filter(b => b.busted);
+    const seizedN = seized.reduce((s, b) => s + b.lines.length, 0);
+    postTxn({
+      cash: r.dCash, finiTake: takeG, heat: r.dHeat,
+      journal: { icon:'🛵',
+        txt:`Service #${S.report.service} : ${r.delivered} livrée${r.delivered>1?'s':''}, ${seizedN} saisie${seizedN>1?'s':''}, ${r.dCash>=0?'+':''}${r.dCash} € net.`,
+        cause:'↩ tes assignations de coursiers (détail dans le récap BeuherEats)',
+        cls: seizedN ? 'bad' : 'good' } });
+    // saisie(s) : une txn journal-seule dédiée avec la cause complète du récap
+    for (const b of seized) postTxn({
+      journal: { icon:'🚨',
+        txt:`Tournée ${b.c.emoji} ${b.c.nm} saisie : ${b.totalG} g perdus.`,
+        cause:`↩ ${b.totalG} g cumulés sur ${b.c.emoji} ${b.c.nm} > seuil de discrétion ${seuilSaisie(b.c)} g — ton batching de commandes.`,
+        cls:'bad' } });
+    // pas de game-over en embed : le parent possède caisse et heat (et gère la
+    // descente du heat) ; dette/échéance n'existent pas dans ce mode.
+  } else {
+    if (S.heat >= HEAT_CAP) S.over = { e:'🚨', t:'Quartier grillé', p:`La heat de rue a atteint ${HEAT_CAP}. Trop de tournées voyantes, trop de saisies : BeuherEats ferme le secteur.` };
+    else if (S.cash < 0)    S.over = { e:'💸', t:'Compte à découvert', p:`Les frais de livraison et les saisies ont mis le compte à ${S.cash} €.` };
+    else if (S.service > S.echeance && S.debt > 0) S.over = { e:'⏰', t:'Échéance impayée', p:`Dette de ${S.debt} € non soldée au service ${S.echeance}. Le grossiste coupe l'appro.` };
+  }
   save(); render();
 }
 
-function rembourser() { const m = Math.min(S.cash, S.debt); if (m<=0) return; S.cash-=m; S.debt-=m; if(!S.debt) S.echeance=S.service+DELAI_ECHEANCE; save(); render(); }
+function rembourser() { if (EMBED) return; const m = Math.min(S.cash, S.debt); if (m<=0) return; S.cash-=m; S.debt-=m; if(!S.debt) S.echeance=S.service+DELAI_ECHEANCE; save(); render(); }
 function approvisionner(prod, qty) {
-  if (!PRODUCTS[prod]) return;
+  if (EMBED || !PRODUCTS[prod]) return;   // embed : l'appro vient d'OnionMarket + Atelier côté parent
   const cost = qty * PRODUCTS[prod].whole;
   if (S.debt + cost > PLAFOND_DETTE) return;
   S.stock[prod] += qty; S.debt += cost; S.echeance = S.service + DELAI_ECHEANCE;
@@ -362,7 +415,7 @@ function renderHud() {
   const debtCls = S.debt>PLAFOND_DETTE*0.75?'bad':S.debt>0?'warn':'';
   $hud.innerHTML = `
     <div class="pill"><span class="dot"></span>Caisse <span class="v">${S.cash} €</span></div>
-    <div class="pill ${debtCls}"><span class="dot"></span>Dette <span class="v">${S.debt} €</span>${S.debt?` · éch. S${S.echeance}`:''}</div>
+    ${EMBED ? '' : `<div class="pill ${debtCls}"><span class="dot"></span>Dette <span class="v">${S.debt} €</span>${S.debt?` · éch. S${S.echeance}`:''}</div>`}
     <div class="pill ${heatCls}"><span class="dot"></span>Heat <span class="v">${S.heat}</span>/${HEAT_CAP}</div>
     <div class="pill"><span class="dot"></span>Service <span class="v">${S.service}</span></div>`;
 }
@@ -372,7 +425,7 @@ function renderHome() {
   const orders = serviceOrders(S.service);
   const byDeal = {}; orders.forEach(o => { if(!S.assign[o.id]) byDeal[o.deal]=(byDeal[o.deal]||0)+1; });
   $main.innerHTML =
-    `<div class="cats">${prodList.map(p=>`<div class="cat"><span class="e">${p.emoji}</span>${p.nm}</div>`).join('')}</div>
+    `<div class="cats">${activeProds.map(p=>`<div class="cat"><span class="e">${p.emoji}</span>${p.nm}</div>`).join('')}</div>
      <h2 class="sec">Tes points de deal · ${DEALPOINTS.length} ouverts</h2>` +
     DEALPOINTS.map(d => `
       <div class="feedcard" data-deal="${d.id}">
@@ -436,11 +489,19 @@ function renderOrders() {
 
 /* ---- Entrepôt : stock + réappro fournisseurs ---- */
 function renderWarehouse() {
+  const cells =
+    `<div class="stockgrid">${activeProds.map(p=>`
+       <div class="stockcell ${S.stock[p.id]<20?'low':''}"><div class="e">${p.emoji}</div><div class="q">${S.stock[p.id]} g</div><div class="l">${p.nm}</div></div>`).join('')}</div>`;
+  if (EMBED) {
+    // stock partagé du Bigo : pas de fournisseurs/réappro/dette dans ce mode
+    $main.innerHTML =
+      `<h2 class="sec">Entrepôt · stock partagé (Le Bigo)</h2>` + cells +
+      `<div class="empty">Le réappro se fait dans Le Bigo : OnionMarket (brut) puis Atelier (fini).</div>`;
+    return;
+  }
   $main.innerHTML =
-    `<h2 class="sec">Entrepôt · stock disponible</h2>
-     <div class="stockgrid">${prodList.map(p=>`
-       <div class="stockcell ${S.stock[p.id]<20?'low':''}"><div class="e">${p.emoji}</div><div class="q">${S.stock[p.id]} g</div><div class="l">${p.nm}</div></div>`).join('')}</div>
-     <h2 class="sec">Fournisseurs · réappro (à crédit)</h2>` +
+    `<h2 class="sec">Entrepôt · stock disponible</h2>` + cells +
+    `<h2 class="sec">Fournisseurs · réappro (à crédit)</h2>` +
     SUPPLIERS.map(s => `
       <div class="supplier">
         <div class="sh">${s.emoji} ${s.nm}<span class="rt">${s.rating}</span></div>
@@ -615,6 +676,23 @@ function render() {
   }
   renderHud(); renderNav(); renderCta();
   ({ home:renderHome, orders:renderOrders, whouse:renderWarehouse, stats:renderStats, track:renderTrack }[S.tab] || renderHome)();
+}
+
+/* ================= Bus « Le Bigo » : handshake + état partagé =========== */
+if (EMBED) {
+  window.addEventListener('message', (e) => {
+    // n'accepte que le parent : same-origin (http) ou "null" (file://)
+    if (e.origin !== location.origin && e.origin !== 'null') return;
+    const d = e.data;
+    if (!d || d.type !== 'bigo-state') return;
+    if (typeof d.cash === 'number') S.cash = Math.round(d.cash);
+    if (typeof d.heat === 'number') S.heat = Math.max(0, Math.min(HEAT_CAP, Math.round(d.heat)));
+    if (d.fini && typeof d.fini.g === 'number') S.stock[EMBED_PROD] = Math.max(0, Math.round(d.fini.g));
+    save();
+    if (S.tab === 'track') renderHud();   // ne pas relancer l'animation de suivi
+    else render();
+  });
+  try { parent.postMessage({ type:'bigo-ready', app:'beuher' }, '*'); } catch (e) {}
 }
 
 render();

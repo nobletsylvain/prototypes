@@ -47,6 +47,12 @@
        padding:0 22px 6px;font:600 12px var(--sans);color:var(--muted)}
   .statusbar #clock{font:700 12px var(--mono);color:var(--text)}
   .statusbar .tor{color:var(--onion);display:flex;align-items:center;gap:4px}
+  /* ---- mode embarqué Le Bigo (#embed=bigo) : la page remplit l'iframe,
+         pas de téléphone dans le téléphone. Le mode vendeur y est masqué. ---- */
+  body.embed{padding:0;display:block;background:var(--bg)}
+  body.embed .phone{width:100%;height:100vh;height:100dvh;max-width:none;
+       border-radius:0;border:none;box-shadow:none}
+  body.embed .notch,body.embed .statusbar,body.embed .modebar{display:none}
 
   /* ---- en-tête de l'app ---- */
   .appbar{flex:none;padding:8px 14px 10px;border-bottom:1px solid var(--border);background:#0d110c}
@@ -338,6 +344,18 @@ const SAVE_VERSION = 6;
 const KEY = 'dw_state';
 const START_CASH = 1600;
 
+/* ----- MODE EMBARQUÉ « Le Bigo » — contrat postMessage figé : le-bigo/BUS.md.
+   Actif via #embed=bigo (ou ?embed=bigo). SANS ce flag, le comportement
+   standalone est strictement inchangé. En embed :
+   · le cash est la vérité du PARENT (bigo-state) — jamais de vérité locale ;
+   · chaque commande = bigo-txn (cash débité + lot brut livré à l'atelier) ;
+   · aucune écriture localStorage (état dw_state en mémoire, durée de l'iframe) ;
+   · pas de mode vendeur, pas de crédit (pas de dette locale divergente). ----- */
+const EMBED = /[?#&]embed=bigo/.test(location.href);
+let bigoCash = 0, bigoBrut = 0;   // dernier bigo-state reçu du parent
+const cashNow = () => EMBED ? bigoCash : S.cash;
+if(EMBED) document.body.classList.add('embed');
+
 const FAMILIES = { resine:'Résine', extraction:'Concentrés', weed:'Weed',
                    coke:'Coke', speed:'Speed', mdma:'MDMA', cachets:'Cachets',
                    fournitures:'Fournitures' };
@@ -477,8 +495,9 @@ function qtyBase(s){
 }
 const qtyReq = g => g>=2000?3 : g>=1000?2 : g>=500?1 : 0;          // rang de répu requis
 function qtyLadder(s){ return qtyBase(s).map(g => ({ g, need:qtyReq(g), locked: repRank(s) < qtyReq(g) })); }
-// crédit : débloqué une fois la relation établie (habitué), jamais sur le premium
-function creditOK(s){ return s.tier !== 'premium' && rel(s.id).count >= 5; }
+// crédit : débloqué une fois la relation établie (habitué), jamais sur le premium.
+// En embed, jamais : la dette locale divergerait de la vérité du parent.
+function creditOK(s){ return !EMBED && s.tier !== 'premium' && rel(s.id).count >= 5; }
 // facteur de prix selon la forme (weed branchage = brut, moins cher)
 const formFactor = (s, form) => (s.family === 'weed' && form === 'branchage') ? 0.7 : 1;
 // remise debout (hors volume) : fidélité + négo si débloquée, plafonnée par tier
@@ -524,10 +543,11 @@ const labelQ = (s, g) => labelAmt(g, U(s));
 const DEFAULT = () => ({ v:SAVE_VERSION, cash:START_CASH, stockG:0, qualSum:0, debt:0, receipts:[], favs:[], rel:{},
   seller:{ rating:0, sales:0, cum:0, fallen:false, day:0 }, listings:[], lastReport:null, listSeq:0 });
 function load(){
+  if(EMBED) return DEFAULT();     // embed : shim mémoire, on ne lit pas dw_state
   try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.v === SAVE_VERSION) return s; }catch(e){}
   return DEFAULT();
 }
-function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+function save(){ if(EMBED) return; localStorage.setItem(KEY, JSON.stringify(S)); }
 let S = load();
 // relation avec un fournisseur (créée à la volée)
 function rel(id){ return S.rel[id] || (S.rel[id] = { count:0, grams:0, deal:false, sampled:false }); }
@@ -897,7 +917,11 @@ function renderFilters(){
 }
 
 function renderWallet(){
-  const segs = [
+  const segs = EMBED ? [
+    // embed : le cash est celui du parent ; le brut commandé vit à l'atelier du bigo
+    `<div class="seg cash"><div class="k">Cash</div><b>${fmt(bigoCash)}</b></div>`,
+    `<div class="seg stock"><div class="k">Brut → atelier</div><b>${bigoBrut} lot${bigoBrut>1?'s':''}</b></div>`,
+  ].join('') : [
     `<div class="seg cash"><div class="k">Cash</div><b>${fmt(S.cash)}</b></div>`,
     `<div class="seg stock"><div class="k">Stock brut</div><b>${S.stockG} g</b></div>`,
     `<div class="seg qual"><div class="k">Qualité moy.</div><b>${S.stockG>0?avgQual()+'%':'—'}</b></div>`,
@@ -997,10 +1021,10 @@ function openOrder(s){
       <div class="formopt ${selForm==='paquet'?'on':''}" data-form="paquet"><b>🌿 Paquet manucuré</b><span>têtes parées · prix plein</span></div>
       <div class="formopt ${selForm==='branchage'?'on':''}" data-form="branchage"><b>🌾 Branchage brut</b><span>−30% · à effeuiller</span></div>
     </div>` : '';
-  const creditRow = creditOK(s)
+  const creditRow = EMBED ? '' : (creditOK(s)
     ? `<label class="credit" id="credit-row"><input type="checkbox" id="credit-cb"> 💳 Payer à crédit <span>· dette envers ${s.handle}, à rembourser</span></label>`
     : (s.tier!=='premium' && r.count<5 ? `<div class="credithint">💳 Crédit débloqué après 5 commandes (relation « habitué »).</div>`
-                                       : (s.tier==='premium' ? `<div class="credithint">Haut de gamme : cash uniquement, pas de crédit.</div>` : ''));
+                                       : (s.tier==='premium' ? `<div class="credithint">Haut de gamme : cash uniquement, pas de crédit.</div>` : '')));
   const basePrice = fmt1(s.eurG * formFactor(s, selForm));
   $('sheet').innerHTML = `
     <div class="grab"></div>
@@ -1066,20 +1090,34 @@ function refreshRecap(){
     btn.disabled = false;
     btn.innerHTML = `Commander ${labelQ(s,g)} à crédit · ${fmt(total)} <span class="sm">+${fmt(total)} de dette envers ${s.handle}</span>`;
   } else {
-    const ok = total <= S.cash; btn.disabled = !ok;
+    const ok = total <= cashNow(); btn.disabled = !ok;
     btn.innerHTML = ok
       ? `Commander ${labelQ(s,g)} · ${fmt(total)} <span class="sm">paiement cash · escrow · livraison immédiate</span>`
-      : `Cash insuffisant <span class="sm">il manque ${fmt(total - S.cash)}</span>`;
+      : `Cash insuffisant <span class="sm">il manque ${fmt(total - cashNow())}</span>`;
   }
 }
 function doOrder(){
+  if(!sel) return;                                    // garde : clic pendant la fermeture de la sheet
   const s = sel, g = selQty, pct = orderPct(s,g), unit = effEurG(s,g,selForm), total = Math.round(g*unit);
-  if(!selCredit && total > S.cash) return;
-  const credit = selCredit, real = realQual(s), r = rel(s.id), loy = loyalty(r.count);
-  if(credit) S.debt += total; else S.cash -= total;
-  S.stockG += g; S.qualSum += g*real;
-  r.count += 1; r.grams += g; s.sales += 1;
+  const credit = !EMBED && selCredit;                 // jamais de crédit en embed
+  if(!credit && total > cashNow()) return;
+  const real = realQual(s), r = rel(s.id), loy = loyalty(r.count);
   const gap = s.annoncee - real;
+  if(EMBED){
+    // Achat = transaction vers le parent (BUS.md) : le bigo débite le cash et
+    // reçoit le lot brut à l'atelier. Aucune vérité locale ; la cause reste tracée.
+    bigoCash -= total;                                // optimiste, corrigé au prochain bigo-state
+    try{ parent.postMessage({ type:'bigo-txn', app:'onion', cash:-total,
+      brutAdd:{ g, q:real, family:s.family, label:s.handle },
+      journal:{ icon:'🧅',
+        txt:`${labelQ(s,g)} de ${s.prod} commandés chez ${s.handle} (annoncé ${s.annoncee}%, réel ${real}%)`,
+        cause:`↩ ton achat OnionMarket — le rating (${s.rating.toFixed(1)}★) disait la vérité`,
+        cls: gap >= 10 ? 'bad' : 'good' } }, '*'); }catch(e){}
+  } else {
+    if(credit) S.debt += total; else S.cash -= total;
+    S.stockG += g; S.qualSum += g*real;
+  }
+  r.count += 1; r.grams += g; s.sales += 1;
   const form = (s.family==='weed') ? (selForm==='branchage'?' · branchage brut (à effeuiller)':' · paquet manucuré') : '';
   const qcause = (gap <= 2
     ? `<span class="ok">qualité tenue (${real}%)</span> — ${s.rating.toFixed(1)}★`
@@ -1190,6 +1228,7 @@ let selListQty = 0, selListAnnDelta = 0, selListPriceMode = 'market';
 const PRICE_MODE = { brade:0.82, market:1.0, premium:1.22 };
 
 function switchView(v){
+  if(EMBED && v === 'sell') return;   // embed : pas de revente locale (modebar masquée)
   view = v;
   [...$('modebar').children].forEach(b => b.classList.toggle('on', b.dataset.v === v));
   const sell = v === 'sell';
@@ -1396,6 +1435,21 @@ $('reset-btn').addEventListener('click', () => {
 function tick(){ const d=new Date();
   $('clock').textContent = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
 setInterval(tick, 10000); tick();
+
+// ---- bus Le Bigo (embed uniquement) : bigo-ready au boot, bigo-state du parent ----
+if(EMBED){
+  window.addEventListener('message', e => {
+    if(e.origin !== location.origin && e.origin !== 'null') return;  // same-origin ou file://
+    const d = e.data;
+    if(d && d.type === 'bigo-state'){
+      bigoCash = +d.cash || 0;
+      bigoBrut = +d.brutCount || 0;
+      renderWallet();
+      if(sel) refreshRecap();   // fiche ouverte : le bouton Commander suit le cash du parent
+    }
+  });
+  try{ parent.postMessage({ type:'bigo-ready', app:'onion' }, '*'); }catch(e){}
+}
 
 renderFilters(); renderWallet(); renderFeed();
 </script>
