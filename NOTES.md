@@ -9,6 +9,30 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-03 — Plantation : retours visuels + feuille de route outils
+
+Retours de Sylvain sur le refresh visuel (« très chouette, j'aime beaucoup la
+direction ») + corrections et cap :
+
+- **Sac de terreau** : le « pot de terre » ambigu devient un vrai sac plastique
+  imprimé (étiquette, gueule ouverte, terre qui déborde). Le geste
+  maintenir-verser est inchangé. Les TYPES de terre ne sont pas tranchés —
+  on garde la dynamique, le sac accueillera étiquette/couleur par qualité.
+- **Bug graines** : plus de graines en stock = plus de graines visibles dans
+  la caisse (visibilité pilotée par seedAvail(), embed compris).
+- **Plants longs et fournis** (référence : les colas de recolte/) :
+  tige 2.45, 14 têtes alternées sur toute la hauteur, 7 étages de feuillage ;
+  branches du séchoir rallongées à 3 têtes.
+- **Feuille de route OUTILS (prochaine passe)** — R2/R9 : chaque ressource a
+  son échelle « moins laborieux » :
+  · Terre : longue durée (re-terreauter moins souvent) et/ou meilleure
+    qualité. · Graines : DISTRIBUTEUR (un tube fixé au mur — un tap suffit,
+    plus de drag). · Pots : rendement/qualité. · Lampes : vitesse (+ paliers).
+  Même schéma partout : plus de rendement, plus de qualité, plus vite.
+- **À penser** : fils d'étendage SUPPLÉMENTAIRES au séchoir (extension de
+  capacité) + un BAC DE RÉCOLTE sous le fil qui recueille les buds frottés
+  (le panier de recolte/), au lieu du vol direct vers le bac STOCK.
+
 ## 2026-07-03 — Plantation : refresh visuel complet aligné sur recolte/
 
 Le feeling validé, passe visuelle en reprenant le vocabulaire de `recolte/`
