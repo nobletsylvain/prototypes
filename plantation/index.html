@@ -1442,10 +1442,14 @@ function updatePlantVisual(st, dt) {
   st.plantGroup.position.y = st.y + 0.62 + a * a * PULL_LIFT;
   if (a > 0.03) {
     st.plantGroup.rotation.z = Math.sin(performance.now() / 26) * 0.055 * a;
+    // La terre bombe, soulevée par les racines — elle partira avec la motte
+    st.soilDisc.position.y = st.y + 0.12 + st.soil * 0.36 + a * 0.2;
+    st.soilDisc.scale.set(1 - a * 0.12, 1 + a * 0.9, 1 - a * 0.12);
     if (Math.random() < a * dt * 22)
       spawnPart(new THREE.Vector3(POT_POS.x + (Math.random() - 0.5) * 0.6, st.y + 0.72, POT_POS.z + (Math.random() - 0.5) * 0.4),
         (Math.random() - 0.5) * 0.8, 0.6 + Math.random() * 0.6, (Math.random() - 0.5) * 0.8, dirtMat, st.y + 0.06);
   } else {
+    if (st.soilDisc.scale.y !== 1) { st.soilDisc.scale.set(1, 1, 1); st.soilDisc.position.y = st.y + 0.12 + st.soil * 0.36; }
     const droop = st.phase === "growing" && st.moisture < MOIST_BAND[0] ? 0.14 : 0;
     st.plantGroup.rotation.z += (droop - st.plantGroup.rotation.z) * Math.min(1, dt * 3);
   }
@@ -1502,14 +1506,22 @@ function tearOut(st) {
   const base = new THREE.Vector3(POT_POS.x, st.y + 0.6, POT_POS.z);
   spawnFlier(new THREE.Vector3(POT_POS.x, st.y + 1.8, POT_POS.z),
     new THREE.Vector3(hook.x, LINE_Y - 0.8, LINE_Z), 0x3f7a34, 0.16);
-  burstParts(base, 10, dirtMat, st.y + 0.06);
+  // La motte racinaire suit la tige : la terre QUITTE le pot avec la plante
+  const motte = makeNug(new THREE.MeshStandardMaterial({ map: soilBaseTex, color: 0x6d5138, roughness: 1 }), nugGeoBig);
+  motte.scale.setScalar(2.2);
+  motte.position.set(POT_POS.x, st.y + 0.8, POT_POS.z); scene.add(motte);
+  fliers.push({ mesh: motte, from: motte.position.clone(),
+    to: new THREE.Vector3(hook.x, LINE_Y - 0.6, LINE_Z), t: -0.06 });   // léger retard sur la tige
+  burstParts(base, 16, dirtMat, st.y + 0.06);
+  burstParts(new THREE.Vector3(POT_POS.x + 0.4, st.y + 0.7, POT_POS.z + 0.3), 6, dirtMat, st.y + 0.06);
   burstParts(new THREE.Vector3(POT_POS.x, st.y + 1.2, POT_POS.z), 6, leafMatP, st.y + 0.06);
   sSnip(); noiseBurst(0.22, 140, 60, 0.32, "lowpass", 0.6);
   const ac = ensureAudio(); if (ac) beep(85, ac.currentTime, 0.16, 0.26);
   sSale(); addShake(0.3);
   // Le pot se libère aussitôt : on resème pendant que ça sèche.
   st.phase = "empty"; st.soil = 0; st.growth = 0; st.moisture = 0;
-  st.soilDisc.visible = false; st.puddle.visible = false;
+  st.soilDisc.visible = false; st.soilDisc.scale.set(1, 1, 1);   // la terre est partie avec la motte
+  st.puddle.visible = false;
   st.plantGroup.rotation.z = 0;
   st.plantGroup.position.set(POT_POS.x, st.y + 0.62, POT_POS.z);
 }
