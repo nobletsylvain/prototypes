@@ -62,14 +62,21 @@ for (let i = 0; i < 300 && s.phase === "growing"; i++) {
 console.log("mature ?", s.phase, "growth", s.growth.toFixed(2), "humidité", s.moisture.toFixed(2));
 await shot("06-mature.png");
 
-// 4) Couper la tige : UN swipe VIF au pied du plant -> tige entière au séchoir
+// 4) ARRACHER la tige : tap & hold au pied, puis TIRER vers le haut
 for (let i = 0; i < 10 && s.phase === "mature"; i++) {
   const p = s.plantBase;
-  await swipe(p.x - 80, p.y - 10, p.x + 80, p.y + 10, 60, 4);
+  await page.mouse.move(p.x, p.y);
+  await page.mouse.down();
+  for (let k = 1; k <= 10; k++) {
+    await page.mouse.move(p.x + (k % 2 ? 3 : -3), p.y - k * 22);
+    await sleep(70);
+    if (k === 6 && i === 0) await shot("06b-arrachage.png");   // en plein effort
+  }
+  await page.mouse.up();
   await sleep(400);
   s = await st();
 }
-console.log("après coupe:", s.phase, "tiges au fil:", s.branches.filter(Boolean).length);
+console.log("après arrachage:", s.phase, "tiges au fil:", s.branches.filter(Boolean).length);
 
 // 5) Changement de scène : Culture -> Séchoir (stepper), puis attendre le séchage
 await page.click("#sc-sechoir");

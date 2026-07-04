@@ -335,7 +335,8 @@ const LINE_HOOKS   = 4;      // places sur le fil de séchage
 const DRY_TIME     = FAST_MODE ? 8 : 55;   // s de séchage par branche — timer diégétique
 const DRY_QUAL_BONUS = 0.12; // sécher jusqu'au bout monte la qualité
 const WET_MALUS    = 0.15;   // frotter humide la dégrade (l'impatience se paie)
-const CUT_COOLDOWN = 0.5;    // anti double-coupe (un swipe au pied = toute la tige)
+const PULL_DIST    = 150;    // px de tirage vers le haut pour arracher la tige
+const PULL_LIFT    = 0.55;   // levée max du plant pendant l'effort (la résistance se lit)
 const BAG_HOLD     = 0.28;   // s entre deux sachets en maintien
 const QUAL_BASE    = 0.30, QUAL_WATER = 0.45, QUAL_TRIM = 0.25;   // qualité = base + eau + taille
 const YIELD_FLOOR  = 0.75;   // rendement mini (le reste vient du soin d'eau)
@@ -601,7 +602,7 @@ function makeStation(lvl) {
     watering: false, waterFlow: 0, waterSndT: 0,
     pouringSoil: false, soilSndT: 0,
     pouringBoost: false, boostT: 0,
-    secatT: 0, cutCd: 0,
+    secatT: 0, pullAmount: 0,
   };
 
   // Étagère (plateau + équerres) pour les étages > 0
@@ -1395,7 +1396,7 @@ function updateGrow(st, dt) {
     st.phase = "mature";
     for (const L of st.gLeaves) { L.active = false; L.grp.visible = false; }
     sSale(); addShake(0.15);
-    showToast("Pot " + (st.lvl + 1) + " mûr ! Tranche la tige au pied ✂️", "#bdf0a3");
+    showToast("Pot " + (st.lvl + 1) + " mûr ! Arrache la tige au pied 🤜", "#bdf0a3");
   }
 }
 function plantQuality(st) {
@@ -1434,21 +1435,63 @@ function updatePlantVisual(st, dt) {
     b.scale.setScalar(appear * swell * pulse);
     u.mat.emissiveIntensity = st.phase === "mature" ? 0.5 : 0.0;
   }
-  const droop = st.phase === "growing" && st.moisture < MOIST_BAND[0] ? 0.14 : 0;
-  st.plantGroup.rotation.z += (droop - st.plantGroup.rotation.z) * Math.min(1, dt * 3);
+  // Arrachage : le plant bouge à peine au début (a²·lift = la résistance),
+  // tremble sous l'effort, la terre s'effrite ; ressort si on lâche.
+  if (pullingSt !== st && st.pullAmount > 0) st.pullAmount = Math.max(0, st.pullAmount - dt * 4);
+  const a = st.pullAmount;
+  st.plantGroup.position.y = st.y + 0.62 + a * a * PULL_LIFT;
+  if (a > 0.03) {
+    st.plantGroup.rotation.z = Math.sin(performance.now() / 26) * 0.055 * a;
+    // La terre bombe, soulevée par les racines — elle partira avec la motte
+    st.soilDisc.position.y = st.y + 0.12 + st.soil * 0.36 + a * 0.2;
+    st.soilDisc.scale.set(1 - a * 0.12, 1 + a * 0.9, 1 - a * 0.12);
+    if (Math.random() < a * dt * 22)
+      spawnPart(new THREE.Vector3(POT_POS.x + (Math.random() - 0.5) * 0.6, st.y + 0.72, POT_POS.z + (Math.random() - 0.5) * 0.4),
+        (Math.random() - 0.5) * 0.8, 0.6 + Math.random() * 0.6, (Math.random() - 0.5) * 0.8, dirtMat, st.y + 0.06);
+  } else {
+    if (st.soilDisc.scale.y !== 1) { st.soilDisc.scale.set(1, 1, 1); st.soilDisc.position.y = st.y + 0.12 + st.soil * 0.36; }
+    const droop = st.phase === "growing" && st.moisture < MOIST_BAND[0] ? 0.14 : 0;
+    st.plantGroup.rotation.z += (droop - st.plantGroup.rotation.z) * Math.min(1, dt * 3);
+  }
   st.soilMat.color.lerpColors(SOIL_DRY, SOIL_WET, Math.min(1, st.moisture));
 }
 
 /* -------------------------------------------------------------------------
    14) COUPER LE PLANT (swipe vif : une branche part sécher au séchoir)
    ------------------------------------------------------------------------- */
-function tryCutdownAt(st, cx, cy, speed) {
-  if (!st || st.phase !== "mature" || speed < SWIPE_CUT || st.cutCd > 0) return false;
+let pullingSt = null, pullStartY = 0, pullSndT = 0;
+function tryGrabAt(st, cx, cy, startY) {
+  // Saisir le plant mûr AU PIED (tap & hold) — l'arrachage se fait en TIRANT
+  // vers le haut : une sensation de force, pas un swipe.
+  if (!st || st.phase !== "mature") return false;
   if (!rayHit(cx, cy, [st.plantHit])) return false;
   const hook = hooks.find(h => !h.used);
-  if (!hook) { showToast("Le séchoir est plein — frotte les tiges sèches 🪢", "#e6c896"); sErr(); st.cutCd = 0.6; return true; }
-  st.cutCd = CUT_COOLDOWN;
-  // Toute la tige part d'un coup : le crochet porte la récolte ENTIÈRE du pot.
+  if (!hook) { showToast("Le séchoir est plein — frotte les tiges sèches 🪢", "#e6c896"); sErr(); return "blocked"; }
+  pullingSt = st; pullStartY = startY; st.pullAmount = 0; pullSndT = 0;
+  sPop(210); noiseBurst(0.12, 260, 130, 0.16, "lowpass", 0.7);   // prise en main
+  return "grab";
+}
+function updatePullMove(cy) {
+  const st = pullingSt; if (!st) return;
+  const a = Math.max(0, Math.min(1, (pullStartY - cy) / PULL_DIST));
+  st.pullAmount = a;
+  // Grincement qui monte avec l'effort
+  const now = performance.now();
+  if (a > 0.05 && now - pullSndT > 90) {
+    pullSndT = now;
+    noiseBurst(0.09, 180 + 620 * a, 120, 0.1 + 0.14 * a, "lowpass", 0.8);
+  }
+  if (a >= 1) { const done = st; pullingSt = null; tearOut(done); }
+}
+function releasePull() {
+  // Lâché trop tôt : le plant retombe en ressort (aucun malus — R1).
+  if (pullingSt && pullingSt.pullAmount > 0.15) noiseBurst(0.14, 300, 90, 0.12, "lowpass", 0.7);
+  pullingSt = null;
+}
+function tearOut(st) {
+  const hook = hooks.find(h => !h.used);
+  if (!hook) { st.pullAmount = 0; return; }
+  st.pullAmount = 0;
   hook.used = true;
   hook.g = plantYield(st);
   hook.qual = plantQuality(st);
@@ -1457,17 +1500,30 @@ function tryCutdownAt(st, cx, cy, speed) {
   attachTige(hook);
   const q = plantQuality(st), y = Math.round(plantYield(st));
   addXP(Math.max(4, Math.round(y * 0.3)));
-  showToast("Tige coupée : ~" + y + " g au séchage 🌬️ (qualité " + Math.round(q * 100) + "%" +
+  showToast("Tige arrachée ! ~" + y + " g au séchage 🌬️ (qualité " + Math.round(q * 100) + "%" +
     (st.pgr ? ", PGR" : st.fert ? ", engrais" : "") + ")", "#bdf0a3");
-  const wp = new THREE.Vector3(POT_POS.x, st.y + 1.6, POT_POS.z);
-  spawnFlier(wp, new THREE.Vector3(hook.x, LINE_Y - 0.8, LINE_Z), 0x3f7a34, 0.16);
-  burstParts(new THREE.Vector3(POT_POS.x, st.y + 0.6, POT_POS.z), 8, leafMatP, st.y + 0.06);
-  sSnip(); sSale(); addShake(0.22);
+  // Ça cède d'un coup : craquement sourd + terre qui gicle + grosse secousse
+  const base = new THREE.Vector3(POT_POS.x, st.y + 0.6, POT_POS.z);
+  spawnFlier(new THREE.Vector3(POT_POS.x, st.y + 1.8, POT_POS.z),
+    new THREE.Vector3(hook.x, LINE_Y - 0.8, LINE_Z), 0x3f7a34, 0.16);
+  // La motte racinaire suit la tige : la terre QUITTE le pot avec la plante
+  const motte = makeNug(new THREE.MeshStandardMaterial({ map: soilBaseTex, color: 0x6d5138, roughness: 1 }), nugGeoBig);
+  motte.scale.setScalar(2.2);
+  motte.position.set(POT_POS.x, st.y + 0.8, POT_POS.z); scene.add(motte);
+  fliers.push({ mesh: motte, from: motte.position.clone(),
+    to: new THREE.Vector3(hook.x, LINE_Y - 0.6, LINE_Z), t: -0.06 });   // léger retard sur la tige
+  burstParts(base, 16, dirtMat, st.y + 0.06);
+  burstParts(new THREE.Vector3(POT_POS.x + 0.4, st.y + 0.7, POT_POS.z + 0.3), 6, dirtMat, st.y + 0.06);
+  burstParts(new THREE.Vector3(POT_POS.x, st.y + 1.2, POT_POS.z), 6, leafMatP, st.y + 0.06);
+  sSnip(); noiseBurst(0.22, 140, 60, 0.32, "lowpass", 0.6);
+  const ac = ensureAudio(); if (ac) beep(85, ac.currentTime, 0.16, 0.26);
+  sSale(); addShake(0.3);
   // Le pot se libère aussitôt : on resème pendant que ça sèche.
   st.phase = "empty"; st.soil = 0; st.growth = 0; st.moisture = 0;
-  st.soilDisc.visible = false; st.puddle.visible = false;
+  st.soilDisc.visible = false; st.soilDisc.scale.set(1, 1, 1);   // la terre est partie avec la motte
+  st.puddle.visible = false;
   st.plantGroup.rotation.z = 0;
-  return true;
+  st.plantGroup.position.set(POT_POS.x, st.y + 0.62, POT_POS.z);
 }
 
 /* -------------------------------------------------------------------------
@@ -1619,7 +1675,7 @@ const PROMPTS = {
   water:    "💧 Maintiens l'ARROSOIR — lâche quand la terre est sombre",
   cut:      "✂️ SWIPE VIF sur la feuille gourmande (sans toucher les têtes)",
   grow:     "🌱 Ça pousse… surveille la soif et les feuilles gourmandes",
-  cutdown:  "✂️ SWIPE VIF au PIED du plant — la tige part entière au séchoir",
+  cutdown:  "🤜 MAINTIENS le PIED du plant et TIRE vers le HAUT — arrache la tige !",
   buck:     "🌿 FROTTE une tige SÈCHE — LENT = têtes A, vif = trim",
   dryWait:  "🌬️ Ça sèche à côté… resème en attendant (frotter humide = −qualité)",
   sell:     "📦 Tape (ou maintiens) le bac STOCK pour vendre",
@@ -1688,6 +1744,7 @@ function pinchDist() { const a = [...pointers.values()]; return Math.hypot(a[0].
 function stopAllGestures() {
   for (const st of stations) { st.pouringSoil = false; st.watering = false; st.pouringBoost = false; }
   bagging = false; dragSeed = false; dragSt = null; seedGhost.visible = false;
+  releasePull();
 }
 function startPinch() {
   pinching = true; gesture = null; stopAllGestures();
@@ -1718,6 +1775,11 @@ el.addEventListener("pointerdown", (e) => {
 
   const st = activeStation();
   if (st) {
+    if (st.phase === "mature") {
+      const g = tryGrabAt(st, e.clientX, e.clientY, e.clientY);
+      if (g === "grab") { gesture = "pull"; return; }
+      if (g === "blocked") return;
+    }
     if (rayHit(e.clientX, e.clientY, st.sackPick)) {
       if (st.phase === "empty") { gesture = "soil"; st.pouringSoil = true; }
       else if (st.phase === "soil") showToast("Le pot est prêt — sème 🌱", "#e6c896");
@@ -1755,6 +1817,7 @@ el.addEventListener("pointermove", (e) => {
   const dtms = Math.max(1, now - lastT);
   const speed = Math.hypot(e.clientX - lastX, e.clientY - lastY) / dtms * 1000;   // px/s
   if (gesture === "seed") moveSeedGhost(e.clientX, e.clientY);
+  if (gesture === "pull") updatePullMove(e.clientY);
   if (gesture === "free") {
     const st = activeStation();
     // Tailler : il faut de l'intention (seuil de vélocité, façon Fruit Ninja)
@@ -1765,9 +1828,9 @@ el.addEventListener("pointermove", (e) => {
         if (L && L.active) { cutLeaf(st, L); navConsumed = true; }
       }
     }
-    // Couper le plant mûr : chaque swipe vif détache une branche vers le séchoir
-    if (tryCutdownAt(st, e.clientX, e.clientY, speed)) navConsumed = true;
-    // Récolter au séchoir : frotter les branches, la vitesse fait le tri A/trim
+    // (l'arrachage de la tige mûre se fait au tap & hold sur le pied + tirer
+    //  vers le haut — voir tryGrabAt/updatePullMove, plus de coupe au swipe)
+    // Récolter au séchoir : frotter les tiges, la vitesse fait le tri A/trim
     if (tryBuckAt(e.clientX, e.clientY, speed)) navConsumed = true;
   }
   lastX = e.clientX; lastY = e.clientY; lastT = now;
@@ -1878,7 +1941,7 @@ function updateLabels() {
   for (const st of stations) {
     if (st.phase === "growing" || st.phase === "mature") {
       const pct = Math.round(st.growth * 100);
-      st.potLabel.textContent = st.phase === "mature" ? "✂️ MÛR — COUPE !" :
+      st.potLabel.textContent = st.phase === "mature" ? "🤜 MÛR — ARRACHE !" :
         "🌱 " + st.seed.name + " " + pct + "%" + (st.moisture < MOIST_BAND[0] ? " · 💧!" : "");
     } else st.potLabel.textContent = "🪴 POT " + (st.lvl + 1);
     placeLabel(st.potLabel, POT_POS.x, st.y + 2.15, POT_POS.z);
@@ -1934,9 +1997,9 @@ function loop(t) {
     updateBoost(st, dt);
     updateGrow(st, dts);
     updatePlantVisual(st, dt);
-    st.cutCd = Math.max(0, st.cutCd - dt);
   }
   updateLine(dts);
+  if (pullingSt) addShake(dt * 0.35 * pullingSt.pullAmount);
   updateBagging(dt);
   updateParts(dt);
   updateFliers(dt);
