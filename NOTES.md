@@ -9,6 +9,25 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-04 — Plantation : l'arrachage (tap & hold + tirer vers le haut)
+
+Le geste de récolte du plant change encore, sur retour de test : le swipe
+au pied devient un ARRACHAGE — tap & hold sur le pied, puis TIRER vers le
+haut. Objectif : une sensation de FORCE.
+
+- La résistance se lit dans le mapping : levée = a² × PULL_LIFT — le plant
+  bouge à peine au début puis cède ; tremblement et terre qui s'effrite
+  proportionnels à l'effort ; grincement qui monte (WebAudio) ; micro-
+  secousse caméra continue pendant la traction.
+- À PULL_DIST (150 px vers le haut) : ça cède d'un coup — craquement grave
+  + thump, gerbe de terre et de feuilles, grosse secousse, la tige vole au
+  crochet. Lâcher trop tôt = le plant retombe en ressort, aucun malus (R1).
+- Séchoir plein = la prise est refusée d'entrée (pas d'effort gaspillé).
+- Désambiguïsation : le geste démarre SUR le pied (station) → jamais
+  confondu avec la navigation verticale entre pots.
+- Pilote headless adapté (press + drag up), capture « en plein effort »
+  ajoutée (06b-arrachage.png).
+
 ## 2026-07-03 — Plantation : un plant = une tige, coupe au pied
 
 Décision de Sylvain : chaque plante REPRÉSENTE une tige — elle part donc
