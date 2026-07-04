@@ -462,15 +462,37 @@ const SUPPLIERS = [
    s'applique pas ; le « % » affiché est un taux de germination purement
    cosmétique (constante déterministe, aucune conséquence). ----- */
 const SEED_VARIETIES = ['Skunk','White Widow','Lemon','Purple'];   // enum partagée (BUS.md)
+// Prix alignés BUS.md (« graine 4-8 € », rendement 8-14 g/graine côté plantation) :
+// la culture bat l'achat au gramme, mais reste payée en temps et en gestes.
 const SEED_SUPPLIERS = [
   { id:'tulip', handle:'TulipSeedVault', emoji:'🌷', family:'graines', tier:'premium', rating:4.8, sales:264,
-    prod:'Graines féminisées', eurG:6.0, annoncee:96, unit:'u', kind:'seeds', qtys:[3,5,10],
+    prod:'Graines féminisées', eurG:8.0, annoncee:96, unit:'u', kind:'seeds', qtys:[3,5,10],
     desc:"Seedbank hollandaise, lignées stabilisées, sachets scellés sous étiquette. Cher à la graine, mais la variété commandée EST celle qui pousse." },
   { id:'parking', handle:'GrainesDuParking', emoji:'🌾', family:'graines', tier:'cheap', rating:2.7, sales:713,
-    prod:'Graines en vrac', eurG:2.8, annoncee:68, unit:'u', kind:'seeds', qtys:[3,5,10],
+    prod:'Graines en vrac', eurG:4.0, annoncee:68, unit:'u', kind:'seeds', qtys:[3,5,10],
     desc:"Sachets zip sans étiquette sérieuse, récupérés on ne sait où. Ça germe — souvent. Pour se lancer sans se ruiner." },
 ];
-if(EMBED){ FAMILIES.graines = 'Graines'; SUPPLIERS.push(...SEED_SUPPLIERS); }
+/* ----- ÉCONOMIE PARTAGÉE (BUS.md « Économie partagée ») — EMBED uniquement -----
+   · Familles actives en embed : résine, weed, graines. Les autres (extraction,
+     coke, speed, mdma, cachets, fournitures) sont MASQUÉES — aucun canal de
+     vente du Bigo ne sait les pricer, les acheter serait un piège. Le filtre
+     couvre listings, chips de famille et tri (tout passe par visibleSuppliers).
+   · Cohérence achat vs rue : eurG ≈ 0.5-0.7 × street(realQual), avec
+     street(q) = 4 + 0.09q et realQual = annoncee × fiabilité(rating).
+     EMBED_EURG recale les vendeurs hors bande (constantes nommées, calcul en
+     commentaire) SANS toucher aux prix du roster standalone. ----- */
+const EMBED_FAMILIES = ['resine','weed','graines'];
+const EMBED_EURG = {          // €/g embed → ratio eurG / street(realQual) :
+  pneu:    4.4,               // realQual 53, street 8.77  → 0.50 (était 4.2 → 0.48, sous la bande)
+  green:   6.5,               // realQual 70, street 10.30 → 0.63 (était 8.0 → 0.78, hors bande)
+  gorilla: 8.0,               // realQual 83, street 11.47 → 0.70 (était 11.0 → 0.96, hors bande)
+};
+if(EMBED){
+  FAMILIES.graines = 'Graines'; SUPPLIERS.push(...SEED_SUPPLIERS);
+  for(const s of SUPPLIERS) if(EMBED_EURG[s.id] != null) s.eurG = EMBED_EURG[s.id];
+}
+// famille visible dans ce mode ? (standalone : toujours vrai)
+const famOK = f => !EMBED || EMBED_FAMILIES.includes(f);
 const byId = id => SUPPLIERS.find(s => s.id === id);
 
 /* ----- fonctions DÉTERMINISTES (cœur du design) ----- */
@@ -956,7 +978,7 @@ let filter = 'all', sortBy = 'rating';
 
 function renderFilters(){
   const chips = [`<div class="chip${filter==='all'?' on':''}" data-f="all">Tout</div>`]
-    .concat(Object.keys(FAMILIES).map(k =>
+    .concat(Object.keys(FAMILIES).filter(famOK).map(k =>
       `<div class="chip${filter===k?' on':''}" data-f="${k}">${FAMILIES[k]}</div>`))
     .concat([`<div class="chip fav${filter==='fav'?' on':''}" data-f="fav">★ Favoris</div>`]);
   $('filters').innerHTML = chips.join('');
@@ -983,9 +1005,10 @@ function renderWallet(){
 
 function visibleSuppliers(){
   let list = SUPPLIERS.filter(s =>
+    famOK(s.family) && (               // embed : familles hors référentiel masquées partout
     filter === 'all' ? true :
     filter === 'fav' ? S.favs.includes(s.id) :
-    s.family === filter);
+    s.family === filter));
   const cmp = {
     rating: (a,b) => b.rating - a.rating,
     qual:   (a,b) => b.annoncee - a.annoncee,

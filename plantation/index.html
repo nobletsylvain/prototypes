@@ -209,11 +209,14 @@ const STORE = EMBED ? memStore : localStorage;
 
 // Variétés de l'enum partagée (BUS.md / recolte). yield = placeholder déterministe
 // par variété (le soin d'eau/taille module ensuite rendement ET qualité — R4).
+// Rendements par graine calibres sur le referentiel du Bigo (BUS.md) : une
+// graine 4-8 € rend 8-14 g — la culture bat l'achat au gramme, mais se paie
+// en temps (pousse + sechage) et en gestes. Placeholders, reglage humain.
 const EMB_SEEDS = {
-  "Skunk":       { variety: "Skunk",       name: "Skunk",       icon: "🦨", yield: 40 },
-  "White Widow": { variety: "White Widow", name: "White Widow", icon: "❄️", yield: 48 },
-  "Lemon":       { variety: "Lemon",       name: "Lemon",       icon: "🍋", yield: 34 },
-  "Purple":      { variety: "Purple",      name: "Purple",      icon: "🍇", yield: 55 },
+  "Skunk":       { variety: "Skunk",       name: "Skunk",       icon: "🦨", yield: 10 },
+  "White Widow": { variety: "White Widow", name: "White Widow", icon: "❄️", yield: 12 },
+  "Lemon":       { variety: "Lemon",       name: "Lemon",       icon: "🍋", yield: 8 },
+  "Purple":      { variety: "Purple",      name: "Purple",      icon: "🍇", yield: 14 },
 };
 let BIGO = null;        // dernier {type:"bigo-state", cash, seeds:{Variete:n}, …} reçu du parent
 let bigoSeeds = {};     // miroir local des graines partagées (le bigo-state fait foi)

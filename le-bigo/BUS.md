@@ -12,6 +12,36 @@ gagne un mode `#embed=bigo`, **inerte en standalone** (précédent :
 - Récolte uniquement : `&b=<Variete>:<g>:<q>,<Variete>:<g>:<q>,…` (le branchage séché à travailler ;
   noms de variété URL-encodés).
 
+## Économie partagée — LE référentiel (tous les modes embed s'y alignent)
+
+Une seule courbe de valeur, pilotée par la qualité (0-100) :
+
+```
+street(q) = 4 + 0.09 × q        // valeur de rue €/g  (q50→8.5, q65→9.9, q80→11.2)
+```
+
+Canaux de vente (multiplicateurs sur street(q) du stock réellement vendu) :
+
+| Canal | ×street | Pourquoi |
+|---|---|---|
+| 👻 SnapShit détail (deal sérieux) | ×1.0 | le prix de référence |
+| 👻 SnapShit brade (lowball) | ×0.55 | écouler vite, réput en jeu |
+| 👻 SnapShit grossiste | ×0.7 | volume contre marge |
+| 🛵 BeuherEats livraison | ×0.85 × premium du point (0.9-1.35) | volume + frais de course |
+
+Achat (🧅) : le gros se paie ~0.5-0.7 × street(realQual) — le cheap est un
+piège lent (qualité réelle basse → demande et réput s'effritent), le premium
+paie sa tranquillité. **Familles actives en embed : résine, weed, graines**
+— les autres (coke, MDMA…) sont masquées tant qu'aucun canal de vente ne
+sait les pricer.
+
+Culture (🌱→🌿) : rendement 8-14 g par graine (placeholder, réglage humain),
+graine 4-8 €. Plus rentable au gramme que l'achat, payé en temps et en gestes.
+
+La dilution (🌿 Récolte) reste LE levier de fraude : chaque gramme de coupe
+ajouté vaut ≥4 € à la rue, mais baisse q → demande, réput et cry-wolf
+encaissent en différé. Cohérent avec l'ADN CrimWorld (qualité = levier unique).
+
 ## Variétés (filière weed)
 
 Enum partagée, celle de `recolte/` : `Skunk`, `White Widow`, `Lemon`, `Purple`.
