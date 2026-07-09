@@ -34,7 +34,40 @@ npx cap open ios       # ouvre ios/App/App.xcodeproj
 Dans Xcode : cible **App** → onglet **Signing & Capabilities** → choisir ton
 **Team**. Brancher l'iPhone, le sélectionner comme destination, **Run** ▶.
 
-## Pousser sur TestFlight
+## Pousser sur TestFlight sans Mac (GitHub Actions)
+
+Le workflow **`.github/workflows/testflight.yml`** compile et téléverse le
+build depuis un runner macOS de GitHub — aucun Mac ni Xcode nécessaire.
+Mise en place, une seule fois, tout depuis un navigateur :
+
+1. **App ID** : [developer.apple.com → Identifiers](https://developer.apple.com/account/resources/identifiers/list)
+   → **+** → *App IDs* → type *App* → description libre, bundle ID **explicite**
+   `com.nobletsylvain.prototypes`, aucune capability à cocher.
+2. **Fiche app** : [App Store Connect → Apps](https://appstoreconnect.apple.com)
+   → **+** → *Nouvelle app* : iOS, un nom (ex. « Prototypes core loops »),
+   langue principale, le bundle ID ci-dessus, SKU libre (ex. `prototypes`).
+3. **Clé API** : App Store Connect → *Utilisateurs et accès* → *Intégrations*
+   → *App Store Connect API* → **Générer une clé**, rôle **App Manager**
+   (avec accès aux certificats de distribution gérés dans le cloud).
+   Noter le **Key ID**, l'**Issuer ID** (en haut de la page), et télécharger
+   le fichier **`.p8`** (téléchargeable une seule fois).
+4. **Secrets GitHub** : repo → *Settings* → *Secrets and variables* → *Actions*
+   → *New repository secret*, créer :
+   - `ASC_KEY_ID` — le Key ID ;
+   - `ASC_ISSUER_ID` — l'Issuer ID ;
+   - `ASC_PRIVATE_KEY` — le **contenu texte** du fichier `.p8`, collé tel quel ;
+   - `APPLE_TEAM_ID` — le Team ID à 10 caractères
+     ([developer.apple.com → Membership](https://developer.apple.com/account#MembershipDetailsCard)).
+
+Ensuite : onglet **Actions** du repo → workflow **TestFlight** → **Run
+workflow** (le bouton apparaît une fois le workflow mergé sur `main`).
+~10-15 min plus tard le build est dans App Store Connect → TestFlight ;
+ajouter les testeurs là-bas. Le numéro de build est le numéro de run du
+workflow, pas de collision possible. La signature passe par les certificats
+« cloud managed » d'Apple via la clé API : rien à exporter, rien qui expire
+dans le repo.
+
+## Pousser sur TestFlight depuis un Mac
 
 1. Sur [App Store Connect](https://appstoreconnect.apple.com) → *Apps* → **+** →
    *Nouvelle app* : plateforme iOS, l'identifiant de bundle
