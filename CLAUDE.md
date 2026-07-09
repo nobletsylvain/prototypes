@@ -7,6 +7,7 @@ plusieurs boucles de jeu, **une par dossier**, listées par un hub à la racine 
 /index.html              ← hub (liste/links des core loops)
 /hash-slicer/index.html  ← core loop "Hash Slicer" (le plus abouti)
 /tools/                  ← captures d'écran headless (cible paramétrable)
+/app/                    ← app iOS Capacitor (hub + protos → TestFlight), voir app/README.md
 ```
 
 Déployé sur **GitHub Pages** (https://nobletsylvain.github.io/prototypes/ →
@@ -72,6 +73,12 @@ fichier `index.html` (HTML + CSS + un module JS), Three.js chargé via import-ma
    Hash Slicer ; pour un autre proto, au minimum la capture de base marche,
    adapter les clics si besoin.
 7. **Commit/PR** sur la branche de la session, puis merge dans `main`.
+
+NB : l'app iOS (`app/`) embarque **automatiquement** tout dossier racine
+contenant un `index.html` — rien de plus à faire pour qu'un nouveau proto y
+apparaisse. Contrainte : pas d'asset chargé depuis un CDN autre que
+l'import-map Three.js (l'app doit marcher hors-ligne ; `app/build-www.mjs`
+avertit si une URL externe reste).
 
 ## Voir le rendu (captures d'écran)
 
