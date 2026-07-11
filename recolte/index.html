@@ -1,0 +1,2248 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Récolte</title>
+<style>
+  /* --- Plein ecran, pense mobile (pas de scroll, pas de zoom) --- */
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+  html, body { width:100%; height:100%; overflow:hidden; touch-action:none;
+    font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(120% 120% at 50% 0%, #14361f 0%, #0c2114 55%, #07140c 100%); }
+  #app { position:fixed; inset:0; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+
+  /* --- HUD (overlay HTML par dessus la scene 3D) --- */
+  .hud { position:fixed; pointer-events:none; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.5); }
+  #cash { top:max(12px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+    font-weight:800; font-size:19px; color:#9be37d; }
+  #debt { top:calc(max(12px,env(safe-area-inset-top)) + 26px); left:50%; transform:translateX(-50%);
+    font-weight:700; font-size:12px; color:#ff9f6b; }
+  #repwrap { top:max(12px,env(safe-area-inset-top)); left:14px; display:flex; flex-direction:column; gap:3px; }
+  #replbl { font-size:11px; font-weight:800; color:#bdf0a3; letter-spacing:.3px; }
+  #repbar { width:104px; height:7px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
+  #repfill { height:100%; width:55%; background:linear-gradient(90deg,#ff6b6b,#ffd166 55%,#7ad17a); transition:width .3s; }
+  #xpwrap { top:max(12px,env(safe-area-inset-top)); right:64px; display:flex; align-items:center; gap:6px; }
+  #level { background:rgba(155,227,125,.18); border:1px solid rgba(155,227,125,.55); color:#bdf0a3;
+    font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  #xpbar { width:76px; height:7px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
+  #xpfill { height:100%; width:0%; background:linear-gradient(90deg,#7ad17a,#bdf0a3); border-radius:999px; transition:width .25s; }
+
+  /* --- Stepper : les 5 etapes du core loop --- */
+  #stepper { top:calc(max(12px,env(safe-area-inset-top)) + 46px); left:50%; transform:translateX(-50%);
+    display:flex; gap:4px; }
+  .step { font-size:9.5px; font-weight:800; letter-spacing:.2px; padding:3px 7px; border-radius:999px;
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); color:rgba(255,255,255,.5); white-space:nowrap; }
+  .step.on { background:rgba(155,227,125,.22); border-color:rgba(155,227,125,.6); color:#d6f7c2; }
+  .step.done { color:rgba(155,227,125,.75); }
+
+  /* Instructions : dans la bande vide en haut (sous le stepper), plus jamais
+     par-dessus les curseurs/cartes du bas. */
+  #hint { position:fixed; left:0; right:0; top:calc(max(12px,env(safe-area-inset-top)) + 78px);
+    text-align:center; font-size:13px; line-height:1.35; color:rgba(255,255,255,.8); padding:0 28px;
+    transition:opacity .4s; pointer-events:none; text-shadow:0 2px 8px rgba(0,0,0,.6); }
+  #toast { position:fixed; left:0; right:0; top:40%; text-align:center; font-size:24px; font-weight:800; opacity:0;
+    transition:opacity .25s, transform .25s; transform:translateY(8px); pointer-events:none;
+    color:#fff; text-shadow:0 2px 10px rgba(0,0,0,.6); padding:0 20px; }
+  #toast.show { opacity:1; transform:translateY(0); }
+
+  /* Fondu court au changement de phase (transition de scene). */
+  #fade { position:fixed; inset:0; background:#0a1510; opacity:0; pointer-events:none; z-index:6;
+    transition:opacity .16s ease; }
+  #fade.show { opacity:.45; }
+  /* "+XX €" qui monte et s'efface a la vente. */
+  .floatup { position:fixed; left:0; right:0; top:34%; text-align:center; font-size:30px; font-weight:900;
+    pointer-events:none; z-index:7; text-shadow:0 2px 12px rgba(0,0,0,.7);
+    opacity:1; transform:translateY(0); transition:opacity .9s ease, transform .9s cubic-bezier(.2,.7,.2,1); }
+  .floatup.go { opacity:0; transform:translateY(-70px); }
+
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
+  .blabel { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
+    font-weight:800; font-size:12px; padding:2px 7px; border-radius:8px;
+    background:rgba(0,0,0,.5); text-shadow:0 1px 3px rgba(0,0,0,.6); }
+  .blabel .qd { font-size:10px; opacity:.85; }
+
+  /* --- Barre d'action basse commune aux phases --- */
+  .panel { position:fixed; left:0; right:0; bottom:0; display:none; flex-direction:column; align-items:center;
+    gap:9px; padding:12px 14px max(14px,calc(env(safe-area-inset-bottom) + 10px)); pointer-events:none; }
+  .panel.show { display:flex; }
+  .card { pointer-events:none; background:rgba(8,20,12,.62); border:1px solid rgba(255,255,255,.12);
+    border-radius:14px; padding:9px 14px; color:#fff; font-size:13px; font-weight:600; text-align:center;
+    backdrop-filter:blur(6px); max-width:440px; line-height:1.5; }
+  .card b { color:#bdf0a3; }
+  .card .q { color:#ffd166; }
+  .card .ttl { font-size:15px; font-weight:800; color:#fff; }
+  .card .sub2 { font-size:12px; color:rgba(255,255,255,.62); margin-top:1px; }
+  .card .qbig { font-weight:800; }
+  /* Pastilles colorees par variete (lecture des bacs, en tri et coupe) */
+  .binsline { display:flex; gap:5px; flex-wrap:wrap; justify-content:center; margin-top:7px; }
+  .bpill { font-size:12px; font-weight:800; color:#fff; padding:2px 8px; border-radius:999px; border:1.5px solid; white-space:nowrap; }
+  /* Mini barre de progression (tri) */
+  .pbar { width:100%; max-width:300px; height:6px; margin:7px auto 1px; background:rgba(255,255,255,.14); border-radius:999px; overflow:hidden; }
+  .pbar > i { display:block; height:100%; background:linear-gradient(90deg,#7ad17a,#bdf0a3); border-radius:999px; transition:width .12s; }
+  .btn { pointer-events:auto; border:none; border-radius:13px; font-weight:800; font-size:15px;
+    padding:11px 18px; color:#10210f; background:#7ad17a; box-shadow:0 4px 14px rgba(122,209,122,.35); }
+  .btn:active { transform:scale(.98); }
+  .btn.alt { background:rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.25); box-shadow:none; }
+  .btn.warn { background:#ff7a3c; color:#fff; box-shadow:0 4px 14px rgba(255,122,60,.35); }
+  .btn:disabled { background:rgba(255,255,255,.1); color:rgba(255,255,255,.35); box-shadow:none; }
+  .row { display:flex; gap:9px; align-items:center; justify-content:center; flex-wrap:wrap; pointer-events:none; }
+  .row .btn, .row .toggle { pointer-events:auto; }
+
+  /* --- Jauge de timing reutilisable (scan, negoce, scellage) --- */
+  .gauge { position:relative; width:74%; max-width:340px; height:22px; background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.18); border-radius:999px; overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,.4);
+    pointer-events:none; }
+  .sweet { position:absolute; top:0; bottom:0; background:linear-gradient(90deg,rgba(155,227,125,.25),rgba(155,227,125,.65),rgba(155,227,125,.25)); }
+  .cursor { position:absolute; top:-2px; bottom:-2px; width:5px; margin-left:-2.5px; background:#fff;
+    border-radius:3px; box-shadow:0 0 8px rgba(255,255,255,.9); }
+
+  /* --- Tri : grille des bacs de variete (boutons de routage) --- */
+  #trigrid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; width:96%; max-width:460px; pointer-events:auto; }
+  .vbtn { pointer-events:auto; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.16);
+    border-radius:12px; padding:8px 3px; color:#fff; text-align:center; transition:transform .05s, border-color .12s; }
+  .vbtn:active { transform:scale(.95); }
+  .vbtn .ve { font-size:20px; line-height:1.1; }
+  .vbtn .vn { font-size:10px; font-weight:800; margin-top:1px; }
+  .vbtn .vg { font-size:10px; color:rgba(255,255,255,.6); margin-top:1px; }
+  #triactive { display:flex; align-items:center; justify-content:center; gap:9px; pointer-events:none;
+    font-size:13px; font-weight:800; }
+  #triswatch { width:26px; height:26px; border-radius:8px; box-shadow:0 0 12px rgba(0,0,0,.4); border:2px solid rgba(255,255,255,.55); }
+
+  /* --- Selecteurs (toggle) --- */
+  .toggle { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
+    font-weight:700; font-size:13px; padding:8px 12px; border-radius:11px; }
+  .toggle.on { background:#7aa0ff; border-color:#7aa0ff; color:#0c142a; }
+
+  /* --- Choix de la quantite de branchage (250/500/750/1000 g) --- */
+  #qtyrow .qbtn { pointer-events:auto; background:rgba(255,255,255,.08); border:1.5px solid rgba(255,255,255,.2);
+    color:#fff; font-weight:800; font-size:13px; padding:7px 11px; border-radius:11px; }
+  #qtyrow .qbtn.on { background:rgba(155,227,125,.22); border-color:#7ad17a; color:#d6f7c2; }
+  #qtyrow .qbtn:active { transform:scale(.96); }
+
+  /* --- Mix : une ligne de curseur par ingredient --- */
+  #mixsliders { display:flex; flex-direction:column; gap:6px; width:96%; max-width:440px; pointer-events:auto; }
+  .ming { display:flex; align-items:center; gap:9px; }
+  .mglb { flex:none; width:90px; font-size:12px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mgnum { flex:none; width:56px; text-align:right; font-size:12px; font-weight:800; color:#fff;
+    background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:4px 6px; -moz-appearance:textfield; }
+  .mgnum::-webkit-outer-spin-button, .mgnum::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+  .mgsl { flex:1; -webkit-appearance:none; appearance:none; height:8px; border-radius:999px;
+    background:rgba(255,255,255,.16); outline:none; }
+  .mgsl::-webkit-slider-thumb { -webkit-appearance:none; width:22px; height:22px; border-radius:50%;
+    background:#fff; border:2px solid #1a2c18; box-shadow:0 2px 6px rgba(0,0,0,.5); }
+  .mgsl::-moz-range-thumb { width:22px; height:22px; border-radius:50%; background:#fff; border:2px solid #1a2c18; }
+
+  /* --- Conditionnement : liste de pots + paliers (détail/semi/gros) --- */
+  #condlist { display:flex; flex-direction:column; gap:7px; width:96%; max-width:440px; max-height:38vh; overflow-y:auto; pointer-events:auto; }
+  .cpot { background:rgba(8,20,12,.55); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:8px 10px; }
+  .cpot .ch { font-size:12.5px; font-weight:800; display:flex; justify-content:space-between; gap:8px; }
+  .cpot .ct { display:flex; gap:6px; margin-top:6px; }
+  .tbtn { flex:1; pointer-events:auto; background:rgba(255,255,255,.08); border:1.5px solid rgba(255,255,255,.18);
+    border-radius:10px; padding:6px 4px; color:#fff; text-align:center; font-weight:800; font-size:11px; }
+  .tbtn:active { transform:scale(.96); }
+  .tbtn .te { font-size:11px; color:#9be37d; font-weight:800; margin-top:1px; }
+  .tbtn:disabled { opacity:.4; }
+  .tbtn.lock { opacity:.5; }
+  .cpot.done { opacity:.7; border-color:rgba(155,227,125,.5); }
+  .cpot .cdn { font-size:11px; font-weight:800; color:#9be37d; margin-top:5px; }
+
+  /* --- Pots : grille de formats --- */
+  #potgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; width:94%; max-width:440px; pointer-events:auto; }
+  .fmt { pointer-events:auto; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16);
+    border-radius:12px; padding:8px 5px; color:#fff; text-align:center; }
+  .fmt:active { background:rgba(255,255,255,.16); }
+  .fmt:disabled { opacity:.4; }
+  .fmt .fn { font-weight:800; font-size:13px; }
+  .fmt .fp { font-size:11px; color:#9be37d; margin-top:2px; }
+
+  /* --- Boutique --- */
+  #shopbtn { position:fixed; right:14px; top:max(10px,env(safe-area-inset-top)); pointer-events:auto;
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff; font-size:18px;
+    width:44px; height:40px; border-radius:12px; }
+  #shopbtn:active { background:rgba(255,255,255,.25); }
+  #shop { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); z-index:6; }
+  #shop.show { display:flex; }
+  #shopinner { width:88%; max-width:400px; max-height:76vh; overflow:auto; background:#10271a;
+    border:1px solid rgba(255,255,255,.15); border-radius:16px; padding:16px; color:#fff; }
+  #shophead { font-weight:800; font-size:18px; margin-bottom:12px; display:flex; justify-content:space-between; }
+  #shopcash { color:#9be37d; }
+  .shopitem { display:flex; align-items:center; gap:10px; padding:10px; margin-bottom:10px;
+    border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.04); }
+  .shopitem .ic { font-size:24px; }
+  .shopitem .info { flex:1; }
+  .shopitem .nm { font-weight:700; }
+  .shopitem .ds { font-size:12px; color:rgba(255,255,255,.6); }
+  .shopitem button { background:#3a6b3a; border:none; color:#fff; font-weight:700; padding:9px 12px; border-radius:10px; min-width:64px; }
+  .shopitem button:disabled { background:rgba(255,255,255,.12); color:rgba(255,255,255,.4); }
+  #shopclose { width:100%; background:rgba(255,255,255,.12); border:none; color:#fff; font-weight:700; padding:11px; border-radius:12px; }
+</style>
+
+<!-- Three.js charge en module depuis un CDN (import map). Supporte par Safari iOS 16.4+ -->
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- HUD haut -->
+<div class="hud" id="cash">💶 0 €</div>
+<div class="hud" id="debt">🧾 dette 0 €</div>
+<div class="hud" id="repwrap"><span id="replbl">⭐ Réput. 55</span><div id="repbar"><div id="repfill"></div></div></div>
+<div class="hud" id="xpwrap"><span id="level">Niv. 1</span><div id="xpbar"><div id="xpfill"></div></div></div>
+<div class="hud" id="stepper">
+  <span class="step" data-step="effeuille">1·Effeuille</span>
+  <span class="step" data-step="tri">2·Tri</span>
+  <span class="step" data-step="mix">3·Mix</span>
+  <span class="step" data-step="pots">4·Pot</span>
+  <span class="step" data-step="stock">5·Stock</span>
+</div>
+<button id="shopbtn">🛒</button>
+
+<div class="hud" id="hint"></div>
+<div id="toast"></div>
+<div id="fade"></div>
+<div id="labels"></div>
+
+<!-- Phase 1 : Effeuillage -->
+<div class="panel" id="effui">
+  <div class="card" id="effcard"></div>
+  <div class="row" id="qtyrow">
+    <span style="color:rgba(255,255,255,.55);font-size:12px;font-weight:700;pointer-events:none">Branchage</span>
+    <button class="qbtn" data-q="250">250 g</button>
+    <button class="qbtn" data-q="500">500 g</button>
+    <button class="qbtn" data-q="750">750 g</button>
+    <button class="qbtn" data-q="1000">1 kg</button>
+  </div>
+  <div style="text-align:center;font-size:12.5px;font-weight:800;color:rgba(173,224,140,.85);padding:3px 0 2px;pointer-events:none" id="effswipe">👆 Glisse le long des colas pour détacher les têtes</div>
+  <div class="row">
+    <button class="btn" id="effNext">Trier ▸</button>
+  </div>
+</div>
+
+<!-- Phase 2 : Tri par variete (au geste) -->
+<div class="panel" id="triui">
+  <div class="card" id="tricard"></div>
+  <div style="text-align:center;font-size:12.5px;font-weight:800;color:rgba(173,224,140,.85);padding:5px 0 2px;pointer-events:none" id="triswipe">👆 Frotte le tas — les têtes filent dans leur bac</div>
+  <div class="row"><button class="btn" id="triNext">Mix ▸</button></div>
+</div>
+
+<!-- Phase 3 : Mix / Dilution (prépare des lots, puis Emballer) -->
+<div class="panel" id="mixui">
+  <div class="card" id="mixcard"></div>
+  <div id="mixsliders"></div>
+  <div class="row">
+    <button class="btn alt" id="mixClear">Vider</button>
+    <button class="btn" id="mixPack">Mettre en pot ▸</button>
+  </div>
+</div>
+
+<!-- Phase 4 : Emballage — geste combo verser → visser → pousser -->
+<div class="panel" id="potsui">
+  <div class="card" id="potcard"></div>
+  <div style="text-align:center;font-size:13px;font-weight:800;color:#bdf0a3;padding:5px 0 2px;pointer-events:none" id="potstep">Verse la fleur dans le pot</div>
+  <div class="row">
+    <button class="toggle" id="optHygro" title="Pochon hygro (curing)">💧 Hygro</button>
+    <button class="btn alt" id="potDone">Stocker ▸</button>
+  </div>
+</div>
+
+<!-- Phase 5 : Conditionnement (choix du palier par pot : détail / semi-gros / gros) -->
+<div class="panel" id="condui">
+  <div class="card" id="condcard"></div>
+  <div id="condlist"></div>
+  <div class="row"><button class="btn" id="condNext">Stock ▸</button></div>
+</div>
+
+<!-- Phase 6 : Stockage / Vente -->
+<div class="panel" id="stockui">
+  <div class="card" id="stockcard"></div>
+  <div class="row">
+    <button class="btn" id="stockSell">💶 Vendre le stock</button>
+    <button class="btn alt" id="stockNew">Nouvelle récolte ▸</button>
+  </div>
+</div>
+
+<!-- Boutique -->
+<div id="shop">
+  <div id="shopinner">
+    <div id="shophead"><span>🛒 Boutique</span><span id="shopcash"></span></div>
+    <div id="shopitems"></div>
+    <button id="shopclose">Fermer</button>
+  </div>
+</div>
+
+<script type="module">
+"use strict";
+import * as THREE from "three";
+
+/* --- Mode EMBED "bigo" : le telephone-OS « Le Bigo » (le-bigo/index.html) ouvre
+   CE proto en iframe quand le joueur a du branchage seche (app Plantation).
+   Contrat postMessage fige : le-bigo/BUS.md. Slug "recolte".
+   Active par #embed=bigo&b=<Variete>:<g>:<q>,… (branchage a travailler).
+   SANS ce flag, le comportement standalone est strictement inchange. --- */
+const EMBED = /[?#&]embed=bigo/.test(location.href);
+// En mode embed bigo, on n'ecrit JAMAIS dans le save du proto autonome (rc_*) :
+// toutes les lectures/ecritures passent par un shim memoire (perdu a la fermeture).
+const memStore = (() => { const m = {}; return {
+  getItem: (k) => (k in m ? m[k] : null),
+  setItem: (k, v) => { m[k] = String(v); },
+  removeItem: (k) => { delete m[k]; },
+}; })();
+const STORE = EMBED ? memStore : localStorage;
+
+/* =========================================================================
+   RECOLTE — core loop de transfo multi-varietes (proto mobile 3D)
+   -------------------------------------------------------------------------
+   On prend une RECOLTE a credit (plusieurs varietes sur branches), puis :
+     1) Effeuillage : on FROTTE les branches -> les tetes tombent dans un
+        TAS FRAIS mele (toutes varietes) + des feuilles partent en DECHET.
+     2) Tri         : on route chaque poignee du tas frais vers le bon BAC
+        de variete (Skunk / White Widow / Lemon / Purple) ou le bac Dechet.
+        Se tromper de bac CONTAMINE le bac (qualite/purete en baisse).
+     3) Mix         : on choisit une variete (pure) OU un "Blend maison"
+        (plusieurs varietes), et on peut DILUER au dechet vegetal (volume up,
+        qualite down) -> c'est l'arbitrage cupidite/prudence.
+     4) Pots        : on conditionne en POTS en verre etiquetes VARIETE + QUALITE,
+        scellage au timing pour un bonus.
+     5) Stock       : les pots s'empilent sur l'etagere ; "Vendre le stock"
+        rembourse d'abord la DETTE, le surplus tombe en cash.
+   Reputation = qualite moyenne vendue. Persistance localStorage prefixe "rc_".
+   Tout est commente en francais, brique par brique. (Fork de green-front.)
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   0) VARIETES + ECONOMIE (constantes de jeu)
+   ------------------------------------------------------------------------- */
+// Varietes triables. col = couleur 3D, tint = pastille d'indice a l'ecran.
+const STRAINS = {
+  skunk:  { name: "Skunk",        emoji: "🦨", col: [111,154,72],  tint: "#9bd06a", lbl: "#bdf0a3" },
+  widow:  { name: "White Widow",  emoji: "❄️", col: [176,202,184], tint: "#dff3e4", lbl: "#e6f6ec" },
+  lemon:  { name: "Lemon Haze",   emoji: "🍋", col: [200,193,74],  tint: "#e8e27a", lbl: "#ece887" },
+  purple: { name: "Purple Kush",  emoji: "🍇", col: [129,97,166],  tint: "#c4a3e8", lbl: "#cba8ec" },
+};
+const STR_IDS = ["skunk", "widow", "lemon", "purple"];
+
+/* --- Mode EMBED "bigo" (suite) : branchage passe en URL.
+   #embed=bigo&b=<Variete>:<g>:<q>,…  (noms URL-encodes, q sur 0-100).
+   En embed, CE branchage-la est la matiere a travailler : pas de recolte a
+   credit, pas de choix de quantite. Les noms du bus ("Skunk", "White Widow",
+   "Lemon", "Purple" — cf. BUS.md) sont rapproches des varietes du proto par
+   prefixe ("Lemon" -> "Lemon Haze"). Une variete inconnue n'est pas chargee :
+   elle repart TELLE QUELLE dans branchesLeft (rien n'est perdu, R1). --- */
+const EMBED_B = [];            // branches reconnues : { id, name, g, q(0-1) }
+const EMBED_B_UNKNOWN = [];    // varietes inconnues : rendues au parent en branchesLeft
+const EMBED_NAME = {};         // id -> nom exact recu (le parent garde SA nomenclature)
+if (EMBED) {
+  const mb = location.href.match(/[?#&]b=([^&#]*)/);
+  for (const part of (mb ? mb[1] : "").split(",")) {
+    if (!part) continue;
+    const bits = part.split(":");
+    let name = ""; try { name = decodeURIComponent(bits[0] || "").trim(); } catch (e) { name = (bits[0] || "").trim(); }
+    const g = Math.max(0, +bits[1] || 0);
+    const q = Math.max(0, Math.min(100, +bits[2] || 0)) / 100;
+    if (!name || g <= 0) continue;
+    const v = name.toLowerCase();
+    const id = STR_IDS.find(sid => {
+      const n = STRAINS[sid].name.toLowerCase();
+      return n === v || n.startsWith(v + " ") || n.split(" ")[0] === v.split(" ")[0];
+    });
+    if (id) { EMBED_B.push({ id, name, g, q }); if (!EMBED_NAME[id]) EMBED_NAME[id] = name; }
+    else EMBED_B_UNKNOWN.push({ variety: name, g: Math.round(g), q: Math.round(q * 100) });
+  }
+}
+
+// Recoltes prises a credit. €/g de gros baisse avec le volume. nbVar = nb de
+// varietes presentes dans la recolte. (La quantite est choisie a la main, cf. QUANTITIES.)
+
+// Formats de pots : petite quantite = €/g plus eleve (retail).
+const JARS = [
+  { id: "j35", g: 3.5, eur: 11, name: "3.5 g", emoji: "🫙" },
+  { id: "j7",  g: 7,   eur: 10, name: "7 g",   emoji: "🫙" },
+  { id: "j14", g: 14,  eur: 9,  name: "14 g",  emoji: "🫙" },
+  { id: "j28", g: 28,  eur: 8,  name: "28 g",  emoji: "🏺" },
+];
+
+const WASTE_Q = 0.08;   // qualite "intrinseque" du dechet vegetal (pour la dilution)
+
+/* -------------------------------------------------------------------------
+   1) SCENE, CAMERA, RENDU
+   ------------------------------------------------------------------------- */
+const app = document.getElementById("app");
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setClearColor(0x000000, 0);            // fond transparent -> degrade CSS visible
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
+// Deux cadrages : "work" (3/4 plongeant sur le plan + bacs) pour tri/coupe/pots/
+// stock, et "eff" (frontal, plus bas) pour l'effeuillage des colas suspendues.
+const VIEWS = {
+  work: { target: new THREE.Vector3(0.25, 0.4, 0.1), dir: new THREE.Vector3(-0.05, 0.58, 0.81).normalize(), radius: Math.hypot(3.55, 0.85, 2.75) },
+  eff:  { target: new THREE.Vector3(0, 2.45, 0.0), dir: new THREE.Vector3(0, 0.14, 1).normalize(),        radius: Math.hypot(2.4, 2.35, 0.4) },
+  pack: { target: new THREE.Vector3(0, 0.92, 0.2), dir: new THREE.Vector3(0.05, 0.38, 0.92).normalize(),   radius: Math.hypot(0.66, 0.95, 0.42) },
+};
+let curView = VIEWS.work;
+const VIEW_TARGET = new THREE.Vector3();   // cible courante (utilisee par la boucle)
+const baseCamPos  = new THREE.Vector3();
+const dispPos = new THREE.Vector3();       // position camera AFFICHEE (ease entre phases)
+const dispTgt = new THREE.Vector3();
+let camLerp = 0;                           // >0 : transition de phase en cours (sinon snap : zoom/resize instant)
+let zoom = +(STORE.getItem("rc_zoom")) || 1;
+zoom = Math.max(0.6, Math.min(2.4, zoom));
+
+function fitView() {
+  const vFov = camera.fov * Math.PI / 180;
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  const fov = Math.min(vFov, hFov);
+  const dist = (curView.radius / Math.sin(fov / 2)) * 1.05 / zoom;
+  VIEW_TARGET.copy(curView.target);
+  baseCamPos.copy(VIEW_TARGET).addScaledVector(curView.dir, dist);
+  camera.position.copy(baseCamPos);
+  camera.lookAt(VIEW_TARGET);
+}
+function setView(name) { curView = VIEWS[name] || VIEWS.work; fitView(); camLerp = 1; }   // ease vers la nouvelle vue
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  fitView();
+}
+window.addEventListener("resize", resize);
+
+/* -------------------------------------------------------------------------
+   2) LUMIERES
+   ------------------------------------------------------------------------- */
+scene.add(new THREE.HemisphereLight(0xeafff0, 0x16281a, 0.62));
+const sun = new THREE.DirectionalLight(0xffffe8, 1.4);
+sun.position.set(5, 11, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.bias = -0.0004;
+const sc = sun.shadow.camera;
+sc.left = -8; sc.right = 8; sc.top = 8; sc.bottom = -8; sc.near = 1; sc.far = 28;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xbce0ff, 0.32);
+fill.position.set(-4, 3, 6);
+scene.add(fill);
+
+/* -------------------------------------------------------------------------
+   3) TEXTURES PROCEDURALES (grain) — aucun fichier externe
+   ------------------------------------------------------------------------- */
+function grainTex(r, g, b, contrast, spots) {
+  const c = document.createElement("canvas"); c.width = c.height = 96;
+  const x = c.getContext("2d");
+  const img = x.createImageData(96, 96);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * contrast;
+    img.data[i]   = Math.max(0, Math.min(255, r + n));
+    img.data[i+1] = Math.max(0, Math.min(255, g + n));
+    img.data[i+2] = Math.max(0, Math.min(255, b + n));
+    img.data[i+3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  for (let k = 0; k < spots; k++) {
+    x.fillStyle = "rgba(40,24,52," + (Math.random() * 0.22) + ")";       // petits pistils
+    x.fillRect(Math.random() * 96, Math.random() * 96, Math.random() * 2 + 1, Math.random() * 2 + 1);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 2);
+  return t;
+}
+// Un materiau "nug" par variete + le dechet vegetal.
+const matStrain = {};
+for (const id of STR_IDS) {
+  const [r, g, b] = STRAINS[id].col;
+  matStrain[id] = new THREE.MeshStandardMaterial({ map: grainTex(r, g, b, 40, 90), roughness: 0.88 });
+}
+const matLeaf  = new THREE.MeshStandardMaterial({ map: grainTex(96, 116, 64, 30, 30), roughness: 0.96 }); // feuilles/dechet
+const matBranch = new THREE.MeshStandardMaterial({ color: 0x5a4327, roughness: 0.9 });
+
+// Texture matte/grain a partir d'une couleur hex (sans pistils) — pour bacs, plan,
+// bol : casse l'aspect "plastique plat" avec un grain subtil. repeat parametrable.
+function hexRGB(c) { return [(c >> 16) & 255, (c >> 8) & 255, c & 255]; }
+function matteTex(col, contrast, rep) {
+  const [r, g, b] = hexRGB(col);
+  const t = grainTex(r, g, b, contrast == null ? 14 : contrast, 0);
+  t.repeat.set(rep || 2, rep || 2);
+  return t;
+}
+
+/* -------------------------------------------------------------------------
+   4) PLAN DE TRAVAIL (inox brossé léger)
+   ------------------------------------------------------------------------- */
+const board = new THREE.Mesh(
+  new THREE.BoxGeometry(8.6, 0.3, 6.4),
+  new THREE.MeshStandardMaterial({ map: matteTex(0x6f7378, 16, 3), roughness: 0.5, metalness: 0.35 })
+);
+board.position.set(0, -0.15, 0.2);
+board.receiveShadow = true;
+scene.add(board);
+
+/* -------------------------------------------------------------------------
+   5) NUGS (tetes) : icosaedres deformes + materiau passe en parametre
+   ------------------------------------------------------------------------- */
+function makeNugGeo(r) {
+  const g = new THREE.IcosahedronGeometry(r, 1);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const f = 0.74 + Math.random() * 0.5;     // bosselage
+    p.setXYZ(i, p.getX(i) * f, p.getY(i) * f, p.getZ(i) * f);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+const nugGeoBig = makeNugGeo(0.16);
+const nugGeoSm  = makeNugGeo(0.1);
+function makeNug(mat, small) {
+  const m = new THREE.Mesh(small ? nugGeoSm : nugGeoBig, mat);
+  m.castShadow = true;
+  m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+  return m;
+}
+// Petite feuille (deco des colas) : cone aplati vert sombre.
+const matLeafSolid = new THREE.MeshStandardMaterial({ color: 0x3f6b2c, roughness: 0.95, side: THREE.DoubleSide });
+const leafGeo = new THREE.ConeGeometry(0.085, 0.32, 4);
+function makeLeaf() { const m = new THREE.Mesh(leafGeo, matLeafSolid); m.scale.z = 0.22; return m; }
+
+// Matieres du DECHET vegetal (brindilles, miettes, petites feuilles) — texturees,
+// arrondies (pas de facettes grossieres). Definies tot car servies a la fois par
+// le bac dechet (tri) et le pot (emballage).
+// Feuille seche : vraie LAME plate et nervuree (PlaneGeometry deformee), pas un cone.
+function makeLeafBladeGeo() {
+  const g = new THREE.PlaneGeometry(0.34, 0.5, 4, 6);
+  const p = g.attributes.position;
+  for (let k = 0; k < p.count; k++) {
+    const u = p.getX(k) / 0.34, v = p.getY(k) / 0.5;          // -0.5..0.5
+    const taper = Math.cos(v * Math.PI) * 0.5 + 0.5;          // pointe aux deux bouts (forme de feuille)
+    p.setX(k, p.getX(k) * (0.35 + taper * 0.9));
+    p.setZ(k, Math.cos(u * Math.PI) * 0.05 - Math.abs(v) * 0.04);   // pli central + courbure
+  }
+  g.computeVertexNormals();
+  return g;
+}
+const twigGeo = new THREE.CylinderGeometry(0.016, 0.010, 0.28, 8);   // brindille fine et COURTE (ne dépasse pas du pot)
+const crumbGeo = new THREE.IcosahedronGeometry(0.07, 1);            // miette arrondie (detail 1)
+const wasteLeafGeo = makeLeafBladeGeo();
+const matTwig = new THREE.MeshStandardMaterial({ map: grainTex(108, 84, 46, 30, 18), roughness: 0.95 });
+const matCrumb = new THREE.MeshStandardMaterial({ map: grainTex(120, 112, 62, 26, 12), roughness: 0.92 });
+const matWasteLeaf = new THREE.MeshStandardMaterial({ map: grainTex(96, 120, 60, 26, 14), roughness: 0.9, side: THREE.DoubleSide });
+// Oriente un debris : brindille couchee, feuille a plat, miette posee.
+function dressWasteBit(m, i, kind) {
+  if (kind === 0) { m.geometry = twigGeo; m.material = matTwig; m.scale.set(1, 1, 1); m.rotation.set((i % 3 - 1) * 0.5, i * 1.7, Math.PI / 2 + (i % 2 ? 0.4 : -0.4)); }
+  else if (kind === 1) { m.geometry = wasteLeafGeo; m.material = matWasteLeaf; m.scale.setScalar(0.72 + (i % 3) * 0.1); m.rotation.set(-Math.PI / 2 + (i % 3 - 1) * 0.35, i * 0.9, (i % 2 ? 1 : -1) * 0.6); }
+  else { m.geometry = crumbGeo; m.material = matCrumb; m.scale.setScalar(0.85 + (i % 4) * 0.16); m.rotation.set(i, i * 2.1, i * 0.7); }
+  return m;
+}
+function makeWasteBit(i) { const m = new THREE.Mesh(twigGeo, matTwig); m.castShadow = true; return dressWasteBit(m, i, i % 3); }
+
+// Projection monde -> pixels ecran (pour l'effeuillage au glisse, façon v2).
+const _sp = new THREE.Vector3();
+function toScreen(obj) {
+  obj.getWorldPosition(_sp); _sp.project(camera);
+  return { x: (_sp.x * 0.5 + 0.5) * window.innerWidth, y: (-_sp.y * 0.5 + 0.5) * window.innerHeight, z: _sp.z };
+}
+// Distance d'un point a un segment (en px) — reprise telle quelle de green-front-v2.
+function distSeg(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+  let t = l2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+/* -------------------------------------------------------------------------
+   6) BACS DE TRI : 4 varietes au fond + 1 bac DECHET, chacun avec sa pile
+   ------------------------------------------------------------------------- */
+function makeBin(pos, col, mat2, isWaste) {
+  const grp = new THREE.Group(); grp.position.copy(pos);
+  // Bac : caisse en plastique matte texturee (parois) + fond plus sombre (creux).
+  const mat = new THREE.MeshStandardMaterial({ map: matteTex(col, 18, 1), roughness: 0.78, metalness: 0.08, side: THREE.DoubleSide });
+  const floorMat = new THREE.MeshStandardMaterial({ map: matteTex(((col >> 1) & 0x7f7f7f), 12, 1), roughness: 0.9, metalness: 0.05, side: THREE.DoubleSide });
+  const w = 1.3, d = 1.1, h = 0.38, th = 0.06;
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(w, th, d), floorMat);
+  floor.position.y = th / 2; floor.receiveShadow = true; grp.add(floor);
+  const wLR = (x) => { const m = new THREE.Mesh(new THREE.BoxGeometry(th, h, d), mat); m.position.set(x, h / 2, 0); m.castShadow = true; grp.add(m); };
+  const wFB = (z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, th), mat); m.position.set(0, h / 2, z); m.castShadow = true; grp.add(m); };
+  wLR(-w / 2); wLR(w / 2); wFB(-d / 2); wFB(d / 2);
+  scene.add(grp);
+  // Pile de nugs (visibilite pilotee par le poids du bac).
+  const pile = new THREE.Group(); grp.add(pile);
+  const PMAX = isWaste ? 20 : 14;
+  for (let i = 0; i < PMAX; i++) {
+    const m = isWaste ? makeWasteBit(i) : makeNug(mat2, false);
+    const layer = Math.floor(i / 7), idx = i % 7, cx = idx % 4, rz = Math.floor(idx / 4);
+    m.position.set(-0.42 + cx * 0.3 + (isWaste ? (i % 3 - 1) * 0.05 : 0), 0.13 + layer * 0.13, -0.22 + rz * 0.44);
+    m.visible = false; pile.add(m);
+  }
+  grp.userData.pile = pile; grp.userData.PMAX = PMAX;
+  return grp;
+}
+// 4 bacs varietes en rangee au fond + bac dechet en avant a droite.
+const BIN_POS = {
+  skunk:  new THREE.Vector3(-3.0, 0, -1.7),
+  widow:  new THREE.Vector3(-1.0, 0, -1.7),
+  lemon:  new THREE.Vector3( 1.0, 0, -1.7),
+  purple: new THREE.Vector3( 3.0, 0, -1.7),
+  waste:  new THREE.Vector3( 3.2, 0,  1.6),
+};
+const BIN_COL = { skunk: 0x33532b, widow: 0x4b5a4f, lemon: 0x55521f, purple: 0x3c2f4e, waste: 0x3a3026 };
+const bins3d = {};
+for (const id of STR_IDS) bins3d[id] = makeBin(BIN_POS[id], BIN_COL[id], matStrain[id]);
+bins3d.waste = makeBin(BIN_POS.waste, BIN_COL.waste, matLeaf, true);
+
+function refreshPile(binGrp, grams, perNug) {
+  const pile = binGrp.userData.pile, PMAX = binGrp.userData.PMAX;
+  const n = Math.max(0, Math.min(PMAX, Math.round(grams / perNug)));
+  for (let i = 0; i < PMAX; i++) pile.children[i].visible = i < n;
+}
+
+/* -------------------------------------------------------------------------
+   7) ZONE DE TRAVAIL CENTRALE (contenu selon la phase)
+   ------------------------------------------------------------------------- */
+// 7a) Les COLAS suspendues a effeuiller (phase 1) — feel repris de green-front-v2 :
+// 4 colas (une par variete) pendent a un fil de sechage ; on glisse le doigt le
+// long d'une cola pour detacher ses tetes (detection en pixels ecran, cf. v2).
+// Tout tombe MELE dans le panier central (le tri par variete vient apres).
+const COLA_TOP = 4.6, COLA_BOT = 0.85;          // tiges plus longues (espace conservé au-dessus du bac)
+// Fil de sechage.
+const dryLine = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 7.2, 6),
+  new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 0.4, roughness: 0.5 }));
+dryLine.rotation.z = Math.PI / 2; dryLine.position.set(0, COLA_TOP + 0.05, 0);
+scene.add(dryLine);
+
+const colasGrp = new THREE.Group();
+scene.add(colasGrp);
+// Une cola = tige COURBEE (chaque cola a sa propre courbure -> moins rectiligne,
+// plus naturel) + ~14 tetes le long de la courbe + feuilles deco. Pool reutilisable :
+// la variete (couleur des tetes) est (re)assignee a chaque recolte.
+function buildCola() {
+  const grp = new THREE.Group();
+  const len = COLA_TOP - COLA_BOT;
+  // Courbe de la tige : dérive latérale + cambrure douce, signées au hasard.
+  const bend = (Math.random() - 0.5) * 0.8;     // amplitude de la courbure
+  const lean = (Math.random() - 0.5) * 0.5;     // inclinaison générale
+  const phase = Math.random() * 0.6;
+  const zb = (Math.random() - 0.5) * 0.5;
+  const curveX = (u) => Math.sin(u * (2.0 + phase)) * bend * (0.4 + u) + u * lean;
+  const curveZ = (u) => Math.sin(u * 1.6 + 1) * zb * (0.3 + u * 0.7);
+  const pts = [];
+  const SEG = 8;
+  for (let i = 0; i <= SEG; i++) {
+    const u = i / SEG;
+    pts.push(new THREE.Vector3(curveX(u), COLA_TOP - u * len, curveZ(u)));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.045, 6, false), matBranch);
+  tube.castShadow = true; grp.add(tube);
+  const tip = curve.getPoint(0);
+  const hook = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.016, 6, 10),
+    new THREE.MeshStandardMaterial({ color: 0x8a8f95, metalness: 0.5, roughness: 0.5 }));
+  hook.position.set(tip.x, COLA_TOP + 0.02, tip.z); hook.rotation.x = Math.PI / 2; grp.add(hook);
+  // Tetes accrochees le long de la courbe (alternees gauche/droite, serrees vers le bas).
+  const buds = [], n = 14;
+  for (let i = 0; i < n; i++) {
+    const u = 0.05 + 0.92 * (i / (n - 1));
+    const p = curve.getPoint(u);
+    const side = i % 2 ? 1 : -1, off = 0.05 + Math.random() * 0.09 + u * 0.05;
+    const m = makeNug(matStrain.skunk, i % 3 === 0);
+    m.position.set(p.x + side * off, p.y, p.z + (Math.random() - 0.5) * 0.12);
+    grp.add(m);
+    buds.push({ mesh: m, mass: 0, leafFrac: 0, on: true });
+  }
+  const leaves = [];
+  for (let i = 0; i < 7; i++) {
+    const u = 0.1 + 0.85 * ((i + 0.5) / 7), p = curve.getPoint(u), side = i % 2 ? 1 : -1;
+    const lf = makeLeaf();
+    lf.position.set(p.x + side * 0.12, p.y, p.z + 0.04);
+    lf.rotation.z = side > 0 ? -1.1 : 1.1; lf.rotation.x = 0.4;
+    grp.add(lf); leaves.push(lf);
+  }
+  grp.visible = false;
+  colasGrp.add(grp);
+  return { grp, variety: null, buds, leaves };
+}
+const COLA_POOL = 14;
+const colaPool = [];
+for (let i = 0; i < COLA_POOL; i++) colaPool.push(buildCola());
+let activeColas = [];                          // colas montrees pour la recolte courante
+function setColaVariety(c, v) {
+  c.variety = v;
+  for (const b of c.buds) b.mesh.material = matStrain[v];
+}
+
+// Panier de reception sous les colas : les tetes effeuillees y tombent (melees).
+const basket = new THREE.Group();
+const basketMat = new THREE.MeshStandardMaterial({ color: 0x6b5836, roughness: 0.85, side: THREE.DoubleSide });
+const bW = 5.6, bD = 1.2, bH = 0.36, bt = 0.06;   // bac long (couvre l'etendue des colas)
+const bFloor = new THREE.Mesh(new THREE.BoxGeometry(bW, bt, bD), basketMat);
+bFloor.position.y = bt / 2; bFloor.receiveShadow = true; basket.add(bFloor);
+{ const f = new THREE.Mesh(new THREE.BoxGeometry(bW, bH, bt), basketMat); f.position.set(0, bH / 2, -bD / 2); basket.add(f);
+  const b = new THREE.Mesh(new THREE.BoxGeometry(bW, bH, bt), basketMat); b.position.set(0, bH / 2, bD / 2); basket.add(b);
+  const l = new THREE.Mesh(new THREE.BoxGeometry(bt, bH, bD), basketMat); l.position.set(-bW / 2, bH / 2, 0); basket.add(l);
+  const r = new THREE.Mesh(new THREE.BoxGeometry(bt, bH, bD), basketMat); r.position.set(bW / 2, bH / 2, 0); basket.add(r); }
+basket.position.set(0, 0.05, 0.55);
+basket.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
+scene.add(basket);
+// Pile melee dans le panier (visibilite pilotee par le % effeuille), repartie sur la longueur.
+const basketPile = new THREE.Group(); basket.add(basketPile);
+const BASKET_MAX = 40;
+const BPILE_COLS = 13;
+for (let i = 0; i < BASKET_MAX; i++) {
+  const m = makeNug(matStrain[STR_IDS[i % STR_IDS.length]], i % 4 === 0);
+  const col = i % BPILE_COLS, layer = Math.floor(i / BPILE_COLS);
+  m.position.set(-2.5 + col * 0.4 + (Math.random() - 0.5) * 0.1, 0.13 + layer * 0.13, -0.3 + (i % 2) * 0.55);
+  m.visible = false; basketPile.add(m);
+}
+const _bw = new THREE.Vector3(0, 0.45, 0.55);   // cible monde du panier (pour les flyers feuilles)
+function refreshBasket(strippedG, totalG) {
+  const n = totalG > 0 ? Math.max(0, Math.min(BASKET_MAX, Math.round(strippedG / totalG * BASKET_MAX))) : 0;
+  for (let i = 0; i < BASKET_MAX; i++) basketPile.children[i].visible = i < n;
+}
+
+// 7b) Le TAS FRAIS mele a trier (phase 2). Le nombre de tetes visibles suit le
+// POIDS ABSOLU restant (~1 tete / 22 g) -> un tas de 1 kg est nettement plus gros
+// qu'un tas de 250 g. Empile en monticule (base large, sommet central) : on
+// "racle" le sommet au fil du tri.
+const freshGrp = new THREE.Group();
+freshGrp.position.set(-0.7, 0, 1.2);     // tas avancé vers l'avant-gauche (devant les bacs)
+scene.add(freshGrp);
+const FRESH_MAX = 52;
+const FRESH_GPN = 22;             // grammes par tete affichee
+// Monticule PLEIN (sunflower) : i=0 au centre, i croissant vers l'exterieur.
+// Quand on trie, on cache les indices hauts -> le tas retrecit du bord vers le
+// centre en restant un dome compact (pas d'anneau vide).
+for (let i = 0; i < FRESH_MAX; i++) {
+  const m = makeNug(i % 5 === 1 ? matLeaf : matStrain[STR_IDS[i % STR_IDS.length]], i % 4 === 0);
+  const t = i / (FRESH_MAX - 1);
+  const r = Math.sqrt(t) * 1.15;                                      // i=0 centre, i=max bord
+  const a = i * 2.39996;                                              // angle d'or -> remplissage regulier
+  const y = 0.15 + (1 - t) * 0.5 + (Math.random() - 0.5) * 0.04;      // dome : centre haut, bord bas
+  m.position.set(Math.cos(a) * r + (Math.random() - 0.5) * 0.05, y, Math.sin(a) * r * 0.72);
+  freshGrp.add(m);
+}
+// (la "tete active" n'existe plus depuis le tri au geste ; mesh conserve mais cache)
+const activeNug = makeNug(matStrain.skunk, false);
+activeNug.visible = false;
+scene.add(activeNug);
+function refreshFreshPile(grams) {
+  const n = Math.max(0, Math.min(FRESH_MAX, Math.round(grams / FRESH_GPN)));
+  for (let i = 0; i < FRESH_MAX; i++) freshGrp.children[i].visible = i < n;
+}
+
+// 7c) Le BOL de melange (phase 3).
+const bowl = new THREE.Group();
+const bowlMat = new THREE.MeshStandardMaterial({ map: matteTex(0x9aa1a8, 20, 1), metalness: 0.55, roughness: 0.32, side: THREE.DoubleSide });
+const bowlWall = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 0.78, 0.5, 28, 1, true), bowlMat);
+bowlWall.position.y = 0.27;
+const bowlBottom = new THREE.Mesh(new THREE.CircleGeometry(0.78, 28), bowlMat);
+bowlBottom.rotation.x = -Math.PI / 2; bowlBottom.position.y = 0.04;
+bowl.add(bowlWall); bowl.add(bowlBottom);
+bowl.position.set(0, 0, 0.2);
+bowl.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+const bowlFill = new THREE.Group(); bowl.add(bowlFill);   // nugs dans le bol
+const bowlNugs = [];
+for (let i = 0; i < 12; i++) {
+  const m = makeNug(matStrain.skunk, true);
+  const a = Math.random() * 6.28, r = Math.random() * 0.6;
+  m.position.set(Math.cos(a) * r, 0.12 + Math.random() * 0.06, Math.sin(a) * r);
+  bowlFill.add(m); bowlNugs.push(m);
+}
+scene.add(bowl);
+function setBowlMat(mat) { for (const m of bowlNugs) m.material = mat; }
+
+// 7d) Le POT en verre (phase 4) : verre + remplissage teinte + couvercle + bandeau d'etiquette.
+const jar = new THREE.Group();
+const glass = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.55, 0.55, 1.0, 24, 1, true),
+  new THREE.MeshStandardMaterial({ color: 0xd8ebe2, transparent: true, opacity: 0.26, roughness: 0.06, metalness: 0.25, side: THREE.DoubleSide })
+);
+glass.position.y = 0.55;
+const jarBase = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.52, 0.08, 24),
+  new THREE.MeshStandardMaterial({ color: 0xd2e6dc, transparent: true, opacity: 0.45, roughness: 0.1, metalness: 0.2 }));
+jarBase.position.y = 0.06;
+const jarFill = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.9, 24), matStrain.skunk);
+jarFill.position.y = 0.5;
+const lid = new THREE.Group();                   // couvercle metal + jupe + bouton (poli)
+const lidTop = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.1, 28),
+  new THREE.MeshStandardMaterial({ color: 0xc7ad55, metalness: 0.75, roughness: 0.32 }));
+const lidSkirt = new THREE.Mesh(new THREE.CylinderGeometry(0.605, 0.605, 0.16, 28, 1, true),
+  new THREE.MeshStandardMaterial({ color: 0x9c8540, metalness: 0.7, roughness: 0.4, side: THREE.DoubleSide }));
+lidSkirt.position.y = -0.1;
+const lidKnob = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.06, 16),
+  new THREE.MeshStandardMaterial({ color: 0xd8c067, metalness: 0.8, roughness: 0.3 }));
+lidKnob.position.y = 0.07;
+lid.add(lidTop); lid.add(lidSkirt); lid.add(lidKnob);
+lid.position.y = 1.1;
+jarFill.visible = false;                         // remplacé par des BUDS (cf. jarBuds)
+jar.add(glass); jar.add(jarBase); jar.add(jarFill); jar.add(lid);
+
+// Contenu du pot = des TÊTES qui s'entassent (variétés) ou du déchet végétal
+// (brindilles/feuilles/miettes). Empilage du BAS vers le HAUT, le nb de couches
+// visibles suit le POIDS (g / 1000) -> 1 kg remplit le pot, 300 g ~1/3.
+const jarBuds = new THREE.Group(); jar.add(jarBuds);
+const LAYERS = 11, PERLAYER = 7, JARBUD_MAX = LAYERS * PERLAYER, jarBudList = [];
+for (let L = 0; L < LAYERS; L++) {
+  for (let k = 0; k < PERLAYER; k++) {
+    const i = L * PERLAYER + k;
+    const m = new THREE.Mesh(nugGeoSm, matStrain.skunk); m.castShadow = true;
+    const a = i * 2.39996, rr = Math.sqrt((k + 0.4) / PERLAYER) * 0.42;
+    m.userData.bx = Math.cos(a) * rr; m.userData.bz = Math.sin(a) * rr;   // pos de base (le déchet est resserré vers le centre)
+    m.position.set(m.userData.bx, 0.12 + L * (0.86 / (LAYERS - 1)), m.userData.bz);
+    m.visible = false; jarBuds.add(m); jarBudList.push(m);
+  }
+}
+// POUSSIÈRE / petites particules : remplit les interstices pour donner du volume
+// au tas (surtout le déchet végétal, mais un fond de kief sur les têtes aussi).
+// Empilées du bas vers le haut (montrer les N premières = remplir par le fond).
+const jarDust = new THREE.Group(); jar.add(jarDust);
+const dustGeo = new THREE.IcosahedronGeometry(0.03, 0);
+const matDust = new THREE.MeshStandardMaterial({ map: grainTex(120, 106, 60, 30, 22), roughness: 0.99 });
+const JARDUST_MAX = 90, dustList = [];
+for (let i = 0; i < JARDUST_MAX; i++) {
+  const t = i / (JARDUST_MAX - 1);
+  const a = i * 2.39996, rr = Math.sqrt(((i * 11) % JARDUST_MAX + 0.3) / JARDUST_MAX) * 0.46;
+  const m = new THREE.Mesh(dustGeo, matDust);
+  m.position.set(Math.cos(a) * rr, 0.1 + t * 0.86, Math.sin(a) * rr);   // y croît avec i -> remplissage bas→haut
+  m.scale.setScalar(0.65 + (i % 4) * 0.22);
+  m.rotation.set(i, i * 1.7, i * 0.5);
+  m.visible = false; jarDust.add(m); dustList.push(m);
+}
+jar.position.set(0, 0, 0.2);
+jar.scale.setScalar(1.5);        // gros bocal de conservation (taille reelle, pas un zoom)
+jar.traverse(o => { if (o.isMesh) o.castShadow = true; });
+scene.add(jar);
+jar.userData.fill = jarFill;
+jar.userData.lid = lid;
+jar.userData.glass = glass;
+// Remplit le pot : frac (0..1 du poids/1000) -> couches visibles bas->haut ;
+// chaque emplacement = bud (variété) ou déchet (brindille/miette/feuille) selon comp.
+function refreshPotContent(frac, comp) {
+  const n = Math.max(0, Math.min(JARBUD_MAX, Math.round(frac * JARBUD_MAX)));
+  const weights = [];
+  if (comp) { for (const id of STR_IDS) if (comp[id] > 0) weights.push([id, comp[id]]); if (comp.waste > 0) weights.push(["waste", comp.waste]); }
+  const wsum = weights.reduce((s, w) => s + w[1], 0) || 1;
+  const wasteW = weights.find(w => w[0] === "waste");
+  const wasteShare = wasteW ? wasteW[1] / wsum : 0;
+  for (let i = 0; i < JARBUD_MAX; i++) {
+    const m = jarBudList[i]; m.visible = i < n;
+    if (i >= n || !weights.length) continue;
+    let r = ((i * 0.61803) % 1) * wsum, pick = weights[0][0];
+    for (const w of weights) { if (r < w[1]) { pick = w[0]; break; } r -= w[1]; }
+    m.rotation.set((i * 1.3) % 6, (i * 2.1) % 6, (i * 0.7) % 6);
+    if (pick === "waste") {
+      const t = (i * 7) % 10;
+      m.position.x = m.userData.bx * 0.6; m.position.z = m.userData.bz * 0.6;   // resserré -> ne dépasse pas du verre
+      dressWasteBit(m, i, t < 4 ? 1 : t < 6 ? 0 : 2);    // + de feuilles, moins de brindilles
+    } else {
+      m.position.x = m.userData.bx; m.position.z = m.userData.bz;
+      m.geometry = nugGeoSm; m.material = matStrain[pick]; m.scale.setScalar(1.05 + ((i * 13) % 5) * 0.07);
+    }
+  }
+  // Poussière : remplit les interstices (volume). Plus dense quand il y a du déchet.
+  const dustN = Math.round(Math.min(1, frac * 1.12) * (0.3 + 0.7 * wasteShare) * JARDUST_MAX);
+  for (let i = 0; i < JARDUST_MAX; i++) dustList[i].visible = i < dustN;
+}
+
+// Etiquette imprimee (canvas) ENROULEE autour du pot (arc de cylindre) une fois scelle.
+const LBL_W = 460, LBL_H = 248;
+const labelCanvas = document.createElement("canvas"); labelCanvas.width = LBL_W; labelCanvas.height = LBL_H;
+const labelTex = new THREE.CanvasTexture(labelCanvas);
+labelTex.anisotropy = 8;
+const LABEL_ARC = 2.3;                                          // ~132° autour de l'avant du pot (centré sur +Z)
+const jarLabel = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.563, 0.563, 0.7, 48, 1, true, -LABEL_ARC / 2, LABEL_ARC),
+  new THREE.MeshStandardMaterial({ map: labelTex, transparent: true, roughness: 0.85, metalness: 0, side: THREE.DoubleSide })
+);
+jarLabel.position.set(0, 0.5, 0); jarLabel.visible = false;
+jar.add(jarLabel); jar.userData.label = jarLabel;
+function labelRoundRect(x, a, b, w, h, r) { x.beginPath(); x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r); x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath(); }
+function printLabel(b) {
+  const x = labelCanvas.getContext("2d");
+  x.clearRect(0, 0, LBL_W, LBL_H);
+  // Papier kraft clair + grain.
+  x.fillStyle = "#ece4d0"; x.fillRect(0, 0, LBL_W, LBL_H);
+  for (let i = 0; i < 3000; i++) { x.fillStyle = "rgba(" + (120 + (Math.random() * 50 | 0)) + "," + (108 + (Math.random() * 36 | 0)) + "," + (84 + (Math.random() * 30 | 0)) + "," + (Math.random() * 0.07).toFixed(3) + ")"; x.fillRect(Math.random() * LBL_W, Math.random() * LBL_H, 2, 2); }
+  const wasteOnly = b.strain === "waste";
+  const tint = wasteOnly ? "rgb(111,90,50)" : (STRAINS[b.strain] ? "rgb(" + STRAINS[b.strain].col.join(",") + ")" : "rgb(90,125,58)");
+  const HEAD = 68;
+  // Bandeau d'en-tete colore (variete) + filet.
+  x.fillStyle = tint; x.fillRect(0, 0, LBL_W, HEAD);
+  x.fillStyle = "rgba(0,0,0,.18)"; x.fillRect(0, HEAD - 4, LBL_W, 4);
+  // Nom (tronque pour ne pas chevaucher le badge qualite).
+  x.textBaseline = "alphabetic"; x.textAlign = "left"; x.fillStyle = "#fff";
+  x.font = '800 36px Georgia, "Times New Roman", serif';
+  x.fillText((STRAINS[b.strain] ? STRAINS[b.strain].name : b.name).toUpperCase().slice(0, 13), 22, 47);
+  // Badge qualite a droite.
+  x.textAlign = "right"; x.font = '800 22px Georgia, serif';
+  x.fillText(gradeOf(b.q) + " · " + Math.round(b.q * 100) + "%", LBL_W - 20, 44);
+  // Corps : composition, repartie uniformement (jamais de chevauchement).
+  const comp = b.comp || {};
+  const lines = [];
+  for (const id of STR_IDS) if (comp[id] > 0.5) lines.push(STRAINS[id].name + "   " + Math.round(comp[id]) + " g");
+  if (comp.waste > 0.5) lines.push("Déchet végétal   " + Math.round(comp.waste) + " g");
+  const top = HEAD + 30, bot = LBL_H - 42;                       // zone reservee a la composition
+  const lh = lines.length > 1 ? Math.min(34, (bot - top) / (lines.length - 1)) : 0;
+  const fs = Math.max(15, Math.min(23, lh - 7));
+  x.textAlign = "left"; x.fillStyle = "#2b3a21"; x.font = fs + 'px Georgia, serif';
+  lines.forEach((ln, i) => x.fillText("• " + ln, 24, top + i * lh));
+  // Pied.
+  x.fillStyle = "#6a5a34"; x.font = '800 20px Georgia, serif';
+  x.fillText(Math.round(b.g) + " g · bocal 1 kg", 24, LBL_H - 16);
+  x.strokeStyle = "rgba(45,55,32,.45)"; x.lineWidth = 4; x.strokeRect(3, 3, LBL_W - 6, LBL_H - 6);
+  labelTex.needsUpdate = true;
+}
+
+// 7e) L'ETAGERE de stockage (phase 5) : planche + pots scelles empiles.
+const shelf = new THREE.Group();
+const plank = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.12, 1.3),
+  new THREE.MeshStandardMaterial({ color: 0x4a3a22, roughness: 0.85 }));
+plank.position.y = 0.06; plank.receiveShadow = true;
+shelf.add(plank);
+shelf.position.set(0, 0, 0.4);
+scene.add(shelf);
+const jarSlots = [];
+const slotGlassMat = new THREE.MeshStandardMaterial({ color: 0xdfeef0, transparent: true, opacity: 0.28, roughness: 0.05, side: THREE.DoubleSide });
+for (let i = 0; i < 18; i++) {
+  const grp = new THREE.Group();
+  const gl = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.42, 14, 1, true), slotGlassMat);
+  gl.position.y = 0.21;
+  const fl = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.36, 14), matStrain.skunk);
+  fl.position.y = 0.2;
+  const ld = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.06, 14),
+    new THREE.MeshStandardMaterial({ color: 0xb8a14a, metalness: 0.6, roughness: 0.4 }));
+  ld.position.y = 0.45;
+  grp.add(gl); grp.add(fl); grp.add(ld);
+  const col = i % 9, rowz = Math.floor(i / 9);
+  grp.position.set(-2.3 + col * 0.56, 0.12, -0.28 + rowz * 0.56);
+  grp.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  grp.visible = false; grp.userData.fill = fl;
+  shelf.add(grp); jarSlots.push(grp);
+}
+function refreshShelf() {
+  for (let i = 0; i < jarSlots.length; i++) {
+    const j = storage[i];
+    jarSlots[i].visible = !!j;
+    if (j) jarSlots[i].userData.fill.material = j.strain === "blend" ? matStrain.skunk : matStrain[j.strain];
+  }
+}
+
+/* -------------------------------------------------------------------------
+   8) SECOUSSE / AUDIO (juice synthetise, zero fichier) + nugs volants
+   ------------------------------------------------------------------------- */
+let shake = 0;
+function addShake(a) { shake = Math.min(0.6, shake + a); }
+
+let actx = null;
+function ensureAudio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (actx && actx.state === "suspended") actx.resume();
+  return actx;
+}
+function beep(freq, t0, dur, vol, type) {
+  const ac = ensureAudio(); if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || "square"; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t0); o.stop(t0 + dur);
+}
+function noiseBurst(dur, f0, f1, vol, type, q) {
+  const ac = ensureAudio(); if (!ac) return;
+  const t = ac.currentTime, len = Math.max(1, Math.floor(ac.sampleRate * dur));
+  const buf = ac.createBuffer(1, len, ac.sampleRate), ch = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.5);
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const filt = ac.createBiquadFilter(); filt.type = type || "bandpass"; filt.Q.value = q || 0.8;
+  filt.frequency.setValueAtTime(f0, t);
+  filt.frequency.exponentialRampToValueAtTime(Math.max(60, f1), t + dur);
+  const g = ac.createGain(); g.gain.value = vol;
+  src.connect(filt); filt.connect(g); g.connect(ac.destination);
+  src.start(t); src.stop(t + dur);
+}
+function playSnip() { noiseBurst(0.07, 3200, 900, 0.2, "bandpass", 1.1); }       // froissement/effeuillage
+function playSeal() { noiseBurst(0.22, 600, 1700, 0.22, "lowpass", 0.6); }       // bocal scelle
+function playSale() { const ac = ensureAudio(); if (!ac) return; const t = ac.currentTime; beep(880, t, 0.12, 0.22); beep(1320, t + 0.08, 0.16, 0.2); }
+function playThud() { noiseBurst(0.18, 240, 70, 0.3, "lowpass", 0.7); }          // chute des branches
+function playGood() { const ac = ensureAudio(); if (!ac) return; beep(740, ac.currentTime, 0.07, 0.16, "sine"); }
+function playBad()  { beep(170, (ensureAudio() || {}).currentTime || 0, 0.12, 0.18, "sawtooth"); }
+
+// Nugs qui volent vers un bac (feedback du tri/effeuillage).
+const flyers = [];
+function flyNug(mat, fromY, target, small) {
+  const m = makeNug(mat, small !== false);
+  m.position.set((Math.random() - 0.5) * 0.6, fromY, 0.2 + (Math.random() - 0.5) * 0.4);
+  scene.add(m);
+  flyers.push({ mesh: m, target: target.clone().setY(0.35), t: 0 });
+  while (flyers.length > 40) { const f = flyers.shift(); scene.remove(f.mesh); }
+}
+// Flyer partant d'une position monde precise (effeuillage : la tete part de la cola).
+function flyNugFrom(mat, from, target, small) {
+  const m = makeNug(mat, small !== false);
+  m.position.copy(from);
+  scene.add(m);
+  flyers.push({ mesh: m, target: target.clone(), t: 0 });
+  while (flyers.length > 40) { const f = flyers.shift(); scene.remove(f.mesh); }
+}
+function updateFlyers(dt) {
+  for (let i = flyers.length - 1; i >= 0; i--) {
+    const f = flyers[i];
+    f.t += dt; f.mesh.rotation.x += dt * 8; f.mesh.rotation.y += dt * 6;
+    f.mesh.position.lerp(f.target, Math.min(1, dt * 6));
+    if (f.mesh.position.distanceTo(f.target) < 0.12 || f.t > 1.2) {
+      scene.remove(f.mesh); flyers.splice(i, 1);
+    }
+  }
+}
+
+// TETES QUI TOMBENT (effeuillage) : vraie gravite + rebond dans le panier, pour
+// "sentir les buds tomber". Une tete detachee chute, derive vers le panier, rebondit
+// une fois puis se pose ; un petit "toc" sourd a l'atterrissage (throttle).
+const fallers = [];
+const FALL_FLOOR = 0.4;        // hauteur monde du dessus du panier
+let landCd = 0;
+function playDrop() { noiseBurst(0.06, 360, 110, 0.13, "lowpass", 0.8); }
+function dropBud(mat, from) {
+  const m = makeNug(mat, true);
+  m.position.copy(from); scene.add(m);
+  fallers.push({
+    mesh: m, vy: 0.2 + Math.random() * 0.4,
+    tx: (Math.random() - 0.5) * 4.6, tz: 0.55 + (Math.random() - 0.5) * 0.55,
+    spin: (Math.random() - 0.5) * 12, t: 0, bounced: false, rest: 0,
+  });
+  while (fallers.length > 70) { const f = fallers.shift(); scene.remove(f.mesh); }
+}
+function updateFallers(dt) {
+  if (landCd > 0) landCd = Math.max(0, landCd - dt);
+  for (let i = fallers.length - 1; i >= 0; i--) {
+    const f = fallers[i], p = f.mesh.position;
+    f.t += dt;
+    if (f.rest > 0) { f.rest -= dt; if (f.rest <= 0) { scene.remove(f.mesh); fallers.splice(i, 1); } continue; }
+    f.vy += -8.2 * dt;                                  // gravite
+    p.y += f.vy * dt;
+    p.x += (f.tx - p.x) * Math.min(1, dt * 1.4);        // derive vers le panier
+    p.z += (f.tz - p.z) * Math.min(1, dt * 1.4);
+    f.mesh.rotation.x += f.spin * dt; f.mesh.rotation.z += f.spin * 0.7 * dt;
+    if (p.y <= FALL_FLOOR) {
+      p.y = FALL_FLOOR;
+      if (!f.bounced && f.vy < -1.2) { f.bounced = true; f.vy = -f.vy * 0.34; if (landCd <= 0) { playDrop(); landCd = 0.04; addShake(0.012); } }
+      else { f.rest = 0.5 + Math.random() * 0.4; f.vy = 0; }   // se pose puis fond
+    }
+    if (f.t > 3) { scene.remove(f.mesh); fallers.splice(i, 1); }
+  }
+}
+
+/* -------------------------------------------------------------------------
+   8b) JUICE — haptique, particules (puffs 3D billboard), euros flottants
+   ------------------------------------------------------------------------- */
+// Vibration mobile (no-op si non supporte / headless). `throttle` (ms) evite le
+// spam pendant les gestes continus (effeuillage, vissage).
+let lastBuzz = 0;
+function buzz(pattern, throttle) {
+  try {
+    if (!navigator.vibrate) return;
+    if (throttle) { const t = performance.now(); if (t - lastBuzz < throttle) return; lastBuzz = t; }
+    navigator.vibrate(pattern);
+  } catch (e) {}
+}
+
+// Petites particules : debris a l'effeuillage, nuage au scellage. Quads billboard
+// qui derivent, retombent un peu et s'effacent. Materiau par particule (fade indep.).
+const puffs = [];
+const puffGeo = new THREE.PlaneGeometry(0.14, 0.14);
+function spawnPuff(pos, color, n, spread, up, life) {
+  for (let i = 0; i < n; i++) {
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false });
+    const m = new THREE.Mesh(puffGeo, mat);
+    m.position.copy(pos);
+    m.scale.setScalar(0.5 + Math.random() * 0.8);
+    scene.add(m);
+    puffs.push({ mesh: m, mat,
+      vx: (Math.random() - 0.5) * spread, vy: up * (0.5 + Math.random()), vz: (Math.random() - 0.5) * spread,
+      t: 0, life: life * (0.7 + Math.random() * 0.6) });
+  }
+  while (puffs.length > 80) { const p = puffs.shift(); scene.remove(p.mesh); p.mat.dispose(); }
+}
+function updatePuffs(dt) {
+  for (let i = puffs.length - 1; i >= 0; i--) {
+    const p = puffs[i]; p.t += dt;
+    const k = p.t / p.life;
+    if (k >= 1) { scene.remove(p.mesh); p.mat.dispose(); puffs.splice(i, 1); continue; }
+    p.vy -= 1.6 * dt;
+    p.mesh.position.x += p.vx * dt; p.mesh.position.y += p.vy * dt; p.mesh.position.z += p.vz * dt;
+    p.mesh.quaternion.copy(camera.quaternion);       // billboard face camera
+    p.mesh.scale.setScalar(0.5 + k * 0.7);
+    p.mat.opacity = 0.9 * (1 - k);
+  }
+}
+
+// "+XX €" qui monte et s'efface (vente). DOM, centre haut.
+function floatEuro(text, color) {
+  const d = document.createElement("div"); d.className = "floatup";
+  d.textContent = text; d.style.color = color || "#9be37d";
+  document.body.appendChild(d);
+  requestAnimationFrame(() => d.classList.add("go"));
+  setTimeout(() => d.remove(), 1100);
+}
+
+/* -------------------------------------------------------------------------
+   9) ETAT DE PARTIE + PERSISTANCE (prefixe "rc_")
+   ------------------------------------------------------------------------- */
+const SAVE_VERSION = "1";
+if (STORE.getItem("rc_ver") !== SAVE_VERSION) {
+  ["rc_cash","rc_debt","rc_rep","rc_level","rc_xp","rc_shop","rc_bins","rc_waste","rc_storage"].forEach(k => STORE.removeItem(k));
+  STORE.setItem("rc_ver", SAVE_VERSION);
+}
+
+let cash  = +(STORE.getItem("rc_cash")  || 0);
+let debt  = +(STORE.getItem("rc_debt")  || 0);
+let rep   = +(STORE.getItem("rc_rep")   || 55);   // reputation 0..100
+let level = Math.max(1, +(STORE.getItem("rc_level") || 1));
+let xp    = Math.max(0, +(STORE.getItem("rc_xp")    || 0));
+
+// Bacs tries par variete : g = grammes, qs = somme ponderee de qualite (q = qs/g).
+function freshBins() { const o = {}; for (const id of STR_IDS) o[id] = { g: 0, qs: 0 }; return o; }
+let bins  = Object.assign(freshBins(), JSON.parse(STORE.getItem("rc_bins") || "null") || {});
+let waste = +(STORE.getItem("rc_waste") || 0);              // dechet vegetal (pour la dilution)
+let storage = JSON.parse(STORE.getItem("rc_storage") || "[]");  // pots scelles : {strain,name,grade,q,g,price}
+
+const owned = JSON.parse(STORE.getItem("rc_shop") || "{}");
+owned.secateur= owned.secateur|| 0;   // sécateur : moins de dechet a l'effeuillage
+owned.tray    = owned.tray    || 0;   // tapis trieur : plus de tetes triees par frottee
+owned.hygro   = owned.hygro   || 0;   // pochons hygro (curing) debloques
+owned.sealer  = owned.sealer  || 0;   // scelleuse (zone verte de scellage)
+owned.network = owned.network || 0;   // reseau de revendeurs (prix retail)
+owned.autosort= owned.autosort|| 0;   // trieuse auto (tri passif, niveaux = vitesse)
+owned.semi    = owned.semi    || 0;   // filiere semi-gros (conditionnement)
+owned.gros    = owned.gros    || 0;   // filiere gros (conditionnement, etape ultime)
+
+let phase = "effeuille";              // effeuille | tri | mix | pots | cond | stock
+let harvest = null;                   // recolte en cours { raw, total, wholesale, fr:{...}, leafFr }
+let fresh = null;                     // tas frais a trier { skunk, widow, lemon, purple, leaf }
+let batch = null;                     // recette validée à mettre en pot { strain, name, q, g, comp }
+let optHygro = false;                 // option pochon hygro au conditionnement
+
+function saveBins()    { STORE.setItem("rc_bins", JSON.stringify(bins)); STORE.setItem("rc_waste", String(Math.round(waste))); }
+function saveStorage() { STORE.setItem("rc_storage", JSON.stringify(storage)); }
+function saveShop()    { STORE.setItem("rc_shop", JSON.stringify(owned)); }
+
+/* -------------------------------------------------------------------------
+   10) UI : references + setters HUD
+   ------------------------------------------------------------------------- */
+const ui = {};
+["cash","debt","replbl","repfill","level","xpfill","hint","toast",
+ "effui","effcard","effswipe","effNext",
+ "triui","tricard","triswipe","triNext",
+ "mixui","mixcard","mixsliders","mixClear","mixPack",
+ "potsui","potcard","potstep","optHygro","potDone",
+ "condui","condcard","condlist","condNext",
+ "stockui","stockcard","stockSell","stockNew",
+ "shop","shopitems","shopcash","fade"].forEach(id => ui[id] = document.getElementById(id));
+
+function levelMult() { return 1 + (level - 1) * 0.04; }
+function repMult()   { return (0.8 + rep / 100 * 0.5) + owned.network * 0.04; }   // prix retail selon reput + reseau
+
+function setCash(v) {
+  cash = Math.max(0, Math.round(v));
+  STORE.setItem("rc_cash", String(cash));
+  ui.cash.textContent = "💶 " + cash + " €";
+  if (ui.shop.classList.contains("show")) renderShop();
+}
+function setDebt(v) {
+  debt = Math.max(0, Math.round(v));
+  STORE.setItem("rc_debt", String(debt));
+  ui.debt.textContent = debt > 0 ? "🧾 dette " + debt + " €" : "🧾 à jour";
+  ui.debt.style.color = debt > 0 ? "#ff9f6b" : "#9be37d";
+}
+function setRep(v) {
+  const was = rep;
+  rep = Math.max(0, Math.min(100, v));
+  STORE.setItem("rc_rep", String(Math.round(rep)));
+  ui.replbl.textContent = "⭐ Réput. " + Math.round(rep);
+  ui.repfill.style.width = rep + "%";
+  if (Math.round(rep) !== Math.round(was)) {
+    const d = rep - was;
+    if (Math.abs(d) >= 1) showToast((d > 0 ? "+" : "") + Math.round(d) + " réput.", d > 0 ? "#bdf0a3" : "#ff9f6b");
+  }
+}
+// Le revenu rembourse d'abord la DETTE, le surplus tombe en cash.
+function applyRevenue(rev) {
+  rev = Math.max(0, rev);
+  if (debt > 0) {
+    const pay = Math.min(debt, rev);
+    const before = debt;
+    setDebt(debt - pay); rev -= pay;
+    if (before > 0 && debt === 0) setRep(rep + 2);   // recolte remboursee -> confiance du fournisseur
+  }
+  if (rev > 0) setCash(cash + rev);
+}
+
+// XP / niveaux.
+function xpNeed(lvl) { return Math.round(90 * Math.pow(1.3, lvl - 1)); }
+function updateXpUI() {
+  ui.level.textContent = "Niv. " + level + " · +" + Math.round((levelMult() - 1) * 100) + "%";
+  ui.xpfill.style.width = Math.min(100, (xp / xpNeed(level)) * 100) + "%";
+}
+function addXP(n) {
+  xp += n; let leveled = false;
+  while (xp >= xpNeed(level)) { xp -= xpNeed(level); level++; leveled = true; }
+  if (leveled) {
+    showToast("Niveau " + level + " ! +" + Math.round((levelMult() - 1) * 100) + "% revenus", "#bdf0a3");
+    addShake(0.16); buzz([0, 30, 40, 30, 40, 70]);
+    const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(990, t + 0.08, 0.14, 0.22); }
+  }
+  STORE.setItem("rc_level", String(level));
+  STORE.setItem("rc_xp", String(Math.round(xp)));
+  updateXpUI();
+}
+
+let toastTimer = 0;
+function showToast(msg, color) {
+  ui.toast.textContent = msg;
+  ui.toast.style.color = color || "#fff";
+  ui.toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => ui.toast.classList.remove("show"), 950);
+}
+function setHint(t) { ui.hint.textContent = t; ui.hint.style.opacity = t ? "1" : "0"; }
+
+// Qualite -> mention de grade (etiquette des pots).
+function gradeOf(q) { return q >= 0.8 ? "Top" : q >= 0.62 ? "Bon" : q >= 0.42 ? "Moyen" : "Schlag"; }
+function binQ(id) { return bins[id].g > 0.01 ? bins[id].qs / bins[id].g : 0; }
+
+// Etiquettes 3D projetees pour les bacs.
+const labelsEl = document.getElementById("labels");
+function makeLabel(html, color) {
+  const d = document.createElement("div"); d.className = "blabel";
+  d.innerHTML = html; d.style.color = color; labelsEl.appendChild(d); return d;
+}
+// Marqueur 3D minimal sur chaque bac : juste l'emoji de la variete (les grammes
+// et la qualite vont dans la carte du bas, plus lisible).
+const binLabels = {};
+for (const id of STR_IDS) binLabels[id] = makeLabel(STRAINS[id].emoji, STRAINS[id].lbl);
+binLabels.waste = makeLabel("🍂", "#caa15f");
+const _lv = new THREE.Vector3();
+function placeLabel(div, pos, y) {
+  _lv.set(pos.x, y, pos.z).project(camera);
+  if (_lv.z > 1) { div.style.display = "none"; return; }
+  div.style.display = "block";
+  div.style.left = ((_lv.x * 0.5 + 0.5) * window.innerWidth) + "px";
+  div.style.top  = ((-_lv.y * 0.5 + 0.5) * window.innerHeight) + "px";
+}
+function updateBinsUI() {
+  for (const id of STR_IDS) refreshPile(bins3d[id], bins[id].g, 24);
+  refreshPile(bins3d.waste, waste, 24);
+}
+// Rangee de pastilles colorees (variete -> grammes) reutilisee par tri et coupe.
+function binsPills(opts) {
+  opts = opts || {};
+  const cells = STR_IDS.map(id => {
+    const sel = opts.selected && opts.selected[id];
+    const c = STRAINS[id].col.join(",");
+    return '<span class="bpill" style="border-color:rgba(' + c + ',.9);background:rgba(' + c + (sel ? ',.30' : ',.10') + ')">' +
+      STRAINS[id].emoji + " " + Math.round(bins[id].g) + (opts.grade && bins[id].g > 1 ? " · " + gradeOf(binQ(id)) : "") + "</span>";
+  });
+  if (opts.waste !== false) cells.push('<span class="bpill" style="border-color:rgba(202,161,95,.7);background:rgba(202,161,95,.12)">🍂 ' + Math.round(waste) + "</span>");
+  return '<div class="binsline">' + cells.join("") + "</div>";
+}
+
+/* -------------------------------------------------------------------------
+   11) STEPPER + bascule de phase (montre la bonne station + overlay)
+   ------------------------------------------------------------------------- */
+const ORDER = ["effeuille", "tri", "mix", "pots", "stock"];   // "cond" en pause (à réactiver)
+function updateStepper() {
+  const idx = ORDER.indexOf(phase);
+  document.querySelectorAll(".step").forEach(s => {
+    const i = ORDER.indexOf(s.dataset.step);
+    s.classList.toggle("on", s.dataset.step === phase);
+    s.classList.toggle("done", i < idx);
+  });
+}
+let fadeTimer = 0;
+function setPhase(p) {
+  phase = p;
+  if (ui.fade) { ui.fade.classList.add("show"); clearTimeout(fadeTimer); fadeTimer = setTimeout(() => ui.fade.classList.remove("show"), 140); }
+  ui.effui.classList.toggle("show", p === "effeuille");
+  ui.triui.classList.toggle("show", p === "tri");
+  ui.mixui.classList.toggle("show", p === "mix");
+  ui.potsui.classList.toggle("show", p === "pots");
+  ui.condui.classList.toggle("show", p === "cond");
+  ui.stockui.classList.toggle("show", p === "stock");
+  const isEff = (p === "effeuille");
+  colasGrp.visible  = isEff;
+  dryLine.visible   = isEff;
+  basket.visible    = isEff;
+  freshGrp.visible  = (p === "tri");
+  activeNug.visible = false;            // (plus de "tete active" : tri au geste)
+  bowl.visible      = (p === "mix");
+  jar.visible       = (p === "pots");
+  shelf.visible     = (p === "stock" || p === "cond");
+  // Les bacs ne sont pertinents qu'au tri et au mix.
+  const showBins3d = (p === "tri" || p === "mix");
+  for (const id of STR_IDS) bins3d[id].visible = showBins3d;
+  bins3d.waste.visible = showBins3d;
+  setView(isEff ? "eff" : p === "pots" ? "pack" : "work");
+  updateStepper();
+}
+
+/* -------------------------------------------------------------------------
+   12) PHASE 1 — EFFEUILLAGE (prise de recolte a credit + frottage)
+   ------------------------------------------------------------------------- */
+// Effeuillage au GLISSE (feel green-front-v2) : on passe le doigt sur une cola,
+// toute tete croisee (test en pixels ecran) se detache et tombe MELEE dans le
+// panier. Pas de timing/skill — geste libre. Le tri par variete vient apres.
+const eff = { dragging: false, prev: null, lastT: 0, flash: 0, hasty: 0 };
+
+function maxDebt() { return 800 + rep * 24 + level * 200; }
+
+// Quantite de branchage brut "achetee" (g). Dans le vrai jeu elle vient du proto
+// d'appro (branchage brut -30%) ; ici on la choisit a la main pour TESTER l'affichage.
+const QUANTITIES = [250, 500, 750, 1000];
+let qtyChoice = +(STORE.getItem("rc_qty") || 500);
+// Parametres derives de la quantite : €/g de gros (gros volume = moins cher),
+// nb de varietes presentes, part de feuille.
+function qtyParams(g) {
+  const wholesale = g >= 1000 ? 1.7 : g >= 750 ? 1.9 : g >= 500 ? 2.1 : 2.4;
+  const nbVar = g >= 1000 ? 4 : g >= 500 ? 3 : 2;
+  return { wholesale, nbVar, leaf: 0.26 };
+}
+// Nb de colas affichees ~ 1 pour 85 g (3 / 6 / 9 / 12 pour 250 / 500 / 750 / 1000 g).
+function colaCount(g) { return Math.max(2, Math.min(COLA_POOL, Math.round(g / 85))); }
+
+// Compose une nouvelle recolte de `grams` g : varietes + parts. Pas de dette ici
+// (on credite seulement au passage au tri) pour pouvoir re-tester l'affichage.
+function newHarvest(grams) {
+  if (EMBED) {
+    // Branchage impose par Le Bigo : varietes/grammes du parametre &b=, pas de
+    // credit (credited:true court-circuite la dette de gotoTri), pas d'achat.
+    // qv = qualite de base des tetes PAR variete (0-1) : elle module la qualite
+    // versee dans les bacs au tri (cf. budQ), la ou le standalone trie a 1.0.
+    const acc = {};
+    for (const b of EMBED_B) { const a = acc[b.id] || (acc[b.id] = { g: 0, qs: 0 }); a.g += b.g; a.qs += b.g * b.q; }
+    const pool = Object.keys(acc);
+    const total = pool.reduce((s, id) => s + acc[id].g, 0);
+    const fr = {}, qv = {};
+    for (const id of pool) { fr[id] = acc[id].g / Math.max(1e-6, total); qv[id] = acc[id].qs / Math.max(1e-6, acc[id].g); }
+    harvest = { raw: total, total, wholesale: 0, fr, qv, leafFr: 0.26, varieties: pool, credited: true };
+    return;
+  }
+  const p = qtyParams(grams);
+  const pool = STR_IDS.slice().sort(() => Math.random() - 0.5).slice(0, p.nbVar);
+  const fr = {}; let s = 0;
+  for (const id of pool) { const w = 0.5 + Math.random(); fr[id] = w; s += w; }
+  for (const id of pool) fr[id] /= s;                  // normalise a 1
+  harvest = {
+    raw: grams, total: grams,
+    wholesale: +(p.wholesale * (1 - rep / 600)).toFixed(2),
+    fr, leafFr: p.leaf, varieties: pool, credited: false,
+  };
+}
+// Prepare les colas : on en montre PLUSIEURS (3 a 8 selon la recolte), reparties
+// entre les varietes au prorata de la recolte. Plus de branches a effeuiller =
+// plus de tetes a faire tomber.
+// Position (x,z) de chaque cola : UNE seule rangee, tiges hautes. On serre
+// l'ecartement quand il y en a beaucoup (mur de colas) -> les tiges restent
+// grandes (l'espace vertical du mobile est mis a profit), pas de dezoom 2 rangees.
+function colaLayout(n) {
+  const pos = [];
+  const span = n <= 1 ? 0 : Math.min(2.65, 0.5 * (n - 1));   // serre au-dela de ~11 colas
+  for (let i = 0; i < n; i++) pos.push({ x: n === 1 ? 0 : -span + 2 * span * (i / (n - 1)), z: (i % 2) * 0.16 - 0.08 });
+  return { pos, radius: Math.hypot(span + 0.8, 2.4, 0.45), targetZ: 0 };
+}
+function setupColas() {
+  for (const c of colaPool) c.grp.visible = false;
+  activeColas = [];
+  const vs = harvest.varieties;
+  const nCol = colaCount(harvest.total);
+  // Sécateur (boutique) : reduit la part de feuille arrachee.
+  const leafFr = Math.max(0.04, harvest.leafFr - owned.secateur * 0.02);
+  // Nb de colas par variete ~ proportionnel a sa part (au moins 1), ajuste a nCol.
+  const counts = {}; let assigned = 0;
+  for (const v of vs) { counts[v] = Math.max(1, Math.round(harvest.fr[v] * nCol)); assigned += counts[v]; }
+  while (assigned > nCol) { const v = vs.reduce((a, b) => (counts[b] > counts[a] ? b : a), vs[0]); if (counts[v] > 1) { counts[v]--; assigned--; } else break; }
+  while (assigned < nCol) { const v = vs.reduce((a, b) => (counts[b] < counts[a] ? b : a), vs[0]); counts[v]++; assigned++; }
+  // Liste des varietes, cola par cola (groupees par variete).
+  const list = []; for (const v of vs) for (let k = 0; k < counts[v]; k++) list.push(v);
+  const layout = colaLayout(list.length);
+  list.forEach((v, i) => {
+    const c = colaPool[i]; c.grp.visible = true;
+    setColaVariety(c, v);
+    c.grp.position.x = layout.pos[i].x;
+    c.grp.position.z = layout.pos[i].z;
+    const per = (harvest.total * harvest.fr[v]) / counts[v] / c.buds.length;
+    for (const b of c.buds) { b.on = true; b.mesh.visible = true; b.mass = per; b.leafFrac = leafFr * (0.7 + Math.random() * 0.6); }
+    for (const lf of c.leaves) { lf.visible = true; lf.material = matLeafSolid; }
+    activeColas.push(c);
+  });
+  // Adapte le cadrage frontal a la largeur / profondeur des colas.
+  VIEWS.eff.radius = layout.radius;
+  VIEWS.eff.target.z = layout.targetZ;
+  if (phase === "effeuille") fitView();
+}
+function gotoEffeuille() {
+  setPhase("effeuille");
+  newHarvest(qtyChoice);
+  fresh = { skunk: 0, widow: 0, lemon: 0, purple: 0, leaf: 0 };
+  eff.dragging = false; eff.prev = null; eff.flash = 0;
+  setupColas();
+  refreshBasket(0, harvest.total);
+  setQtyUI();
+  refreshEffCard();
+  setHint(EMBED ? "Glisse le long des colas pour détacher les têtes de ton branchage."
+    : "Choisis la quantité de branchage, puis glisse le long des colas pour détacher les têtes.");
+}
+// Rejoue une recolte a la quantite choisie (boutons 250/500/750/1000) — affichage seul.
+function chooseQty(g) {
+  qtyChoice = g; STORE.setItem("rc_qty", String(g));
+  newHarvest(g);
+  fresh = { skunk: 0, widow: 0, lemon: 0, purple: 0, leaf: 0 };
+  setupColas();
+  refreshBasket(0, harvest.total);
+  setQtyUI();
+  refreshEffCard();
+}
+function setQtyUI() {
+  document.querySelectorAll(".qbtn").forEach(b => b.classList.toggle("on", +b.dataset.q === qtyChoice));
+}
+function freshBud() { return STR_IDS.reduce((s, id) => s + fresh[id], 0); }
+function colaBudsLeft() {
+  let n = 0;
+  for (const c of activeColas) for (const b of c.buds) if (b.on) n++;
+  return n;
+}
+function refreshEffCard() {
+  const names = harvest.varieties.map(id => STRAINS[id].emoji + " " + STRAINS[id].name.split(" ")[0]).join(" · ");
+  ui.effcard.innerHTML =
+    "🌿 Branchage brut : <b>" + Math.round(harvest.total) + " g</b> · " + activeColas.length + " colas · " +
+    (EMBED ? "reçu du Bigo" : "crédit " + Math.round(harvest.total * harvest.wholesale) + " €") + "<br>" + names +
+    "<br>Panier : <b>" + Math.round(freshBud()) + " g</b> têtes · " + Math.round(fresh.leaf) + " g feuilles";
+}
+// Détache toute tete croisee par le segment de glisse (a->b en pixels ecran).
+// Geste RAPIDE = tetes arrachees/abimees : une part part en dechet au lieu du
+// panier. Effeuiller proprement (lent, le long de la tige) = meilleur rendement.
+function effStripSeg(a, b, speed) {
+  if (phase !== "effeuille") return;
+  const hasty = Math.max(0, Math.min(1, ((speed || 0) - 0.7) / 1.4));    // px/ms -> 0..1 (tolérant)
+  const loss = hasty * 0.35;                                             // jusqu'a 35% perdu si vraiment trop vif
+  let any = false, lost = false;
+  const _from = new THREE.Vector3();
+  for (const c of activeColas) {
+    const id = c.variety;
+    for (const bd of c.buds) {
+      if (!bd.on) continue;
+      const s = toScreen(bd.mesh);
+      if (s.z > 1) continue;
+      if (distSeg(s.x, s.y, a.x, a.y, b.x, b.y) < 34) {
+        bd.on = false; bd.mesh.visible = false;
+        fresh[id] += bd.mass * (1 - loss);
+        fresh.leaf += bd.mass * bd.leafFrac;
+        if (loss > 0.01) { waste += bd.mass * loss; lost = true; }       // tete abimee -> dechet
+        bd.mesh.getWorldPosition(_from);
+        dropBud(loss > 0.25 ? matLeaf : matStrain[id], _from);          // tete abimee = chute brunatre
+        if (Math.random() < 0.4) flyNugFrom(matLeaf, _from, new THREE.Vector3(_bw.x + 1.3, 0.42, _bw.z), true);
+        any = true;
+      }
+    }
+    // Les feuilles deco disparaissent au fil de l'effeuillage de leur cola.
+    const left = c.buds.filter(x => x.on).length, vis = Math.ceil(left / c.buds.length * c.leaves.length);
+    for (let i = 0; i < c.leaves.length; i++) c.leaves[i].visible = c.grp.visible && i < vis;
+  }
+  if (any) {
+    eff.flash = 0.16; addShake(0.04); playSnip();
+    buzz(8, 38);                                                    // petite pulse a chaque effeuillee
+    spawnPuff(_from, lost ? 0x8a7a3c : 0x6f9a52, 3, 1.1, 1.3, 0.5); // debris vert (ou brun si abime)
+    if (lost) { eff.hasty = 0.6; if (Math.random() < 0.5) playBad(); }
+    refreshBasket(freshBud() + fresh.leaf, harvest.total);
+    refreshEffCard();
+    if (colaBudsLeft() === 0 && !harvest._done) {
+      harvest._done = true;
+      setHint("Colas effeuillées ! Passe au tri par variété ▸");
+      showToast("Effeuillage fini 🌿", "#9be37d");
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------
+   13) PHASE 2 — TRI PAR VARIETE (geste juteux, sans penalite)
+   On FROTTE le tas frais : les tetes filent toutes seules dans LEUR bac de
+   variete (et les feuilles au dechet), a qualite pleine. Aucune identification,
+   aucune contamination. La boutique debloque des outils qui trient plus/auto.
+   ------------------------------------------------------------------------- */
+const tri = { dragging: false, lastX: 0, lastY: 0, acc: 0, flash: 0, _done: false };
+const TRI_STRIDE = 24;            // px de glisse par poignee triee
+function gotoTri() {
+  // On valide la quantite choisie -> le branchage est pris a credit (une seule fois).
+  // En embed bigo, jamais : la matiere vient du parent (credited est deja true).
+  if (!EMBED && harvest && !harvest.credited) {
+    harvest.credited = true;
+    setDebt(debt + Math.round(harvest.total * harvest.wholesale));
+    showToast("Branchage pris à crédit", "#bdf0a3");
+  }
+  setPhase("tri");
+  // Effeuillage incomplet : on bascule les tetes encore sur les colas dans le tas frais.
+  for (const c of activeColas) {
+    for (const b of c.buds) {
+      if (b.on) { b.on = false; b.mesh.visible = false; fresh[c.variety] += b.mass; fresh.leaf += b.mass * b.leafFrac; }
+    }
+  }
+  tri.acc = 0; tri.flash = 0; tri._done = false;
+  tri.total = Math.max(1, freshTotal());
+  refreshFreshPile(freshTotal());
+  refreshTriCard();
+  updateBinsUI();
+  setHint(owned.autosort
+    ? "La trieuse auto fait le tri. Tu peux frotter le tas pour accélérer."
+    : "Frotte le tas — les têtes filent toutes seules dans leur bac. (Boutique : tapis trieur, trieuse auto.)");
+}
+function freshTotal() { return freshBud() + fresh.leaf; }
+// Qualite de base d'une tete au tri : 1.0 en standalone (comme avant), la
+// qualite recue du Bigo par variete en embed (le mix/dilution module ENSUITE).
+function budQ(id) { return EMBED && harvest && harvest.qv && harvest.qv[id] != null ? harvest.qv[id] : 1.0; }
+function triPerStride() { return (8 + Math.random() * 4) * (1 + owned.tray * 0.7); }   // tapis = poignee + grosse
+function refreshTriCard() {
+  const left = freshTotal(), pct = Math.max(0, Math.min(100, (1 - left / (tri.total || 1)) * 100));
+  ui.tricard.innerHTML =
+    '<div class="ttl">🌿 Tri — <b>' + Math.round(left) + ' g</b> à trier</div>' +
+    '<div class="pbar"><i style="width:' + pct.toFixed(0) + '%"></i></div>' +
+    binsPills({ grade: true });
+}
+// Trie une poignee : retire `amount` g du tas et repartit vers les BONS bacs
+// (auto, sans erreur), qualite pleine. Renvoie true si quelque chose a ete trie.
+function sortHandful(amount) {
+  const total = freshTotal();
+  if (total <= 0.2) return false;
+  amount = Math.min(total, amount);
+  let any = false;
+  for (const id of STR_IDS) {
+    if (fresh[id] <= 0) continue;
+    const take = fresh[id] / total * amount;
+    if (take <= 0) continue;
+    fresh[id] -= take; bins[id].g += take; bins[id].qs += take * budQ(id);   // qualite pleine (standalone) / du lot (embed)
+    flyNug(matStrain[id], 0.5, BIN_POS[id], true);
+    any = true;
+  }
+  if (fresh.leaf > 0) {
+    const take = fresh.leaf / total * amount;
+    fresh.leaf -= take; waste += take;
+    if (Math.random() < 0.7) flyNug(matLeaf, 0.5, BIN_POS.waste, true);
+  }
+  if (any) { tri.flash = 0.16; playSnip(); }
+  return any;
+}
+// Regroupe save + rendu apres une rafale de tri (perf), + fin de tri.
+function triCommitUI() {
+  saveBins(); updateBinsUI(); refreshTriCard();
+  refreshFreshPile(freshTotal());
+  if (freshTotal() <= 0.2 && !tri._done) {
+    tri._done = true;
+    for (const id of STR_IDS) fresh[id] = 0; fresh.leaf = 0;
+    updateBinsUI();
+    setHint("Tas trié ! Passe au mix ▸");
+    showToast("Tri terminé 🌿", "#9be37d");
+    addShake(0.12); addXP(3);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   14) PHASE 3 — MIX : un CURSEUR par ingredient (variete + dechet)
+   Le plat central part vide et se remplit au fil des curseurs. On compose la
+   recette (quantites choisies), on voit qualite/total en direct, puis on valide
+   -> ca part en mise en pot. Plus de dechet = volume + mais qualite -.
+   ------------------------------------------------------------------------- */
+const mixAmt = { skunk: 0, widow: 0, lemon: 0, purple: 0, waste: 0 };
+function qColor(q) { return q >= 0.62 ? "#9be37d" : q >= 0.42 ? "#ffd166" : "#ff6b6b"; }
+// Dispo plafonné à l'entier inférieur : les curseurs/plafonds restent entiers,
+// donc le plat peut atteindre 1000 g pile (pas de perte fractionnaire -> "999").
+function ingMax(id) { return Math.floor(id === "waste" ? waste : bins[id].g); }
+function mixIngredients() {
+  const list = STR_IDS.filter(id => bins[id].g > 0.5).map(id => ({ id, kind: "strain" }));
+  if (waste > 0.5) list.push({ id: "waste", kind: "waste" });
+  return list;
+}
+function gotoMix() {
+  setPhase("mix");
+  for (const k in mixAmt) mixAmt[k] = 0;
+  renderMixSliders();
+  refreshMixDish();
+  refreshMixCard();
+  setHint("Règle la quantité de chaque produit dans le plat, puis Mettre en pot ▸.");
+}
+// Projette la recette sans rien consommer.
+function projectMix() {
+  let g = 0, qs = 0;
+  for (const id of STR_IDS) { const a = Math.min(mixAmt[id], bins[id].g); g += a; qs += a * binQ(id); }
+  const qFlower = g > 0.01 ? qs / g : 0;
+  const add = Math.min(mixAmt.waste, waste);
+  const outG = g + add;
+  const outQ = outG > 0.01 ? (g * qFlower + add * WASTE_Q) / outG : 0;
+  const ids = STR_IDS.filter(id => mixAmt[id] > 0.5);
+  const wasteFrac = outG > 0.01 ? add / outG : 0;
+  return { ids, g, add, outG, outQ, wasteFrac };
+}
+// Plat central : nugs colores selon la composition, nombre ∝ total.
+function refreshMixDish() {
+  const p = projectMix();
+  const weights = [];
+  for (const id of STR_IDS) if (mixAmt[id] > 0) weights.push([matStrain[id], mixAmt[id]]);
+  if (mixAmt.waste > 0) weights.push([matLeaf, mixAmt.waste]);
+  const wsum = weights.reduce((s, w) => s + w[1], 0) || 1;
+  const n = Math.max(0, Math.min(bowlNugs.length, Math.round(p.outG / 30)));
+  for (let i = 0; i < bowlNugs.length; i++) {
+    const m = bowlNugs[i]; m.visible = i < n;
+    if (i < n && weights.length) {
+      let r = ((i + 0.5) / Math.max(1, n)) * wsum, mat = weights[0][0];
+      for (const w of weights) { if (r < w[1]) { mat = w[0]; break; } r -= w[1]; }
+      m.material = mat;
+    }
+  }
+}
+function refreshMixCard() {
+  const p = projectMix();
+  if (ui.mixPack) ui.mixPack.disabled = p.outG < 1;
+  if (p.outG < 1) {
+    const noneLeft = STR_IDS.every(id => bins[id].g < 0.5) && waste < 0.5;
+    ui.mixcard.innerHTML = '<div class="ttl">⚗️ Mix</div><div class="sub2">' +
+      (noneLeft ? 'Plus rien à mixer — emballe ou stocke.' : 'Règle les curseurs pour composer ta recette.') + '</div>';
+    return;
+  }
+  const name = p.ids.length > 1 ? "🧬 Blend maison · " + p.ids.length + " var." : (p.ids.length ? STRAINS[p.ids[0]].emoji + " " + STRAINS[p.ids[0]].name : "🍂 Déchet");
+  ui.mixcard.innerHTML =
+    '<div class="ttl">' + name + '</div>' +
+    '<div class="sub2">Plat : <b style="color:#fff">' + Math.round(p.outG) + ' / 1000 g</b>' + (p.add >= 1 ? ' (dont ' + Math.round(p.add) + ' g déchet)' : '') + '</div>' +
+    '<div style="margin-top:3px">Qualité <span class="qbig" style="color:' + qColor(p.outQ) + '">' + gradeOf(p.outQ) + ' · ' + Math.round(p.outQ * 100) + ' %</span>' +
+    (p.wasteFrac > 0.3 ? ' <span class="q">⚠ très coupé</span>' : '') + '</div>';
+}
+// Le pot conserve 1 kg : le TOTAL du mix (un ou plusieurs produits) est plafonné a 1000 g.
+const MIX_MAX = 1000;
+function mixTotal() { let s = 0; for (const k in mixAmt) s += mixAmt[k]; return s; }
+function mixCapFor(id) { return Math.min(ingMax(id), MIX_MAX - (mixTotal() - mixAmt[id])); }
+// Pose une quantite (curseur ou saisie) en respectant le stock dispo + le plafond 1 kg.
+function setMixAmt(id, v) {
+  v = Math.max(0, Math.min(Math.round(+v || 0), Math.round(mixCapFor(id))));
+  mixAmt[id] = v;
+  const row = ui.mixsliders.querySelector('[data-row="' + id + '"]');
+  if (row) { row.querySelector(".mgsl").value = v; const num = row.querySelector(".mgnum"); if (document.activeElement !== num) num.value = v; }
+  refreshMixDish(); refreshMixCard();
+}
+// Construit une ligne par ingredient : curseur + champ de saisie en grammes.
+function renderMixSliders() {
+  ui.mixsliders.innerHTML = "";
+  for (const it of mixIngredients()) {
+    const id = it.id, isW = id === "waste", max = Math.round(Math.min(ingMax(id), MIX_MAX));
+    const tint = isW ? "#caa15f" : STRAINS[id].tint, emo = isW ? "🍂" : STRAINS[id].emoji, nm = isW ? "Déchet" : STRAINS[id].name.split(" ")[0];
+    const row = document.createElement("div"); row.className = "ming"; row.dataset.row = id;
+    row.innerHTML =
+      '<span class="mglb" style="color:' + tint + '">' + emo + ' ' + nm + '</span>' +
+      '<input class="mgsl" type="range" min="0" max="' + max + '" value="' + Math.round(mixAmt[id]) + '" step="1">' +
+      '<input class="mgnum" type="number" inputmode="numeric" min="0" max="' + max + '" value="' + Math.round(mixAmt[id]) + '">';
+    const sl = row.querySelector(".mgsl"), num = row.querySelector(".mgnum");
+    sl.addEventListener("input", () => setMixAmt(id, sl.value));
+    num.addEventListener("input", () => setMixAmt(id, num.value));
+    num.addEventListener("blur", () => { num.value = Math.round(mixAmt[id]); });
+    ui.mixsliders.appendChild(row);
+  }
+}
+// Valide la recette -> consomme les ingredients, cree le lot, mise en pot.
+function validateMix() {
+  const p = projectMix();
+  if (p.outG < 1) { showToast("Ajoute des ingrédients au plat", "#caa15f"); return; }
+  const comp = { waste: Math.min(mixAmt.waste, waste) };
+  for (const id of STR_IDS) {
+    const a = Math.min(mixAmt[id], bins[id].g); comp[id] = a;
+    if (a > 0) { const frac = a / bins[id].g; bins[id].qs *= (1 - frac); bins[id].g = Math.max(0, bins[id].g - a); }
+  }
+  waste = Math.max(0, waste - comp.waste);
+  let q = p.outQ; if (owned.hygro && optHygro) q = Math.min(1, q + 0.05);
+  const name = p.ids.length > 1 ? "Blend maison" : (p.ids.length ? STRAINS[p.ids[0]].name : "Déchet");
+  const strain = p.ids.length > 1 ? "blend" : (p.ids.length ? p.ids[0] : "waste");
+  batch = { strain, name, g: p.outG, q, comp };
+  saveBins(); updateBinsUI();
+  addShake(0.12); playSeal();
+  gotoPack();
+}
+
+/* -------------------------------------------------------------------------
+   15) PHASE 4 — EMBALLAGE : geste combo VERSER -> VISSER -> POUSSER
+   Pas de mini-jeu/echec : un geste par etape. On verse la fleur d'un lot dans
+   le pot (maintien), on visse le couvercle (doigt circulaire), on pousse le pot
+   vers l'etagere. Petit pot = €/g plus eleve (detail), gros pot = €/g plus bas.
+   ------------------------------------------------------------------------- */
+function qualMult(q) { return 0.6 + q * 0.9; }                 // qualite -> multiplicateur de prix
+const POT_BASE_EUR = 9.0;                                       // €/g de vente directe (conditionnement en pause)
+const JAR_MAX = 1000, SCREW_TURNS = Math.PI * 2;               // pot = conserve 1 kg
+const PACK = { step: "fill", jarG: 0, cap: 0, rate: 60, pouring: false, screwing: false, sealAcc: 0, lastAng: 0, pushStart: null, busy: false, flyT: 0, psnd: 0, ssnd: 0 };
+function packCap() { return batch ? Math.min(JAR_MAX, batch.g) : 0; }
+function setJarFill(g) {                                        // niveau = poids absolu / 1 kg
+  refreshPotContent(Math.min(1, g / JAR_MAX), batch ? batch.comp : null);
+}
+function setPotStep() {
+  if (!ui.potstep) return;
+  ui.potstep.textContent = PACK.step === "fill" ? "👇 Maintiens pour verser tout le mix dans le pot"
+    : PACK.step === "screw" ? "🔄 Tourne le doigt autour du pot pour visser"
+    : PACK.step === "push" ? "👆 Pousse le pot vers l'étagère (glisse vers le haut)"
+    : "✓ Tout est en pot — Stocker ▸";
+}
+function gotoPack() {
+  if (!batch) { showToast("Compose un mix d'abord", "#caa15f"); return; }
+  setPhase("pots");
+  ui.optHygro.classList.toggle("on", optHygro);
+  jar.position.set(0, 0, 0.2); jar.rotation.set(0, 0, 0);
+  startJar();
+}
+function startJar() {
+  PACK.step = batch ? "fill" : "done";
+  PACK.jarG = 0; PACK.pouring = false; PACK.screwing = false; PACK.sealAcc = 0; PACK.busy = false;
+  PACK.cap = packCap(); PACK.rate = Math.max(60, PACK.cap / 2.0);     // verse tout le mix en ~2 s
+  setJarFill(0);
+  jar.userData.lid.visible = false; jar.userData.lid.rotation.y = 0; jar.userData.lid.position.y = 1.35;
+  jar.userData.label.visible = false;            // l'étiquette s'imprime au vissage
+  jar.visible = !!batch && phase === "pots";
+  refreshPotCard(); setPotStep();
+  setHint(batch ? "Maintiens sur le pot pour verser le mix." : "Tout est en pot. Stocker ▸");
+}
+function refreshPotCard() {
+  if (!batch) { ui.potcard.innerHTML = '<div class="ttl">Tout est en pot ✓</div><div class="sub2">' + storage.length + ' pot(s) en stock — Stocker ▸</div>'; return; }
+  const g = PACK.jarG;
+  ui.potcard.innerHTML =
+    '<div class="ttl">' + (STRAINS[batch.strain] ? STRAINS[batch.strain].emoji + " " : "🧬 ") + batch.name + ' · <span style="color:' + qColor(batch.q) + '">' + gradeOf(batch.q) + '</span></div>' +
+    '<div class="sub2">Pot de conservation (1 kg) · mix ' + Math.round(batch.g) + ' g</div>' +
+    '<div style="margin-top:2px">Versé : <b style="color:#fff">' + Math.round(g) + ' g</b> / ' + Math.round(PACK.cap) + ' g</div>';
+}
+function goScrew() {
+  if (PACK.jarG < 1) return;
+  PACK.step = "screw"; PACK.sealAcc = 0;
+  jar.userData.lid.visible = true; jar.userData.lid.position.y = 1.35;
+  setPotStep(); setHint("Tourne le doigt autour du pot pour visser le couvercle.");
+}
+const _lidW = new THREE.Vector3();
+function sealDone() {
+  PACK.step = "push"; jar.userData.lid.position.y = 1.1;
+  playSeal(); addShake(0.08);
+  buzz([0, 18, 22, 40]);                                           // clic du couvercle qui se pose
+  jar.userData.lid.getWorldPosition(_lidW); spawnPuff(_lidW, 0xe2e8df, 12, 0.8, 1.1, 0.55);  // petit nuage
+  if (batch) { printLabel(batch); jar.userData.label.visible = true; PACK.labelPop = 0; }  // étiquette imprimée
+  setPotStep(); setHint("Pousse le pot vers l'étagère.");
+}
+// Le pot scelle part au stock (conservation). Le prix de revente se fait au
+// conditionnement (à venir) ; ici prix de base "gros".
+function doPush() {
+  if (PACK.busy || PACK.step !== "push" || !batch) return;
+  if (storage.length >= jarSlots.length) { showToast("Étagère pleine — Stocker ▸", "#caa15f"); return; }
+  const g = PACK.jarG;
+  const price = Math.round(g * POT_BASE_EUR * qualMult(batch.q) * repMult() * levelMult() * (optHygro && owned.hygro ? 1.08 : 1));
+  storage.push({ strain: batch.strain, name: batch.name, grade: gradeOf(batch.q), q: batch.q, g, price, comp: batch.comp, tier: null });
+  saveStorage();
+  batch.g -= g;
+  addXP(Math.max(1, Math.round(price * 0.02)));
+  showToast("Pot " + Math.round(g) + " g · " + batch.name, "#9be37d");
+  playSale(); buzz([0, 16, 30, 16]);
+  if (batch.g < 1) batch = null;            // mix entièrement empoté
+  PACK.busy = true; PACK.flyT = 0;          // animation "pousse vers l'etagere"
+}
+
+/* -------------------------------------------------------------------------
+   15b) PHASE 5 — CONDITIONNEMENT : un palier par pot (détail / semi-gros / gros)
+   Détail = €/g max (plein de petits paquets), Gros = €/g min mais écoulé d'un bloc
+   (≈ le pot tel quel), débloqué en dernier. Choix par pot.
+   ------------------------------------------------------------------------- */
+const TIERS = {
+  detail: { name: "Détail",    emoji: "🛍️", eur: 12.0, unlock: () => true },
+  semi:   { name: "Semi-gros", emoji: "📦", eur: 8.5,  unlock: () => owned.semi >= 1 },
+  gros:   { name: "Gros",      emoji: "🚚", eur: 5.2,  unlock: () => owned.gros >= 1 },
+};
+const TIER_ORDER = ["detail", "semi", "gros"];
+function potTierPrice(p, eur) { return Math.round(p.g * eur * qualMult(p.q) * repMult() * levelMult()); }
+function gotoCond() {
+  setPhase("cond");
+  refreshShelf();
+  renderCond();
+  setHint("Choisis un palier pour chaque pot : Détail = €/g max, Gros = écoulé en bloc (débloqué plus tard).");
+}
+function renderCond() {
+  const todo = storage.filter(p => !p.tier).length;
+  ui.condcard.innerHTML = '<div class="ttl">📦 Conditionnement</div>' +
+    '<div class="sub2">' + storage.length + ' pot(s) · <b style="color:#fff">' + todo + '</b> à conditionner — Détail €/g max, Gros en bloc</div>';
+  ui.condlist.innerHTML = "";
+  if (!storage.length) { ui.condlist.innerHTML = '<div class="sub2" style="text-align:center;color:rgba(255,255,255,.5)">Aucun pot. Reviens après la mise en pot.</div>'; return; }
+  storage.forEach((p, i) => {
+    const row = document.createElement("div"); row.className = "cpot" + (p.tier ? " done" : "");
+    const head = '<div class="ch"><span>' + (STRAINS[p.strain] ? STRAINS[p.strain].emoji + " " : "🧬 ") + p.name + ' · ' + p.grade + '</span><span style="color:rgba(255,255,255,.55)">' + Math.round(p.g) + ' g</span></div>';
+    if (p.tier) {
+      row.innerHTML = head + '<div class="cdn">✓ ' + TIERS[p.tier].emoji + ' ' + TIERS[p.tier].name + ' · ' + p.price + ' €</div>';
+    } else {
+      let btns = '<div class="ct">';
+      for (const t of TIER_ORDER) {
+        const T = TIERS[t], ok = T.unlock();
+        btns += '<button class="tbtn' + (ok ? '' : ' lock') + '" data-i="' + i + '" data-t="' + t + '"' + (ok ? '' : ' disabled') + '>' +
+          T.emoji + ' ' + T.name + '<div class="te">' + (ok ? potTierPrice(p, T.eur) + ' €' : '🔒') + '</div></button>';
+      }
+      row.innerHTML = head + btns + '</div>';
+    }
+    ui.condlist.appendChild(row);
+  });
+  ui.condlist.querySelectorAll(".tbtn:not([disabled])").forEach(b => b.addEventListener("click", () => condPot(+b.dataset.i, b.dataset.t)));
+}
+function condPot(i, t) {
+  const p = storage[i]; if (!p || p.tier) return;
+  const T = TIERS[t]; if (!T || !T.unlock()) return;
+  p.tier = t; p.price = potTierPrice(p, T.eur);
+  saveStorage();
+  const ac = ensureAudio(); if (ac) beep(720, ac.currentTime, 0.08, 0.16, "sine");
+  addXP(2); showToast(T.emoji + " " + T.name + " · " + p.price + " €", "#9be37d");
+  renderCond();
+}
+
+/* -------------------------------------------------------------------------
+   16) PHASE 6 — STOCKAGE / VENTE
+   ------------------------------------------------------------------------- */
+function binsLeft() { return STR_IDS.some(id => bins[id].g > 0.5); }
+function gotoStock() {
+  setPhase("stock");
+  refreshShelf();
+  refreshStockCard();
+  setHint(EMBED ? "Tes pots sont prêts — ✓ Terminer pour renvoyer le bilan au Bigo."
+    : "Tes pots sont en stock. Vends pour rembourser la dette puis encaisser, ou repars sur une récolte.");
+}
+function stockValue() { return storage.reduce((s, j) => s + j.price, 0); }
+function refreshStockCard() {
+  if (!storage.length) {
+    ui.stockcard.innerHTML = "Étagère vide. Lance une nouvelle récolte ▸";
+    return;
+  }
+  // Regroupe par etiquette (variete + grade).
+  const groups = {};
+  for (const j of storage) { const k = j.name + " · " + j.grade; (groups[k] = groups[k] || { n: 0, g: 0 }); groups[k].n++; groups[k].g += j.g; }
+  const lines = Object.entries(groups).map(([k, v]) => "• <b>" + k + "</b> ×" + v.n + " (" + Math.round(v.g) + " g)").join("<br>");
+  ui.stockcard.innerHTML = "📦 Stock : <b>" + storage.length + " pots</b> · valeur ≈ <b>" + stockValue() + " €</b><br>" + lines;
+}
+function sellStock() {
+  if (!storage.length) { showToast("Rien à vendre", "#caa15f"); return; }
+  const total = stockValue();
+  // Reputation : qualite moyenne vendue (et curing).
+  let qSum = 0, gSum = 0;
+  for (const j of storage) { qSum += j.q * j.g; gSum += j.g; }
+  const avgQ = gSum > 0 ? qSum / gSum : 0;
+  applyRevenue(total);
+  addXP(Math.max(2, Math.round(total * 0.04)));
+  const dRep = (avgQ - 0.55) * 14 + (optHygro && owned.hygro ? 1 : 0);
+  setRep(rep + dRep);
+  if (avgQ < 0.42) showToast("Clients déçus 😠", "#ff6b6b");
+  else showToast("+" + total + " € · stock écoulé", "#9be37d");
+  floatEuro("+" + total + " €", avgQ < 0.42 ? "#ffb04a" : "#9be37d");   // gain qui monte
+  playSale(); buzz([0, 24, 50, 24, 50, 60]); addShake(0.2);
+  storage = []; saveStorage(); refreshShelf(); refreshStockCard();
+}
+
+/* -------------------------------------------------------------------------
+   17) AUTO-TRIEUSE (tri passif idle) — employe achetable
+   ------------------------------------------------------------------------- */
+// Trieuse auto (machine) : trie le tas en passif, qualite pleine. Plus de niveaux
+// = plus rapide. Le joueur peut frotter en plus pour accelerer.
+let autoSortTimer = 0;
+function updateAutoSort(dt) {
+  if (!owned.autosort || phase !== "tri" || freshTotal() <= 0.2) return;
+  autoSortTimer += dt;
+  const interval = Math.max(0.25, 1.0 - (owned.autosort - 1) * 0.22);
+  if (autoSortTimer >= interval) {
+    autoSortTimer = 0;
+    if (sortHandful(10 + owned.autosort * 4)) triCommitUI();
+  }
+}
+
+/* -------------------------------------------------------------------------
+   18) BOUTIQUE (data-driven)
+   ------------------------------------------------------------------------- */
+const SHOP = [
+  { id: "secateur", icon: "✂️", name: "Sécateur pro",
+    desc: () => "Moins de feuille/déchet à l'effeuillage (+" + ((owned.secateur + 1) * 1.5).toFixed(1) + "%).",
+    cost: () => Math.round(280 * Math.pow(1.6, owned.secateur)),
+    can: () => owned.secateur < 5, maxed: () => owned.secateur >= 5,
+    buy: () => { owned.secateur++; } },
+  { id: "tray", icon: "🛗", name: "Tapis trieur",
+    desc: () => "Chaque frottée trie plus de têtes (+" + ((owned.tray + 1) * 70) + "%).",
+    cost: () => Math.round(380 * Math.pow(1.7, owned.tray)),
+    can: () => owned.tray < 4, maxed: () => owned.tray >= 4,
+    buy: () => { owned.tray++; } },
+  { id: "hygro", icon: "💧", name: "Pochons hygro (curing)",
+    desc: () => "Débloque l'option Hygro : +qualité au pot, +réput.",
+    cost: () => 600, can: () => owned.hygro < 1, maxed: () => owned.hygro >= 1,
+    buy: () => { owned.hygro = 1; } },
+  { id: "sealer", icon: "🛡️", name: "Scelleuse à pots",
+    desc: () => "Élargit la zone verte de scellage.",
+    cost: () => Math.round(500 * Math.pow(1.7, owned.sealer)),
+    can: () => owned.sealer < 4, maxed: () => owned.sealer >= 4,
+    buy: () => { owned.sealer++; } },
+  { id: "network", icon: "📇", name: "Réseau revendeurs",
+    desc: () => "+4 % prix de vente par niveau.",
+    cost: () => Math.round(700 * Math.pow(1.6, owned.network)),
+    can: () => owned.network < 6, maxed: () => owned.network >= 6,
+    buy: () => { owned.network++; } },
+  { id: "autosort", icon: "🤖", name: "Trieuse auto",
+    desc: () => owned.autosort < 1 ? "Machine : trie le tas tout seul, en fond."
+      : "Trieuse auto plus rapide (niv. " + (owned.autosort + 1) + ").",
+    cost: () => Math.round(2200 * Math.pow(1.8, owned.autosort)),
+    can: () => owned.autosort < 4, maxed: () => owned.autosort >= 4,
+    buy: () => { owned.autosort++; } },
+  { id: "semi", icon: "📦", name: "Filière semi-gros",
+    desc: () => "Débloque le palier semi-gros au conditionnement.",
+    cost: () => 1500, can: () => owned.semi < 1, maxed: () => owned.semi >= 1,
+    buy: () => { owned.semi = 1; } },
+  { id: "gros", icon: "🚚", name: "Filière gros",
+    desc: () => "Débloque le palier GROS : écoule un pot d'un bloc (étape ultime).",
+    cost: () => 4000, can: () => owned.gros < 1 && owned.semi >= 1, maxed: () => owned.gros >= 1,
+    buy: () => { owned.gros = 1; } },
+];
+function renderShop() {
+  ui.shopcash.textContent = "💶 " + cash + " €";
+  ui.shopitems.innerHTML = "";
+  for (const it of SHOP) {
+    const cost = it.cost(), maxed = it.maxed(), can = !maxed && it.can() && cash >= cost;
+    const row = document.createElement("div"); row.className = "shopitem";
+    row.innerHTML = '<div class="ic">' + it.icon + '</div><div class="info"><div class="nm">' +
+      it.name + '</div><div class="ds">' + it.desc() + '</div></div>';
+    const b = document.createElement("button");
+    b.textContent = maxed ? "✓" : (cost + " €");
+    b.disabled = !can;
+    b.addEventListener("click", () => buyItem(it));
+    row.appendChild(b);
+    ui.shopitems.appendChild(row);
+  }
+}
+function buyItem(it) {
+  const cost = it.cost();
+  if (it.maxed() || !it.can() || cash < cost) return;
+  setCash(cash - cost); it.buy(); saveShop();
+  const ac = ensureAudio(); if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(990, t + 0.07, 0.14, 0.2); }
+  renderShop();
+  if (phase === "pots") refreshPotCard();
+  if (phase === "cond") renderCond();
+}
+
+/* -------------------------------------------------------------------------
+   19) ENTREES (pointer) : tap selon la phase + pinch zoom
+   ------------------------------------------------------------------------- */
+const el = renderer.domElement;
+const pointers = new Map();
+let pinching = false, pinchStartDist = 0, pinchStartZoom = 1;
+function pinchDist() { const a = [...pointers.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
+// Le doigt est-il SUR le tas de tri ? (rayon ecran = projection du tas, suit sa taille)
+const _pcv = new THREE.Vector3(), _pev = new THREE.Vector3();
+function overPile(px, py) {
+  _pcv.set(-0.7, 0.35, 1.2); _pcv.project(camera);     // centre du tas (cf. freshGrp.position)
+  const cx = (_pcv.x * 0.5 + 0.5) * window.innerWidth, cy = (-_pcv.y * 0.5 + 0.5) * window.innerHeight;
+  const frac = tri.total > 0 ? Math.max(0.22, Math.min(1, freshTotal() / tri.total)) : 0.4;
+  const rW = 0.5 + Math.sqrt(frac) * 0.95;
+  _pev.set(-0.7 + rW, 0.35, 1.2); _pev.project(camera);
+  const rPx = Math.abs((_pev.x * 0.5 + 0.5) * window.innerWidth - cx) + 26;
+  return Math.hypot(px - cx, py - cy) < rPx;
+}
+// Centre ecran du pot + angle d'un point autour de lui (pour le geste de vissage).
+const _jc = new THREE.Vector3();
+function jarScreen() { _jc.set(jar.position.x, jar.position.y + 0.9, jar.position.z); _jc.project(camera); return { x: (_jc.x * 0.5 + 0.5) * window.innerWidth, y: (-_jc.y * 0.5 + 0.5) * window.innerHeight }; }
+function angTo(e) { const c = jarScreen(); return Math.atan2(e.clientY - c.y, e.clientX - c.x); }
+function angDelta(a, b) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
+
+el.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size >= 2) { pinching = true; pinchStartDist = pinchDist() || 1; pinchStartZoom = zoom; return; }
+  ensureAudio();
+  if (phase === "effeuille") {
+    eff.dragging = true;
+    eff.prev = { x: e.clientX, y: e.clientY }; eff.lastT = performance.now();
+    effStripSeg(eff.prev, eff.prev, 0);          // un simple tap detache proprement
+  } else if (phase === "tri") {
+    if (overPile(e.clientX, e.clientY)) {             // il faut toucher le TAS
+      tri.dragging = true; tri.lastX = e.clientX; tri.lastY = e.clientY; tri.acc = 0;
+      if (sortHandful(triPerStride())) triCommitUI();
+    }
+  } else if (phase === "pots" && !PACK.busy) {
+    if (PACK.step === "fill") PACK.pouring = true;
+    else if (PACK.step === "screw") { PACK.screwing = true; PACK.lastAng = angTo(e); }
+    else if (PACK.step === "push") PACK.pushStart = { x: e.clientX, y: e.clientY };
+  }
+}, { passive: false });
+
+el.addEventListener("pointermove", (e) => {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinching && pointers.size >= 2) {
+    e.preventDefault();
+    zoom = Math.max(0.6, Math.min(2.4, pinchStartZoom * (pinchDist() / pinchStartDist)));
+    STORE.setItem("rc_zoom", zoom.toFixed(3));
+    fitView();
+  } else if (phase === "effeuille" && eff.dragging && eff.prev && pointers.size < 2) {
+    // Effeuillage au glisse : vitesse instantanee (px/ms) -> rendement.
+    e.preventDefault();
+    const cur = { x: e.clientX, y: e.clientY }, now = performance.now();
+    const dist = Math.hypot(cur.x - eff.prev.x, cur.y - eff.prev.y);
+    const speed = dist / Math.max(8, now - eff.lastT);
+    effStripSeg(eff.prev, cur, speed);
+    eff.prev = cur; eff.lastT = now;
+  } else if (phase === "tri" && tri.dragging && pointers.size < 2) {
+    // Tri au frotte SUR LE TAS : hors du tas, on ne trie pas (juste suivi du doigt).
+    e.preventDefault();
+    const dx = e.clientX - tri.lastX, dy = e.clientY - tri.lastY;
+    tri.lastX = e.clientX; tri.lastY = e.clientY;
+    if (overPile(e.clientX, e.clientY)) {
+      tri.acc += Math.hypot(dx, dy);
+      let did = false, guard = 0;
+      while (tri.acc >= TRI_STRIDE && guard++ < 12) { tri.acc -= TRI_STRIDE; if (sortHandful(triPerStride())) did = true; else break; }
+      if (did) triCommitUI();
+    } else { tri.acc = 0; }
+  } else if (phase === "pots" && pointers.size < 2) {
+    if (PACK.step === "screw" && PACK.screwing) {
+      e.preventDefault();
+      const a = angTo(e), d = angDelta(PACK.lastAng, a); PACK.lastAng = a;
+      PACK.sealAcc += Math.abs(d);
+      const lid = jar.userData.lid; lid.rotation.y += d * 1.4;
+      const target = SCREW_TURNS * (1 - owned.sealer * 0.12);
+      lid.position.y = 1.35 - 0.25 * Math.min(1, PACK.sealAcc / target);
+      if ((PACK.ssnd -= Math.abs(d)) <= 0) { playSnip(); buzz(7); PACK.ssnd = 0.5; }   // ratchet (son + cran haptique)
+      if (PACK.sealAcc >= target) { PACK.screwing = false; sealDone(); }
+    } else if (PACK.step === "push" && PACK.pushStart) {
+      if (PACK.pushStart.y - e.clientY > 55) { PACK.pushStart = null; doPush(); }
+    }
+  }
+}, { passive: false });
+function onUp(e) {
+  pointers.delete(e.pointerId);
+  if (pinching && pointers.size < 2) pinching = false;
+  if (pointers.size === 0) {
+    eff.dragging = false; eff.prev = null; tri.dragging = false;
+    if (phase === "pots") {
+      if (PACK.pouring) { PACK.pouring = false; if (PACK.step === "fill" && PACK.jarG >= 1) goScrew(); }
+      PACK.screwing = false; PACK.pushStart = null;
+    }
+  }
+}
+el.addEventListener("pointerup", onUp, { passive: false });
+el.addEventListener("pointercancel", onUp, { passive: false });
+
+// Boutons des overlays.
+ui.effNext.addEventListener("click", () => { gotoTri(); });   // le restant non effeuillé bascule dans le tas frais
+document.querySelectorAll(".qbtn").forEach(b => b.addEventListener("click", () => chooseQty(+b.dataset.q)));
+ui.triNext.addEventListener("click", () => {
+  if (STR_IDS.every(id => bins[id].g < 1)) { showToast("Frotte le tas pour trier", "#caa15f"); return; }
+  // Restant non trie : on le trie d'un coup (auto, sans penalite) avant de partir.
+  if (freshTotal() > 0.5) { sortHandful(freshTotal()); saveBins(); updateBinsUI(); }
+  gotoMix();
+});
+ui.mixClear.addEventListener("click", () => { for (const k in mixAmt) mixAmt[k] = 0; renderMixSliders(); refreshMixDish(); refreshMixCard(); });
+ui.mixPack.addEventListener("click", validateMix);
+ui.optHygro.addEventListener("click", () => {
+  if (!owned.hygro) { showToast("Achète les pochons hygro 🛒", "#caa15f"); return; }
+  optHygro = !optHygro; ui.optHygro.classList.toggle("on", optHygro);
+  refreshPotCard();
+});
+ui.potDone.addEventListener("click", () => {
+  if (batch) { showToast("Finis de mettre le mix en pot", "#caa15f"); return; }
+  gotoStock();                                  // conditionnement en pause -> direct au stock
+});
+ui.condNext.addEventListener("click", gotoStock);
+ui.stockSell.addEventListener("click", sellStock);
+ui.stockNew.addEventListener("click", () => {
+  if (debt > maxDebt() * 0.98) { showToast("Paie ta dette avant une nouvelle récolte", "#ff6b6b"); return; }
+  gotoEffeuille();
+});
+document.getElementById("shopbtn").addEventListener("click", () => { renderShop(); ui.shop.classList.add("show"); });
+document.getElementById("shopclose").addEventListener("click", () => ui.shop.classList.remove("show"));
+ui.shop.addEventListener("click", (e) => { if (e.target === ui.shop) ui.shop.classList.remove("show"); });
+
+/* -------------------------------------------------------------------------
+   20) BOUCLE PRINCIPALE
+   ------------------------------------------------------------------------- */
+function updateGauges(dt) {
+  if (phase === "effeuille") {
+    if (eff.hasty > 0) eff.hasty = Math.max(0, eff.hasty - dt);
+    if (ui.effswipe) {
+      if (eff.hasty > 0.05) { ui.effswipe.style.color = "#ffae6b"; ui.effswipe.textContent = "⚠ Trop vif — tu abîmes des têtes ! Effeuille plus doucement"; }
+      else { ui.effswipe.style.color = "rgba(173,224,140," + (0.6 + eff.flash * 2).toFixed(2) + ")"; ui.effswipe.textContent = "👆 Glisse doucement le long des colas"; }
+    }
+  }
+}
+
+let last = 0;
+function loop(t) {
+  const dt = Math.min((t - last) / 1000 || 0, 0.05);
+  last = t;
+
+  // Colas qui se balancent TRES doucement au fil de sechage (amplitude réduite).
+  if (phase === "effeuille") {
+    for (const c of activeColas) {
+      c.grp.rotation.z = Math.sin(t * 0.0008 + c.grp.position.x) * 0.016;
+    }
+    if (eff.flash > 0) eff.flash = Math.max(0, eff.flash - dt);
+  }
+  // Tas frais : petit frémissement vertical quand on le frotte (PAS de rotation).
+  if (phase === "tri") {
+    if (tri.flash > 0) tri.flash = Math.max(0, tri.flash - dt);
+    freshGrp.position.y = Math.sin(t * 0.02) * tri.flash * 0.04;
+    if (ui.triswipe) ui.triswipe.style.color = "rgba(173,224,140," + (0.6 + tri.flash * 2).toFixed(2) + ")";
+  }
+  if (phase === "mix") bowlFill.rotation.y += dt * 0.8;
+  if (phase === "pots") {
+    // Petit "pop" de l'étiquette quand elle vient d'être imprimée.
+    if (PACK.labelPop != null && PACK.labelPop < 1) {
+      PACK.labelPop = Math.min(1, PACK.labelPop + dt * 5);
+      const s = 0.5 + 0.5 * PACK.labelPop; jar.userData.label.scale.set(1, s, 1);
+    }
+    // Versement continu tant qu'on maintient : remplit le pot avec TOUT le mix.
+    if (PACK.pouring && PACK.step === "fill") {
+      PACK.jarG = Math.min(PACK.cap, PACK.jarG + PACK.rate * dt);
+      setJarFill(PACK.jarG); refreshPotCard();
+      if ((PACK.psnd -= dt) <= 0) { playDrop(); PACK.psnd = 0.1; }
+      if (PACK.jarG >= PACK.cap - 0.01) { PACK.pouring = false; goScrew(); }   // pot plein -> visser
+    }
+    // Animation "pousse vers l'etagere", puis pot suivant / retour au mix.
+    if (PACK.busy) {
+      PACK.flyT += dt; const k = Math.min(1, PACK.flyT / 0.4);
+      jar.position.set(1.8 * k, 0.5 * Math.sin(k * Math.PI), 0.2 - 0.4 * k);
+      jar.rotation.z = -0.5 * k;
+      if (PACK.flyT >= 0.4) {
+        jar.position.set(0, 0, 0.2); jar.rotation.set(0, 0, 0); PACK.busy = false; refreshShelf();
+        if (batch) startJar();                                  // mix > 1 kg : pot suivant
+        else if (STR_IDS.some(id => bins[id].g > 0.5) || waste > 0.5) gotoMix();  // reste à mixer
+        else startJar();                                        // terminé -> état "done"
+      }
+    }
+  }
+
+  updateGauges(dt);
+  updateFlyers(dt);
+  updateFallers(dt);
+  updatePuffs(dt);
+  updateAutoSort(dt);
+
+  if (shake > 0) { shake *= Math.pow(0.0009, dt); if (shake < 0.002) shake = 0; }
+  if (camLerp > 0) {                                    // transition de phase : ease vers la vue cible
+    const k = 1 - Math.pow(0.0006, dt);
+    dispPos.lerp(baseCamPos, k); dispTgt.lerp(VIEW_TARGET, k);
+    if (dispPos.distanceToSquared(baseCamPos) < 1e-4) { dispPos.copy(baseCamPos); dispTgt.copy(VIEW_TARGET); camLerp = 0; }
+  } else { dispPos.copy(baseCamPos); dispTgt.copy(VIEW_TARGET); }
+  camera.position.copy(dispPos);
+  if (shake > 0) {
+    camera.position.x += (Math.random() - 0.5) * shake;
+    camera.position.y += (Math.random() - 0.5) * shake;
+    camera.position.z += (Math.random() - 0.5) * shake;
+  }
+  camera.lookAt(dispTgt);
+
+  // Etiquettes des bacs (visibles seulement quand les bacs le sont : tri / coupe).
+  const showBins = (phase === "tri" || phase === "mix");
+  for (const id of STR_IDS) { binLabels[id].style.display = showBins ? "block" : "none"; if (showBins) placeLabel(binLabels[id], BIN_POS[id], 0.6); }
+  binLabels.waste.style.display = showBins ? "block" : "none"; if (showBins) placeLabel(binLabels.waste, BIN_POS.waste, 0.6);
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+
+/* -------------------------------------------------------------------------
+   21) INIT
+   ------------------------------------------------------------------------- */
+resize();
+setCash(cash); setDebt(debt); setRep(rep); updateXpUI();
+updateBinsUI();
+// On reprend a l'effeuillage (bins/storage/dette conserves).
+gotoEffeuille();
+dispPos.copy(baseCamPos); dispTgt.copy(VIEW_TARGET); camLerp = 0;   // pas de fly-in au demarrage
+
+/* --- Mode EMBED "bigo" (poste Recolte du telephone-OS Le Bigo, contrat :
+   le-bigo/BUS.md). L'economie propre du proto est masquee (dette, reput, XP,
+   boutique, choix de quantite, vente — le save est deja shime en memoire via
+   STORE) ; le GESTE reste inchange : effeuillage -> tri -> mix/coupe -> pots.
+   La dilution au dechet du mix reste LE levier de qualite (R10), et l'etape
+   « vendre » est remplacee par « ✓ Terminer » qui renvoie le bilan au parent :
+   bigo-txn puis bigo-close. --- */
+if (EMBED) {
+  // HUD : cash affiche = celui du PARENT (recu via bigo-state). Le reste de
+  // l'economie locale n'existe pas a ce poste.
+  for (const id of ["debt", "repwrap", "xpwrap", "shopbtn", "shop", "qtyrow", "stockSell", "stockNew"]) {
+    const e = document.getElementById(id); if (e) e.style.display = "none";
+  }
+  ui.cash.textContent = "💶 …";
+
+  // Bus entrant : origine verifiee (same-origin, ou "null" en file:// — cf. BUS.md).
+  window.addEventListener("message", (e) => {
+    if (e.origin !== location.origin && e.origin !== "null") return;
+    const d = e.data;
+    if (d && d.type === "bigo-state") ui.cash.textContent = "💶 " + Math.round(+d.cash || 0) + " €";
+  });
+
+  // branchesLeft : les branches (colas) JAMAIS entamees — pas un gramme preleve.
+  // Champ hors contrat de base de BUS.md, ajoute pour la Recolte : le branchage
+  // passe en URL est solde par branchesConsumed, et branchesLeft en rend la part
+  // NON entamee ({variety, g, q}) pour que le parent la REMETTE en stock (rien
+  // n'est perdu, R1). La matiere a moitie travaillee (cola entamee, tas non trie,
+  // bacs non mixes, mix pas encore en pot) part elle en miettes : c'est la
+  // consequence tracable d'avoir abandonne en cours de geste, pas une punition.
+  function embedBranchesLeft() {
+    const acc = {};
+    for (const c of activeColas) {
+      if (!c.buds.length || !c.buds.every(b => b.on)) continue;   // entamee (ou deja videe au tri)
+      acc[c.variety] = (acc[c.variety] || 0) + c.buds.reduce((s, b) => s + b.mass, 0);
+    }
+    const out = [];
+    for (const id in acc) out.push({
+      variety: EMBED_NAME[id] || STRAINS[id].name,               // nomenclature DU PARENT
+      g: Math.round(acc[id]),
+      q: Math.round((harvest && harvest.qv && harvest.qv[id] != null ? harvest.qv[id] : 0.5) * 100),
+    });
+    for (const u of EMBED_B_UNKNOWN) out.push(u);                // varietes inconnues : rendues telles quelles
+    return out;
+  }
+
+  // ✓ Terminer : bilan du travail fait, quel qu'il soit (aucun etat "rate" — R1).
+  // Place en haut a droite (le shopbtn masque libere l'emplacement ; le bas de
+  // l'ecran est occupe par les panneaux de phase).
+  const done = document.createElement("button");
+  done.id = "bigodone";
+  done.textContent = "✓ Terminer";
+  done.style.cssText = "position:fixed;right:14px;top:max(10px,env(safe-area-inset-top));z-index:50;pointer-events:auto;" +
+    "background:#3a6b3a;color:#fff;border:none;font:800 14px system-ui;padding:11px 14px;border-radius:12px;box-shadow:0 8px 24px -6px #000";
+  done.addEventListener("click", () => {
+    if (done.disabled) return;                    // anti double-clic (pattern hash-slicer-v2)
+    done.disabled = true;
+    // POTS produits -> finiAdd : grammes + qualite ponderee (0-100). La qualite
+    // de chaque pot porte deja tri + dilution/coupe + curing (levier qualite).
+    let potG = 0, potQs = 0;
+    for (const j of storage) { potG += j.g; potQs += j.g * j.q; }
+    const finiG = Math.round(potG);
+    const finiQ = potG > 0 ? Math.round(potQs / potG * 100) : 0;
+    // Miettes : toute la matiere ENTAMEE mais pas menee jusqu'au pot.
+    let halfG = 0;
+    for (const c of activeColas) {
+      if (c.buds.every(b => b.on)) continue;                     // non entamee -> branchesLeft
+      for (const b of c.buds) if (b.on) halfG += b.mass;         // tetes restees sur cola entamee
+    }
+    const binsG = STR_IDS.reduce((s, id) => s + bins[id].g, 0);  // trie mais pas mixe
+    const pertes = Math.round(halfG + (fresh ? freshTotal() : 0) + binsG + waste + (batch ? batch.g : 0));
+    parent.postMessage({
+      type: "bigo-txn", app: "recolte",
+      finiAdd: { g: finiG, q: finiQ },            // produit fini -> planque du parent
+      miettes: pertes,                            // dechets/pertes (bradables cote parent)
+      branchesConsumed: true,                     // le branchage passe en URL est solde…
+      branchesLeft: embedBranchesLeft(),          // …sauf les branches non entamees, rendues
+      journal: { icon: "🌿",
+        txt: "Récolte : " + finiG + " g en pots (qualité " + finiQ + "), " + pertes + " g de déchets.",
+        cause: "↩ ton effeuillage, ton tri et ta coupe",
+        cls: "good" },
+    }, "*");
+    parent.postMessage({ type: "bigo-close", app: "recolte" }, "*");
+  });
+  document.body.appendChild(done);
+
+  parent.postMessage({ type: "bigo-ready", app: "recolte" }, "*");
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

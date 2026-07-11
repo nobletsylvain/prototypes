@@ -3,6 +3,103 @@
 > Statut : **validé (2026-06-21) — décisions §8 tranchées**. Le lot 1 (cœur de
 > sim, JS pur, inspectable en console) peut démarrer ; on STOPpe AVANT l'UI
 > (checkpoint 2 de la DNA CrimWorld).
+
+## v2 — nouvelle approche (pivot 2026-06-21)
+
+On teste une approche **production/réassort** plutôt que la tension concurrence.
+Changements actés :
+- **Heat/concurrence DÉSACTIVÉ** comme métrique (plus de pression ni de « corner
+  contesté »). La tension §2 est mise en pause ; la **réput (demande)** reste le
+  levier — l'équilibre vit dans UNE courbe `demande ∝ réput`.
+- **Pas de bilan popup** en fin de jour → une **page Metrics** consultable
+  (données de chaque jour). L'horloge ne s'arrête plus à minuit.
+- **Horloge** : 1 min de jeu = 1 s réelle (1 h = 60 s ; journée ≈ 24 min), à affiner.
+- **Vitesse unique** (plus de toggle).
+- **Nouvelle boucle** : RÉASSORT (darkweb, semi-grossistes) → **LABO** (un proto
+  produit un BATCH) → **INVENTAIRE** → **VENTE en petites quantités**.
+- **Le labo** = les protos existants intégrés en **iframe « mode embed »**
+  (comme l'établi → coupe.html) : hash-slicer-v2 (sans la vente auto), green-front-v3
+  (sans la Réception : tri→coupe→pack), neige — chacun renvoie son batch via
+  `postMessage` → inventaire. Mécanisme commun aux 3 : batch → inventaire → doses.
+- **Priorité de build** : l'app **darkweb TOR/Silk Road** (réassort) en premier.
+
+### Contrat d'embed du Labo (P3) — DÉCIDÉ
+**Mode retenu : « pur mini-jeu ».** En embed, chaque proto PERD son économie propre
+(cash, boutique, XP, vente au détail) : il ne reste que le **craft**, nourri par la
+**matière fournie par le sandbox**, et il **émet un batch**. Une seule économie (le
+sandbox). Les protos gardent leur version standalone intacte hors embed.
+
+Protocole (sur le modèle `coupe.html#embed=prologue` de la slice) :
+1. iframe ouverte avec `…/<proto>/#embed=lab&produit=<p>&matiere=<g>` → mode labo.
+2. Le proto masque cash/boutique/XP/vente, garde le mini-jeu, consomme `matiere`
+   (pas de rachat dans le proto), et expose un bouton **« Envoyer au stock 📦 »**.
+3. `parent.postMessage({type:'crimworld-lab-batch', produit, grammesRaw, grammesFinis, qualite}, '*')`.
+4. Le sandbox écoute → `sim.produireBatch(...)` → ferme l'iframe. Le Snap gère la vente.
+
+Mapping par proto (préfixes localStorage disjoints : `hsv2_`/`gf3_`/`neige_`, pas de
+collision avec `sbx_`) :
+- **hash-slicer-v2** (hash) : garde *acheter savonnette (fournie) → couper (timing) →
+  bacs STOCK* ; retire dosage/emballage-vente, boutique, XP, déchets. Batch = g coupés,
+  qualité depuis le grade des barrettes (A/B/C → propre/arrache).
+- **green-front-v3** (weed) : démarre à *2·Tri → 3·Coupe → 4·Pack* (saute 1·Réception) ;
+  retire cash/boutique/vente. Batch = g packés + qualité.
+- **neige** (neige) : garde la *coupe/dilution* (lacto, format) ; retire cash/boutique/
+  vente. Batch = g produits + pureté.
+
+**Ordre de build P3** : hash-slicer-v2 (référence) → green-front-v3 → neige. Côté
+sandbox : remplacer l'écran Labo placeholder par un **lanceur d'iframe** (par produit)
++ **listener postMessage** → `produireBatch`.
+
+### Messagerie — tout passe par les DM (Snap + Darkweb)
+- **Snap (aval)** : tu postes ta **story** (vitrine) → les clients te **DM** au fil
+  de la journée pour acheter → tu sers depuis ton stock. La demande = des
+  ÉVÉNEMENTS DM étalés (pilotés par réput/expo), pas un plafond vidable d'un coup
+  → corrige le temps mort. Rupture = clients non servis (tracé dans Metrics).
+- **Darkweb (amont)** : mise en relation + **négociation** avec les semi-grossistes
+  par messages (envoyer / répondre / négocier). Accès **GATÉ par réput/standing** :
+  trop bas → tu te fais **basher** ; au niveau requis → **invitation à te connecter**
+  (déblocage du tier). ⚠️ standing = une réput DE RELATION (hors périmètre d'origine,
+  ajout assumé pour la sandbox).
+
+### Vente : négociation / contre-offre (Snap, FAIT en v1 ; suite à venir)
+- **Stock = sachets par format** (2/5/10g) + **prix par format** réglable (ta marge).
+- **Servir** : le client veut un format → 1 sachet à ton prix listé.
+- **Proposer** (FAIT) : contre-offre déterministe → substitut (2×5g pour un 10g),
+  upsell (5g à un client qui voulait 2g), prix ajustable. Le client accepte si
+  ~ce qu'il voulait (½ à `UPSELL_MAX`× ses g) à un €/g ≤ `PRIX_MAX_G` (plafond).
+- **À VENIR — substitution de QUALITÉ** : stock aussi par **qualité** (propre/arrache),
+  et clients à **discernement** variable. Refiler du « **pneu** » (arrache) à un
+  **schlag** peu regardant pendant que le « **popo** » (propre) reste pour les
+  connaisseurs → l'arrache devient une **gamme bas de gamme** (un débouché), plus
+  seulement une pénalité de réput. Acceptation déterministe (discernement vs qualité/prix).
+- **À VENIR — substitution de PRODUIT** (hash/weed/neige) quand le multi-produit
+  sera débloqué. + sensibilité au prix (trop cher → les clients filent, avec retard).
+
+### Chaîne d'approvisionnement (2 paliers)
+**Palier 1 — solo (en cours).** `semi-grossiste (Darkweb) → Labo (toi) → Snap
+(vente directe, petites quantités)`. La vente passe par TA vitrine ; tu écoules
+toi-même. C'est le périmètre actuel.
+
+**Palier 2 — patron / scaling (vision, plus tard).** `Grossiste (gros volumes)
+→ Vbeur → nourrice → fours + corners`.
+- **corner** : spot simple, un dealer y bosse pour toi (dispatch).
+- **four** : point de vente STRUCTURÉ et hiérarchisé (hall/appart/cave/rue),
+  staffé — **guetteurs / vendeurs / gérants** — gros volume. **Deux usages au
+  choix** (levier marge vs volume/expo) :
+  - *détail au four* : tu fournis du produit FINI, le four l'écoule au détail
+    pour toi → marge détail, délégué.
+  - *semi-gros au four* : tu envoies du produit en gros, ILS le transforment sur
+    place et l'écoulent → marge de gros, volume, moins d'expo. ⇒ tu deviens
+    toi-même semi-grossiste : l'inversion de la chaîne.
+- **nourrice** : planque/entrepôt où dort le gros stock.
+- **Vbeur** : l'app de dispatch/logistique (Ubeur, rôle inversé, §3c) — suit les
+  livraisons des grosses quantités : Grossiste → nourrice → fours/corners.
+- ⚠️ **Périmètre** : les guetteurs (anti-police) réintroduisent le **heat
+  autorités**, HORS périmètre de la DNA d'origine. À acter consciemment avant de
+  coder le palier 2 ; non codé pour l'instant.
+
+Cœur de sim v2 : `crimworld-sandbox/sim.mjs` (acheterMatiere / produireBatch /
+vendre / tick / metrics). Le reste du document décrit la vision d'origine (v1).
 > Suite logique de la slice scriptée « La Bascule » (FTUE sur rails) : la
 > sandbox laisse le joueur **rejouer la boucle SANS script**.
 
@@ -192,3 +289,33 @@ Chaque lot : sim JS pur testable en **console** → UI → **reviewer** → comm
 4. **Opacité réput** : **totalement opaque** (comme les vues de la vitrine).
 5. **Périmètre v1** : **inclut le dispatch** de drivers (l'inversion §3c, au
    lot 4).
+
+## TODO / Roadmap (vivante — maj 2026-06-22)
+
+### ✅ Fait & déployé
+- Boucle : Darkweb (réassort) → Labo (atelier **hash-slicer en embed**) → Inventaire →
+  **Vitrine persistante** → Snap DM (servir / négocier). Horloge temps réel, 1er DM ~2,4 s,
+  cadence irrégulière déterministe.
+- Stock = **sachets par FORMAT** (2/5/10 g) **et par QUALITÉ** (A népalais / B pollen / C savonnette).
+- **Qualité sourcée au Darkweb** : 3 tiers **gatés par la réput** (savonnette → pollen → népalais).
+- **Clients à discernement** (schlag / habitué / connaisseur) ; service auto = **moins bonne qualité acceptable**
+  (on préserve le bon pour l'élite, le « pneu » part aux schlags).
+- **Réput pilotée par la qualité servie** (A>B>C) ; **drop** (buzz +réput, 1×/j).
+- **Négo / contre-offre** : substitut, upsell, **conditionnement au choix** ; **downsell** (sous le standard, réput↓).
+- **Prix par QUALITÉ × FORMAT** + **repère marché** (positionnement).
+- **Feed** : preuve sociale (followers + commentaires reflétant came/service).
+
+### 🔜 À faire (priorisé)
+1. **Sensibilité au prix** (★ éco) — au-dessus du marché → les clients filent (avec **retard**) ;
+   sous le marché → undercut. ⚠️ aujourd'hui le prix listé n'a **pas de downside** sur le *Servir*
+   (le repère marché est encore cosmétique). C'est le chaînon manquant de la « gestion des prix ».
+2. **2ᵉ/3ᵉ ateliers en embed** : green-front-v3 (weed) · guitar-shito (népalais/briquet) · neige →
+   « chaque style = son mini-jeu » (le travail parallèle sur ces protos les prépare).
+3. **Multi-produit** : débloquer weed + neige (clients, demande, substitution de produit en négo).
+4. **Drop ciblé** : personnaliser le drop (produit / qualité / légende) → ciblage de la demande.
+5. **Feed social +** : commenter / répondre soi-même, clash / drama (rivaux).
+6. **Négo Darkweb / standing** : messagerie avec les semi-grossistes (envoyer / répondre / négocier),
+   basher → invitation (au lieu d'un simple seuil de réput).
+7. **Tuning** : seuils de déblocage qualité (55/75), prix marché, cadence, durée du jour, DECEPTION/REPUT_SERVI.
+8. **Palier 2 (scaling, vision)** : Grossiste → Vbeur → nourrice → fours + corners (dispatch dealers).
+   ⚠️ guetteurs/four = heat autorités (hors périmètre d'origine — décision à acter avant).

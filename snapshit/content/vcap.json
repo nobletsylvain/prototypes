@@ -1,0 +1,79 @@
+{
+  "_meta": {
+    "doc": "Snapshit — légendes de TA vitrine (vcap.big). Pure présentation (pool piochable). Clés alignées sur le moteur.",
+    "version": 1,
+    "updated": "2026-06-23",
+    "regles": [
+      "by_quality : clé = qualiteChoisie / C.QUAL (arrache|standard|propre).",
+      "by_drop : clé = kind de posterVitrine (vitrine|normal|premium).",
+      "≤ ~40 car., fier mais discret. On ne s'auto-dénigre pas : 'arrache' = bravade/volume, jamais {QUALITY_BAD}.",
+      "Gabarits {CANNABIS_WEED}/{QUALITY_GOOD} bienvenus. Réput OPAQUE : aucun chiffre (le 'vu par' opaque vit dans reactions.json)."
+    ]
+  },
+
+  "by_quality": {
+    "propre": [
+      "coupe nette, que du propre ✅",
+      "{QUALITY_GOOD} ce soir 🙏",
+      "service propre, rien à cacher",
+      "de la {CANNABIS_WEED} fraîche 💨",
+      "tranquille, du sérieux ✅",
+      "qualité au rendez-vous 🔥",
+      "propre comme j'aime 👌",
+      "rien que du soigné ce soir",
+      "fait main, fait propre 💨",
+      "le travail parle de lui-même"
+    ],
+    "standard": [
+      "fraîchement coupé 🔥💨",
+      "service normal, ça tourne",
+      "ouvert, comme d'hab 💨",
+      "ça suit son cours ce soir",
+      "présent, du classique",
+      "de la {CANNABIS_WEED}, simple et net",
+      "rien d'extra, du fiable",
+      "on assure le minimum 👌",
+      "dispo ce soir 🔥",
+      "la routine, propre"
+    ],
+    "arrache": [
+      "gros son ce soir 🔥",
+      "volume volume, on lâche 💨",
+      "ça part vite, faut suivre 🔥",
+      "soirée chargée, servez-vous",
+      "y'en a pour tout le monde 💨",
+      "on déstocke, profitez 🔥",
+      "ça pousse fort ce soir",
+      "rapide rapide, ça file",
+      "le block est servi 💨",
+      "no stress, y'en a 🔥"
+    ]
+  },
+
+  "by_drop": {
+    "vitrine": [
+      "juste pour montrer 👀",
+      "vitrine du soir",
+      "on se montre, tranquille",
+      "petit aperçu 💨",
+      "présent, sans promesse",
+      "coup d'œil ce soir 👀"
+    ],
+    "normal": [
+      "arrivage ce soir 👀",
+      "ça arrive, tenez-vous prêts",
+      "drop posté, à vous de voir 🔥",
+      "frais du jour 💨",
+      "annonce : ça bouge ce soir",
+      "nouvel arrivage 👀"
+    ],
+    "premium": [
+      "du lourd arrive, premium only 👑",
+      "premium ce soir, le meilleur 🥂",
+      "que du haut de gamme annoncé 👑",
+      "réservé aux connaisseurs 🥂",
+      "le top du top arrive 🔥",
+      "premium tenu, parole 👑"
+    ]
+  }
+}

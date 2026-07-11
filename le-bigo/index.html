@@ -1,0 +1,917 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>CrimWorld — Le Bigo</title>
+<style>
+  /* =========================================================================
+     LE BIGO — le telephone comme OS.
+     Le parent ne possede QUE l'etat partage (caisse, heat, stock) et la
+     navigation ; chaque app EST le vrai proto du depot, embarque en iframe
+     avec un mode #embed=bigo (contrat : BUS.md) :
+       🧅 OnionMarket  = ../darkweb-market/
+       🧰 Atelier      = ../hash-slicer-v2/   (lot brut -> produit fini)
+       👻 SnapShit     = ../snapshit/
+       🛵 BeuherEats   = ../beuhereats/
+     Le parent garde : accueil, Planque (stock), Karnet (causes), fil Youss
+     (preambule), heat (decroissance / descente), gestes natifs.
+     AUCUN aleatoire ne pilote une consequence cote parent.
+     ========================================================================= */
+  :root{
+    --bg:#0E0D0C; --surface:#1A1714; --surface2:#221E1A; --border:#352E28;
+    --text:#E4DED5; --muted:#8C837B; --faint:#615951;
+    --sodium:#E8A33D; --neon:#3E7CC2; --rust:#C8442F; --green:#7FA37F;
+    --snap:#FFFC00;
+    --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
+    --sans:-apple-system,"Segoe UI","Roboto","Helvetica Neue",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none;user-select:none}
+  html,body{height:100%}
+  body{background:radial-gradient(1200px 700px at 30% -10%,#1b1714 0,var(--bg) 60%);
+       font-family:var(--sans);color:var(--text);min-height:100vh;
+       display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;
+       padding:18px 12px}
+
+  /* ---- coque ---- */
+  .phone{position:relative;width:min(390px,96vw);height:min(800px,92vh);border-radius:38px;
+       background:var(--bg);border:1px solid var(--border);overflow:hidden;
+       box-shadow:0 30px 80px -20px #000,0 0 0 8px #0a0908;display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);
+       width:130px;height:26px;background:#0a0908;border-radius:0 0 16px 16px;z-index:60}
+  .statusbar{height:38px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
+       padding:0 20px 6px;font:600 12px var(--sans);color:var(--muted)}
+
+  /* ---- barre d'enjeu ---- */
+  .stake{flex:none;display:flex;gap:7px;padding:7px 11px;border-bottom:1px solid var(--border);background:#120f0c}
+  .stake .seg{flex:1;display:flex;flex-direction:column;gap:1px;padding:5px 9px;min-width:0;
+       border-radius:9px;background:#1a1511;border:1px solid #241d17}
+  .stake .seg .k{font:600 9px var(--sans);letter-spacing:.05em;color:var(--faint);
+       text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stake .seg b{font:800 15px var(--mono);line-height:1.1}
+  .stake .cash b{color:var(--green)}
+  .stake .heat b{color:var(--sodium)}
+  .stake .heat.hot b{color:var(--rust)}
+  .stake .stock b{color:var(--neon)}
+
+  /* ---- ecrans ---- */
+  .screen{position:absolute;inset:0;top:86px;bottom:22px;display:none;flex-direction:column;overflow:hidden}
+  .screen.show{display:flex}
+  .screen.app.show{animation:appIn .22s cubic-bezier(.2,.8,.3,1)}
+  @keyframes appIn{from{transform:translateX(46px);opacity:.4}to{transform:none;opacity:1}}
+  #scr-home.show{animation:homeIn .2s ease}
+  @keyframes homeIn{from{transform:scale(.96);opacity:.5}to{transform:none;opacity:1}}
+
+  /* iframes des vrais protos */
+  .appframe{flex:1;width:100%;border:0;background:#0a0908;display:block}
+  /* bande invisible au bord gauche : capte le swipe-back au-dessus des iframes */
+  .edgestrip{position:absolute;left:0;top:86px;bottom:22px;width:18px;z-index:66;touch-action:none}
+
+  /* ---- zone de geste "home" : pleine largeur en bas, au-dessus des iframes ---- */
+  .gesturezone{position:absolute;left:0;right:0;bottom:0;height:26px;z-index:70;cursor:pointer;
+       display:flex;align-items:flex-end;justify-content:center;padding-bottom:7px;touch-action:none}
+  .gesturezone .hpill{width:110px;height:5px;border-radius:3px;background:rgba(255,255,255,.35);
+       transition:background .2s}
+  .gesturezone:active .hpill{background:rgba(255,255,255,.7)}
+
+  /* ---- accueil : wallpaper + horloge ---- */
+  #scr-home{background:
+       radial-gradient(420px 300px at 78% 4%,rgba(232,163,61,.14) 0,transparent 70%),
+       radial-gradient(500px 420px at 12% 88%,rgba(62,124,194,.10) 0,transparent 70%),
+       radial-gradient(700px 500px at 50% 40%,#191410 0,#0d0b09 75%)}
+  .homeclock{padding:26px 22px 4px;text-align:center}
+  .homeclock .hc{font:200 54px/1 var(--sans);letter-spacing:.02em;color:var(--text);
+       text-shadow:0 2px 18px rgba(0,0,0,.6)}
+  .homeclock .hd{font:600 11px var(--mono);color:var(--faint);margin-top:6px;letter-spacing:.12em;text-transform:uppercase}
+  .apps{display:grid;grid-template-columns:repeat(4,1fr);gap:18px 8px;padding:22px 18px}
+  .appic{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;position:relative}
+  .appic .bx{width:58px;height:58px;border-radius:15px;display:flex;align-items:center;justify-content:center;
+       font-size:28px;background:linear-gradient(160deg,var(--surface2),#15110e);
+       border:1px solid rgba(255,255,255,.09);
+       box-shadow:0 6px 14px -6px #000,inset 0 1px 0 rgba(255,255,255,.07);
+       transition:transform .08s}
+  .appic:active .bx{transform:scale(.9)}
+  .appic .lb{font:600 10px var(--sans);color:var(--muted);max-width:76px;text-align:center;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .appic.locked{opacity:.32;filter:grayscale(.7)}
+  .appic .badge{position:absolute;top:-5px;right:6px;min-width:18px;height:18px;border-radius:9px;
+       background:var(--rust);color:#fff;font:800 11px var(--mono);display:flex;align-items:center;
+       justify-content:center;padding:0 5px;border:2px solid var(--bg)}
+  .homefoot{margin-top:auto;padding:0 22px 8px;text-align:center;font:500 11px var(--mono);color:var(--faint);line-height:1.6}
+  .homefoot b{color:var(--sodium)}
+
+  /* ---- header des ecrans natifs ---- */
+  .ahdr{flex:none;display:flex;align-items:center;gap:11px;padding:10px 14px;border-bottom:1px solid var(--border)}
+  .ahdr .back{font-size:22px;color:var(--muted);padding:2px 8px 2px 0;cursor:pointer}
+  .ahdr .aic{font-size:20px}
+  .ahdr .anm{font:800 15px var(--sans)}
+  .ahdr .asub{font:500 10px var(--mono);color:var(--faint)}
+  .abody{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+
+  /* ---- cartes ---- */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px}
+  .card .ct{font:700 13px var(--sans);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .card .cs{font:500 11.5px var(--sans);color:var(--muted);margin-top:4px;line-height:1.45}
+  .card .cm{font:600 11px var(--mono);color:var(--faint);margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 12px}
+  .card.good{border-color:rgba(127,163,127,.5)}
+  .card.bad{border-color:rgba(200,68,47,.5)}
+  .card.warn{border-color:rgba(232,163,61,.5)}
+  .pill{font:700 9px var(--mono);padding:2px 7px;border-radius:5px;background:#141110;border:1px solid var(--border);color:var(--muted)}
+  .btn{border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:12px;
+       padding:11px 14px;font:700 13px var(--sans);cursor:pointer;transition:transform .05s}
+  .btn:active{transform:scale(.98)}
+  .btn.go{border-color:var(--green);color:#cfe3cf}
+  .btn.warn{border-color:var(--sodium);color:#f0d3a3}
+  .btn.no{border-color:var(--faint);color:var(--muted)}
+  .btn:disabled{opacity:.35;pointer-events:none}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap}
+  .btnrow .btn{flex:1;min-width:100px}
+  .empty{font:500 12px var(--sans);color:var(--faint);text-align:center;padding:26px 12px;line-height:1.6}
+  .capbar{height:5px;border-radius:3px;background:#141110;margin:7px 0 4px;overflow:hidden}
+  .capbar b{display:block;height:100%;background:var(--green)}
+  .capbar b.hot{background:var(--rust)}
+
+  /* ---- fil Youss ---- */
+  .thread{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:9px}
+  .row{display:flex;gap:8px;max-width:86%;animation:pop .2s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .row.in{align-self:flex-start}
+  .row.out{align-self:flex-end;justify-content:flex-end}
+  .bub{padding:9px 13px;border-radius:18px;font:400 13.5px/1.4 var(--sans);word-wrap:break-word}
+  .in .bub{background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:5px}
+  .out .bub{background:var(--neon);color:#fff;border-bottom-right-radius:5px}
+  .choices{align-self:stretch;display:flex;flex-direction:column;gap:8px;padding:6px 2px 2px}
+  .choice{width:100%;text-align:left;background:var(--surface2);border:1px solid var(--border);
+       color:var(--text);border-radius:14px;padding:12px 14px;font:600 13px var(--sans);cursor:pointer;
+       display:flex;align-items:center;gap:9px}
+  .choice.go{border-color:var(--green);color:#cfe3cf}
+  .choice.no{border-color:var(--faint);color:var(--muted)}
+  .choice:disabled{opacity:.35;pointer-events:none}
+
+  /* ---- Karnet ---- */
+  .kline{border-left:3px solid var(--border);padding:2px 0 2px 10px}
+  .kline .kt{font:600 12.5px var(--sans);line-height:1.4}
+  .kline .kc{font:600 10.5px var(--mono);color:var(--neon);margin-top:3px}
+  .kline .km{font:500 10px var(--mono);color:var(--faint);margin-top:2px}
+  .kline.bad{border-color:var(--rust)}
+  .kline.good{border-color:var(--green)}
+  .kline.warn{border-color:var(--sodium)}
+
+  /* ---- overlay atelier (iframe du vrai proto) ---- */
+  .worklay{position:absolute;inset:0;background:#0a0908;display:none;flex-direction:column;z-index:64}
+  .worklay.show{display:flex}
+  .worklay .whdr{flex:none;display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)}
+  .worklay .whdr .back{font-size:20px;color:var(--muted);cursor:pointer;padding:2px 8px 2px 0}
+  .worklay .whdr .wnm{font:800 14px var(--sans)}
+  #work-frame{flex:1;width:100%;border:0;background:#0a0908;display:block}
+
+  /* ---- toast ---- */
+  .toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);
+       background:#0a0908;border:1px solid var(--sodium);color:var(--sodium);font:600 12px var(--sans);
+       padding:9px 14px;border-radius:12px;max-width:84%;text-align:center;opacity:0;pointer-events:none;
+       transition:opacity .25s,transform .25s;z-index:80;line-height:1.45}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+</style>
+</head>
+<body>
+
+<div class="phone" id="phone">
+  <div class="notch"></div>
+  <div class="statusbar"><span id="sb-clock">J1 · 18:00</span><span>▲ ▮▮ 42%</span></div>
+
+  <div class="stake">
+    <span class="seg cash"><span class="k">💶 Caisse</span><b id="st-cash">0€</b></span>
+    <span class="seg heat" id="st-heat-seg"><span class="k">🌡️ Heat</span><b id="st-heat">0</b></span>
+    <span class="seg stock"><span class="k">📦 Fini</span><b id="st-stock">0 g</b></span>
+  </div>
+
+  <!-- ===================== ACCUEIL ===================== -->
+  <div class="screen show" id="scr-home">
+    <div class="homeclock"><div class="hc" id="home-clock">18:00</div><div class="hd" id="home-date">jour 1</div></div>
+    <div class="apps" id="apps"></div>
+    <div class="homefoot" id="homefoot"></div>
+  </div>
+
+  <!-- ===================== APPS = LES VRAIS PROTOS (iframes) ===================== -->
+  <div class="screen app" id="scr-onion"><iframe class="appframe" id="fr-onion" title="OnionMarket (darkweb-market)"></iframe></div>
+  <div class="screen app" id="scr-plantation"><iframe class="appframe" id="fr-plantation" title="Plantation (plantation)"></iframe></div>
+  <div class="screen app" id="scr-snap"><iframe class="appframe" id="fr-snap" title="SnapShit (snapshit)"></iframe></div>
+  <div class="screen app" id="scr-beuher"><iframe class="appframe" id="fr-beuher" title="BeuherEats (beuhereats)"></iframe></div>
+
+  <!-- ===================== ATELIER (lanceur de postes) ===================== -->
+  <div class="screen app" id="scr-atelier">
+    <div class="ahdr"><span class="back" data-back>‹</span><span class="aic">🧰</span>
+      <div><div class="anm">Atelier</div><div class="asub">lots bruts → produit fini (Hash Slicer v2)</div></div></div>
+    <div class="abody" id="atelier-body"></div>
+  </div>
+
+  <!-- ===================== PLANQUE ===================== -->
+  <div class="screen app" id="scr-planque">
+    <div class="ahdr"><span class="back" data-back>‹</span><span class="aic">📦</span>
+      <div><div class="anm">Planque</div><div class="asub">l'état du stock partagé</div></div></div>
+    <div class="abody" id="planque-body"></div>
+  </div>
+
+  <!-- ===================== YOUSS ===================== -->
+  <div class="screen app" id="scr-youss">
+    <div class="ahdr"><span class="back" data-back>‹</span><span class="aic">🐺</span>
+      <div><div class="anm">Youss</div><div class="asub">fournisseur · t'a front</div></div></div>
+    <div class="thread" id="youss-thread"></div>
+  </div>
+
+  <!-- ===================== KARNET ===================== -->
+  <div class="screen app" id="scr-karnet">
+    <div class="ahdr"><span class="back" data-back>‹</span><span class="aic">📓</span>
+      <div><div class="anm">Karnet</div><div class="asub">chaque conséquence a une cause</div></div></div>
+    <div class="abody" id="karnet-body"></div>
+  </div>
+
+  <!-- overlay : poste de travail (vrai proto atelier en iframe) -->
+  <div class="worklay" id="worklay">
+    <div class="whdr"><span class="back" id="work-back">‹</span><span class="wnm" id="work-nm">🧰 Atelier — Hash Slicer v2</span></div>
+    <iframe id="work-frame" title="poste d'atelier"></iframe>
+  </div>
+
+  <div class="edgestrip" id="edgestrip"></div>
+  <div class="toast" id="toast"></div>
+  <div class="gesturezone" id="gesturezone" title="accueil"><span class="hpill"></span></div>
+</div>
+
+
+<script type="module">
+"use strict";
+/* =========================================================================
+   CONSTANTES (placeholders — reglage humain)
+   ========================================================================= */
+const SAVE_VERSION = 3;
+const LS = "bigo_";
+const FAST = /[?&]fast\b/.test(location.search);
+const SPEED = (() => { const m = location.search.match(/[?&]speed=(\d+)/); return m ? +m[1] : 0; })();
+
+const K = {
+  MIN_PER_SEC: SPEED || (FAST ? 30 : 1),
+  START_CASH: 20,
+  FRONT_G: 10, FRONT_Q: 60, FRONT_DEBT: 50,   // le front de Youss (≈ prix de gros)
+  PLANQUE_CAP_G: 250,           // grammes de produit fini que la planque encaisse
+  HEAT_STOCK_PCT: 0.75,         // au-dela, l'immeuble jase
+  HEAT_STOCK_EVERY: 10,         // +1 heat / X min tant que ca deborde
+  HEAT_DECAY_EVERY: 3,          // -1 heat / X min
+  HEAT_CAP: 120,
+  DESCENTE_HEAT: 100,
+  DESCENTE_FINI_LOSS: 0.5,      // fraction du fini perdue a la descente
+  DESCENTE_HEAT_AFTER: 30,
+  SNAP_UNLOCK_G: 8,             // preambule : du fini a montrer avant la vitrine
+  SIMPLE_LOSS: 0.05,            // conditionnement "mode simple" (sans 3D) : 5% de pertes
+  SCHLAG_PRICE: 3,              // €/g — les miettes se bradent (R1 : jamais un malus sec)
+};
+
+/* Les vrais protos embarques (contrat : BUS.md). tint = degrade de l'icone. */
+const APPS = [
+  { id: "onion",      ic: "🧅", lb: "OnionMarket", src: "../darkweb-market/index.html#embed=bigo", tint: ["#233318", "#101a0b"] },
+  { id: "plantation", ic: "🌱", lb: "Plantation",  src: "../plantation/index.html#embed=bigo",     tint: ["#1c3320", "#0c1a0e"] },
+  { id: "atelier",    ic: "🧰", lb: "Atelier",     tint: ["#33270f", "#1a1208"] },   // lanceur natif -> hash-slicer-v2 / recolte
+  { id: "planque",    ic: "📦", lb: "Planque",     tint: ["#2b2313", "#16110a"] },
+  { id: "snap",       ic: "👻", lb: "SnapShit",    src: "../snapshit/index.html#embed=bigo",       tint: ["#333010", "#1a1808"] },
+  { id: "beuher",     ic: "🛵", lb: "BeuherEats",  src: "../beuhereats/index.html#embed=bigo",     tint: ["#0f2b1f", "#0a1a14"] },
+  { id: "youss",      ic: "🐺", lb: "Youss",       tint: ["#2f1c14", "#180d08"] },
+  { id: "karnet",     ic: "📓", lb: "Karnet",      tint: ["#22222c", "#111117"] },
+];
+const ATELIER_SRC = "../hash-slicer-v2/index.html";
+const RECOLTE_SRC = "../recolte/index.html";
+const VARIETIES = ["Skunk", "White Widow", "Lemon", "Purple"];   // enum partagee (recolte)
+
+/* =========================================================================
+   ETAT PARTAGE + SAUVEGARDE
+   ========================================================================= */
+const freshState = () => ({
+  ver: SAVE_VERSION,
+  phase: "pre", step: 0,
+  cash: K.START_CASH,
+  debt: K.FRONT_DEBT,
+  clock: 1080, day: 1,
+  heat: 0, heatLog: {}, descentes: 0,
+  brut: [],                    // [{id,g,q,family,label}]
+  fini: { g: 0, qsum: 0 },     // produit fini (grammes, qualite ponderee)
+  seeds: {},                   // {Variete: n} — graines (OnionMarket -> Plantation)
+  branches: [],                // [{id,variety,g,q}] — branchage SECHE (Plantation -> Recolte)
+  miettes: 0,
+  lotSeq: 1,
+  journal: [],
+  youss: { msgs: [], pending: null, unread: false },
+  unlocked: { youss: true, karnet: true, atelier: false, planque: false, snap: false, onion: false, beuher: false, plantation: false },
+});
+
+let st = freshState();
+try {
+  if (localStorage.getItem(LS + "ver") === String(SAVE_VERSION)) {
+    const raw = localStorage.getItem(LS + "state");
+    if (raw) st = Object.assign(freshState(), JSON.parse(raw));
+  }
+} catch (e) { /* stockage indisponible */ }
+
+let saveTimer = 0;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(LS + "ver", String(SAVE_VERSION));
+      localStorage.setItem(LS + "state", JSON.stringify(st));
+    } catch (e) { /* ignore */ }
+  }, 250);
+}
+
+/* =========================================================================
+   HELPERS
+   ========================================================================= */
+const $ = (id) => document.getElementById(id);
+const eur = (n) => (Math.round(n * 10) / 10) + "€";
+const pad = (n) => String(n).padStart(2, "0");
+const clockTxt = () => `J${st.day} · ${pad(Math.floor((st.clock % 1440) / 60))}:${pad(st.clock % 1440 % 60)}`;
+const finiQ = () => st.fini.g > 0 ? st.fini.qsum / st.fini.g : 0;
+
+function journal(icon, txt, cause, cls) {
+  st.journal.unshift({ at: clockTxt(), icon, txt, cause, cls: cls || "" });
+  if (st.journal.length > 80) st.journal.pop();
+  save();
+}
+function addHeat(pts, source) {
+  if (pts <= 0) return;
+  st.heat = Math.min(K.HEAT_CAP, st.heat + pts);
+  st.heatLog[source] = (st.heatLog[source] || 0) + pts;
+}
+
+let toastTimer = 0;
+function toast(txt, ms) {
+  const t = $("toast"); t.textContent = txt; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), ms || 3200);
+}
+
+/* =========================================================================
+   BUS — l'economie partagee (contrat : BUS.md)
+   ========================================================================= */
+const FRAMES = {};   // app -> iframe pret (a recu bigo-ready)
+let workLot = null;      // lot brut en cours de travail (overlay hash-slicer-v2)
+let workBranches = [];   // ids des lots de branchage envoyes a la Recolte (overlay)
+
+function stateMsg() {
+  return { type: "bigo-state", cash: Math.round(st.cash * 10) / 10, heat: Math.round(st.heat),
+           fini: { g: Math.round(st.fini.g * 10) / 10, q: Math.round(finiQ()) },
+           brutCount: st.brut.length, seeds: { ...st.seeds }, branchesCount: st.branches.length,
+           day: st.day, clock: st.clock };
+}
+function broadcast() {
+  const msg = stateMsg();
+  for (const fr of Object.values(FRAMES)) {
+    try { fr.contentWindow.postMessage(msg, "*"); } catch (e) { /* frame dechargee */ }
+  }
+}
+
+window.addEventListener("message", (e) => {
+  if (e.origin !== window.location.origin && e.origin !== "null") return;
+  const d = e.data;
+  if (!d || typeof d.type !== "string") return;
+  if (d.type === "bigo-ready") {
+    const fr = [...document.querySelectorAll("iframe")].find(f => f.contentWindow === e.source);
+    if (fr) { FRAMES[d.app || fr.id] = fr; try { e.source.postMessage(stateMsg(), "*"); } catch (er) {} }
+    return;
+  }
+  if (d.type === "bigo-txn") { applyTxn(d); return; }
+  if (d.type === "bigo-close") {
+    if ($("worklay").classList.contains("show")) closeWork();
+    return;
+  }
+});
+
+/* Applique une transaction d'un proto embarque. Chaque consequence passe ici :
+   c'est le point unique ou l'etat partage bouge, et ou le Karnet trace. */
+const FAMILIES = ["resine", "extraction", "weed", "coke", "speed", "mdma", "cachets", "fournitures"];
+const clampN = (v, lo, hi) => (typeof v === "number" && isFinite(v)) ? Math.max(lo, Math.min(hi, v)) : 0;
+const cleanTxt = (v, max) => String(v ?? "").replace(/[<>&"']/g, "").slice(0, max);  // les rendus passent par innerHTML
+
+function applyTxn(d) {
+  const app = cleanTxt(d.app || "?", 16);
+  if (typeof d.cash === "number" && isFinite(d.cash)) st.cash = Math.max(0, st.cash + clampN(d.cash, -100000, 100000));
+  if (typeof d.heat === "number" && isFinite(d.heat)) {
+    const h = clampN(d.heat, -100, 100);
+    if (h > 0) addHeat(h, `app ${app}`);
+    else st.heat = Math.max(0, st.heat + h);
+  }
+  if (d.brutAdd && d.brutAdd.g > 0) {
+    st.brut.push({ id: st.lotSeq++, g: clampN(+d.brutAdd.g, 0.1, 10000), q: clampN(+d.brutAdd.q, 1, 100) || 50,
+                   family: FAMILIES.includes(d.brutAdd.family) ? d.brutAdd.family : "resine",
+                   label: cleanTxt(d.brutAdd.label || app, 40) });
+  }
+  if (d.finiAdd && d.finiAdd.g > 0) {
+    const g = clampN(+d.finiAdd.g, 0, 10000);
+    st.fini.g += g;
+    st.fini.qsum += g * (clampN(+d.finiAdd.q, 1, 100) || finiQ() || 50);
+  }
+  if (typeof d.finiTake === "number" && d.finiTake > 0) {
+    const take = Math.min(st.fini.g, d.finiTake);
+    const q = finiQ();
+    st.fini.g -= take; st.fini.qsum -= take * q;
+    if (st.fini.g < 0.05) { st.fini.g = 0; st.fini.qsum = 0; }
+  }
+  if (typeof d.miettes === "number" && d.miettes > 0) st.miettes += clampN(d.miettes, 0, 10000);
+  if (typeof d.brutLeft === "number" && d.brutLeft > 0.5 && workLot) {
+    st.brut.push({ id: st.lotSeq++, g: clampN(d.brutLeft, 0.5, 10000), q: workLot.q, family: workLot.family, label: "restant d'atelier" });
+  }
+  if (d.lotConsumed && workLot) {
+    st.brut = st.brut.filter(l => l.id !== workLot.id);
+    workLot = null;
+  }
+  // --- filiere weed : graines et branchage (BUS.md) ---
+  if (d.seedsAdd && VARIETIES.includes(d.seedsAdd.variety)) {
+    const n = Math.round(clampN(+d.seedsAdd.n, 0, 1000));
+    if (n > 0) st.seeds[d.seedsAdd.variety] = (st.seeds[d.seedsAdd.variety] || 0) + n;
+  }
+  if (d.seedsTake && VARIETIES.includes(d.seedsTake.variety)) {
+    const n = Math.round(clampN(+d.seedsTake.n, 0, 1000));
+    st.seeds[d.seedsTake.variety] = Math.max(0, (st.seeds[d.seedsTake.variety] || 0) - n);
+  }
+  if (d.branchesAdd && VARIETIES.includes(d.branchesAdd.variety) && d.branchesAdd.g > 0) {
+    st.branches.push({ id: st.lotSeq++, variety: d.branchesAdd.variety,
+                       g: clampN(+d.branchesAdd.g, 0.1, 10000), q: clampN(+d.branchesAdd.q, 1, 100) || 60 });
+  }
+  if (d.branchesConsumed && workBranches.length) {
+    const ids = new Set(workBranches);
+    st.branches = st.branches.filter(b => !ids.has(b.id));
+    workBranches = [];
+  }
+  if (Array.isArray(d.branchesLeft)) {   // recolte : branches non entamees, remises en stock
+    for (const b of d.branchesLeft.slice(0, 20)) {
+      if (b && VARIETIES.includes(b.variety) && b.g > 0.5)
+        st.branches.push({ id: st.lotSeq++, variety: b.variety, g: clampN(+b.g, 0.5, 10000), q: clampN(+b.q, 1, 100) || 60 });
+    }
+  }
+  if (d.journal && d.journal.txt) {
+    journal(String(d.journal.icon || "•").slice(0, 4), String(d.journal.txt).slice(0, 200),
+            String(d.journal.cause || "").slice(0, 200), ["good", "bad", "warn", ""].includes(d.journal.cls) ? d.journal.cls : "");
+  }
+  milestones();
+  renderStake(); if (cur === "home") renderHome(); if (cur === "atelier") renderAtelier(); if (cur === "planque") renderPlanque(); if (cur === "karnet") renderKarnet();
+  broadcast();
+  save();
+}
+
+/* =========================================================================
+   NAVIGATION + GESTES
+   ========================================================================= */
+const SCREENS = ["home", "onion", "plantation", "atelier", "planque", "snap", "beuher", "youss", "karnet"];
+let cur = "home";
+function show(id) {
+  cur = id;
+  for (const s of SCREENS) $("scr-" + s).classList.toggle("show", s === id);
+  // charge l'iframe du vrai proto a la premiere ouverture
+  const app = APPS.find(a => a.id === id);
+  if (app && app.src) {
+    const fr = $("fr-" + id);
+    if (fr && !fr.getAttribute("src")) fr.src = app.src;
+  }
+  if (id === "youss") st.youss.unread = false;
+  renderCur();
+}
+function renderCur() {
+  renderStake();
+  if (cur === "home") renderHome();
+  if (cur === "atelier") renderAtelier();
+  if (cur === "planque") renderPlanque();
+  if (cur === "youss") renderYouss();
+  if (cur === "karnet") renderKarnet();
+}
+function goBack() {
+  if ($("worklay").classList.contains("show")) { closeWork(); return; }
+  if (cur !== "home") show("home");
+}
+document.querySelectorAll("[data-back]").forEach(b => b.addEventListener("click", goBack));
+
+/* Swipe-back INTERACTIF depuis le bord gauche : l'ecran suit le doigt (UX
+   native iOS/Android). La bande edgestrip capte le geste au-dessus des iframes
+   (qui avalent sinon les pointer events). Relacher au-dela du tiers (ou d'un
+   flick rapide) = retour ; sinon l'ecran revient en place. */
+let swipe = null;
+function swipeTarget() {
+  if ($("worklay").classList.contains("show")) return $("worklay");
+  return cur !== "home" ? $("scr-" + cur) : null;
+}
+function armSwipe(e, captureEl) {
+  const t = swipeTarget(); if (!t) return;
+  // capture du pointeur : meme si le doigt passe au-dessus d'une iframe,
+  // les move/up continuent d'arriver au parent (pas d'ecran fige a mi-course)
+  try { (captureEl || e.currentTarget || e.target).setPointerCapture(e.pointerId); } catch (er) { /* indisponible */ }
+  swipe = { x: e.clientX, y: e.clientY, t, w: $("phone").getBoundingClientRect().width, at: performance.now(), dx: 0 };
+  t.classList.add("swiping");
+}
+function moveSwipe(e) {
+  if (!swipe) return;
+  swipe.dx = Math.max(0, e.clientX - swipe.x);
+  if (Math.abs(e.clientY - swipe.y) > 80 && swipe.dx < 30) { cancelSwipe(); return; }
+  swipe.t.style.transform = `translateX(${swipe.dx}px)`;
+  swipe.t.style.opacity = String(1 - swipe.dx / swipe.w * 0.4);
+}
+function cancelSwipe() {
+  if (!swipe) return;
+  const t = swipe.t;
+  t.classList.remove("swiping");
+  t.style.transition = "transform .18s ease, opacity .18s ease";
+  t.style.transform = ""; t.style.opacity = "";
+  setTimeout(() => { t.style.transition = ""; }, 200);
+  swipe = null;
+}
+function endSwipe() {
+  if (!swipe) return;
+  const { dx, w, t, at } = swipe;
+  const vel = dx / Math.max(1, performance.now() - at);   // px/ms
+  if (dx > w * 0.34 || (dx > 50 && vel > 0.55)) {
+    // complete : glisse dehors puis retour
+    t.classList.remove("swiping");
+    t.style.transition = "transform .16s ease-out, opacity .16s ease-out";
+    t.style.transform = `translateX(${w}px)`; t.style.opacity = "0";
+    const done = t;
+    swipe = null;
+    setTimeout(() => {
+      done.style.transition = ""; done.style.transform = ""; done.style.opacity = "";
+      goBack();
+    }, 160);
+  } else cancelSwipe();
+}
+$("edgestrip").addEventListener("pointerdown", (e) => armSwipe(e, $("edgestrip")));
+$("phone").addEventListener("pointerdown", (e) => {
+  const r = $("phone").getBoundingClientRect();
+  if (e.clientX - r.left <= 30 && !swipe) armSwipe(e, $("phone"));
+});
+window.addEventListener("pointermove", moveSwipe);
+window.addEventListener("pointerup", endSwipe);
+window.addEventListener("pointercancel", cancelSwipe);
+
+/* Zone de geste en bas (pleine largeur, au-dessus des iframes) : tap ou
+   swipe vers le haut = accueil — le geste natif « home ». */
+let homeStart = null;
+$("gesturezone").addEventListener("pointerdown", (e) => { homeStart = e.clientY; });
+$("gesturezone").addEventListener("pointerup", () => {
+  homeStart = null;
+  closeWork();
+  if (cur !== "home") show("home"); else renderCur();
+});
+
+function renderStake() {
+  $("sb-clock").textContent = clockTxt();
+  $("st-cash").textContent = eur(st.cash);
+  $("st-heat").textContent = Math.round(st.heat);
+  $("st-heat-seg").classList.toggle("hot", st.heat >= 70);
+  $("st-stock").textContent = Math.round(st.fini.g) + " g";
+}
+
+/* =========================================================================
+   ACCUEIL
+   ========================================================================= */
+function badgeOf(id) {
+  if (id === "youss") return st.youss.unread ? 1 : 0;
+  if (id === "atelier") return st.brut.length + (st.branches.length ? 1 : 0);
+  if (id === "plantation") return Object.values(st.seeds).reduce((s, n) => s + n, 0);
+  return 0;
+}
+function preHint() {
+  return ["réponds à Youss 🐺", "atelier : conditionne le lot 🧰", "vends sur SnapShit 👻", "rembourse Youss 🐺"][Math.min(st.step, 3)] || "";
+}
+function renderHome() {
+  $("home-clock").textContent = `${pad(Math.floor((st.clock % 1440) / 60))}:${pad(st.clock % 1440 % 60)}`;
+  $("home-date").textContent = `jour ${st.day} · le block`;
+  const grid = $("apps"); grid.innerHTML = "";
+  for (const a of APPS) {
+    const locked = !st.unlocked[a.id];
+    const d = document.createElement("div");
+    d.className = "appic" + (locked ? " locked" : "");
+    const n = locked ? 0 : badgeOf(a.id);
+    const bg = a.tint ? `style="background:linear-gradient(160deg,${a.tint[0]},${a.tint[1]})"` : "";
+    d.innerHTML = `<div class="bx" ${bg}>${locked ? "🔒" : a.ic}</div><div class="lb">${a.lb}</div>` +
+      (n ? `<span class="badge">${n}</span>` : "");
+    if (!locked) d.addEventListener("click", () => show(a.id));
+    else d.addEventListener("click", () => toast("Pas encore. Suis le fil 🐺"));
+    grid.appendChild(d);
+  }
+  $("homefoot").innerHTML = st.phase === "pre"
+    ? `préambule — <b>${preHint()}</b>`
+    : `‹ swipe le bord gauche = retour · barre du bas = accueil ›`;
+}
+
+/* =========================================================================
+   HORLOGE + HEAT (le parent garde la meteo de rue)
+   ========================================================================= */
+let heatAcc = 0, stockAcc = 0;
+function tick() {
+  st.clock += K.MIN_PER_SEC;
+  st.day = Math.floor(st.clock / 1440) + 1;
+  heatAcc += K.MIN_PER_SEC;
+  while (heatAcc >= K.HEAT_DECAY_EVERY) { heatAcc -= K.HEAT_DECAY_EVERY; if (st.heat > 0) st.heat -= 1; }
+  stockAcc += K.MIN_PER_SEC;
+  while (stockAcc >= K.HEAT_STOCK_EVERY) {
+    stockAcc -= K.HEAT_STOCK_EVERY;
+    if (st.fini.g > K.PLANQUE_CAP_G * K.HEAT_STOCK_PCT) addHeat(1, "planque pleine (l'immeuble jase)");
+  }
+  if (st.heat >= K.DESCENTE_HEAT) descente();
+  renderStake();
+  if (cur === "home") renderHome();
+  save();
+}
+function descente() {
+  const topSrc = Object.entries(st.heatLog).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([s, p]) => `${s} (+${Math.round(p)})`).join(" · ") || "accumulation";
+  const lost = Math.round(st.fini.g * K.DESCENTE_FINI_LOSS * 10) / 10;
+  const q = finiQ();
+  st.fini.g -= lost; st.fini.qsum -= lost * q;
+  st.heat = K.DESCENTE_HEAT_AFTER;
+  st.heatLog = {};
+  st.descentes++;
+  journal("🚔", `DESCENTE : ${lost} g de produit fini saisis (la moitié de la planque).`,
+    `↩ heat à ${K.DESCENTE_HEAT} — d'où il venait : ${topSrc}`, "bad");
+  toast("🚔 DESCENTE. Ouvre le Karnet 📓 : la cause est tracée.", 6000);
+  broadcast();
+}
+
+/* =========================================================================
+   ATELIER — lanceur du VRAI proto (hash-slicer-v2) par lot brut
+   ========================================================================= */
+function renderAtelier() {
+  const b = $("atelier-body"); b.innerHTML = "";
+  if (!st.brut.length && !st.branches.length) {
+    b.innerHTML = `<div class="empty">Rien à travailler.<br>${st.unlocked.onion ? "Commande sur 🧅 OnionMarket, ou cultive sur 🌱 Plantation." : "Attends ton premier lot…"}</div>`;
+  }
+  // --- branchage seche (Plantation) -> le VRAI proto Recolte ---
+  if (st.branches.length) {
+    const byVar = {};
+    for (const br of st.branches) {
+      const v = byVar[br.variety] || (byVar[br.variety] = { g: 0, qsum: 0 });
+      v.g += br.g; v.qsum += br.g * br.q;
+    }
+    const lines = Object.entries(byVar).map(([v, x]) => `${v} ${x.g.toFixed(1)} g (q${Math.round(x.qsum / x.g)})`).join(" · ");
+    const totG = st.branches.reduce((s, x) => s + x.g, 0);
+    const c = document.createElement("div"); c.className = "card good";
+    c.innerHTML = `<div class="ct">🌿 Branchage séché — ${totG.toFixed(1)} g</div>
+      <div class="cs">${lines}</div>
+      <div class="cs">Effeuillage, tri par variété, coupe et mise en pots : le VRAI proto Récolte.</div>
+      <div class="btnrow" style="margin-top:9px"><button class="btn go" id="recolte-open">🌿 Passer à la Récolte</button></div>`;
+    b.appendChild(c);
+    $("recolte-open").addEventListener("click", openRecolte);
+  }
+  for (const l of st.brut) {
+    const c = document.createElement("div"); c.className = "card";
+    c.innerHTML = `<div class="ct">🧱 Lot #${l.id} — ${l.g.toFixed(1)} g <span class="pill">${l.family}</span></div>
+      <div class="cs">qualité ${Math.round(l.q)} · ${l.label}</div>
+      <div class="btnrow" style="margin-top:9px">
+        <button class="btn go" data-work="${l.id}">🔪 Travailler (Hash Slicer v2)</button>
+        <button class="btn warn" data-simple="${l.id}">⚙️ Mode simple (${Math.round(K.SIMPLE_LOSS * 100)}% pertes)</button>
+      </div>`;
+    b.appendChild(c);
+  }
+  if (st.miettes > 0) {
+    const val = Math.round(st.miettes * K.SCHLAG_PRICE * 10) / 10;
+    const m = document.createElement("div"); m.className = "card";
+    m.innerHTML = `<div class="ct">🧹 Miettes : ${st.miettes.toFixed(1)} g</div>
+      <div class="cs">Pertes d'atelier — ça se brade aux schlags du hall (jamais un malus sec).</div>
+      <div class="btnrow" style="margin-top:9px"><button class="btn warn" id="schlagbtn">Refourguer · +${eur(val)}</button></div>`;
+    b.appendChild(m);
+    $("schlagbtn").addEventListener("click", () => {
+      st.cash += val;
+      journal("🧹", `Miettes refourguées aux schlags : ${st.miettes.toFixed(1)} g pour ${eur(val)}.`, "↩ tes pertes d'atelier, bradées", "");
+      st.miettes = 0;
+      toast(`🧹 +${eur(val)}`);
+      renderCur(); broadcast(); save();
+    });
+  }
+  b.querySelectorAll("[data-work]").forEach(x => x.addEventListener("click", () => openWork(+x.dataset.work)));
+  b.querySelectorAll("[data-simple]").forEach(x => x.addEventListener("click", () => simpleCondition(+x.dataset.simple)));
+}
+
+function openWork(lotId) {
+  const lot = st.brut.find(l => l.id === lotId); if (!lot) return;
+  workLot = lot;
+  $("work-nm").textContent = `🧰 Atelier — lot #${lot.id} (${Math.round(lot.g)} g, q${Math.round(lot.q)})`;
+  $("worklay").classList.add("show");
+  $("work-frame").src = `${ATELIER_SRC}#embed=bigo&g=${Math.max(1, Math.round(lot.g))}&q=${Math.round(lot.q)}`;
+}
+function closeWork() {
+  $("worklay").classList.remove("show");
+  const fr = $("work-frame");
+  delete FRAMES.atelier; delete FRAMES.recolte;
+  fr.src = "about:blank";
+  workLot = null; workBranches = [];
+  renderCur();
+}
+$("work-back").addEventListener("click", closeWork);
+
+/* Recolte : envoie TOUT le branchage seche au vrai proto (agrege par variete). */
+function openRecolte() {
+  if (!st.branches.length) return;
+  const byVar = {};
+  for (const br of st.branches) {
+    const v = byVar[br.variety] || (byVar[br.variety] = { g: 0, qsum: 0 });
+    v.g += br.g; v.qsum += br.g * br.q;
+  }
+  const b = Object.entries(byVar)
+    .map(([v, x]) => `${encodeURIComponent(v)}:${Math.round(x.g)}:${Math.round(x.qsum / x.g)}`)
+    .join(",");
+  workBranches = st.branches.map(x => x.id);
+  workLot = null;
+  $("work-nm").textContent = `🌿 Récolte — ${st.branches.reduce((s, x) => s + x.g, 0).toFixed(0)} g de branchage`;
+  $("worklay").classList.add("show");
+  $("work-frame").src = `${RECOLTE_SRC}#embed=bigo&b=${b}`;
+}
+
+/* Vanne de delegation (R6) : conditionner sans le geste, avec des pertes. */
+function simpleCondition(lotId) {
+  const lot = st.brut.find(l => l.id === lotId); if (!lot) return;
+  const loss = Math.round(lot.g * K.SIMPLE_LOSS * 10) / 10;
+  const out = Math.round((lot.g - loss) * 10) / 10;
+  st.fini.g += out; st.fini.qsum += out * lot.q;
+  st.miettes += loss;
+  st.brut = st.brut.filter(l => l.id !== lotId);
+  journal("⚙️", `Lot #${lot.id} conditionné en mode simple : ${out} g de fini (${loss} g de miettes).`,
+    "↩ ton choix de déléguer le geste (mode simple)", "");
+  toast(`⚙️ ${out} g → planque (miettes : ${loss} g)`);
+  milestones();
+  renderCur(); broadcast(); save();
+}
+
+/* =========================================================================
+   PLANQUE — vue du stock partage
+   ========================================================================= */
+function renderPlanque() {
+  const b = $("planque-body"); b.innerHTML = "";
+  const pct = Math.min(100, st.fini.g / K.PLANQUE_CAP_G * 100);
+  const hot = st.fini.g > K.PLANQUE_CAP_G * K.HEAT_STOCK_PCT;
+  const f = document.createElement("div"); f.className = "card" + (hot ? " warn" : "");
+  f.innerHTML = `<div class="ct">📦 Produit fini — ${st.fini.g.toFixed(1)} g <span class="pill">qualité ${Math.round(finiQ()) || "—"}</span></div>
+    <div class="capbar"><b class="${hot ? "hot" : ""}" style="width:${pct}%"></b></div>
+    <div class="cs">capacité ${K.PLANQUE_CAP_G} g · rempli à plus de ${Math.round(K.HEAT_STOCK_PCT * 100)}% → <b>l'immeuble jase</b> (+heat régulier)</div>` +
+    (hot ? `<div class="cm" style="color:var(--rust)">en ce moment : +1 heat / ${K.HEAT_STOCK_EVERY} min</div>` : "");
+  b.appendChild(f);
+  for (const l of st.brut) {
+    const c = document.createElement("div"); c.className = "card";
+    c.innerHTML = `<div class="ct">🧱 Brut — lot #${l.id} · ${l.g.toFixed(1)} g <span class="pill">${l.family}</span></div>
+      <div class="cs">qualité ${Math.round(l.q)} · ${l.label} · à travailler sur 🧰 Atelier</div>`;
+    b.appendChild(c);
+  }
+  const seedsTot = Object.values(st.seeds).reduce((s, n) => s + n, 0);
+  if (seedsTot > 0) {
+    const sd = document.createElement("div"); sd.className = "card";
+    sd.innerHTML = `<div class="ct">🌱 Graines — ${seedsTot}</div>
+      <div class="cs">${Object.entries(st.seeds).filter(([, n]) => n > 0).map(([v, n]) => `${v} ×${n}`).join(" · ")} · à semer sur 🌱 Plantation</div>`;
+    b.appendChild(sd);
+  }
+  for (const br of st.branches) {
+    const c = document.createElement("div"); c.className = "card";
+    c.innerHTML = `<div class="ct">🌿 Branchage — ${br.g.toFixed(1)} g <span class="pill">${br.variety}</span></div>
+      <div class="cs">qualité ${Math.round(br.q)} · séché, prêt pour la Récolte (🧰 Atelier)</div>`;
+    b.appendChild(c);
+  }
+  if (st.miettes > 0) {
+    const m = document.createElement("div"); m.className = "card";
+    m.innerHTML = `<div class="ct">🧹 Miettes — ${st.miettes.toFixed(1)} g</div><div class="cs">bradables aux schlags (🧰 Atelier)</div>`;
+    b.appendChild(m);
+  }
+  const info = document.createElement("div"); info.className = "card";
+  info.innerHTML = `<div class="cs">Le stock est <b>partagé</b> : 🧅 fournit (lots, graines), 🌱 cultive, 🧰 transforme,
+    👻 et 🛵 vendent, la descente saisit. Une seule vérité, tracée au Karnet 📓.</div>`;
+  b.appendChild(info);
+}
+
+/* =========================================================================
+   KARNET
+   ========================================================================= */
+function renderKarnet() {
+  const b = $("karnet-body"); b.innerHTML = "";
+  if (!st.journal.length) b.innerHTML = `<div class="empty">Rien encore. Tout ce qui t'arrive finira ici,<br>avec sa cause.</div>`;
+  for (const j of st.journal) {
+    const d = document.createElement("div"); d.className = "kline " + j.cls;
+    const t = document.createElement("div"); t.className = "kt"; t.textContent = `${j.icon} ${j.txt}`;
+    d.appendChild(t);
+    if (j.cause) { const c = document.createElement("div"); c.className = "kc"; c.textContent = j.cause; d.appendChild(c); }
+    const m = document.createElement("div"); m.className = "km"; m.textContent = j.at; d.appendChild(m);
+    b.appendChild(d);
+  }
+  const rst = document.createElement("button"); rst.className = "btn no"; rst.style.marginTop = "12px";
+  rst.textContent = "↻ Recommencer de zéro";
+  rst.addEventListener("click", () => {
+    if (!confirm("Effacer la partie ?")) return;
+    localStorage.removeItem(LS + "state"); localStorage.removeItem(LS + "ver");
+    location.reload();
+  });
+  b.appendChild(rst);
+}
+
+/* =========================================================================
+   YOUSS — le fil du preambule
+   ========================================================================= */
+function pushYouss(dir, text) {
+  st.youss.msgs.push({ dir, text });
+  if (dir === "in" && cur !== "youss") { st.youss.unread = true; toast("🐺 Youss t'a écrit"); }
+  if (cur === "youss") renderYouss(); else if (cur === "home") renderHome();
+  save();
+}
+function renderYouss() {
+  const th = $("youss-thread"); th.innerHTML = "";
+  for (const m of st.youss.msgs) {
+    const row = document.createElement("div"); row.className = "row " + (m.dir === "out" ? "out" : "in");
+    const bub = document.createElement("div"); bub.className = "bub"; bub.textContent = m.text;
+    row.appendChild(bub); th.appendChild(row);
+  }
+  // Youss re-tend la main si la dette attend et que la caisse suffit
+  if (st.phase === "pre" && st.step === 3 && !st.youss.pending && st.debt > 0 && st.cash >= st.debt) {
+    st.youss.msgs.push({ dir: "in", text: `la caisse est là, je le sens. mes ${eur(st.debt)}. 🐺` });
+    st.youss.pending = "paydebt";
+    renderYouss(); return;
+  }
+  if (st.youss.pending) {
+    const box = document.createElement("div"); box.className = "choices";
+    const opts = st.youss.pending === "front"
+      ? [{ k: "🤝", cls: "go", label: "C'est parti. Envoie.", act: "front" }]
+      : [{ k: "💸", cls: "go", label: `Payer Youss (${eur(st.debt)})`, act: "pay", disabled: st.cash < st.debt },
+         { k: "🙏", cls: "no", label: "Pas encore la somme…", act: "later" }];
+    for (const o of opts) {
+      const btn = document.createElement("button"); btn.className = "choice " + (o.cls || "");
+      btn.innerHTML = `<span>${o.k}</span><span>${o.label}</span>`;
+      if (o.disabled) btn.disabled = true;
+      btn.addEventListener("click", () => resolveYouss(o.act));
+      box.appendChild(btn);
+    }
+    th.appendChild(box);
+  }
+  th.scrollTop = th.scrollHeight;
+}
+function resolveYouss(act) {
+  if (act === "front") {
+    st.youss.pending = null;
+    pushYouss("out", "c'est parti. envoie.");
+    pushYouss("in", "le paquet est dans ta boîte aux lettres. atelier : tu coupes, tu conditionnes. ensuite la vitrine.");
+    st.brut.push({ id: st.lotSeq++, g: K.FRONT_G, q: K.FRONT_Q, family: "resine", label: "front de Youss" });
+    st.unlocked.atelier = true; st.unlocked.planque = true;
+    st.step = 1;
+    journal("🐺", `Youss t'a front ${K.FRONT_G} g (qualité ${K.FRONT_Q}). Tu lui dois ${eur(K.FRONT_DEBT)}.`, "↩ ton deal avec Youss", "warn");
+    toast("🧰 Atelier débloqué (accueil)");
+    renderYouss(); renderStake(); save();
+    return;
+  }
+  if (act === "pay") {
+    if (st.cash < st.debt) return;
+    st.youss.pending = null;
+    st.cash -= st.debt;
+    pushYouss("out", `tiens. ${eur(st.debt)}. on est bon.`);
+    st.debt = 0;
+    st.phase = "libre"; st.step = 4;
+    st.unlocked.onion = true; st.unlocked.beuher = true; st.unlocked.plantation = true;
+    pushYouss("in", "réglo. t'es dans le circuit maintenant.");
+    pushYouss("in", "OnionMarket pour l'appro — même des graines si tu veux cultiver ta propre came. BeuherEats pour écouler en volume. le bigo est à toi. tourne.");
+    journal("🐺", "Dette de Youss soldée. Le bigo est à toi.", "↩ tes premières ventes", "good");
+    toast("🧅 OnionMarket + 🛵 BeuherEats débloqués", 5000);
+    renderYouss(); renderStake(); broadcast(); save();
+    return;
+  }
+  if (act === "later") {
+    st.youss.pending = null;
+    pushYouss("out", "j'y suis presque, laisse-moi la soirée");
+    pushYouss("in", "la soirée. pas plus. re-poste, re-vends. 🐺");
+    renderYouss(); save();
+  }
+}
+
+/* =========================================================================
+   PREAMBULE — jalons pilotes par l'etat partage (les txns du bus y passent)
+   ========================================================================= */
+function milestones() {
+  if (st.phase !== "pre") return;
+  if (st.step === 1 && st.fini.g >= K.SNAP_UNLOCK_G) {
+    st.step = 2;
+    st.unlocked.snap = true;
+    pushYouss("in", `${Math.round(st.fini.g)} g de fini, pas mal. maintenant la vitrine : SnapShit. poste, réponds, vends.`);
+    toast("👻 SnapShit débloqué");
+  }
+  if (st.step === 2 && st.cash >= st.debt && st.debt > 0) {
+    st.step = 3;
+    st.youss.unread = true;
+    st.youss.msgs.push({ dir: "in", text: `t'as vendu. bien. mes ${eur(st.debt)} maintenant.` });
+    st.youss.pending = "paydebt";
+    if (cur === "youss") renderYouss();
+    toast("🐺 Youss veut ses sous");
+  }
+}
+
+/* =========================================================================
+   BOOT
+   ========================================================================= */
+if (st.phase === "pre" && st.step === 0 && !st.youss.msgs.length) {
+  st.youss.msgs.push({ dir: "in", text: "c'est Youss. on m'a parlé de toi." });
+  st.youss.msgs.push({ dir: "in", text: `je te front ${K.FRONT_G} g de correcte (q${K.FRONT_Q}). tu me rends ${K.FRONT_DEBT}€ ce soir.` });
+  st.youss.msgs.push({ dir: "in", text: "déçois-moi pas. 🐺" });
+  st.youss.pending = "front";
+  st.youss.unread = true;
+  toast("🐺 On t'a écrit. Ouvre Youss.");
+}
+show("home");
+setInterval(tick, 1000);
+</script>
+</body>
+</html>
