@@ -86,9 +86,19 @@ for (const p of protos) {
   }
 }
 
+// --- Dossiers de donnees partagees (sans index.html, ex. slang/) : copies
+// tels quels — des protos les consomment en fetch relatif (../slang/...).
+const dataDirs = readdirSync(ROOT).filter((d) =>
+  !EXCLUDE.has(d) && !d.startsWith(".") &&
+  statSync(path.join(ROOT, d)).isDirectory() &&
+  !protos.includes(d)
+).sort();
+for (const d of dataDirs) cpSync(path.join(ROOT, d), path.join(WWW, d), { recursive: true });
+
 // --- Three.js vendore (meme copie que l'outil de captures).
 mkdirSync(path.join(WWW, "vendor"), { recursive: true });
 cpSync(VENDOR_THREE, path.join(WWW, "vendor", "three.module.js"));
 
-console.log(`www/ assemble : hub + ${protos.length} protos (${protos.join(", ")})`);
+console.log(`www/ assemble : hub + ${protos.length} protos (${protos.join(", ")})`
+  + (dataDirs.length ? ` + donnees : ${dataDirs.join(", ")}` : ""));
 for (const w of warnings) console.warn("ATTENTION —", w);
