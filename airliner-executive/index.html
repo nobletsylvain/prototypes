@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Airliner — Proto 3 · Équipe exécutive &amp; délégation</title>
+<style>
+  /* Palette Daylight Office — art-bible v0.5 §3.1 */
+  :root {
+    --bg:#f0eee9; --panel:#e5e2da; --deep:#d4ceb9;
+    --ink:#2a2f2b; --soft:#555a55;
+    --sage:#8aa68a; --teal:#4a6e6b; --teal-l:#7a9692;
+    --amber:#c89240; --coral:#c66651; --forest:#4a6a3a;
+  }
+  html { background:var(--bg); }
+  body { background:var(--bg); color:var(--ink); margin:0;
+    font-family:Seravek,"Segoe UI",Ubuntu,Calibri,system-ui,sans-serif; font-size:15px; line-height:1.45; }
+  .mono { font-family:ui-monospace,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; }
+  button { font:inherit; cursor:pointer; border:none; border-radius:6px; }
+  button:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+  button:disabled { opacity:0.45; cursor:not-allowed; }
+  header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:10px 16px;
+    background:var(--panel); border-bottom:1px solid var(--deep); position:sticky; top:0; z-index:5; }
+  header .brand { font-weight:700; letter-spacing:0.04em; }
+  header .date { color:var(--soft); }
+  header .counter { font-size:12px; font-weight:650; text-transform:uppercase; letter-spacing:0.08em;
+    background:var(--deep); padding:3px 10px; border-radius:999px; }
+  header .cash { margin-left:auto; font-weight:700; font-size:17px; }
+  .cols { display:grid; grid-template-columns:56% 1fr; gap:12px; padding:12px 16px 90px; max-width:1240px; margin:0 auto; }
+  @media (max-width:880px){ .cols { grid-template-columns:1fr; } }
+  .col h2 { font-size:12px; text-transform:uppercase; letter-spacing:0.1em; color:var(--soft); margin:6px 0 8px; font-weight:650; }
+  .card { background:var(--panel); border-radius:8px; padding:12px 14px; margin-bottom:10px; border-left:4px solid var(--deep); }
+  .card h3 { margin:0 0 6px; font-size:14.5px; }
+  .card p { margin:4px 0; }
+  .card .sub { color:var(--soft); font-size:13px; }
+  .card.quiet { border-left-color:var(--sage); }
+  .card.gain { border-left-color:var(--forest); }
+  .card.loss { border-left-color:var(--coral); }
+  .card.esc { border-left-color:var(--amber); }
+  .pos { color:var(--forest); font-weight:650; } .neg { color:var(--coral); font-weight:650; }
+  .toast { color:var(--soft); font-style:italic; margin:4px 0 10px; }
+  .opt { display:block; width:100%; text-align:left; margin-top:6px; padding:8px 10px; background:var(--bg); border:1px solid var(--deep); }
+  .opt:hover { border-color:var(--teal); }
+  .opt .why { display:block; font-size:12px; color:var(--soft); }
+  .opt.reco { border-color:var(--teal); }
+  .opt .rectag { font-size:10.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--teal); font-weight:700; }
+  /* exec cards */
+  .exec { background:var(--panel); border-radius:8px; padding:11px 13px; margin-bottom:10px; border-left:4px solid var(--teal); }
+  .exec h3 { margin:0; font-size:14.5px; }
+  .exec .role { font-size:10.5px; text-transform:uppercase; letter-spacing:0.08em; color:var(--soft); }
+  .exec .mood { font-style:italic; font-size:12.5px; color:var(--soft); margin:4px 0; }
+  .exec .stats-line { font-size:12px; color:var(--soft); }
+  .exec .empty { color:var(--coral); font-weight:650; font-size:13px; }
+  .lvl-name { font-weight:650; }
+  input[type=range] { width:100%; accent-color:var(--teal); }
+  .friction { font-size:12px; color:var(--coral); }
+  .bars span { display:inline-block; background:var(--deep); border-radius:3px; padding:1px 6px; margin:1px 2px 1px 0; font-size:11.5px; }
+  .actionbar { position:fixed; bottom:0; left:0; right:0; z-index:6; display:flex; gap:10px; align-items:center;
+    padding:10px 16px; background:var(--panel); border-top:1px solid var(--deep); }
+  .tool { background:var(--bg); border:1px solid var(--deep); padding:8px 14px; }
+  #btn-continue { margin-left:auto; background:var(--teal); color:var(--bg); font-size:17px; font-weight:700; padding:12px 28px; min-width:190px; }
+  #btn-continue:hover:not(:disabled) { background:var(--teal-l); }
+  .overlay { position:fixed; inset:0; background:rgba(42,47,43,0.5); z-index:10; display:none; align-items:flex-start; justify-content:center; padding:30px 12px; overflow-y:auto; }
+  .overlay.open { display:flex; }
+  .sheet { background:var(--bg); border-radius:10px; max-width:680px; width:100%; padding:18px 20px; box-shadow:0 12px 40px rgba(42,47,43,0.35); }
+  .sheet h2 { margin:0 0 10px; font-size:17px; }
+  .sheet .close { float:right; background:var(--deep); padding:5px 12px; }
+  .cand { border:1px solid var(--deep); border-radius:8px; padding:10px 12px; margin-bottom:10px; background:var(--panel); }
+  .cand h3 { margin:0; font-size:14.5px; }
+  .primary { background:var(--teal); color:var(--bg); font-weight:650; padding:8px 16px; }
+  .ghost { background:var(--bg); border:1px solid var(--deep); padding:7px 14px; }
+  .statsbox { font-size:12.5px; color:var(--soft); background:var(--panel); border-radius:8px; padding:10px 12px; margin-bottom:10px; }
+  .statsbox b { color:var(--ink); }
+  .seedbar { font-size:12px; color:var(--soft); margin-top:6px; }
+  .seedbar button { background:var(--deep); padding:3px 8px; font-size:12px; margin-left:6px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">MERIDIAN AIR</span>
+  <span class="date mono" id="hdr-date">—</span>
+  <span class="counter" id="hdr-counter">MANAGER · 0 decisions this session</span>
+  <span class="cash mono" id="hdr-cash">—</span>
+</header>
+
+<div class="cols">
+  <div class="col">
+    <h2>Depuis le dernier Continue</h2>
+    <div id="digest"></div>
+    <h2>À trancher ce mois</h2>
+    <div id="inbox"></div>
+  </div>
+  <div class="col">
+    <h2>Ton équipe</h2>
+    <div id="team"></div>
+    <h2>Session</h2>
+    <div class="statsbox" id="stats"></div>
+    <div class="seedbar">Seed <span class="mono" id="seed-label"></span>
+      <button id="btn-replay">Rejouer même seed</button>
+      <button id="btn-newseed">Nouveau seed</button>
+    </div>
+  </div>
+</div>
+
+<div class="actionbar">
+  <button class="tool" id="btn-recruit">Recruter</button>
+  <button id="btn-continue">Continue ► (1 mois)</button>
+</div>
+
+<div class="overlay" id="ov-recruit"><div class="sheet">
+  <button class="close" data-close="ov-recruit">Fermer</button>
+  <h2>Recrutement C-Suite</h2>
+  <p class="sub" style="color:var(--soft)">Deux canaux (spec délégation §2.1) : <b>approche directe</b> (rapide, gratuite —
+  mais tu vois les compétences ±2) ou <b>cabinet de chasse</b> (30 % du salaire — dossier complet, chiffres exacts).</p>
+  <div id="cand-list"></div>
+</div></div>
+
+<div class="overlay open" id="ov-intro"><div class="sheet">
+  <h2>Tu ne peux plus tout faire toi-même</h2>
+  <p>Ta compagnie a grandi : <b>trois domaines</b> (Finance, Opérations, Commercial) génèrent
+  chacun leurs situations chaque mois. Sans dirigeants, <b>tout</b> remonte à toi, sans avis, sans filtre.</p>
+  <p>Recrute un CFO, un COO, une CCO — puis règle pour chacun le <b>niveau de délégation</b> (0 à 5).
+  Bas niveau : tout passe par toi, avec leur recommandation. Haut niveau : ils décident seuls —
+  à la hauteur de leur talent. Le rapport mensuel te montrera <b>ce que tes choix d'embauche
+  et de délégation ont produit</b>, comparé à un dirigeant moyen.</p>
+  <p class="sub" style="color:var(--soft)">Cast réel de starter_cast.json (Margaret Chen, James Tanaka, Isabelle Laurent)
+  + candidats alternatifs générés selon les 8 archétypes de character-architecture-v0.1. Niveaux de délégation
+  et canaux de recrutement verbatim d'executive-delegation-spec.md.</p>
+  <button class="primary" data-close="ov-intro">Prendre les commandes</button>
+</div></div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   Cast réel (data/cabinet/starter_cast.json) + alternatifs générés selon les
+   archétypes de character-architecture-v0.1.md. Niveaux de délégation:
+   executive-delegation-spec.md §2. Salaires: fourchette spec $150-350K → €.
+   ========================================================================== */
+const LEVELS=["Contrôle direct","Assisté","Approbation","Directives","Supervision","Confiance"];
+const LEVEL_DESC=[
+  "Tu décides tout ; il/elle exécute.","Il/elle analyse et recommande ; tu choisis.",
+  "Il/elle propose ; tu approuves ou rejettes.","Il/elle décide dans ta politique ; seules les exceptions remontent.",
+  "Autorité complète ; tu ne vois que les résultats.","Autonomie totale ; tu fixes les objectifs."];
+const DOMAINS={ finance:"Finance", ops:"Opérations", commercial:"Commercial" };
+
+const CANDIDATES=[
+ // --- CFO ---
+ { id:"margaret", name:"Margaret Chen", role:"cfo", domain:"finance", archetype:"Numbers Person",
+   comp:{dom:9,exec:7,strat:7,nego:6,crise:5,lead:5,innov:4}, key:"dom",
+   traits:"Cost-cutter · loyale", autonomyBand:[2,4], salary:260000,
+   mood0:"Optimisme prudent. Surveille les marges comme un faucon.",
+   pitch:"Ex-Big Four, vétérane d'IPO. La meilleure — et elle le sait." },
+ { id:"paul", name:"Paul Weiss", role:"cfo", domain:"finance", archetype:"Steady Hand",
+   comp:{dom:6,exec:8,strat:5,nego:5,crise:5,lead:6,innov:3}, key:"dom",
+   traits:"Prudent · très loyal", autonomyBand:[1,3], salary:175000,
+   mood0:"Méthodique. Jamais une surprise — dans les deux sens.",
+   pitch:"Solide, pas cher, sans éclat. Il ne te perdra jamais d'argent vite." },
+ // --- COO ---
+ { id:"james", name:"James Tanaka", role:"coo", domain:"ops", archetype:"Operations Hawk",
+   comp:{dom:8,exec:9,strat:5,nego:5,crise:8,lead:6,innov:4}, key:"exec",
+   traits:"Direct · autonome", autonomyBand:[3,5], salary:240000,
+   mood0:"Café dans une main, tableau OCC dans l'autre. Son humeur suit l'OTP.",
+   pitch:"Ex-pilote militaire, gourou MRO. L'exploitation ne glisse jamais sous lui." },
+ { id:"nadia", name:"Nadia Osei", role:"coo", domain:"ops", archetype:"People's Manager",
+   comp:{dom:6,exec:6,strat:5,nego:6,crise:5,lead:8,innov:5}, key:"exec",
+   traits:"Diplomate · fidèle", autonomyBand:[2,4], salary:190000,
+   mood0:"Les équipes la suivraient n'importe où. Les process, un peu moins.",
+   pitch:"Le personnel l'adore. Les indicateurs, eux, sont moyens." },
+ // --- CCO ---
+ { id:"isabelle", name:"Isabelle Laurent", role:"cco", domain:"commercial", archetype:"Diplomat",
+   comp:{dom:7,exec:5,strat:6,nego:9,crise:6,lead:8,innov:5}, key:"nego",
+   traits:"Diplomate · ambitieuse", autonomyBand:[2,4], salary:250000,
+   mood0:"Charmante comme toujours. Inquiète du nouvel entrant sur BCN, mais sourit pour la presse.",
+   pitch:"Vétérane du secteur, experte en créneaux. Elle gagne les négociations qu'on croyait perdues." },
+ { id:"viktor", name:"Viktor Braun", role:"cco", domain:"commercial", archetype:"Mercenary Fixer",
+   comp:{dom:6,exec:6,strat:5,nego:8,crise:8,lead:4,innov:6}, key:"nego",
+   traits:"Transactionnel · très ambitieux", autonomyBand:[4,5], salary:300000,
+   mood0:"« Je règle les problèmes. Le reste ne me concerne pas. »",
+   pitch:"Redoutable dans la crise. Partira au premier chèque plus gros — tout le monde le sait." }
+];
+
+// Situations mensuelles par domaine — enjeux €, une « bonne » réponse cachée
+const SITUATIONS={
+ finance:[
+  {t:"Rouler la couverture carburant au nouveau taux ?",a:["Verrouiller 12 mois",120000],b:["Rester spot",-90000]},
+  {t:"La banque propose de renégocier la ligne de crédit",a:["Renégocier maintenant",80000],b:["Attendre le trimestre",-40000]},
+  {t:"Audit capex avant la clôture trimestrielle",a:["Auditer (2 sem.)",60000],b:["Reporter",-70000]},
+  {t:"Devise : exposition livre sterling en hausse",a:["Couvrir 60 %",70000],b:["Ne rien faire",-60000]},
+  {t:"Assurance flotte : nouvelle franchise proposée",a:["Franchise haute, prime basse",50000],b:["Garder l'actuelle",-30000]}],
+ ops:[
+  {t:"Avancer le C-check du #4 de six semaines (~€500K) ?",a:["Avancer",150000],b:["Tenir le planning",-180000]},
+  {t:"Heures sup. Q4 : l'OCC demande l'enveloppe",a:["Accorder en ciblant",90000],b:["Refuser l'enveloppe",-110000]},
+  {t:"Litige de créneau à LFPG — escalader à la DGAC ?",a:["Escalader",100000],b:["Laisser filer",-80000]},
+  {t:"Rotation d'hiver : resserrer les temps d'escale ?",a:["Resserrer avec marge",70000],b:["Resserrer au maximum",-90000]},
+  {t:"Sous-traiter le dégivrage cette saison ?",a:["Garder en interne",60000],b:["Sous-traiter au moins-disant",-70000]}],
+ commercial:[
+  {t:"Le nouvel entrant casse les prix sur BCN",a:["Réponse ciblée 6 sem.",130000],b:["Guerre totale",-150000]},
+  {t:"Rendez-vous prêteur — qui y va ?",a:["Y aller en personne",90000],b:["Envoyer un adjoint",-60000]},
+  {t:"Proposition d'ouverture BCN–VIE au T2",a:["Ouvrir au T2",110000],b:["Reporter au T4",-50000]},
+  {t:"Le corporate deal d'un grand compte expire",a:["Renégocier tôt",80000],b:["Laisser courir",-70000]},
+  {t:"Salon IATA : quel niveau de présence ?",a:["Stand + délégation",50000],b:["Impasse cette année",-40000]}]
+};
+// Escalades « personnage » (deck réel anchor_templates, mood deltas verbatim)
+const ESCALATIONS={
+ finance:{t:"{n} veut rouler la couverture Brent au taux verrouillé — elle a besoin de ton accord.",ok:["Approuver",7],ko:["Différer",-5]},
+ ops:{t:"{n} veut escalader le litige LFPG à la DGAC — « on a un dossier », dit-il.",ok:["Approuver",8],ko:["Refuser",-8]},
+ commercial:{t:"{n} veut t'avoir au rendez-vous prêteur de la semaine prochaine.",ok:["Confirmer ta présence",9],ko:["Reporter",-6]}
+};
+
+/* ================= RNG ================= */
+let SEED=(new URLSearchParams(location.search).get("seed")|0)||Math.floor(Math.random()*1e9);
+let _rs=0; function srand(s){_rs=s>>>0;}
+function rnd(){_rs|=0;_rs=(_rs+0x6D2B79F5)|0;let t=Math.imul(_rs^(_rs>>>15),1|_rs);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;}
+
+/* ================= État ================= */
+let S=null, DIGEST="";
+const fmt=n=>"€"+Math.round(Math.abs(n)).toLocaleString("fr-FR");
+const fmtS=n=>(n>=0?"+":"−")+fmt(n);
+const MONTHS=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+function moodBand(m){ return m<=-10?"frustré·e":m<=-3?"préoccupé·e":m<=2?"concentré·e":m<=9?"engagé·e":"galvanisé·e"; }
+
+function newGame(seed){
+  SEED=seed; srand(seed);
+  S={ month:0, cash:15000000,
+    hired:{finance:null,ops:null,commercial:null},
+    scouted:{}, level:{finance:1,ops:1,commercial:1},
+    inbox:[], decisionsLog:[],
+    stats:{t0:Date.now(),continues:0,decisions:0,byPlayer:0,byExecs:0,vsBaseline:0,cardsLastMonth:0} };
+  DIGEST="";
+  renderAll();
+}
+function skill(c){ return (c.comp.dom+c.comp[c.key==="dom"?"exec":c.key])/2; } // talent du domaine
+function pGood(c){ return c?Math.min(0.95,0.35+0.06*skill(c)):null; }         // proba de bonne issue
+const P_BASELINE=0.35+0.06*5; // dirigeant moyen (compétence 5) = l'étalon
+
+/* ================= Le mois ================= */
+function doContinue(){
+  if(S.inbox.length){ // Continue gate : ce qui n'est pas tranché est décidé... par personne = coût
+    for(const it of S.inbox){
+      const bad=Math.min(it.s.a[1],it.s.b[1]);
+      S.cash+=bad;
+      S.decisionsLog.push({kind:"defaulted",label:it.s.t,detail:"Personne n'a tranché — la situation a pourri toute seule.",delta:bad});
+    }
+    S.inbox=[];
+  }
+  const m=S.month; S.stats.continues++;
+  const results=[], surfaced=[];
+  let salaries=0;
+
+  for(const dk of Object.keys(DOMAINS)){
+    const exec=S.hired[dk], lvl=exec?S.level[dk]:0;
+    if(exec) salaries+=exec.salary/12;
+    const n=1+Math.floor(rnd()*2)+(exec?0:1);         // sans dirigeant : plus de volume
+    const deck=[...SITUATIONS[dk]];                   // tirage sans remise dans le mois
+    for(let i=0;i<n&&deck.length;i++){
+      const s=deck.splice(Math.floor(rnd()*deck.length),1)[0];
+      const impact=Math.max(Math.abs(s.a[1]),Math.abs(s.b[1]));
+      const goodIsA=s.a[1]>s.b[1];
+      if(!exec || lvl<=2){
+        surfaced.push({domain:dk,s,exec,lvl,recoA:exec?(rnd()<pGood(exec)?goodIsA:!goodIsA):null});
+      } else if(lvl===3 && impact>=120000){
+        surfaced.push({domain:dk,s,exec,lvl,recoA:(rnd()<pGood(exec)?goodIsA:!goodIsA)});
+      } else {
+        // l'exec décide seul — qualité selon son talent ; l'étalon selon un talent 5
+        const ok=rnd()<pGood(exec); const roll=rnd();
+        const okBase=roll<P_BASELINE;
+        const delta=ok?s.a[1]>s.b[1]?s.a[1]:s.b[1] : (s.a[1]>s.b[1]?s.b[1]:s.a[1]);
+        const deltaBase=okBase?Math.max(s.a[1],s.b[1]):Math.min(s.a[1],s.b[1]);
+        S.cash+=delta; S.stats.byExecs++;
+        S.stats.vsBaseline+=delta-deltaBase;
+        results.push({domain:dk,exec,s,ok,delta,deltaVsBase:delta-deltaBase});
+      }
+    }
+    // escalade « personnage » occasionnelle (deck réel) — remonte toujours (priorité 1)
+    if(exec && rnd()<0.35){
+      const e=ESCALATIONS[dk];
+      surfaced.push({domain:dk,esc:e,exec});
+    }
+    // friction de délégation : hors de la bande de confort → l'humeur dérive
+    if(exec){
+      const [lo,hi]=exec.autonomyBand;
+      if(lvl<lo) exec.mood-=2; else if(lvl>hi) exec.mood-=1; else exec.mood=Math.min(15,exec.mood+1);
+      if(exec.mood<=-10 && !exec.warned){ exec.warned=true;
+        results.push({warn:true,exec,text:exec.name+" est frustré·e ("+(lvl<lo?"trop bridé·e":"délégué·e au-delà du confortable")+"). Ajuste le niveau, ou prépare un départ."});}
+    }
+  }
+  S.cash-=salaries;
+  S.inbox=surfaced;
+  S.stats.cardsLastMonth=surfaced.length;
+  buildDigest(m,results,salaries);
+  S.month++; S.decisionsLog=[];
+  renderAll();
+}
+
+function buildDigest(m,results,salaries){
+  let h=`<p class="toast">${MONTHS[m%12]} ${2026+Math.floor(m/12)} · salaires C-Suite ${fmt(salaries)}/mois · trésorerie <b>${fmt(S.cash)}</b></p>`;
+  if(S.decisionsLog.length){
+    let inner=""; let tot=0;
+    for(const d of S.decisionsLog){
+      const cls=d.delta>0?"pos":(d.delta<0?"neg":"");
+      inner+=`<p>${d.kind==="defaulted"?"⊘":"✔"} ${d.label}<br><span class="sub">${d.detail}</span>`+
+        (d.delta!==undefined&&d.delta!==0?` <span class="${cls}">${fmtS(d.delta)}</span>`:"")+`</p>`;
+      tot+=d.delta||0;
+    }
+    h+=`<div class="card ${tot>=0?'gain':'loss'}"><h3>Tes décisions de la période</h3>${inner}</div>`;
+  }
+  const auto=results.filter(r=>!r.warn);
+  if(auto.length){
+    let inner=""; let byExec={};
+    for(const r of auto){ (byExec[r.exec.name]=byExec[r.exec.name]||[]).push(r); }
+    for(const [name,list] of Object.entries(byExec)){
+      const tot=list.reduce((a,r)=>a+r.delta,0), vs=list.reduce((a,r)=>a+r.deltaVsBase,0);
+      const ex=list[0].exec;
+      inner+=`<p><b>${name}</b> (${DOMAINS[ex.domain]}, niveau ${S.level[ex.domain]} — ${LEVELS[S.level[ex.domain]]}) a tranché seul·e ${list.length} situation${list.length>1?"s":""} : `+
+        `<span class="${tot>=0?'pos':'neg'}">${fmtS(tot)}</span> · <span class="${vs>=0?'pos':'neg'}">${fmtS(vs)} vs un dirigeant moyen</span></p>`+
+      `<p class="sub">${list.map(r=>(r.ok?"✔":"✘")+" "+r.s.t).join("<br>")}</p>`;
+    }
+    h+=`<div class="card"><h3>Ce que ton équipe a fait sans toi</h3>${inner}<p class="sub">C'est ton choix d'embauche et ton niveau de délégation qui produisent ces chiffres.</p></div>`;
+  }
+  for(const r of results.filter(r=>r.warn)) h+=`<div class="card loss"><h3>⚠ Humeur</h3><p class="sub">${r.text}</p></div>`;
+  if(!auto.length&&!S.decisionsLog.length) h+=`<div class="card quiet"><h3>Mois calme</h3><p class="sub">Rien d'automatique ce mois — tout t'attend dans la colonne « À trancher ».</p></div>`;
+  DIGEST=h;
+}
+
+/* ================= Décisions ================= */
+function countDecision(){ S.stats.decisions++; renderHeader(); renderStats(); }
+function decideSituation(idx,choice){
+  const it=S.inbox[idx]; const s=it.s;
+  const delta=choice==="a"?s.a[1]:s.b[1];
+  const best=Math.max(s.a[1],s.b[1]);
+  S.cash+=delta; S.stats.byPlayer++;
+  let detail="";
+  if(it.exec&&it.recoA!==null){
+    const followed=(choice==="a")===it.recoA;
+    detail=(followed?"Tu as suivi":"Tu as ignoré")+" la recommandation de "+it.exec.name+". ";
+    it.exec.mood+=followed?1:-2;
+  }
+  detail+=delta===best?"C'était le bon appel.":"L'autre option valait "+fmtS(best)+".";
+  S.decisionsLog.push({kind:"decided",label:s.t,detail,delta});
+  S.inbox.splice(idx,1); countDecision(); renderAll();
+}
+function decideEscalation(idx,ok){
+  const it=S.inbox[idx]; const e=it.esc; const exec=it.exec;
+  const d=ok?e.ok[1]:e.ko[1];
+  exec.mood=Math.max(-15,Math.min(15,exec.mood+d));
+  S.decisionsLog.push({kind:"decided",label:e.t.replace("{n}",exec.name),
+    detail:(ok?e.ok[0]:e.ko[0])+" — humeur de "+exec.name+" "+(d>=0?"+":"")+d+" ("+moodBand(exec.mood)+").",delta:0});
+  S.inbox.splice(idx,1); countDecision(); renderAll();
+}
+function hire(candId,channel){
+  const c=CANDIDATES.find(x=>x.id===candId);
+  const fee=channel==="search"?Math.round(c.salary*0.30):0;
+  if(channel==="search"&&!S.scouted[c.id]){ S.cash-=fee; S.scouted[c.id]=true;
+    S.decisionsLog.push({kind:"decided",label:"Cabinet de chasse sur "+c.name,detail:"Dossier complet révélé ("+fmtS(-fee)+").",delta:-fee});
+    countDecision(); renderRecruit(); return; }
+  S.hired[c.domain]={...c,mood:0,warned:false};
+  S.level[c.domain]=Math.max(1,c.autonomyBand[0]);
+  S.decisionsLog.push({kind:"decided",label:"Embauche : "+c.name+" ("+c.role.toUpperCase()+", "+c.archetype+")",
+    detail:"Salaire "+fmt(c.salary)+"/an. Niveau de délégation initial : "+S.level[c.domain]+" ("+LEVELS[S.level[c.domain]]+").",delta:0});
+  countDecision(); document.getElementById("ov-recruit").classList.remove("open"); renderAll();
+}
+function setLevel(dk,v){
+  if(S.level[dk]!==v){ S.level[dk]=v;
+    S.decisionsLog.push({kind:"decided",label:"Délégation "+DOMAINS[dk]+" → niveau "+v+" ("+LEVELS[v]+")",
+      detail:LEVEL_DESC[v],delta:0});
+    countDecision(); }
+  renderTeam();
+}
+
+/* ================= Rendu ================= */
+const $=id=>document.getElementById(id);
+function fuzz(v){ const d=Math.round((rnd()*2-1)*2); return Math.max(1,Math.min(10,v+d)); }
+function renderHeader(){
+  $("hdr-date").textContent=MONTHS[S.month%12]+" "+(2026+Math.floor(S.month/12));
+  $("hdr-cash").textContent=fmt(S.cash);
+  $("hdr-counter").textContent="MANAGER · "+S.stats.decisions+" of 5-8 decisions this session";
+}
+function renderDigest(){ $("digest").innerHTML=DIGEST||
+  `<div class="card quiet"><h3>Premier mois</h3><p class="sub">Sans équipe, tout va te tomber dessus. Recrute — ou encaisse. Continue ► pour voir.</p></div>`; }
+function renderInbox(){
+  let h="";
+  S.inbox.forEach((it,i)=>{
+    if(it.esc){
+      h+=`<div class="card esc"><h3>${it.esc.t.replace("{n}",it.exec.name)}</h3>
+        <p class="sub">${it.exec.name} · ${it.exec.archetype} · humeur ${moodBand(it.exec.mood)}</p>
+        <button class="opt" data-esc="${i}" data-ok="1"><b>${it.esc.ok[0]}</b><span class="why">Humeur +${it.esc.ok[1]}</span></button>
+        <button class="opt" data-esc="${i}" data-ok="0"><b>${it.esc.ko[0]}</b><span class="why">Humeur ${it.esc.ko[1]}</span></button></div>`;
+      return;
+    }
+    const s=it.s;
+    const recoTxt=r=> it.exec&&it.recoA!==null ? (r===it.recoA?`<span class="rectag">reco. ${it.exec.name}</span> `:"") : "";
+    h+=`<div class="card esc"><h3>${s.t}</h3>
+      <p class="sub">${DOMAINS[it.domain]}${it.exec?" · "+it.exec.name+" ("+LEVELS[it.lvl]+")":" · <b>aucun dirigeant — tu es seul·e, sans avis</b>"}</p>
+      <button class="opt${it.recoA===true?" reco":""}" data-sit="${i}" data-c="a">${recoTxt(true)}<b>${s.a[0]}</b><span class="why">Enjeu ~${fmt(Math.abs(s.a[1]))}</span></button>
+      <button class="opt${it.recoA===false?" reco":""}" data-sit="${i}" data-c="b">${recoTxt(false)}<b>${s.b[0]}</b><span class="why">Enjeu ~${fmt(Math.abs(s.b[1]))}</span></button></div>`;
+  });
+  if(!h) h=`<p class="toast">Rien en attente. Continue ► pour avancer d'un mois.</p>`;
+  $("inbox").innerHTML=h;
+  $("btn-continue").textContent=S.inbox.length?`Continue ► (${S.inbox.length} non tranché·s)`:"Continue ► (1 mois)";
+}
+function renderTeam(){
+  let h="";
+  for(const dk of Object.keys(DOMAINS)){
+    const e=S.hired[dk];
+    if(!e){ h+=`<div class="exec"><div class="role">${DOMAINS[dk]}</div><h3 class="empty">Poste vacant</h3>
+      <p class="sub">Tout remonte à toi, sans recommandation. Volume maximal.</p></div>`; continue; }
+    const lvl=S.level[dk], [lo,hi]=e.autonomyBand;
+    const fr=lvl<lo?"Trop bridé·e (préférence "+lo+"-"+hi+")":lvl>hi?"Au-delà de sa zone de confort ("+lo+"-"+hi+")":"";
+    h+=`<div class="exec"><div class="role">${DOMAINS[dk]} · ${e.role.toUpperCase()} · ${e.archetype}</div>
+      <h3>${e.name}</h3>
+      <p class="mood">« ${e.mood0} » — humeur : <b>${moodBand(e.mood)}</b></p>
+      <div class="bars">${Object.entries({Expertise:e.comp.dom,Exécution:e.comp.exec,Négo:e.comp.nego,Crise:e.comp.crise}).map(([k,v])=>`<span>${k} ${S.scouted[e.id]?v:"~"+fuzz(v)}</span>`).join("")}</div>
+      <label style="font-size:13px">Délégation : <span class="lvl-name">${lvl} — ${LEVELS[lvl]}</span>
+      <input type="range" min="0" max="5" step="1" value="${lvl}" data-lvl="${dk}"></label>
+      <p class="sub">${LEVEL_DESC[lvl]}</p>
+      ${fr?`<p class="friction">⚠ ${fr}</p>`:""}</div>`;
+  }
+  $("team").innerHTML=h;
+}
+function renderRecruit(){
+  let h="";
+  for(const c of CANDIDATES){
+    if(S.hired[c.domain]&&S.hired[c.domain].id===c.id) continue;
+    if(S.hired[c.domain]){ continue; }
+    const seen=S.scouted[c.id];
+    h+=`<div class="cand"><h3>${c.name} <span class="sub">— ${c.role.toUpperCase()} · ${c.archetype}</span></h3>
+      <p class="sub">${c.pitch}</p>
+      <div class="bars">${Object.entries({Expertise:c.comp.dom,Exécution:c.comp.exec,Négo:c.comp.nego,Crise:c.comp.crise}).map(([k,v])=>`<span>${k} ${seen?v:"~"+fuzz(v)}</span>`).join("")}</div>
+      <p class="sub">${c.traits} · préfère la délégation ${c.autonomyBand[0]}-${c.autonomyBand[1]} · <b>${fmt(c.salary)}/an</b></p>
+      <button class="primary" data-hire="${c.id}" data-ch="direct">Embaucher (approche directe)</button>
+      ${seen?"":`<button class="ghost" data-hire="${c.id}" data-ch="search">Cabinet de chasse — ${fmt(Math.round(c.salary*0.3))}, révèle le vrai dossier</button>`}
+      </div>`;
+  }
+  if(!h) h=`<p class="toast">Tous les postes sont pourvus.</p>`;
+  $("cand-list").innerHTML=h;
+}
+function renderStats(){
+  const mins=(Date.now()-S.stats.t0)/60000;
+  const pace=mins>0.5?(S.stats.decisions/mins*30).toFixed(1):"—";
+  $("stats").innerHTML=
+    `Temps réel : <b>${Math.floor(mins)} min</b> · Décisions : <b>${S.stats.decisions}</b> (rythme <b>${pace}</b>/30 min, cible Manager 5-8)<br>`+
+    `Cartes le mois dernier : <b>${S.stats.cardsLastMonth}</b> · Tranchées par toi : <b>${S.stats.byPlayer}</b> · Par ton équipe : <b>${S.stats.byExecs}</b><br>`+
+    `Valeur de TES choix d'équipe vs dirigeants moyens : <b class="${S.stats.vsBaseline>=0?'pos':'neg'}">${fmtS(S.stats.vsBaseline)}</b>`;
+  $("seed-label").textContent=SEED;
+}
+function renderAll(){ renderHeader(); renderDigest(); renderInbox(); renderTeam(); renderStats(); renderRecruit(); }
+
+document.addEventListener("click",e=>{
+  const t=e.target.closest("button"); if(!t)return;
+  if(t.dataset.close){$(t.dataset.close).classList.remove("open");return;}
+  if(t.id==="btn-recruit"){renderRecruit();$("ov-recruit").classList.add("open");return;}
+  if(t.id==="btn-continue"){doContinue();return;}
+  if(t.id==="btn-replay"){newGame(SEED);return;}
+  if(t.id==="btn-newseed"){newGame(Math.floor(Math.random()*1e9));return;}
+  if(t.dataset.hire){hire(t.dataset.hire,t.dataset.ch);return;}
+  if(t.dataset.sit!==undefined){decideSituation(+t.dataset.sit,t.dataset.c);return;}
+  if(t.dataset.esc!==undefined){decideEscalation(+t.dataset.esc,t.dataset.ok==="1");return;}
+});
+document.addEventListener("input",e=>{
+  const t=e.target;
+  if(t.dataset.lvl!==undefined) setLevel(t.dataset.lvl,+t.value);
+});
+newGame(SEED);
+</script>
+</body>
+</html>

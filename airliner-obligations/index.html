@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Airliner — Proto 2 · Compromise &amp; Obligations</title>
+<style>
+  /* Palette Daylight Office (art-bible v0.5) — le Ledger, scène « conséquente », tire vers Sienna via le burgundy des rappels */
+  :root {
+    --bg:#f0eee9; --panel:#e5e2da; --deep:#d4ceb9;
+    --ink:#2a2f2b; --soft:#555a55;
+    --sage:#8aa68a; --teal:#4a6e6b; --teal-l:#7a9692;
+    --amber:#c89240; --coral:#c66651; --forest:#4a6a3a; --burgundy:#6a2a28;
+  }
+  html { background:var(--bg); }
+  body { background:var(--bg); color:var(--ink); margin:0;
+    font-family:Seravek,"Segoe UI",Ubuntu,Calibri,system-ui,sans-serif; font-size:15px; line-height:1.45; }
+  .mono { font-family:ui-monospace,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; }
+  button { font:inherit; cursor:pointer; border:none; border-radius:6px; }
+  button:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+  button:disabled { opacity:0.45; cursor:not-allowed; }
+  header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:10px 16px;
+    background:var(--panel); border-bottom:1px solid var(--deep); position:sticky; top:0; z-index:5; }
+  header .brand { font-weight:700; letter-spacing:0.04em; }
+  header .date { color:var(--soft); }
+  header .counter { font-size:12px; font-weight:650; text-transform:uppercase; letter-spacing:0.08em;
+    background:var(--deep); padding:3px 10px; border-radius:999px; }
+  .pill { font-size:12px; font-weight:650; background:var(--burgundy); color:var(--bg);
+    padding:3px 10px; border-radius:999px; display:none; }
+  .pill.on { display:inline-block; }
+  header .cash { margin-left:auto; font-weight:700; font-size:17px; }
+  header .cash.negative { color:var(--coral); }
+  .cols { display:grid; grid-template-columns:56% 1fr; gap:12px; padding:12px 16px 90px; max-width:1240px; margin:0 auto; }
+  @media (max-width:880px){ .cols { grid-template-columns:1fr; } }
+  .col h2 { font-size:12px; text-transform:uppercase; letter-spacing:0.1em; color:var(--soft); margin:6px 0 8px; font-weight:650; }
+  .card { background:var(--panel); border-radius:8px; padding:12px 14px; margin-bottom:10px; border-left:4px solid var(--deep); }
+  .card h3 { margin:0 0 6px; font-size:14.5px; }
+  .card p { margin:4px 0; }
+  .card .sub { color:var(--soft); font-size:13px; }
+  .card.quiet { border-left-color:var(--sage); }
+  .card.gain { border-left-color:var(--forest); }
+  .card.loss { border-left-color:var(--coral); }
+  .card.whisper { border-left-color:var(--deep); font-style:italic; color:var(--soft); }
+  .fin-lines { font-family:ui-monospace,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; font-size:14px; white-space:pre; overflow-x:auto; }
+  .pos { color:var(--forest); font-weight:650; } .neg { color:var(--coral); font-weight:650; }
+  .toast { color:var(--soft); font-style:italic; margin:4px 0 10px; }
+  /* Ledger */
+  .ob { background:var(--panel); border-radius:8px; padding:11px 13px; margin-bottom:10px; border-left:4px solid var(--amber); }
+  .ob.called { border-left-color:var(--burgundy); background:linear-gradient(rgba(106,42,40,0.06),rgba(106,42,40,0.06)),var(--panel); }
+  .ob.resolved { border-left-color:var(--sage); opacity:0.75; }
+  .ob h3 { margin:0 0 3px; font-size:14px; }
+  .ob .type { font-size:10.5px; text-transform:uppercase; letter-spacing:0.08em; color:var(--soft); }
+  .ob .terms { font-style:italic; margin:5px 0; }
+  .ob .meta { font-size:12.5px; color:var(--soft); }
+  .ob .ri { float:right; font-size:12px; }
+  .actionbar { position:fixed; bottom:0; left:0; right:0; z-index:6; display:flex; gap:10px; align-items:center;
+    padding:10px 16px; background:var(--panel); border-top:1px solid var(--deep); }
+  #btn-continue { margin-left:auto; background:var(--teal); color:var(--bg); font-size:17px; font-weight:700; padding:12px 28px; min-width:200px; }
+  #btn-continue:hover:not(:disabled) { background:var(--teal-l); }
+  .stats { font-size:12.5px; color:var(--soft); background:var(--panel); border-radius:8px; padding:10px 12px; margin-bottom:10px; }
+  .stats b { color:var(--ink); }
+  .seedbar { font-size:12px; color:var(--soft); margin-top:6px; }
+  .seedbar button { background:var(--deep); padding:3px 8px; font-size:12px; margin-left:6px; }
+  /* Modal (offres + rappels) */
+  .overlay { position:fixed; inset:0; background:rgba(42,47,43,0.55); z-index:10; display:none; align-items:center; justify-content:center; padding:20px 12px; overflow-y:auto; }
+  .overlay.open { display:flex; }
+  .sheet { background:var(--bg); border-radius:10px; max-width:620px; width:100%; padding:20px 22px; box-shadow:0 12px 40px rgba(42,47,43,0.4); }
+  .sheet h2 { margin:0 0 4px; font-size:17px; }
+  .sheet .from { font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--soft); margin-bottom:10px; }
+  .sheet .recall { background:var(--panel); border-left:4px solid var(--amber); border-radius:0 6px 6px 0; padding:8px 12px; margin:10px 0; font-size:13.5px; }
+  .sheet .sting { font-style:italic; color:var(--burgundy); margin-top:10px; }
+  .opt { display:block; width:100%; text-align:left; margin-top:8px; padding:10px 12px; background:var(--panel); border:1px solid var(--deep); }
+  .opt:hover { border-color:var(--teal); }
+  .opt b .tag { font-weight:400; font-size:12px; color:var(--soft); }
+  .opt .why { display:block; font-size:12.5px; color:var(--soft); margin-top:2px; }
+  .understanding { background:var(--panel); border-radius:8px; padding:10px 12px; margin:10px 0; font-style:italic; }
+  .primary { background:var(--teal); color:var(--bg); font-weight:650; padding:9px 18px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">MERIDIAN AIR</span>
+  <span class="date mono" id="hdr-date">—</span>
+  <span class="counter" id="hdr-counter">FOUNDER · 0 of 8-12 decisions this session</span>
+  <span class="pill" id="hdr-pill">● 0 rappel</span>
+  <span class="cash mono" id="hdr-cash">—</span>
+</header>
+
+<div class="cols">
+  <div class="col">
+    <h2>Le mois écoulé</h2>
+    <div id="digest"></div>
+    <h2>Session</h2>
+    <div class="stats" id="stats"></div>
+    <div class="seedbar">Seed <span class="mono" id="seed-label"></span>
+      <button id="btn-replay">Rejouer même seed</button>
+      <button id="btn-newseed">Nouveau seed</button>
+    </div>
+  </div>
+  <div class="col">
+    <h2>Obligations Ledger <span class="sub" id="ledger-count"></span></h2>
+    <div id="ledger"></div>
+  </div>
+</div>
+
+<div class="actionbar">
+  <span class="sub" id="bar-note" style="color:var(--soft);font-size:13px"></span>
+  <button id="btn-continue">Continue ► (1 mois)</button>
+</div>
+
+<div class="overlay" id="ov-modal"><div class="sheet" id="modal-body"></div></div>
+
+<div class="overlay open" id="ov-intro"><div class="sheet">
+  <h2>Rien ne sera signé. Mais tout sera compris.</h2>
+  <p>Ta jeune compagnie perd de l'argent chaque mois — c'est normal, elle grandit. Mais il y aura
+  des moments où tu seras <b>aux abois</b>. Quelqu'un te proposera alors de l'aide : un ministre,
+  un fonds, un syndicat, un loueur, un rival, une collectivité. Leur aide est réelle. Leur prix
+  n'est jamais écrit.</p>
+  <p>Chaque accord entre au <b>Ledger</b> (colonne de droite). Un jour — dans 3 mois ou dans 2 ans —
+  on te le rappellera. Souvent au pire moment. Tu pourras <b>honorer</b>, <b>faire le minimum</b>,
+  ou <b>refuser</b> — et chaque créancier s'en souviendra (score R_I).</p>
+  <p class="sub" style="color:var(--soft)">Proto de test du fun — lifecycle, créanciers, montants et ton
+  extraits de compromise-system-spec.md + GDD §10. La question testée : le rappel au pire moment crée-t-il
+  l'émotion prévue, ou juste une taxe différée ?</p>
+  <button class="primary" data-close="ov-intro">Commencer (janvier 2026)</button>
+</div></div>
+
+<script>
+"use strict";
+/* =============================================================
+   Deck extrait de docs/post-v1-specs/compromise-system-spec.md
+   + GDD v0.8 §10 (montants et deltas R_I canon : +30 / −5 / −50)
+   ============================================================= */
+const MONTHS=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+const RI_HONOR=30, RI_PARTIAL=-5, RI_REFUSE=-50;
+
+// Chaque arc : offre (duress → aide réelle) + rappel (coût + 3 issues canon + riposte si refus)
+const ARCS = [
+ { id:"G1", type:"Gouvernement", entity:"Ministère des Transports", rep:"Verdier (DGAC)",
+   duressMonth:2, duressTitle:"La banque refuse l'extension",
+   duressBody:"La provision maintenance + le dépôt carburant tombent le même mois. Ta banque « préfère attendre les prochains résultats ». Il te manque de la trésorerie, vite.",
+   duressCost:-5000000, duressCostLabel:"−€5,0M ce mois (C-check + dépôts)",
+   offer:{ help:8000000, helpLabel:"Garantie de prêt ministérielle — €8M de liquidité à taux préférentiel",
+     understanding:"« Maintenir un service régional raisonnable. » Rien de plus précis. Il n'y a jamais rien de plus précis.",
+     received:"Garantie de prêt €8M, taux préférentiel" },
+   alt:{ label:"Se débrouiller seul", why:"Coupes brutales : −30 % de revenus pendant 4 mois, aucune dette morale.", effect:{kind:"income_mult",v:0.7,months:4} },
+   dormancy:[10,26],
+   whispers:["Un officiel du ministère visite les aéroports régionaux.","Élections régionales en approche — la politique de désenclavement fait débat.","Deux ans bientôt depuis la garantie ministérielle…"],
+   call:{ context:"Le comité de développement régional se réunit le mois prochain — en pleine campagne électorale.",
+     body:"« Le service Lyon–Aurillac a été… noté. Nous ne doutons pas que l'arrangement de 2026 reste compris. » On te demande de maintenir la ligne d'Aurillac à 2 vols/jour — elle perd €12K par mois.",
+     sting:"Le ministre a la mémoire longue.",
+     honor:{cost:144000, label:"Honorer — maintenir 2×/jour un an", why:"−€144K sur l'année. Le ministère s'en souviendra favorablement."},
+     partial:{cost:72000, label:"Le minimum — réduire à 1×/jour", why:"−€72K. Noté comme « partenaire difficile »."},
+     refuse:{label:"Refuser — fermer la ligne", why:"€0 aujourd'hui. Contrôles réglementaires probables plus tard.",
+       retaliation:{cost:900000, delay:[6,14], title:"Audit DGAC surprise", body:"Trois inspecteurs, six semaines, immobilisations ciblées. La facture opérationnelle tombe : −€900K. Personne ne prononce le mot « Aurillac »."}} } },
+
+ { id:"I1", type:"Investisseur", entity:"Altitude Partners", rep:"le fonds",
+   duressMonth:8, duressTitle:"L'occasion de grandir — sans le cash",
+   duressBody:"Deux créneaux s'ouvrent à Orly. Les prendre double ta croissance — mais il faut des avions, des équipages, du besoin en fonds de roulement. Ta trésorerie ne suit pas.",
+   duressCost:0, duressCostLabel:"",
+   offer:{ help:8000000, helpLabel:"Série A — €8M d'Altitude Partners",
+     understanding:"« Une trajectoire de croissance. On s'est compris sur ~20 % de revenus en plus. » Rien au terme sheet.",
+     received:"€8M de capital growth" },
+   alt:{ label:"Croître au rythme du cash", why:"Pas d'Orly. Croissance lente, aucune attente extérieure.", effect:{kind:"none"} },
+   dormancy:[12,18],
+   whispers:["Altitude Partners annonce la levée de son prochain fonds.","Ton nom circule dans le deck investisseurs d'Altitude.","Le board d'Altitude passe en revue son portefeuille ce trimestre."],
+   call:{ context:"Altitude clôt son nouveau fonds ce trimestre. Le narratif a besoin d'un chiffre.",
+     body:"« On s'était compris sur 20 %. » On te demande de lancer l'expansion agressive maintenant — quitte à différer la rentabilité.",
+     sting:"Les fonds n'oublient jamais un multiple.",
+     honor:{cost:2000000, label:"Honorer — capex d'expansion", why:"−€2,0M de burn cette année. Altitude te portera au pinacle."},
+     partial:{cost:800000, label:"Le minimum — ~12 % de croissance", why:"−€800K. « Transactionnel », diront-ils."},
+     refuse:{label:"Refuser — rester discipliné", why:"€0 aujourd'hui. Un activiste au board, ça s'invite plus tard.",
+       retaliation:{cost:1200000, delay:[6,12], title:"Campagne activiste", body:"Altitude place un administrateur hostile et exige des « ajustements ». Avocats, concessions, temps de management : −€1,2M."}} } },
+
+ { id:"U1", type:"Syndicat", entity:"SNPL — pilotes", rep:"la section Lyon",
+   duressMonth:13, duressTitle:"Préavis de grève sur la paie",
+   duressBody:"Les pilotes demandent +8 % en pleine négociation annuelle. Un conflit en haute saison te coûterait très cher. La section propose autre chose : un gel de la paie contre de la « flexibilité de planning ».",
+   duressCost:0, duressCostLabel:"",
+   offer:{ help:1100000, helpLabel:"Gel de paie accepté — ~€1,1M économisés sur l'année",
+     understanding:"« La flexibilité vaut dans les deux sens. » C'est tout ce qui a été dit.",
+     received:"Gel de paie 12 mois (~€1,1M)" },
+   alt:{ label:"Accorder les +8 %", why:"−€1,1M/an assumés, relation sociale nette, aucune dette.", effect:{kind:"income_add",v:-92000,months:12} },
+   dormancy:[8,14],
+   whispers:["Le délégué SNPL demande « un point de suivi » — sans urgence, dit-il.","Tract syndical : « les engagements de 2026 nous concernent tous »."],
+   call:{ context:"Tu annonces une restructuration des bases et des rotations de nuit.",
+     body:"« On vous a donné le gel. Et vous réécrivez les plannings sans nous ? L'accord de 2026 valait dans les deux sens. » On te demande consultation réelle et zéro mutation forcée.",
+     sting:"Un préavis, ça se dépose en 48 heures.",
+     honor:{cost:400000, label:"Honorer — co-construire les plannings", why:"−€400K d'efficacité perdue. Paix sociale durable."},
+     partial:{cost:150000, label:"Le minimum — consultation de façade", why:"−€150K. La confiance s'érode."},
+     refuse:{label:"Refuser — passer en force", why:"€0 aujourd'hui. Le droit de grève existe.",
+       retaliation:{cost:1600000, delay:[2,6], title:"Grève de 5 jours en haute saison", body:"Annulations en cascade, compensations, image : −€1,6M. Le tract citait « 2026 »."}} } },
+
+ { id:"L1", type:"Loueur", entity:"SkyLeasing", rep:"leur directrice commerciale",
+   duressMonth:19, duressTitle:"L'avion dont tu as besoin, au prix que tu ne peux pas payer",
+   duressBody:"Il te faut un module de capacité pour l'été. Le marché est tendu : les loyers flambent. SkyLeasing propose un ATR sous le prix du marché — « entre partenaires de long terme ».",
+   duressCost:0, duressCostLabel:"",
+   offer:{ help:960000, helpLabel:"Lease sous le marché — ~€80K/mois économisés sur 12 mois",
+     understanding:"« Un droit de premier regard sur vos prochaines commandes. » Dit en souriant, jamais écrit.",
+     received:"Lease ATR ~−€80K/mois vs marché" },
+   alt:{ label:"Payer le prix du marché", why:"−€80K/mois de plus pendant 12 mois, liberté totale.", effect:{kind:"income_add",v:-80000,months:12} },
+   dormancy:[14,28],
+   whispers:["SkyLeasing t'invite à leur chalet au salon du Bourget.","« On se voit avant vos décisions de flotte, n'est-ce pas ? » — mail cordial de SkyLeasing."],
+   call:{ context:"Tu prépares ta prochaine commande d'avions, le Bourget approche.",
+     body:"« Avant Le Bourget — vous nous apportez la commande d'abord, comme convenu ? » Leurs conditions ne sont pas les meilleures du marché.",
+     sting:"Tout le marché saura comment tu traites tes partenaires.",
+     honor:{cost:1500000, label:"Honorer — commander chez eux", why:"~−€1,5M de surcoût sur la durée du lease. Ils te le rendront."},
+     partial:{cost:600000, label:"Le minimum — partager la commande", why:"−€600K. « Un partenaire difficile »."},
+     refuse:{label:"Refuser — commander ailleurs", why:"€0 aujourd'hui. Tes leases existants seront « revus »… un jour.",
+       retaliation:{cost:1000000, delay:[4,10], title:"Conditions durcies au renouvellement", body:"Le renouvellement arrive : taux « marché », dépôts doublés. −€1,0M sur l'année."}} } },
+
+ { id:"C1", type:"Concurrent", entity:"Azur Régional", rep:"leur DG",
+   duressMonth:24, duressTitle:"La guerre tarifaire vous saigne tous les deux",
+   duressBody:"Six mois de prix cassés sur tes lignes rentables. Tu perds €150K/mois, eux aussi. Leur DG t'appelle : « on se retire de deux de tes lignes. En échange, tu n'entres pas sur notre hub. »",
+   duressCost:0, duressCostLabel:"",
+   offer:{ help:1200000, helpLabel:"Trêve — ils se retirent : ~€1,2M/an de marge récupérée",
+     understanding:"« Tu n'entres pas sur notre hub. » Une poignée de main. Aucun document — évidemment.",
+     received:"Retrait concurrent de 2 lignes (~€1,2M/an)" },
+   alt:{ label:"Continuer la guerre", why:"−€150K/mois encore 6 mois, mais aucune entente à honorer.", effect:{kind:"income_add",v:-150000,months:6} },
+   dormancy:[12,20],
+   whispers:["Un créneau s'ouvre sur le hub d'Azur — tout le monde l'a vu.","Le DG d'Azur te salue de loin au salon. Longuement."],
+   call:{ context:"Un créneau parfait s'ouvre sur leur hub. Ta direction réseau pousse fort.",
+     body:"« Vous regardez notre hub. Ce n'est pas ce qu'on s'était dit quand on a quitté vos lignes. » On te demande de rester dehors.",
+     sting:"Les trêves ne meurent qu'une fois.",
+     honor:{cost:2000000, label:"Honorer — renoncer au hub", why:"~−€2,0M/an de marché laissé. Azur te « respectera »."},
+     partial:{cost:0, label:"Négocier — différer 12 mois", why:"Tu gardes l'option. Une nouvelle entente naît : « on en reparle dans un an »." , renew:true},
+     refuse:{label:"Refuser — entrer sur le hub", why:"Le marché est à toi. Et la guerre revient.",
+       retaliation:{cost:1800000, delay:[1,3], title:"Riposte tarifaire totale", body:"Azur casse les prix sur TOUTES tes lignes cette fois : −€1,8M en un trimestre."}} } },
+
+ { id:"Co1", type:"Collectivité", entity:"Métropole de Lyon + aéroport", rep:"la présidente de la métropole",
+   duressMonth:30, duressTitle:"Le terminal coûte trop cher pour toi seul",
+   duressBody:"Ton hub sature. L'extension du terminal + l'exonération de redevances valent ~€4M — la métropole propose de financer, pour t'ancrer comme compagnie du territoire.",
+   duressCost:0, duressCostLabel:"",
+   offer:{ help:4000000, helpLabel:"Extension financée + redevances gelées (~€4M)",
+     understanding:"« Maintenir l'emploi du terminal au-dessus de 800 postes. » Voté en conseil, jamais contractualisé avec toi.",
+     received:"Extension + gel de redevances (~€4M)" },
+   alt:{ label:"Financer toi-même, plus petit", why:"−€2,5M cash tout de suite, aucune attache.", effect:{kind:"cash",v:-2500000} },
+   dormancy:[12,24],
+   whispers:["La presse locale titre sur « l'emploi aéroportuaire, promesse tenue ? »","Conseil métropolitain le mois prochain : l'aéroport est à l'ordre du jour."],
+   call:{ context:"Ton plan d'économies prévoit de consolider les bases — Lyon perdrait des postes.",
+     body:"« Le conseil a voté votre exonération sur la foi des 800 emplois. On entend parler de coupes. » On te demande de maintenir la base et les effectifs.",
+     sting:"On ne gagne pas contre sa propre ville.",
+     honor:{cost:1500000, label:"Honorer — maintenir les 800 postes", why:"−€1,5M/an d'économies auxquelles tu renonces. La ville est avec toi."},
+     partial:{cost:600000, label:"Le minimum — couper à 650 postes", why:"−€600K. La presse locale grince."},
+     refuse:{label:"Refuser — consolider ailleurs", why:"Les économies sont réelles. L'exonération, elle, saute.",
+       retaliation:{cost:1300000, delay:[2,5], title:"Exonération révoquée + bras de fer local", body:"Redevances rétablies rétroactivement, manifestation devant le terminal : −€1,3M et des amis en moins."}} } }
+];
+
+/* ================= RNG seedé ================= */
+let SEED=(new URLSearchParams(location.search).get("seed")|0)||Math.floor(Math.random()*1e9);
+let _rs=0; function srand(s){_rs=s>>>0;}
+function rnd(){_rs|=0;_rs=(_rs+0x6D2B79F5)|0;let t=Math.imul(_rs^(_rs>>>15),1|_rs);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;}
+const ri=(a,b)=>a+Math.floor(rnd()*(b-a+1));
+
+/* ================= État ================= */
+let S=null, DIGEST="";
+function newGame(seed){
+  SEED=seed; srand(seed);
+  S={ month:0, cash:15000000, baseIncome:-200000, tempEffects:[],
+    obligations:[], resolved:[], retaliations:[], pendingModal:null,
+    RI:{}, decisions:[],
+    stats:{t0:Date.now(),continues:0,decisions:0,honored:0,partial:0,refused:0,reliefTotal:0,calledCostTotal:0,worstMoments:[]} };
+  for(const a of ARCS) S.RI[a.entity]=ri(55,65);
+  DIGEST="";
+  renderAll();
+}
+const fmt=n=>"€"+Math.round(Math.abs(n)).toLocaleString("fr-FR");
+const fmtS=n=>(n>=0?"+":"−")+fmt(n);
+const dateStr=m=>MONTHS[m%12]+" "+(2026+Math.floor(m/12));
+function riLabel(v){ return v>=75?"allié":v>=55?"coopératif":v>=35?"réservé":v>=15?"hostile":"ennemi"; }
+
+/* ================= Le mois qui passe ================= */
+function monthlyIncome(){
+  // Économie de fond scriptée : jeune compagnie qui s'améliore, saison, bruit.
+  const growth=Math.min(S.month*30000, 600000);
+  const seasonal=[0.82,0.85,0.95,1.0,1.05,1.15,1.25,1.2,1.05,0.95,0.85,0.9][S.month%12];
+  let inc=(S.baseIncome+growth)*seasonal + (rnd()*2-1)*150000;
+  let mult=1, add=0;
+  S.tempEffects=S.tempEffects.filter(e=>e.until>S.month);
+  for(const e of S.tempEffects){ if(e.kind==="income_mult")mult*=e.v; if(e.kind==="income_add")add+=e.v; }
+  return inc*mult+add;
+}
+
+function doContinue(){
+  if(S.pendingModal) return;
+  const m=S.month;
+  const inc=monthlyIncome();
+  S.cash+=inc;
+  S.stats.continues++;
+  const cards=[];
+
+  // Duress → offre de compromis
+  const arc=ARCS.find(a=>a.duressMonth===m && !a.done);
+  if(arc){
+    arc.done=true;
+    if(arc.duressCost){ S.cash+=arc.duressCost; }
+    S.pendingModal={kind:"offer",arc};
+  }
+
+  // Rappels dus ce mois
+  for(const ob of S.obligations){
+    if(ob.status==="dormant"){
+      // murmures d'ambiance tous les 3-6 mois
+      if((m-ob.createdMonth)%ri(3,6)===0 && m<ob.callMonth && m>ob.createdMonth){
+        cards.push({cls:"whisper",title:"Rumeur",body:ob.arc.whispers[Math.floor(rnd()*ob.arc.whispers.length)]});
+      }
+      if(m>=ob.callMonth && !S.pendingModal){
+        ob.status="called";
+        S.stats.worstMoments.push({month:m,cash:S.cash,entity:ob.arc.entity});
+        S.pendingModal={kind:"call",ob};
+      }
+    }
+  }
+  // Ripostes programmées
+  for(const r of S.retaliations){
+    if(!r.fired && m>=r.month){
+      r.fired=true; S.cash-=r.cost;
+      cards.push({cls:"loss",title:"⚠ "+r.title,body:r.body+" ("+fmtS(-r.cost)+")"});
+    }
+  }
+
+  buildDigest(m,inc,cards);
+  S.month++; S.decisions=[];
+  renderAll();
+  if(S.pendingModal) openModal();
+}
+
+function buildDigest(m,inc,cards){
+  let h=`<p class="toast">${dateStr(m)} · résultat du mois : <span class="${inc>=0?'pos':'neg'}">${fmtS(inc)}</span> · trésorerie <b>${fmt(S.cash)}</b></p>`;
+  if(S.decisions.length){
+    let inner=""; for(const d of S.decisions) inner+=`<p>✔ ${d.label}<br><span class="sub">${d.detail}</span></p>`;
+    h+=`<div class="card gain"><h3>Tes décisions de la période</h3>${inner}</div>`;
+  }
+  for(const c of cards) h+=`<div class="card ${c.cls}"><h3>${c.title}</h3><p class="sub">${c.body}</p></div>`;
+  if(!cards.length&&!S.decisions.length) h+=`<div class="card quiet"><h3>Mois sans histoire</h3><p class="sub">Le Ledger, lui, n'oublie pas (${S.obligations.filter(o=>o.status!=="resolved").length} en cours).</p></div>`;
+  DIGEST=h;
+}
+
+/* ================= Offres & rappels ================= */
+function openModal(){
+  const M=S.pendingModal; const el=document.getElementById("modal-body");
+  if(M.kind==="offer"){
+    const a=M.arc;
+    el.innerHTML=`<h2>${a.duressTitle}</h2><p class="from">${a.type} · ${a.entity}</p>
+      <p>${a.duressBody}</p>
+      ${a.duressCostLabel?`<p class="neg">${a.duressCostLabel}</p>`:""}
+      <button class="opt" data-accept="1"><b>Accepter l'aide — ${a.offer.helpLabel}</b>
+        <span class="why">« ${a.offer.understanding} »</span></button>
+      <button class="opt" data-accept="0"><b>${a.alt.label}</b><span class="why">${a.alt.why}</span></button>`;
+  } else if(M.kind==="confirm"){
+    const ob=M.ob;
+    el.innerHTML=`<h2 style="letter-spacing:0.05em">UN ACCORD EXISTE DÉSORMAIS</h2>
+      <p class="from">${ob.arc.type} · ${ob.arc.entity}</p>
+      <div class="understanding">« ${ob.arc.offer.understanding} »</div>
+      <p class="sub">Tu as reçu : ${ob.arc.offer.received}.<br>
+      Échéance : <b>inconnue</b>. Des mois. Peut-être des années.<br>
+      Rien n'a été signé. Mais quelque chose a été compris.</p>
+      <button class="primary" data-ack="1">Inscrire au Ledger</button>`;
+  } else if(M.kind==="call"){
+    const ob=M.ob, c=ob.arc.call;
+    const age=S.month-ob.createdMonth;
+    el.innerHTML=`<h2>${ob.arc.entity} rappelle l'accord</h2>
+      <p class="from">${ob.arc.type} · R_I ${S.RI[ob.arc.entity]}/100 (${riLabel(S.RI[ob.arc.entity])})</p>
+      <div class="recall"><b>Il y a ${age} mois</b> (${dateStr(ob.createdMonth)}) : ${ob.arc.duressTitle.toLowerCase()}.
+      Tu as reçu : ${ob.arc.offer.received}.<br>« ${ob.arc.offer.understanding} »</div>
+      <p>${c.context}</p><p>${c.body}</p>
+      <button class="opt" data-resolve="honor"><b>${c.honor.label} <span class="tag">· R_I +${RI_HONOR}</span></b><span class="why">${c.honor.why}</span></button>
+      <button class="opt" data-resolve="partial"><b>${c.partial.label} <span class="tag">· R_I ${RI_PARTIAL}</span></b><span class="why">${c.partial.why}</span></button>
+      <button class="opt" data-resolve="refuse"><b>${c.refuse.label} <span class="tag">· R_I ${RI_REFUSE}</span></b><span class="why">${c.refuse.why}</span></button>
+      <p class="sting">${c.sting}</p>`;
+  }
+  document.getElementById("ov-modal").classList.add("open");
+}
+function closeModal(){ document.getElementById("ov-modal").classList.remove("open"); S.pendingModal=null; renderAll(); }
+
+function acceptOffer(yes){
+  const a=S.pendingModal.arc;
+  if(yes){
+    S.cash+=a.offer.help;
+    S.stats.reliefTotal+=a.offer.help;
+    const ob={arc:a,createdMonth:S.month-1,callMonth:(S.month-1)+ri(a.dormancy[0],a.dormancy[1]),status:"dormant"};
+    S.obligations.push(ob);
+    S.decisions.push({label:"Accord avec "+a.entity,detail:"Aide immédiate : "+fmtS(a.offer.help)+". Le prix viendra plus tard — c'est tout l'accord."});
+    S.pendingModal={kind:"confirm",ob};
+    S.stats.decisions++; openModal(); renderHeader(); return;
+  }
+  const e=a.alt.effect;
+  if(e.kind==="income_mult"||e.kind==="income_add") S.tempEffects.push({...e,until:S.month+e.months});
+  if(e.kind==="cash") S.cash+=e.v;
+  S.decisions.push({label:a.alt.label+" ("+a.entity+")",detail:"Chemin difficile assumé — aucune dette morale créée."});
+  S.stats.decisions++;
+  closeModal();
+}
+
+function resolveCall(how){
+  const ob=S.pendingModal.ob, c=ob.arc.call, ent=ob.arc.entity;
+  ob.status="resolved"; ob.resolvedMonth=S.month; ob.outcome=how;
+  if(how==="honor"){ S.cash-=c.honor.cost; S.RI[ent]=Math.min(100,S.RI[ent]+RI_HONOR); S.stats.honored++;
+    S.stats.calledCostTotal+=c.honor.cost;
+    ob.outcomeLine="Honoré ("+fmtS(-c.honor.cost)+") · R_I +"+RI_HONOR+" → "+S.RI[ent];
+    S.decisions.push({label:"Honoré : "+ent,detail:c.honor.why});
+  } else if(how==="partial"){ S.cash-=c.partial.cost; S.RI[ent]=Math.max(0,S.RI[ent]+RI_PARTIAL); S.stats.partial++;
+    S.stats.calledCostTotal+=c.partial.cost;
+    ob.outcomeLine="Minimum ("+fmtS(-c.partial.cost)+") · R_I "+RI_PARTIAL+" → "+S.RI[ent];
+    if(c.partial.renew){ const nb={arc:ob.arc,createdMonth:S.month,callMonth:S.month+12,status:"dormant"};
+      S.obligations.push(nb); ob.outcomeLine+=" · nouvelle entente créée"; }
+    S.decisions.push({label:"Minimum : "+ent,detail:c.partial.why});
+  } else { S.RI[ent]=Math.max(0,S.RI[ent]+RI_REFUSE); S.stats.refused++;
+    const r=c.refuse.retaliation;
+    if(r) S.retaliations.push({...r,month:S.month+ri(r.delay[0],r.delay[1]),entity:ent,fired:false});
+    ob.outcomeLine="Refusé · R_I "+RI_REFUSE+" → "+S.RI[ent]+" · « on s'en souviendra »";
+    S.decisions.push({label:"Refusé : "+ent,detail:c.refuse.why});
+  }
+  S.resolved.push(ob);
+  S.obligations=S.obligations.filter(o=>o!==ob);
+  S.stats.decisions++;
+  closeModal();
+}
+
+/* ================= Rendu ================= */
+const $=id=>document.getElementById(id);
+function renderHeader(){
+  $("hdr-date").textContent=dateStr(S.month);
+  $("hdr-cash").textContent=fmt(S.cash);
+  $("hdr-cash").className="cash mono"+(S.cash<1000000?" negative":"");
+  $("hdr-counter").textContent="FOUNDER · "+S.stats.decisions+" of 8-12 decisions this session";
+  const called=S.obligations.filter(o=>o.status==="called").length;
+  const pill=$("hdr-pill");
+  pill.textContent="● "+called+" rappel"+(called>1?"s":"")+" en attente";
+  pill.className="pill"+(called>0?" on":"");
+}
+function renderDigest(){ $("digest").innerHTML=DIGEST||
+  `<div class="card quiet"><h3>Janvier 2026</h3><p class="sub">Ta compagnie perd encore un peu d'argent chaque mois — elle grandit. Continue ► et gouverne.</p></div>`; }
+function renderLedger(){
+  const act=S.obligations, res=S.resolved.slice(-4).reverse();
+  $("ledger-count").textContent=" · "+act.length+" active"+(act.length>1?"s":"")+", "+S.resolved.length+" résolue"+(S.resolved.length>1?"s":"");
+  let h="";
+  for(const ob of act){
+    const age=S.month-ob.createdMonth;
+    h+=`<div class="ob ${ob.status==="called"?"called":""}">
+      <span class="ri mono">R_I ${S.RI[ob.arc.entity]} · ${riLabel(S.RI[ob.arc.entity])}</span>
+      <div class="type">${ob.arc.type}</div><h3>${ob.arc.entity}</h3>
+      <p class="terms">« ${ob.arc.offer.understanding} »</p>
+      <p class="meta">Origine : ${dateStr(ob.createdMonth)} — ${ob.arc.offer.received}<br>
+      ${ob.status==="called"?"<b style='color:var(--burgundy)'>RAPPELÉ — réponse attendue</b>":"Dormante depuis "+age+" mois · échéance inconnue"}</p></div>`;
+  }
+  for(const ob of res){
+    h+=`<div class="ob resolved"><div class="type">${ob.arc.type} · résolu ${dateStr(ob.resolvedMonth)}</div>
+      <h3>${ob.arc.entity}</h3><p class="meta">${ob.outcomeLine}</p></div>`;
+  }
+  if(!h) h=`<p class="toast">Aucune entente. Pour l'instant, personne ne t'a rien « donné ».</p>`;
+  $("ledger").innerHTML=h;
+}
+function renderStats(){
+  const mins=(Date.now()-S.stats.t0)/60000;
+  const pace=mins>0.5?(S.stats.decisions/mins*30).toFixed(1):"—";
+  $("stats").innerHTML=
+    `Temps réel : <b>${Math.floor(mins)} min</b> · Décisions : <b>${S.stats.decisions}</b> (rythme <b>${pace}</b>/30 min)<br>`+
+    `Aide reçue par les accords : <b class="pos">${fmtS(S.stats.reliefTotal)}</b> · Payé aux rappels : <b class="neg">${fmtS(-S.stats.calledCostTotal)}</b><br>`+
+    `Honorés : <b>${S.stats.honored}</b> · Minimum : <b>${S.stats.partial}</b> · Refusés : <b>${S.stats.refused}</b> (cible design : 40-60 % d'honorés)`;
+  $("seed-label").textContent=SEED;
+  const nextDuress=ARCS.find(a=>!a.done);
+  $("bar-note").textContent=S.obligations.some(o=>o.status==="called")?"Un créancier attend ta réponse.":"";
+}
+function renderAll(){ renderHeader(); renderDigest(); renderLedger(); renderStats(); }
+
+document.addEventListener("click",e=>{
+  const t=e.target.closest("button"); if(!t)return;
+  if(t.dataset.close){$(t.dataset.close).classList.remove("open");return;}
+  if(t.id==="btn-continue"){doContinue();return;}
+  if(t.id==="btn-replay"){newGame(SEED);return;}
+  if(t.id==="btn-newseed"){newGame(Math.floor(Math.random()*1e9));return;}
+  if(t.dataset.accept!==undefined){acceptOffer(t.dataset.accept==="1");return;}
+  if(t.dataset.ack){closeModal();return;}
+  if(t.dataset.resolve){resolveCall(t.dataset.resolve);return;}
+});
+newGame(SEED);
+</script>
+</body>
+</html>

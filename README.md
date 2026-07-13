@@ -15,6 +15,17 @@ Petits prototypes de **core loops** jouables/testables dans le navigateur (mobil
 
 Hub en ligne : **https://nobletsylvain.github.io/prototypes/**
 
+## ✈️ Airliner (4 core loops)
+
+Prototypes de vérification du fun pour **Airliner** (tycoon aérien "Football Manager Airline", repo [`airliner`](https://github.com/nobletsylvain/airliner)). HTML pur, un seul fichier par loop, **zéro dépendance** (pas de CDN), données et formules **verbatim** du repo airliner (economy.json, time_loop.json, operational_events.json, world_events.json, starter_cast.json). Chaque proto répond à UNE question de fun ; les verdicts se consignent dans `docs/planning/html-playtest-plan.md` du repo airliner.
+
+- **`airliner-founder-loop/`** — le cœur : bouton Continue ► (ticks d'1 jour, max 91), digest avec « Tes décisions de la période » mesurées contre l'affordance par défaut. *Question : décider soi-même est-il récompensé ?*
+- **`airliner-obligations/`** — Compromise & Obligations : 6 créanciers, l'aide acceptée aux abois, dormance 3-24 mois, rappel avec recall du contexte, Honor +30 / Partial −5 / Refuse −50 (R_I), ripostes. *Question : le rappel au pire moment crée-t-il l'émotion prévue ?*
+- **`airliner-executive/`** — équipe exécutive : cast réel + rivaux par archétype, 2 canaux de recrutement, 6 niveaux de délégation, issues = f(compétence) vs dirigeant moyen. *Question : déléguer change-t-il ce que je vis, ou c'est juste un menu ?*
+- **`airliner-routes/`** — économie des routes : 32 aéroports réels à portée d'ATR depuis Lyon, prix + fréquence, saisonnalité, rapport mensuel, validation croisée des formules (8/8 PASS vs EconomyManager.gd). *Question : le plaisir tycoon tient-il sans carte temps réel ?*
+
+> Desktop d'abord (colonnes 60/40, repli une colonne < ~860 px). RNG seedé — « Rejouer même seed » pour itérer à l'identique.
+
 ## 🟫 Hash Slicer (core loop)
 
 Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) chargé via CDN, un seul fichier `index.html`). Reskin humoristique d'un jeu de découpe/revente : chaîne de production en 3 niveaux, du gros au détail.

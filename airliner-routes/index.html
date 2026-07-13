@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Airliner — Proto 4 · Économie des routes</title>
+<style>
+  /* Palette Daylight Office — art-bible v0.5 §3.1 / data/config/theme.json */
+  :root {
+    --bg:#f0eee9; --panel:#e5e2da; --deep:#d4ceb9;
+    --ink:#2a2f2b; --soft:#555a55;
+    --sage:#8aa68a; --teal:#4a6e6b; --teal-l:#7a9692;
+    --amber:#c89240; --coral:#c66651; --forest:#4a6a3a;
+  }
+  html { background:var(--bg); }
+  body { background:var(--bg); color:var(--ink); margin:0;
+    font-family:Seravek,"Segoe UI",Ubuntu,Calibri,system-ui,sans-serif; font-size:15px; line-height:1.45; }
+  .mono { font-family:ui-monospace,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; }
+  button { font:inherit; cursor:pointer; border:none; border-radius:6px; }
+  button:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+  button:disabled { opacity:0.45; cursor:not-allowed; }
+  header { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:10px 16px;
+    background:var(--panel); border-bottom:1px solid var(--deep); position:sticky; top:0; z-index:5; }
+  header .brand { font-weight:700; letter-spacing:0.04em; }
+  header .date { color:var(--soft); }
+  header .counter { font-size:12px; font-weight:650; text-transform:uppercase; letter-spacing:0.08em;
+    background:var(--deep); padding:3px 10px; border-radius:999px; }
+  header .cash { margin-left:auto; font-weight:700; font-size:17px; }
+  header .cash.negative { color:var(--coral); }
+  .cols { display:grid; grid-template-columns:60% 1fr; gap:12px; padding:12px 16px 90px; max-width:1240px; margin:0 auto; }
+  @media (max-width:860px){ .cols { grid-template-columns:1fr; } }
+  .col h2 { font-size:12px; text-transform:uppercase; letter-spacing:0.1em; color:var(--soft); margin:6px 0 8px; font-weight:650; }
+  .card { background:var(--panel); border-radius:8px; padding:12px 14px; margin-bottom:10px; border-left:4px solid var(--deep); }
+  .card h3 { margin:0 0 6px; font-size:14.5px; }
+  .card p { margin:4px 0; }
+  .card .sub { color:var(--soft); font-size:13px; }
+  .card.quiet { border-left-color:var(--sage); }
+  .card.gain { border-left-color:var(--forest); }
+  .card.loss { border-left-color:var(--coral); }
+  .card.anchor { border-left-color:var(--amber); }
+  .card.milestone { border-left-color:var(--teal); }
+  .card.sibling { opacity:0.62; }
+  .fin-lines { font-family:ui-monospace,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; font-size:14px; white-space:pre; overflow-x:auto; }
+  .pos { color:var(--forest); font-weight:650; } .neg { color:var(--coral); font-weight:650; }
+  .scroll { overflow-x:auto; }
+  table.report { border-collapse:collapse; font-size:13px; width:100%; }
+  table.report th { text-align:left; color:var(--soft); font-size:11px; text-transform:uppercase; letter-spacing:0.06em; padding:4px 8px 4px 0; }
+  table.report td { padding:3px 8px 3px 0; border-top:1px solid var(--deep); font-variant-numeric:tabular-nums; }
+  details summary { cursor:pointer; color:var(--teal); font-size:13px; margin-top:4px; }
+  .toast { color:var(--soft); font-style:italic; margin:4px 0 10px; }
+  .actionbar { position:fixed; bottom:0; left:0; right:0; z-index:6; display:flex; gap:10px; align-items:center;
+    padding:10px 16px; background:var(--panel); border-top:1px solid var(--deep); }
+  .tool { background:var(--bg); border:1px solid var(--deep); padding:8px 14px; }
+  #btn-continue { margin-left:auto; background:var(--teal); color:var(--bg); font-size:17px; font-weight:700; padding:12px 28px; min-width:200px; }
+  #btn-continue:hover { background:var(--teal-l); }
+  .overlay { position:fixed; inset:0; background:rgba(42,47,43,0.45); z-index:10; display:none; align-items:flex-start; justify-content:center; padding:40px 12px; overflow-y:auto; }
+  .overlay.open { display:flex; }
+  .sheet { background:var(--bg); border-radius:10px; max-width:680px; width:100%; padding:18px 20px; box-shadow:0 12px 40px rgba(42,47,43,0.3); }
+  .sheet h2 { margin:0 0 10px; font-size:17px; }
+  .sheet .close { float:right; background:var(--deep); padding:5px 12px; }
+  .route-row { border:1px solid var(--deep); border-radius:8px; padding:10px 12px; margin-bottom:10px; background:var(--panel); }
+  .route-row h3 { margin:0; font-size:14.5px; }
+  .route-row .kpi { font-size:13px; color:var(--soft); margin:3px 0; }
+  input[type=range] { width:100%; accent-color:var(--teal); }
+  select { font:inherit; padding:6px 8px; border:1px solid var(--deep); border-radius:6px; background:var(--bg); color:var(--ink); max-width:100%; }
+  .preview { background:var(--panel); border-radius:8px; padding:10px 12px; margin-top:10px; font-size:13.5px; }
+  .primary { background:var(--teal); color:var(--bg); font-weight:650; padding:9px 18px; }
+  .danger-ghost { background:transparent; border:1px solid var(--coral); color:var(--coral); padding:5px 10px; font-size:12.5px; }
+  .stats { font-size:12.5px; color:var(--soft); background:var(--panel); border-radius:8px; padding:10px 12px; margin-bottom:10px; }
+  .stats b { color:var(--ink); }
+  .seedbar { font-size:12px; color:var(--soft); margin-top:6px; }
+  .seedbar button { background:var(--deep); padding:3px 8px; font-size:12px; margin-left:6px; }
+  .dial-pair { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .val-pass { color:var(--forest); font-weight:650; } .val-fail { color:var(--coral); font-weight:700; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">MERIDIAN AIR</span>
+  <span class="date mono" id="hdr-date">—</span>
+  <span class="counter" id="hdr-counter">FOUNDER · 0 of 8-12 decisions this session</span>
+  <span class="cash mono" id="hdr-cash">—</span>
+</header>
+
+<div class="cols">
+  <div class="col">
+    <h2>Rapport de la période</h2>
+    <div id="digest"></div>
+  </div>
+  <div class="col">
+    <h2>Réseau</h2>
+    <div class="stats" id="network"></div>
+    <h2>Session</h2>
+    <div class="stats" id="stats"></div>
+    <div class="seedbar">Seed <span class="mono" id="seed-label"></span>
+      <button id="btn-replay">Rejouer même seed</button>
+      <button id="btn-newseed">Nouveau seed</button>
+    </div>
+    <details style="margin-top:10px"><summary>Validation des formules (vs EconomyManager.gd)</summary>
+      <div id="validation" style="font-size:12.5px"></div>
+    </details>
+  </div>
+</div>
+
+<div class="actionbar">
+  <button class="tool" id="btn-routes">Routes</button>
+  <button class="tool" id="btn-fleet">Flotte</button>
+  <button id="btn-continue">Continue ► (fin de mois)</button>
+</div>
+
+<div class="overlay" id="ov-routes"><div class="sheet">
+  <button class="close" data-close="ov-routes">Fermer</button>
+  <h2>Routes — prix et fréquence</h2>
+  <div id="routes-list"></div>
+  <div id="newroute-zone"></div>
+</div></div>
+
+<div class="overlay" id="ov-fleet"><div class="sheet">
+  <button class="close" data-close="ov-fleet">Fermer</button>
+  <h2>Flotte</h2>
+  <div id="fleet-list"></div>
+  <div id="buy-zone"></div>
+</div></div>
+
+<div class="overlay open" id="ov-intro"><div class="sheet">
+  <h2>Proto 4 — l'économie des routes, sans la carte</h2>
+  <p>Même départ : <b>€15M</b>, un <b>ATR 72-600</b> à Lyon. Ici, pas d'incidents ni de crises —
+  juste le métier : <b>ouvrir des routes, régler prix et fréquence, et regarder ton réseau vivre
+  mois après mois</b> à travers le rapport mensuel. La demande respire avec les saisons
+  (creux de janvier ×0.82, pic de juillet ×1.25).</p>
+  <p>La question testée : ce plaisir tycoon tient-il <b>sans carte temps réel</b>, au rythme
+  du bouton Continue ? Le rapport mensuel te dit route par route ce que tes réglages ont produit.</p>
+  <p class="sub" style="color:var(--soft)">Formules et données verbatim du repo (economy.json,
+  aircraft_catalog.json, airports_europe.json — les 32 aéroports à portée d'ATR depuis Lyon).
+  Panneau « Validation des formules » pour la contre-vérification chiffrée.</p>
+  <button class="primary" data-close="ov-intro">Ouvrir ma première route</button>
+</div></div>
+
+<script>
+"use strict";
+/* ================= DONNÉES RÉELLES DU REPO ================= */
+// data/config/economy.json
+const ECO = {
+  fairPerKm:0.15, fairBase:50, roundTo:10,
+  bands:{short:500,regional:1500,long:3500}, mods:{short:0.6,regional:1.2,long:1.0,ultra:0.85},
+  seasonal:[0.82,0.85,0.95,1.00,1.05,1.15,1.25,1.20,1.05,0.95,0.85,0.90],
+  el:{atFair:1.0,sens:2.0,min:0.2,max:1.5},
+  sliderMin:0.5, sliderMax:2.0, defaultFrequency:7, opDaysMinMult:0.5
+};
+const MONTHS = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+// data/aircraft_catalog.json
+const ATR = { name:"ATR 72-600", seats:72, rangeKm:1528, speedKph:510, dailyCost:2400, fuelPerHour:360, price:15000000 };
+// data/config/crew.json — set complet par avion, expérience niv. 2 (×1.4)
+const CREW_SET_MONTHLY = Math.round((8000+5000+2*2500+4000+2200)*1.4);
+// data/airports_europe.json — LES 32 aéroports à portée ATR (1528 km) depuis LFLL, distances grand-cercle
+const HUB = { icao:"LFLL", iata:"LYS", city:"Lyon", demand:160 };
+const DESTS = [
+ {icao:"LSGG",iata:"GVA",city:"Genève",demand:200,dist:98},{icao:"LFLW",iata:"AUR",city:"Aurillac",demand:15,dist:228},
+ {icao:"LIMC",iata:"MXP",city:"Milan",demand:320,dist:284},{icao:"LFMN",iata:"NCE",city:"Nice",demand:160,dist:285},
+ {icao:"LSZH",iata:"ZRH",city:"Zurich",demand:320,dist:328},{icao:"LFPG",iata:"CDG",city:"Paris",demand:560,dist:412},
+ {icao:"LFRS",iata:"NTE",city:"Nantes",demand:140,dist:537},{icao:"EDDF",iata:"FRA",city:"Francfort",demand:520,dist:545},
+ {icao:"LEBL",iata:"BCN",city:"Barcelone",demand:400,dist:549},{icao:"EBBR",iata:"BRU",city:"Bruxelles",demand:280,dist:577},
+ {icao:"EDDM",iata:"MUC",city:"Munich",demand:400,dist:586},{icao:"LIRF",iata:"FCO",city:"Rome",demand:400,dist:721},
+ {icao:"EHAM",iata:"AMS",city:"Amsterdam",demand:520,dist:732},{icao:"EGLL",iata:"LHR",city:"Londres",demand:600,dist:757},
+ {icao:"LKPR",iata:"PRG",city:"Prague",demand:200,dist:838},{icao:"LDZA",iata:"ZAG",city:"Zagreb",demand:80,dist:852},
+ {icao:"LOWW",iata:"VIE",city:"Vienne",demand:320,dist:911},{icao:"LEMD",iata:"MAD",city:"Madrid",demand:480,dist:912},
+ {icao:"LIRN",iata:"NAP",city:"Naples",demand:140,dist:918},{icao:"EDDH",iata:"HAM",city:"Hambourg",demand:180,dist:947},
+ {icao:"EDDB",iata:"BER",city:"Berlin",demand:320,dist:957},{icao:"EGCC",iata:"MAN",city:"Manchester",demand:180,dist:999},
+ {icao:"LHBP",iata:"BUD",city:"Budapest",demand:160,dist:1099},{icao:"EIDW",iata:"DUB",city:"Dublin",demand:280,dist:1181},
+ {icao:"EPKK",iata:"KRK",city:"Cracovie",demand:140,dist:1196},{icao:"EKCH",iata:"CPH",city:"Copenhague",demand:320,dist:1221},
+ {icao:"EGPH",iata:"EDI",city:"Édimbourg",demand:160,dist:1280},{icao:"LEMG",iata:"AGP",city:"Malaga",demand:160,dist:1285},
+ {icao:"EGPF",iata:"GLA",city:"Glasgow",demand:120,dist:1309},{icao:"EPWA",iata:"WAW",city:"Varsovie",demand:240,dist:1359},
+ {icao:"LPPT",iata:"LIS",city:"Lisbonne",demand:280,dist:1399},{icao:"ESGG",iata:"GOT",city:"Göteborg",demand:100,dist:1415}
+];
+const CASH_FLOOR = 1000000; // time_loop.json financial_thresholds
+
+/* ================= RNG seedé ================= */
+let SEED = (new URLSearchParams(location.search).get("seed")|0) || Math.floor(Math.random()*1e9);
+let _rs=0; function srand(s){_rs=s>>>0;}
+function rnd(){_rs|=0;_rs=(_rs+0x6D2B79F5)|0;let t=Math.imul(_rs^(_rs>>>15),1|_rs);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;}
+
+/* ================= Formules (EconomyManager.gd) ================= */
+const fmt = n => "€" + Math.round(n).toLocaleString("fr-FR");
+const fmtS = n => (n>=0?"+":"−") + fmt(Math.abs(n));
+function fairPrice(d){ return Math.round((d*ECO.fairPerKm+ECO.fairBase)/ECO.roundTo)*ECO.roundTo; }
+function distMod(d){ if(d<=ECO.bands.short)return ECO.mods.short; if(d<=ECO.bands.regional)return ECO.mods.regional;
+  if(d<=ECO.bands.long)return ECO.mods.long; return ECO.mods.ultra; }
+function elasticity(ratio){ return Math.min(Math.max(ECO.el.atFair-(ratio-1)*ECO.el.sens,ECO.el.min),ECO.el.max); }
+function weeklyDemand(dest, price, month){
+  const geo=Math.sqrt(HUB.demand*dest.demand);
+  return Math.round(geo*distMod(dest.dist)*ECO.seasonal[month]*elasticity(price/Math.max(fairPrice(dest.dist),1)));
+}
+function weeklyPax(r, month){ return Math.min(weeklyDemand(r.dest,r.price,month), ATR.seats*r.freq); }
+function weeklyRevenue(r, month){ return weeklyPax(r,month)*r.price; }
+function weeklyCost(r){
+  const effDays=Math.max(ECO.defaultFrequency, r.freq*ECO.opDaysMinMult);
+  const fixed=ATR.dailyCost*effDays;
+  const fuel=ATR.fuelPerHour*(r.dest.dist/ATR.speedKph)*2*r.freq;
+  return fixed+fuel;
+}
+function weeklyCrew(){ return S.fleet.length*CREW_SET_MONTHLY*12/52; }
+
+/* ================= État ================= */
+let S=null;
+function newGame(seed){
+  SEED=seed; srand(seed);
+  S={ month:0, year:2026, cash:15000000,
+    fleet:[{id:"AC-01",routeId:null}], routes:[], nextRouteId:1, nextAcNum:2,
+    decisions:[], milestones:{}, totals:{pax:0,rev:0},
+    lastReport:null, prevMonthByRoute:{},
+    stats:{t0:Date.now(),continues:0,decisions:0,months:0} };
+  DIGEST="";
+  renderAll();
+}
+
+/* ================= Le mois qui passe ================= */
+let DIGEST="";
+function doContinue(){
+  const m=S.month, weeks=52/12;      // weeks_per_year: 52.0 (economy.json)
+  let rev=0, cost=weeklyCrew()*weeks, rows=[], decisionsNote=[];
+  for(const r of S.routes){
+    const pax=weeklyPax(r,m)*weeks, wr=weeklyRevenue(r,m)*weeks, wc=weeklyCost(r)*weeks;
+    const lf=weeklyPax(r,m)/(ATR.seats*r.freq);
+    const prev=S.prevMonthByRoute[r.id];
+    rows.push({r, pax, rev:wr, cost:wc, net:wr-wc, lf, prevNet:prev?prev.net:null});
+    // attribution : ton prix vs prix juste, à réglages identiques par ailleurs
+    const fair=fairPrice(r.dest.dist);
+    if(r.price!==fair){
+      const fairRow={dest:r.dest, price:fair, freq:r.freq};
+      const dNet=(wr-wc)-((Math.min(weeklyDemand(r.dest,fair,m),ATR.seats*r.freq)*fair)*weeks-wc);
+      decisionsNote.push({label:r.name+" à "+fmt(r.price)+" (juste : "+fmt(fair)+")",
+        detail:"Remplissage "+Math.round(lf*100)+" %.", delta:Math.round(dNet)});
+    }
+    rev+=wr; cost+=wc;
+    S.totals.pax+=pax; S.totals.rev+=wr;
+    S.prevMonthByRoute[r.id]={net:wr-wc};
+  }
+  S.cash+=rev-cost;
+  S.stats.continues++; S.stats.months++;
+
+  // Anchors : jalons (récompenses) + plancher de trésorerie
+  const anchors=[];
+  const M=S.milestones;
+  if(!M.firstProfit && S.routes.length && rev-cost>0){M.firstProfit=true;
+    anchors.push({cls:"milestone",title:"🎉 Premier mois rentable",body:"Ton réseau a dégagé "+fmtS(rev-cost)+" en "+MONTHS[m]+". C'est TON assemblage routes × prix × fréquences qui paie."});}
+  if(!M.routes3 && S.routes.length>=3){M.routes3=true;
+    anchors.push({cls:"milestone",title:"🎉 Réseau à 3 routes",body:"Meridian Air devient une vraie compagnie régionale."});}
+  if(!M.rev1m && S.totals.rev>=1000000){M.rev1m=true;
+    anchors.push({cls:"milestone",title:"🎉 €1M de revenus cumulés",body:"Jalon revenue_1m du vrai jeu."});}
+  if(!M.rev5m && S.totals.rev>=5000000){M.rev5m=true;
+    anchors.push({cls:"milestone",title:"🎉 €5M de revenus cumulés",body:"Jalon revenue_5m."});}
+  if(!M.pax50k && S.totals.pax>=50000){M.pax50k=true;
+    anchors.push({cls:"milestone",title:"🎉 50 000 passagers cumulés",body:"Cinquante mille personnes ont choisi ta compagnie."});}
+  if(S.cash<CASH_FLOOR){
+    anchors.push({cls:"anchor",title:"Plancher de trésorerie franchi — "+fmt(S.cash),
+      body:"Sous le seuil d'alerte de "+fmt(CASH_FLOOR)+". Ferme une route déficitaire, remonte un prix, ou renonce à un achat."});}
+
+  buildDigest(m, rows, rev, cost, anchors, decisionsNote);
+  // avancer d'un mois
+  S.month++; if(S.month>11){S.month=0;S.year++;}
+  S.decisions=[];
+  renderAll();
+}
+
+function buildDigest(m, rows, rev, cost, anchors, decisionsNote){
+  let h=`<p class="toast">Rapport de ${MONTHS[m]} ${S.year} · saisonnalité ×${ECO.seasonal[m]}</p>`;
+  const net=rev-cost;
+  const w=Math.max(fmt(rev).length,fmt(cost).length,fmt(Math.abs(net)).length);
+  h+=`<div class="card"><h3>Finances du mois</h3><div class="fin-lines">Revenus : <span class="pos">${fmt(rev).padStart(w)}</span>
+Coûts   : <span class="neg">${fmt(cost).padStart(w)}</span>
+Net     : <span class="${net<0?'neg':'pos'}">${fmtS(net).padStart(w)}</span></div>
+<p class="sub">Trésorerie : <b>${fmt(S.cash)}</b></p></div>`;
+
+  if(S.decisions.length||decisionsNote.length){
+    let inner="";
+    for(const d of S.decisions) inner+=`<p>✔ ${d.label}<br><span class="sub">${d.detail}</span></p>`;
+    for(const d of decisionsNote){
+      const cls=d.delta>0?"pos":(d.delta<0?"neg":"");
+      inner+=`<p>✔ ${d.label}<br><span class="sub">${d.detail}</span> <span class="${cls}">${fmtS(d.delta)} ce mois vs prix juste</span></p>`;
+    }
+    const total=decisionsNote.reduce((a,d)=>a+d.delta,0);
+    h+=`<div class="card ${total>=0?'gain':'loss'}"><h3>Tes décisions au travail</h3>${inner}`+
+      (decisionsNote.length?`<p><b>Bilan pricing du mois : <span class="${total>=0?'pos':'neg'}">${fmtS(total)}</span></b> vs laisser les prix justes.</p>`:"")+`</div>`;
+  }
+
+  if(rows.length){
+    rows.sort((a,b)=>b.net-a.net);
+    let t=`<div class="scroll"><table class="report"><tr><th>Route</th><th>Pax</th><th>Rempl.</th><th>Revenus</th><th>Coûts</th><th>Net</th><th>Tendance</th></tr>`;
+    for(const x of rows){
+      const trend=x.prevNet===null?"nouvelle":(x.net>x.prevNet?"▲":(x.net<x.prevNet?"▼":"="));
+      t+=`<tr><td>${x.r.name}</td><td>${Math.round(x.pax).toLocaleString("fr-FR")}</td><td>${Math.round(x.lf*100)} %</td><td>${fmt(x.rev)}</td><td>${fmt(x.cost)}</td><td class="${x.net<0?'neg':'pos'}">${fmtS(x.net)}</td><td>${trend}</td></tr>`;
+    }
+    t+=`</table></div>`;
+    const best=rows[0], worst=rows[rows.length-1];
+    let note="";
+    if(rows.length>1) note=`<p class="sub">Meilleure : <b>${best.r.name}</b> (${fmtS(best.net)}) · À surveiller : <b>${worst.r.name}</b> (${fmtS(worst.net)})</p>`;
+    const over=rows.find(x=>x.lf<0.5&&x.r.freq>ECO.defaultFrequency);
+    if(over) note+=`<p class="sub">⚠ ${over.r.name} vole à ${Math.round(over.lf*100)} % de remplissage avec ${over.r.freq} fréquences — des sièges vides brûlent du carburant.</p>`;
+    h+=`<div class="card"><h3>Ton réseau, route par route</h3>${t}${note}</div>`;
+  } else {
+    h+=`<div class="card quiet"><h3>Aucune route active</h3><p class="sub">Ta compagnie paie ${fmt(weeklyCrew()*52/12)} d'équipage par mois à ne rien faire. Ouvre une route.</p></div>`;
+  }
+
+  anchors.forEach((a,i)=>{ h+=`<div class="card ${a.cls}${i>0?" sibling":""}"><h3>${a.title}</h3><p class="sub">${a.body}</p></div>`; });
+
+  const nm=MONTHS[(m+1)%12];
+  h+=`<p class="toast">Prochain arrêt : fin ${nm} ${(m+1)>11?S.year+1:S.year} · saisonnalité ×${ECO.seasonal[(m+1)%12]}</p>`;
+  DIGEST=h;
+}
+
+/* ================= Décisions ================= */
+function countDecision(){ S.stats.decisions++; renderHeader(); renderStats(); }
+function createRoute(icao, price, freq){
+  const dest=DESTS.find(d=>d.icao===icao); const ac=S.fleet.find(a=>!a.routeId);
+  if(!dest||!ac) return;
+  const r={id:S.nextRouteId++,dest,price,freq,ac:ac.id,name:HUB.iata+" → "+dest.iata+" "+dest.city};
+  ac.routeId=r.id; S.routes.push(r);
+  S.decisions.push({label:"Ouverture de "+r.name+" ("+fmt(price)+", "+freq+"×/sem)",
+    detail:"Estimation : "+fmtS(weeklyRevenue(r,S.month)-weeklyCost(r))+"/sem hors salaires."});
+  countDecision(); renderAll();
+}
+function closeRoute(id){
+  const i=S.routes.findIndex(r=>r.id===id); if(i<0)return;
+  const r=S.routes[i];
+  S.fleet.find(a=>a.id===r.ac).routeId=null;
+  S.decisions.push({label:"Fermeture de "+r.name,detail:r.ac+" redevient disponible."});
+  delete S.prevMonthByRoute[id];
+  S.routes.splice(i,1); countDecision(); renderAll();
+}
+function tune(id, price, freq){
+  const r=S.routes.find(x=>x.id===id); if(!r)return;
+  const changed = price!==r.price || freq!==r.freq;
+  if(changed){
+    S.decisions.push({label:"Réglage "+r.name+" → "+fmt(price)+", "+freq+"×/sem",
+      detail:"Estimation : "+fmtS(weeklyRevenue({...r,price,freq},S.month)-weeklyCost({...r,freq}))+"/sem."});
+    r.price=price; r.freq=freq; countDecision();
+  }
+  renderRoutes(); renderAll();
+}
+function buyAircraft(){
+  if(S.cash<ATR.price) return;
+  S.cash-=ATR.price;
+  const id="AC-0"+(S.nextAcNum++);
+  S.fleet.push({id,routeId:null});
+  S.decisions.push({label:"Achat "+ATR.name+" ("+id+") — "+fmt(ATR.price),
+    detail:"+"+fmt(CREW_SET_MONTHLY)+"/mois d'équipage. Une route de plus devient possible."});
+  countDecision(); renderAll();
+}
+
+/* ================= Rendu ================= */
+const $=id=>document.getElementById(id);
+function renderHeader(){
+  $("hdr-date").textContent=MONTHS[S.month]+" "+S.year;
+  $("hdr-cash").textContent=fmt(S.cash);
+  $("hdr-cash").className="cash mono"+(S.cash<CASH_FLOOR?" negative":"");
+  $("hdr-counter").textContent="FOUNDER · "+S.stats.decisions+" of 8-12 decisions this session";
+}
+function renderDigest(){ $("digest").innerHTML=DIGEST||
+  `<div class="card quiet"><h3>Janvier 2026 — à toi de jouer</h3><p class="sub">Ouvre une route (bouton Routes), règle prix et fréquence, puis Continue ► pour lire ton premier rapport mensuel.</p></div>`; }
+function renderNetwork(){
+  const m=S.month;
+  const wkRev=S.routes.reduce((a,r)=>a+weeklyRevenue(r,m),0);
+  const wkCost=S.routes.reduce((a,r)=>a+weeklyCost(r),0)+weeklyCrew();
+  $("network").innerHTML=`Routes : <b>${S.routes.length}</b> · Avions : <b>${S.fleet.length}</b> (${S.fleet.filter(a=>!a.routeId).length} libre·s)<br>`+
+    `Rythme actuel : <b class="${wkRev-wkCost>=0?'pos':'neg'}">${fmtS(wkRev-wkCost)}/sem</b> (saisonnalité ${MONTHS[m]} ×${ECO.seasonal[m]})<br>`+
+    `Cumul : ${Math.round(S.totals.pax).toLocaleString("fr-FR")} pax · ${fmt(S.totals.rev)} de revenus`;
+}
+function renderStats(){
+  const mins=(Date.now()-S.stats.t0)/60000;
+  const pace=mins>0.5?(S.stats.decisions/mins*30).toFixed(1):"—";
+  $("stats").innerHTML=`Temps réel : <b>${Math.floor(mins)} min</b> · Décisions : <b>${S.stats.decisions}</b> (rythme <b>${pace}</b>/30 min, cible 8-12)<br>`+
+    `Continues : <b>${S.stats.continues}</b> · Mois simulés : <b>${S.stats.months}</b>`;
+  $("seed-label").textContent=SEED;
+}
+function previewHTML(dest, price, freq){
+  const r={dest,price,freq};
+  const pax=weeklyPax(r,S.month), rev=weeklyRevenue(r,S.month), cost=weeklyCost(r);
+  const lf=Math.round(100*pax/(ATR.seats*freq));
+  return `${dest.dist} km · prix juste ${fmt(fairPrice(dest.dist))} · ~${pax} pax/sem · remplissage ${lf} %<br>`+
+    `Revenus ${fmt(rev)} − coûts ${fmt(cost)} = <b class="${rev-cost>=0?'pos':'neg'}">${fmtS(rev-cost)}/sem</b>`;
+}
+function renderRoutes(){
+  let h="";
+  for(const r of S.routes){
+    const fair=fairPrice(r.dest.dist);
+    h+=`<div class="route-row"><h3>${r.name} <span class="sub mono">(${r.ac})</span>
+      <button class="danger-ghost" style="float:right" data-closeroute="${r.id}">Fermer</button></h3>
+      <div class="kpi" id="rk-${r.id}">${previewHTML(r.dest,r.price,r.freq)}</div>
+      <div class="dial-pair">
+        <label>Prix <b class="mono" id="pl-${r.id}">${fmt(r.price)}</b>
+          <input type="range" min="${Math.round(fair*ECO.sliderMin)}" max="${Math.round(fair*ECO.sliderMax)}" step="5" value="${r.price}" data-dial="price" data-route="${r.id}"></label>
+        <label>Fréquence <b class="mono" id="fl-${r.id}">${r.freq}×/sem</b>
+          <input type="range" min="1" max="14" step="1" value="${r.freq}" data-dial="freq" data-route="${r.id}"></label>
+      </div>
+      <button class="primary" style="margin-top:6px;padding:6px 12px;font-size:13px" data-apply="${r.id}">Appliquer les réglages</button></div>`;
+  }
+  if(!h) h=`<p class="toast">Aucune route.</p>`;
+  $("routes-list").innerHTML=h;
+  const idle=S.fleet.find(a=>!a.routeId);
+  const taken=new Set(S.routes.map(r=>r.dest.icao));
+  if(idle){
+    const opts=DESTS.filter(d=>!taken.has(d.icao))
+      .map(d=>`<option value="${d.icao}">${d.city} (${d.iata}) — ${d.dist} km, demande ${d.demand}</option>`).join("");
+    $("newroute-zone").innerHTML=`<h2 style="font-size:14px">Nouvelle route (avion libre : ${idle.id})</h2>
+      <select id="nr-dest">${opts}</select>
+      <div class="preview" id="nr-preview"></div>
+      <div class="dial-pair">
+        <label>Prix <b class="mono" id="nr-pl"></b><input type="range" id="nr-price"></label>
+        <label>Fréquence <b class="mono" id="nr-fl">7×/sem</b><input type="range" id="nr-freq" min="1" max="14" step="1" value="7"></label>
+      </div>
+      <button class="primary" id="nr-create" style="margin-top:8px">Ouvrir la route</button>`;
+    const sel=$("nr-dest");
+    const upd=(reset)=>{
+      const dest=DESTS.find(d=>d.icao===sel.value); const fair=fairPrice(dest.dist);
+      const ip=$("nr-price"); ip.min=Math.round(fair*ECO.sliderMin); ip.max=Math.round(fair*ECO.sliderMax); ip.step=5;
+      if(reset) ip.value=fair;
+      $("nr-pl").textContent=fmt(+ip.value);
+      $("nr-fl").textContent=$("nr-freq").value+"×/sem";
+      $("nr-preview").innerHTML=previewHTML(dest,+ip.value,+$("nr-freq").value);
+    };
+    sel.onchange=()=>upd(true); $("nr-price").oninput=()=>upd(false); $("nr-freq").oninput=()=>upd(false);
+    $("nr-create").onclick=()=>createRoute(sel.value,+$("nr-price").value,+$("nr-freq").value);
+    upd(true);
+  } else {
+    $("newroute-zone").innerHTML=`<p class="toast">Tous tes avions volent. Le panneau Flotte permet d'en acheter un autre.</p>`;
+  }
+}
+function renderFleet(){
+  $("fleet-list").innerHTML=S.fleet.map(a=>{
+    const r=S.routes.find(x=>x.id===a.routeId);
+    return `<div class="route-row"><h3>${a.id} — ${ATR.name}</h3><div class="kpi">${r?"Affecté à "+r.name:"<b>Libre</b>"}</div></div>`;
+  }).join("");
+  const can=S.cash>=ATR.price;
+  $("buy-zone").innerHTML=`<div class="preview"><b>Acheter un ${ATR.name}</b> — ${fmt(ATR.price)}<br>
+    <span class="sub">+ équipage ${fmt(CREW_SET_MONTHLY)}/mois. Après achat : ${fmt(S.cash-ATR.price)}
+    ${S.cash-ATR.price<CASH_FLOOR?'<b class="neg"> — sous le plancher !</b>':""}</span><br>
+    <button class="primary" id="btn-buy" style="margin-top:6px" ${can?"":"disabled"}>Acheter</button></div>`;
+  $("btn-buy").onclick=buyAircraft;
+}
+
+/* ============ Validation croisée des formules (vecteurs calculés à la main) ============ */
+const VECTORS = [
+  { name:"fair_price(227 km)", got:()=>fairPrice(227), want:80 },
+  { name:"fair_price(545 km)", got:()=>fairPrice(545), want:130 },
+  { name:"fair_price(912 km)", got:()=>fairPrice(912), want:190 },
+  { name:"demande LYS→AUR @juste, janv.", got:()=>weeklyDemand(DESTS.find(d=>d.icao==="LFLW"),80,0), want:24 },
+  { name:"demande LYS→FRA @juste, janv.", got:()=>weeklyDemand(DESTS.find(d=>d.icao==="EDDF"),130,0), want:284 },
+  { name:"coût hebdo ATR 227 km, 7×", got:()=>Math.round(weeklyCost({dest:{dist:227},freq:7})), want:19043 },
+  { name:"élasticité @ratio 1.25", got:()=>elasticity(1.25), want:0.5 },
+  { name:"élasticité clamp min @ratio 2.0", got:()=>elasticity(2.0), want:0.2 }
+];
+function renderValidation(){
+  $("validation").innerHTML = VECTORS.map(v=>{
+    const g=v.got(); const ok=Math.abs(g-v.want)<0.001;
+    return `<p>${ok?'<span class="val-pass">PASS</span>':'<span class="val-fail">FAIL</span>'} ${v.name} : ${g} (attendu ${v.want})</p>`;
+  }).join("") + `<p class="sub">Attendus calculés à la main depuis EconomyManager.gd + economy.json. Un FAIL = divergence JS/GDScript à documenter pour la spec Unity.</p>`;
+}
+
+function renderAll(){ renderHeader(); renderDigest(); renderNetwork(); renderStats(); renderRoutes(); renderFleet(); renderValidation(); }
+
+/* ================= Câblage ================= */
+document.addEventListener("click",e=>{
+  const t=e.target.closest("button"); if(!t)return;
+  if(t.dataset.close){$(t.dataset.close).classList.remove("open");return;}
+  if(t.id==="btn-routes"){renderRoutes();$("ov-routes").classList.add("open");return;}
+  if(t.id==="btn-fleet"){renderFleet();$("ov-fleet").classList.add("open");return;}
+  if(t.id==="btn-continue"){doContinue();return;}
+  if(t.id==="btn-replay"){newGame(SEED);return;}
+  if(t.id==="btn-newseed"){newGame(Math.floor(Math.random()*1e9));return;}
+  if(t.dataset.closeroute){closeRoute(+t.dataset.closeroute);return;}
+  if(t.dataset.apply){
+    const id=+t.dataset.apply;
+    const p=document.querySelector(`[data-dial="price"][data-route="${id}"]`);
+    const f=document.querySelector(`[data-dial="freq"][data-route="${id}"]`);
+    tune(id,+p.value,+f.value); return;
+  }
+});
+document.addEventListener("input",e=>{
+  const t=e.target;
+  if(t.dataset.dial&&t.dataset.route){
+    const id=+t.dataset.route;
+    const r=S.routes.find(x=>x.id===id); if(!r)return;
+    const p=document.querySelector(`[data-dial="price"][data-route="${id}"]`);
+    const f=document.querySelector(`[data-dial="freq"][data-route="${id}"]`);
+    $("pl-"+id).textContent=fmt(+p.value);
+    $("fl-"+id).textContent=f.value+"×/sem";
+    $("rk-"+id).innerHTML=previewHTML(r.dest,+p.value,+f.value);
+  }
+});
+newGame(SEED);
+</script>
+</body>
+</html>
