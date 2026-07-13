@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Airliner — Proto 1 · Founder Loop</title>
+<style>
+  /* Palette: Daylight Office register, art-bible v0.5 §3.1 / data/config/theme.json.
+     Proto assumé mono-thème (registre de jour du vrai jeu). */
+  :root {
+    --bg:#f0eee9; --panel:#e5e2da; --deep:#d4ceb9;
+    --ink:#2a2f2b; --soft:#555a55;
+    --sage:#8aa68a; --teal:#4a6e6b; --teal-l:#7a9692;
+    --amber:#c89240; --coral:#c66651; --forest:#4a6a3a; --tan:#d4b896;
+  }
+  html { background:var(--bg); }
+  body {
+    background:var(--bg); color:var(--ink); margin:0;
+    font-family:Seravek,"Segoe UI",Ubuntu,Calibri,system-ui,sans-serif;
+    font-size:15px; line-height:1.45;
+  }
+  .mono { font-family:ui-monospace,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; }
+  button { font:inherit; cursor:pointer; border:none; border-radius:6px; }
+  button:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+  button:disabled { opacity:0.45; cursor:not-allowed; }
+
+  /* ---- header ---- */
+  header {
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+    padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--deep);
+    position:sticky; top:0; z-index:5;
+  }
+  header .brand { font-weight:700; letter-spacing:0.04em; }
+  header .date { color:var(--soft); }
+  header .counter {
+    font-size:12px; font-weight:650; text-transform:uppercase; letter-spacing:0.08em;
+    background:var(--deep); padding:3px 10px; border-radius:999px;
+  }
+  header .cash { margin-left:auto; font-weight:700; font-size:17px; }
+  header .cash.negative { color:var(--coral); }
+
+  /* ---- layout ---- */
+  .cols { display:grid; grid-template-columns:60% 1fr; gap:12px; padding:12px 16px 90px; max-width:1200px; margin:0 auto; }
+  @media (max-width:820px){ .cols { grid-template-columns:1fr; } }
+  .col h2 {
+    font-size:12px; text-transform:uppercase; letter-spacing:0.1em;
+    color:var(--soft); margin:6px 0 8px; font-weight:650;
+  }
+
+  /* ---- cards ---- */
+  .card { background:var(--panel); border-radius:8px; padding:12px 14px; margin-bottom:10px; border-left:4px solid var(--deep); }
+  .card h3 { margin:0 0 6px; font-size:14.5px; }
+  .card p { margin:4px 0; }
+  .card .sub { color:var(--soft); font-size:13px; }
+  .card.quiet { border-left-color:var(--sage); }
+  .card.gain { border-left-color:var(--forest); }
+  .card.loss { border-left-color:var(--coral); }
+  .card.anchor { border-left-color:var(--amber); }
+  .card.milestone { border-left-color:var(--teal); background:linear-gradient(0deg, var(--panel), var(--panel)), var(--panel); }
+  .card.sibling { opacity:0.62; }
+  .fin-lines { font-family:ui-monospace,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; font-size:14px; white-space:pre; overflow-x:auto; }
+  .pos { color:var(--forest); font-weight:650; } .neg { color:var(--coral); font-weight:650; }
+  details summary { cursor:pointer; color:var(--teal); font-size:13px; margin-top:4px; }
+  details table { border-collapse:collapse; margin-top:6px; font-size:12.5px; }
+  details td { padding:2px 10px 2px 0; }
+  .toast { color:var(--soft); font-style:italic; margin:4px 0 10px; }
+
+  /* ---- inbox / decisions ---- */
+  .event-card { background:var(--panel); border-radius:8px; border-left:4px solid var(--amber); padding:12px 14px; margin-bottom:10px; }
+  .event-card h3 { margin:0 0 4px; font-size:14.5px; }
+  .aff { display:block; width:100%; text-align:left; margin-top:6px; padding:8px 10px; background:var(--bg); border:1px solid var(--deep); }
+  .aff:hover:not(:disabled) { border-color:var(--teal); }
+  .aff .cost { float:right; font-weight:650; }
+  .aff .why { display:block; font-size:12px; color:var(--soft); }
+  .aff.default { border-style:dashed; }
+  .aff .tag { font-size:10.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--soft); }
+
+  /* ---- action bar ---- */
+  .actionbar {
+    position:fixed; bottom:0; left:0; right:0; z-index:6;
+    display:flex; gap:10px; align-items:center; padding:10px 16px;
+    background:var(--panel); border-top:1px solid var(--deep);
+  }
+  .actionbar .tools { display:flex; gap:8px; flex-wrap:wrap; }
+  .tool { background:var(--bg); border:1px solid var(--deep); padding:8px 14px; }
+  .tool .badge { background:var(--coral); color:var(--bg); border-radius:999px; padding:0 7px; font-size:12px; margin-left:4px; }
+  #btn-continue {
+    margin-left:auto; background:var(--teal); color:var(--bg);
+    font-size:17px; font-weight:700; padding:12px 28px; min-width:180px;
+  }
+  #btn-continue:hover:not(:disabled) { background:var(--teal-l); }
+
+  /* ---- overlays ---- */
+  .overlay { position:fixed; inset:0; background:rgba(42,47,43,0.45); z-index:10; display:none; align-items:flex-start; justify-content:center; padding:40px 12px; overflow-y:auto; }
+  .overlay.open { display:flex; }
+  .sheet { background:var(--bg); border-radius:10px; max-width:640px; width:100%; padding:18px 20px; box-shadow:0 12px 40px rgba(42,47,43,0.3); }
+  .sheet h2 { margin:0 0 10px; font-size:17px; }
+  .sheet .close { float:right; background:var(--deep); padding:5px 12px; }
+  .route-row { border:1px solid var(--deep); border-radius:8px; padding:10px 12px; margin-bottom:10px; background:var(--panel); }
+  .route-row h3 { margin:0; font-size:14.5px; }
+  .route-row .kpi { font-size:13px; color:var(--soft); margin:3px 0; }
+  input[type=range] { width:100%; accent-color:var(--teal); }
+  select, input[type=text] { font:inherit; padding:6px 8px; border:1px solid var(--deep); border-radius:6px; background:var(--bg); color:var(--ink); }
+  .preview { background:var(--panel); border-radius:8px; padding:10px 12px; margin-top:10px; font-size:13.5px; }
+  .primary { background:var(--teal); color:var(--bg); font-weight:650; padding:9px 18px; }
+  .danger-ghost { background:transparent; border:1px solid var(--coral); color:var(--coral); padding:5px 10px; font-size:12.5px; }
+
+  /* ---- session stats ---- */
+  .stats { font-size:12.5px; color:var(--soft); background:var(--panel); border-radius:8px; padding:10px 12px; margin-bottom:10px; }
+  .stats b { color:var(--ink); }
+  .seedbar { font-size:12px; color:var(--soft); margin-top:6px; }
+  .seedbar button { background:var(--deep); padding:3px 8px; font-size:12px; margin-left:6px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">MERIDIAN AIR</span>
+  <span class="date mono" id="hdr-date">—</span>
+  <span class="counter" id="hdr-counter">FOUNDER · 0 of 8-12 decisions this session</span>
+  <span class="cash mono" id="hdr-cash">—</span>
+</header>
+
+<div class="cols">
+  <div class="col" id="col-digest">
+    <h2>Depuis le dernier Continue</h2>
+    <div id="digest"></div>
+  </div>
+  <div class="col" id="col-right">
+    <h2>À décider</h2>
+    <div id="inbox"></div>
+    <div id="anchors"></div>
+    <h2>Session</h2>
+    <div class="stats" id="stats"></div>
+    <div class="seedbar">Seed <span class="mono" id="seed-label"></span>
+      <button id="btn-replay">Rejouer même seed</button>
+      <button id="btn-newseed">Nouveau seed</button>
+    </div>
+  </div>
+</div>
+
+<div class="actionbar">
+  <div class="tools">
+    <button class="tool" id="btn-routes">Routes &amp; Prix</button>
+    <button class="tool" id="btn-fleet">Flotte</button>
+    <button class="tool" id="btn-finance">Finance</button>
+  </div>
+  <button id="btn-continue">Continue ►</button>
+</div>
+
+<div class="overlay" id="ov-routes"><div class="sheet">
+  <button class="close" data-close="ov-routes">Fermer</button>
+  <h2>Routes &amp; Prix</h2>
+  <div id="routes-list"></div>
+  <div id="newroute-zone"></div>
+</div></div>
+
+<div class="overlay" id="ov-fleet"><div class="sheet">
+  <button class="close" data-close="ov-fleet">Fermer</button>
+  <h2>Flotte</h2>
+  <div id="fleet-list"></div>
+  <div id="buy-zone"></div>
+</div></div>
+
+<div class="overlay" id="ov-finance"><div class="sheet">
+  <button class="close" data-close="ov-finance">Fermer</button>
+  <h2>Finance</h2>
+  <div id="finance-body"></div>
+</div></div>
+
+<div class="overlay open" id="ov-intro"><div class="sheet">
+  <h2>Janvier 2026 — ta compagnie démarre</h2>
+  <p>Tu as <b>€15 000 000</b>, un <b>ATR 72-600</b> (72 sièges) basé à <b>Lyon Saint-Exupéry</b>,
+  et un équipage minimal. La préfecture du Cantal te suggère une liaison <b>Lyon → Aurillac</b> —
+  elle est prête à créer dans le panneau Routes.</p>
+  <p><b>Continue ►</b> fait avancer les jours jusqu'au prochain moment qui te concerne.
+  Chaque événement te propose des choix : tu peux décider toi-même, ou laisser faire —
+  l'option par défaut s'appliquera. Le digest te montrera <b>ce que tes décisions ont rapporté</b>
+  par rapport au pilote automatique.</p>
+  <p class="sub" style="color:var(--soft)">Prototype de test du fun — données et formules réelles du repo
+  (economy.json, time_loop.json, operational_events.json, world_events.json). UI volontairement brute.
+  Textes des événements traduits, valeurs verbatim.</p>
+  <button class="primary" data-close="ov-intro">Prendre les commandes</button>
+</div></div>
+
+<script>
+"use strict";
+/* =====================================================================
+   DONNÉES RÉELLES DU REPO — ne pas modifier sans mettre à jour la source
+   ===================================================================== */
+
+// data/config/time_loop.json
+const TIME = {
+  startDate: "2026-01-01", maxTicksPerContinue: 91,
+  pCaptainSick: 0.02, pTechIssue: 0.005, pAtcDelayPerLeg: 0.03,
+  pWeather: 0.003, pSlot: 0.002,             // operational_events.json (weather/slot)
+  cashFloorEur: 1000000, cashFloorCooldownDays: 7
+};
+
+// data/config/economy.json
+const ECO = {
+  fairPerKm: 0.15, fairBase: 50, roundTo: 10,
+  bands: { short: 500, regional: 1500, long: 3500 },
+  mods: { short: 0.6, regional: 1.2, long: 1.0, ultra: 0.85 },
+  seasonal: [0.82,0.85,0.95,1.00,1.05,1.15,1.25,1.20,1.05,0.95,0.85,0.90],
+  elasticity: { atFair: 1.0, sensitivity: 2.0, min: 0.2, max: 1.5 },
+  sliderMin: 0.5, sliderMax: 2.0, defaultFrequency: 7
+};
+
+// data/aircraft_catalog.json — atr_72_600
+const ATR = { id:"atr_72_600", name:"ATR 72-600", seats:72, rangeKm:1528,
+  speedKph:510, dailyCost:2400, fuelPerHour:360, price:15000000 };
+
+// data/config/crew.json — salaires mensuels × mult expérience 1.4 (équipage seed niv. 2)
+// 1 capitaine + 1 OPL + 2 PNC + 1 mécano + 1 agent = set complet par avion
+const CREW_SET_MONTHLY = Math.round((8000 + 5000 + 2*2500 + 4000 + 2200) * 1.4); // €33 880
+
+// data/airports_europe.json — sélection dans le rayon ATR depuis LFLL (distances grand-cercle)
+const HUB = { icao:"LFLL", iata:"LYS", city:"Lyon", demand:160 };
+const DESTS = [
+  { icao:"LFLW", iata:"AUR", city:"Aurillac",   demand:15,  dist:227 },
+  { icao:"LSGG", iata:"GVA", city:"Genève",     demand:200, dist:98  },
+  { icao:"LIMC", iata:"MXP", city:"Milan",      demand:320, dist:284 },
+  { icao:"LSZH", iata:"ZRH", city:"Zurich",     demand:320, dist:328 },
+  { icao:"LFPG", iata:"CDG", city:"Paris",      demand:560, dist:412 },
+  { icao:"EDDF", iata:"FRA", city:"Francfort",  demand:520, dist:545 },
+  { icao:"LEBL", iata:"BCN", city:"Barcelone",  demand:400, dist:549 },
+  { icao:"EBBR", iata:"BRU", city:"Bruxelles",  demand:280, dist:577 },
+  { icao:"EDDM", iata:"MUC", city:"Munich",     demand:400, dist:586 },
+  { icao:"LIRF", iata:"FCO", city:"Rome",       demand:400, dist:721 },
+  { icao:"EHAM", iata:"AMS", city:"Amsterdam",  demand:520, dist:732 },
+  { icao:"EGLL", iata:"LHR", city:"Londres",    demand:600, dist:757 },
+  { icao:"LEMD", iata:"MAD", city:"Madrid",     demand:480, dist:912 }
+];
+
+// data/config/operational_events.json — schémas 3 affordances (labels traduits, valeurs verbatim)
+const OP_EVENTS = {
+  captain_sick: { label:"Capitaine indisponible", per:"aircraft", p:TIME.pCaptainSick, affs:[
+    { id:"cover_reserve", label:"Faire appel à l'équipage de réserve", cost:1500, why:"Heures sup. de réserve ; le vol part à l'heure.", def:true },
+    { id:"delay_4h", label:"Retarder le vol de 4 h", cost:3000, why:"Perte de revenus + plaintes clients (+5).", def:false },
+    { id:"cancel", label:"Annuler le vol", cost:11000, why:"Revenus perdus + compensations ; image écornée.", def:false } ]},
+  tech_issue: { label:"Panne technique", per:"aircraft", p:TIME.pTechIssue, affs:[
+    { id:"rush_repair", label:"Réparation d'urgence", cost:40000, why:"MRO dépêché, avion de retour le jour même.", def:true },
+    { id:"swap_aircraft", label:"Permuter avec un avion disponible", cost:25000, why:"Coût de repositionnement — exige un avion libre.", def:false, needsIdle:true },
+    { id:"cancel_insurance_claim", label:"Annuler + dossier assurance", cost:15000, why:"Revenus perdus moins l'assurance ; à surveiller côté flotte.", def:false } ]},
+  atc_delay: { label:"Retard contrôle aérien", per:"leg", p:TIME.pAtcDelayPerLeg, affs:[
+    { id:"accept_delay", label:"Accepter le retard", cost:1200, why:"Fuel + heures sup. de la fenêtre décalée.", def:true },
+    { id:"pay_slot_priority", label:"Payer le créneau prioritaire", cost:2700, why:"La redevance rachète le créneau à l'heure.", def:false } ]},
+  weather_diversion: { label:"Déroutement météo", per:"aircraft", p:TIME.pWeather, affs:[
+    { id:"divert_alt_airport", label:"Dérouter vers l'aéroport de dégagement", cost:3000, why:"Atterrissage sûr ; vol de récupération demain.", def:true },
+    { id:"hold_pattern", label:"Attente en hippodrome 30 min", cost:800, why:"On attend la fenêtre météo ; risque de retard en plus.", def:false },
+    { id:"cancel_return_origin", label:"Annuler + retour à l'origine", cost:6000, why:"Revenus perdus + compensations ; annulation sèche.", def:false } ]},
+  slot_request: { label:"Créneau proposé par l'aéroport", per:"aircraft", p:TIME.pSlot, affs:[
+    { id:"accept_offered", label:"Accepter le créneau proposé", cost:0, why:"Créneau non idéal mais gratuit.", def:true },
+    { id:"wait_preferred", label:"Attendre un meilleur créneau", cost:0, why:"50 % de chances d'avoir mieux sous 2 semaines.", def:false } ]}
+};
+
+// data/world_events.json — external shocks (deck curaté, textes traduits, multiplicateurs verbatim)
+const SHOCKS = [
+  { id:"oil_crisis", title:"Choc pétrolier", body:"Le brut a bondi de 40 % après des ruptures d'approvisionnement au Moyen-Orient. Le carburant s'envole pour toutes les compagnies. Comment réagir ?",
+    a:{ label:"Absorber le surcoût", why:"Prix maintenus, passagers fidèles, marges comprimées.", dm:1.0, cm:1.25, wk:12 },
+    b:{ label:"Répercuter sur les passagers", why:"Surcharge carburant : coûts maîtrisés, une partie des passagers renonce.", dm:0.85, cm:1.05, wk:12 } },
+  { id:"airport_strike", title:"Grève du contrôle aérien", body:"Les contrôleurs d'une grande région ont cessé le travail. Des centaines de vols cloués au sol chaque jour ; le public est furieux. Les opérations sont durement touchées.",
+    ack:{ dm:0.6, cm:0.85, wk:4 } },
+  { id:"new_entrant", title:"Nouveau concurrent agressif", body:"Une startup très financée débarque avec des prix cassés et un marketing tapageur. Elle vise tes routes les plus rentables.",
+    a:{ label:"Guerre des prix", why:"Aligner les tarifs pour défendre la part de marché.", dm:0.9, cm:1.0, wk:14 },
+    b:{ label:"Se différencier par la qualité", why:"Investir dans le service pour justifier le premium.", dm:0.85, cm:1.1, wk:14 } },
+  { id:"green_mandate", title:"Taxe carbone", body:"Un mécanisme international de prix du carbone entre en vigueur. Payer pour ses émissions ou investir : voler pas cher, c'est fini pour tout le monde.",
+    a:{ label:"Investir dans l'efficacité", why:"Gros investissement immédiat, coûts carbone durablement plus bas.", dm:1.0, cm:1.18, wk:20 },
+    b:{ label:"Acheter des crédits carbone", why:"Surcoût plus faible, mais les passagers préfèrent les compagnies « vertes ».", dm:0.92, cm:1.08, wk:20 } },
+  { id:"pandemic_scare", title:"Urgence sanitaire", body:"Une maladie respiratoire se propage entre continents. Les gouvernements émettent des avis aux voyageurs ; les réservations s'effondrent.",
+    a:{ label:"Protocoles sanitaires renforcés", why:"Désinfection, dépistage, rebooking flexible : coûteux mais rassurant.", dm:0.65, cm:1.15, wk:16 },
+    b:{ label:"Opérations squelette", why:"Programme réduit au minimum : revenus en chute, coûts qui chutent plus vite.", dm:0.45, cm:0.6, wk:16 } }
+];
+
+/* ===================== RNG seedé (mulberry32) ===================== */
+let SEED = (new URLSearchParams(location.search).get("seed")|0) || Math.floor(Math.random()*1e9);
+let _rs = 0;
+function srand(seed){ _rs = seed>>>0; }
+function rnd(){ _rs|=0; _rs=(_rs+0x6D2B79F5)|0; let t=Math.imul(_rs^(_rs>>>15),1|_rs);
+  t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }
+
+/* ===================== État ===================== */
+let S = null;
+function newGame(seed){
+  SEED = seed; srand(seed);
+  S = {
+    day: 0, cash: 15000000,                       // founder_phase.json starting_state
+    fleet: [ { id:"AC-01", routeId:null } ],
+    routes: [], nextRouteId: 1,
+    inbox: [],                                     // événements en attente de décision
+    decisions: [],                                 // décisions prises depuis le dernier digest
+    defaults: [],                                  // défauts appliqués depuis le dernier digest
+    period: { rev:0, cost:0, cashStart:15000000, dayStart:0, ops:[] },
+    shock: null, nextShockDay: 35 + Math.floor(rnd()*21),  // 1er shock ~S5-S8, puis toutes 6-10 sem.
+    lastCashFloorDay: -999,
+    milestones: {}, totals: { pax:0, rev:0 },
+    stats: { t0: Date.now(), continues: 0, decisions: 0, defaultsCount: 0,
+             savedVsDefault: 0, days: 0, halts: 0 }
+  };
+  // La route suggérée n'est PAS pré-créée : la créer est la première décision du joueur.
+  renderAll();
+}
+
+/* ===================== Économie (formules EconomyManager.gd) ===================== */
+const fmt = n => "€" + Math.round(n).toLocaleString("fr-FR").replace(/ /g," ");
+const fmtS = n => (n>=0?"+":"−") + fmt(Math.abs(n));
+function fairPrice(dist){ return Math.round((dist*ECO.fairPerKm + ECO.fairBase)/ECO.roundTo)*ECO.roundTo; }
+function distMod(dist){
+  if (dist<=ECO.bands.short) return ECO.mods.short;
+  if (dist<=ECO.bands.regional) return ECO.mods.regional;
+  if (dist<=ECO.bands.long) return ECO.mods.long;
+  return ECO.mods.ultra;
+}
+function gameMonth(){ const d = new Date(Date.parse(TIME.startDate) + S.day*86400000); return d.getMonth(); }
+function gameDate(offset){ const d = new Date(Date.parse(TIME.startDate) + (S.day+(offset||0))*86400000);
+  return d.toLocaleDateString("fr-FR", { weekday:"short", day:"numeric", month:"short", year:"numeric" }); }
+function shockDM(){ return S.shock && S.shock.active ? S.shock.dm : 1.0; }
+function shockCM(){ return S.shock && S.shock.active ? S.shock.cm : 1.0; }
+function weeklyDemand(route, price){
+  const geo = Math.sqrt(HUB.demand * route.dest.demand);
+  const base = geo * distMod(route.dest.dist) * ECO.seasonal[gameMonth()] * shockDM();
+  const ratio = price / Math.max(fairPrice(route.dest.dist), 1);
+  const el = Math.min(Math.max(ECO.elasticity.atFair - (ratio-1)*ECO.elasticity.sensitivity,
+                               ECO.elasticity.min), ECO.elasticity.max);
+  return Math.round(base * el);
+}
+function weeklyPax(route, price){ return Math.min(weeklyDemand(route, price), ATR.seats * ECO.defaultFrequency); }
+function weeklyRevenue(route, price){ return weeklyPax(route, price) * price; }
+function weeklyCost(route){
+  const fixed = ATR.dailyCost * ECO.defaultFrequency;
+  const hours = route.dest.dist / ATR.speedKph;
+  const fuel = ATR.fuelPerHour * hours * 2 * ECO.defaultFrequency;
+  return (fixed + fuel) * shockCM();
+}
+function weeklyCrewCost(){ return S.fleet.length * CREW_SET_MONTHLY * 12 / 52; }
+
+/* ===================== Simulation quotidienne ===================== */
+function tickDay(){
+  S.day++; S.stats.days++;
+  let rev = 0, cost = weeklyCrewCost()/7;
+  for (const r of S.routes){
+    rev += weeklyRevenue(r, r.price)/7;
+    cost += weeklyCost(r)/7;
+    S.totals.pax += weeklyPax(r, r.price)/7;
+  }
+  S.cash += rev - cost;
+  S.period.rev += rev; S.period.cost += cost; S.totals.rev += rev;
+  if (S.shock && S.shock.active && S.day >= S.shock.endDay) S.shock.active = false;
+
+  // Événements opérationnels (probabilités réelles/jour)
+  const born = [];
+  for (const ac of S.fleet){
+    if (!ac.routeId) continue;   // un avion sans route ne vole pas
+    const r = S.routes.find(x=>x.id===ac.routeId);
+    for (const [type,ev] of Object.entries(OP_EVENTS)){
+      const perDay = ev.per==="leg" ? ev.p * (ECO.defaultFrequency*2/7) : ev.p;
+      if (rnd() < perDay) born.push({ type, ac: ac.id, route: r, day: S.day });
+    }
+  }
+  return born;
+}
+
+function collectAnchors(){
+  const anchors = [];
+  // Financial: cash floor (CalendarAnchorCollector.gd — €1M, cooldown 7 j)
+  if (S.cash < TIME.cashFloorEur && S.day - S.lastCashFloorDay >= TIME.cashFloorCooldownDays){
+    S.lastCashFloorDay = S.day;
+    anchors.push({ kind:"cash_floor", title:"Plancher de trésorerie franchi — " + fmt(S.cash) + " en réserve",
+      body:"Sous le seuil d'alerte de " + fmt(TIME.cashFloorEur) + ". Réduis les pertes : ferme ou repositionne une route, revois les prix." });
+  }
+  // Milestones (récompenses)
+  const wkNet = S.routes.reduce((a,r)=>a+weeklyRevenue(r,r.price)-weeklyCost(r),0) - weeklyCrewCost();
+  const M = S.milestones;
+  if (!M.firstProfit && S.routes.length && wkNet > 0){ M.firstProfit = true;
+    anchors.push({ kind:"milestone", title:"🎉 Première semaine rentable",
+      body:"Ton réseau dégage " + fmtS(wkNet) + "/semaine. La compagnie tient debout — par tes choix de routes et de prix." }); }
+  if (!M.pax1000 && S.totals.pax >= 1000){ M.pax1000 = true;
+    anchors.push({ kind:"milestone", title:"🎉 1 000ᵉ passager transporté",
+      body:"Mille personnes ont volé Meridian Air." }); }
+  if (!M.rev1m && S.totals.rev >= 1000000){ M.rev1m = true;
+    anchors.push({ kind:"milestone", title:"🎉 €1M de revenus cumulés",
+      body:"Premier million au compteur (jalon revenue_1m du vrai jeu)." }); }
+  // External shock dû ?
+  if (!S.shock || (!S.shock.active && !S.shock.pending)){
+    if (S.day >= S.nextShockDay){
+      const deck = SHOCKS[Math.floor(rnd()*SHOCKS.length)];
+      S.shock = { def: deck, pending:true, active:false };
+      anchors.push({ kind:"shock", def: deck });
+    }
+  }
+  return anchors;
+}
+
+/* ===================== Continue ===================== */
+function doContinue(){
+  if (S.shock && S.shock.pending) return; // un shock à trancher bloque Continue (Reactive, GDD §6.1)
+  // Continue gate : les événements non traités s'auto-résolvent au défaut (l'étalon)
+  for (const e of S.inbox){
+    const ev = OP_EVENTS[e.type]; const def = ev.affs.find(a=>a.def);
+    S.cash -= def.cost;
+    S.defaults.push({ label: ev.label + " (" + e.ac + ")", aff: def, type: e.type });
+    S.stats.defaultsCount++;
+  }
+  S.inbox = [];
+  S.stats.continues++;
+
+  let halted = null, bornEvents = [], skipped = 0;
+  for (let i=0; i<TIME.maxTicksPerContinue; i++){
+    const born = tickDay();
+    const anchors = collectAnchors();
+    if (born.length || anchors.length){
+      bornEvents = born; halted = anchors; break;
+    }
+    skipped++;
+  }
+  S.stats.halts++;
+  S.inbox.push(...bornEvents);
+  buildDigest(halted || [], skipped);
+  renderAll();
+}
+
+/* ===================== Digest (format digest-builder-v0.1.md) ===================== */
+let DIGEST_HTML = "";
+function buildDigest(anchors, skipped){
+  const p = S.period;
+  const days = S.day - p.dayStart;
+  const net = p.rev - p.cost;
+  let h = "";
+
+  if (days > 0 && S.inbox.length===0 && anchors.length===0 && S.decisions.length===0 && S.defaults.length===0){
+    h += `<p class="toast">Skipped ${days} days · Cash ${fmtS(S.cash-p.cashStart)} · No events.</p>`;
+  } else if (days > 3){
+    h += `<p class="toast">${days} jours écoulés.</p>`;
+  }
+
+  // 3 lignes financières (verrouillé §6)
+  const w = Math.max(fmt(p.rev).length, fmt(p.cost).length, fmt(Math.abs(net)).length);
+  h += `<div class="card"><h3>Finances de la période</h3><div class="fin-lines">Revenus : <span class="pos">${fmt(p.rev).padStart(w)}</span>
+Coûts   : <span class="neg">${fmt(p.cost).padStart(w)}</span>
+Net     : <span class="${net<0?'neg':'pos'}">${fmtS(net).padStart(w)}</span></div>
+<p class="sub">Trésorerie : ${fmt(p.cashStart)} → <b>${fmt(S.cash)}</b></p></div>`;
+
+  // ★ Tes décisions de la période — le cœur du proto : chaque choix, son delta vs l'étalon
+  if (S.decisions.length || S.defaults.length){
+    let inner = "";
+    for (const d of S.decisions){
+      const cls = d.delta > 0 ? "pos" : (d.delta < 0 ? "neg" : "");
+      inner += `<p>✔ ${d.label}<br><span class="sub">${d.detail}</span>` +
+        (d.delta !== 0 ? ` <span class="${cls}">${fmtS(d.delta)} vs pilote automatique</span>` : "") + `</p>`;
+    }
+    for (const d of S.defaults){
+      inner += `<p style="opacity:0.7">⊘ ${d.label} — résolu au défaut : ${d.aff.label} (${fmt(d.aff.cost)})<br>` +
+        `<span class="sub">Tu n'as pas tranché ; l'étalon s'est appliqué.</span></p>`;
+    }
+    const saved = S.decisions.reduce((a,d)=>a+d.delta,0);
+    const cls = saved>=0?"gain":"loss";
+    h += `<div class="card ${cls}"><h3>Tes décisions de la période</h3>${inner}` +
+      (S.decisions.length ? `<p><b>Bilan de tes choix : <span class="${saved>=0?'pos':'neg'}">${fmtS(saved)}</span></b> par rapport à ne rien décider.</p>` : "") +
+      `</div>`;
+  }
+
+  // Attribution des prix : ton prix vs le prix juste, route par route
+  let priceRows = "";
+  for (const r of S.routes){
+    const fair = fairPrice(r.dest.dist);
+    if (r.price === fair) continue;
+    const wkNow = weeklyRevenue(r, r.price) - weeklyCost(r);
+    const wkFair = weeklyRevenue(r, fair) - weeklyCost(r);
+    const d = (wkNow - wkFair) * days/7;
+    const lf = Math.round(100*weeklyPax(r,r.price)/(ATR.seats*ECO.defaultFrequency));
+    priceRows += `<p>${r.name} à <b>${fmt(r.price)}</b> (juste : ${fmt(fair)}) — remplissage ${lf} % · ` +
+      `<span class="${d>=0?'pos':'neg'}">${fmtS(d)}</span> sur la période vs prix juste</p>`;
+  }
+  if (priceRows) h += `<div class="card"><h3>Tes prix au travail</h3>${priceRows}</div>`;
+
+  // Opérations agrégées (headline + drill-down, verrouillé §5)
+  if (S.period.ops.length){
+    const cats = {};
+    for (const o of S.period.ops){ (cats[o.type]=cats[o.type]||[]).push(o); }
+    let inner = "";
+    for (const [type,list] of Object.entries(cats)){
+      const impact = list.reduce((a,o)=>a+o.cost,0);
+      inner += `<p>▸ <b>${list.length} × ${OP_EVENTS[type].label}</b>` + (impact? ` · ${fmt(impact)} d'impact`:"") + `</p>`;
+    }
+    h += `<div class="card"><h3>Opérations</h3>${inner}<details><summary>Détail des événements</summary><table>` +
+      S.period.ops.map(o=>`<tr><td class="mono">${o.ac}</td><td>${OP_EVENTS[o.type].label}</td><td>${o.choice}</td><td class="mono">${fmt(o.cost)}</td></tr>`).join("") +
+      `</table></details></div>`;
+  }
+
+  // Effet shock en cours — rappel du choix du joueur
+  if (S.shock && S.shock.active){
+    const wLeft = Math.max(0, Math.ceil((S.shock.endDay - S.day)/7));
+    h += `<div class="card anchor"><h3>${S.shock.def.title} — en cours (${wLeft} sem. restantes)</h3>
+    <p class="sub">Ton choix : <b>${S.shock.choiceLabel}</b> · demande ×${S.shock.dm} · coûts ×${S.shock.cm}</p></div>`;
+  }
+
+  // Anchors du halt (primaire + siblings atténués, cap 3)
+  anchors.forEach((a,i)=>{
+    if (a.kind==="shock") return; // rendu dans la colonne décisions
+    const sib = i>0 ? " sibling" : "";
+    const cls = a.kind==="milestone" ? "milestone" : "anchor";
+    h += `<div class="card ${cls}${sib}"><h3>${a.title}</h3><p class="sub">${a.body}</p></div>`;
+  });
+
+  // Quiet period (verrouillé §8)
+  if (days>0 && !S.period.ops.length && !anchors.length && !S.inbox.length && !S.decisions.length && !S.defaults.length){
+    h += `<div class="card quiet"><h3>Période calme</h3><p class="sub">${days} jours sans incident. Ta compagnie vole toute seule — c'est le moment d'améliorer quelque chose.</p></div>`;
+  }
+
+  DIGEST_HTML = h;
+  // reset période
+  S.period = { rev:0, cost:0, cashStart:S.cash, dayStart:S.day, ops:[] };
+  S.decisions = []; S.defaults = [];
+}
+
+/* ===================== Décisions du joueur ===================== */
+function countDecision(){ S.stats.decisions++; renderHeader(); renderStats(); }
+
+function decideEvent(idx, affId){
+  const e = S.inbox[idx]; const ev = OP_EVENTS[e.type];
+  const aff = ev.affs.find(a=>a.id===affId);
+  const def = ev.affs.find(a=>a.def);
+  if (aff.needsIdle && !S.fleet.some(a=>!a.routeId)) return;
+  S.cash -= aff.cost;
+  const delta = def.cost - aff.cost;   // ce que ta décision change vs l'étalon
+  S.stats.savedVsDefault += delta;
+  S.decisions.push({ label: ev.label + " (" + e.ac + ") : " + aff.label,
+    detail: aff.why + (aff.id===def.id ? " (c'était aussi le défaut — choix assumé)" : " Défaut évité : " + def.label + " (" + fmt(def.cost) + ")."),
+    delta: aff.id===def.id ? 0 : delta });
+  S.period.ops.push({ type:e.type, ac:e.ac, cost:aff.cost, choice:aff.label });
+  S.inbox.splice(idx,1);
+  countDecision(); renderAll();
+}
+
+function decideShock(choice){
+  const sh = S.shock; const def = sh.def;
+  const c = def.ack ? def.ack : def[choice];
+  sh.pending=false; sh.active=true; sh.dm=c.dm; sh.cm=c.cm;
+  sh.endDay = S.day + c.wk*7;
+  sh.choiceLabel = def.ack ? "Pris acte" : c.label;
+  S.nextShockDay = sh.endDay + 14 + Math.floor(rnd()*28);
+  if (!def.ack){
+    // delta hebdo estimé du choix vs l'autre branche — rendu dans le digest suivant
+    const other = choice==="a" ? def.b : def.a;
+    const wkRev = S.routes.reduce((a,r)=>a+weeklyRevenue(r,r.price),0);
+    const wkCost = S.routes.reduce((a,r)=>a+weeklyCost(r),0);
+    const mine = wkRev*c.dm - wkCost*c.cm, theirs = wkRev*other.dm - wkCost*other.cm;
+    S.decisions.push({ label: def.title + " : " + c.label,
+      detail: c.why + " (l'autre option : " + other.label + ")",
+      delta: Math.round((mine-theirs)) });
+  } else {
+    S.decisions.push({ label: def.title + " : pris acte", detail:"Événement subi — pas de choix possible.", delta:0 });
+  }
+  countDecision(); renderAll();
+}
+
+function createRoute(destIcao, price){
+  const dest = DESTS.find(d=>d.icao===destIcao);
+  const ac = S.fleet.find(a=>!a.routeId);
+  if (!dest || !ac) return;
+  const r = { id: S.nextRouteId++, dest, price, ac: ac.id,
+    name: HUB.iata + " → " + dest.iata + " " + dest.city };
+  ac.routeId = r.id; S.routes.push(r);
+  const wk = weeklyRevenue(r,price)-weeklyCost(r);
+  S.decisions.push({ label:"Ouverture de " + r.name + " (" + ac.id + ", " + fmt(price) + ")",
+    detail:"Estimation à l'ouverture : " + fmtS(wk) + "/semaine hors salaires.", delta:0 });
+  countDecision(); renderAll();
+}
+
+function closeRoute(id){
+  const i = S.routes.findIndex(r=>r.id===id); if (i<0) return;
+  const r = S.routes[i];
+  const wk = weeklyRevenue(r,r.price)-weeklyCost(r);
+  S.fleet.find(a=>a.id===r.ac).routeId = null;
+  S.routes.splice(i,1);
+  S.decisions.push({ label:"Fermeture de " + r.name,
+    detail:"La route faisait " + fmtS(wk) + "/semaine. " + r.ac + " est libre pour mieux.",
+    delta: wk<0 ? Math.round(-wk) : Math.round(wk*-1) });
+  countDecision(); renderAll();
+}
+
+function setPrice(id, price){
+  const r = S.routes.find(x=>x.id===id); if (!r) return;
+  if (price !== r.price){ r.price = price; countDecision(); }
+  renderRoutes(); renderAll();
+}
+
+function buyAircraft(){
+  if (S.cash < ATR.price) return;
+  S.cash -= ATR.price;
+  const id = "AC-0" + (S.fleet.length+1);
+  S.fleet.push({ id, routeId:null });
+  S.decisions.push({ label:"Achat d'un 2ᵉ " + ATR.name + " (" + id + ")",
+    detail:"−" + fmt(ATR.price) + " de trésorerie, +" + fmt(CREW_SET_MONTHLY) + "/mois d'équipage. Une nouvelle route devient possible.", delta:0 });
+  if (!S.milestones.fleet2 && S.fleet.length===2){ S.milestones.fleet2 = true; }
+  countDecision(); renderAll();
+}
+
+/* ===================== Rendu ===================== */
+const $ = id => document.getElementById(id);
+function renderHeader(){
+  $("hdr-date").textContent = gameDate(0);
+  $("hdr-cash").textContent = fmt(S.cash);
+  $("hdr-cash").className = "cash mono" + (S.cash<TIME.cashFloorEur ? " negative":"");
+  $("hdr-counter").textContent = "FOUNDER · " + S.stats.decisions + " of 8-12 decisions this session";
+}
+function renderDigest(){ $("digest").innerHTML = DIGEST_HTML ||
+  `<div class="card quiet"><h3>Prêt au départ</h3><p class="sub">Ouvre ta première route (bouton « Routes &amp; Prix »), puis Continue ►.</p></div>`; }
+
+function renderInbox(){
+  let h = "";
+  if (S.shock && S.shock.pending){
+    const d = S.shock.def;
+    h += `<div class="event-card" style="border-left-color:var(--coral)"><h3>⚠ ${d.title}</h3><p class="sub">${d.body}</p>` +
+      (d.ack
+        ? `<button class="aff" data-shock="ack"><b>Prendre acte</b><span class="why">Pas de choix — demande ×${d.ack.dm}, coûts ×${d.ack.cm} pendant ${d.ack.wk} sem.</span></button>`
+        : `<button class="aff" data-shock="a"><b>${d.a.label}</b><span class="why">${d.a.why} — demande ×${d.a.dm}, coûts ×${d.a.cm}, ${d.a.wk} sem.</span></button>
+           <button class="aff" data-shock="b"><b>${d.b.label}</b><span class="why">${d.b.why} — demande ×${d.b.dm}, coûts ×${d.b.cm}, ${d.b.wk} sem.</span></button>`) +
+      `</div>`;
+  }
+  S.inbox.forEach((e,i)=>{
+    const ev = OP_EVENTS[e.type];
+    const r = e.route ? " · " + e.route.name : "";
+    h += `<div class="event-card"><h3>${ev.label}</h3><p class="sub">${e.ac}${r} · ${gameDate(0)}</p>` +
+      ev.affs.map(a=>{
+        const dis = a.needsIdle && !S.fleet.some(x=>!x.routeId);
+        return `<button class="aff${a.def?" default":""}" data-ev="${i}" data-aff="${a.id}" ${dis?"disabled":""}>` +
+          `<b>${a.label}</b><span class="cost">${fmt(a.cost)}</span>` +
+          `<span class="why">${a.why}${dis?" (aucun avion libre)":""}</span>` +
+          (a.def?`<span class="tag">— défaut si tu laisses faire —</span>`:"") + `</button>`;
+      }).join("") + `</div>`;
+  });
+  if (!h) h = `<p class="toast">Rien à trancher. Continue ► fera avancer les jours.</p>`;
+  $("inbox").innerHTML = h;
+  $("btn-continue").disabled = !!(S.shock && S.shock.pending);
+  const pend = S.inbox.length;
+  $("btn-continue").textContent = pend ? `Continue ► (${pend} au défaut)` : "Continue ►";
+}
+
+function renderStats(){
+  const mins = (Date.now()-S.stats.t0)/60000;
+  const pace = mins>0.5 ? (S.stats.decisions/mins*30).toFixed(1) : "—";
+  const avg = S.stats.halts ? (S.stats.days/S.stats.halts).toFixed(1) : "—";
+  $("stats").innerHTML =
+    `Temps réel : <b>${Math.floor(mins)} min</b> · Décisions : <b>${S.stats.decisions}</b> (rythme <b>${pace}</b>/30 min, cible 8-12)<br>` +
+    `Continues : <b>${S.stats.continues}</b> · Jours/halt : <b>${avg}</b> · Défauts subis : <b>${S.stats.defaultsCount}</b><br>` +
+    `Gain de tes décisions vs pilote automatique : <b class="${S.stats.savedVsDefault>=0?'pos':'neg'}">${fmtS(S.stats.savedVsDefault)}</b>`;
+  $("seed-label").textContent = SEED;
+}
+
+function routePreviewHTML(dest, price){
+  const fake = { dest, price };
+  const pax = weeklyPax(fake, price), fair = fairPrice(dest.dist);
+  const rev = weeklyRevenue(fake, price), cost = weeklyCost(fake);
+  const lf = Math.round(100*pax/(ATR.seats*ECO.defaultFrequency));
+  const net = rev-cost;
+  return `${dest.dist} km · prix juste ${fmt(fair)} · ~${Math.round(pax)} pax/sem (remplissage ${lf} %)<br>` +
+    `Revenus ${fmt(rev)}/sem − coûts ${fmt(cost)}/sem = <b class="${net>=0?'pos':'neg'}">${fmtS(net)}/sem</b> <span class="sub">(hors salaires ${fmt(weeklyCrewCost())}/sem au global)</span>`;
+}
+
+function renderRoutes(){
+  let h = "";
+  for (const r of S.routes){
+    const fair = fairPrice(r.dest.dist);
+    h += `<div class="route-row"><h3>${r.name} <span class="sub mono">(${r.ac})</span>
+      <button class="danger-ghost" style="float:right" data-closeroute="${r.id}">Fermer la route</button></h3>
+      <div class="kpi">${routePreviewHTML(r.dest, r.price)}</div>
+      <label>Prix du billet : <b class="mono" id="pr-lbl-${r.id}">${fmt(r.price)}</b>
+        <input type="range" min="${Math.round(fair*ECO.sliderMin)}" max="${Math.round(fair*ECO.sliderMax)}" step="5"
+               value="${r.price}" data-price="${r.id}"></label></div>`;
+  }
+  if (!h) h = `<p class="toast">Aucune route active.</p>`;
+  $("routes-list").innerHTML = h;
+
+  const idle = S.fleet.find(a=>!a.routeId);
+  const taken = new Set(S.routes.map(r=>r.dest.icao));
+  if (idle){
+    const opts = DESTS.filter(d=>!taken.has(d.icao))
+      .map(d=>`<option value="${d.icao}">${d.city} (${d.iata}) — ${d.dist} km, demande ${d.demand}${d.icao==="LFLW"?" — suggérée":""}</option>`).join("");
+    $("newroute-zone").innerHTML = `<h2 style="font-size:14px">Nouvelle route (avion libre : ${idle.id})</h2>
+      <select id="nr-dest">${opts}</select>
+      <div class="preview" id="nr-preview"></div>
+      <label>Prix : <b class="mono" id="nr-price-lbl"></b><input type="range" id="nr-price"></label>
+      <button class="primary" id="nr-create" style="margin-top:8px">Ouvrir la route</button>`;
+    const sel = $("nr-dest");
+    const updateNR = (resetPrice) => {
+      const dest = DESTS.find(d=>d.icao===sel.value);
+      const fair = fairPrice(dest.dist);
+      const inp = $("nr-price");
+      inp.min = Math.round(fair*ECO.sliderMin); inp.max = Math.round(fair*ECO.sliderMax); inp.step = 5;
+      if (resetPrice) inp.value = fair;
+      $("nr-price-lbl").textContent = fmt(+inp.value);
+      $("nr-preview").innerHTML = routePreviewHTML(dest, +inp.value);
+    };
+    sel.onchange = ()=>updateNR(true);
+    $("nr-price").oninput = ()=>updateNR(false);
+    $("nr-create").onclick = ()=>{ createRoute(sel.value, +$("nr-price").value); };
+    sel.value = taken.has("LFLW") ? sel.value : "LFLW";
+    updateNR(true);
+  } else {
+    $("newroute-zone").innerHTML = `<p class="toast">Tous tes avions sont affectés. Un 2ᵉ avion (panneau Flotte) ouvre une 2ᵉ route.</p>`;
+  }
+}
+
+function renderFleet(){
+  $("fleet-list").innerHTML = S.fleet.map(a=>{
+    const r = S.routes.find(x=>x.id===a.routeId);
+    return `<div class="route-row"><h3>${a.id} — ${ATR.name}</h3>
+      <div class="kpi">${r ? "Affecté à " + r.name : "<b>Libre</b> — disponible pour une route ou un échange technique"}</div></div>`;
+  }).join("");
+  const can = S.cash >= ATR.price;
+  $("buy-zone").innerHTML = `<div class="preview"><b>Acheter un ${ATR.name}</b> — ${fmt(ATR.price)}<br>
+    <span class="sub">+ équipage complet ${fmt(CREW_SET_MONTHLY)}/mois. Trésorerie après achat : ${fmt(S.cash-ATR.price)}
+    ${S.cash-ATR.price < TIME.cashFloorEur ? '<b class="neg"> — sous le plancher d’alerte !</b>' : ""}</span><br>
+    <button class="primary" id="btn-buy" style="margin-top:6px" ${can?"":"disabled"}>Acheter</button></div>`;
+  $("btn-buy").onclick = buyAircraft;
+}
+
+function renderFinance(){
+  const wkRev = S.routes.reduce((a,r)=>a+weeklyRevenue(r,r.price),0);
+  const wkCost = S.routes.reduce((a,r)=>a+weeklyCost(r),0) + weeklyCrewCost();
+  const net = wkRev-wkCost;
+  $("finance-body").innerHTML = `<div class="preview">
+    <p>Trésorerie : <b>${fmt(S.cash)}</b> (plancher d'alerte ${fmt(TIME.cashFloorEur)})</p>
+    <p>Rythme hebdomadaire actuel :<br>
+    Revenus ${fmt(wkRev)} − coûts routes ${fmt(wkCost-weeklyCrewCost())} − salaires ${fmt(weeklyCrewCost())}
+    = <b class="${net>=0?'pos':'neg'}">${fmtS(net)}/semaine</b></p>
+    <p class="sub">Passagers cumulés : ${Math.round(S.totals.pax).toLocaleString("fr-FR")} · Revenus cumulés : ${fmt(S.totals.rev)}</p></div>`;
+}
+
+function renderAll(){ renderHeader(); renderDigest(); renderInbox(); renderStats();
+  renderRoutes(); renderFleet(); renderFinance(); }
+
+/* ===================== Câblage ===================== */
+document.addEventListener("click", e=>{
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.close){ $(t.dataset.close).classList.remove("open"); return; }
+  if (t.id==="btn-routes"){ renderRoutes(); $("ov-routes").classList.add("open"); return; }
+  if (t.id==="btn-fleet"){ renderFleet(); $("ov-fleet").classList.add("open"); return; }
+  if (t.id==="btn-finance"){ renderFinance(); $("ov-finance").classList.add("open"); return; }
+  if (t.id==="btn-continue"){ doContinue(); return; }
+  if (t.id==="btn-replay"){ newGame(SEED); return; }
+  if (t.id==="btn-newseed"){ newGame(Math.floor(Math.random()*1e9)); return; }
+  if (t.dataset.shock){ decideShock(t.dataset.shock==="ack"?"ack":t.dataset.shock); return; }
+  if (t.dataset.ev !== undefined){ decideEvent(+t.dataset.ev, t.dataset.aff); return; }
+  if (t.dataset.closeroute){ closeRoute(+t.dataset.closeroute); return; }
+});
+document.addEventListener("input", e=>{
+  const t = e.target;
+  if (t.dataset.price){
+    const id = +t.dataset.price;
+    $("pr-lbl-"+id).textContent = fmt(+t.value);
+  }
+});
+document.addEventListener("change", e=>{
+  const t = e.target;
+  if (t.dataset.price){ setPrice(+t.dataset.price, +t.value); }
+});
+
+newGame(SEED);
+</script>
+</body>
+</html>
