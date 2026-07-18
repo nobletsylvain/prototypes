@@ -227,10 +227,11 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 <script type="module">
 /* snap/beuher d'abord — Three.js (scene3d) en lazy load.
    Sur mobile, unpkg bloqué cassait TOUT le proto (écran fantôme « enrouler »). */
-import * as snap from "./snap.mjs?v=11";
-import * as beuher from "./beuher.mjs?v=11";
+import * as snap from "./snap.mjs?v=12";
+import * as beuher from "./beuher.mjs?v=12";
 
-const SAVE_VERSION = "11";
+const SAVE_VERSION = "12";
+const DOSE_FORMATS = [2, 5, 8]; // synchro snap.SC.DOSE_FORMATS
 const SORT_POCKETS = [5, 20, 50, 100]; // trieuse 4+1 (+ reject / monnaie)
 const SORT_FEED = 0.28; // s entre chaque billet (machine, pas mini-jeu)
 let scene3d = null;
@@ -238,7 +239,7 @@ let scene3dPromise = null;
 async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
-    scene3dPromise = import("./scene3d.mjs?v=11").then((m) => {
+    scene3dPromise = import("./scene3d.mjs?v=12").then((m) => {
       scene3d = m;
       scene3d.mount(view3d, {
         pressbar: document.getElementById("pressbar"),
@@ -341,7 +342,7 @@ function cause(txt, why){ S.journal.unshift({t:Date.now(),txt,cause:why}); if(S.
 function planqueCap(){ return PLANQUE_CAP_BASE + S.upgrades.planque*120; }
 function finiG(){ return S.barG + Object.entries(S.sachets).reduce((a,[f,n])=>a+n*+f,0); }
 function avgMerge(oG,oQ,aG,aQ){ const t=oG+aG; return t<=0?0:(oG*oQ+aG*aQ)/t; }
-function fmtSachets(){ return [2,5,8].map(f=>`${S.sachets[f]}×${f}g`).join(" · "); }
+function fmtSachets(){ return DOSE_FORMATS.map(f=>`${S.sachets[f]||0}×${f}g`).join(" · "); }
 function qualAvg(){ return Math.round(S.sachetQ || S.barQ || 60); }
 
 function hud(){
@@ -574,7 +575,7 @@ function renderDoseBag(){
   stage.innerHTML=`
     <div class="bag-prompt">Place la barrette dans le sachet</div>
     <div class="seg">
-      ${[2,5,8].map(x=>`<button class="chip ${f===x?"on":""}" data-f="${x}">${x} g</button>`).join("")}
+      ${DOSE_FORMATS.map(x=>`<button class="chip ${f===x?"on":""}" data-f="${x}">${x} g</button>`).join("")}
     </div>
     <div class="bag-bench" id="bench">
       <div class="bag-tray" id="tray">
@@ -698,7 +699,7 @@ function renderDoseFast(){
     <h2>Dosage express</h2>
     <div class="sub">Délégation (R6). Même conversion barrettes → sachets, zéro geste. Le zip reste le plaisir.</div>
     <div class="seg">
-      ${[2,5,8].map(x=>`<button class="chip ${f===x?"on":""}" data-f="${x}">${x} g · ${DOSE_PRICE[x]}/g</button>`).join("")}
+      ${DOSE_FORMATS.map(x=>`<button class="chip ${f===x?"on":""}" data-f="${x}">${x} g · ${DOSE_PRICE[x]}/g</button>`).join("")}
     </div>
     <div class="card">
       <div class="stat"><span>Barrettes</span><b>${S.barG.toFixed(1)} g</b></div>

@@ -9,10 +9,13 @@ export const SC = {
   CREDIBILITE_DECAY: 0.55, CREDIBILITE_REGAIN: 0.12,
   REPUT_PENTE_HAUSSE: 0.14, REPUT_PENTE_BAISSE: 0.30, REPUT_MAX: 100,
   PRIX_FAIR: 10, LOWBALL_FACTOR: 0.55,
-  QTY_GENUINE: [2, 3, 4, 5], QTY_LOWBALL: [8, 12, 16],
+  // Formats = sachets atelier uniquement (2/5/8). Jamais 3/4/etc. (incombinables exacts).
+  DOSE_FORMATS: [2, 5, 8],
+  QTY_GENUINE: [2, 5, 8],
+  QTY_LOWBALL: [8, 16, 24], // multiples des formats (qtyToSachets exact)
   FLAKE_PAR_BRADAGE: 0.07, BRADE_DELAI: 2,
   GROSSISTE_SEUIL_EXPO: 45, GROSSISTE_FACTOR: 0.7,
-  GROSSISTE_QTY_BASE: 20, GROSSISTE_QTY_STEP: 40, GROSSISTE_QTY_CAP: 60, GROSSISTE_EXPO_COST: 14,
+  GROSSISTE_QTY_BASE: 24, GROSSISTE_QTY_STEP: 24, GROSSISTE_QTY_CAP: 72, GROSSISTE_EXPO_COST: 14,
 };
 
 const NAMES = [
@@ -137,13 +140,13 @@ export function buildDMs(S, good, bad, peakExpo) {
   return list;
 }
 
-/** Map qty grammes → sachets 2/5/8. Exact match only (jamais sur-livrer un format). */
+/** Map qty grammes → sachets DOSE_FORMATS. Exact match only (jamais sur-livrer). */
 export function qtyToSachets(qty, sachets) {
-  const formats = [8, 5, 2];
+  const formats = [...SC.DOSE_FORMATS].sort((a, b) => b - a);
   let left = qty;
-  const plan = { 2: 0, 5: 0, 8: 0 };
+  const plan = Object.fromEntries(SC.DOSE_FORMATS.map((f) => [f, 0]));
   for (const f of formats) {
-    while (left >= f && sachets[f] - plan[f] > 0) {
+    while (left >= f && (sachets[f] || 0) - plan[f] > 0) {
       plan[f]++;
       left -= f;
     }
@@ -153,7 +156,7 @@ export function qtyToSachets(qty, sachets) {
 }
 
 export function applySachetPlan(sachets, plan) {
-  for (const f of [2, 5, 8]) sachets[f] -= plan[f];
+  for (const f of SC.DOSE_FORMATS) sachets[f] -= plan[f] || 0;
 }
 
 /**
@@ -168,7 +171,9 @@ export function acceptDM(S, dmId, mode /* sell|brade|volume */) {
   let ppu = d.ppu;
   if (mode === "brade") ppu = Math.max(3, Math.round(ppu * 0.75));
   if (mode === "volume" && d.kind !== "grossiste") {
+    // garder une qty emballable en 2/5/8
     qty = Math.min(40, qty * 2);
+    if (qty % 2 !== 0) qty -= 1;
     ppu = Math.max(3, Math.round(ppu * 0.8));
   }
 
