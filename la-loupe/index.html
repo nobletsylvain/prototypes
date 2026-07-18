@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>La Loupe — hash loop</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+  :root{
+    --bg:#120e0a; --panel:#1c1610; --card:#261e16; --line:rgba(255,220,160,.14);
+    --muted:rgba(255,236,210,.55); --cash:#9be37d; --dirty:#e8c96a;
+    --heat:#ff8a6a; --accent:#ffb454; --ok:#7ddea0; --bad:#ff7a7a;
+  }
+  html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-ui,sans-serif;color:#f4ebe0;
+    background:radial-gradient(120% 90% at 50% 0%,#3a2414 0%,#1a120c 55%,#0c0907 100%)}
+  #phone{position:fixed;inset:0;max-width:440px;margin:0 auto;display:flex;flex-direction:column;
+    background:linear-gradient(180deg,#1a1410,#100c09);border-left:1px solid var(--line);border-right:1px solid var(--line)}
+  #top{padding:max(10px,env(safe-area-inset-top)) 14px 8px;display:grid;gap:6px;background:rgba(0,0,0,.35);
+    border-bottom:1px solid var(--line);z-index:5}
+  .row{display:flex;gap:8px;align-items:center;justify-content:space-between}
+  .pill{font-size:12px;font-weight:800;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.06);
+    border:1px solid var(--line);white-space:nowrap}
+  .pill.cash{color:var(--cash)}.pill.dirty{color:var(--dirty)}.pill.heat{color:var(--heat)}.pill.rep{color:#9ec9ff}
+  #toast{position:fixed;left:50%;top:22%;transform:translate(-50%,8px);opacity:0;transition:.2s;z-index:50;
+    background:rgba(0,0,0,.78);border:1px solid var(--line);padding:10px 14px;border-radius:14px;font-weight:800;
+    text-align:center;max-width:86%;pointer-events:none}
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+  #stage{flex:1;overflow:auto;padding:12px 12px 8px;-webkit-overflow-scrolling:touch}
+  #dock{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;padding:8px 8px max(10px,env(safe-area-inset-bottom));
+    background:rgba(0,0,0,.45);border-top:1px solid var(--line)}
+  .tab{appearance:none;border:0;background:transparent;color:var(--muted);font-size:10px;font-weight:700;
+    padding:8px 2px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:3px}
+  .tab .ic{font-size:18px;line-height:1}.tab.on{color:#fff;background:rgba(255,180,84,.16)}
+  h2{font-size:18px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:12.5px;line-height:1.35;margin-bottom:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:10px}
+  .card h3{font-size:14px;font-weight:800;margin-bottom:4px}
+  .muted{color:var(--muted);font-size:12px;line-height:1.35}
+  .btn{appearance:none;border:1px solid rgba(255,180,84,.45);background:linear-gradient(180deg,#3a2a16,#24180e);
+    color:#ffe4b5;font-weight:800;font-size:13px;padding:11px 12px;border-radius:12px;width:100%;margin-top:8px}
+  .btn:active{transform:scale(.98)}.btn:disabled{opacity:.4}
+  .btn.ok{border-color:rgba(125,222,160,.45);background:linear-gradient(180deg,#1f3324,#132018);color:#c8f5d6}
+  .btn.ghost{background:rgba(255,255,255,.04);border-color:var(--line);color:#f0e2cf}
+  .btn.bad{border-color:rgba(255,122,122,.45);background:linear-gradient(180deg,#3a1818,#241010);color:#ffd0d0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .seg{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+  .chip{padding:7px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);
+    font-size:12px;font-weight:800;color:var(--muted)}.chip.on{color:#fff;border-color:rgba(255,180,84,.55);
+    background:rgba(255,180,84,.16)}
+  .stat{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed rgba(255,255,255,.06);gap:8px}
+  .stat b{font-weight:800;text-align:right}
+  .bar{height:10px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin:8px 0 4px;position:relative}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#7ddea0,#ffb454)}
+  .gauge{position:relative;height:42px;border-radius:14px;background:#15100c;border:1px solid var(--line);
+    overflow:hidden;margin:10px 0}
+  .gauge .sweet{position:absolute;top:0;bottom:0;background:rgba(125,222,160,.28);border-left:1px solid #7ddea0;
+    border-right:1px solid #7ddea0}
+  .gauge .cur{position:absolute;top:0;bottom:0;width:3px;background:#fff;box-shadow:0 0 10px #fff;left:0}
+  .list{display:flex;flex-direction:column;gap:8px}
+  .msg{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:14px;padding:10px}
+  .msg .who{font-weight:900;font-size:13px}.msg .txt{color:var(--muted);font-size:12.5px;margin:4px 0 8px;line-height:1.35}
+  .bills{display:flex;flex-wrap:wrap;gap:8px;min-height:70px;padding:8px;border-radius:14px;border:1px dashed var(--line);
+    background:rgba(0,0,0,.2);margin-top:8px}
+  .bill{padding:10px 12px;border-radius:10px;font-weight:900;font-size:13px;border:1px solid rgba(255,255,255,.18);
+    background:linear-gradient(160deg,#2f5d3a,#1a3322);color:#d7ffdf}
+  .bill.n20{background:linear-gradient(160deg,#3a4f7a,#1d2944)}.bill.n50{background:linear-gradient(160deg,#7a4f2f,#3a2414)}
+  .bill.n100{background:linear-gradient(160deg,#5a3a6a,#2a1833)}.bill.n5{background:linear-gradient(160deg,#6a6a2f,#333318)}
+  .bundle{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin-top:6px;
+    border-radius:12px;border:1px solid rgba(125,222,160,.35);background:rgba(125,222,160,.08);font-size:12px;font-weight:800}
+  .lock{opacity:.55;filter:grayscale(.35)}
+  .tag{display:inline-block;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;border:1px solid var(--line);
+    color:var(--accent);margin-left:6px;vertical-align:middle}
+  .cause{font-size:11px;color:rgba(255,220,160,.45);margin-top:6px;font-style:italic}
+  .journal .item{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px}
+  .journal .item .c{color:rgba(255,220,160,.4);font-size:11px;margin-top:2px}
+  .home-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .home-tile{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 12px;text-align:left}
+  .home-tile .ic{font-size:22px}.home-tile .nm{font-weight:900;margin-top:6px;font-size:13px}
+  .home-tile .ds{color:var(--muted);font-size:11px;margin-top:2px;line-height:1.3}
+  .tier{font-size:11px;font-weight:800;color:var(--accent);letter-spacing:.3px}
+</style>
+</head>
+<body>
+<div id="phone">
+  <div id="top">
+    <div class="row">
+      <div class="pill">La Loupe</div>
+      <div class="pill" id="daypill">J1 · T0</div>
+    </div>
+    <div class="row">
+      <div class="pill cash" id="hudCash">propre 0</div>
+      <div class="pill dirty" id="hudDirty">liquide 0</div>
+      <div class="pill heat" id="hudHeat">chaleur 0</div>
+      <div class="pill rep" id="hudRep">standing 20</div>
+    </div>
+  </div>
+  <div id="stage"></div>
+  <div id="dock"></div>
+</div>
+<div id="toast"></div>
+
+<script type="module">
+/* La Loupe v2 — hash loop (weed mid stub).
+   Argent neutre (pas de devise). Ton caustique, zéro argot importé.
+   Liquide = cash rue non dépensable tant que non bundlé. Scaling par paliers. */
+
+const SAVE_VERSION = "2";
+const LS_PREFIX = "loupe_";
+
+const START_CASH = 220;
+const START_REPUT = 20;
+const PAIN_100 = { g: 100, price: 200, q: 52, label: "Pain 100", tip: "semi-gros, entrée de gamme" };
+const PAIN_250 = { g: 250, price: 1700, q: 78, label: "Pain 250", tip: "gros volume, standing 40", reputGate: 40 };
+const PAIN_500 = { g: 500, price: 3200, q: 70, label: "Lot 500", tip: "palier scale, standing 65", reputGate: 65 };
+const TARGET_BARRETTE_G = 10;
+const GRADE_KEEP = { A: 1.00, B: 0.85, C: 0.60, F: 0.32 };
+const GRADE_VAL = { A: 1.00, B: 0.75, C: 0.55 };
+const DOSE_PRICE = { 2: 9.5, 5: 8.0, 8: 7.0 };
+const WASTE_PRICE = 2.5;
+const CUT_SWEEP = 1.15;
+const CUT_SWEET_BASE = 0.11;
+const GUIDE_SWEET_BONUS = 0.035;
+const LIVREUR_FEE = 8;
+const LIVREUR_TIME_S = 14;
+const SEUIL_DISCRET_G = 52;
+const HEAT_EXPO = 3;
+const HEAT_BUST = 15;
+const HEAT_CAP = 100;
+const PLANQUE_CAP_BASE = 250;
+const DIRTY_HOLD_SOFT = 180;   // au-delà: chaleur lente
+const DIRTY_HOLD_HARD = 450;   // au-delà: chaleur rapide
+const BUNDLE_SIZE = 5;         // 5 billets même valeur = liasse propre
+const COUNTER_RATE = 40;       // propre / sec quand compteur actif
+
+const UPG_GUIDE = { cost: 180, max: 2, title: "Gabarit", desc: "zone verte plus large" };
+const UPG_SCOOTER = { cost: 350, max: 3, title: "Scooter", desc: "+1 livreur" };
+const UPG_PLANQUE = { cost: 400, max: 3, title: "Planque", desc: "+120 g capacité" };
+const UPG_COUNTER = { cost: 600, max: 1, title: "Compteur", desc: "convertit le liquide pendant que tu vis" };
+const UPG_BATCH = { cost: 280, max: 2, title: "Cadence coupe", desc: "tranches multiples" };
+
+const CLIENTS = [
+  { id: "karim", name: "Karim", vibe: "J'ai dix minutes. Tu livres ou j'appelle ailleurs." },
+  { id: "ines", name: "Inès", vibe: "Du clean. Si c'est du pneu, je te ghost." },
+  { id: "momo", name: "Momo", vibe: "Toujours le même créneau. Toujours pressé." },
+  { id: "sofia", name: "Sofia", vibe: "Pas de surprise. J'achète la qualité, pas ton histoire." },
+  { id: "yaz", name: "Yaz", vibe: "Je suis en bas. Tu bouges ou je m'en vais." },
+  { id: "lina", name: "Lina", vibe: "Un sachet. Propre. Sans roman." },
+  { id: "paul", name: "Paul", vibe: "Discret. Facture mentale payée cash." },
+  { id: "nora", name: "Nora", vibe: "J'en prends trois si t'as le stock. Sinon une." },
+];
+
+const TABS = [
+  { id: "home", ic: "⌂", lb: "Home" },
+  { id: "buy", ic: "◎", lb: "Appro" },
+  { id: "cut", ic: "✂", lb: "Coupe" },
+  { id: "dose", ic: "⚖", lb: "Dose" },
+  { id: "sell", ic: "✉", lb: "Vente" },
+  { id: "run", ic: "🛵", lb: "Livreur" },
+];
+
+const store = {
+  get: (k) => localStorage.getItem(LS_PREFIX + k),
+  set: (k, v) => localStorage.setItem(LS_PREFIX + k, v),
+};
+
+function money(n) { return String(Math.round(n)); }
+
+function defaultState() {
+  return {
+    cash: START_CASH,
+    dirty: 0,
+    heat: 0,
+    reput: START_REPUT,
+    day: 1,
+    clock: 0,
+    painG: 0,
+    painQ: 0,
+    barG: 0,
+    barQ: 0,
+    wasteG: 0,
+    sachets: { 2: 0, 5: 0, 8: 0 },
+    sachetQ: 60,
+    orders: [],
+    runs: [],
+    bills: [],
+    bundles: { 5: 0, 20: 0, 50: 0, 100: 0 }, // liasses en cours (compteur billets)
+    upgrades: { guide: 0, scooter: 0, planque: 0, counter: 0, batch: 0 },
+    journal: [],
+    orderSeq: 1,
+    soldDay: 0,
+    cut: { cursor: 0, dir: 1 },
+    doseFormat: 5,
+    weedUnlocked: false,
+    _lastSpawnSlot: -1,
+    _dirtyAcc: 0,
+  };
+}
+
+let S = defaultState();
+if (store.get("ver") !== SAVE_VERSION) {
+  Object.keys(localStorage).filter((k) => k.startsWith(LS_PREFIX)).forEach((k) => localStorage.removeItem(k));
+  store.set("ver", SAVE_VERSION);
+}
+try {
+  const raw = store.get("save");
+  if (raw) S = { ...defaultState(), ...JSON.parse(raw) };
+  if (!S.bundles) S.bundles = { 5: 0, 20: 0, 50: 0, 100: 0 };
+  if (!S.upgrades.counter) S.upgrades.counter = 0;
+  if (!S.upgrades.batch) S.upgrades.batch = 0;
+} catch { /* fresh */ }
+
+let tab = "home";
+let toastT = 0;
+const stage = document.getElementById("stage");
+const dock = document.getElementById("dock");
+const toastEl = document.getElementById("toast");
+
+function save() { store.set("save", JSON.stringify(S)); }
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastT);
+  toastT = setTimeout(() => toastEl.classList.remove("show"), 1700);
+}
+function cause(txt, why) {
+  S.journal.unshift({ t: Date.now(), txt, cause: why });
+  if (S.journal.length > 40) S.journal.length = 40;
+}
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function planqueCap() { return PLANQUE_CAP_BASE + S.upgrades.planque * 120; }
+function sweetW() { return CUT_SWEET_BASE + S.upgrades.guide * GUIDE_SWEET_BONUS; }
+function livreurCount() { return 1 + S.upgrades.scooter; }
+function cutBatchMax() { return 1 + S.upgrades.batch; }
+function finiG() {
+  return S.barG + Object.entries(S.sachets).reduce((a, [f, n]) => a + n * +f, 0);
+}
+function avgMerge(oldG, oldQ, addG, addQ) {
+  const t = oldG + addG;
+  if (t <= 0) return 0;
+  return (oldG * oldQ + addG * addQ) / t;
+}
+
+/** Palier d'intensité — le plaisir de grossir, lisible. */
+function tier() {
+  if (S.reput >= 65 || S.soldDay >= 80 || S.upgrades.scooter >= 2) return 3;
+  if (S.reput >= 40 || S.soldDay >= 35 || S.upgrades.batch >= 1) return 2;
+  if (S.reput >= 25 || S.soldDay >= 12) return 1;
+  return 0;
+}
+function tierLabel(t) {
+  return ["Coin de table", "Petite cadence", "Machine à tourner", "Quasi-four"][t] || "—";
+}
+function maxOpenOrders() { return 2 + tier(); }
+function spawnInterval() { return Math.max(5, 10 - tier() * 1.5); }
+
+function hud() {
+  document.getElementById("hudCash").textContent = `propre ${money(S.cash)}`;
+  document.getElementById("hudDirty").textContent = `liquide ${money(S.dirty)}`;
+  document.getElementById("hudHeat").textContent = `chaleur ${Math.round(S.heat)}`;
+  document.getElementById("hudRep").textContent = `standing ${Math.round(S.reput)}`;
+  document.getElementById("daypill").textContent = `J${S.day} · T${tier()}`;
+}
+
+function renderDock() {
+  dock.innerHTML = TABS.map((t) =>
+    `<button class="tab ${tab === t.id ? "on" : ""}" data-t="${t.id}"><span class="ic">${t.ic}</span>${t.lb}</button>`
+  ).join("");
+  dock.querySelectorAll(".tab").forEach((b) => { b.onclick = () => { tab = b.dataset.t; render(); }; });
+}
+
+function render() {
+  hud();
+  renderDock();
+  if (tab === "home") renderHome();
+  else if (tab === "buy") renderBuy();
+  else if (tab === "cut") renderCut();
+  else if (tab === "dose") renderDose();
+  else if (tab === "sell") renderSell();
+  else if (tab === "run") renderRun();
+}
+
+function renderHome() {
+  const t = tier();
+  stage.innerHTML = `
+    <h2>La Loupe</h2>
+    <div class="sub">Hash d'abord. Weed plus tard. Tu achètes gros, tu découpes fin, tu délègues la rue, tu ranges le liquide — puis tu rachètes plus grand.</div>
+    <div class="card">
+      <div class="tier">PALIER T${t} — ${tierLabel(t)}</div>
+      <div class="muted" style="margin-top:6px">Plus tu écoulés, plus la journée te tape. C'est le point.</div>
+      <div class="stat"><span>Écoulé aujourd'hui</span><b>${S.soldDay.toFixed(0)} g</b></div>
+      <div class="bar"><i style="width:${clamp(S.soldDay / 100 * 100, 0, 100)}%"></i></div>
+    </div>
+    <div class="home-grid">
+      <button class="home-tile" data-go="buy"><div class="ic">◎</div><div class="nm">Appro</div><div class="ds">pains & lots</div></button>
+      <button class="home-tile" data-go="cut"><div class="ic">✂</div><div class="nm">Coupe</div><div class="ds">pain → barrettes</div></button>
+      <button class="home-tile" data-go="dose"><div class="ic">⚖</div><div class="nm">Dosage</div><div class="ds">sachets 2 / 5 / 8</div></button>
+      <button class="home-tile" data-go="sell"><div class="ic">✉</div><div class="nm">Clients</div><div class="ds">DM → commande</div></button>
+      <button class="home-tile" data-go="run"><div class="ic">🛵</div><div class="nm">Livreurs</div><div class="ds">délègue la tournée</div></button>
+      <button class="home-tile" data-go="cash"><div class="ic">▣</div><div class="nm">Liquide</div><div class="ds">liasses → propre</div></button>
+    </div>
+    <div class="card lock" style="margin-top:10px">
+      <h3>Weed <span class="tag">MID</span></h3>
+      <div class="muted">Verrouillé. Quand le hash tourne tout seul, on ouvre la filière verte. Pas avant.</div>
+    </div>
+    <div class="card">
+      <h3>Réinvest — scaler</h3>
+      <div class="muted">Chaque achat change la boucle, pas juste un chiffre.</div>
+      ${shopRow("guide", UPG_GUIDE)}
+      ${shopRow("batch", UPG_BATCH)}
+      ${shopRow("scooter", UPG_SCOOTER)}
+      ${shopRow("planque", UPG_PLANQUE)}
+      ${shopRow("counter", UPG_COUNTER)}
+    </div>
+    <div class="card journal">
+      <h3>Karnet</h3>
+      ${S.journal.slice(0, 6).map((j) => `<div class="item">${j.txt}<div class="c">↩ ${j.cause}</div></div>`).join("") ||
+        `<div class="muted">Vide. Achète un pain. Le reste suivra, malheureusement.</div>`}
+    </div>
+    <button class="btn ghost" id="btnCash">Ouvrir le liquide</button>
+    <button class="btn bad" id="btnReset">Reset save</button>
+  `;
+  stage.querySelectorAll("[data-go]").forEach((b) => {
+    b.onclick = () => {
+      if (b.dataset.go === "cash") { renderCash(); return; }
+      tab = b.dataset.go; render();
+    };
+  });
+  stage.querySelectorAll("[data-up]").forEach((b) => { b.onclick = () => buyUpgrade(b.dataset.up); });
+  document.getElementById("btnCash").onclick = () => renderCash();
+  document.getElementById("btnReset").onclick = () => {
+    Object.keys(localStorage).filter((k) => k.startsWith(LS_PREFIX)).forEach((k) => localStorage.removeItem(k));
+    store.set("ver", SAVE_VERSION);
+    S = defaultState(); save(); toast("Save effacée. Rebonjour."); render();
+  };
+}
+
+function shopRow(key, conf) {
+  const lv = S.upgrades[key] || 0;
+  const maxed = lv >= conf.max;
+  const cost = conf.cost * (lv + 1);
+  return `<div class="stat"><span>${conf.title} · ${lv}/${conf.max}<br><span class="muted">${conf.desc}</span></span>
+    <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-up="${key}" ${maxed || S.cash < cost ? "disabled" : ""}>
+      ${maxed ? "MAX" : money(cost)}
+    </button></div>`;
+}
+
+function buyUpgrade(key) {
+  const map = { guide: UPG_GUIDE, scooter: UPG_SCOOTER, planque: UPG_PLANQUE, counter: UPG_COUNTER, batch: UPG_BATCH };
+  const conf = map[key];
+  if (!conf) return;
+  const lv = S.upgrades[key] || 0;
+  if (lv >= conf.max) return;
+  const cost = conf.cost * (lv + 1);
+  if (S.cash < cost) { toast("Le propre ne suffit pas. Trie d'abord."); return; }
+  S.cash -= cost;
+  S.upgrades[key] = lv + 1;
+  cause(`Upgrade ${conf.title} → ${S.upgrades[key]}`, `−${money(cost)} propre`);
+  toast("Ça scale. Le travail aussi.");
+  save(); render();
+}
+
+function renderBuy() {
+  const items = [PAIN_100, PAIN_250];
+  if (tier() >= 2) items.push(PAIN_500);
+  stage.innerHTML = `
+    <h2>Appro hash</h2>
+    <div class="sub">Cash <b>propre</b> uniquement. Le liquide rue n'achète rien ici — c'est voulu.</div>
+    ${items.map((p) => {
+      const locked = p.reputGate && S.reput < p.reputGate;
+      return `<div class="card ${locked ? "lock" : ""}">
+        <h3>${p.label}</h3>
+        <div class="muted">${p.tip} · q${p.q} · ${money(p.price)}</div>
+        <button class="btn ${p === PAIN_100 ? "ok" : ""}" data-buy="${p.g}" ${locked || S.cash < p.price ? "disabled" : ""}>
+          ${locked ? `Standing ${p.reputGate} requis` : `Prendre — ${money(p.price)}`}
+        </button>
+      </div>`;
+    }).join("")}
+    <div class="card">
+      <div class="stat"><span>Pain</span><b>${S.painG.toFixed(0)} g · q${Math.round(S.painQ)}</b></div>
+      <div class="stat"><span>Barrettes</span><b>${S.barG.toFixed(0)} g</b></div>
+      <div class="stat"><span>Sachets</span><b>${fmtSachets()}</b></div>
+      <div class="stat"><span>Planque</span><b>${finiG().toFixed(0)} / ${planqueCap()} g</b></div>
+      <div class="cause">Produit: hash. Le reste attend.</div>
+    </div>
+  `;
+  stage.querySelectorAll("[data-buy]").forEach((b) => {
+    b.onclick = () => {
+      const g = +b.dataset.buy;
+      buyPain([PAIN_100, PAIN_250, PAIN_500].find((p) => p.g === g));
+    };
+  });
+}
+
+function buyPain(p) {
+  if (!p) return;
+  if (p.reputGate && S.reput < p.reputGate) { toast("Ils ne te passent pas encore ce calibre."); return; }
+  if (S.cash < p.price) { toast("Propre insuffisant. Le liquide ne compte pas."); return; }
+  if (finiG() + S.painG + p.g > planqueCap()) { toast("Planque pleine. Écoule avant d'empiler."); return; }
+  S.cash -= p.price;
+  S.painQ = avgMerge(S.painG, S.painQ, p.g, p.q);
+  S.painG += p.g;
+  cause(`Achat ${p.label}`, `−${money(p.price)} propre · +${p.g} g brut q${p.q}`);
+  toast("Pain reçu. À découper.");
+  save(); render();
+}
+
+function renderCut() {
+  const sw = sweetW();
+  const left = (0.5 - sw) * 100;
+  const width = sw * 200;
+  const batch = cutBatchMax();
+  stage.innerHTML = `
+    <h2>Coupe retail</h2>
+    <div class="sub">Pain → barrettes ~${TARGET_BARRETTE_G} g. Dans le vert = grade A. À côté = miettes, pas une amende (R1).</div>
+    <div class="card">
+      <div class="stat"><span>Pain</span><b>${S.painG.toFixed(1)} g</b></div>
+      <div class="stat"><span>Barrettes</span><b>${S.barG.toFixed(1)} g · q${Math.round(S.barQ)}</b></div>
+      <div class="stat"><span>Miettes</span><b>${S.wasteG.toFixed(1)} g</b></div>
+      <div class="stat"><span>Cadence</span><b>×${batch} tranche${batch > 1 ? "s" : ""}</b></div>
+      <div class="gauge" id="gauge"><div class="sweet" style="left:${left}%;width:${width}%"></div><div class="cur" id="cur"></div></div>
+      <button class="btn ok" id="cutBtn" ${S.painG < 4 ? "disabled" : ""}>TRANCHER${batch > 1 ? ` ×${batch}` : ""}</button>
+      <button class="btn ghost" id="wasteBtn" ${S.wasteG < 1 ? "disabled" : ""}>Brader miettes (${money(WASTE_PRICE)}/g → liquide)</button>
+    </div>
+  `;
+  document.getElementById("cutBtn").onclick = () => { for (let i = 0; i < batch && S.painG >= 4; i++) doCut(i === 0); renderCut(); };
+  document.getElementById("wasteBtn").onclick = () => {
+    if (S.wasteG < 1) return;
+    const g = S.wasteG;
+    const pay = Math.round(g * WASTE_PRICE);
+    S.wasteG = 0;
+    S.dirty += pay;
+    pushBills(pay);
+    cause(`Miettes bradées ${g.toFixed(1)} g`, `+${money(pay)} liquide`);
+    toast("Liquide. Encore à ranger.");
+    save(); renderCut();
+  };
+}
+
+function doCut(announce) {
+  if (S.painG < 4) return;
+  const err = Math.abs(S.cut.cursor - 0.5);
+  const sw = sweetW();
+  let grade = "F";
+  if (err <= sw) grade = "A";
+  else if (err <= sw * 2.4) grade = "B";
+  else if (err <= sw * 4.5) grade = "C";
+  const keep = GRADE_KEEP[grade];
+  const take = Math.min(S.painG, TARGET_BARRETTE_G);
+  const kept = take * keep;
+  const lost = take - kept;
+  const qAdd = S.painQ * GRADE_VAL[grade === "F" ? "C" : grade];
+  S.painG -= take;
+  S.barQ = avgMerge(S.barG, S.barQ, kept, qAdd);
+  S.barG += kept;
+  S.wasteG += lost;
+  cause(`Coupe ${grade} · ${kept.toFixed(1)} g`, `err=${err.toFixed(2)} · keep ${keep}`);
+  if (announce) {
+    toast(grade === "A" ? "Propre. Presque insultant." : grade === "B" ? "Vendable. On ne célèbre pas." : grade === "C" ? "Moche. Ça part quand même." : "Miettes. Bravo.");
+  }
+  save();
+}
+
+function renderDose() {
+  const f = S.doseFormat;
+  const multi = 1 + tier();
+  stage.innerHTML = `
+    <h2>Dosage sachets</h2>
+    <div class="sub">Petit format = prix/g plus haut. Gros format = moins de gestes. Choisis ton ennui.</div>
+    <div class="seg">
+      ${[2, 5, 8].map((x) => `<button class="chip ${f === x ? "on" : ""}" data-f="${x}">${x} g · ${DOSE_PRICE[x]}/g</button>`).join("")}
+    </div>
+    <div class="card">
+      <div class="stat"><span>Barrettes</span><b>${S.barG.toFixed(1)} g</b></div>
+      <div class="stat"><span>Sachets</span><b>${fmtSachets()}</b></div>
+      <div class="stat"><span>Qualité moy.</span><b>q${Math.round(S.sachetQ)}</b></div>
+      <button class="btn ok" id="doseBtn" ${S.barG < f ? "disabled" : ""}>Ensacher ${f} g</button>
+      <button class="btn ghost" id="doseN" ${S.barG < f * multi ? "disabled" : ""}>×${multi} sachets (palier T${tier()})</button>
+    </div>
+  `;
+  stage.querySelectorAll("[data-f]").forEach((b) => { b.onclick = () => { S.doseFormat = +b.dataset.f; renderDose(); }; });
+  document.getElementById("doseBtn").onclick = () => doseOne(1);
+  document.getElementById("doseN").onclick = () => doseOne(multi);
+}
+
+function doseOne(n) {
+  const f = S.doseFormat;
+  let did = 0;
+  for (let i = 0; i < n; i++) {
+    if (S.barG < f) break;
+    const stockG = Object.entries(S.sachets).reduce((a, [ff, nn]) => a + nn * +ff, 0);
+    S.barG -= f;
+    S.sachetQ = avgMerge(stockG, S.sachetQ, f, S.barQ);
+    S.sachets[f]++;
+    did++;
+  }
+  cause(`Dosage ${did}×${f} g`, `Barrettes → sachets`);
+  toast(did > 1 ? `${did} sachets. Cadence.` : "Sachet. Suivant.");
+  save(); renderDose();
+}
+
+function fmtSachets() {
+  return [2, 5, 8].map((f) => `${S.sachets[f]}×${f}g`).join(" · ");
+}
+
+function renderSell() {
+  maybeSpawnOrders();
+  const open = S.orders.filter((o) => o.status === "open");
+  stage.innerHTML = `
+    <h2>Clients</h2>
+    <div class="sub">Tu ne touches pas le cash ici. Tu valides le format. Le livreur fait le sale. Toi, tu assumes.</div>
+    <div class="card">
+      <div class="stat"><span>Stock</span><b>${fmtSachets()}</b></div>
+      <div class="stat"><span>Demandes max</span><b>${maxOpenOrders()} (T${tier()})</b></div>
+      <button class="btn ghost" id="ping">Secouer le téléphone</button>
+    </div>
+    <div class="list">
+      ${open.map(orderCard).join("") || `<div class="card muted">Silence radio. Secoue, ou attends que le standing fasse le reste.</div>`}
+    </div>
+  `;
+  document.getElementById("ping").onclick = () => { spawnOrder(true); renderSell(); };
+  stage.querySelectorAll("[data-accept]").forEach((b) => { b.onclick = () => acceptOrder(b.dataset.accept); });
+  stage.querySelectorAll("[data-refuse]").forEach((b) => { b.onclick = () => refuseOrder(b.dataset.refuse); });
+}
+
+function orderCard(o) {
+  const need = o.qty || 1;
+  const have = S.sachets[o.format] >= need;
+  return `<div class="msg">
+    <div class="who">${o.client}${need > 1 ? ` · ×${need}` : ""}</div>
+    <div class="txt">« ${o.vibe} » — <b>${need}×${o.format} g</b> · ${money(o.price)}</div>
+    <div class="grid2">
+      <button class="btn ok" data-accept="${o.id}" ${have ? "" : "disabled"}>${have ? "Prendre" : "Stock KO"}</button>
+      <button class="btn ghost" data-refuse="${o.id}">Ignorer</button>
+    </div>
+  </div>`;
+}
+
+function maybeSpawnOrders() {
+  const open = S.orders.filter((o) => o.status === "open").length;
+  if (open >= maxOpenOrders()) return;
+  const slot = Math.floor(S.clock / spawnInterval());
+  if (S._lastSpawnSlot === slot) return;
+  S._lastSpawnSlot = slot;
+  if ((slot + Math.round(S.reput)) % 2 === 0) spawnOrder(false);
+}
+
+function spawnOrder(force) {
+  const formats = [2, 5, 8];
+  const idx = (S.orderSeq * 3 + Math.round(S.reput)) % CLIENTS.length;
+  const c = CLIENTS[idx];
+  const format = formats[(S.orderSeq + Math.floor(S.reput / 10)) % formats.length];
+  // scale: multi-qty orders at higher tiers
+  let qty = 1;
+  if (tier() >= 2 && (S.orderSeq % 3 === 0)) qty = 2;
+  if (tier() >= 3 && (S.orderSeq % 4 === 0)) qty = 3;
+  const qMul = S.sachetQ >= 75 ? 1.1 : S.sachetQ >= 55 ? 1.0 : 0.85;
+  const price = Math.round(format * DOSE_PRICE[format] * qMul * qty);
+  if (!force && S.orders.some((o) => o.status === "open" && o.client === c.name)) return;
+  S.orders.push({
+    id: "o" + S.orderSeq++,
+    client: c.name,
+    vibe: c.vibe,
+    format,
+    qty,
+    price,
+    status: "open",
+  });
+  if (force) toast("Nouveau message. Charmant.");
+  save();
+}
+
+function acceptOrder(id) {
+  const o = S.orders.find((x) => x.id === id);
+  if (!o || o.status !== "open") return;
+  const qty = o.qty || 1;
+  if (S.sachets[o.format] < qty) { toast("Pas le stock. Mentir ne livre pas."); return; }
+  S.sachets[o.format] -= qty;
+  o.status = "ready";
+  o.g = o.format * qty;
+  cause(`Commande ${o.client} ×${qty}`, `${qty}×${o.format} g retirés · à dispatcher`);
+  toast("Validé. Envoie quelqu'un d'autre.");
+  save();
+  tab = "run";
+  render();
+}
+
+function refuseOrder(id) {
+  const o = S.orders.find((x) => x.id === id);
+  if (!o) return;
+  o.status = "refused";
+  S.reput = clamp(S.reput - 1, 0, 100);
+  cause(`Refus ${o.client}`, `standing −1`);
+  toast("Ignoré. Il s'en souviendra un peu.");
+  save(); renderSell();
+}
+
+function renderRun() {
+  const ready = S.orders.filter((o) => o.status === "ready");
+  const active = S.runs.filter((r) => r.left > 0);
+  const doneWait = S.runs.filter((r) => r.left <= 0 && !r.collected);
+  stage.innerHTML = `
+    <h2>Livreurs</h2>
+    <div class="sub">Tu délègues. Cumul &gt; ${SEUIL_DISCRET_G} g dehors = trop visible. Le retour arrive en <b>liquide</b>, jamais en propre.</div>
+    <div class="card">
+      <div class="stat"><span>Scooters</span><b>${livreurCount()}</b></div>
+      <div class="stat"><span>En route</span><b>${active.length}</b></div>
+      <div class="stat"><span>Chaleur</span><b>${Math.round(S.heat)} / ${HEAT_CAP}</b></div>
+    </div>
+    <div class="card">
+      <h3>À dispatcher</h3>
+      ${ready.map((o) => `
+        <div class="stat"><span>${o.client} · ${o.g || o.format} g · ${money(o.price)}</span>
+          <button class="btn ok" style="width:auto;margin:0;padding:8px 10px" data-go="${o.id}">Envoyer</button>
+        </div>`).join("") || `<div class="muted">File vide. Accepte un client.</div>`}
+      ${ready.length >= 2 && tier() >= 2 ? `<button class="btn" id="batchGo">Envoyer tout (batch T${tier()})</button>` : ""}
+    </div>
+    <div class="card">
+      <h3>En route</h3>
+      ${active.map((r) => `<div class="stat"><span>${r.client} · ${r.g} g</span><b>${Math.ceil(r.left)}s</b></div>
+        <div class="bar"><i style="width:${(1 - r.left / r.total) * 100}%"></i></div>`).join("") ||
+        `<div class="muted">Personne dehors. Calme suspect.</div>`}
+    </div>
+    <div class="card">
+      <h3>Retour</h3>
+      ${doneWait.map((r) => `
+        <div class="stat"><span>${r.client} · ${money(r.pay)} ${r.busted ? "SAISI" : ""}</span>
+          <button class="btn ${r.busted ? "bad" : "ok"}" style="width:auto;margin:0;padding:8px 10px" data-col="${r.id}">
+            ${r.busted ? "Constater" : "Récupérer"}
+          </button></div>`).join("") || `<div class="muted">Pas encore.</div>`}
+    </div>
+    <button class="btn ghost" id="toCash">Ranger le liquide (${money(S.dirty)})</button>
+  `;
+  stage.querySelectorAll("[data-go]").forEach((b) => { b.onclick = () => dispatch(b.dataset.go); });
+  stage.querySelectorAll("[data-col]").forEach((b) => { b.onclick = () => collectRun(b.dataset.col); });
+  const bg = document.getElementById("batchGo");
+  if (bg) bg.onclick = () => { ready.forEach((o) => dispatch(o.id)); };
+  document.getElementById("toCash").onclick = () => renderCash();
+}
+
+function dispatch(orderId) {
+  const o = S.orders.find((x) => x.id === orderId);
+  if (!o || o.status !== "ready") return;
+  if (S.runs.filter((r) => r.left > 0).length >= livreurCount()) {
+    toast("Plus de scooter libre. Achètes-en, ou attends.");
+    return;
+  }
+  if (S.cash < LIVREUR_FEE) { toast("Même pas de quoi payer la course."); return; }
+  S.cash -= LIVREUR_FEE;
+  const g = o.g || o.format;
+  const time = Math.max(6, LIVREUR_TIME_S - S.upgrades.scooter * 2 - tier());
+  const gramsOut = S.runs.filter((r) => r.left > 0).reduce((a, r) => a + r.g, 0) + g;
+  const willBust = gramsOut > SEUIL_DISCRET_G || S.heat >= 92;
+  S.runs.push({
+    id: "r" + o.id + "_" + Math.round(S.clock),
+    orderId: o.id,
+    client: o.client,
+    g,
+    pay: o.price,
+    left: time,
+    total: time,
+    busted: willBust,
+    collected: false,
+  });
+  o.status = "assigned";
+  S.heat = clamp(S.heat + HEAT_EXPO, 0, HEAT_CAP);
+  cause(`Dispatch ${o.client}`, `−${money(LIVREUR_FEE)} fee · +${HEAT_EXPO} chaleur`);
+  toast(willBust ? "Parti. Trop chargé — ça va mal finir." : "Parti. Toi, tu restes.");
+  save();
+  if (tab === "run") renderRun();
+}
+
+function collectRun(id) {
+  const r = S.runs.find((x) => x.id === id);
+  if (!r || r.collected || r.left > 0) return;
+  r.collected = true;
+  if (r.busted) {
+    S.heat = clamp(S.heat + HEAT_BUST, 0, HEAT_CAP);
+    cause(`Saisie ${r.client}`, `+${HEAT_BUST} chaleur · argent perdu`);
+    toast("Saisi. Le scooter aussi, moralement.");
+  } else {
+    S.dirty += r.pay;
+    pushBills(r.pay);
+    S.reput = clamp(S.reput + 1 + (r.g >= 10 ? 1 : 0), 0, 100);
+    S.soldDay += r.g;
+    cause(`Retour liquide ${r.client}`, `+${money(r.pay)} liquide · standing +`);
+    toast("Liquide reçu. Pas encore de l'argent.");
+  }
+  save();
+  if (!r.busted) renderCash();
+  else renderRun();
+}
+
+function pushBills(amount) {
+  let left = Math.round(amount);
+  const denoms = [100, 50, 20, 5];
+  for (const d of denoms) {
+    while (left >= d) {
+      S.bills.push({ id: "b" + S.bills.length + "_" + d + "_" + Math.round(S.clock * 10), v: d });
+      left -= d;
+    }
+  }
+  if (left > 0) S.bills.push({ id: "bX" + Math.round(S.clock * 10), v: left < 5 ? 5 : left });
+}
+
+/**
+ * Liquide v2:
+ * - Les billets s'empilent par dénomination.
+ * - 5 billets identiques = 1 liasse → convertible en propre (100%).
+ * - Compteur (upgrade): convertit le dirty restant progressivement.
+ * - Garder trop de liquide non rangé chauffe tout seul.
+ */
+function renderCash() {
+  tab = "home";
+  hud();
+  renderDock();
+  const bundleVal = Object.entries(S.bundles).reduce((a, [d, n]) => a + (+d) * BUNDLE_SIZE * n, 0);
+  stage.innerHTML = `
+    <h2>Liquide</h2>
+    <div class="sub">Ce n'est pas du cash. C'est du papier qui ment tant qu'il n'est pas en liasses. Empile ${BUNDLE_SIZE} billets identiques → liasse → propre.</div>
+    <div class="card">
+      <div class="stat"><span>Liquide brut</span><b>${money(S.dirty)}</b></div>
+      <div class="stat"><span>Liasses prêtes</span><b>${money(bundleVal)}</b></div>
+      <div class="stat"><span>Compteur</span><b>${S.upgrades.counter ? "ON · " + COUNTER_RATE + "/s" : "OFF"}</b></div>
+      <div class="muted" style="margin-top:6px">Au-delà de ${DIRTY_HOLD_SOFT} non rangé, la chaleur monte toute seule. Au-delà de ${DIRTY_HOLD_HARD}, elle galope.</div>
+    </div>
+    <div class="card">
+      <h3>Billets à classer</h3>
+      <div class="bills" id="bills">
+        ${S.bills.map((b) => `<button class="bill n${b.v >= 100 ? 100 : b.v}" data-b="${b.id}">${money(b.v)}</button>`).join("") ||
+          `<span class="muted">Rien. Envoie un livreur qui revient intact.</span>`}
+      </div>
+      <div style="margin-top:8px">
+        ${[5, 20, 50, 100].map((d) => {
+          const n = S.bundles[d] || 0;
+          const prog = (S._pile && S._pile[d]) || 0;
+          return `<div class="bundle"><span>Liasse ${money(d)} ×${n}</span><span class="muted">pile ${prog}/${BUNDLE_SIZE}</span></div>`;
+        }).join("")}
+      </div>
+      <button class="btn ok" id="bankBundles" ${bundleVal <= 0 ? "disabled" : ""}>Encaisser les liasses (+${money(bundleVal)} propre)</button>
+      <button class="btn ghost" id="autoSort" ${S.bills.length < 1 ? "disabled" : ""}>Classer le prochain billet</button>
+      <button class="btn ghost" id="back">↩ Home</button>
+    </div>
+  `;
+  stage.querySelectorAll("[data-b]").forEach((btn) => {
+    btn.onclick = () => { sortBill(btn.dataset.b); renderCash(); };
+  });
+  document.getElementById("bankBundles").onclick = () => bankBundles();
+  document.getElementById("autoSort").onclick = () => {
+    if (S.bills[0]) { sortBill(S.bills[0].id); renderCash(); }
+  };
+  document.getElementById("back").onclick = () => { tab = "home"; render(); };
+}
+
+function sortBill(id) {
+  const i = S.bills.findIndex((x) => x.id === id);
+  if (i < 0) return;
+  const [b] = S.bills.splice(i, 1);
+  const d = b.v >= 100 ? 100 : b.v;
+  if (![5, 20, 50, 100].includes(d)) {
+    // billets parasites → perte légère déterministe
+    S.dirty = Math.max(0, S.dirty - b.v);
+    toast("Billet douteux. Oublié volontairement.");
+    save();
+    return;
+  }
+  // compte combien de billets de cette denom encore "en pile logique"
+  // On utilise un compteur temporaire dans S._pile
+  if (!S._pile) S._pile = { 5: 0, 20: 0, 50: 0, 100: 0 };
+  S._pile[d] = (S._pile[d] || 0) + 1;
+  S.dirty = Math.max(0, S.dirty - d);
+  if (S._pile[d] >= BUNDLE_SIZE) {
+    S._pile[d] -= BUNDLE_SIZE;
+    S.bundles[d] = (S.bundles[d] || 0) + 1;
+    toast(`Liasse ${money(d)} · ×${BUNDLE_SIZE}. Enfin.`);
+  }
+  save();
+}
+
+function bankBundles() {
+  let got = 0;
+  for (const d of [5, 20, 50, 100]) {
+    const n = S.bundles[d] || 0;
+    if (n <= 0) continue;
+    got += d * BUNDLE_SIZE * n;
+    S.bundles[d] = 0;
+  }
+  if (got <= 0) return;
+  S.cash += got;
+  cause(`Liasses encaissées`, `+${money(got)} propre`);
+  toast(`+${money(got)} propre. Tu peux racheter.`);
+  save();
+  renderCash();
+}
+
+// --- Tick ---
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  S.clock += dt;
+
+  if (S.clock > S.day * 90) {
+    S.day++;
+    S.heat = clamp(S.heat - 8, 0, HEAT_CAP);
+    S.soldDay = 0;
+    cause(`Jour ${S.day}`, `Chaleur −8 · compteur journalier remis`);
+  }
+
+  if (tab === "cut") {
+    S.cut.cursor += S.cut.dir * CUT_SWEEP * dt;
+    if (S.cut.cursor >= 1) { S.cut.cursor = 1; S.cut.dir = -1; }
+    if (S.cut.cursor <= 0) { S.cut.cursor = 0; S.cut.dir = 1; }
+    const cur = document.getElementById("cur");
+    if (cur) cur.style.left = (S.cut.cursor * 100) + "%";
+  }
+
+  // liquide qui chauffe si tu le laisses pourrir
+  if (S.dirty > DIRTY_HOLD_SOFT) {
+    S._dirtyAcc += dt;
+    if (S._dirtyAcc >= 3) {
+      S._dirtyAcc = 0;
+      const bump = S.dirty > DIRTY_HOLD_HARD ? 2 : 1;
+      S.heat = clamp(S.heat + bump, 0, HEAT_CAP);
+    }
+  }
+
+  // compteur auto: mange du dirty restant (billets non classés) → propre lentement
+  if (S.upgrades.counter > 0 && S.dirty > 0 && S.bills.length === 0) {
+    const take = Math.min(S.dirty, COUNTER_RATE * dt);
+    S.dirty -= take;
+    S.cash += take;
+  }
+
+  let dirtyRun = false;
+  for (const r of S.runs) {
+    if (r.left > 0) {
+      r.left -= dt;
+      if (r.left <= 0) {
+        r.left = 0;
+        if (S.heat >= 92) r.busted = true;
+      }
+      dirtyRun = true;
+    }
+  }
+  if (tab === "run" && dirtyRun) {
+    if (!frame._acc) frame._acc = 0;
+    frame._acc += dt;
+    if (frame._acc > 0.35) { frame._acc = 0; renderRun(); }
+  }
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+setInterval(() => save(), 2000);
+
+render();
+toast("Hash. Argent neutre. Trie ou ça chauffe.");
+</script>
+</body>
+</html>
