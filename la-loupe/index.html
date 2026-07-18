@@ -127,55 +127,72 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 @keyframes sorterFly{0%{left:6%;opacity:0;transform:translateY(-50%) scale(.85)}12%{opacity:1;transform:translateY(-50%) scale(1)}
   88%{opacity:1}100%{left:72%;opacity:.35;transform:translateY(-50%) scale(.9)}}
 .sorter-pockets{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:8px 10px 10px}
-.spk{appearance:none;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:8px 2px 6px;background:linear-gradient(180deg,#2a3228,#161a14);
-  color:#e8f0e0;font-weight:900;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:72px}
-.spk:active{transform:scale(.96)}.spk .d{font-size:13px}.spk .c{font-size:16px;color:var(--dirty)}.spk .sm{font-size:8px;color:var(--muted);font-weight:700}
+.spk{border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:8px 2px 6px;background:linear-gradient(180deg,#2a3228,#161a14);
+  color:#e8f0e0;font-weight:900;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:72px;pointer-events:none}
+.spk .d{font-size:13px}.spk .c{font-size:16px;color:var(--dirty)}.spk .sm{font-size:8px;color:var(--muted);font-weight:700}
 .spk.ok-flash{background:linear-gradient(180deg,#2a4a30,#1a2a18);border-color:rgba(125,222,160,.6);box-shadow:0 0 0 2px rgba(125,222,160,.25)}
-.spk.bad-flash{background:linear-gradient(180deg,#4a2820,#2a1410);border-color:rgba(255,120,80,.5)}
 .spk.reject{border-color:rgba(255,120,80,.35)}.spk.reject .d{color:#ff8a6a;font-size:10px}
-.spk.hot{border-color:rgba(255,180,84,.7);box-shadow:0 0 0 2px rgba(255,180,84,.25)}
+.spk.hot{border-color:rgba(155,227,125,.65);box-shadow:0 0 0 2px rgba(155,227,125,.2)}
 .sorter-bar{display:flex;gap:6px;padding:0 10px 10px}
 .sorter-bar .btn{margin:0}
+.sorter-fly{animation-duration:.28s!important}
 .journal .item{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px}
 .journal .item .c{color:rgba(255,220,160,.4);font-size:11px;margin-top:2px}
 .seg{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
 .lock{opacity:.55;filter:grayscale(.3)}
 .hero{font-size:13px;line-height:1.4;color:rgba(255,236,210,.75);margin:8px 0 14px;padding:12px;border-radius:14px;
   background:linear-gradient(135deg,rgba(255,45,85,.12),rgba(0,196,106,.08));border:1px solid rgba(255,255,255,.08)}
-/* —— Emballage Schedule 1 / D31 —— */
+/* —— Emballage D31 : 1 barrette → 1 zip centre → pile droite —— */
 .bag-prompt{text-align:center;font-size:13px;font-weight:800;color:rgba(255,236,210,.85);margin:0 0 8px;letter-spacing:.2px}
 .bag-bench{position:relative;height:min(48vh,340px);border-radius:18px;overflow:hidden;touch-action:none;
   background:
     radial-gradient(70% 50% at 50% 8%,rgba(255,240,200,.18),transparent 50%),
     linear-gradient(180deg,#4a4338 0%,#2e2922 55%,#1c1915 100%);
   border:1px solid rgba(255,220,160,.18);box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
-.bag-tray{position:absolute;left:10px;top:22%;width:30%;height:58%;border-radius:8px;
+.bag-tray{position:absolute;left:10px;top:22%;width:28%;height:58%;border-radius:8px;
   background:linear-gradient(160deg,#222226,#0e0e10);border:2px solid #333;box-shadow:inset 0 6px 18px #000}
 .bag-tray .lb,.bag-done .lb{position:absolute;left:0;right:0;top:-16px;text-align:center;font-size:9px;font-weight:800;letter-spacing:.4px}
 .bag-tray .lb{color:var(--muted)}.bag-done .lb{color:#9be37d}
-.bag-nug{position:absolute;width:26px;height:18px;border-radius:42% 48% 45% 52%;
-  background:radial-gradient(circle at 35% 28%,#7a5530,#3d2614 72%);
-  box-shadow:0 2px 5px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,200,120,.3);z-index:2;cursor:grab;touch-action:none}
-.bag-nug.drag{z-index:30;cursor:grabbing;filter:brightness(1.2);box-shadow:0 10px 22px rgba(0,0,0,.6),0 0 0 2px rgba(255,180,84,.55);transform:scale(1.15)}
-.bag-nug.fly{transition:transform .28s cubic-bezier(.2,.8,.2,1),opacity .28s;pointer-events:none}
-.bag-slot{position:absolute;width:58px;height:86px;z-index:3;transition:transform .1s}
-.bag-zip{position:absolute;inset:0;border-radius:5px 5px 12px 12px;
-  background:linear-gradient(180deg,rgba(210,230,255,.16),rgba(160,180,200,.05));
-  border:1.5px solid rgba(230,245,255,.55);box-shadow:0 6px 14px rgba(0,0,0,.4);overflow:hidden}
-.bag-zip::before{content:"";position:absolute;left:8%;right:8%;top:7px;height:7px;border-radius:2px;
+.bag-tray .wait{position:absolute;left:8%;right:8%;top:12%;bottom:12%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;opacity:.45;pointer-events:none}
+.bag-tray .wait .mini-bar{width:78%;height:14px;border-radius:999px;
+  background:linear-gradient(180deg,#c4a06a 0%,#8a6238 40%,#4a3220 100%);
+  box-shadow:0 1px 2px #000}
+/* barrette active (forme référence) */
+.bag-bar{position:absolute;width:92px;height:36px;z-index:5;cursor:grab;touch-action:none;
+  border-radius:999px;overflow:hidden;
+  background:
+    url("./assets/barrette.png") center/cover no-repeat,
+    linear-gradient(180deg,#d2b07a 0%,#9a6e3e 45%,#5a3a22 100%);
+  box-shadow:0 4px 10px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,230,180,.35);
+  border:1px solid rgba(60,40,20,.5)}
+.bag-bar::after{content:"";position:absolute;left:0;right:0;bottom:0;height:38%;
+  background:linear-gradient(180deg,transparent,rgba(40,24,12,.55));pointer-events:none}
+.bag-bar.drag{z-index:40;cursor:grabbing;filter:brightness(1.12);box-shadow:0 12px 24px rgba(0,0,0,.6),0 0 0 2px rgba(255,180,84,.5);transform:scale(1.06)}
+.bag-bar .w{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:900;color:rgba(255,245,220,.9);text-shadow:0 1px 3px #000;pointer-events:none}
+/* un seul zip au centre */
+.bag-slot{position:absolute;left:50%;top:50%;width:78px;height:110px;z-index:3;
+  transform:translate(-50%,-50%);transition:transform .35s cubic-bezier(.2,.8,.2,1),left .35s cubic-bezier(.2,.8,.2,1),top .35s cubic-bezier(.2,.8,.2,1),opacity .3s}
+.bag-slot.to-done{left:88%;top:62%;transform:translate(-50%,-50%) scale(.55);opacity:.15;pointer-events:none}
+.bag-zip{position:absolute;inset:0;border-radius:6px 6px 14px 14px;
+  background:linear-gradient(180deg,rgba(210,230,255,.18),rgba(160,180,200,.06));
+  border:1.5px solid rgba(230,245,255,.55);box-shadow:0 8px 18px rgba(0,0,0,.45);overflow:hidden}
+.bag-zip::before{content:"";position:absolute;left:10%;right:10%;top:9px;height:8px;border-radius:2px;
   background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.3)}
-.bag-zip.open{border-color:rgba(200,230,255,.7)}
-.bag-zip.open.hot{border-color:rgba(255,200,100,.95);box-shadow:0 0 0 3px rgba(255,180,84,.4),0 8px 18px rgba(0,0,0,.45);transform:scale(1.06)}
-.bag-zip .fill{position:absolute;left:14%;right:14%;bottom:12px;height:0;border-radius:4px;
-  background:radial-gradient(circle at 40% 30%,#7a5530,#2a1810);transition:height .16s ease-out}
-.bag-zip.sealed{border-color:rgba(155,227,125,.55);background:linear-gradient(180deg,rgba(160,200,180,.18),rgba(80,100,90,.1))}
-.bag-zip.sealed .fill{height:44%}
-.bag-zip .tag{position:absolute;left:0;right:0;bottom:5px;text-align:center;font-size:10px;font-weight:900;color:rgba(255,255,255,.75)}
-.bag-done{position:absolute;right:8px;top:22%;width:18%;height:58%;border-radius:8px;border:1px dashed rgba(155,227,125,.4);
+.bag-zip.open{border-color:rgba(200,230,255,.75)}
+.bag-zip.open.hot{border-color:rgba(255,200,100,.95);box-shadow:0 0 0 3px rgba(255,180,84,.4),0 8px 18px rgba(0,0,0,.45);transform:scale(1.05)}
+.bag-zip .fill{position:absolute;left:14%;right:14%;bottom:14px;height:0;border-radius:6px;
+  background:url("./assets/barrette.png") center/cover,linear-gradient(180deg,#c4a06a,#4a3220);transition:height .18s ease-out}
+.bag-zip.sealed{border-color:rgba(155,227,125,.55);background:linear-gradient(180deg,rgba(160,200,180,.2),rgba(80,100,90,.12))}
+.bag-zip.sealed .fill{height:48%}
+.bag-zip .tag{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:11px;font-weight:900;color:rgba(255,255,255,.78)}
+.bag-done{position:absolute;right:8px;top:22%;width:20%;height:58%;border-radius:8px;border:1px dashed rgba(155,227,125,.4);
   background:rgba(0,50,24,.18);overflow:hidden}
 .bag-done .stack{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);display:flex;flex-direction:column-reverse;align-items:center;gap:3px}
-.bag-mini{width:30px;height:40px;border-radius:4px;border:1px solid rgba(200,220,255,.45);
-  background:linear-gradient(180deg,rgba(190,210,230,.3),rgba(70,90,110,.18));box-shadow:0 2px 5px rgba(0,0,0,.35)}
+.bag-mini{width:32px;height:42px;border-radius:4px;border:1px solid rgba(200,220,255,.45);
+  background:linear-gradient(180deg,rgba(190,210,230,.3),rgba(70,90,110,.18));box-shadow:0 2px 5px rgba(0,0,0,.35);
+  animation:bagPop .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes bagPop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
 .bag-hint{font-size:11px;color:var(--muted);text-align:center;margin-top:8px;line-height:1.35}
 </style>
 <script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
@@ -210,19 +227,18 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 <script type="module">
 /* snap/beuher d'abord — Three.js (scene3d) en lazy load.
    Sur mobile, unpkg bloqué cassait TOUT le proto (écran fantôme « enrouler »). */
-import * as snap from "./snap.mjs?v=9";
-import * as beuher from "./beuher.mjs?v=9";
+import * as snap from "./snap.mjs?v=11";
+import * as beuher from "./beuher.mjs?v=11";
 
-const SAVE_VERSION = "9";
-const BAG_SLOTS = 5; // sachets ouverts simultanés (feel Schedule 1)
-const SORT_POCKETS = [5, 20, 50, 100]; // trieuse 4+1 (+ reject)
-const SORT_WINDOW = 0.85;
+const SAVE_VERSION = "11";
+const SORT_POCKETS = [5, 20, 50, 100]; // trieuse 4+1 (+ reject / monnaie)
+const SORT_FEED = 0.28; // s entre chaque billet (machine, pas mini-jeu)
 let scene3d = null;
 let scene3dPromise = null;
 async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
-    scene3dPromise = import("./scene3d.mjs?v=9").then((m) => {
+    scene3dPromise = import("./scene3d.mjs?v=11").then((m) => {
       scene3d = m;
       scene3d.mount(view3d, {
         pressbar: document.getElementById("pressbar"),
@@ -385,7 +401,6 @@ function render(){
   else if(tab==="atelier" && atelierSub==="dose") renderDoseFast();
   else if(tab==="atelier") renderAtelierMenu();
   else if(tab==="beuher") renderBeuher();
-  else if(tab==="cash" && cashSub==="hand") renderCashHand();
   else if(tab==="cash") renderCashSorter();
 }
 
@@ -548,23 +563,27 @@ function commitSachet(f, why){
 }
 
 /**
- * Emballage D31 / Schedule 1 : tray à gauche, zips ouverts au centre,
- * drag barrette → sachet, fermeture auto, pile à droite. R1 : raté = retour, zéro perte.
+ * Emballage D31 : UNE barrette (visuel référence) → UN zip au centre →
+ * le sachet glisse tout seul vers PRÊT à droite. R1 : raté = retour.
  */
 function renderDoseBag(){
   const f=S.doseFormat;
-  const pieces=Math.min(14, Math.floor(S.barG/f));
+  const pieces=Math.floor(S.barG/f);
   const doneN=S.sachets[f]||0;
+  const waiting=Math.max(0, pieces-1);
   stage.innerHTML=`
-    <div class="bag-prompt">Place le produit dans le sachet</div>
+    <div class="bag-prompt">Place la barrette dans le sachet</div>
     <div class="seg">
       ${[2,5,8].map(x=>`<button class="chip ${f===x?"on":""}" data-f="${x}">${x} g</button>`).join("")}
     </div>
     <div class="bag-bench" id="bench">
-      <div class="bag-tray" id="tray"><div class="lb">STOCK</div></div>
+      <div class="bag-tray" id="tray">
+        <div class="lb">STOCK</div>
+        <div class="wait">${waiting?`<div class="mini-bar"></div><div class="mini-bar"></div><div style="font-size:9px;font-weight:800;color:var(--muted)">+${waiting}</div>`:""}</div>
+      </div>
       <div class="bag-done" id="done"><div class="lb">PRÊT</div><div class="stack" id="stack"></div></div>
     </div>
-    <div class="bag-hint">${pieces?`Glisse une barrette dans un zip ouvert · ${pieces} prêtes · ${fmtSachets()}`:`Coupe d'abord — plus de barrettes pour ${f} g.`}</div>
+    <div class="bag-hint">${pieces?`Glisse la barrette sur le zip · ${pieces} restantes · ${fmtSachets()}`:`Coupe d'abord — plus de barrettes pour ${f} g.`}</div>
     <div class="grid2">
       <button class="btn ghost" id="back">↩ Atelier</button>
       <button class="btn ghost" id="toFast">Express ▸</button>
@@ -576,64 +595,47 @@ function renderDoseBag(){
   const bench=document.getElementById("bench");
   const tray=document.getElementById("tray");
   const stack=document.getElementById("stack");
-
-  // pile visuelle (max 8 mini)
   for(let i=0;i<Math.min(8,doneN);i++){
     const m=document.createElement("div"); m.className="bag-mini"; stack.appendChild(m);
   }
 
-  // zip ouverts en rangée centrale (feel Schedule 1)
-  const slots=[];
-  for(let i=0;i<BAG_SLOTS;i++){
-    const el=document.createElement("div");
-    el.className="bag-slot";
-    const x = 34 + i * ((62-34)/(BAG_SLOTS-1)); // % left, entre tray et done
-    el.style.left = `calc(${x}% - 29px)`;
-    el.style.top = "28%";
-    el.innerHTML=`<div class="bag-zip open" data-slot="${i}"><div class="fill"></div><div class="tag">${f}g</div></div>`;
-    bench.appendChild(el);
-    slots.push(el.querySelector(".bag-zip"));
+  // un seul zip ouvert au centre
+  const slot=document.createElement("div");
+  slot.className="bag-slot";
+  slot.innerHTML=`<div class="bag-zip open" id="zip"><div class="fill"></div><div class="tag">${f}g</div></div>`;
+  bench.appendChild(slot);
+  const zip=slot.querySelector(".bag-zip");
+
+  // une seule barrette présentée (à droite du tray)
+  let bar=null;
+  if(pieces>0){
+    bar=document.createElement("div");
+    bar.className="bag-bar";
+    bar.innerHTML=`<span class="w">${f}g</span>`;
+    bar.style.left="22%";
+    bar.style.top="42%";
+    bench.appendChild(bar);
   }
 
-  // barrettes éparpillées dans le tray
-  for(let i=0;i<pieces;i++){
-    const n=document.createElement("div");
-    n.className="bag-nug";
-    n.dataset.i=String(i);
-    const col=i%3, row=Math.floor(i/3);
-    n.style.left=(10+col*30 + (row%2)*6)+"%";
-    n.style.top=(10+row*20)+"%";
-    tray.appendChild(n);
-  }
-
-  let drag=null; // {el, ox, oy, homeL, homeT}
-  const pt=(e)=>{
-    const t=e.touches?e.touches[0]:e;
-    return {x:t.clientX, y:t.clientY};
-  };
-  const hitBag=(x,y)=>{
-    for(const z of slots){
-      if(z.classList.contains("sealed")) continue;
-      const r=z.getBoundingClientRect();
-      if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom) return z;
-    }
+  let drag=null;
+  const pt=(e)=>{ const t=e.touches?e.touches[0]:e; return {x:t.clientX,y:t.clientY}; };
+  const hitZip=(x,y)=>{
+    if(zip.classList.contains("sealed")) return null;
+    const r=zip.getBoundingClientRect();
+    const pad=12;
+    if(x>=r.left-pad&&x<=r.right+pad&&y>=r.top-pad&&y<=r.bottom+pad) return zip;
     return null;
   };
 
   const onDown=(e)=>{
-    const el=e.target.closest(".bag-nug");
+    const el=e.target.closest(".bag-bar");
     if(!el||el.classList.contains("used")) return;
     e.preventDefault();
     const p=pt(e);
     const r=el.getBoundingClientRect();
-    // promote to bench coords for free drag
-    const homeL=el.style.left, homeT=el.style.top, homeParent=el.parentElement;
-    const br=bench.getBoundingClientRect();
-    bench.appendChild(el);
-    el.style.left=((r.left-br.left)/br.width*100)+"%";
-    el.style.top=((r.top-br.top)/br.height*100)+"%";
+    const homeL=el.style.left, homeT=el.style.top;
     el.classList.add("drag");
-    drag={el, ox:p.x-r.left, oy:p.y-r.top, homeL, homeT, homeParent};
+    drag={el, ox:p.x-r.left, oy:p.y-r.top, homeL, homeT};
   };
   const onMove=(e)=>{
     if(!drag) return;
@@ -642,48 +644,42 @@ function renderDoseBag(){
     const b=bench.getBoundingClientRect();
     drag.el.style.left=(((p.x-drag.ox)-b.left)/b.width*100)+"%";
     drag.el.style.top=(((p.y-drag.oy)-b.top)/b.height*100)+"%";
-    slots.forEach(z=>z.classList.toggle("hot", hitBag(p.x,p.y)===z));
+    zip.classList.toggle("hot", !!hitZip(p.x,p.y));
   };
   const onUp=(e)=>{
     if(!drag) return;
     const p=e.changedTouches?{x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY}:pt(e);
-    const z=hitBag(p.x,p.y);
-    slots.forEach(s=>s.classList.remove("hot"));
-    const {el, homeL, homeT, homeParent}=drag;
+    const z=hitZip(p.x,p.y);
+    zip.classList.remove("hot");
+    const {el, homeL, homeT}=drag;
     el.classList.remove("drag");
     drag=null;
     if(!z){
-      // R1 : retour, zéro perte
-      homeParent.appendChild(el);
-      el.style.left=homeL; el.style.top=homeT;
+      el.style.left=homeL; el.style.top=homeT; // R1
       return;
     }
-    if(!commitSachet(f, "Drag → zip (D31)")){
-      homeParent.appendChild(el);
+    if(!commitSachet(f, "Barrette → zip (D31)")){
       el.style.left=homeL; el.style.top=homeT;
       toast("Plus de stock.");
       return;
     }
-    // fill + seal bag
-    const fill=z.querySelector(".fill");
-    fill.style.height="48%";
+    // fill + barrette disparaît dans le zip
+    z.querySelector(".fill").style.height="48%";
     z.classList.remove("open","hot");
     z.classList.add("sealed");
-    el.classList.add("used","fly");
+    el.classList.add("used");
     el.style.opacity="0";
-    el.style.transform="scale(.3)";
-    // mini on stack
-    const m=document.createElement("div"); m.className="bag-mini";
-    stack.appendChild(m);
-    while(stack.children.length>8) stack.removeChild(stack.firstChild);
+    el.style.transform="scale(.2)";
+    el.style.transition="opacity .2s, transform .2s";
+    // sachet part automatiquement à droite
+    requestAnimationFrame(()=>slot.classList.add("to-done"));
     toast(`Zip ${f} g.`);
     save(); hud();
-    // refresh when tray empty or all slots sealed
     setTimeout(()=>{
-      const openLeft=slots.some(s=>s.classList.contains("open"));
-      const nugLeft=[...tray.querySelectorAll(".bag-nug:not(.used)")].length;
-      if(!openLeft || nugLeft===0) renderDoseBag();
-    }, 320);
+      const m=document.createElement("div"); m.className="bag-mini"; stack.appendChild(m);
+      while(stack.children.length>8) stack.removeChild(stack.firstChild);
+      renderDoseBag(); // prochain zip + prochaine barrette
+    }, 380);
   };
 
   if(renderDoseBag._ac) renderDoseBag._ac.abort();
@@ -858,10 +854,14 @@ function collectRun(id){
     S.reput=clamp(S.reput+1+(r.g>=15?1:0),0,100);
     S.soldDay+=r.g;
     cause(`Retour ${r.courierNm}`,`+${money(r.net)} liquide`);
-    toast("Liquide en trémie. Feed.");
+    toast("Liquide en trémie.");
   }
   save();
-  if(!r.busted){ tab="cash"; cashSub="sorter"; render(); } else renderBeuher();
+  if(!r.busted){
+    tab="cash"; cashSub="sorter";
+    sorter.running=true; sorter.cooldown=0.15; // auto-start : tu attends
+    render();
+  } else renderBeuher();
 }
 
 function pushBills(amount){
@@ -875,7 +875,7 @@ function pushBills(amount){
   }
 }
 
-/* ---------- Liquide : trieuse 4+1 (défaut) + table à la main ---------- */
+/* ---------- Liquide : trieuse auto 4+1 (pas de mini-jeu) ---------- */
 function cashBundleVal(){ return Object.entries(S.bundles).reduce((a,[d,n])=>a+(+d)*BUNDLE_SIZE*n,0); }
 function cashBankTotal(){ return cashBundleVal()+(S.looseChange||0); }
 function pileOf(d){ return (S._pile&&S._pile[d])||0; }
@@ -883,161 +883,78 @@ function pileOf(d){ return (S._pile&&S._pile[d])||0; }
 function renderCashSorter(){
   set3d("hidden"); hud(); renderDock();
   sorter.dirtyUi=false;
-  const hop=S.bills.length;
-  const auto=S.upgrades.counter>0;
   const cur=sorter.current;
   const cls=cur?(cur.v===1?"n1":cur.v):"";
+  const rjHot=cur&&(cur.v===1||!SORT_POCKETS.includes(cur.v));
   stage.innerHTML=`
     <h2 style="color:var(--dirty)">Trieuse</h2>
-    <div class="sub">Kisan 4+1 : le billet passe, tu tapes la poche. Raté → reject, tu recharges (R1). ${BUNDLE_SIZE} = liasse.</div>
+    <div class="sub">Tu charges, tu lances, tu attends. La machine trie. ${BUNDLE_SIZE} identiques → liasse. Puis encaisser.</div>
     <div class="sorter" id="sorter">
       <div class="sorter-top">
-        <div class="sorter-hopper"><div class="lb">TRÉMIE</div><div class="n">${hop}</div><div class="muted" style="font-size:10px">${money(S.dirty)} à trier</div></div>
+        <div class="sorter-hopper"><div class="lb">TRÉMIE</div><div class="n">${S.bills.length}</div><div class="muted" style="font-size:10px">${money(S.dirty)} à trier</div></div>
         <div class="sorter-lcd">
-          <div class="ttl">FITNESS SORT · 4+1</div>
+          <div class="ttl">AUTO SORT · 4+1</div>
           ${SORT_POCKETS.map(d=>`<div class="row"><span>${money(d)}</span><span>${pileOf(d)}/${BUNDLE_SIZE}</span></div>`).join("")}
-          <div class="row"><span>RJ</span><span>${sorter.sessionRj}</span></div>
-          <div class="row"><span>OK</span><span>${sorter.sessionOk}${sorter.combo>1?" ×"+sorter.combo:""}</span></div>
+          <div class="row"><span>POCHE</span><span>${money(S.looseChange||0)}</span></div>
+          <div class="row"><span>OK</span><span>${sorter.sessionOk}</span></div>
         </div>
       </div>
       <div class="sorter-throat" id="throat">
-        ${cur?`<div class="sorter-fly n${cls}" id="fly">${money(cur.v)}</div>`:""}
+        ${cur?`<div class="sorter-fly n${cls}" id="fly">${money(cur.v)}</div>`:`<div class="muted" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px">${sorter.running?"…":"Prêt"}</div>`}
       </div>
       <div class="sorter-pockets">
         ${SORT_POCKETS.map(d=>{
-          const hot=cur&&cur.v===d?"hot":"";
-          return `<button class="spk ${hot}" data-p="${d}"><span class="d">${money(d)}</span><span class="c">${pileOf(d)}</span><span class="sm">liasses ${S.bundles[d]||0}</span></button>`;
+          const hot=cur&&cur.v===d?"hot ok-flash":"";
+          return `<div class="spk ${hot}" data-p="${d}"><span class="d">${money(d)}</span><span class="c">${pileOf(d)}</span><span class="sm">liasses ${S.bundles[d]||0}</span></div>`;
         }).join("")}
-        <button class="spk reject ${cur&&(cur.v===1||!SORT_POCKETS.includes(cur.v))?"hot":""}" data-p="reject"><span class="d">REJECT</span><span class="c">${sorter.sessionRj}</span><span class="sm">1 / erreur</span></button>
+        <div class="spk reject ${rjHot?"hot ok-flash":""}"><span class="d">POCHE</span><span class="c">${money(S.looseChange||0)}</span><span class="sm">monnaie</span></div>
       </div>
       <div class="sorter-bar">
-        <button class="btn ${sorter.running?"bad":"ok"}" id="run" ${hop<1&&!cur?"disabled":""}>${sorter.running?"■ STOP":"▶ FEED"}</button>
-        <button class="btn ghost" id="hand">Table</button>
+        <button class="btn ${sorter.running?"bad":"ok"}" id="run" ${S.bills.length<1&&!cur?"disabled":""}>${sorter.running?"■ STOP":"▶ START"}</button>
       </div>
     </div>
     <div class="card">
       <div class="stat"><span>Compté</span><b>${money(S.counted||0)}</b></div>
       <div class="stat"><span>Liasses + poche</span><b>${money(cashBundleVal())} + ${money(S.looseChange||0)}</b></div>
-      ${auto?`<div class="muted" style="margin:6px 0">Compteur acheté : auto-tri si tu STOP et laisses tourner le monde.</div>`:""}
       <button class="btn ok" id="bank" ${cashBankTotal()<=0?"disabled":""}>Encaisser (+${money(cashBankTotal())} propre)</button>
     </div>`;
   document.getElementById("run").onclick=()=>{
-    if(sorter.running){ sorter.running=false; toast("Trémie stop."); }
-    else { sorter.running=true; sorter.cooldown=0; toast(auto?"Feed auto.":"Feed. Tape les poches."); }
+    if(sorter.running){ sorter.running=false; toast("Stop."); }
+    else { sorter.running=true; sorter.cooldown=0; toast("Tri en cours."); }
     renderCashSorter();
   };
-  document.getElementById("hand").onclick=()=>{ sorter.running=false; cashSub="hand"; render(); };
   document.getElementById("bank").onclick=()=>bankBundles();
-  stage.querySelectorAll("[data-p]").forEach(btn=>{
-    btn.onclick=()=>sorterTap(btn.dataset.p, btn);
-  });
 }
 
-function sorterTap(pocket, btnEl){
-  const cur=sorter.current;
-  if(!cur){ toast("Rien en gorge."); return; }
-  const v=cur.v;
-  const wantReject = v===1 || !SORT_POCKETS.includes(v);
-  const ok = pocket==="reject" ? wantReject : (+pocket===v && !wantReject);
-  if(ok){
-    sortBill(cur.id);
-    sorter.current=null;
-    sorter.sessionOk++;
-    sorter.combo++;
-    sorter.cooldown=0.08;
-    if(btnEl){ btnEl.classList.add("ok-flash"); setTimeout(()=>btnEl.classList.remove("ok-flash"),120); }
-    try{ navigator.vibrate&&navigator.vibrate(sorter.combo>4?12:8); }catch{}
-    if(tab==="cash"&&cashSub==="sorter") renderCashSorter();
-  } else {
-    // R1 : reject + requeue, zéro perte
-    sorterReject("mauvaise poche");
-    if(btnEl){ btnEl.classList.add("bad-flash"); setTimeout(()=>btnEl.classList.remove("bad-flash"),140); }
-  }
-}
-
-function sorterReject(why){
+/** Commit le billet en gorge dans la bonne poche (toujours correct — machine). */
+function sorterCommit(){
   const cur=sorter.current; if(!cur) return;
-  const i=S.bills.findIndex(x=>x.id===cur.id);
-  // bill still in S.bills until sorted — move to end of hopper
-  if(i>=0){ const [b]=S.bills.splice(i,1); S.bills.push(b); }
+  sortBill(cur.id);
   sorter.current=null;
-  sorter.sessionRj++;
-  sorter.combo=0;
-  sorter.cooldown=0.12;
-  toast(why==="timeout"?"Trop lent → reject.":"Reject. Recharge.");
-  if(tab==="cash"&&cashSub==="sorter") renderCashSorter();
+  sorter.sessionOk++;
+  sorter.cooldown=0.04;
+  try{ navigator.vibrate&&navigator.vibrate(6); }catch{}
+  if(tab==="cash") renderCashSorter();
 }
 
 function sorterTick(dt){
-  if(tab!=="cash"||cashSub!=="sorter") return;
-  const auto=S.upgrades.counter>0;
+  if(tab!=="cash") return;
   if(sorter.cooldown>0) sorter.cooldown-=dt;
+  // billet en vol → à la fin du passage, poche auto
   if(sorter.current){
     sorter.current.t+=dt;
-    if(sorter.current.t>=SORT_WINDOW){
-      if(auto){
-        // délégation : la machine classe toute seule
-        const v=sorter.current.v;
-        sorterTap(SORT_POCKETS.includes(v)?String(v):"reject");
-      } else {
-        sorterReject("timeout");
-      }
-    }
+    if(sorter.current.t>=SORT_FEED) sorterCommit();
     return;
   }
   if(!sorter.running || sorter.cooldown>0) return;
-  if(!S.bills.length){ sorter.running=false; if(!sorter.dirtyUi){ sorter.dirtyUi=true; toast("Trémie vide."); renderCashSorter(); } return; }
-  // prochain billet = premier de la file
-  const b=S.bills[0];
-  // monnaie (1) : la machine envoie toute seule en poche / reject (fitness)
-  if(b.v===1 || !SORT_POCKETS.includes(b.v)){
-    sortBill(b.id);
-    sorter.sessionOk++;
-    sorter.cooldown=0.05;
-    if(tab==="cash"&&cashSub==="sorter") renderCashSorter();
+  if(!S.bills.length){
+    sorter.running=false;
+    if(!sorter.dirtyUi){ sorter.dirtyUi=true; toast("Trémie vide. Encaisser."); renderCashSorter(); }
     return;
   }
+  const b=S.bills[0];
   sorter.current={ id:b.id, v:b.v, t:0 };
-  sorter.dirtyUi=true;
   renderCashSorter();
-}
-
-function renderCashHand(){
-  set3d("hidden"); hud(); renderDock();
-  const billsHTML=S.bills.map((b,i)=>{
-    const left=8+((i*37)%78);
-    const top=10+((i*53)%70);
-    const r=-18+((i*17)%36);
-    const cls=b.v===1?"n1":b.v>=100?100:b.v;
-    return `<button class="bill n${cls}" data-b="${b.id}" style="left:${left}%;top:${top}%;--r:${r}deg">${money(b.v)}</button>`;
-  }).join("");
-  stage.innerHTML=`
-    <h2 style="color:var(--dirty)">Table</h2>
-    <div class="sub">À la main. Un tap = un billet. ${BUNDLE_SIZE} identiques = liasse.</div>
-    <div class="card">
-      <div class="stat"><span>À ranger</span><b>${money(S.dirty)}</b></div>
-      <div class="stat"><span>Compté</span><b>${money(S.counted||0)}</b></div>
-      <div class="stat"><span>Liasses + poche</span><b>${money(cashBundleVal())} + ${money(S.looseChange||0)}</b></div>
-    </div>
-    <div class="cash-arena" id="arena">
-      <div class="count">${money(S.counted||0)}</div>
-      ${billsHTML||`<div class="muted" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;text-align:center">Trémie / table vide. Beuher d'abord.</div>`}
-    </div>
-    <div class="card">
-      ${SORT_POCKETS.map(d=>{
-        const n=S.bundles[d]||0, prog=pileOf(d);
-        return `<div class="bundle"><span>Liasse ${money(d)} ×${n}</span><span class="muted">pile ${prog}/${BUNDLE_SIZE}</span></div>`;
-      }).join("")}
-      <button class="btn ok" id="bank" ${cashBankTotal()<=0?"disabled":""}>Encaisser (+${money(cashBankTotal())} propre)</button>
-      <button class="btn ghost" id="toSort">↩ Trieuse</button>
-    </div>`;
-  stage.querySelectorAll("[data-b]").forEach(btn=>btn.onclick=()=>{
-    sortBill(btn.dataset.b);
-    btn.style.opacity="0"; btn.style.transform="scale(.4)";
-    setTimeout(()=>renderCashHand(),120);
-  });
-  document.getElementById("bank").onclick=()=>bankBundles();
-  document.getElementById("toSort").onclick=()=>{ cashSub="sorter"; render(); };
 }
 function sortBill(id){
   const i=S.bills.findIndex(x=>x.id===id); if(i<0) return;
