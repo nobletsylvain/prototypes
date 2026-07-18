@@ -229,10 +229,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 <script type="module">
 /* snap/beuher d'abord — Three.js (scene3d) en lazy load.
    Sur mobile, unpkg bloqué cassait TOUT le proto (écran fantôme « enrouler »). */
-import * as snap from "./snap.mjs?v=15";
-import * as beuher from "./beuher.mjs?v=15";
+import * as snap from "./snap.mjs?v=16";
+import * as beuher from "./beuher.mjs?v=16";
 
-const SAVE_VERSION = "15";
+const SAVE_VERSION = "16";
 const DOSE_FORMATS = [2, 5, 8]; // synchro snap.SC.DOSE_FORMATS
 const SORT_POCKETS = [5, 20, 50, 100]; // trieuse 4+1 (+ reject / monnaie)
 const SORT_FEED = 0.28; // s entre chaque billet (machine, pas mini-jeu)
@@ -241,7 +241,7 @@ let scene3dPromise = null;
 async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
-    scene3dPromise = import("./scene3d.mjs?v=15").then((m) => {
+    scene3dPromise = import("./scene3d.mjs?v=16").then((m) => {
       scene3d = m;
       scene3d.mount(view3d, {
         pressbar: document.getElementById("pressbar"),
@@ -784,13 +784,11 @@ function renderBeuher(){
         const assigned=ready.filter(o=>S.assign[o.id]===c.id);
         const g=assigned.reduce((a,o)=>a+o.g,0);
         const risk=beuher.riskChip(c,g);
-        const fee=assigned.length?beuher.feeFor(c,assigned,S.heat):0;
         return `<div class="courier ${assigned.length?"on":""}">
           <div class="stat"><span>${c.emoji} <b>${c.nm}</b></span>
             ${risk?`<span class="risk ${risk.cls}">${risk.txt}</span>`:`<span class="muted">idle</span>`}</div>
           <div class="muted">${c.tip}</div>
           <div class="stat"><span>Charge</span><b>${beuher.fmtG(g)} / ${beuher.fmtG(c.capG)} · max ${beuher.fmtG(beuher.seuilSaisie(c))}</b></div>
-          <div class="stat"><span>Fee estimée</span><b>${money(fee)}</b></div>
         </div>`;
       }).join("")}
     </div>
@@ -819,26 +817,18 @@ function launchRuns(){
     toast("CHAUD — allège la charge ou change de coursier.");
     return;
   }
-  // RT-7 : fee brute > pay = course absurde
-  if(blocks.some(b=>b.feeExceeds)){
-    toast("Fee > recette. Regroupe ou prends un coursier moins cher.");
-    return;
-  }
-  const needFee=blocks.reduce((a,b)=>a+b.fee,0);
-  if(S.cash<needFee){ toast(`Fee ${money(needFee)} — propre insuffisant.`); return; }
   for(const bl of blocks){
-    S.cash-=bl.fee;
     S.heat=clamp(S.heat+bl.hx,0,beuher.HEAT_CAP);
     const time=bl.eta;
     S.runs.push({
       id:"r"+Math.round(S.clock*10)+"_"+bl.courier.id,
       courierId:bl.courier.id, courierNm:bl.courier.nm, col:bl.courier.col,
-      g:bl.totalG, pay:bl.pay, fee:bl.fee, net:bl.net, busted:false,
+      g:bl.totalG, pay:bl.pay, fee:0, net:bl.net, busted:false,
       left:time, total:time, collected:false,
       orderIds:bl.orders.map(o=>o.id),
     });
     bl.orders.forEach(o=>{ o.status="assigned"; delete S.assign[o.id]; });
-    cause(`Tournée ${bl.courier.nm}`, `−${money(bl.fee)} fee · ${bl.totalG} g · ETA ${time}s`);
+    cause(`Tournée ${bl.courier.nm}`, `${bl.totalG} g · ETA ${time}s · 0 fee`);
   }
   toast("Tournées lancées.");
   save(); renderBeuher();

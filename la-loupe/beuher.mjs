@@ -76,17 +76,9 @@ export function riskChip(c, totalG) {
   return { cls: "ok", txt: "discret" };
 }
 
-export function feeFor(c, orders, heat) {
-  const pay = orders.reduce((a, o) => a + (o.price || 0), 0);
-  const stops = Math.max(1, orders.length);
-  const dist = orders.reduce((a, o) => a + (dealById(o.deal).dist || 5), 0);
-  // Forfait (stops + √distance) + cut% du brut, puis plafond vs pay.
-  const flat = c.base * stops + c.km * Math.sqrt(dist);
-  const cut = pay * (c.cut ?? 0.1);
-  let fee = Math.round((flat + cut) * surge(heat));
-  const cap = Math.floor(pay * (c.feeCap ?? 0.25));
-  fee = Math.min(fee, Math.max(0, cap));
-  return Math.max(c.feeMin ?? 1, fee);
+/** Pas de fees (arbitrage proto) — le coût = risque / chaleur / temps, pas la caisse. */
+export function feeFor(_c, _orders, _heat) {
+  return 0;
 }
 
 export function etaFor(c, orders) {
@@ -109,23 +101,20 @@ export function resolveRuns(assign, orders, heat) {
     const list = byC[cid];
     const totalG = list.reduce((a, o) => a + o.g, 0);
     const pay = list.reduce((a, o) => a + o.price, 0);
-    const fee = feeFor(c, list, heat);
+    const fee = 0;
     const busted = runBusted(c, totalG);
     const hx = heatExpo(c, totalG) + (busted ? HEAT_BUST : 0);
     const pct = ponctionPct(c);
     const afterPonction = busted ? 0 : Math.round(pay * (1 - pct / 100));
-    // RT-7 : fee ne peut pas dépasser le brut du run
-    const feeClamped = busted ? 0 : Math.min(fee, afterPonction);
-    const net = busted ? 0 : Math.max(0, afterPonction - feeClamped);
-    const feeExceeds = !busted && fee > afterPonction;
+    const net = afterPonction; // zéro fee — le coût c'est le risque
     blocks.push({
       courier: c,
       orders: list,
       totalG,
       pay,
-      fee: feeClamped,
-      feeRaw: fee,
-      feeExceeds,
+      fee,
+      feeRaw: 0,
+      feeExceeds: false,
       busted,
       hx,
       net,
