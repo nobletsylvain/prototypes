@@ -1,19 +1,36 @@
 /* BeuherShit — dispatch / risque / fees (feel beuhereats, marque Loupe). */
 
-export const SEUIL_DISCRET_G = 52;
+export const SEUIL_DISCRET_G = 500; // référence heat / rétrocompat (risque = charge / capG)
 export const SEUIL_BUST = 0.45;
 export const HEAT_CAP = 100;
 export const HEAT_BUST = 15;
 export const HEAT_EXPO_K = 6.5;
-export const SURGE_K = 0.55;
+export const SURGE_K = 0.25; // chaleur gonfle un peu la fee, pas ×1.5
 export const PONCTION_SEUIL = 0.72;
 
 export const COURIERS = [
-  // capG = hard ceiling (RT-2) — au-delà, saisie même si la courbe soft est basse
-  { id: "velib", nm: "Vélib", emoji: "🚲", fiab: 0.88, expo: 0.28, eta: 34, base: 5, km: 1.6, col: "#0aa84f", capG: 40, tip: "Lent. Discret. Plafonné." },
-  { id: "tmax", nm: "T-Max", emoji: "🛵", fiab: 0.82, expo: 0.40, eta: 19, base: 9, km: 1.4, col: "#e8902a", capG: 70, tip: "Le classique. Tu connais la chanson." },
-  { id: "gofast", nm: "Go fast", emoji: "🚗", fiab: 0.66, expo: 0.62, eta: 11, base: 18, km: 2.0, col: "#e23b3b", capG: 100, tip: "Rapide. Voyant. Fun jusqu'à la saisie." },
+  // capG hard (RT-2). Fees = forfait léger + % du brut (plus de base 18 sur une course à 36).
+  // cut = part coursier · feeCap = plafond fraction du pay · base/km = petites primes
+  { id: "velib", nm: "Vélib", emoji: "🚲", fiab: 0.88, expo: 0.28, eta: 34,
+    base: 1, km: 0.25, cut: 0.08, feeCap: 0.20, feeMin: 1,
+    col: "#0aa84f", capG: 500, tip: "500 g · fee ~8%." },
+  { id: "tmax", nm: "T-Max", emoji: "🛵", fiab: 0.82, expo: 0.40, eta: 19,
+    base: 2, km: 0.3, cut: 0.10, feeCap: 0.22, feeMin: 2,
+    col: "#e8902a", capG: 5000, tip: "5 kg · fee ~10%." },
+  { id: "gofast", nm: "Go fast", emoji: "🚗", fiab: 0.66, expo: 0.62, eta: 11,
+    base: 3, km: 0.35, cut: 0.12, feeCap: 0.25, feeMin: 2,
+    col: "#e23b3b", capG: 200000, tip: "200 kg · fee ~12%." },
 ];
+
+/** Affichage charge / cap (g ou kg). */
+export function fmtG(g) {
+  if (g == null) return "—";
+  if (g >= 1000) {
+    const kg = g / 1000;
+    return (Number.isInteger(kg) ? String(kg) : kg.toFixed(1)) + " kg";
+  }
+  return Math.round(g) + " g";
+}
 
 export const DEALPOINTS = [
   { id: "ruelle", nm: "Ruelle 12", emoji: "🛣", dist: 4, premium: 1.0 },
@@ -26,18 +43,26 @@ export const courierById = (id) => COURIERS.find((c) => c.id === id);
 export const dealById = (id) => DEALPOINTS.find((d) => d.id === id) || DEALPOINTS[0];
 
 export const surge = (h) => 1 + SURGE_K * (h / HEAT_CAP);
-export const runRisk = (c, totalG) => c.expo * (1 - c.fiab) * (totalG / SEUIL_DISCRET_G);
+/** Risque = profil × remplissage du véhicule (pas une échelle fixe en g). */
+export const runRisk = (c, totalG) => {
+  const denom = c.capG != null ? c.capG : SEUIL_DISCRET_G;
+  return c.expo * (1 - c.fiab) * (totalG / Math.max(1, denom));
+};
 export const runBusted = (c, totalG) => {
   if (totalG <= 0) return false;
   if (c.capG != null && totalG > c.capG) return true; // hard cap RT-2
   return runRisk(c, totalG) >= SEUIL_BUST;
 };
 export const seuilSaisie = (c) => {
+  // Au-delà du cap = saisie. Soft (profil) rarement plus bas que le cap avec ces fiab.
+  if (c.capG != null) return c.capG;
   const k = c.expo * (1 - c.fiab);
-  const soft = k > 0 ? Math.round(SEUIL_BUST * SEUIL_DISCRET_G / k) : Infinity;
-  return c.capG != null ? Math.min(soft, c.capG) : soft;
+  return k > 0 ? Math.round(SEUIL_BUST * SEUIL_DISCRET_G / k) : Infinity;
 };
-export const heatExpo = (c, totalG) => Math.round(c.expo * (totalG / SEUIL_DISCRET_G) * HEAT_EXPO_K);
+export const heatExpo = (c, totalG) => {
+  const denom = c.capG != null ? c.capG : SEUIL_DISCRET_G;
+  return Math.round(c.expo * (totalG / Math.max(1, denom)) * HEAT_EXPO_K * 4);
+};
 export const ponctionPct = (c) => (c.fiab < PONCTION_SEUIL ? Math.round((PONCTION_SEUIL - c.fiab) * 100) : 0);
 
 export function riskChip(c, totalG) {
@@ -52,8 +77,16 @@ export function riskChip(c, totalG) {
 }
 
 export function feeFor(c, orders, heat) {
+  const pay = orders.reduce((a, o) => a + (o.price || 0), 0);
+  const stops = Math.max(1, orders.length);
   const dist = orders.reduce((a, o) => a + (dealById(o.deal).dist || 5), 0);
-  return Math.round((c.base + c.km * dist) * surge(heat));
+  // Forfait (stops + √distance) + cut% du brut, puis plafond vs pay.
+  const flat = c.base * stops + c.km * Math.sqrt(dist);
+  const cut = pay * (c.cut ?? 0.1);
+  let fee = Math.round((flat + cut) * surge(heat));
+  const cap = Math.floor(pay * (c.feeCap ?? 0.25));
+  fee = Math.min(fee, Math.max(0, cap));
+  return Math.max(c.feeMin ?? 1, fee);
 }
 
 export function etaFor(c, orders) {

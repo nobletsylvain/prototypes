@@ -157,19 +157,21 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .bag-tray .wait .mini-bar{width:78%;height:14px;border-radius:999px;
   background:linear-gradient(180deg,#c4a06a 0%,#8a6238 40%,#4a3220 100%);
   box-shadow:0 1px 2px #000}
-/* barrette active (forme référence) */
-.bag-bar{position:absolute;width:92px;height:36px;z-index:5;cursor:grab;touch-action:none;
-  border-radius:999px;overflow:hidden;
+/* barrette active — forme lozenge + texture (PNG fond transparent) */
+.bag-bar{position:absolute;width:110px;height:42px;z-index:5;cursor:grab;touch-action:none;
+  border-radius:999px;overflow:visible;background:transparent;border:0;box-shadow:none}
+.bag-bar .skin{position:absolute;inset:0;border-radius:999px;overflow:hidden;
   background:
-    url("./assets/barrette.png") center/cover no-repeat,
-    linear-gradient(180deg,#d2b07a 0%,#9a6e3e 45%,#5a3a22 100%);
-  box-shadow:0 4px 10px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,230,180,.35);
-  border:1px solid rgba(60,40,20,.5)}
-.bag-bar::after{content:"";position:absolute;left:0;right:0;bottom:0;height:38%;
-  background:linear-gradient(180deg,transparent,rgba(40,24,12,.55));pointer-events:none}
-.bag-bar.drag{z-index:40;cursor:grabbing;filter:brightness(1.12);box-shadow:0 12px 24px rgba(0,0,0,.6),0 0 0 2px rgba(255,180,84,.5);transform:scale(1.06)}
-.bag-bar .w{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:10px;font-weight:900;color:rgba(255,245,220,.9);text-shadow:0 1px 3px #000;pointer-events:none}
+    url("./assets/barrette.png") center/85% auto no-repeat,
+    linear-gradient(180deg,#c9a06a 0%,#8a5a32 42%,#4a2e18 100%);
+  box-shadow:0 4px 12px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,230,180,.3);
+  border:1px solid rgba(50,30,15,.55)}
+.bag-bar .skin::after{content:"";position:absolute;left:0;right:0;bottom:0;height:40%;
+  background:linear-gradient(180deg,transparent,rgba(30,18,8,.5));pointer-events:none}
+.bag-bar.drag{z-index:40;cursor:grabbing;transform:scale(1.08)}
+.bag-bar.drag .skin{box-shadow:0 14px 28px rgba(0,0,0,.65),0 0 0 2px rgba(255,180,84,.55)}
+.bag-bar .w{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;
+  font-size:10px;font-weight:900;color:rgba(255,245,220,.92);text-shadow:0 1px 3px #000;pointer-events:none}
 /* un seul zip au centre */
 .bag-slot{position:absolute;left:50%;top:50%;width:78px;height:110px;z-index:3;
   transform:translate(-50%,-50%);transition:transform .35s cubic-bezier(.2,.8,.2,1),left .35s cubic-bezier(.2,.8,.2,1),top .35s cubic-bezier(.2,.8,.2,1),opacity .3s}
@@ -182,7 +184,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .bag-zip.open{border-color:rgba(200,230,255,.75)}
 .bag-zip.open.hot{border-color:rgba(255,200,100,.95);box-shadow:0 0 0 3px rgba(255,180,84,.4),0 8px 18px rgba(0,0,0,.45);transform:scale(1.05)}
 .bag-zip .fill{position:absolute;left:14%;right:14%;bottom:14px;height:0;border-radius:6px;
-  background:url("./assets/barrette.png") center/cover,linear-gradient(180deg,#c4a06a,#4a3220);transition:height .18s ease-out}
+  background:linear-gradient(180deg,#c4a06a,#4a3220);transition:height .18s ease-out}
 .bag-zip.sealed{border-color:rgba(155,227,125,.55);background:linear-gradient(180deg,rgba(160,200,180,.2),rgba(80,100,90,.12))}
 .bag-zip.sealed .fill{height:48%}
 .bag-zip .tag{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:11px;font-weight:900;color:rgba(255,255,255,.78)}
@@ -227,10 +229,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 <script type="module">
 /* snap/beuher d'abord — Three.js (scene3d) en lazy load.
    Sur mobile, unpkg bloqué cassait TOUT le proto (écran fantôme « enrouler »). */
-import * as snap from "./snap.mjs?v=12";
-import * as beuher from "./beuher.mjs?v=12";
+import * as snap from "./snap.mjs?v=15";
+import * as beuher from "./beuher.mjs?v=15";
 
-const SAVE_VERSION = "12";
+const SAVE_VERSION = "15";
 const DOSE_FORMATS = [2, 5, 8]; // synchro snap.SC.DOSE_FORMATS
 const SORT_POCKETS = [5, 20, 50, 100]; // trieuse 4+1 (+ reject / monnaie)
 const SORT_FEED = 0.28; // s entre chaque billet (machine, pas mini-jeu)
@@ -239,7 +241,7 @@ let scene3dPromise = null;
 async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
-    scene3dPromise = import("./scene3d.mjs?v=12").then((m) => {
+    scene3dPromise = import("./scene3d.mjs?v=15").then((m) => {
       scene3d = m;
       scene3d.mount(view3d, {
         pressbar: document.getElementById("pressbar"),
@@ -612,7 +614,7 @@ function renderDoseBag(){
   if(pieces>0){
     bar=document.createElement("div");
     bar.className="bag-bar";
-    bar.innerHTML=`<span class="w">${f}g</span>`;
+    bar.innerHTML=`<div class="skin"></div><span class="w">${f}g</span>`;
     bar.style.left="22%";
     bar.style.top="42%";
     bench.appendChild(bar);
@@ -787,7 +789,7 @@ function renderBeuher(){
           <div class="stat"><span>${c.emoji} <b>${c.nm}</b></span>
             ${risk?`<span class="risk ${risk.cls}">${risk.txt}</span>`:`<span class="muted">idle</span>`}</div>
           <div class="muted">${c.tip}</div>
-          <div class="stat"><span>Charge</span><b>${g} g / cap ${c.capG ?? "—"} · seuil ~${beuher.seuilSaisie(c)} g</b></div>
+          <div class="stat"><span>Charge</span><b>${beuher.fmtG(g)} / ${beuher.fmtG(c.capG)} · max ${beuher.fmtG(beuher.seuilSaisie(c))}</b></div>
           <div class="stat"><span>Fee estimée</span><b>${money(fee)}</b></div>
         </div>`;
       }).join("")}
