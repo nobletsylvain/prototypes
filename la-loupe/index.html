@@ -144,7 +144,7 @@ import * as scene3d from "./scene3d.mjs";
 import * as snap from "./snap.mjs";
 import * as beuher from "./beuher.mjs";
 
-const SAVE_VERSION = "5";
+const SAVE_VERSION = "6";
 const LS = "loupe_";
 const START_CASH = 220;
 const PAIN_100 = { g:100, price:200, q:52, label:"Pain 100" };
@@ -257,12 +257,14 @@ function renderFmtBar(){
 
 function render(){
   hud(); renderDock();
-  if(tab==="atelier" && (atelierSub==="cut"||atelierSub==="dose"||atelierSub==="buy")){
-    set3d(atelierSub==="dose"?"cond":atelierSub); stage.innerHTML=""; return;
+  // 3D = coupe + appro only. Dosage = UI rapide (R5/R6 : le wrap 3D c'était de la corvée).
+  if(tab==="atelier" && (atelierSub==="cut"||atelierSub==="buy")){
+    set3d(atelierSub); stage.innerHTML=""; return;
   }
   set3d("hidden");
   if(tab==="home") renderHome();
   else if(tab==="snap") renderSnap();
+  else if(tab==="atelier" && atelierSub==="dose") renderDoseFast();
   else if(tab==="atelier") renderAtelierMenu();
   else if(tab==="beuher") renderBeuher();
   else if(tab==="cash") renderCash();
@@ -401,15 +403,57 @@ function doSell(id, mode){
 /* ---------- Atelier menu ---------- */
 function renderAtelierMenu(){
   stage.innerHTML=`
-    <h2>Atelier 3D</h2>
-    <div class="sub">Le geste, pas le dashboard. Coupe au maintien. Emballage au doigt.</div>
+    <h2>Atelier</h2>
+    <div class="sub">Coupe en 3D (le plaisir). Dosage en un tap (la corvée, on délègue à toi-même en mode rapide).</div>
     <div class="card"><div class="stat"><span>Pain / barrettes / sachets</span><b>${S.painG.toFixed(0)} · ${S.barG.toFixed(0)} · ${fmtSachets()}</b></div></div>
-    <button class="btn ok" id="gCut">✂ Coupe — maintien lame</button>
-    <button class="btn ok" id="gDose">⚖ Dosage — enrouler + sceller</button>
+    <button class="btn ok" id="gCut">✂ Coupe 3D — maintien lame</button>
+    <button class="btn ok" id="gDose">⚖ Dosage express — un tap</button>
     <button class="btn ghost" id="gBuy">◎ Appro — visionneuse pain</button>`;
   document.getElementById("gCut").onclick=()=>{ atelierSub="cut"; render(); };
   document.getElementById("gDose").onclick=()=>{ atelierSub="dose"; render(); };
   document.getElementById("gBuy").onclick=()=>{ atelierSub="buy"; render(); };
+}
+
+/** Dosage sans wrap 3D — R5/R6 : satisfaction épuisée → geste minimal. */
+function renderDoseFast(){
+  const f=S.doseFormat;
+  const can=Math.floor(S.barG/f);
+  stage.innerHTML=`
+    <h2>Dosage express</h2>
+    <div class="sub">Plus d'enroulage. Tu choisis le format, tu tapes, c'est ensaché. Le skill c'était la coupe.</div>
+    <div class="seg">
+      ${[2,5,8].map(x=>`<button class="chip ${f===x?"on":""}" data-f="${x}">${x} g · ${DOSE_PRICE[x]}/g</button>`).join("")}
+    </div>
+    <div class="card">
+      <div class="stat"><span>Barrettes</span><b>${S.barG.toFixed(1)} g</b></div>
+      <div class="stat"><span>Sachets</span><b>${fmtSachets()}</b></div>
+      <div class="stat"><span>Possible maintenant</span><b>${can}×${f} g</b></div>
+      <button class="btn ok" id="one" ${can<1?"disabled":""}>Ensacher 1×${f} g</button>
+      <button class="btn ok" id="five" ${can<5?"disabled":""}>×5 sachets</button>
+      <button class="btn snap" id="all" ${can<1?"disabled":""}>Tout ensacher (${can})</button>
+      <button class="btn ghost" id="back">↩ Atelier</button>
+    </div>`;
+  stage.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{ S.doseFormat=+b.dataset.f; save(); renderDoseFast(); });
+  document.getElementById("one").onclick=()=>dosePack(1);
+  document.getElementById("five").onclick=()=>dosePack(5);
+  document.getElementById("all").onclick=()=>dosePack(can);
+  document.getElementById("back").onclick=()=>{ atelierSub="menu"; render(); };
+}
+function dosePack(n){
+  const f=S.doseFormat;
+  let did=0;
+  for(let i=0;i<n;i++){
+    if(S.barG<f) break;
+    const stockG=Object.entries(S.sachets).reduce((a,[ff,nn])=>a+nn*+ff,0);
+    S.barG-=f;
+    S.sachetQ=avgMerge(stockG,S.sachetQ,f,S.barQ);
+    S.sachets[f]++;
+    did++;
+  }
+  if(!did){ toast("Pas assez de barrettes."); return; }
+  cause(`Dosage express ${did}×${f} g`,`Barrettes → sachets (tap)`);
+  toast(did===1?"Sachet.":`${did} sachets. Suivant.`);
+  save(); renderDoseFast();
 }
 function renderBuyOverlay(){
   const items=[PAIN_100,PAIN_250]; if(S.reput>=40) items.push(PAIN_500);

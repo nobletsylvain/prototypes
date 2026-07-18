@@ -95,7 +95,7 @@ Shell téléphone = `le-bigo` (bus, causes, apps). La Loupe = boucle économique
 - [x] Paliers T0–T3 visibles
 - [x] Réinvest qui change le gameplay
 - [x] Geste coupe 3D (atelier-3d → `scene3d.mjs`)
-- [x] Emballage 3D (enrouler + sceller → sachets)
+- [x] Dosage express (tap) — wrap 3D écarté (trop fastidieux, R5/R6)
 - [x] Appro visionneuse 3D
 - [x] SnapShit intégré (story / drop / DM → file livraison)
 - [x] BeuherShit (coursiers, risque cumul, saisie)
