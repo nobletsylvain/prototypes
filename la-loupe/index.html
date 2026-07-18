@@ -140,11 +140,57 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 </div>
 <div id="toast"></div>
 <script type="module">
-import * as scene3d from "./scene3d.mjs";
-import * as snap from "./snap.mjs";
-import * as beuher from "./beuher.mjs";
+/* snap/beuher d'abord — Three.js (scene3d) en lazy load.
+   Sur mobile, unpkg bloqué cassait TOUT le proto (écran fantôme « enrouler »). */
+import * as snap from "./snap.mjs?v=7";
+import * as beuher from "./beuher.mjs?v=7";
 
-const SAVE_VERSION = "6";
+const SAVE_VERSION = "7";
+let scene3d = null;
+let scene3dPromise = null;
+async function ensure3d() {
+  if (scene3d) return scene3d;
+  if (!scene3dPromise) {
+    scene3dPromise = import("./scene3d.mjs?v=7").then((m) => {
+      scene3d = m;
+      scene3d.mount(view3d, {
+        pressbar: document.getElementById("pressbar"),
+        pressfill: document.getElementById("pressfill"),
+        presslbl: document.getElementById("presslbl"),
+        wrapbar: document.getElementById("wrapbar"),
+        wrapfill: document.getElementById("wrapfill"),
+        wraptext: document.getElementById("wraptext"),
+        seal: document.getElementById("seal"),
+        hint: document.getElementById("hint3d"),
+      }, {
+        getPainG: () => S.painG,
+        getBarG: () => S.barG,
+        getDoseFormat: () => S.doseFormat,
+        getSachetCount: () => Object.values(S.sachets).reduce((a, n) => a + n, 0),
+        toast,
+        onCut: (g) => {
+          const take = Math.min(S.painG, g);
+          S.painG -= take;
+          S.barQ = avgMerge(S.barG, S.barQ, take, S.painQ || 60);
+          S.barG += take;
+          cause(`Coupe 3D ${take.toFixed(1)} g`, `Maintien lame`);
+          save(); hud();
+        },
+        onTakeBar: (fmt) => { S.barG -= fmt; save(); hud(); },
+        onReturnBar: (fmt) => { S.barG += fmt; save(); hud(); },
+        onPack: () => { /* wrap 3D retiré — dosage = renderDoseFast */ },
+      });
+      window.addEventListener("resize", () => scene3d && scene3d.resize());
+      return scene3d;
+    }).catch((err) => {
+      scene3dPromise = null;
+      console.error("3D indisponible", err);
+      toast("3D KO (réseau). Dosage express marche quand même.");
+      throw err;
+    });
+  }
+  return scene3dPromise;
+}
 const LS = "loupe_";
 const START_CASH = 220;
 const PAIN_100 = { g:100, price:200, q:52, label:"Pain 100" };
@@ -219,36 +265,33 @@ function hud(){
 
 function renderDock(){
   dock.innerHTML=APPS.map(t=>`<button class="tab ${tab===t.id?"on":""}" data-t="${t.id}"><span class="ic">${t.ic}</span>${t.lb}</button>`).join("");
-  dock.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{ tab=b.dataset.t; atelierSub="menu"; render(); });
+  dock.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
+    tab=b.dataset.t;
+    atelierSub = tab==="atelier" ? "dose" : "menu";
+    render();
+  });
 }
-
-scene3d.mount(view3d,{
-  pressbar:document.getElementById("pressbar"), pressfill:document.getElementById("pressfill"), presslbl:document.getElementById("presslbl"),
-  wrapbar:document.getElementById("wrapbar"), wrapfill:document.getElementById("wrapfill"), wraptext:document.getElementById("wraptext"),
-  seal:document.getElementById("seal"), hint:document.getElementById("hint3d"),
-},{
-  getPainG:()=>S.painG, getBarG:()=>S.barG, getDoseFormat:()=>S.doseFormat,
-  getSachetCount:()=>Object.values(S.sachets).reduce((a,n)=>a+n,0), toast,
-  onCut:(g)=>{ const take=Math.min(S.painG,g); S.painG-=take; S.barQ=avgMerge(S.barG,S.barQ,take,S.painQ||60); S.barG+=take;
-    cause(`Coupe 3D ${take.toFixed(1)} g`,`Maintien lame`); save(); hud(); },
-  onTakeBar:(fmt)=>{ S.barG-=fmt; save(); hud(); },
-  onReturnBar:(fmt)=>{ S.barG+=fmt; save(); hud(); },
-  onPack:(fmt)=>{ const stockG=Object.entries(S.sachets).reduce((a,[ff,nn])=>a+nn*+ff,0);
-    S.sachetQ=avgMerge(stockG,S.sachetQ,fmt,S.barQ); S.sachets[fmt]++;
-    cause(`Sachet ${fmt} g`,`Emballage 3D`); save(); hud(); },
-});
-window.addEventListener("resize",()=>scene3d.resize());
 
 function set3d(mode){
   const on=mode!=="hidden";
   view3d.classList.toggle("on",on);
   stage.classList.toggle("behind",on);
   buyOverlay.classList.toggle("on", mode==="buy");
-  fmtBar.classList.toggle("on", mode==="cond");
-  scene3d.setMode(mode==="dose"?"cond":mode);
-  if(mode==="cond") renderFmtBar();
-  if(mode==="buy") renderBuyOverlay();
-  scene3d.resize();
+  fmtBar.classList.toggle("on", false); // plus de cond 3D
+  if(mode==="hidden"){
+    if(scene3d) scene3d.setMode("hidden");
+    return;
+  }
+  ensure3d().then((m)=>{
+    m.setMode(mode);
+    if(mode==="buy") renderBuyOverlay();
+    m.resize();
+  }).catch(()=>{
+    view3d.classList.remove("on");
+    stage.classList.remove("behind");
+    atelierSub="dose";
+    renderDoseFast();
+  });
 }
 function renderFmtBar(){
   fmtBar.innerHTML=[2,5,8].map(x=>`<button class="chip ${S.doseFormat===x?"on":""}" data-f="${x}">${x}g</button>`).join("");
@@ -257,9 +300,9 @@ function renderFmtBar(){
 
 function render(){
   hud(); renderDock();
-  // 3D = coupe + appro only. Dosage = UI rapide (R5/R6 : le wrap 3D c'était de la corvée).
+  // Dosage = UI rapide (défaut atelier). 3D lazy = coupe/appro seulement.
   if(tab==="atelier" && (atelierSub==="cut"||atelierSub==="buy")){
-    set3d(atelierSub); stage.innerHTML=""; return;
+    set3d(atelierSub); stage.innerHTML=`<div class="card muted" style="margin:40px 12px">Chargement 3D…</div>`; return;
   }
   set3d("hidden");
   if(tab==="home") renderHome();
@@ -277,7 +320,7 @@ function renderHome(){
     <div class="apps">
       <button class="app snap" data-go="snap"><div class="icon">⚡</div><div class="nm">SnapShit</div></button>
       <button class="app beuher" data-go="beuher"><div class="icon">🛵</div><div class="nm">BeuherShit</div></button>
-      <button class="app atelier" data-go="atelier"><div class="icon">✂</div><div class="nm">Atelier 3D</div></button>
+      <button class="app atelier" data-go="atelier"><div class="icon">✂</div><div class="nm">Atelier</div></button>
       <button class="app appro" data-go="buy"><div class="icon">◎</div><div class="nm">Appro</div></button>
       <button class="app cash" data-go="cash"><div class="icon">▣</div><div class="nm">Liquide</div></button>
       <button class="app karnet" data-go="karnet"><div class="icon">📓</div><div class="nm">Karnet</div></button>
@@ -298,6 +341,7 @@ function renderHome(){
   stage.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{
     const g=b.dataset.go;
     if(g==="buy"){ tab="atelier"; atelierSub="buy"; render(); return; }
+    if(g==="atelier"){ tab="atelier"; atelierSub="dose"; render(); return; } // ouvre sur dosage express
     if(g==="karnet"){ renderKarnet(); return; }
     tab=g; atelierSub="menu"; render();
   });
@@ -404,10 +448,10 @@ function doSell(id, mode){
 function renderAtelierMenu(){
   stage.innerHTML=`
     <h2>Atelier</h2>
-    <div class="sub">Coupe en 3D (le plaisir). Dosage en un tap (la corvée, on délègue à toi-même en mode rapide).</div>
+    <div class="sub">Dosage express d'abord. Coupe 3D si le réseau laisse passer Three.js.</div>
     <div class="card"><div class="stat"><span>Pain / barrettes / sachets</span><b>${S.painG.toFixed(0)} · ${S.barG.toFixed(0)} · ${fmtSachets()}</b></div></div>
-    <button class="btn ok" id="gCut">✂ Coupe 3D — maintien lame</button>
     <button class="btn ok" id="gDose">⚖ Dosage express — un tap</button>
+    <button class="btn ok" id="gCut">✂ Coupe 3D — maintien lame</button>
     <button class="btn ghost" id="gBuy">◎ Appro — visionneuse pain</button>`;
   document.getElementById("gCut").onclick=()=>{ atelierSub="cut"; render(); };
   document.getElementById("gDose").onclick=()=>{ atelierSub="dose"; render(); };
@@ -705,7 +749,7 @@ function frame(now){
     if(!frame._acc) frame._acc=0; frame._acc+=dt;
     if(frame._acc>0.35){ frame._acc=0; renderBeuher(); }
   }
-  scene3d.tick(dt);
+  if(scene3d) scene3d.tick(dt);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
