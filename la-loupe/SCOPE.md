@@ -94,7 +94,9 @@ Shell téléphone = `le-bigo` (bus, causes, apps). La Loupe = boucle économique
 - [x] Argent neutre + liquide à liasses
 - [x] Paliers T0–T3 visibles
 - [x] Réinvest qui change le gameplay
-- [ ] Geste coupe 3D (atelier-3d branché)
+- [x] Geste coupe 3D (atelier-3d → `scene3d.mjs`)
+- [x] Emballage 3D (enrouler + sceller → sachets)
+- [x] Appro visionneuse 3D
 - [ ] Weed mid débloqué (pas stub)
 - [ ] Embed bus-compatible Bigo
 - [ ] Save version bumpée à chaque rééquilibrage
