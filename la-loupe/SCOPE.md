@@ -100,6 +100,7 @@ Shell téléphone = `le-bigo` (bus, causes, apps). La Loupe = boucle économique
 - [x] SnapShit intégré (story / drop / DM → file livraison)
 - [x] BeuherShit (coursiers, risque cumul, saisie)
 - [x] Tri billets manuel (table + liasses)
+- [x] Red-team P0/High patchés (v5) : bills exacts, caps coursiers, stock exact, fees, promesse
 - [ ] Weed mid débloqué (pas stub)
 - [ ] Embed bus-compatible Bigo
 - [ ] Save version bumpée à chaque rééquilibrage

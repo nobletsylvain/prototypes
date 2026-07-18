@@ -99,6 +99,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .bill{position:absolute;padding:12px 14px;border-radius:10px;font-weight:900;font-size:14px;border:1px solid rgba(255,255,255,.2);
   color:#eaffef;box-shadow:0 6px 16px rgba(0,0,0,.35);transform:rotate(var(--r,0deg));transition:transform .12s,opacity .15s}
 .bill:active{transform:scale(.92) rotate(var(--r,0deg))}
+.bill.n1{background:linear-gradient(160deg,#4a4a4a,#222);font-size:12px;padding:8px 10px}
 .bill.n5{background:linear-gradient(160deg,#6a6a2f,#333318)}.bill.n20{background:linear-gradient(160deg,#3a4f7a,#1d2944)}
 .bill.n50{background:linear-gradient(160deg,#7a4f2f,#3a2414)}.bill.n100{background:linear-gradient(160deg,#5a3a6a,#2a1833)}
 .bundle{display:flex;justify-content:space-between;padding:8px 10px;margin-top:6px;border-radius:12px;border:1px solid rgba(125,222,160,.35);background:rgba(125,222,160,.08);font-size:12px;font-weight:800}
@@ -143,7 +144,7 @@ import * as scene3d from "./scene3d.mjs";
 import * as snap from "./snap.mjs";
 import * as beuher from "./beuher.mjs";
 
-const SAVE_VERSION = "4";
+const SAVE_VERSION = "5";
 const LS = "loupe_";
 const START_CASH = 220;
 const PAIN_100 = { g:100, price:200, q:52, label:"Pain 100" };
@@ -361,8 +362,9 @@ function renderSnap(){
   document.getElementById("vitr").onclick=()=>{ snap.posterVitrine(S,"vitrine"); cause("Story vitrine","+buzz soft"); toast("En ligne. Discret."); save(); renderSnap(); };
   document.getElementById("dropN").onclick=()=>{ snap.posterVitrine(S,"normal"); cause("Drop story","Promesse normal"); toast("Drop posté. Le feed s'enflamme."); save(); renderSnap(); };
   document.getElementById("dropP").onclick=()=>{ snap.posterVitrine(S,"premium"); cause("Drop premium","Promesse premium"); toast("Premium. Tu as intérêt à tenir."); save(); renderSnap(); };
-  document.getElementById("night").onclick=()=>{
-    const cons=snap.passerSoiree(S, qualAvg());
+    document.getElementById("night").onclick=()=>{
+    const qLivree=snap.deliveredQuality(S, qualAvg()); // RT-6 : qualité vendue, pas le stock
+    const cons=snap.passerSoiree(S, qLivree);
     S.day++; S.heat=clamp(S.heat-6,0,100); S.soldDay=0;
     cons.forEach(c=>cause(c.t,c.c));
     toast(cons[cons.length-1]?.c || "Nouvelle nuit.");
@@ -392,7 +394,7 @@ function doSell(id, mode){
   S.orders.push(r.order);
   if(r.heatExtra) S.heat=clamp(S.heat+r.heatExtra,0,100);
   cause(`Deal Snap ${r.order.client}`,`${r.order.g} g · ${money(r.order.price)} → file Beuher`);
-  toast(r.short?`Validé (${r.short} g manquants ignorés). BeuherShit.`:"Validé. Envoie un coursier.");
+  toast("Validé. Envoie un coursier.");
   save(); renderSnap();
 }
 
@@ -467,7 +469,7 @@ function renderBeuher(){
           <div class="stat"><span>${c.emoji} <b>${c.nm}</b></span>
             ${risk?`<span class="risk ${risk.cls}">${risk.txt}</span>`:`<span class="muted">idle</span>`}</div>
           <div class="muted">${c.tip}</div>
-          <div class="stat"><span>Charge</span><b>${g} g / seuil ~${beuher.seuilSaisie(c)} g</b></div>
+          <div class="stat"><span>Charge</span><b>${g} g / cap ${c.capG ?? "—"} · seuil ~${beuher.seuilSaisie(c)} g</b></div>
           <div class="stat"><span>Fee estimée</span><b>${money(fee)}</b></div>
         </div>`;
       }).join("")}
@@ -492,32 +494,33 @@ function launchRuns(){
   const ready=S.orders.filter(o=>o.status==="ready"&&S.assign[o.id]);
   if(!ready.length){ toast("Assigne d'abord."); return; }
   const blocks=beuher.resolveRuns(S.assign, ready, S.heat);
-  let feeTotal=0;
-  for(const bl of blocks){
-    if(!bl.busted) feeTotal+=bl.fee;
+  // RT-8 : pas de lancement suicide silencieux
+  if(blocks.some(b=>b.busted)){
+    toast("CHAUD — allège la charge ou change de coursier.");
+    return;
   }
-  // fees paid from propre up front for non-bust estimate — if can't pay, block
-  const needFee=blocks.filter(b=>!b.busted).reduce((a,b)=>a+b.fee,0);
-  // Actually busted still "launched" but pay 0 - fee only if not busted. Charge fees from propre for all non-bust.
+  // RT-7 : fee brute > pay = course absurde
+  if(blocks.some(b=>b.feeExceeds)){
+    toast("Fee > recette. Regroupe ou prends un coursier moins cher.");
+    return;
+  }
+  const needFee=blocks.reduce((a,b)=>a+b.fee,0);
   if(S.cash<needFee){ toast(`Fee ${money(needFee)} — propre insuffisant.`); return; }
   for(const bl of blocks){
-    if(!bl.busted) S.cash-=bl.fee;
-    S.heat=clamp(S.heat+bl.hx-(bl.busted?0:0),0,beuher.HEAT_CAP);
-    // wait, heatExpo already includes bust heat in bl.hx when busted
+    S.cash-=bl.fee;
+    S.heat=clamp(S.heat+bl.hx,0,beuher.HEAT_CAP);
     const time=bl.eta;
     S.runs.push({
       id:"r"+Math.round(S.clock*10)+"_"+bl.courier.id,
       courierId:bl.courier.id, courierNm:bl.courier.nm, col:bl.courier.col,
-      g:bl.totalG, pay:bl.pay, fee:bl.fee, net:bl.net, busted:bl.busted,
+      g:bl.totalG, pay:bl.pay, fee:bl.fee, net:bl.net, busted:false,
       left:time, total:time, collected:false,
       orderIds:bl.orders.map(o=>o.id),
     });
     bl.orders.forEach(o=>{ o.status="assigned"; delete S.assign[o.id]; });
-    cause(`Tournée ${bl.courier.nm}`, bl.busted
-      ? `Saisie programmée · ${bl.totalG} g trop voyants`
-      : `−${money(bl.fee)} fee · ${bl.totalG} g · ETA ${time}s`);
+    cause(`Tournée ${bl.courier.nm}`, `−${money(bl.fee)} fee · ${bl.totalG} g · ETA ${time}s`);
   }
-  toast(blocks.some(b=>b.busted)?"Des scoots sont partis trop chargés. Tu vas le sentir.":"Tournées lancées.");
+  toast("Tournées lancées.");
   save(); renderBeuher();
 }
 
@@ -541,11 +544,14 @@ function collectRun(id){
 }
 
 function pushBills(amount){
+  // RT-1 : jamais inventer de valeur — reste exact en monnaie (1)
   let left=Math.round(amount);
-  for(const d of [100,50,20,5]){
-    while(left>=d){ S.bills.push({ id:"b"+S.bills.length+"_"+d+"_"+Math.round(S.clock*10), v:d }); left-=d; }
+  for(const d of [100,50,20,5,1]){
+    while(left>=d){
+      S.bills.push({ id:"b"+S.bills.length+"_"+d+"_"+Math.round(S.clock*10)+"_"+left, v:d });
+      left-=d;
+    }
   }
-  if(left>0) S.bills.push({ id:"bX"+Math.round(S.clock*10), v:left<5?5:left });
 }
 
 /* ---------- Liquide : compter à la main ---------- */
@@ -557,15 +563,18 @@ function renderCash(){
     const left=8+((i*37)%78);
     const top=10+((i*53)%70);
     const r=-18+((i*17)%36);
-    return `<button class="bill n${b.v>=100?100:b.v}" data-b="${b.id}" style="left:${left}%;top:${top}%;--r:${r}deg">${money(b.v)}</button>`;
+    const cls=b.v===1?"n1":b.v>=100?100:b.v;
+    return `<button class="bill n${cls}" data-b="${b.id}" style="left:${left}%;top:${top}%;--r:${r}deg">${money(b.v)}</button>`;
   }).join("");
+  const loose=S.looseChange||0;
+  const bankTotal=bundleVal+loose;
   stage.innerHTML=`
     <h2 style="color:var(--dirty)">Liquide</h2>
-    <div class="sub">Tu comptes. Un billet après l'autre. ${BUNDLE_SIZE} identiques = une liasse. Trop de liquide qui traîne chauffe tout seul. C'est ça, grossir.</div>
+    <div class="sub">Tu comptes. Un billet après l'autre. ${BUNDLE_SIZE} identiques = une liasse. Monnaie (1) → poche. Pas d'invention de valeur.</div>
     <div class="card">
       <div class="stat"><span>À ranger</span><b>${money(S.dirty)}</b></div>
       <div class="stat"><span>Compté (pile)</span><b>${money(S.counted||0)}</b></div>
-      <div class="stat"><span>Liasses prêtes</span><b>${money(bundleVal)}</b></div>
+      <div class="stat"><span>Liasses + poche</span><b>${money(bundleVal)} + ${money(loose)}</b></div>
     </div>
     <div class="cash-arena" id="arena">
       <div class="count">${money(S.counted||0)}</div>
@@ -576,7 +585,7 @@ function renderCash(){
         const n=S.bundles[d]||0, prog=(S._pile&&S._pile[d])||0;
         return `<div class="bundle"><span>Liasse ${money(d)} ×${n}</span><span class="muted">pile ${prog}/${BUNDLE_SIZE}</span></div>`;
       }).join("")}
-      <button class="btn ok" id="bank" ${bundleVal<=0?"disabled":""}>Encaisser les liasses (+${money(bundleVal)} propre)</button>
+      <button class="btn ok" id="bank" ${bankTotal<=0?"disabled":""}>Encaisser (+${money(bankTotal)} propre)</button>
       <button class="btn ghost" id="toSnap">↩ SnapShit</button>
     </div>`;
   stage.querySelectorAll("[data-b]").forEach(btn=>btn.onclick=()=>{
@@ -591,11 +600,17 @@ function renderCash(){
 function sortBill(id){
   const i=S.bills.findIndex(x=>x.id===id); if(i<0) return;
   const [b]=S.bills.splice(i,1);
-  const d=b.v>=100?100:b.v;
-  if(![5,20,50,100].includes(d)){ S.dirty=Math.max(0,S.dirty-b.v); save(); return; }
+  const d=b.v;
+  S.dirty=Math.max(0,S.dirty-d);
+  // Monnaie exacte (1) → poche, bankable 1:1
+  if(d===1){
+    S.looseChange=(S.looseChange||0)+1;
+    save();
+    return;
+  }
+  if(![5,20,50,100].includes(d)){ S.looseChange=(S.looseChange||0)+d; save(); return; }
   if(!S._pile) S._pile={5:0,20:0,50:0,100:0};
   S._pile[d]=(S._pile[d]||0)+1;
-  S.dirty=Math.max(0,S.dirty-d);
   S.counted=(S.counted||0)+d;
   if(S._pile[d]>=BUNDLE_SIZE){
     S._pile[d]-=BUNDLE_SIZE; S.bundles[d]=(S.bundles[d]||0)+1;
@@ -608,6 +623,8 @@ function sortBill(id){
 function bankBundles(){
   let got=0;
   for(const d of [5,20,50,100]){ const n=S.bundles[d]||0; if(n>0){ got+=d*BUNDLE_SIZE*n; S.bundles[d]=0; } }
+  const loose=S.looseChange||0;
+  got+=loose; S.looseChange=0;
   if(got<=0) return;
   S.cash+=got; S.counted=0;
   cause("Liasses encaissées",`+${money(got)} propre`);

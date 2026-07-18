@@ -57,8 +57,15 @@ export function snapDefaults() {
     pendingBadPublic: [],
     comtesseState: "idle",
     storyFlash: [],
-    dayTally: { sold: 0, brade: 0, volume: 0, cash: 0 },
+    dayTally: { sold: 0, brade: 0, volume: 0, cash: 0, soldG: 0, soldQSum: 0 },
   };
+}
+
+/** Qualité réellement écoulée ce jour (RT-6). Fallback stock si rien vendu. */
+export function deliveredQuality(S, fallbackQ) {
+  const g = S.dayTally?.soldG || 0;
+  if (g <= 0) return fallbackQ;
+  return (S.dayTally.soldQSum || 0) / g;
 }
 
 export function toneFromReput(r) {
@@ -130,26 +137,19 @@ export function buildDMs(S, good, bad, peakExpo) {
   return list;
 }
 
-/** Map qty grammes → sachets 2/5/8 disponibles. */
+/** Map qty grammes → sachets 2/5/8. Exact match only (jamais sur-livrer un format). */
 export function qtyToSachets(qty, sachets) {
-  // préférence formats proches
   const formats = [8, 5, 2];
   let left = qty;
   const plan = { 2: 0, 5: 0, 8: 0 };
   for (const f of formats) {
-    while (left >= f && sachets[f] - plan[f] > 0) { plan[f]++; left -= f; }
-  }
-  if (left > 0) {
-    // essayer de couvrir avec plus petits
-    for (const f of [2, 5, 8]) {
-      while (left > 0 && sachets[f] - plan[f] > 0) {
-        plan[f]++; left -= f;
-        if (left < 0) left = 0;
-      }
+    while (left >= f && sachets[f] - plan[f] > 0) {
+      plan[f]++;
+      left -= f;
     }
   }
-  const covered = qty - Math.max(0, left);
-  return { plan, covered, short: Math.max(0, left) };
+  const covered = qty - left;
+  return { plan, covered, short: left, exact: left === 0 };
 }
 
 export function applySachetPlan(sachets, plan) {
@@ -166,28 +166,37 @@ export function acceptDM(S, dmId, mode /* sell|brade|volume */) {
 
   let qty = d.qty;
   let ppu = d.ppu;
-  if (mode === "brade") {
-    ppu = Math.max(3, Math.round(ppu * 0.75));
-    S.dayTally.brade++;
-  }
+  if (mode === "brade") ppu = Math.max(3, Math.round(ppu * 0.75));
   if (mode === "volume" && d.kind !== "grossiste") {
     qty = Math.min(40, qty * 2);
     ppu = Math.max(3, Math.round(ppu * 0.8));
   }
+
+  const { plan, covered, short, exact } = qtyToSachets(qty, S.sachets);
+  if (!exact || covered !== qty) {
+    return {
+      ok: false,
+      reason: short > 0
+        ? `Stock exact requis : ${qty} g (il manque ${short} g).`
+        : "Formats incompatibles — dose le bon poids.",
+    };
+  }
+
+  // Side-effects UNIQUEMENT après validation stock (RT-5)
+  if (mode === "brade") S.dayTally.brade++;
   if (d.kind === "grossiste" || mode === "volume") {
     S.expo = clamp(S.expo + SC.GROSSISTE_EXPO_COST, 0, SC.EXPO_CAP);
     S.dayTally.volume += qty;
   }
 
-  const { plan, covered, short } = qtyToSachets(qty, S.sachets);
-  if (covered < 2) return { ok: false, reason: "Stock retail insuffisant. Dose d'abord." };
-
   applySachetPlan(S.sachets, plan);
   const g = [2, 5, 8].reduce((a, f) => a + plan[f] * f, 0);
-  const price = Math.round(g * ppu);
+  const price = Math.round(qty * ppu); // jamais facturer plus que la demande
   d.status = "sold";
   S.dayTally.sold++;
   S.dayTally.cash += price;
+  S.dayTally.soldG = (S.dayTally.soldG || 0) + g;
+  S.dayTally.soldQSum = (S.dayTally.soldQSum || 0) + g * (S.sachetQ || 60);
 
   const order = {
     id: "o" + S.orderSeq++,
@@ -198,6 +207,7 @@ export function acceptDM(S, dmId, mode /* sell|brade|volume */) {
     plan,
     g,
     price,
+    q: S.sachetQ || 60,
     status: "ready",
     from: "snap",
     kind: d.kind,
@@ -207,7 +217,7 @@ export function acceptDM(S, dmId, mode /* sell|brade|volume */) {
   let heatExtra = 0;
   if (d.kind === "grossiste") heatExtra = 2;
 
-  return { ok: true, order, short, heatExtra };
+  return { ok: true, order, short: 0, heatExtra };
 }
 
 export function refuseDM(S, dmId) {
@@ -276,7 +286,7 @@ export function passerSoiree(S, qualLivree) {
   const dmBad = Math.round(dmGood * S.flake);
   S.dms = buildDMs(S, dmGood, dmBad, expoAvant);
   S.posteAujourdhui = false;
-  S.dayTally = { sold: 0, brade: 0, volume: 0, cash: 0 };
+  S.dayTally = { sold: 0, brade: 0, volume: 0, cash: 0, soldG: 0, soldQSum: 0 };
   S.storyFlash = [];
 
   cons.push({

@@ -9,9 +9,10 @@ export const SURGE_K = 0.55;
 export const PONCTION_SEUIL = 0.72;
 
 export const COURIERS = [
-  { id: "velib", nm: "Vélib", emoji: "🚲", fiab: 0.90, expo: 0.20, eta: 34, base: 5, km: 1.6, col: "#0aa84f", tip: "Lent. Discret. Presque digne." },
-  { id: "tmax", nm: "T-Max", emoji: "🛵", fiab: 0.82, expo: 0.40, eta: 19, base: 9, km: 1.4, col: "#e8902a", tip: "Le classique. Tu connais la chanson." },
-  { id: "gofast", nm: "Go fast", emoji: "🚗", fiab: 0.66, expo: 0.62, eta: 11, base: 18, km: 2.0, col: "#e23b3b", tip: "Rapide. Voyant. Fun jusqu'à la saisie." },
+  // capG = hard ceiling (RT-2) — au-delà, saisie même si la courbe soft est basse
+  { id: "velib", nm: "Vélib", emoji: "🚲", fiab: 0.88, expo: 0.28, eta: 34, base: 5, km: 1.6, col: "#0aa84f", capG: 40, tip: "Lent. Discret. Plafonné." },
+  { id: "tmax", nm: "T-Max", emoji: "🛵", fiab: 0.82, expo: 0.40, eta: 19, base: 9, km: 1.4, col: "#e8902a", capG: 70, tip: "Le classique. Tu connais la chanson." },
+  { id: "gofast", nm: "Go fast", emoji: "🚗", fiab: 0.66, expo: 0.62, eta: 11, base: 18, km: 2.0, col: "#e23b3b", capG: 100, tip: "Rapide. Voyant. Fun jusqu'à la saisie." },
 ];
 
 export const DEALPOINTS = [
@@ -26,19 +27,27 @@ export const dealById = (id) => DEALPOINTS.find((d) => d.id === id) || DEALPOINT
 
 export const surge = (h) => 1 + SURGE_K * (h / HEAT_CAP);
 export const runRisk = (c, totalG) => c.expo * (1 - c.fiab) * (totalG / SEUIL_DISCRET_G);
-export const runBusted = (c, totalG) => totalG > 0 && runRisk(c, totalG) >= SEUIL_BUST;
+export const runBusted = (c, totalG) => {
+  if (totalG <= 0) return false;
+  if (c.capG != null && totalG > c.capG) return true; // hard cap RT-2
+  return runRisk(c, totalG) >= SEUIL_BUST;
+};
 export const seuilSaisie = (c) => {
   const k = c.expo * (1 - c.fiab);
-  return k > 0 ? Math.round(SEUIL_BUST * SEUIL_DISCRET_G / k) : Infinity;
+  const soft = k > 0 ? Math.round(SEUIL_BUST * SEUIL_DISCRET_G / k) : Infinity;
+  return c.capG != null ? Math.min(soft, c.capG) : soft;
 };
 export const heatExpo = (c, totalG) => Math.round(c.expo * (totalG / SEUIL_DISCRET_G) * HEAT_EXPO_K);
 export const ponctionPct = (c) => (c.fiab < PONCTION_SEUIL ? Math.round((PONCTION_SEUIL - c.fiab) * 100) : 0);
 
 export function riskChip(c, totalG) {
   if (!c || totalG === 0) return null;
+  if (c.capG != null && totalG > c.capG) return { cls: "hot", txt: "CHAUD — cap" };
   const r = runRisk(c, totalG);
   if (r >= SEUIL_BUST) return { cls: "hot", txt: "CHAUD — saisie" };
-  if (r >= SEUIL_BUST * 0.6) return { cls: "mid", txt: "tendu" };
+  if (r >= SEUIL_BUST * 0.6 || (c.capG != null && totalG > c.capG * 0.75)) {
+    return { cls: "mid", txt: "tendu" };
+  }
   return { cls: "ok", txt: "discret" };
 }
 
@@ -72,13 +81,18 @@ export function resolveRuns(assign, orders, heat) {
     const hx = heatExpo(c, totalG) + (busted ? HEAT_BUST : 0);
     const pct = ponctionPct(c);
     const afterPonction = busted ? 0 : Math.round(pay * (1 - pct / 100));
-    const net = busted ? 0 : Math.max(0, afterPonction - fee);
+    // RT-7 : fee ne peut pas dépasser le brut du run
+    const feeClamped = busted ? 0 : Math.min(fee, afterPonction);
+    const net = busted ? 0 : Math.max(0, afterPonction - feeClamped);
+    const feeExceeds = !busted && fee > afterPonction;
     blocks.push({
       courier: c,
       orders: list,
       totalG,
       pay,
-      fee,
+      fee: feeClamped,
+      feeRaw: fee,
+      feeExceeds,
       busted,
       hx,
       net,
