@@ -97,6 +97,9 @@ Shell téléphone = `le-bigo` (bus, causes, apps). La Loupe = boucle économique
 - [x] Geste coupe 3D (atelier-3d → `scene3d.mjs`)
 - [x] Emballage 3D (enrouler + sceller → sachets)
 - [x] Appro visionneuse 3D
+- [x] SnapShit intégré (story / drop / DM → file livraison)
+- [x] BeuherShit (coursiers, risque cumul, saisie)
+- [x] Tri billets manuel (table + liasses)
 - [ ] Weed mid débloqué (pas stub)
 - [ ] Embed bus-compatible Bigo
 - [ ] Save version bumpée à chaque rééquilibrage

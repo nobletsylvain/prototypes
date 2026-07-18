@@ -3,668 +3,656 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>La Loupe — hash 3D</title>
+<title>La Loupe — rêve</title>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
-  :root{
-    --bg:#120e0a; --card:#261e16; --line:rgba(255,220,160,.14);
-    --muted:rgba(255,236,210,.55); --cash:#9be37d; --dirty:#e8c96a;
-    --heat:#ff8a6a; --accent:#ffb454; --ok:#7ddea0; --bad:#ff7a7a;
-  }
-  html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-ui,sans-serif;color:#f4ebe0;
-    background:#0c0907}
-  #phone{position:fixed;inset:0;max-width:440px;margin:0 auto;display:flex;flex-direction:column;
-    background:linear-gradient(180deg,#1a1410,#100c09);border-left:1px solid var(--line);border-right:1px solid var(--line)}
-  #top{padding:max(10px,env(safe-area-inset-top)) 14px 8px;display:grid;gap:6px;background:rgba(0,0,0,.55);
-    border-bottom:1px solid var(--line);z-index:20}
-  .row{display:flex;gap:8px;align-items:center;justify-content:space-between}
-  .pill{font-size:12px;font-weight:800;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.06);
-    border:1px solid var(--line);white-space:nowrap}
-  .pill.cash{color:var(--cash)}.pill.dirty{color:var(--dirty)}.pill.heat{color:var(--heat)}.pill.rep{color:#9ec9ff}
-  #toast{position:fixed;left:50%;top:22%;transform:translate(-50%,8px);opacity:0;transition:.2s;z-index:60;
-    background:rgba(0,0,0,.78);border:1px solid var(--line);padding:10px 14px;border-radius:14px;font-weight:800;
-    text-align:center;max-width:86%;pointer-events:none}
-  #toast.show{opacity:1;transform:translate(-50%,0)}
-  #main{flex:1;position:relative;min-height:0;display:flex;flex-direction:column}
-  #stage{flex:1;overflow:auto;padding:12px; -webkit-overflow-scrolling:touch;z-index:2}
-  #stage.behind{visibility:hidden;pointer-events:none;position:absolute;inset:0}
-  #view3d{display:none;position:absolute;inset:0;z-index:3;touch-action:none;background:#14101b}
-  #view3d.on{display:block}
-  #view3d canvas{width:100%!important;height:100%!important;display:block;touch-action:none}
-  #hud3d{position:absolute;inset:0;z-index:4;pointer-events:none}
-  #hint3d{position:absolute;left:0;right:0;bottom:max(72px,env(safe-area-inset-bottom) + 58px);
-    text-align:center;font-size:12px;font-weight:700;color:rgba(255,255,255,.55);text-shadow:0 2px 8px #000;padding:0 12px}
-  #presslbl,#wraptext{position:absolute;left:50%;transform:translateX(-50%);
-    bottom:max(118px,env(safe-area-inset-bottom) + 104px);font-size:13px;font-weight:800;color:#fff;
-    text-shadow:0 2px 8px #000;display:none;white-space:nowrap}
-  #presslbl.show,#wraptext.show{display:block}
-  #pressbar,#wrapbar{position:absolute;left:50%;transform:translateX(-50%);width:66%;max-width:300px;height:18px;
-    bottom:max(92px,env(safe-area-inset-bottom) + 78px);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);
-    border-radius:999px;overflow:hidden;display:none}
-  #pressbar.show,#wrapbar.show{display:block}
-  #pressfill{height:100%;width:0;background:linear-gradient(90deg,#ff9f6b,#ff5e1a)}
-  #wrapfill{height:100%;width:0;background:linear-gradient(90deg,#7df9ff,#9be37d)}
-  #seal{position:absolute;left:50%;transform:translateX(-50%);bottom:max(88px,env(safe-area-inset-bottom) + 74px);
-    display:none;pointer-events:auto;background:#ff7a3c;border:none;color:#fff;font-weight:800;font-size:16px;
-    padding:12px 24px;border-radius:14px;z-index:5}
-  #seal.show{display:block}
-  #buyOverlay{position:absolute;left:10px;right:10px;bottom:max(70px,env(safe-area-inset-bottom)+56px);
-    z-index:5;pointer-events:auto;display:none;max-height:42%;overflow:auto}
-  #buyOverlay.on{display:block}
-  #dock{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;padding:8px 8px max(10px,env(safe-area-inset-bottom));
-    background:rgba(0,0,0,.55);border-top:1px solid var(--line);z-index:20}
-  .tab{appearance:none;border:0;background:transparent;color:var(--muted);font-size:10px;font-weight:700;
-    padding:8px 2px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:3px}
-  .tab .ic{font-size:18px;line-height:1}.tab.on{color:#fff;background:rgba(255,180,84,.16)}
-  h2{font-size:18px;font-weight:900;margin-bottom:4px}
-  .sub{color:var(--muted);font-size:12.5px;line-height:1.35;margin-bottom:12px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:10px}
-  .card h3{font-size:14px;font-weight:800;margin-bottom:4px}
-  .muted{color:var(--muted);font-size:12px;line-height:1.35}
-  .btn{appearance:none;border:1px solid rgba(255,180,84,.45);background:linear-gradient(180deg,#3a2a16,#24180e);
-    color:#ffe4b5;font-weight:800;font-size:13px;padding:11px 12px;border-radius:12px;width:100%;margin-top:8px}
-  .btn:active{transform:scale(.98)}.btn:disabled{opacity:.4}
-  .btn.ok{border-color:rgba(125,222,160,.45);background:linear-gradient(180deg,#1f3324,#132018);color:#c8f5d6}
-  .btn.ghost{background:rgba(255,255,255,.04);border-color:var(--line);color:#f0e2cf}
-  .btn.bad{border-color:rgba(255,122,122,.45);background:linear-gradient(180deg,#3a1818,#241010);color:#ffd0d0}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .seg{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
-  .chip{padding:7px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);
-    font-size:12px;font-weight:800;color:var(--muted)}.chip.on{color:#fff;border-color:rgba(255,180,84,.55);
-    background:rgba(255,180,84,.16)}
-  .stat{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed rgba(255,255,255,.06);gap:8px}
-  .stat b{font-weight:800;text-align:right}
-  .bar{height:10px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin:8px 0 4px}
-  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#7ddea0,#ffb454)}
-  .list{display:flex;flex-direction:column;gap:8px}
-  .msg{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:14px;padding:10px}
-  .msg .who{font-weight:900;font-size:13px}.msg .txt{color:var(--muted);font-size:12.5px;margin:4px 0 8px;line-height:1.35}
-  .bills{display:flex;flex-wrap:wrap;gap:8px;min-height:70px;padding:8px;border-radius:14px;border:1px dashed var(--line);
-    background:rgba(0,0,0,.2);margin-top:8px}
-  .bill{padding:10px 12px;border-radius:10px;font-weight:900;font-size:13px;border:1px solid rgba(255,255,255,.18);
-    background:linear-gradient(160deg,#2f5d3a,#1a3322);color:#d7ffdf}
-  .bill.n20{background:linear-gradient(160deg,#3a4f7a,#1d2944)}.bill.n50{background:linear-gradient(160deg,#7a4f2f,#3a2414)}
-  .bill.n100{background:linear-gradient(160deg,#5a3a6a,#2a1833)}.bill.n5{background:linear-gradient(160deg,#6a6a2f,#333318)}
-  .bundle{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin-top:6px;
-    border-radius:12px;border:1px solid rgba(125,222,160,.35);background:rgba(125,222,160,.08);font-size:12px;font-weight:800}
-  .lock{opacity:.55;filter:grayscale(.35)}
-  .tag{display:inline-block;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;border:1px solid var(--line);
-    color:var(--accent);margin-left:6px}
-  .cause{font-size:11px;color:rgba(255,220,160,.45);margin-top:6px;font-style:italic}
-  .journal .item{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px}
-  .journal .item .c{color:rgba(255,220,160,.4);font-size:11px;margin-top:2px}
-  .home-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .home-tile{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 12px;text-align:left}
-  .home-tile .ic{font-size:22px}.home-tile .nm{font-weight:900;margin-top:6px;font-size:13px}
-  .home-tile .ds{color:var(--muted);font-size:11px;margin-top:2px;line-height:1.3}
-  .tier{font-size:11px;font-weight:800;color:var(--accent)}
-  #fmtBar{position:absolute;top:10px;left:10px;right:10px;z-index:5;pointer-events:auto;display:none}
-  #fmtBar.on{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
-  #fmtBar .chip{background:rgba(0,0,0,.55)}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+:root{--line:rgba(255,220,160,.14);--muted:rgba(255,236,210,.55);--cash:#9be37d;--dirty:#e8c96a;--heat:#ff8a6a;--accent:#ffb454;--snap:#ff2d55;--beuher:#00c46a}
+html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-ui,sans-serif;color:#f4ebe0;background:#07060a}
+#phone{position:fixed;inset:0;max-width:440px;margin:0 auto;display:flex;flex-direction:column;
+  background:radial-gradient(120% 80% at 50% -10%,#3a1830 0%,#141018 45%,#07060a 100%);
+  border-left:1px solid var(--line);border-right:1px solid var(--line)}
+#top{padding:max(10px,env(safe-area-inset-top)) 14px 8px;display:grid;gap:6px;background:rgba(0,0,0,.55);
+  border-bottom:1px solid var(--line);z-index:30;backdrop-filter:blur(12px)}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.pill{font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);white-space:nowrap}
+.pill.cash{color:var(--cash)}.pill.dirty{color:var(--dirty)}.pill.heat{color:var(--heat)}.pill.rep{color:#9ec9ff}.pill.expo{color:#ff8ab8}
+#toast{position:fixed;left:50%;top:20%;transform:translate(-50%,8px);opacity:0;transition:.2s;z-index:80;
+  background:rgba(0,0,0,.82);border:1px solid var(--line);padding:11px 14px;border-radius:14px;font-weight:800;text-align:center;max-width:88%;pointer-events:none}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#main{flex:1;position:relative;min-height:0}
+#stage{position:absolute;inset:0;overflow:auto;padding:12px;-webkit-overflow-scrolling:touch;z-index:2}
+#stage.behind{visibility:hidden;pointer-events:none}
+#view3d{display:none;position:absolute;inset:0;z-index:3;touch-action:none;background:#14101b}
+#view3d.on{display:block}
+#hud3d{position:absolute;inset:0;z-index:4;pointer-events:none}
+#hint3d{position:absolute;left:0;right:0;bottom:max(72px,env(safe-area-inset-bottom)+58px);text-align:center;font-size:12px;font-weight:700;color:rgba(255,255,255,.55);text-shadow:0 2px 8px #000;padding:0 12px}
+#presslbl,#wraptext{position:absolute;left:50%;transform:translateX(-50%);bottom:max(118px,env(safe-area-inset-bottom)+104px);font-size:13px;font-weight:800;color:#fff;text-shadow:0 2px 8px #000;display:none;white-space:nowrap}
+#presslbl.show,#wraptext.show{display:block}
+#pressbar,#wrapbar{position:absolute;left:50%;transform:translateX(-50%);width:66%;max-width:300px;height:18px;bottom:max(92px,env(safe-area-inset-bottom)+78px);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;overflow:hidden;display:none}
+#pressbar.show,#wrapbar.show{display:block}
+#pressfill{height:100%;width:0;background:linear-gradient(90deg,#ff9f6b,#ff5e1a)}
+#wrapfill{height:100%;width:0;background:linear-gradient(90deg,#7df9ff,#9be37d)}
+#seal{position:absolute;left:50%;transform:translateX(-50%);bottom:max(88px,env(safe-area-inset-bottom)+74px);display:none;pointer-events:auto;background:#ff7a3c;border:none;color:#fff;font-weight:800;font-size:16px;padding:12px 24px;border-radius:14px;z-index:5}
+#seal.show{display:block}
+#fmtBar{position:absolute;top:10px;left:10px;right:10px;z-index:5;pointer-events:auto;display:none;gap:6px;flex-wrap:wrap;justify-content:center}
+#fmtBar.on{display:flex}
+#buyOverlay{position:absolute;left:10px;right:10px;bottom:max(70px,env(safe-area-inset-bottom)+56px);z-index:5;pointer-events:auto;display:none;max-height:42%;overflow:auto;background:rgba(20,16,14,.92);border:1px solid var(--line);border-radius:16px;padding:12px}
+#buyOverlay.on{display:block}
+#dock{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:8px 8px max(10px,env(safe-area-inset-bottom));background:rgba(0,0,0,.6);border-top:1px solid var(--line);z-index:30}
+.tab{appearance:none;border:0;background:transparent;color:var(--muted);font-size:10px;font-weight:700;padding:8px 2px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:3px}
+.tab .ic{font-size:20px;line-height:1}.tab.on{color:#fff;background:rgba(255,180,84,.16)}
+h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
+.sub{color:var(--muted);font-size:12.5px;line-height:1.35;margin-bottom:12px}
+.card{background:rgba(38,30,22,.92);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:10px}
+.card h3{font-size:14px;font-weight:800;margin-bottom:6px}
+.muted{color:var(--muted);font-size:12px;line-height:1.35}
+.btn{appearance:none;border:1px solid rgba(255,180,84,.45);background:linear-gradient(180deg,#3a2a16,#24180e);color:#ffe4b5;font-weight:800;font-size:13px;padding:11px 12px;border-radius:12px;width:100%;margin-top:8px}
+.btn:active{transform:scale(.98)}.btn:disabled{opacity:.4}
+.btn.ok{border-color:rgba(125,222,160,.45);background:linear-gradient(180deg,#1f3324,#132018);color:#c8f5d6}
+.btn.ghost{background:rgba(255,255,255,.04);border-color:var(--line);color:#f0e2cf}
+.btn.bad{border-color:rgba(255,122,122,.45);background:linear-gradient(180deg,#3a1818,#241010);color:#ffd0d0}
+.btn.snap{border-color:rgba(255,45,85,.55);background:linear-gradient(180deg,#4a1528,#2a0e18);color:#ffd0dc}
+.btn.beuher{border-color:rgba(0,196,106,.5);background:linear-gradient(180deg,#0f3324,#0a2018);color:#c8f5d6}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.chip{padding:7px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:12px;font-weight:800;color:var(--muted)}
+.chip.on{color:#fff;border-color:rgba(255,180,84,.55);background:rgba(255,180,84,.16)}
+.stat{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed rgba(255,255,255,.06);gap:8px}
+.stat b{font-weight:800;text-align:right}
+.bar{height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin:6px 0}
+.bar>i{display:block;height:100%;background:linear-gradient(90deg,#7ddea0,#ffb454)}
+.apps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:16px 0 20px}
+.app{appearance:none;border:0;background:transparent;color:#fff;text-align:center}
+.app .icon{width:64px;height:64px;margin:0 auto;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:30px;
+  box-shadow:0 10px 28px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.18)}
+.app .nm{font-size:11px;font-weight:800;margin-top:7px}
+.app.snap .icon{background:linear-gradient(145deg,#ff4d6d,#c01040)}
+.app.beuher .icon{background:linear-gradient(145deg,#22e07a,#0a8f4a)}
+.app.atelier .icon{background:linear-gradient(145deg,#c06d6d,#6a3030)}
+.app.appro .icon{background:linear-gradient(145deg,#6d8ac0,#334a7a)}
+.app.cash .icon{background:linear-gradient(145deg,#e8c96a,#8a6a20)}
+.app.karnet .icon{background:linear-gradient(145deg,#9a8ab0,#4a3a60)}
+.story-row{display:flex;gap:10px;overflow-x:auto;padding:4px 0 12px}
+.ring{flex:none;width:64px;text-align:center}
+.ring .ava{width:56px;height:56px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:22px;
+  background:#222;border:2.5px solid #555}
+.ring.live .ava{border-color:var(--snap);box-shadow:0 0 0 2px rgba(255,45,85,.25)}
+.ring .lb{font-size:10px;font-weight:700;margin-top:4px;color:var(--muted);max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flash{font-size:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.flash b{color:#ffb0c4}
+.dm{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:8px}
+.dm .who{font-weight:900;font-size:13px;display:flex;justify-content:space-between;gap:8px}
+.dm .tag{font-size:10px;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--accent)}
+.dm .txt{color:var(--muted);font-size:12.5px;margin:5px 0 8px;line-height:1.35}
+.courier{border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:8px;background:rgba(0,0,0,.2)}
+.courier.on{border-color:var(--beuher);background:rgba(0,196,106,.08)}
+.risk{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px}
+.risk.ok{background:rgba(0,196,106,.2);color:#9be37d}
+.risk.mid{background:rgba(232,201,106,.2);color:#e8c96a}
+.risk.hot{background:rgba(255,80,80,.25);color:#ff8a6a}
+.table{width:100%;border-collapse:collapse;font-size:12px}
+.table td{padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.cash-arena{position:relative;min-height:220px;border-radius:18px;border:1px dashed rgba(232,201,106,.35);
+  background:radial-gradient(80% 80% at 50% 40%,#2a2214,#120e0a);margin:10px 0;overflow:hidden}
+.cash-arena .count{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font-size:42px;font-weight:900;color:var(--dirty);
+  text-shadow:0 4px 20px rgba(0,0,0,.6);pointer-events:none}
+.bill{position:absolute;padding:12px 14px;border-radius:10px;font-weight:900;font-size:14px;border:1px solid rgba(255,255,255,.2);
+  color:#eaffef;box-shadow:0 6px 16px rgba(0,0,0,.35);transform:rotate(var(--r,0deg));transition:transform .12s,opacity .15s}
+.bill:active{transform:scale(.92) rotate(var(--r,0deg))}
+.bill.n5{background:linear-gradient(160deg,#6a6a2f,#333318)}.bill.n20{background:linear-gradient(160deg,#3a4f7a,#1d2944)}
+.bill.n50{background:linear-gradient(160deg,#7a4f2f,#3a2414)}.bill.n100{background:linear-gradient(160deg,#5a3a6a,#2a1833)}
+.bundle{display:flex;justify-content:space-between;padding:8px 10px;margin-top:6px;border-radius:12px;border:1px solid rgba(125,222,160,.35);background:rgba(125,222,160,.08);font-size:12px;font-weight:800}
+.journal .item{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px}
+.journal .item .c{color:rgba(255,220,160,.4);font-size:11px;margin-top:2px}
+.seg{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.lock{opacity:.55;filter:grayscale(.3)}
+.hero{font-size:13px;line-height:1.4;color:rgba(255,236,210,.75);margin:8px 0 14px;padding:12px;border-radius:14px;
+  background:linear-gradient(135deg,rgba(255,45,85,.12),rgba(0,196,106,.08));border:1px solid rgba(255,255,255,.08)}
 </style>
-<script type="importmap">
-{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
-</script>
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
 </head>
 <body>
 <div id="phone">
   <div id="top">
-    <div class="row">
-      <div class="pill">La Loupe 3D</div>
-      <div class="pill" id="daypill">J1 · T0</div>
-    </div>
+    <div class="row"><div class="pill">La Loupe</div><div class="pill" id="daypill">J1</div></div>
     <div class="row">
       <div class="pill cash" id="hudCash">propre 0</div>
       <div class="pill dirty" id="hudDirty">liquide 0</div>
       <div class="pill heat" id="hudHeat">chaleur 0</div>
-      <div class="pill rep" id="hudRep">standing 20</div>
+      <div class="pill expo" id="hudExpo">buzz 10</div>
     </div>
   </div>
   <div id="main">
     <div id="stage"></div>
-    <div id="view3d">
-      <div id="hud3d">
-        <div id="hint3d"></div>
-        <div id="presslbl">Maintiens pour couper</div>
-        <div id="pressbar"><div id="pressfill"></div></div>
-        <div id="wraptext">Glisse ⬆️ pour enrouler</div>
-        <div id="wrapbar"><div id="wrapfill"></div></div>
-        <button id="seal">🔥 Sceller</button>
-        <div id="fmtBar"></div>
-        <div id="buyOverlay" class="card"></div>
-      </div>
-    </div>
+    <div id="view3d"><div id="hud3d">
+      <div id="hint3d"></div>
+      <div id="presslbl">Maintiens pour couper</div>
+      <div id="pressbar"><div id="pressfill"></div></div>
+      <div id="wraptext">Glisse ⬆️ pour enrouler</div>
+      <div id="wrapbar"><div id="wrapfill"></div></div>
+      <button id="seal">🔥 Sceller</button>
+      <div id="fmtBar"></div>
+      <div id="buyOverlay"></div>
+    </div></div>
   </div>
   <div id="dock"></div>
 </div>
 <div id="toast"></div>
-
 <script type="module">
 import * as scene3d from "./scene3d.mjs";
+import * as snap from "./snap.mjs";
+import * as beuher from "./beuher.mjs";
 
-const SAVE_VERSION = "3";
-const LS_PREFIX = "loupe_";
+const SAVE_VERSION = "4";
+const LS = "loupe_";
 const START_CASH = 220;
-const START_REPUT = 20;
-const PAIN_100 = { g: 100, price: 200, q: 52, label: "Pain 100", tip: "semi-gros" };
-const PAIN_250 = { g: 250, price: 1700, q: 78, label: "Pain 250", tip: "gros · standing 40", reputGate: 40 };
-const PAIN_500 = { g: 500, price: 3200, q: 70, label: "Lot 500", tip: "scale · standing 65", reputGate: 65 };
-const DOSE_PRICE = { 2: 9.5, 5: 8.0, 8: 7.0 };
-const WASTE_PRICE = 2.5;
-const LIVREUR_FEE = 8;
-const LIVREUR_TIME_S = 14;
-const SEUIL_DISCRET_G = 52;
-const HEAT_EXPO = 3;
-const HEAT_BUST = 15;
-const HEAT_CAP = 100;
+const PAIN_100 = { g:100, price:200, q:52, label:"Pain 100" };
+const PAIN_250 = { g:250, price:1700, q:78, label:"Pain 250", reputGate:40 };
+const PAIN_500 = { g:500, price:3200, q:70, label:"Lot 500", reputGate:65 };
+const DOSE_PRICE = { 2:9.5, 5:8.0, 8:7.0 };
 const PLANQUE_CAP_BASE = 250;
-const DIRTY_HOLD_SOFT = 180;
-const DIRTY_HOLD_HARD = 450;
-const BUNDLE_SIZE = 5;
-const COUNTER_RATE = 40;
-const UPG_GUIDE = { cost: 180, max: 2, title: "Gabarit", desc: "(réservé — coupe 3D = maintien)" };
-const UPG_SCOOTER = { cost: 350, max: 3, title: "Scooter", desc: "+1 livreur" };
-const UPG_PLANQUE = { cost: 400, max: 3, title: "Planque", desc: "+120 g" };
-const UPG_COUNTER = { cost: 600, max: 1, title: "Compteur", desc: "liquide → propre auto" };
-const UPG_BATCH = { cost: 280, max: 2, title: "Cadence", desc: "(UI) — le 3D reste au feeling" };
-
-const CLIENTS = [
-  { id: "karim", name: "Karim", vibe: "J'ai dix minutes. Tu livres ou j'appelle ailleurs." },
-  { id: "ines", name: "Inès", vibe: "Du clean. Si c'est du pneu, je te ghost." },
-  { id: "momo", name: "Momo", vibe: "Toujours le même créneau. Toujours pressé." },
-  { id: "sofia", name: "Sofia", vibe: "Pas de surprise. J'achète la qualité, pas ton histoire." },
-  { id: "yaz", name: "Yaz", vibe: "Je suis en bas. Tu bouges ou je m'en vais." },
-  { id: "lina", name: "Lina", vibe: "Un sachet. Propre. Sans roman." },
-  { id: "paul", name: "Paul", vibe: "Discret. Facture mentale payée cash." },
-  { id: "nora", name: "Nora", vibe: "J'en prends trois si t'as le stock. Sinon une." },
-];
-const TABS = [
-  { id: "home", ic: "⌂", lb: "Home" },
-  { id: "buy", ic: "◎", lb: "Appro" },
-  { id: "cut", ic: "✂", lb: "Coupe" },
-  { id: "dose", ic: "⚖", lb: "Dose" },
-  { id: "sell", ic: "✉", lb: "Vente" },
-  { id: "run", ic: "🛵", lb: "Livreur" },
-];
-
-const store = {
-  get: (k) => localStorage.getItem(LS_PREFIX + k),
-  set: (k, v) => localStorage.setItem(LS_PREFIX + k, v),
+const DIRTY_HOLD_SOFT = 180, DIRTY_HOLD_HARD = 450, BUNDLE_SIZE = 5, COUNTER_RATE = 40;
+const UPG = {
+  scooter: { cost:350, max:1, title:"Flotte+", desc:"+accès Go fast débloqué tôt" },
+  planque: { cost:400, max:3, title:"Planque", desc:"+120 g" },
+  counter: { cost:900, max:1, title:"Compteur", desc:"auto si plus de billets lâches" },
 };
-function money(n) { return String(Math.round(n)); }
-function defaultState() {
+
+const APPS = [
+  { id:"home", ic:"⌂", lb:"Home" },
+  { id:"snap", ic:"⚡", lb:"SnapShit" },
+  { id:"atelier", ic:"✂", lb:"Atelier" },
+  { id:"beuher", ic:"🛵", lb:"Beuher" },
+  { id:"cash", ic:"▣", lb:"Liquide" },
+];
+
+const store = { get:k=>localStorage.getItem(LS+k), set:(k,v)=>localStorage.setItem(LS+k,v) };
+const money = n => String(Math.round(n));
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+function defaultState(){
   return {
-    cash: START_CASH, dirty: 0, heat: 0, reput: START_REPUT, day: 1, clock: 0,
-    painG: 0, painQ: 0, barG: 0, barQ: 60, wasteG: 0,
-    sachets: { 2: 0, 5: 0, 8: 0 }, sachetQ: 60,
-    orders: [], runs: [], bills: [],
-    bundles: { 5: 0, 20: 0, 50: 0, 100: 0 },
-    upgrades: { guide: 0, scooter: 0, planque: 0, counter: 0, batch: 0 },
-    journal: [], orderSeq: 1, soldDay: 0, doseFormat: 5,
-    weedUnlocked: false, _lastSpawnSlot: -1, _dirtyAcc: 0, _pile: { 5: 0, 20: 0, 50: 0, 100: 0 },
+    cash: START_CASH, dirty:0, heat:0, reput:20, day:1, clock:0,
+    painG:0, painQ:0, barG:0, barQ:60, wasteG:0,
+    sachets:{2:0,5:0,8:0}, sachetQ:60,
+    orders:[], runs:[], bills:[],
+    bundles:{5:0,20:0,50:0,100:0}, _pile:{5:0,20:0,50:0,100:0},
+    upgrades:{scooter:0, planque:0, counter:0},
+    journal:[], orderSeq:1, soldDay:0, doseFormat:5,
+    assign:{}, counted:0, atelierMode:"cut",
+    ...snap.snapDefaults(),
   };
 }
 
 let S = defaultState();
 if (store.get("ver") !== SAVE_VERSION) {
-  Object.keys(localStorage).filter((k) => k.startsWith(LS_PREFIX)).forEach((k) => localStorage.removeItem(k));
+  Object.keys(localStorage).filter(k=>k.startsWith(LS)).forEach(k=>localStorage.removeItem(k));
   store.set("ver", SAVE_VERSION);
 }
-try {
-  const raw = store.get("save");
-  if (raw) S = { ...defaultState(), ...JSON.parse(raw) };
-  if (!S.bundles) S.bundles = { 5: 0, 20: 0, 50: 0, 100: 0 };
-  if (!S._pile) S._pile = { 5: 0, 20: 0, 50: 0, 100: 0 };
-} catch {}
+try { const raw=store.get("save"); if(raw) S={...defaultState(), ...JSON.parse(raw)}; } catch {}
 
-let tab = "home";
-let toastT = 0;
-const stage = document.getElementById("stage");
-const dock = document.getElementById("dock");
-const toastEl = document.getElementById("toast");
-const view3d = document.getElementById("view3d");
-const buyOverlay = document.getElementById("buyOverlay");
-const fmtBar = document.getElementById("fmtBar");
+let tab="home", toastT=0, atelierSub="menu";
+const stage=document.getElementById("stage");
+const dock=document.getElementById("dock");
+const toastEl=document.getElementById("toast");
+const view3d=document.getElementById("view3d");
+const buyOverlay=document.getElementById("buyOverlay");
+const fmtBar=document.getElementById("fmtBar");
 
-function save() { store.set("save", JSON.stringify(S)); }
-function toast(msg) {
-  toastEl.textContent = msg;
-  toastEl.classList.add("show");
-  clearTimeout(toastT);
-  toastT = setTimeout(() => toastEl.classList.remove("show"), 1700);
-}
-function cause(txt, why) {
-  S.journal.unshift({ t: Date.now(), txt, cause: why });
-  if (S.journal.length > 40) S.journal.length = 40;
-}
-function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-function planqueCap() { return PLANQUE_CAP_BASE + S.upgrades.planque * 120; }
-function livreurCount() { return 1 + S.upgrades.scooter; }
-function finiG() {
-  return S.barG + Object.entries(S.sachets).reduce((a, [f, n]) => a + n * +f, 0);
-}
-function avgMerge(oldG, oldQ, addG, addQ) {
-  const t = oldG + addG;
-  if (t <= 0) return 0;
-  return (oldG * oldQ + addG * addQ) / t;
-}
-function tier() {
-  if (S.reput >= 65 || S.soldDay >= 80 || S.upgrades.scooter >= 2) return 3;
-  if (S.reput >= 40 || S.soldDay >= 35 || S.upgrades.batch >= 1) return 2;
-  if (S.reput >= 25 || S.soldDay >= 12) return 1;
-  return 0;
-}
-function tierLabel(t) {
-  return ["Coin de table", "Petite cadence", "Machine à tourner", "Quasi-four"][t] || "—";
-}
-function maxOpenOrders() { return 2 + tier(); }
-function spawnInterval() { return Math.max(5, 10 - tier() * 1.5); }
-function fmtSachets() { return [2, 5, 8].map((f) => `${S.sachets[f]}×${f}g`).join(" · "); }
+function save(){ store.set("save", JSON.stringify(S)); }
+function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>toastEl.classList.remove("show"),1800); }
+function cause(txt, why){ S.journal.unshift({t:Date.now(),txt,cause:why}); if(S.journal.length>50) S.journal.length=50; }
+function planqueCap(){ return PLANQUE_CAP_BASE + S.upgrades.planque*120; }
+function finiG(){ return S.barG + Object.entries(S.sachets).reduce((a,[f,n])=>a+n*+f,0); }
+function avgMerge(oG,oQ,aG,aQ){ const t=oG+aG; return t<=0?0:(oG*oQ+aG*aQ)/t; }
+function fmtSachets(){ return [2,5,8].map(f=>`${S.sachets[f]}×${f}g`).join(" · "); }
+function qualAvg(){ return Math.round(S.sachetQ || S.barQ || 60); }
 
-function hud() {
-  document.getElementById("hudCash").textContent = `propre ${money(S.cash)}`;
-  document.getElementById("hudDirty").textContent = `liquide ${money(S.dirty)}`;
-  document.getElementById("hudHeat").textContent = `chaleur ${Math.round(S.heat)}`;
-  document.getElementById("hudRep").textContent = `standing ${Math.round(S.reput)}`;
-  document.getElementById("daypill").textContent = `J${S.day} · T${tier()}`;
+function hud(){
+  document.getElementById("hudCash").textContent=`propre ${money(S.cash)}`;
+  document.getElementById("hudDirty").textContent=`liquide ${money(S.dirty)}`;
+  document.getElementById("hudHeat").textContent=`chaleur ${Math.round(S.heat)}`;
+  document.getElementById("hudExpo").textContent=`buzz ${Math.round(S.expo)}`;
+  document.getElementById("daypill").textContent=`J${S.day}`;
 }
 
-function renderDock() {
-  dock.innerHTML = TABS.map((t) =>
-    `<button class="tab ${tab === t.id ? "on" : ""}" data-t="${t.id}"><span class="ic">${t.ic}</span>${t.lb}</button>`
-  ).join("");
-  dock.querySelectorAll(".tab").forEach((b) => { b.onclick = () => { tab = b.dataset.t; render(); }; });
+function renderDock(){
+  dock.innerHTML=APPS.map(t=>`<button class="tab ${tab===t.id?"on":""}" data-t="${t.id}"><span class="ic">${t.ic}</span>${t.lb}</button>`).join("");
+  dock.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{ tab=b.dataset.t; atelierSub="menu"; render(); });
 }
 
-function set3d(mode) {
-  const on = mode !== "hidden";
-  view3d.classList.toggle("on", on);
-  stage.classList.toggle("behind", on);
-  buyOverlay.classList.toggle("on", mode === "buy");
-  fmtBar.classList.toggle("on", mode === "cond" || mode === "dose");
-  scene3d.setMode(mode === "dose" ? "cond" : mode);
-  if (mode === "dose" || mode === "cond") renderFmtBar();
-  if (mode === "buy") renderBuyOverlay();
+scene3d.mount(view3d,{
+  pressbar:document.getElementById("pressbar"), pressfill:document.getElementById("pressfill"), presslbl:document.getElementById("presslbl"),
+  wrapbar:document.getElementById("wrapbar"), wrapfill:document.getElementById("wrapfill"), wraptext:document.getElementById("wraptext"),
+  seal:document.getElementById("seal"), hint:document.getElementById("hint3d"),
+},{
+  getPainG:()=>S.painG, getBarG:()=>S.barG, getDoseFormat:()=>S.doseFormat,
+  getSachetCount:()=>Object.values(S.sachets).reduce((a,n)=>a+n,0), toast,
+  onCut:(g)=>{ const take=Math.min(S.painG,g); S.painG-=take; S.barQ=avgMerge(S.barG,S.barQ,take,S.painQ||60); S.barG+=take;
+    cause(`Coupe 3D ${take.toFixed(1)} g`,`Maintien lame`); save(); hud(); },
+  onTakeBar:(fmt)=>{ S.barG-=fmt; save(); hud(); },
+  onReturnBar:(fmt)=>{ S.barG+=fmt; save(); hud(); },
+  onPack:(fmt)=>{ const stockG=Object.entries(S.sachets).reduce((a,[ff,nn])=>a+nn*+ff,0);
+    S.sachetQ=avgMerge(stockG,S.sachetQ,fmt,S.barQ); S.sachets[fmt]++;
+    cause(`Sachet ${fmt} g`,`Emballage 3D`); save(); hud(); },
+});
+window.addEventListener("resize",()=>scene3d.resize());
+
+function set3d(mode){
+  const on=mode!=="hidden";
+  view3d.classList.toggle("on",on);
+  stage.classList.toggle("behind",on);
+  buyOverlay.classList.toggle("on", mode==="buy");
+  fmtBar.classList.toggle("on", mode==="cond");
+  scene3d.setMode(mode==="dose"?"cond":mode);
+  if(mode==="cond") renderFmtBar();
+  if(mode==="buy") renderBuyOverlay();
   scene3d.resize();
 }
-
-function renderFmtBar() {
-  fmtBar.innerHTML = [2, 5, 8].map((x) =>
-    `<button class="chip ${S.doseFormat === x ? "on" : ""}" data-f="${x}">${x} g · ${DOSE_PRICE[x]}/g</button>`
-  ).join("");
-  fmtBar.querySelectorAll("[data-f]").forEach((b) => {
-    b.onclick = (e) => { e.stopPropagation(); S.doseFormat = +b.dataset.f; renderFmtBar(); save(); };
-  });
+function renderFmtBar(){
+  fmtBar.innerHTML=[2,5,8].map(x=>`<button class="chip ${S.doseFormat===x?"on":""}" data-f="${x}">${x}g</button>`).join("");
+  fmtBar.querySelectorAll("[data-f]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); S.doseFormat=+b.dataset.f; renderFmtBar(); save(); });
 }
 
-scene3d.mount(view3d, {
-  pressbar: document.getElementById("pressbar"),
-  pressfill: document.getElementById("pressfill"),
-  presslbl: document.getElementById("presslbl"),
-  wrapbar: document.getElementById("wrapbar"),
-  wrapfill: document.getElementById("wrapfill"),
-  wraptext: document.getElementById("wraptext"),
-  seal: document.getElementById("seal"),
-  hint: document.getElementById("hint3d"),
-}, {
-  getPainG: () => S.painG,
-  getBarG: () => S.barG,
-  getDoseFormat: () => S.doseFormat,
-  getSachetCount: () => Object.values(S.sachets).reduce((a, n) => a + n, 0),
-  toast,
-  onCut: (g) => {
-    const take = Math.min(S.painG, g);
-    S.painG -= take;
-    S.barQ = avgMerge(S.barG, S.barQ, take, S.painQ || 60);
-    S.barG += take;
-    cause(`Coupe 3D ${take.toFixed(1)} g`, `Maintien lame · barrettes +${take.toFixed(1)} g`);
-    save(); hud();
-  },
-  onTakeBar: (fmt) => {
-    S.barG -= fmt;
-    save(); hud();
-  },
-  onReturnBar: (fmt) => {
-    S.barG += fmt;
-    save(); hud();
-  },
-  onPack: (fmt) => {
-    const stockG = Object.entries(S.sachets).reduce((a, [ff, nn]) => a + nn * +ff, 0);
-    S.sachetQ = avgMerge(stockG, S.sachetQ, fmt, S.barQ);
-    S.sachets[fmt]++;
-    cause(`Sachet ${fmt} g scellé`, `Emballage 3D · stock retail +1`);
-    save(); hud();
-  },
-});
-window.addEventListener("resize", () => scene3d.resize());
-
-function render() {
-  hud();
-  renderDock();
-  if (tab === "cut") { set3d("cut"); stage.innerHTML = ""; return; }
-  if (tab === "dose") { set3d("dose"); stage.innerHTML = ""; return; }
-  if (tab === "buy") { set3d("buy"); stage.innerHTML = ""; return; }
+function render(){
+  hud(); renderDock();
+  if(tab==="atelier" && (atelierSub==="cut"||atelierSub==="dose"||atelierSub==="buy")){
+    set3d(atelierSub==="dose"?"cond":atelierSub); stage.innerHTML=""; return;
+  }
   set3d("hidden");
-  if (tab === "home") renderHome();
-  else if (tab === "sell") renderSell();
-  else if (tab === "run") renderRun();
+  if(tab==="home") renderHome();
+  else if(tab==="snap") renderSnap();
+  else if(tab==="atelier") renderAtelierMenu();
+  else if(tab==="beuher") renderBeuher();
+  else if(tab==="cash") renderCash();
 }
 
-function renderBuyOverlay() {
-  const items = [PAIN_100, PAIN_250];
-  if (tier() >= 2) items.push(PAIN_500);
-  buyOverlay.innerHTML = `
-    <h3 style="margin:0 0 6px">Appro hash · 3D</h3>
-    <div class="muted" style="margin-bottom:8px">Cash propre seulement. Le liquide ne paie pas ici.</div>
-    ${items.map((p) => {
-      const locked = p.reputGate && S.reput < p.reputGate;
-      return `<div class="stat"><span>${p.label}<br><span class="muted">${p.tip} · q${p.q}</span></span>
-        <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-buy="${p.g}" ${locked || S.cash < p.price ? "disabled" : ""}>
-          ${locked ? "Standing" : money(p.price)}
-        </button></div>`;
-    }).join("")}
-    <div class="stat"><span>Pain / bar / sachets</span><b>${S.painG.toFixed(0)} · ${S.barG.toFixed(0)} · ${fmtSachets()}</b></div>
-  `;
-  buyOverlay.querySelectorAll("[data-buy]").forEach((b) => {
-    b.onclick = () => {
-      const g = +b.dataset.buy;
-      buyPain([PAIN_100, PAIN_250, PAIN_500].find((p) => p.g === g));
-      renderBuyOverlay();
-      scene3d.syncFromState();
-    };
-  });
-}
-
-function buyPain(p) {
-  if (!p) return;
-  if (p.reputGate && S.reput < p.reputGate) { toast("Standing insuffisant."); return; }
-  if (S.cash < p.price) { toast("Propre insuffisant."); return; }
-  if (finiG() + S.painG + p.g > planqueCap()) { toast("Planque pleine."); return; }
-  S.cash -= p.price;
-  S.painQ = avgMerge(S.painG, S.painQ, p.g, p.q);
-  S.painG += p.g;
-  cause(`Achat ${p.label}`, `−${money(p.price)} propre · +${p.g} g`);
-  toast("Pain reçu. Va couper.");
-  save(); hud();
-}
-
-function renderHome() {
-  const t = tier();
-  stage.innerHTML = `
-    <h2>La Loupe</h2>
-    <div class="sub">Coupe + dosage en <b>3D</b> (geste atelier). Appro en visionneuse. Hash only — weed mid.</div>
+function renderHome(){
+  stage.innerHTML=`
+    <h2>Bonsoir.</h2>
+    <div class="hero">Tu tiens le téléphone. Tu drops sur SnapShit, tu découpes en 3D, tu délègues à BeuherShit, tu comptes les billets comme un adulte dysfonctionnel. Puis tu rachètes plus gros.</div>
+    <div class="apps">
+      <button class="app snap" data-go="snap"><div class="icon">⚡</div><div class="nm">SnapShit</div></button>
+      <button class="app beuher" data-go="beuher"><div class="icon">🛵</div><div class="nm">BeuherShit</div></button>
+      <button class="app atelier" data-go="atelier"><div class="icon">✂</div><div class="nm">Atelier 3D</div></button>
+      <button class="app appro" data-go="buy"><div class="icon">◎</div><div class="nm">Appro</div></button>
+      <button class="app cash" data-go="cash"><div class="icon">▣</div><div class="nm">Liquide</div></button>
+      <button class="app karnet" data-go="karnet"><div class="icon">📓</div><div class="nm">Karnet</div></button>
+    </div>
     <div class="card">
-      <div class="tier">PALIER T${t} — ${tierLabel(t)}</div>
-      <div class="stat"><span>Écoulé aujourd'hui</span><b>${S.soldDay.toFixed(0)} g</b></div>
-      <div class="bar"><i style="width:${clamp(S.soldDay, 0, 100)}%"></i></div>
+      <div class="stat"><span>Standing</span><b>${Math.round(S.reput)}</b></div>
+      <div class="bar"><i style="width:${S.reput}%"></i></div>
+      <div class="stat"><span>Buzz</span><b>${Math.round(S.expo)}</b></div>
+      <div class="bar"><i style="width:${S.expo}%;background:linear-gradient(90deg,#ff4d6d,#ffb454)"></i></div>
+      <div class="stat"><span>Stock sachets</span><b>${fmtSachets()}</b></div>
+      <div class="stat"><span>Commandes prêtes</span><b>${S.orders.filter(o=>o.status==="ready").length}</b></div>
     </div>
-    <div class="home-grid">
-      <button class="home-tile" data-go="buy"><div class="ic">◎</div><div class="nm">Appro 3D</div><div class="ds">pains & lots</div></button>
-      <button class="home-tile" data-go="cut"><div class="ic">✂</div><div class="nm">Coupe 3D</div><div class="ds">maintien lame</div></button>
-      <button class="home-tile" data-go="dose"><div class="ic">⚖</div><div class="nm">Dose 3D</div><div class="ds">enrouler + sceller</div></button>
-      <button class="home-tile" data-go="sell"><div class="ic">✉</div><div class="nm">Clients</div><div class="ds">DM → commande</div></button>
-      <button class="home-tile" data-go="run"><div class="ic">🛵</div><div class="nm">Livreurs</div><div class="ds">délègue</div></button>
-      <button class="home-tile" data-go="cash"><div class="ic">▣</div><div class="nm">Liquide</div><div class="ds">liasses</div></button>
-    </div>
-    <div class="card lock"><h3>Weed <span class="tag">MID</span></h3><div class="muted">Verrouillé.</div></div>
     <div class="card">
       <h3>Réinvest</h3>
-      ${shopRow("scooter", UPG_SCOOTER)}
-      ${shopRow("planque", UPG_PLANQUE)}
-      ${shopRow("counter", UPG_COUNTER)}
+      ${shopRow("planque",UPG.planque)}${shopRow("counter",UPG.counter)}
     </div>
-    <div class="card journal">
-      <h3>Karnet</h3>
-      ${S.journal.slice(0, 6).map((j) => `<div class="item">${j.txt}<div class="c">↩ ${j.cause}</div></div>`).join("") ||
-        `<div class="muted">Vide. Achète, coupe, emballe.</div>`}
-    </div>
-    <button class="btn ghost" id="btnCash">Ouvrir le liquide</button>
-    <button class="btn bad" id="btnReset">Reset save</button>
-  `;
-  stage.querySelectorAll("[data-go]").forEach((b) => {
-    b.onclick = () => {
-      if (b.dataset.go === "cash") { renderCash(); return; }
-      tab = b.dataset.go; render();
-    };
+    <button class="btn bad" id="reset">Reset save</button>`;
+  stage.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{
+    const g=b.dataset.go;
+    if(g==="buy"){ tab="atelier"; atelierSub="buy"; render(); return; }
+    if(g==="karnet"){ renderKarnet(); return; }
+    tab=g; atelierSub="menu"; render();
   });
-  stage.querySelectorAll("[data-up]").forEach((b) => { b.onclick = () => buyUpgrade(b.dataset.up); });
-  document.getElementById("btnCash").onclick = () => renderCash();
-  document.getElementById("btnReset").onclick = () => {
-    Object.keys(localStorage).filter((k) => k.startsWith(LS_PREFIX)).forEach((k) => localStorage.removeItem(k));
-    store.set("ver", SAVE_VERSION);
-    S = defaultState(); save(); toast("Save effacée."); render();
+  stage.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>buyUp(b.dataset.up));
+  document.getElementById("reset").onclick=()=>{
+    Object.keys(localStorage).filter(k=>k.startsWith(LS)).forEach(k=>localStorage.removeItem(k));
+    store.set("ver",SAVE_VERSION); S=defaultState(); save(); toast("Nouveau rêve."); render();
   };
 }
-
-function shopRow(key, conf) {
-  const lv = S.upgrades[key] || 0;
-  const maxed = lv >= conf.max;
-  const cost = conf.cost * (lv + 1);
+function shopRow(key,conf){
+  const lv=S.upgrades[key]||0, maxed=lv>=conf.max, cost=conf.cost*(lv+1);
   return `<div class="stat"><span>${conf.title} · ${lv}/${conf.max}<br><span class="muted">${conf.desc}</span></span>
-    <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-up="${key}" ${maxed || S.cash < cost ? "disabled" : ""}>
-      ${maxed ? "MAX" : money(cost)}
-    </button></div>`;
+    <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-up="${key}" ${maxed||S.cash<cost?"disabled":""}>${maxed?"MAX":money(cost)}</button></div>`;
 }
-function buyUpgrade(key) {
-  const map = { scooter: UPG_SCOOTER, planque: UPG_PLANQUE, counter: UPG_COUNTER, guide: UPG_GUIDE, batch: UPG_BATCH };
-  const conf = map[key]; if (!conf) return;
-  const lv = S.upgrades[key] || 0;
-  if (lv >= conf.max) return;
-  const cost = conf.cost * (lv + 1);
-  if (S.cash < cost) { toast("Propre insuffisant."); return; }
-  S.cash -= cost; S.upgrades[key] = lv + 1;
-  cause(`Upgrade ${conf.title}`, `−${money(cost)} propre`);
-  toast("Ça scale."); save(); render();
+function buyUp(key){
+  const conf=UPG[key]; if(!conf) return;
+  const lv=S.upgrades[key]||0; if(lv>=conf.max) return;
+  const cost=conf.cost*(lv+1); if(S.cash<cost){ toast("Propre insuffisant."); return; }
+  S.cash-=cost; S.upgrades[key]=lv+1; cause(`Upgrade ${conf.title}`,`−${money(cost)}`); toast("Ça scale."); save(); render();
 }
 
-function renderSell() {
-  maybeSpawnOrders();
-  const open = S.orders.filter((o) => o.status === "open");
-  stage.innerHTML = `
-    <h2>Clients</h2>
-    <div class="sub">Tu valides le format. Le livreur fait le sale.</div>
-    <div class="card">
-      <div class="stat"><span>Stock</span><b>${fmtSachets()}</b></div>
-      <button class="btn ghost" id="ping">Secouer le téléphone</button>
-    </div>
-    <div class="list">${open.map(orderCard).join("") || `<div class="card muted">Silence radio.</div>`}</div>
-  `;
-  document.getElementById("ping").onclick = () => { spawnOrder(true); renderSell(); };
-  stage.querySelectorAll("[data-accept]").forEach((b) => { b.onclick = () => acceptOrder(b.dataset.accept); });
-  stage.querySelectorAll("[data-refuse]").forEach((b) => { b.onclick = () => refuseOrder(b.dataset.refuse); });
-}
-function orderCard(o) {
-  const need = o.qty || 1;
-  const have = S.sachets[o.format] >= need;
-  return `<div class="msg"><div class="who">${o.client}${need > 1 ? ` · ×${need}` : ""}</div>
-    <div class="txt">« ${o.vibe} » — <b>${need}×${o.format} g</b> · ${money(o.price)}</div>
-    <div class="grid2">
-      <button class="btn ok" data-accept="${o.id}" ${have ? "" : "disabled"}>${have ? "Prendre" : "Stock KO"}</button>
-      <button class="btn ghost" data-refuse="${o.id}">Ignorer</button>
-    </div></div>`;
-}
-function maybeSpawnOrders() {
-  const open = S.orders.filter((o) => o.status === "open").length;
-  if (open >= maxOpenOrders()) return;
-  const slot = Math.floor(S.clock / spawnInterval());
-  if (S._lastSpawnSlot === slot) return;
-  S._lastSpawnSlot = slot;
-  if ((slot + Math.round(S.reput)) % 2 === 0) spawnOrder(false);
-}
-function spawnOrder(force) {
-  const formats = [2, 5, 8];
-  const idx = (S.orderSeq * 3 + Math.round(S.reput)) % CLIENTS.length;
-  const c = CLIENTS[idx];
-  const format = formats[(S.orderSeq + Math.floor(S.reput / 10)) % formats.length];
-  let qty = 1;
-  if (tier() >= 2 && (S.orderSeq % 3 === 0)) qty = 2;
-  if (tier() >= 3 && (S.orderSeq % 4 === 0)) qty = 3;
-  const qMul = S.sachetQ >= 75 ? 1.1 : S.sachetQ >= 55 ? 1.0 : 0.85;
-  const price = Math.round(format * DOSE_PRICE[format] * qMul * qty);
-  if (!force && S.orders.some((o) => o.status === "open" && o.client === c.name)) return;
-  S.orders.push({ id: "o" + S.orderSeq++, client: c.name, vibe: c.vibe, format, qty, price, status: "open" });
-  if (force) toast("Nouveau message.");
-  save();
-}
-function acceptOrder(id) {
-  const o = S.orders.find((x) => x.id === id);
-  if (!o || o.status !== "open") return;
-  const qty = o.qty || 1;
-  if (S.sachets[o.format] < qty) { toast("Pas le stock."); return; }
-  S.sachets[o.format] -= qty; o.status = "ready"; o.g = o.format * qty;
-  cause(`Commande ${o.client}`, `${qty}×${o.format} g`);
-  toast("Validé. Livreurs.");
-  save(); tab = "run"; render();
-}
-function refuseOrder(id) {
-  const o = S.orders.find((x) => x.id === id); if (!o) return;
-  o.status = "refused"; S.reput = clamp(S.reput - 1, 0, 100);
-  cause(`Refus ${o.client}`, `standing −1`); toast("Ignoré."); save(); renderSell();
+function renderKarnet(){
+  tab="home"; set3d("hidden"); hud(); renderDock();
+  stage.innerHTML=`<h2>Karnet</h2><div class="sub">Chaque ligne a une cause. L'UI n'invente rien.</div>
+    <div class="card journal">${S.journal.slice(0,20).map(j=>`<div class="item">${j.txt}<div class="c">↩ ${j.cause}</div></div>`).join("")||`<div class="muted">Vide.</div>`}</div>
+    <button class="btn ghost" id="back">↩ Home</button>`;
+  document.getElementById("back").onclick=()=>{ tab="home"; render(); };
 }
 
-function renderRun() {
-  const ready = S.orders.filter((o) => o.status === "ready");
-  const active = S.runs.filter((r) => r.left > 0);
-  const doneWait = S.runs.filter((r) => r.left <= 0 && !r.collected);
-  stage.innerHTML = `
-    <h2>Livreurs</h2>
-    <div class="sub">Retour en <b>liquide</b>. Cumul &gt; ${SEUIL_DISCRET_G} g = trop visible.</div>
+/* ---------- SnapShit ---------- */
+function renderSnap(){
+  const pending=S.dms.filter(d=>d.status==="pending");
+  stage.innerHTML=`
+    <h2 style="color:#ff8ab8">SnapShit</h2>
+    <div class="sub">Tu vends la fantasy avant le gramme. Story → DM → BeuherShit livre. Le cash arrive en liquide, jamais en propre.</div>
+    <div class="story-row">
+      <div class="ring live"><div class="ava">+</div><div class="lb">Toi</div></div>
+      <div class="ring ${S.posteAujourdhui?"live":""}"><div class="ava">⚡</div><div class="lb">Drop</div></div>
+      <div class="ring"><div class="ava">👑</div><div class="lb">Comtesse</div></div>
+      <div class="ring"><div class="ava">🔥</div><div class="lb">Accro</div></div>
+      <div class="ring"><div class="ava">📦</div><div class="lb">Gros</div></div>
+    </div>
     <div class="card">
-      <div class="stat"><span>Scooters</span><b>${livreurCount()}</b></div>
-      <div class="stat"><span>Chaleur</span><b>${Math.round(S.heat)}</b></div>
+      <h3>Composer</h3>
+      <div class="muted">Vitrine = buzz soft. Drop = promesse. Premium = tu joues ta crédibilité.</div>
+      <div class="grid3">
+        <button class="btn snap" id="vitr">Vitrine</button>
+        <button class="btn snap" id="dropN">Drop</button>
+        <button class="btn snap" id="dropP">Premium</button>
+      </div>
     </div>
-    <div class="card"><h3>À dispatcher</h3>
-      ${ready.map((o) => `<div class="stat"><span>${o.client} · ${o.g || o.format} g · ${money(o.price)}</span>
-        <button class="btn ok" style="width:auto;margin:0;padding:8px 10px" data-go="${o.id}">Envoyer</button></div>`).join("") ||
-        `<div class="muted">File vide.</div>`}
-      ${ready.length >= 2 && tier() >= 2 ? `<button class="btn" id="batchGo">Envoyer tout</button>` : ""}
+    ${S.storyFlash?.length?`<div class="card"><h3>Réactions</h3>${S.storyFlash.map(f=>`<div class="flash"><b>${f.nm}</b> — ${f.txt}</div>`).join("")}</div>`:""}
+    <div class="card">
+      <div class="stat"><span>Buzz / crédibilité</span><b>${Math.round(S.expo)} · ${S.credibilite.toFixed(2)}</b></div>
+      <div class="stat"><span>Flakes</span><b>${Math.round(S.flake*100)}%</b></div>
+      <div class="stat"><span>Sachets</span><b>${fmtSachets()}</b></div>
     </div>
-    <div class="card"><h3>En route</h3>
-      ${active.map((r) => `<div class="stat"><span>${r.client} · ${r.g} g</span><b>${Math.ceil(r.left)}s</b></div>
-        <div class="bar"><i style="width:${(1 - r.left / r.total) * 100}%"></i></div>`).join("") || `<div class="muted">—</div>`}
+    <div class="card">
+      <h3>Boîte DM · ${pending.length}</h3>
+      ${pending.map(dmCard).join("")||`<div class="muted">Calme plat. Drop quelque chose, ou passe la soirée.</div>`}
     </div>
-    <div class="card"><h3>Retour</h3>
-      ${doneWait.map((r) => `<div class="stat"><span>${r.client} · ${money(r.pay)} ${r.busted ? "SAISI" : ""}</span>
-        <button class="btn ${r.busted ? "bad" : "ok"}" style="width:auto;margin:0;padding:8px 10px" data-col="${r.id}">
-          ${r.busted ? "Constater" : "Récupérer"}</button></div>`).join("") || `<div class="muted">—</div>`}
-    </div>
-    <button class="btn ghost" id="toCash">Liquide (${money(S.dirty)})</button>
-  `;
-  stage.querySelectorAll("[data-go]").forEach((b) => { b.onclick = () => dispatch(b.dataset.go); });
-  stage.querySelectorAll("[data-col]").forEach((b) => { b.onclick = () => collectRun(b.dataset.col); });
-  const bg = document.getElementById("batchGo");
-  if (bg) bg.onclick = () => { ready.forEach((o) => dispatch(o.id)); };
-  document.getElementById("toCash").onclick = () => renderCash();
+    <button class="btn ghost" id="night">Clôturer la soirée → nouvelle demande</button>
+    <button class="btn beuher" id="toBeuher">Envoyer vers BeuherShit (${S.orders.filter(o=>o.status==="ready").length})</button>`;
+  document.getElementById("vitr").onclick=()=>{ snap.posterVitrine(S,"vitrine"); cause("Story vitrine","+buzz soft"); toast("En ligne. Discret."); save(); renderSnap(); };
+  document.getElementById("dropN").onclick=()=>{ snap.posterVitrine(S,"normal"); cause("Drop story","Promesse normal"); toast("Drop posté. Le feed s'enflamme."); save(); renderSnap(); };
+  document.getElementById("dropP").onclick=()=>{ snap.posterVitrine(S,"premium"); cause("Drop premium","Promesse premium"); toast("Premium. Tu as intérêt à tenir."); save(); renderSnap(); };
+  document.getElementById("night").onclick=()=>{
+    const cons=snap.passerSoiree(S, qualAvg());
+    S.day++; S.heat=clamp(S.heat-6,0,100); S.soldDay=0;
+    cons.forEach(c=>cause(c.t,c.c));
+    toast(cons[cons.length-1]?.c || "Nouvelle nuit.");
+    save(); renderSnap();
+  };
+  document.getElementById("toBeuher").onclick=()=>{ tab="beuher"; render(); };
+  stage.querySelectorAll("[data-sell]").forEach(b=>b.onclick=()=>doSell(b.dataset.sell,"sell"));
+  stage.querySelectorAll("[data-brade]").forEach(b=>b.onclick=()=>doSell(b.dataset.brade,"brade"));
+  stage.querySelectorAll("[data-vol]").forEach(b=>b.onclick=()=>doSell(b.dataset.vol,"volume"));
+  stage.querySelectorAll("[data-ref]").forEach(b=>b.onclick=()=>{ snap.refuseDM(S,b.dataset.ref); cause("DM ignoré","standing −?"); toast("Lu. Pas répondu."); save(); renderSnap(); });
 }
-function dispatch(orderId) {
-  const o = S.orders.find((x) => x.id === orderId);
-  if (!o || o.status !== "ready") return;
-  if (S.runs.filter((r) => r.left > 0).length >= livreurCount()) { toast("Plus de scooter."); return; }
-  if (S.cash < LIVREUR_FEE) { toast("Pas de fee."); return; }
-  S.cash -= LIVREUR_FEE;
-  const g = o.g || o.format;
-  const time = Math.max(6, LIVREUR_TIME_S - S.upgrades.scooter * 2 - tier());
-  const gramsOut = S.runs.filter((r) => r.left > 0).reduce((a, r) => a + r.g, 0) + g;
-  const willBust = gramsOut > SEUIL_DISCRET_G || S.heat >= 92;
-  S.runs.push({ id: "r" + o.id + "_" + Math.round(S.clock), orderId: o.id, client: o.client, g, pay: o.price,
-    left: time, total: time, busted: willBust, collected: false });
-  o.status = "assigned";
-  S.heat = clamp(S.heat + HEAT_EXPO, 0, HEAT_CAP);
-  cause(`Dispatch ${o.client}`, `−${money(LIVREUR_FEE)} fee`);
-  toast(willBust ? "Trop chargé." : "Parti.");
-  save(); if (tab === "run") renderRun();
+function dmCard(d){
+  const tot=d.qty*d.ppu;
+  return `<div class="dm"><div class="who"><span>${d.nm}</span><span class="tag">${d.tag}</span></div>
+    <div class="txt">« ${d.msg} » — <b>${d.qty} g</b> · ${money(tot)}</div>
+    <div class="grid3">
+      <button class="btn ok" style="margin:0;padding:9px 6px;font-size:11px" data-sell="${d.id}">Vendre</button>
+      <button class="btn ghost" style="margin:0;padding:9px 6px;font-size:11px" data-brade="${d.id}">Brader</button>
+      <button class="btn ghost" style="margin:0;padding:9px 6px;font-size:11px" data-ref="${d.id}">Ignorer</button>
+    </div>
+    ${d.kind==="grossiste"||d.qty>=8?`<button class="btn snap" style="margin-top:6px" data-vol="${d.id}">Volume (remise)</button>`:""}
+  </div>`;
 }
-function collectRun(id) {
-  const r = S.runs.find((x) => x.id === id);
-  if (!r || r.collected || r.left > 0) return;
-  r.collected = true;
-  if (r.busted) {
-    S.heat = clamp(S.heat + HEAT_BUST, 0, HEAT_CAP);
-    cause(`Saisie ${r.client}`, `+${HEAT_BUST} chaleur`); toast("Saisi.");
-  } else {
-    S.dirty += r.pay; pushBills(r.pay);
-    S.reput = clamp(S.reput + 1 + (r.g >= 10 ? 1 : 0), 0, 100);
-    S.soldDay += r.g;
-    cause(`Retour liquide ${r.client}`, `+${money(r.pay)} liquide`);
-    toast("Liquide reçu.");
-  }
-  save(); if (!r.busted) renderCash(); else renderRun();
-}
-function pushBills(amount) {
-  let left = Math.round(amount);
-  for (const d of [100, 50, 20, 5]) {
-    while (left >= d) { S.bills.push({ id: "b" + S.bills.length + "_" + d + "_" + Math.round(S.clock * 10), v: d }); left -= d; }
-  }
-  if (left > 0) S.bills.push({ id: "bX" + Math.round(S.clock * 10), v: left < 5 ? 5 : left });
+function doSell(id, mode){
+  const r=snap.acceptDM(S,id,mode);
+  if(!r.ok){ toast(r.reason); return; }
+  S.orders.push(r.order);
+  if(r.heatExtra) S.heat=clamp(S.heat+r.heatExtra,0,100);
+  cause(`Deal Snap ${r.order.client}`,`${r.order.g} g · ${money(r.order.price)} → file Beuher`);
+  toast(r.short?`Validé (${r.short} g manquants ignorés). BeuherShit.`:"Validé. Envoie un coursier.");
+  save(); renderSnap();
 }
 
-function renderCash() {
-  tab = "home"; set3d("hidden"); hud(); renderDock();
-  const bundleVal = Object.entries(S.bundles).reduce((a, [d, n]) => a + (+d) * BUNDLE_SIZE * n, 0);
-  stage.innerHTML = `
-    <h2>Liquide</h2>
-    <div class="sub">${BUNDLE_SIZE} billets identiques = 1 liasse → propre. Trop de liquide chauffe.</div>
+/* ---------- Atelier menu ---------- */
+function renderAtelierMenu(){
+  stage.innerHTML=`
+    <h2>Atelier 3D</h2>
+    <div class="sub">Le geste, pas le dashboard. Coupe au maintien. Emballage au doigt.</div>
+    <div class="card"><div class="stat"><span>Pain / barrettes / sachets</span><b>${S.painG.toFixed(0)} · ${S.barG.toFixed(0)} · ${fmtSachets()}</b></div></div>
+    <button class="btn ok" id="gCut">✂ Coupe — maintien lame</button>
+    <button class="btn ok" id="gDose">⚖ Dosage — enrouler + sceller</button>
+    <button class="btn ghost" id="gBuy">◎ Appro — visionneuse pain</button>`;
+  document.getElementById("gCut").onclick=()=>{ atelierSub="cut"; render(); };
+  document.getElementById("gDose").onclick=()=>{ atelierSub="dose"; render(); };
+  document.getElementById("gBuy").onclick=()=>{ atelierSub="buy"; render(); };
+}
+function renderBuyOverlay(){
+  const items=[PAIN_100,PAIN_250]; if(S.reput>=40) items.push(PAIN_500);
+  buyOverlay.innerHTML=`<h3 style="margin:0 0 6px">Appro</h3>
+    <div class="muted" style="margin-bottom:8px">Propre uniquement.</div>
+    ${items.map(p=>{ const locked=p.reputGate&&S.reput<p.reputGate;
+      return `<div class="stat"><span>${p.label}</span>
+        <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-buy="${p.g}" ${locked||S.cash<p.price?"disabled":""}>${locked?"Standing":money(p.price)}</button></div>`; }).join("")}`;
+  buyOverlay.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>{
+    buyPain([PAIN_100,PAIN_250,PAIN_500].find(p=>p.g===+b.dataset.buy));
+    renderBuyOverlay(); scene3d.syncFromState();
+  });
+}
+function buyPain(p){
+  if(!p) return;
+  if(p.reputGate&&S.reput<p.reputGate){ toast("Standing insuffisant."); return; }
+  if(S.cash<p.price){ toast("Propre insuffisant."); return; }
+  if(finiG()+S.painG+p.g>planqueCap()){ toast("Planque pleine."); return; }
+  S.cash-=p.price; S.painQ=avgMerge(S.painG,S.painQ,p.g,p.q); S.painG+=p.g;
+  cause(`Achat ${p.label}`,`−${money(p.price)}`); toast("Pain reçu."); save(); hud();
+}
+
+/* ---------- BeuherShit ---------- */
+function renderBeuher(){
+  const ready=S.orders.filter(o=>o.status==="ready");
+  const active=S.runs.filter(r=>r.left>0);
+  const done=S.runs.filter(r=>r.left<=0&&!r.collected);
+  // projected risk per courier if all assigned to him
+  stage.innerHTML=`
+    <h2 style="color:#7ddea0">BeuherShit</h2>
+    <div class="sub">La livraison n'est pas un Uber. C'est un pari sur le cumul de grammes. Assigne. Lance. Récupère le liquide. Ou la chaleur.</div>
     <div class="card">
-      <div class="stat"><span>Liquide</span><b>${money(S.dirty)}</b></div>
-      <div class="stat"><span>Liasses</span><b>${money(bundleVal)}</b></div>
-      <div class="bills">${S.bills.map((b) => `<button class="bill n${b.v >= 100 ? 100 : b.v}" data-b="${b.id}">${money(b.v)}</button>`).join("") ||
-        `<span class="muted">Rien à classer.</span>`}</div>
-      ${[5, 20, 50, 100].map((d) => {
-        const n = S.bundles[d] || 0; const prog = (S._pile && S._pile[d]) || 0;
-        return `<div class="bundle"><span>Liasse ${money(d)} ×${n}</span><span class="muted">${prog}/${BUNDLE_SIZE}</span></div>`;
+      <div class="stat"><span>Chaleur</span><b>${Math.round(S.heat)} / ${beuher.HEAT_CAP}</b></div>
+      <div class="bar"><i style="width:${S.heat}%;background:linear-gradient(90deg,#e8c96a,#ff8a6a)"></i></div>
+      <div class="stat"><span>File</span><b>${ready.length} prêtes · ${active.length} en route</b></div>
+    </div>
+    <div class="card"><h3>File à dispatcher</h3>
+      ${ready.map(o=>{
+        const cid=S.assign[o.id]||"";
+        const deal=beuher.dealById(o.deal);
+        return `<div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.06)">
+          <div class="stat"><span>${o.client} · ${o.g} g · ${money(o.price)}</span><b>${deal.emoji} ${deal.nm}</b></div>
+          <div class="seg">${beuher.COURIERS.map(c=>{
+            const locked=c.id==="gofast"&&S.upgrades.scooter<1&&S.reput<35;
+            return `<button class="chip ${cid===c.id?"on":""}" data-as="${o.id}:${c.id}" ${locked?"disabled":""} style="${cid===c.id?`border-color:${c.col}`:""}">${c.emoji} ${c.nm}</button>`;
+          }).join("")}</div>
+        </div>`;
+      }).join("")||`<div class="muted">Rien. Va closer des DM sur SnapShit.</div>`}
+    </div>
+    <div class="card"><h3>Flotte</h3>
+      ${beuher.COURIERS.map(c=>{
+        const assigned=ready.filter(o=>S.assign[o.id]===c.id);
+        const g=assigned.reduce((a,o)=>a+o.g,0);
+        const risk=beuher.riskChip(c,g);
+        const fee=assigned.length?beuher.feeFor(c,assigned,S.heat):0;
+        return `<div class="courier ${assigned.length?"on":""}">
+          <div class="stat"><span>${c.emoji} <b>${c.nm}</b></span>
+            ${risk?`<span class="risk ${risk.cls}">${risk.txt}</span>`:`<span class="muted">idle</span>`}</div>
+          <div class="muted">${c.tip}</div>
+          <div class="stat"><span>Charge</span><b>${g} g / seuil ~${beuher.seuilSaisie(c)} g</b></div>
+          <div class="stat"><span>Fee estimée</span><b>${money(fee)}</b></div>
+        </div>`;
       }).join("")}
-      <button class="btn ok" id="bankBundles" ${bundleVal <= 0 ? "disabled" : ""}>Encaisser (+${money(bundleVal)})</button>
-      <button class="btn ghost" id="back">↩ Home</button>
+    </div>
+    <button class="btn beuher" id="launch" ${ready.every(o=>S.assign[o.id])&&ready.length?"":"disabled"}>Lancer les tournées</button>
+    <div class="card"><h3>En route</h3>
+      ${active.map(r=>`<div class="stat"><span>${r.courierNm} · ${r.g} g ${r.busted?"🚨":""}</span><b>${Math.ceil(r.left)}s</b></div>
+        <div class="bar"><i style="width:${(1-r.left/r.total)*100}%;background:${r.col}"></i></div>`).join("")||`<div class="muted">Personne dehors.</div>`}
+    </div>
+    <div class="card"><h3>Retours</h3>
+      ${done.map(r=>`<div class="stat"><span>${r.courierNm} · ${money(r.net)} ${r.busted?"SAISI":""}</span>
+        <button class="btn ${r.busted?"bad":"ok"}" style="width:auto;margin:0;padding:8px 10px" data-col="${r.id}">${r.busted?"Constater":"Compter le liquide"}</button></div>`).join("")||`<div class="muted">—</div>`}
     </div>`;
-  stage.querySelectorAll("[data-b]").forEach((btn) => { btn.onclick = () => { sortBill(btn.dataset.b); renderCash(); }; });
-  document.getElementById("bankBundles").onclick = () => bankBundles();
-  document.getElementById("back").onclick = () => { tab = "home"; render(); };
-}
-function sortBill(id) {
-  const i = S.bills.findIndex((x) => x.id === id); if (i < 0) return;
-  const [b] = S.bills.splice(i, 1);
-  const d = b.v >= 100 ? 100 : b.v;
-  if (![5, 20, 50, 100].includes(d)) { S.dirty = Math.max(0, S.dirty - b.v); save(); return; }
-  if (!S._pile) S._pile = { 5: 0, 20: 0, 50: 0, 100: 0 };
-  S._pile[d] = (S._pile[d] || 0) + 1;
-  S.dirty = Math.max(0, S.dirty - d);
-  if (S._pile[d] >= BUNDLE_SIZE) { S._pile[d] -= BUNDLE_SIZE; S.bundles[d] = (S.bundles[d] || 0) + 1; toast(`Liasse ${money(d)}.`); }
-  save();
-}
-function bankBundles() {
-  let got = 0;
-  for (const d of [5, 20, 50, 100]) { const n = S.bundles[d] || 0; if (n > 0) { got += d * BUNDLE_SIZE * n; S.bundles[d] = 0; } }
-  if (got <= 0) return;
-  S.cash += got; cause(`Liasses encaissées`, `+${money(got)} propre`); toast(`+${money(got)} propre`); save(); renderCash();
+  stage.querySelectorAll("[data-as]").forEach(b=>b.onclick=()=>{
+    const [oid,cid]=b.dataset.as.split(":"); S.assign[oid]=cid; save(); renderBeuher();
+  });
+  document.getElementById("launch").onclick=()=>launchRuns();
+  stage.querySelectorAll("[data-col]").forEach(b=>b.onclick=()=>collectRun(b.dataset.col));
 }
 
-let last = performance.now();
-function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  S.clock += dt;
-  if (S.clock > S.day * 90) { S.day++; S.heat = clamp(S.heat - 8, 0, HEAT_CAP); S.soldDay = 0; cause(`Jour ${S.day}`, `Chaleur −8`); }
-  if (S.dirty > DIRTY_HOLD_SOFT) {
-    S._dirtyAcc += dt;
-    if (S._dirtyAcc >= 3) { S._dirtyAcc = 0; S.heat = clamp(S.heat + (S.dirty > DIRTY_HOLD_HARD ? 2 : 1), 0, HEAT_CAP); }
+function launchRuns(){
+  const ready=S.orders.filter(o=>o.status==="ready"&&S.assign[o.id]);
+  if(!ready.length){ toast("Assigne d'abord."); return; }
+  const blocks=beuher.resolveRuns(S.assign, ready, S.heat);
+  let feeTotal=0;
+  for(const bl of blocks){
+    if(!bl.busted) feeTotal+=bl.fee;
   }
-  if (S.upgrades.counter > 0 && S.dirty > 0 && S.bills.length === 0) {
-    const take = Math.min(S.dirty, COUNTER_RATE * dt); S.dirty -= take; S.cash += take;
+  // fees paid from propre up front for non-bust estimate — if can't pay, block
+  const needFee=blocks.filter(b=>!b.busted).reduce((a,b)=>a+b.fee,0);
+  // Actually busted still "launched" but pay 0 - fee only if not busted. Charge fees from propre for all non-bust.
+  if(S.cash<needFee){ toast(`Fee ${money(needFee)} — propre insuffisant.`); return; }
+  for(const bl of blocks){
+    if(!bl.busted) S.cash-=bl.fee;
+    S.heat=clamp(S.heat+bl.hx-(bl.busted?0:0),0,beuher.HEAT_CAP);
+    // wait, heatExpo already includes bust heat in bl.hx when busted
+    const time=bl.eta;
+    S.runs.push({
+      id:"r"+Math.round(S.clock*10)+"_"+bl.courier.id,
+      courierId:bl.courier.id, courierNm:bl.courier.nm, col:bl.courier.col,
+      g:bl.totalG, pay:bl.pay, fee:bl.fee, net:bl.net, busted:bl.busted,
+      left:time, total:time, collected:false,
+      orderIds:bl.orders.map(o=>o.id),
+    });
+    bl.orders.forEach(o=>{ o.status="assigned"; delete S.assign[o.id]; });
+    cause(`Tournée ${bl.courier.nm}`, bl.busted
+      ? `Saisie programmée · ${bl.totalG} g trop voyants`
+      : `−${money(bl.fee)} fee · ${bl.totalG} g · ETA ${time}s`);
   }
-  let dirtyRun = false;
-  for (const r of S.runs) {
-    if (r.left > 0) { r.left -= dt; if (r.left <= 0) { r.left = 0; if (S.heat >= 92) r.busted = true; } dirtyRun = true; }
+  toast(blocks.some(b=>b.busted)?"Des scoots sont partis trop chargés. Tu vas le sentir.":"Tournées lancées.");
+  save(); renderBeuher();
+}
+
+function collectRun(id){
+  const r=S.runs.find(x=>x.id===id);
+  if(!r||r.collected||r.left>0) return;
+  r.collected=true;
+  if(r.busted){
+    cause(`Saisie ${r.courierNm}`,`+chaleur · argent perdu`);
+    toast("Saisi. BeuherShit envoie un emoji triste.");
+  } else {
+    S.dirty+=r.net;
+    pushBills(r.net);
+    S.reput=clamp(S.reput+1+(r.g>=15?1:0),0,100);
+    S.soldDay+=r.g;
+    cause(`Retour ${r.courierNm}`,`+${money(r.net)} liquide`);
+    toast("Liquide sur la table. Compte.");
   }
-  if (tab === "run" && dirtyRun) {
-    if (!frame._acc) frame._acc = 0; frame._acc += dt;
-    if (frame._acc > 0.35) { frame._acc = 0; renderRun(); }
+  save();
+  if(!r.busted){ tab="cash"; render(); } else renderBeuher();
+}
+
+function pushBills(amount){
+  let left=Math.round(amount);
+  for(const d of [100,50,20,5]){
+    while(left>=d){ S.bills.push({ id:"b"+S.bills.length+"_"+d+"_"+Math.round(S.clock*10), v:d }); left-=d; }
+  }
+  if(left>0) S.bills.push({ id:"bX"+Math.round(S.clock*10), v:left<5?5:left });
+}
+
+/* ---------- Liquide : compter à la main ---------- */
+function renderCash(){
+  set3d("hidden"); hud(); renderDock();
+  const bundleVal=Object.entries(S.bundles).reduce((a,[d,n])=>a+(+d)*BUNDLE_SIZE*n,0);
+  // scatter bills
+  const billsHTML=S.bills.map((b,i)=>{
+    const left=8+((i*37)%78);
+    const top=10+((i*53)%70);
+    const r=-18+((i*17)%36);
+    return `<button class="bill n${b.v>=100?100:b.v}" data-b="${b.id}" style="left:${left}%;top:${top}%;--r:${r}deg">${money(b.v)}</button>`;
+  }).join("");
+  stage.innerHTML=`
+    <h2 style="color:var(--dirty)">Liquide</h2>
+    <div class="sub">Tu comptes. Un billet après l'autre. ${BUNDLE_SIZE} identiques = une liasse. Trop de liquide qui traîne chauffe tout seul. C'est ça, grossir.</div>
+    <div class="card">
+      <div class="stat"><span>À ranger</span><b>${money(S.dirty)}</b></div>
+      <div class="stat"><span>Compté (pile)</span><b>${money(S.counted||0)}</b></div>
+      <div class="stat"><span>Liasses prêtes</span><b>${money(bundleVal)}</b></div>
+    </div>
+    <div class="cash-arena" id="arena">
+      <div class="count">${money(S.counted||0)}</div>
+      ${billsHTML||`<div class="muted" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;text-align:center">La table est vide. Fais tourner BeuherShit.</div>`}
+    </div>
+    <div class="card">
+      ${[5,20,50,100].map(d=>{
+        const n=S.bundles[d]||0, prog=(S._pile&&S._pile[d])||0;
+        return `<div class="bundle"><span>Liasse ${money(d)} ×${n}</span><span class="muted">pile ${prog}/${BUNDLE_SIZE}</span></div>`;
+      }).join("")}
+      <button class="btn ok" id="bank" ${bundleVal<=0?"disabled":""}>Encaisser les liasses (+${money(bundleVal)} propre)</button>
+      <button class="btn ghost" id="toSnap">↩ SnapShit</button>
+    </div>`;
+  stage.querySelectorAll("[data-b]").forEach(btn=>btn.onclick=()=>{
+    sortBill(btn.dataset.b);
+    // micro juice
+    btn.style.opacity="0"; btn.style.transform="scale(.4)";
+    setTimeout(()=>renderCash(),120);
+  });
+  document.getElementById("bank").onclick=()=>bankBundles();
+  document.getElementById("toSnap").onclick=()=>{ tab="snap"; render(); };
+}
+function sortBill(id){
+  const i=S.bills.findIndex(x=>x.id===id); if(i<0) return;
+  const [b]=S.bills.splice(i,1);
+  const d=b.v>=100?100:b.v;
+  if(![5,20,50,100].includes(d)){ S.dirty=Math.max(0,S.dirty-b.v); save(); return; }
+  if(!S._pile) S._pile={5:0,20:0,50:0,100:0};
+  S._pile[d]=(S._pile[d]||0)+1;
+  S.dirty=Math.max(0,S.dirty-d);
+  S.counted=(S.counted||0)+d;
+  if(S._pile[d]>=BUNDLE_SIZE){
+    S._pile[d]-=BUNDLE_SIZE; S.bundles[d]=(S.bundles[d]||0)+1;
+    S.counted=Math.max(0,(S.counted||0)-d*BUNDLE_SIZE);
+    toast(`Liasse ${money(d)}. Enfin.`);
+    try{ navigator.vibrate&&navigator.vibrate(25); }catch{}
+  }
+  save();
+}
+function bankBundles(){
+  let got=0;
+  for(const d of [5,20,50,100]){ const n=S.bundles[d]||0; if(n>0){ got+=d*BUNDLE_SIZE*n; S.bundles[d]=0; } }
+  if(got<=0) return;
+  S.cash+=got; S.counted=0;
+  cause("Liasses encaissées",`+${money(got)} propre`);
+  toast(`+${money(got)} propre. Rachat autorisé.`);
+  save(); renderCash();
+}
+
+/* ---------- Seed DMs if empty ---------- */
+function ensureDemand(){
+  if(!S.dms || !S.dms.length){
+    const spike=S.posteAujourdhui?Math.round(snap.SC.DROP_SPIKE*S.credibilite):0;
+    const good=Math.max(2, Math.round(S.reput/14 + S.expo/22 + spike/8));
+    const bad=Math.round(good*S.flake);
+    S.dms=snap.buildDMs(S, good, bad, S.expo);
+  }
+}
+
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  S.clock+=dt;
+  if(S.dirty>DIRTY_HOLD_SOFT){
+    S._dirtyAcc=(S._dirtyAcc||0)+dt;
+    if(S._dirtyAcc>=3){ S._dirtyAcc=0; S.heat=clamp(S.heat+(S.dirty>DIRTY_HOLD_HARD?2:1),0,100); }
+  }
+  if(S.upgrades.counter>0 && S.dirty>0 && S.bills.length===0){
+    const take=Math.min(S.dirty, COUNTER_RATE*dt); S.dirty-=take; S.cash+=take;
+  }
+  let dirtyRun=false;
+  for(const r of S.runs){
+    if(r.left>0){ r.left-=dt; if(r.left<=0){ r.left=0; } dirtyRun=true; }
+  }
+  if(tab==="beuher"&&dirtyRun){
+    if(!frame._acc) frame._acc=0; frame._acc+=dt;
+    if(frame._acc>0.35){ frame._acc=0; renderBeuher(); }
   }
   scene3d.tick(dt);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-setInterval(() => save(), 2000);
+setInterval(()=>save(),2000);
+
+ensureDemand();
 render();
-toast("3D en ligne — Appro / Coupe / Dose.");
+toast("SnapShit · BeuherShit · 3D · liquide. Fais tourner.");
 </script>
 </body>
 </html>
