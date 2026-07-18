@@ -109,6 +109,41 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .lock{opacity:.55;filter:grayscale(.3)}
 .hero{font-size:13px;line-height:1.4;color:rgba(255,236,210,.75);margin:8px 0 14px;padding:12px;border-radius:14px;
   background:linear-gradient(135deg,rgba(255,45,85,.12),rgba(0,196,106,.08));border:1px solid rgba(255,255,255,.08)}
+/* —— Emballage Schedule 1 / D31 —— */
+.bag-prompt{text-align:center;font-size:13px;font-weight:800;color:rgba(255,236,210,.85);margin:0 0 8px;letter-spacing:.2px}
+.bag-bench{position:relative;height:min(48vh,340px);border-radius:18px;overflow:hidden;touch-action:none;
+  background:
+    radial-gradient(70% 50% at 50% 8%,rgba(255,240,200,.18),transparent 50%),
+    linear-gradient(180deg,#4a4338 0%,#2e2922 55%,#1c1915 100%);
+  border:1px solid rgba(255,220,160,.18);box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
+.bag-tray{position:absolute;left:10px;top:22%;width:30%;height:58%;border-radius:8px;
+  background:linear-gradient(160deg,#222226,#0e0e10);border:2px solid #333;box-shadow:inset 0 6px 18px #000}
+.bag-tray .lb,.bag-done .lb{position:absolute;left:0;right:0;top:-16px;text-align:center;font-size:9px;font-weight:800;letter-spacing:.4px}
+.bag-tray .lb{color:var(--muted)}.bag-done .lb{color:#9be37d}
+.bag-nug{position:absolute;width:26px;height:18px;border-radius:42% 48% 45% 52%;
+  background:radial-gradient(circle at 35% 28%,#7a5530,#3d2614 72%);
+  box-shadow:0 2px 5px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,200,120,.3);z-index:2;cursor:grab;touch-action:none}
+.bag-nug.drag{z-index:30;cursor:grabbing;filter:brightness(1.2);box-shadow:0 10px 22px rgba(0,0,0,.6),0 0 0 2px rgba(255,180,84,.55);transform:scale(1.15)}
+.bag-nug.fly{transition:transform .28s cubic-bezier(.2,.8,.2,1),opacity .28s;pointer-events:none}
+.bag-slot{position:absolute;width:58px;height:86px;z-index:3;transition:transform .1s}
+.bag-zip{position:absolute;inset:0;border-radius:5px 5px 12px 12px;
+  background:linear-gradient(180deg,rgba(210,230,255,.16),rgba(160,180,200,.05));
+  border:1.5px solid rgba(230,245,255,.55);box-shadow:0 6px 14px rgba(0,0,0,.4);overflow:hidden}
+.bag-zip::before{content:"";position:absolute;left:8%;right:8%;top:7px;height:7px;border-radius:2px;
+  background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.3)}
+.bag-zip.open{border-color:rgba(200,230,255,.7)}
+.bag-zip.open.hot{border-color:rgba(255,200,100,.95);box-shadow:0 0 0 3px rgba(255,180,84,.4),0 8px 18px rgba(0,0,0,.45);transform:scale(1.06)}
+.bag-zip .fill{position:absolute;left:14%;right:14%;bottom:12px;height:0;border-radius:4px;
+  background:radial-gradient(circle at 40% 30%,#7a5530,#2a1810);transition:height .16s ease-out}
+.bag-zip.sealed{border-color:rgba(155,227,125,.55);background:linear-gradient(180deg,rgba(160,200,180,.18),rgba(80,100,90,.1))}
+.bag-zip.sealed .fill{height:44%}
+.bag-zip .tag{position:absolute;left:0;right:0;bottom:5px;text-align:center;font-size:10px;font-weight:900;color:rgba(255,255,255,.75)}
+.bag-done{position:absolute;right:8px;top:22%;width:18%;height:58%;border-radius:8px;border:1px dashed rgba(155,227,125,.4);
+  background:rgba(0,50,24,.18);overflow:hidden}
+.bag-done .stack{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);display:flex;flex-direction:column-reverse;align-items:center;gap:3px}
+.bag-mini{width:30px;height:40px;border-radius:4px;border:1px solid rgba(200,220,255,.45);
+  background:linear-gradient(180deg,rgba(190,210,230,.3),rgba(70,90,110,.18));box-shadow:0 2px 5px rgba(0,0,0,.35)}
+.bag-hint{font-size:11px;color:var(--muted);text-align:center;margin-top:8px;line-height:1.35}
 </style>
 <script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
 </head>
@@ -142,16 +177,17 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 <script type="module">
 /* snap/beuher d'abord — Three.js (scene3d) en lazy load.
    Sur mobile, unpkg bloqué cassait TOUT le proto (écran fantôme « enrouler »). */
-import * as snap from "./snap.mjs?v=7";
-import * as beuher from "./beuher.mjs?v=7";
+import * as snap from "./snap.mjs?v=8";
+import * as beuher from "./beuher.mjs?v=8";
 
-const SAVE_VERSION = "7";
+const SAVE_VERSION = "8";
+const BAG_SLOTS = 5; // sachets ouverts simultanés (feel Schedule 1)
 let scene3d = null;
 let scene3dPromise = null;
 async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
-    scene3dPromise = import("./scene3d.mjs?v=7").then((m) => {
+    scene3dPromise = import("./scene3d.mjs?v=8").then((m) => {
       scene3d = m;
       scene3d.mount(view3d, {
         pressbar: document.getElementById("pressbar"),
@@ -225,7 +261,7 @@ function defaultState(){
     orders:[], runs:[], bills:[],
     bundles:{5:0,20:0,50:0,100:0}, _pile:{5:0,20:0,50:0,100:0},
     upgrades:{scooter:0, planque:0, counter:0},
-    journal:[], orderSeq:1, soldDay:0, doseFormat:5,
+    journal:[], orderSeq:1, soldDay:0, doseFormat:8,
     assign:{}, counted:0, atelierMode:"cut",
     ...snap.snapDefaults(),
   };
@@ -267,7 +303,7 @@ function renderDock(){
   dock.innerHTML=APPS.map(t=>`<button class="tab ${tab===t.id?"on":""}" data-t="${t.id}"><span class="ic">${t.ic}</span>${t.lb}</button>`).join("");
   dock.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
     tab=b.dataset.t;
-    atelierSub = tab==="atelier" ? "dose" : "menu";
+    atelierSub = tab==="atelier" ? "bag" : "menu";
     render();
   });
 }
@@ -289,8 +325,8 @@ function set3d(mode){
   }).catch(()=>{
     view3d.classList.remove("on");
     stage.classList.remove("behind");
-    atelierSub="dose";
-    renderDoseFast();
+    atelierSub="bag";
+    render();
   });
 }
 function renderFmtBar(){
@@ -307,6 +343,7 @@ function render(){
   set3d("hidden");
   if(tab==="home") renderHome();
   else if(tab==="snap") renderSnap();
+  else if(tab==="atelier" && atelierSub==="bag") renderDoseBag();
   else if(tab==="atelier" && atelierSub==="dose") renderDoseFast();
   else if(tab==="atelier") renderAtelierMenu();
   else if(tab==="beuher") renderBeuher();
@@ -341,7 +378,7 @@ function renderHome(){
   stage.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{
     const g=b.dataset.go;
     if(g==="buy"){ tab="atelier"; atelierSub="buy"; render(); return; }
-    if(g==="atelier"){ tab="atelier"; atelierSub="dose"; render(); return; } // ouvre sur dosage express
+    if(g==="atelier"){ tab="atelier"; atelierSub="bag"; render(); return; } // D31 ensachage zip
     if(g==="karnet"){ renderKarnet(); return; }
     tab=g; atelierSub="menu"; render();
   });
@@ -448,23 +485,183 @@ function doSell(id, mode){
 function renderAtelierMenu(){
   stage.innerHTML=`
     <h2>Atelier</h2>
-    <div class="sub">Dosage express d'abord. Coupe 3D si le réseau laisse passer Three.js.</div>
+    <div class="sub">Conditionnement zip (Schedule 1 / D31). Express = quand le geste t'ennuie (R6).</div>
     <div class="card"><div class="stat"><span>Pain / barrettes / sachets</span><b>${S.painG.toFixed(0)} · ${S.barG.toFixed(0)} · ${fmtSachets()}</b></div></div>
-    <button class="btn ok" id="gDose">⚖ Dosage express — un tap</button>
+    <button class="btn ok" id="gBag">📦 Ensacher — drag dans le zip</button>
     <button class="btn ok" id="gCut">✂ Coupe 3D — maintien lame</button>
+    <button class="btn ghost" id="gDose">⚖ Dosage express — délégation</button>
     <button class="btn ghost" id="gBuy">◎ Appro — visionneuse pain</button>`;
+  document.getElementById("gBag").onclick=()=>{ atelierSub="bag"; render(); };
   document.getElementById("gCut").onclick=()=>{ atelierSub="cut"; render(); };
   document.getElementById("gDose").onclick=()=>{ atelierSub="dose"; render(); };
   document.getElementById("gBuy").onclick=()=>{ atelierSub="buy"; render(); };
 }
 
-/** Dosage sans wrap 3D — R5/R6 : satisfaction épuisée → geste minimal. */
+/** Commit 1 sachet format f depuis barrettes. Retourne true si OK. */
+function commitSachet(f, why){
+  if(S.barG<f) return false;
+  const stockG=Object.entries(S.sachets).reduce((a,[ff,nn])=>a+nn*+ff,0);
+  S.barG-=f;
+  S.sachetQ=avgMerge(stockG,S.sachetQ,f,S.barQ);
+  S.sachets[f]++;
+  cause(`Sachet ${f} g`, why);
+  return true;
+}
+
+/**
+ * Emballage D31 / Schedule 1 : tray à gauche, zips ouverts au centre,
+ * drag barrette → sachet, fermeture auto, pile à droite. R1 : raté = retour, zéro perte.
+ */
+function renderDoseBag(){
+  const f=S.doseFormat;
+  const pieces=Math.min(14, Math.floor(S.barG/f));
+  const doneN=S.sachets[f]||0;
+  stage.innerHTML=`
+    <div class="bag-prompt">Place le produit dans le sachet</div>
+    <div class="seg">
+      ${[2,5,8].map(x=>`<button class="chip ${f===x?"on":""}" data-f="${x}">${x} g</button>`).join("")}
+    </div>
+    <div class="bag-bench" id="bench">
+      <div class="bag-tray" id="tray"><div class="lb">STOCK</div></div>
+      <div class="bag-done" id="done"><div class="lb">PRÊT</div><div class="stack" id="stack"></div></div>
+    </div>
+    <div class="bag-hint">${pieces?`Glisse une barrette dans un zip ouvert · ${pieces} prêtes · ${fmtSachets()}`:`Coupe d'abord — plus de barrettes pour ${f} g.`}</div>
+    <div class="grid2">
+      <button class="btn ghost" id="back">↩ Atelier</button>
+      <button class="btn ghost" id="toFast">Express ▸</button>
+    </div>`;
+  stage.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{ S.doseFormat=+b.dataset.f; save(); renderDoseBag(); });
+  document.getElementById("back").onclick=()=>{ atelierSub="menu"; render(); };
+  document.getElementById("toFast").onclick=()=>{ atelierSub="dose"; render(); };
+
+  const bench=document.getElementById("bench");
+  const tray=document.getElementById("tray");
+  const stack=document.getElementById("stack");
+
+  // pile visuelle (max 8 mini)
+  for(let i=0;i<Math.min(8,doneN);i++){
+    const m=document.createElement("div"); m.className="bag-mini"; stack.appendChild(m);
+  }
+
+  // zip ouverts en rangée centrale (feel Schedule 1)
+  const slots=[];
+  for(let i=0;i<BAG_SLOTS;i++){
+    const el=document.createElement("div");
+    el.className="bag-slot";
+    const x = 34 + i * ((62-34)/(BAG_SLOTS-1)); // % left, entre tray et done
+    el.style.left = `calc(${x}% - 29px)`;
+    el.style.top = "28%";
+    el.innerHTML=`<div class="bag-zip open" data-slot="${i}"><div class="fill"></div><div class="tag">${f}g</div></div>`;
+    bench.appendChild(el);
+    slots.push(el.querySelector(".bag-zip"));
+  }
+
+  // barrettes éparpillées dans le tray
+  for(let i=0;i<pieces;i++){
+    const n=document.createElement("div");
+    n.className="bag-nug";
+    n.dataset.i=String(i);
+    const col=i%3, row=Math.floor(i/3);
+    n.style.left=(10+col*30 + (row%2)*6)+"%";
+    n.style.top=(10+row*20)+"%";
+    tray.appendChild(n);
+  }
+
+  let drag=null; // {el, ox, oy, homeL, homeT}
+  const pt=(e)=>{
+    const t=e.touches?e.touches[0]:e;
+    return {x:t.clientX, y:t.clientY};
+  };
+  const hitBag=(x,y)=>{
+    for(const z of slots){
+      if(z.classList.contains("sealed")) continue;
+      const r=z.getBoundingClientRect();
+      if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom) return z;
+    }
+    return null;
+  };
+
+  const onDown=(e)=>{
+    const el=e.target.closest(".bag-nug");
+    if(!el||el.classList.contains("used")) return;
+    e.preventDefault();
+    const p=pt(e);
+    const r=el.getBoundingClientRect();
+    // promote to bench coords for free drag
+    const homeL=el.style.left, homeT=el.style.top, homeParent=el.parentElement;
+    const br=bench.getBoundingClientRect();
+    bench.appendChild(el);
+    el.style.left=((r.left-br.left)/br.width*100)+"%";
+    el.style.top=((r.top-br.top)/br.height*100)+"%";
+    el.classList.add("drag");
+    drag={el, ox:p.x-r.left, oy:p.y-r.top, homeL, homeT, homeParent};
+  };
+  const onMove=(e)=>{
+    if(!drag) return;
+    e.preventDefault();
+    const p=pt(e);
+    const b=bench.getBoundingClientRect();
+    drag.el.style.left=(((p.x-drag.ox)-b.left)/b.width*100)+"%";
+    drag.el.style.top=(((p.y-drag.oy)-b.top)/b.height*100)+"%";
+    slots.forEach(z=>z.classList.toggle("hot", hitBag(p.x,p.y)===z));
+  };
+  const onUp=(e)=>{
+    if(!drag) return;
+    const p=e.changedTouches?{x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY}:pt(e);
+    const z=hitBag(p.x,p.y);
+    slots.forEach(s=>s.classList.remove("hot"));
+    const {el, homeL, homeT, homeParent}=drag;
+    el.classList.remove("drag");
+    drag=null;
+    if(!z){
+      // R1 : retour, zéro perte
+      homeParent.appendChild(el);
+      el.style.left=homeL; el.style.top=homeT;
+      return;
+    }
+    if(!commitSachet(f, "Drag → zip (D31)")){
+      homeParent.appendChild(el);
+      el.style.left=homeL; el.style.top=homeT;
+      toast("Plus de stock.");
+      return;
+    }
+    // fill + seal bag
+    const fill=z.querySelector(".fill");
+    fill.style.height="48%";
+    z.classList.remove("open","hot");
+    z.classList.add("sealed");
+    el.classList.add("used","fly");
+    el.style.opacity="0";
+    el.style.transform="scale(.3)";
+    // mini on stack
+    const m=document.createElement("div"); m.className="bag-mini";
+    stack.appendChild(m);
+    while(stack.children.length>8) stack.removeChild(stack.firstChild);
+    toast(`Zip ${f} g.`);
+    save(); hud();
+    // refresh when tray empty or all slots sealed
+    setTimeout(()=>{
+      const openLeft=slots.some(s=>s.classList.contains("open"));
+      const nugLeft=[...tray.querySelectorAll(".bag-nug:not(.used)")].length;
+      if(!openLeft || nugLeft===0) renderDoseBag();
+    }, 320);
+  };
+
+  if(renderDoseBag._ac) renderDoseBag._ac.abort();
+  renderDoseBag._ac=new AbortController();
+  const sig=renderDoseBag._ac.signal;
+  bench.addEventListener("pointerdown", onDown, {passive:false, signal:sig});
+  window.addEventListener("pointermove", onMove, {passive:false, signal:sig});
+  window.addEventListener("pointerup", onUp, {passive:false, signal:sig});
+}
+
+/** Dosage express — R5/R6 : satisfaction épuisée → geste minimal (coût : moins fun, même stock). */
 function renderDoseFast(){
   const f=S.doseFormat;
   const can=Math.floor(S.barG/f);
   stage.innerHTML=`
     <h2>Dosage express</h2>
-    <div class="sub">Plus d'enroulage. Tu choisis le format, tu tapes, c'est ensaché. Le skill c'était la coupe.</div>
+    <div class="sub">Délégation (R6). Même conversion barrettes → sachets, zéro geste. Le zip reste le plaisir.</div>
     <div class="seg">
       ${[2,5,8].map(x=>`<button class="chip ${f===x?"on":""}" data-f="${x}">${x} g · ${DOSE_PRICE[x]}/g</button>`).join("")}
     </div>
@@ -475,27 +672,24 @@ function renderDoseFast(){
       <button class="btn ok" id="one" ${can<1?"disabled":""}>Ensacher 1×${f} g</button>
       <button class="btn ok" id="five" ${can<5?"disabled":""}>×5 sachets</button>
       <button class="btn snap" id="all" ${can<1?"disabled":""}>Tout ensacher (${can})</button>
+      <button class="btn ghost" id="toBag">↩ Table zip</button>
       <button class="btn ghost" id="back">↩ Atelier</button>
     </div>`;
   stage.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{ S.doseFormat=+b.dataset.f; save(); renderDoseFast(); });
   document.getElementById("one").onclick=()=>dosePack(1);
   document.getElementById("five").onclick=()=>dosePack(5);
   document.getElementById("all").onclick=()=>dosePack(can);
+  document.getElementById("toBag").onclick=()=>{ atelierSub="bag"; render(); };
   document.getElementById("back").onclick=()=>{ atelierSub="menu"; render(); };
 }
 function dosePack(n){
   const f=S.doseFormat;
   let did=0;
   for(let i=0;i<n;i++){
-    if(S.barG<f) break;
-    const stockG=Object.entries(S.sachets).reduce((a,[ff,nn])=>a+nn*+ff,0);
-    S.barG-=f;
-    S.sachetQ=avgMerge(stockG,S.sachetQ,f,S.barQ);
-    S.sachets[f]++;
+    if(!commitSachet(f, "Barrettes → sachets (express)")) break;
     did++;
   }
   if(!did){ toast("Pas assez de barrettes."); return; }
-  cause(`Dosage express ${did}×${f} g`,`Barrettes → sachets (tap)`);
   toast(did===1?"Sachet.":`${did} sachets. Suivant.`);
   save(); renderDoseFast();
 }
@@ -757,7 +951,7 @@ setInterval(()=>save(),2000);
 
 ensureDemand();
 render();
-toast("SnapShit · BeuherShit · 3D · liquide. Fais tourner.");
+toast("SnapShit · zip Schedule 1 · Beuher · liquide.");
 </script>
 </body>
 </html>
