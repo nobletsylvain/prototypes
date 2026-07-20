@@ -26,6 +26,11 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-u
 #view3d.on{display:block}
 #hud3d{position:absolute;inset:0;z-index:4;pointer-events:none}
 #hint3d{position:absolute;left:0;right:0;bottom:max(72px,env(safe-area-inset-bottom)+58px);text-align:center;font-size:12px;font-weight:700;color:rgba(255,255,255,.55);text-shadow:0 2px 8px #000;padding:0 12px}
+#load3d{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);z-index:6;display:none;
+  flex-direction:column;align-items:center;gap:12px;pointer-events:auto;text-align:center;width:78%;max-width:280px}
+#load3d.on{display:flex}
+#load3d .ld{font-size:13px;font-weight:800;color:rgba(255,236,210,.85);animation:ldPulse 1.2s ease-in-out infinite}
+@keyframes ldPulse{0%,100%{opacity:.5}50%{opacity:1}}
 #presslbl,#wraptext{position:absolute;left:50%;transform:translateX(-50%);bottom:max(118px,env(safe-area-inset-bottom)+104px);font-size:13px;font-weight:800;color:#fff;text-shadow:0 2px 8px #000;display:none;white-space:nowrap}
 #presslbl.show,#wraptext.show{display:block}
 #pressbar,#wrapbar{position:absolute;left:50%;transform:translateX(-50%);width:66%;max-width:300px;height:18px;bottom:max(92px,env(safe-area-inset-bottom)+78px);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;overflow:hidden;display:none}
@@ -223,6 +228,8 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
       <button id="seal">🔥 Sceller</button>
       <div id="fmtBar"></div>
       <div id="buyOverlay"></div>
+      <div id="load3d"><div class="ld">Chargement 3D…</div>
+        <button class="btn ghost" id="skip3d" style="width:auto;margin:0;padding:10px 16px">Continuer en 2D ▸</button></div>
     </div></div>
   </div>
   <div id="dock"></div>
@@ -240,12 +247,18 @@ const SAVE_VERSION = "17";
 const CUT_MIN = 1, CUT_MAX = 20, CUT_DEFAULT = 2;
 const SORT_POCKETS = [5, 20, 50, 100]; // trieuse 4+1 (+ reject / monnaie)
 const SORT_FEED = 0.28; // s entre chaque billet (machine, pas mini-jeu)
+const T3D_MS = 8000; // au-delà : réseau mobile qui bloque unpkg → bascule 2D
 let scene3d = null;
 let scene3dPromise = null;
+let no3d = false; // 3D KO cette session → coupe/appro passent en 2D (réessayable)
 async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
-    scene3dPromise = import("./scene3d.mjs?v=17").then((m) => {
+    scene3dPromise = Promise.race([
+      import("./scene3d.mjs?v=17"),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
+    ]).then((m) => {
+      if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
       scene3d = m;
       scene3d.mount(view3d, {
         pressbar: document.getElementById("pressbar"),
@@ -264,15 +277,7 @@ async function ensure3d() {
         getDoseFormat: () => S.cutSize || CUT_DEFAULT,
         getSachetCount: () => Object.values(S.sachets).reduce((a, n) => a + n, 0),
         toast,
-        onCut: (g) => {
-          const take = Math.min(S.painG, g);
-          S.painG -= take;
-          S.barQ = avgMerge(barsG(), S.barQ, take, S.painQ || 60);
-          const key = Math.max(1, Math.round(take));
-          S.bars[key] = (S.bars[key] || 0) + 1;
-          cause(`Coupe 3D ${take.toFixed(1)} g`, `Barrette ${key} g — taille fixée à la lame`);
-          save(); hud();
-        },
+        onCut: (g) => { applyCut(Math.min(S.painG, g), "Maintien lame 3D"); save(); hud(); },
         onSwipeRight: () => { if (tab === "atelier") { atelierSub = "bag"; render(); } },
         onTakeBar: () => {}, // wrap 3D retiré — la taille est figée à la coupe
         onReturnBar: () => {},
@@ -282,8 +287,9 @@ async function ensure3d() {
       return scene3d;
     }).catch((err) => {
       scene3dPromise = null;
+      no3d = true;
       console.error("3D indisponible", err);
-      toast("3D KO (réseau). Dosage express marche quand même.");
+      toast("3D indisponible (réseau) — mode 2D.");
       throw err;
     });
   }
@@ -344,6 +350,11 @@ const toastEl=document.getElementById("toast");
 const view3d=document.getElementById("view3d");
 const buyOverlay=document.getElementById("buyOverlay");
 const fmtBar=document.getElementById("fmtBar");
+const load3d=document.getElementById("load3d");
+document.getElementById("skip3d").onclick=()=>{ // sortie de secours pendant le chargement
+  atelierSub = atelierSub==="buy" ? "buy2d" : "cut2d";
+  render();
+};
 
 function save(){ store.set("save", JSON.stringify(S)); }
 function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>toastEl.classList.remove("show"),1800); }
@@ -355,6 +366,15 @@ function barCount(){ return Object.values(S.bars).reduce((a,n)=>a+n,0); }
 function finiG(){ return barsG() + Object.entries(S.sachets).reduce((a,[f,n])=>a+n*+f,0); }
 function avgMerge(oG,oQ,aG,aQ){ const t=oG+aG; return t<=0?0:(oG*oQ+aG*aQ)/t; }
 function fmtBars(){ const ks=sizesOf(S.bars); return ks.length?ks.map(f=>`${S.bars[f]}×${f}g`).join(" · "):"—"; }
+/** Une coupe = une barrette de la taille tranchée (partagé 3D / débit 2D). */
+function applyCut(take, why){
+  if(take<1) return;
+  S.painG-=take;
+  S.barQ=avgMerge(barsG(),S.barQ,take,S.painQ||60);
+  const key=Math.max(1,Math.round(take));
+  S.bars[key]=(S.bars[key]||0)+1;
+  cause(`Coupe ${take.toFixed(1)} g`,`Barrette ${key} g — ${why}`);
+}
 function fmtSachets(){ const ks=sizesOf(S.sachets); return ks.length?ks.map(f=>`${S.sachets[f]}×${f}g`).join(" · "):"—"; }
 function qualAvg(){ return Math.round(S.sachetQ || S.barQ || 60); }
 
@@ -383,19 +403,23 @@ function set3d(mode){
   buyOverlay.classList.toggle("on", mode==="buy");
   fmtBar.classList.toggle("on", mode==="cut"); // sélecteur de taille de coupe
   if(mode==="cut") renderFmtBar();
+  if(mode==="buy") renderBuyOverlay(); // liste dispo tout de suite, même si la 3D traîne
   if(mode==="hidden"){
+    load3d.classList.remove("on");
     if(scene3d) scene3d.setMode("hidden");
     return;
   }
+  if(!scene3d) load3d.classList.add("on"); // jamais d'écran noir muet pendant le chargement
   ensure3d().then((m)=>{
-    m.setMode(mode);
-    if(mode==="buy") renderBuyOverlay();
+    load3d.classList.remove("on");
+    if(tab!=="atelier"||(atelierSub!=="cut"&&atelierSub!=="buy")) return; // parti ailleurs entre-temps
+    m.setMode(atelierSub);
     m.resize();
   }).catch(()=>{
+    load3d.classList.remove("on");
     view3d.classList.remove("on");
     stage.classList.remove("behind");
-    atelierSub="bag";
-    render();
+    if(tab==="atelier"&&(atelierSub==="cut"||atelierSub==="buy")) render(); // no3d → routes 2D
   });
 }
 /** Taille de coupe — libre (CUT_MIN..CUT_MAX), défaut 2 g. Décidée ICI, pas au conditionnement. */
@@ -418,7 +442,11 @@ function renderFmtBar(){
 
 function render(){
   hud(); renderDock();
-  // Dosage = UI rapide (défaut atelier). 3D lazy = coupe/appro seulement.
+  // 3D KO cette session → coupe/appro basculent sur leurs équivalents 2D
+  if(tab==="atelier" && no3d){
+    if(atelierSub==="cut") atelierSub="cut2d";
+    if(atelierSub==="buy") atelierSub="buy2d";
+  }
   if(tab==="atelier" && (atelierSub==="cut"||atelierSub==="buy")){
     set3d(atelierSub); stage.innerHTML=`<div class="card muted" style="margin:40px 12px">Chargement 3D…</div>`; return;
   }
@@ -427,6 +455,8 @@ function render(){
   else if(tab==="snap") renderSnap();
   else if(tab==="atelier" && atelierSub==="bag") renderDoseBag();
   else if(tab==="atelier" && atelierSub==="dose") renderDoseFast();
+  else if(tab==="atelier" && atelierSub==="cut2d") renderCut2D();
+  else if(tab==="atelier" && atelierSub==="buy2d") renderBuy2D();
   else if(tab==="atelier") renderAtelierMenu();
   else if(tab==="beuher") renderBeuher();
   else if(tab==="cash") renderCashSorter();
@@ -770,7 +800,7 @@ function renderBuyOverlay(){
         <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-buy="${p.g}" ${locked||S.cash<p.price?"disabled":""}>${locked?"Standing":money(p.price)}</button></div>`; }).join("")}`;
   buyOverlay.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>{
     buyPain([PAIN_100,PAIN_250,PAIN_500].find(p=>p.g===+b.dataset.buy));
-    renderBuyOverlay(); scene3d.syncFromState();
+    renderBuyOverlay(); if(scene3d) scene3d.syncFromState();
   });
 }
 function buyPain(p){
@@ -780,6 +810,76 @@ function buyPain(p){
   if(finiG()+S.painG+p.g>planqueCap()){ toast("Planque pleine."); return; }
   S.cash-=p.price; S.painQ=avgMerge(S.painG,S.painQ,p.g,p.q); S.painG+=p.g;
   cause(`Achat ${p.label}`,`−${money(p.price)}`); toast("Pain reçu."); save(); hud();
+}
+
+/* ---------- Secours 2D (3D indisponible : unpkg bloqué sur mobile) ---------- */
+/** Découpe 2D — mêmes règles que la lame : taille décidée ici, une coupe = une barrette. */
+function renderCut2D(){
+  const cs=S.cutSize||CUT_DEFAULT;
+  stage.innerHTML=`
+    <h2>Découpe <span style="opacity:.5;font-size:13px">(2D)</span></h2>
+    <div class="sub">La 3D n'a pas chargé (réseau). Même règle : la taille se décide ICI, à la coupe.</div>
+    <div class="card">
+      <div class="stat"><span>Pain</span><b>${S.painG.toFixed(0)} g</b></div>
+      <div class="stat"><span>Barrettes</span><b>${fmtBars()}</b></div>
+      <div class="seg">
+        <button class="chip" data-d="-1">−</button>
+        <span class="chip on" style="pointer-events:none">coupe ${cs} g</span>
+        <button class="chip" data-d="1">+</button>
+        ${[2,5,8].map(x=>`<button class="chip ${cs===x?"on":""}" data-set="${x}">${x}g</button>`).join("")}
+      </div>
+      <button class="btn ok" id="c1" ${S.painG<1?"disabled":""}>✂ Couper 1 barrette</button>
+      <button class="btn ok" id="c5" ${S.painG<1?"disabled":""}>✂ ×5</button>
+      ${S.painG<1?`<button class="btn ghost" id="gBuy2">◎ Appro d'abord</button>`:""}
+      <button class="btn ghost" id="gBag2">📦 Table zip ▸</button>
+      <button class="btn ghost" id="retry3d">↻ Réessayer la 3D</button>
+      <button class="btn ghost" id="menu2">↩ Atelier</button>
+    </div>`;
+  stage.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{
+    S.cutSize=clamp((S.cutSize||CUT_DEFAULT)+ +b.dataset.d, CUT_MIN, CUT_MAX); save(); renderCut2D();
+  });
+  stage.querySelectorAll("[data-set]").forEach(b=>b.onclick=()=>{ S.cutSize=+b.dataset.set; save(); renderCut2D(); });
+  document.getElementById("c1").onclick=()=>manualCut(1);
+  document.getElementById("c5").onclick=()=>manualCut(5);
+  const gb=document.getElementById("gBuy2"); if(gb) gb.onclick=()=>{ atelierSub="buy"; render(); };
+  document.getElementById("gBag2").onclick=()=>{ atelierSub="bag"; render(); };
+  document.getElementById("retry3d").onclick=()=>{ no3d=false; atelierSub="cut"; render(); };
+  document.getElementById("menu2").onclick=()=>{ atelierSub="menu"; render(); };
+}
+function manualCut(n){
+  let did=0;
+  for(let i=0;i<n;i++){
+    if(S.painG<1) break;
+    applyCut(Math.min(S.painG,S.cutSize||CUT_DEFAULT), "débit 2D");
+    did++;
+  }
+  if(!did){ toast("Plus de pain. Appro d'abord."); return; }
+  toast(did===1?"Barrette.":`${did} barrettes.`);
+  save(); hud(); renderCut2D();
+}
+/** Appro 2D — la même liste que l'overlay 3D, en pleine page. */
+function renderBuy2D(){
+  const items=[PAIN_100,PAIN_250]; if(S.reput>=40) items.push(PAIN_500);
+  stage.innerHTML=`
+    <h2>Appro <span style="opacity:.5;font-size:13px">(2D)</span></h2>
+    <div class="sub">La visionneuse 3D n'a pas chargé — la liste marche pareil. Propre uniquement.</div>
+    <div class="card">
+      <div class="stat"><span>Propre</span><b>${money(S.cash)}</b></div>
+      <div class="stat"><span>Planque</span><b>${money(finiG()+S.painG)} / ${planqueCap()} g</b></div>
+      ${items.map(p=>{ const locked=p.reputGate&&S.reput<p.reputGate;
+        return `<div class="stat"><span>${p.label} · ${p.g} g · q${p.q}</span>
+          <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-buy="${p.g}" ${locked||S.cash<p.price?"disabled":""}>${locked?"Standing":money(p.price)}</button></div>`; }).join("")}
+      <button class="btn ok" id="gCut2">✂ Aller couper</button>
+      <button class="btn ghost" id="retry3d">↻ Réessayer la visionneuse 3D</button>
+      <button class="btn ghost" id="menu2">↩ Atelier</button>
+    </div>`;
+  stage.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>{
+    buyPain([PAIN_100,PAIN_250,PAIN_500].find(p=>p.g===+b.dataset.buy));
+    renderBuy2D();
+  });
+  document.getElementById("gCut2").onclick=()=>{ atelierSub="cut"; render(); };
+  document.getElementById("retry3d").onclick=()=>{ no3d=false; atelierSub="buy"; render(); };
+  document.getElementById("menu2").onclick=()=>{ atelierSub="menu"; render(); };
 }
 
 /* ---------- BeuherShit ---------- */

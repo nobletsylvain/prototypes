@@ -9,6 +9,31 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-20 — La Loupe : secours 2D pour la coupe et l'appro (retour de test tel)
+
+Retour de Sylvain sur tel après la v17 : « broken — plus la possibilité de
+tester avec Onion Market [l'appro] ou la coupe ». Diagnostic : les deux écrans
+sont les vues 3D, et sur mobile unpkg (qui sert Three.js) peut être bloqué ou
+traîner — problème déjà documenté (« Sur mobile, unpkg bloqué cassait TOUT le
+proto », d'où le lazy-load v7). En faisant de la coupe 3D la scène PAR DÉFAUT
+de l'atelier, la v17 a remis ce mur en entrée : import qui pend = écran noir
+sans issue (le « Chargement 3D… » était rendu DERRIÈRE la vue 3D).
+
+- **Timeout 8 s** sur le chargement 3D (Promise.race) → échec ou délai =
+  bascule 2D, réessayable (`no3d` en mémoire session, pas persisté).
+- **Indicateur visible + sortie de secours** : « Chargement 3D… » + bouton
+  « Continuer en 2D ▸ » DANS la vue 3D — plus jamais d'écran noir muet.
+- **Découpe 2D** (`renderCut2D`) : mêmes règles que la lame — taille décidée
+  ici (− / + / chips), une coupe = une barrette (`applyCut` partagé avec le
+  hook 3D). La boucle reste testable sans WebGL.
+- **Appro 2D** (`renderBuy2D`) : la liste d'achat en pleine page ; et l'overlay
+  d'achat s'affiche désormais IMMÉDIATEMENT en mode 3D (il est DOM-only),
+  achetable même pendant que la visionneuse charge.
+- Pas de bump de save (aucun changement d'état persisté).
+- Vérifs headless : three coupé net → cut2d/buy2d + achat + 5 coupes + zip OK ;
+  three qui pend → indicateur + skip OK, timeout 8 s → bascule auto ;
+  chemin nominal 3D revalidé.
+
 ## 2026-07-20 — La Loupe : la taille se décide à la lame (anti-triche) + rail atelier
 
 Retours de Sylvain sur la dernière build La Loupe — cinq changements, save
