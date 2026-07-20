@@ -25,23 +25,23 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-u
 #view3d{display:none;position:absolute;inset:0;z-index:3;touch-action:none;background:#14101b}
 #view3d.on{display:block}
 #hud3d{position:absolute;inset:0;z-index:4;pointer-events:none}
-#hint3d{position:absolute;left:0;right:0;bottom:max(72px,env(safe-area-inset-bottom)+58px);text-align:center;font-size:12px;font-weight:700;color:rgba(255,255,255,.55);text-shadow:0 2px 8px #000;padding:0 12px}
+#hint3d{position:absolute;left:0;right:0;bottom:max(72px, env(safe-area-inset-bottom) + 58px);text-align:center;font-size:12px;font-weight:700;color:rgba(255,255,255,.55);text-shadow:0 2px 8px #000;padding:0 12px}
 #load3d{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);z-index:6;display:none;
   flex-direction:column;align-items:center;gap:12px;pointer-events:auto;text-align:center;width:78%;max-width:280px}
 #load3d.on{display:flex}
 #load3d .ld{font-size:13px;font-weight:800;color:rgba(255,236,210,.85);animation:ldPulse 1.2s ease-in-out infinite}
 @keyframes ldPulse{0%,100%{opacity:.5}50%{opacity:1}}
-#presslbl,#wraptext{position:absolute;left:50%;transform:translateX(-50%);bottom:max(118px,env(safe-area-inset-bottom)+104px);font-size:13px;font-weight:800;color:#fff;text-shadow:0 2px 8px #000;display:none;white-space:nowrap}
+#presslbl,#wraptext{position:absolute;left:50%;transform:translateX(-50%);bottom:max(118px, env(safe-area-inset-bottom) + 104px);font-size:13px;font-weight:800;color:#fff;text-shadow:0 2px 8px #000;display:none;white-space:nowrap}
 #presslbl.show,#wraptext.show{display:block}
-#pressbar,#wrapbar{position:absolute;left:50%;transform:translateX(-50%);width:66%;max-width:300px;height:18px;bottom:max(92px,env(safe-area-inset-bottom)+78px);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;overflow:hidden;display:none}
+#pressbar,#wrapbar{position:absolute;left:50%;transform:translateX(-50%);width:66%;max-width:300px;height:18px;bottom:max(92px, env(safe-area-inset-bottom) + 78px);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;overflow:hidden;display:none}
 #pressbar.show,#wrapbar.show{display:block}
 #pressfill{height:100%;width:0;background:linear-gradient(90deg,#ff9f6b,#ff5e1a)}
 #wrapfill{height:100%;width:0;background:linear-gradient(90deg,#7df9ff,#9be37d)}
-#seal{position:absolute;left:50%;transform:translateX(-50%);bottom:max(88px,env(safe-area-inset-bottom)+74px);display:none;pointer-events:auto;background:#ff7a3c;border:none;color:#fff;font-weight:800;font-size:16px;padding:12px 24px;border-radius:14px;z-index:5}
+#seal{position:absolute;left:50%;transform:translateX(-50%);bottom:max(88px, env(safe-area-inset-bottom) + 74px);display:none;pointer-events:auto;background:#ff7a3c;border:none;color:#fff;font-weight:800;font-size:16px;padding:12px 24px;border-radius:14px;z-index:5}
 #seal.show{display:block}
 #fmtBar{position:absolute;top:10px;left:10px;right:10px;z-index:5;pointer-events:auto;display:none;gap:6px;flex-wrap:wrap;justify-content:center}
 #fmtBar.on{display:flex}
-#buyOverlay{position:absolute;left:10px;right:10px;bottom:max(70px,env(safe-area-inset-bottom)+56px);z-index:5;pointer-events:auto;display:none;max-height:42%;overflow:auto;background:rgba(20,16,14,.92);border:1px solid var(--line);border-radius:16px;padding:12px}
+#buyOverlay{position:absolute;left:10px;right:10px;bottom:max(70px, env(safe-area-inset-bottom) + 56px);z-index:5;pointer-events:auto;display:none;max-height:42%;overflow:auto;background:rgba(20,16,14,.92);border:1px solid var(--line);border-radius:16px;padding:12px}
 #buyOverlay.on{display:block}
 #dock{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:8px 8px max(10px,env(safe-area-inset-bottom));background:rgba(0,0,0,.6);border-top:1px solid var(--line);z-index:30}
 .tab{appearance:none;border:0;background:transparent;color:var(--muted);font-size:10px;font-weight:700;padding:8px 2px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:3px}
@@ -62,6 +62,9 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .chip{padding:7px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:12px;font-weight:800;color:var(--muted)}
 .chip.on{color:#fff;border-color:rgba(255,180,84,.55);background:rgba(255,180,84,.16)}
+.chip.cs{width:100%;text-align:center;pointer-events:none;background:rgba(0,0,0,.45);border-color:transparent;
+  color:rgba(255,236,210,.85);font-weight:700;font-size:11px;padding:5px 8px}
+.chip.cs b{color:#ffe4b5}
 .stat{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed rgba(255,255,255,.06);gap:8px}
 .stat b{font-weight:800;text-align:right}
 .bar{height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin:6px 0}
@@ -255,7 +258,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=17"),
+      import("./scene3d.mjs?v=19"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -270,14 +273,21 @@ async function ensure3d() {
         seal: document.getElementById("seal"),
         hint: document.getElementById("hint3d"),
       }, {
-        getPainG: () => S.painG,
+        getPainG: () => { const p = activePain(); return p ? p.g : 0; },
+        getStash: () => ({ sizes: S.pains.map((p) => Math.round(p.g)), sel: S.painSel }),
+        onSelectPain: (i) => {
+          if (i >= 0 && i < S.pains.length && i !== S.painSel) {
+            S.painSel = i; save(); renderFmtBar();
+            toast(`Pain ${Math.round(S.pains[i].g)} g sur la planche.`);
+          }
+        },
         getBarG: () => barsG(),
         getBarCount: () => barCount(),
         getCutSize: () => S.cutSize || CUT_DEFAULT,
         getDoseFormat: () => S.cutSize || CUT_DEFAULT,
         getSachetCount: () => Object.values(S.sachets).reduce((a, n) => a + n, 0),
         toast,
-        onCut: (g) => { applyCut(Math.min(S.painG, g), "Maintien lame 3D"); save(); hud(); },
+        onCut: (g) => { applyCut(g, "maintien lame 3D"); save(); hud(); renderFmtBar(); },
         onSwipeRight: () => { if (tab === "atelier") { atelierSub = "bag"; render(); } },
         onTakeBar: () => {}, // wrap 3D retiré — la taille est figée à la coupe
         onReturnBar: () => {},
@@ -297,9 +307,10 @@ async function ensure3d() {
 }
 const LS = "loupe_";
 const START_CASH = 220;
+// Une savonnette = 250 g max (réalisme filière) — au-delà, on livre un LOT de pains.
 const PAIN_100 = { g:100, price:200, q:52, label:"Pain 100" };
 const PAIN_250 = { g:250, price:1700, q:78, label:"Pain 250", reputGate:40 };
-const PAIN_500 = { g:500, price:3200, q:70, label:"Lot 500", reputGate:65 };
+const PAIN_500 = { g:500, price:3200, q:70, label:"Lot 500 (2×250)", reputGate:65, split:250 };
 const PLANQUE_CAP_BASE = 250;
 const DIRTY_HOLD_SOFT = 180, DIRTY_HOLD_HARD = 450, BUNDLE_SIZE = 5, COUNTER_RATE = 40;
 const UPG = {
@@ -323,7 +334,7 @@ const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 function defaultState(){
   return {
     cash: START_CASH, dirty:0, heat:0, reput:20, day:1, clock:0,
-    painG:0, painQ:0, bars:{}, barQ:60, wasteG:0,
+    pains:[], painSel:0, bars:{}, barQ:60, wasteG:0,
     sachets:{}, sachetQ:60, cutSize:CUT_DEFAULT,
     orders:[], runs:[], bills:[],
     bundles:{5:0,20:0,50:0,100:0}, _pile:{5:0,20:0,50:0,100:0},
@@ -340,6 +351,11 @@ if (store.get("ver") !== SAVE_VERSION) {
   store.set("ver", SAVE_VERSION);
 }
 try { const raw=store.get("save"); if(raw) S={...defaultState(), ...JSON.parse(raw)}; } catch {}
+// Migration douce v17 : painG (pool de grammes) → pains (liste discrète), sans reset
+if(!Array.isArray(S.pains)) S.pains=[];
+if(S.painG>0 && !S.pains.length) S.pains=[{ g:S.painG, q:S.painQ||60 }];
+S.painG=0; S.painQ=0; // évite une double migration au prochain chargement
+if(!(S.painSel>=0) || S.painSel>=S.pains.length) S.painSel=0;
 
 let tab="home", toastT=0, atelierSub="menu", cashSub="sorter";
 /** Session trieuse (non persistée) — feel Kisan 4+1 fitness sorter. */
@@ -366,14 +382,21 @@ function barCount(){ return Object.values(S.bars).reduce((a,n)=>a+n,0); }
 function finiG(){ return barsG() + Object.entries(S.sachets).reduce((a,[f,n])=>a+n*+f,0); }
 function avgMerge(oG,oQ,aG,aQ){ const t=oG+aG; return t<=0?0:(oG*oQ+aG*aQ)/t; }
 function fmtBars(){ const ks=sizesOf(S.bars); return ks.length?ks.map(f=>`${S.bars[f]}×${f}g`).join(" · "):"—"; }
-/** Une coupe = une barrette de la taille tranchée (partagé 3D / débit 2D). */
+function activePain(){ return S.pains[S.painSel]||S.pains[0]||null; }
+function painsG(){ return S.pains.reduce((a,p)=>a+p.g,0); }
+function fmtPains(){ return S.pains.length?S.pains.map((p,i)=>`${i===S.painSel?"▶":""}${Math.round(p.g)}g`).join(" · "):"—"; }
+/** Une coupe = une barrette, prise sur le PAIN ACTIF (partagé 3D / débit 2D).
+    La qualité de CE pain part dans la barrette. Retourne false si rien à couper. */
 function applyCut(take, why){
-  if(take<1) return;
-  S.painG-=take;
-  S.barQ=avgMerge(barsG(),S.barQ,take,S.painQ||60);
+  const p=activePain(); if(!p) return false;
+  take=Math.min(take,p.g); if(take<1) return false;
+  p.g-=take;
+  S.barQ=avgMerge(barsG(),S.barQ,take,p.q||60);
   const key=Math.max(1,Math.round(take));
   S.bars[key]=(S.bars[key]||0)+1;
   cause(`Coupe ${take.toFixed(1)} g`,`Barrette ${key} g — ${why}`);
+  if(p.g<1){ S.pains.splice(S.pains.indexOf(p),1); S.painSel=0; } // pain fini → au suivant
+  return true;
 }
 function fmtSachets(){ const ks=sizesOf(S.sachets); return ks.length?ks.map(f=>`${S.sachets[f]}×${f}g`).join(" · "):"—"; }
 function qualAvg(){ return Math.round(S.sachetQ || S.barQ || 60); }
@@ -422,14 +445,20 @@ function set3d(mode){
     if(tab==="atelier"&&(atelierSub==="cut"||atelierSub==="buy")) render(); // no3d → routes 2D
   });
 }
-/** Taille de coupe — libre (CUT_MIN..CUT_MAX), défaut 2 g. Décidée ICI, pas au conditionnement. */
+/** Taille de coupe — libre (CUT_MIN..CUT_MAX), défaut 2 g. Décidée ICI, pas au conditionnement.
+    + ligne d'état : restant du pain actif, stock de pains, barrettes déjà coupées. */
 function renderFmtBar(){
+  if(!fmtBar.classList.contains("on")) return;
   const cs=S.cutSize||CUT_DEFAULT;
+  const p=activePain();
+  const others=S.pains.length-(p?1:0);
   fmtBar.innerHTML=`
     <button class="chip" data-d="-1">−</button>
     <span class="chip on" style="pointer-events:none">coupe ${cs} g</span>
     <button class="chip" data-d="1">+</button>`
-    +[2,5,8].map(x=>`<button class="chip ${cs===x?"on":""}" data-set="${x}">${x}g</button>`).join("");
+    +[2,5,8].map(x=>`<button class="chip ${cs===x?"on":""}" data-set="${x}">${x}g</button>`).join("")
+    +`<span class="chip cs">${p?`Pain : <b>${Math.round(p.g)} g</b>`:"Pas de pain — appro"}${others>0?` · réserve ${others} pain${others>1?"s":""} (${Math.round(painsG()-(p?p.g:0))} g)`:""}</span>
+    <span class="chip cs">Barrettes : ${fmtBars()}</span>`;
   fmtBar.querySelectorAll("[data-d]").forEach(b=>b.onclick=e=>{
     e.stopPropagation();
     S.cutSize=clamp((S.cutSize||CUT_DEFAULT)+ +b.dataset.d, CUT_MIN, CUT_MAX);
@@ -599,7 +628,7 @@ function renderAtelierMenu(){
     <h2>Atelier</h2>
     <div class="sub">La taille se décide à la lame. Le zip ne fait qu'emballer ce qui existe. Express = quand le geste t'ennuie (R6).</div>
     <div class="card">
-      <div class="stat"><span>Pain</span><b>${S.painG.toFixed(0)} g</b></div>
+      <div class="stat"><span>Pains</span><b>${fmtPains()} (${Math.round(painsG())} g)</b></div>
       <div class="stat"><span>Barrettes</span><b>${fmtBars()}</b></div>
       <div class="stat"><span>Sachets</span><b>${fmtSachets()}</b></div>
     </div>
@@ -794,7 +823,7 @@ function dosePack(f,n){
 function renderBuyOverlay(){
   const items=[PAIN_100,PAIN_250]; if(S.reput>=40) items.push(PAIN_500);
   buyOverlay.innerHTML=`<h3 style="margin:0 0 6px">Appro</h3>
-    <div class="muted" style="margin-bottom:8px">Propre uniquement. Planque : ${money(finiG()+S.painG)}/${planqueCap()} g (pain + barrettes + sachets).</div>
+    <div class="muted" style="margin-bottom:8px">Propre uniquement. Planque : ${money(finiG()+painsG())}/${planqueCap()} g (pains + barrettes + sachets).</div>
     ${items.map(p=>{ const locked=p.reputGate&&S.reput<p.reputGate;
       return `<div class="stat"><span>${p.label}</span>
         <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-buy="${p.g}" ${locked||S.cash<p.price?"disabled":""}>${locked?"Standing":money(p.price)}</button></div>`; }).join("")}`;
@@ -807,12 +836,16 @@ function buyPain(p){
   if(!p) return;
   if(p.reputGate&&S.reput<p.reputGate){ toast("Standing insuffisant."); return; }
   if(S.cash<p.price){ toast("Propre insuffisant."); return; }
-  if(finiG()+S.painG+p.g>planqueCap()){
-    // la planque compte TOUT (pain + barrettes + sachets) — dire les chiffres, pas juste « pleine »
-    toast(`Planque ${money(finiG()+S.painG)}/${planqueCap()} g — pas la place pour +${p.g} g. Vends, ou agrandis (Réinvest, Home).`);
+  if(finiG()+painsG()+p.g>planqueCap()){
+    // la planque compte TOUT (pains + barrettes + sachets) — dire les chiffres, pas juste « pleine »
+    toast(`Planque ${money(finiG()+painsG())}/${planqueCap()} g — pas la place pour +${p.g} g. Vends, ou agrandis (Réinvest, Home).`);
     return;
   }
-  S.cash-=p.price; S.painQ=avgMerge(S.painG,S.painQ,p.g,p.q); S.painG+=p.g;
+  S.cash-=p.price;
+  // chaque pain garde SA qualité ; un lot livre plusieurs savonnettes (split)
+  const chunk=p.split||p.g;
+  for(let left=p.g; left>0; left-=chunk) S.pains.push({ g:Math.min(chunk,left), q:p.q });
+  if(S.painSel>=S.pains.length) S.painSel=0;
   cause(`Achat ${p.label}`,`−${money(p.price)}`); toast("Pain reçu."); save(); hud();
 }
 
@@ -824,17 +857,19 @@ function renderCut2D(){
     <h2>Découpe <span style="opacity:.5;font-size:13px">(2D)</span></h2>
     <div class="sub">La 3D n'a pas chargé (réseau). Même règle : la taille se décide ICI, à la coupe.</div>
     <div class="card">
-      <div class="stat"><span>Pain</span><b>${S.painG.toFixed(0)} g</b></div>
+      <div class="stat"><span>Pain sur la planche</span><b>${activePain()?Math.round(activePain().g)+" g":"—"}</b></div>
       <div class="stat"><span>Barrettes</span><b>${fmtBars()}</b></div>
+      ${S.pains.length>1?`<div class="muted" style="margin-top:6px">Choisir le pain à découper :</div>
+      <div class="seg">${S.pains.map((p,i)=>`<button class="chip ${i===S.painSel?"on":""}" data-p="${i}">${Math.round(p.g)} g</button>`).join("")}</div>`:""}
       <div class="seg">
         <button class="chip" data-d="-1">−</button>
         <span class="chip on" style="pointer-events:none">coupe ${cs} g</span>
         <button class="chip" data-d="1">+</button>
         ${[2,5,8].map(x=>`<button class="chip ${cs===x?"on":""}" data-set="${x}">${x}g</button>`).join("")}
       </div>
-      <button class="btn ok" id="c1" ${S.painG<1?"disabled":""}>✂ Couper 1 barrette</button>
-      <button class="btn ok" id="c5" ${S.painG<1?"disabled":""}>✂ ×5</button>
-      ${S.painG<1?`<button class="btn ghost" id="gBuy2">◎ Appro d'abord</button>`:""}
+      <button class="btn ok" id="c1" ${!activePain()?"disabled":""}>✂ Couper 1 barrette</button>
+      <button class="btn ok" id="c5" ${!activePain()?"disabled":""}>✂ ×5</button>
+      ${!activePain()?`<button class="btn ghost" id="gBuy2">◎ Appro d'abord</button>`:""}
       <button class="btn ghost" id="gBag2">📦 Table zip ▸</button>
       <button class="btn ghost" id="retry3d">↻ Réessayer la 3D</button>
       <button class="btn ghost" id="menu2">↩ Atelier</button>
@@ -843,6 +878,7 @@ function renderCut2D(){
     S.cutSize=clamp((S.cutSize||CUT_DEFAULT)+ +b.dataset.d, CUT_MIN, CUT_MAX); save(); renderCut2D();
   });
   stage.querySelectorAll("[data-set]").forEach(b=>b.onclick=()=>{ S.cutSize=+b.dataset.set; save(); renderCut2D(); });
+  stage.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{ S.painSel=+b.dataset.p; save(); renderCut2D(); });
   document.getElementById("c1").onclick=()=>manualCut(1);
   document.getElementById("c5").onclick=()=>manualCut(5);
   const gb=document.getElementById("gBuy2"); if(gb) gb.onclick=()=>{ atelierSub="buy"; render(); };
@@ -853,8 +889,7 @@ function renderCut2D(){
 function manualCut(n){
   let did=0;
   for(let i=0;i<n;i++){
-    if(S.painG<1) break;
-    applyCut(Math.min(S.painG,S.cutSize||CUT_DEFAULT), "débit 2D");
+    if(!applyCut(S.cutSize||CUT_DEFAULT, "débit 2D")) break;
     did++;
   }
   if(!did){ toast("Plus de pain. Appro d'abord."); return; }
@@ -869,7 +904,8 @@ function renderBuy2D(){
     <div class="sub">La visionneuse 3D n'a pas chargé — la liste marche pareil. Propre uniquement.</div>
     <div class="card">
       <div class="stat"><span>Propre</span><b>${money(S.cash)}</b></div>
-      <div class="stat"><span>Planque (pain + barrettes + sachets)</span><b>${money(finiG()+S.painG)} / ${planqueCap()} g</b></div>
+      <div class="stat"><span>Planque (pains + barrettes + sachets)</span><b>${money(finiG()+painsG())} / ${planqueCap()} g</b></div>
+      <div class="stat"><span>Pains en stock</span><b>${fmtPains()}</b></div>
       ${items.map(p=>{ const locked=p.reputGate&&S.reput<p.reputGate;
         return `<div class="stat"><span>${p.label} · ${p.g} g · q${p.q}</span>
           <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-buy="${p.g}" ${locked||S.cash<p.price?"disabled":""}>${locked?"Standing":money(p.price)}</button></div>`; }).join("")}

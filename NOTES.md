@@ -9,6 +9,54 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-20 — La Loupe : pains discrets, réserve sélectionnable, fin du « couper dans le vide »
+
+Retours de test tel (screenshot) sur l'écran de coupe : pas de restant visible
+sur le pain, pas d'état du stock/barrettes, coupe « dans le vide » quand le
+pain dépasse ce que la planche affiche, et demande d'afficher les savonnettes
+en réserve, sélectionnables. Quatre réponses :
+
+- **painG (pool de grammes) → S.pains (liste discrète {g, q})** : chaque pain
+  garde SA qualité (elle part dans les barrettes à la coupe — avant, tout se
+  moyennait dans painQ). **Migration douce** sans reset : painG>0 devient un
+  pain unique, painG remis à 0 (garde anti double-migration). Pas de bump.
+- **UI de coupe** : la barre du haut affiche « Pain : X g · réserve N pains
+  (Y g) » + « Barrettes : … », mise à jour à chaque coupe.
+- **Fin du « couper dans le vide »** : le visuel plafonne à LOAF_L (170 g) ;
+  quand la planche est visuellement vide mais qu'il reste des grammes, elle se
+  **recharge** (toast « La suite du pain / Pain suivant »). Vérifié : pain
+  190 g, 9×20 g débités = conservation exacte.
+- **Réserve au fond de l'établi** : un bloc par pain (taille ∝ grammes), le
+  sélectionné surligné + surélevé ; **tap = le mettre sur la planche**
+  (raycast ; garde : le relâcher d'un maintien-coupe ne compte pas comme tap).
+  Équivalent chips dans la découpe 2D de secours.
+- **Fix transversal déniché au passage** : le temps de presse était compté en
+  dt simulé **clampé** (0.05/frame) → à bas fps (téléphone qui chauffe,
+  headless à 4 fps), le maintien de 0.6 s réclamait 3 s+ de vrai temps. Le
+  geste se mesure désormais en **temps réel** (la physique des tranches garde
+  le dt clampé).
+- **Réalisme (remarque de Sylvain)** : une savonnette = **250 g max**. Le
+  « Lot 500 » livre donc **2×250 g** (champ `split` sur le produit), pas une
+  plaque de 500 g — deux blocs dans la réserve, même prix, même total.
+
+## 2026-07-20 — La Loupe : les labels 3D s'empilaient en haut (CSS max() invalide)
+
+Screenshot de Sylvain : dans la coupe 3D, « Maintiens pour couper », l'indice
+swipe et le sélecteur de taille se superposaient en haut, illisible. Cause :
+`bottom:max(72px,env(safe-area-inset-bottom)+58px)` — en CSS, `+`/`-` dans
+`max()`/`calc()` exigent des ESPACES autour, sinon la déclaration entière est
+invalide → `bottom:auto` → les éléments retombaient à leur position statique,
+en haut du HUD. Bug présent depuis l'origine du proto (5 occurrences : hint,
+labels press/wrap, jauges, bouton sceller, overlay d'appro), révélé par le
+texte d'indice rallongé en v17.
+
+- Espaces ajoutés → tout est réellement ancré en bas, au-dessus du dock.
+- Dédup : le hint de coupe ne répète plus « Maintiens » (déjà dit par le
+  label de presse) — il ne dit que « Swipe ▸ conditionnement ».
+- Vérifié en headless : sélecteur seul en haut, labels lisibles en bas.
+- Leçon générique : `env()` dans un calcul sans espaces passe silencieusement
+  à la trappe — à vérifier dans les autres protos si le symptôme réapparaît.
+
 ## 2026-07-20 — La Loupe : « Planque pleine » doit dire les chiffres
 
 Retour de test tel : « je n'ai pas pu acheter, ça disait planque pleine alors
