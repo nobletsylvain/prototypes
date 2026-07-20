@@ -6,21 +6,21 @@
 export const PINS = {
   planque: {
     id: "planque",
-    x: 38, y: 48,
+    x: 42, y: 46,
     kind: "planque",
     title: "Ta planque",
     blurb: "Cage du R+3 · pains, barrettes, sachets. Plus c'est plein, plus ça chauffe.",
   },
   pdv: {
     id: "pdv",
-    x: 44, y: 52,
+    x: 48, y: 58,
     kind: "pdv",
     title: "Le corner",
     blurb: "Le spot que Karim t'a filé. Tu vitrines ici — les clients arrivent en DM.",
   },
   rival: {
     id: "rival",
-    x: 62, y: 40,
+    x: 64, y: 38,
     kind: "rival",
     title: "Le gros",
     blurb: "Il tient l'autre bout. Pour l'instant il te regarde. Plus tard, il bougera.",
@@ -28,7 +28,7 @@ export const PINS = {
   },
   rail: {
     id: "rail",
-    x: 78, y: 18,
+    x: 82, y: 16,
     kind: "info",
     title: "Les voies",
     blurb: "Les grosses livraisons passent par là. Pas encore ton problème.",
