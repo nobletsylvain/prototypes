@@ -9,6 +9,24 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-20 — La Loupe : les labels 3D s'empilaient en haut (CSS max() invalide)
+
+Screenshot de Sylvain : dans la coupe 3D, « Maintiens pour couper », l'indice
+swipe et le sélecteur de taille se superposaient en haut, illisible. Cause :
+`bottom:max(72px,env(safe-area-inset-bottom)+58px)` — en CSS, `+`/`-` dans
+`max()`/`calc()` exigent des ESPACES autour, sinon la déclaration entière est
+invalide → `bottom:auto` → les éléments retombaient à leur position statique,
+en haut du HUD. Bug présent depuis l'origine du proto (5 occurrences : hint,
+labels press/wrap, jauges, bouton sceller, overlay d'appro), révélé par le
+texte d'indice rallongé en v17.
+
+- Espaces ajoutés → tout est réellement ancré en bas, au-dessus du dock.
+- Dédup : le hint de coupe ne répète plus « Maintiens » (déjà dit par le
+  label de presse) — il ne dit que « Swipe ▸ conditionnement ».
+- Vérifié en headless : sélecteur seul en haut, labels lisibles en bas.
+- Leçon générique : `env()` dans un calcul sans espaces passe silencieusement
+  à la trappe — à vérifier dans les autres protos si le symptôme réapparaît.
+
 ## 2026-07-20 — La Loupe : « Planque pleine » doit dire les chiffres
 
 Retour de test tel : « je n'ai pas pu acheter, ça disait planque pleine alors

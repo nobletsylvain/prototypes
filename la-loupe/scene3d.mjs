@@ -394,7 +394,7 @@ function setVisibleGroups() {
   if (benchCond) benchCond.visible = mode === "cond";
   if (buyGroup) buyGroup.visible = mode === "buy";
   if (hintEl) {
-    if (mode === "cut") hintEl.textContent = "Maintiens pour trancher · swipe ▸ conditionnement";
+    if (mode === "cut") hintEl.textContent = "Swipe ▸ conditionnement"; // « Maintiens » est déjà dit par #presslbl
     else if (mode === "cond") hintEl.textContent = "Tap = prendre · glisse ⬆️ = enrouler · 🔥 sceller";
     else if (mode === "buy") hintEl.textContent = "Aperçu matière · achat dans la liste";
     else hintEl.textContent = "";
