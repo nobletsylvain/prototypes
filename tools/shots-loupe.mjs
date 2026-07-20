@@ -17,7 +17,8 @@ const OUT = path.join(__dirname, "shots", "la-loupe");
 mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const MIME = { ".html": "text/html", ".mjs": "text/javascript", ".js": "text/javascript", ".png": "image/png" };
+const MIME = { ".html": "text/html", ".mjs": "text/javascript", ".js": "text/javascript",
+  ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg" };
 const server = http.createServer((req, res) => {
   const p = path.join(ROOT, decodeURIComponent(new URL(req.url, "http://x").pathname));
   if (!p.startsWith(ROOT) || !existsSync(p)) { res.writeHead(404); res.end(); return; }
@@ -51,9 +52,21 @@ page.on("request", (req) => {
 await page.goto(`http://127.0.0.1:${PORT}/la-loupe/index.html`, { waitUntil: "load" });
 await sleep(1200);
 const shot = (n) => page.screenshot({ path: path.join(OUT, n) });
-await shot("01-home.png");
+await shot("01-quartier-intro.png");
 
-// Appro : acheter Pain 100 (visionneuse 3D lazy)
+// Front Karim → carte avec dette + pins
+const take = await page.$("#takeFront");
+if (take) { await take.click(); await sleep(600); }
+await page.waitForSelector(".map-wrap img", { timeout: 8000 });
+await sleep(400);
+await shot("01b-quartier-map.png");
+
+// Pin planque
+await page.click('.map-pin.planque');
+await sleep(400);
+await shot("01c-pin-planque.png");
+
+// Appro : acheter Pain 100 (visionneuse 3D lazy) — via pin ou apps
 await page.click('[data-go="buy"]');
 await page.waitForSelector("#view3d canvas", { timeout: 20000 });
 await sleep(2200);
