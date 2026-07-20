@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>La Loupe — rêve</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+:root{--line:rgba(255,220,160,.14);--muted:rgba(255,236,210,.55);--cash:#9be37d;--dirty:#e8c96a;--heat:#ff8a6a;--accent:#ffb454;--snap:#ff2d55;--beuher:#00c46a;--shelter:#6ec8ff}
+html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-ui,sans-serif;color:#f4ebe0;background:#07060a}
+#phone{position:fixed;inset:0;max-width:440px;margin:0 auto;display:flex;flex-direction:column;
+  background:radial-gradient(120% 80% at 50% -10%,#3a1830 0%,#141018 45%,#07060a 100%);
+  border-left:1px solid var(--line);border-right:1px solid var(--line)}
+#top{padding:max(10px,env(safe-area-inset-top)) 14px 8px;display:grid;gap:6px;background:rgba(0,0,0,.55);
+  border-bottom:1px solid var(--line);z-index:30;backdrop-filter:blur(12px)}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.pill{font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);white-space:nowrap}
+.pill.cash{color:var(--cash)}.pill.dirty{color:var(--dirty)}.pill.heat{color:var(--heat)}.pill.rep{color:#9ec9ff}.pill.expo{color:#ff8ab8}
+#toast{position:fixed;left:50%;top:20%;transform:translate(-50%,8px);opacity:0;transition:.2s;z-index:80;
+  background:rgba(0,0,0,.82);border:1px solid var(--line);padding:11px 14px;border-radius:14px;font-weight:800;text-align:center;max-width:88%;pointer-events:none}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#main{flex:1;position:relative;min-height:0}
+#stage{position:absolute;inset:0;overflow:auto;padding:12px;-webkit-overflow-scrolling:touch;z-index:2}
+#stage.behind{visibility:hidden;pointer-events:none}
+#view3d{display:none;position:absolute;inset:0;z-index:3;touch-action:none;background:#14101b}
+#view3d.on{display:block}
+#hud3d{position:absolute;inset:0;z-index:4;pointer-events:none}
+#hint3d{position:absolute;left:0;right:0;bottom:max(72px, env(safe-area-inset-bottom) + 58px);text-align:center;font-size:12px;font-weight:700;color:rgba(255,255,255,.55);text-shadow:0 2px 8px #000;padding:0 12px}
+#load3d{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);z-index:6;display:none;
+  flex-direction:column;align-items:center;gap:12px;pointer-events:auto;text-align:center;width:78%;max-width:280px}
+#load3d.on{display:flex}
+#load3d .ld{font-size:13px;font-weight:800;color:rgba(255,236,210,.85);animation:ldPulse 1.2s ease-in-out infinite}
+@keyframes ldPulse{0%,100%{opacity:.5}50%{opacity:1}}
+#presslbl,#wraptext{position:absolute;left:50%;transform:translateX(-50%);bottom:max(118px, env(safe-area-inset-bottom) + 104px);font-size:13px;font-weight:800;color:#fff;text-shadow:0 2px 8px #000;display:none;white-space:nowrap}
+#presslbl.show,#wraptext.show{display:block}
+#pressbar,#wrapbar{position:absolute;left:50%;transform:translateX(-50%);width:66%;max-width:300px;height:18px;bottom:max(92px, env(safe-area-inset-bottom) + 78px);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;overflow:hidden;display:none}
+#pressbar.show,#wrapbar.show{display:block}
+#pressfill{height:100%;width:0;background:linear-gradient(90deg,#ff9f6b,#ff5e1a)}
+#wrapfill{height:100%;width:0;background:linear-gradient(90deg,#7df9ff,#9be37d)}
+#seal{position:absolute;left:50%;transform:translateX(-50%);bottom:max(88px, env(safe-area-inset-bottom) + 74px);display:none;pointer-events:auto;background:#ff7a3c;border:none;color:#fff;font-weight:800;font-size:16px;padding:12px 24px;border-radius:14px;z-index:5}
+#seal.show{display:block}
+#fmtBar{position:absolute;top:10px;left:10px;right:10px;z-index:5;pointer-events:auto;display:none;gap:6px;flex-wrap:wrap;justify-content:center}
+#fmtBar.on{display:flex}
+#buyOverlay{position:absolute;left:10px;right:10px;bottom:max(70px, env(safe-area-inset-bottom) + 56px);z-index:5;pointer-events:auto;display:none;max-height:42%;overflow:auto;background:rgba(20,16,14,.92);border:1px solid var(--line);border-radius:16px;padding:12px}
+#buyOverlay.on{display:block}
+#dock{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:8px 8px max(10px,env(safe-area-inset-bottom));background:rgba(0,0,0,.6);border-top:1px solid var(--line);z-index:30}
+.tab{appearance:none;border:0;background:transparent;color:var(--muted);font-size:10px;font-weight:700;padding:8px 2px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:3px}
+.tab .ic{font-size:20px;line-height:1}.tab.on{color:#fff;background:rgba(255,180,84,.16)}
+h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
+.sub{color:var(--muted);font-size:12.5px;line-height:1.35;margin-bottom:12px}
+.card{background:rgba(38,30,22,.92);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:10px}
+.card h3{font-size:14px;font-weight:800;margin-bottom:6px}
+.muted{color:var(--muted);font-size:12px;line-height:1.35}
+.btn{appearance:none;border:1px solid rgba(255,180,84,.45);background:linear-gradient(180deg,#3a2a16,#24180e);color:#ffe4b5;font-weight:800;font-size:13px;padding:11px 12px;border-radius:12px;width:100%;margin-top:8px}
+.btn:active{transform:scale(.98)}.btn:disabled{opacity:.4}
+.btn.ok{border-color:rgba(125,222,160,.45);background:linear-gradient(180deg,#1f3324,#132018);color:#c8f5d6}
+.btn.ghost{background:rgba(255,255,255,.04);border-color:var(--line);color:#f0e2cf}
+.btn.bad{border-color:rgba(255,122,122,.45);background:linear-gradient(180deg,#3a1818,#241010);color:#ffd0d0}
+.btn.snap{border-color:rgba(255,45,85,.55);background:linear-gradient(180deg,#4a1528,#2a0e18);color:#ffd0dc}
+.btn.beuher{border-color:rgba(0,196,106,.5);background:linear-gradient(180deg,#0f3324,#0a2018);color:#c8f5d6}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.chip{padding:7px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:12px;font-weight:800;color:var(--muted)}
+.chip.on{color:#fff;border-color:rgba(255,180,84,.55);background:rgba(255,180,84,.16)}
+.chip.cs{width:100%;text-align:center;pointer-events:none;background:rgba(0,0,0,.45);border-color:transparent;
+  color:rgba(255,236,210,.85);font-weight:700;font-size:11px;padding:5px 8px}
+.chip.cs b{color:#ffe4b5}
+.stat{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed rgba(255,255,255,.06);gap:8px}
+.stat b{font-weight:800;text-align:right}
+.bar{height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin:6px 0}
+.bar>i{display:block;height:100%;background:linear-gradient(90deg,#7ddea0,#ffb454)}
+.apps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:16px 0 20px}
+.app{appearance:none;border:0;background:transparent;color:#fff;text-align:center}
+.app .icon{width:64px;height:64px;margin:0 auto;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:30px;
+  box-shadow:0 10px 28px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.18)}
+.app .nm{font-size:11px;font-weight:800;margin-top:7px}
+.app.snap .icon{background:linear-gradient(145deg,#ff4d6d,#c01040)}
+.app.beuher .icon{background:linear-gradient(145deg,#22e07a,#0a8f4a)}
+.app.atelier .icon{background:linear-gradient(145deg,#c06d6d,#6a3030)}
+.app.appro .icon{background:linear-gradient(145deg,#6d8ac0,#334a7a)}
+.app.cash .icon{background:linear-gradient(145deg,#e8c96a,#8a6a20)}
+.app.karnet .icon{background:linear-gradient(145deg,#9a8ab0,#4a3a60)}
+.app.shelter .icon{background:linear-gradient(145deg,#6ec8ff,#2a5a8a)}
+/* ---- Shelter · carte Quartier Nord ---- */
+.map-wrap{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--line);
+  background:#1a1510;margin-bottom:10px;aspect-ratio:1;max-height:min(52vh,360px)}
+.map-wrap img{display:block;width:100%;height:100%;object-fit:cover;filter:saturate(.9) contrast(1.05)}
+.map-pin{position:absolute;transform:translate(-50%,-100%);border:0;background:transparent;padding:0;
+  display:flex;flex-direction:column;align-items:center;cursor:pointer;z-index:2;filter:drop-shadow(0 3px 6px rgba(0,0,0,.55))}
+.map-pin .dot{width:18px;height:18px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
+  border:2px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.25)}
+.map-pin .lbl{margin-top:3px;font-size:9px;font-weight:800;color:#fff;text-shadow:0 1px 3px #000;
+  background:rgba(0,0,0,.55);padding:2px 6px;border-radius:6px;white-space:nowrap;max-width:72px;
+  overflow:hidden;text-overflow:ellipsis}
+.map-pin.planque .dot{background:#6ec8ff}
+.map-pin.pdv .dot{background:#9be37d}
+.map-pin.rival .dot{background:#ff8a6a}
+.map-pin.info .dot{background:#e8c96a}
+.map-pin.on .dot{box-shadow:0 0 0 3px rgba(255,180,84,.55),0 0 12px rgba(255,180,84,.35)}
+.map-pin.locked{opacity:.55}
+.map-pin.locked .dot{filter:grayscale(.4)}
+.debt-strip{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:12px;margin-bottom:10px;
+  background:rgba(200,68,47,.14);border:1px solid rgba(255,138,106,.4);font-size:11px;font-weight:700}
+.debt-strip b{color:#ffb0a0}
+.debt-strip .go{margin-left:auto;appearance:none;border:1px solid rgba(155,227,125,.45);background:rgba(30,60,40,.6);
+  color:#c8f5d6;font-weight:800;font-size:11px;padding:6px 10px;border-radius:9px;white-space:nowrap}
+.hit-chip{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+.hit-chip.ok{background:rgba(0,196,106,.18);color:#9be37d}
+.hit-chip.mid{background:rgba(232,201,106,.18);color:#e8c96a}
+.hit-chip.hot{background:rgba(255,80,80,.22);color:#ff8a6a}
+.intro-card{background:linear-gradient(180deg,rgba(40,28,18,.98),rgba(20,14,10,.98));border:1px solid rgba(255,180,84,.35);
+  border-radius:18px;padding:16px;margin-bottom:12px}
+.intro-card .from{font-size:11px;font-weight:800;color:#ffb454;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px}
+.intro-card .bubble{background:rgba(255,255,255,.06);border-radius:14px;padding:12px;font-size:13px;line-height:1.4;margin-bottom:10px}
+.intro-card .bubble b{color:#ffe4b5}
+.story-row{display:flex;gap:10px;overflow-x:auto;padding:4px 0 12px}
+.ring{flex:none;width:64px;text-align:center}
+.ring .ava{width:56px;height:56px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:22px;
+  background:#222;border:2.5px solid #555}
+.ring.live .ava{border-color:var(--snap);box-shadow:0 0 0 2px rgba(255,45,85,.25)}
+.ring .lb{font-size:10px;font-weight:700;margin-top:4px;color:var(--muted);max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flash{font-size:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.flash b{color:#ffb0c4}
+.dm{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:8px}
+.dm .who{font-weight:900;font-size:13px;display:flex;justify-content:space-between;gap:8px}
+.dm .tag{font-size:10px;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--accent)}
+.dm .txt{color:var(--muted);font-size:12.5px;margin:5px 0 8px;line-height:1.35}
+.courier{border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:8px;background:rgba(0,0,0,.2)}
+.courier.on{border-color:var(--beuher);background:rgba(0,196,106,.08)}
+.risk{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px}
+.risk.ok{background:rgba(0,196,106,.2);color:#9be37d}
+.risk.mid{background:rgba(232,201,106,.2);color:#e8c96a}
+.risk.hot{background:rgba(255,80,80,.25);color:#ff8a6a}
+.table{width:100%;border-collapse:collapse;font-size:12px}
+.table td{padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.cash-arena{position:relative;min-height:220px;border-radius:18px;border:1px dashed rgba(232,201,106,.35);
+  background:radial-gradient(80% 80% at 50% 40%,#2a2214,#120e0a);margin:10px 0;overflow:hidden}
+.cash-arena .count{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font-size:42px;font-weight:900;color:var(--dirty);
+  text-shadow:0 4px 20px rgba(0,0,0,.6);pointer-events:none}
+.bill{position:absolute;padding:12px 14px;border-radius:10px;font-weight:900;font-size:14px;border:1px solid rgba(255,255,255,.2);
+  color:#eaffef;box-shadow:0 6px 16px rgba(0,0,0,.35);transform:rotate(var(--r,0deg));transition:transform .12s,opacity .15s}
+.bill:active{transform:scale(.92) rotate(var(--r,0deg))}
+.bill.n1{background:linear-gradient(160deg,#4a4a4a,#222);font-size:12px;padding:8px 10px}
+.bill.n5{background:linear-gradient(160deg,#6a6a2f,#333318)}.bill.n20{background:linear-gradient(160deg,#3a4f7a,#1d2944)}
+.bill.n50{background:linear-gradient(160deg,#7a4f2f,#3a2414)}.bill.n100{background:linear-gradient(160deg,#5a3a6a,#2a1833)}
+.bundle{display:flex;justify-content:space-between;padding:8px 10px;margin-top:6px;border-radius:12px;border:1px solid rgba(125,222,160,.35);background:rgba(125,222,160,.08);font-size:12px;font-weight:800}
+/* —— Trieuse 4+1 (Kisan fitness sorter feel) —— */
+.sorter{margin:8px 0 10px;border-radius:16px;overflow:hidden;border:1px solid rgba(180,200,160,.25);
+  background:linear-gradient(180deg,#2a2e28 0%,#141612 55%,#0c0e0b 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.sorter-top{display:flex;gap:8px;padding:10px 10px 6px;align-items:stretch}
+.sorter-hopper{flex:1;border-radius:10px;border:1px dashed rgba(232,201,106,.35);background:rgba(0,0,0,.35);padding:8px 10px;min-height:52px}
+.sorter-hopper .lb{font-size:9px;font-weight:800;color:var(--muted);letter-spacing:.5px}
+.sorter-hopper .n{font-size:22px;font-weight:900;color:var(--dirty);line-height:1.1}
+.sorter-lcd{width:42%;border-radius:8px;background:#0a1a0c;border:2px solid #1a3a22;padding:6px 8px;
+  font-family:ui-monospace,Consolas,monospace;color:#5dff8a;font-size:10px;font-weight:700;line-height:1.35;
+  box-shadow:inset 0 0 12px rgba(0,80,30,.5)}
+.sorter-lcd .row{display:flex;justify-content:space-between;gap:4px}
+.sorter-lcd .ttl{color:#3a8a52;font-size:9px;margin-bottom:2px}
+.sorter-throat{position:relative;height:72px;margin:4px 10px;border-radius:8px;background:linear-gradient(180deg,#1a1c18,#0a0b09);
+  border:1px solid rgba(255,255,255,.08);overflow:hidden}
+.sorter-throat::before{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:rgba(255,255,255,.06)}
+.sorter-fly{position:absolute;top:50%;left:8%;transform:translateY(-50%);padding:10px 14px;border-radius:8px;font-weight:900;font-size:16px;
+  color:#fff;border:1px solid rgba(255,255,255,.25);box-shadow:0 4px 14px rgba(0,0,0,.5);pointer-events:none;
+  animation:sorterFly .85s linear forwards}
+.sorter-fly.n1{background:linear-gradient(160deg,#4a4a4a,#222)}.sorter-fly.n5{background:linear-gradient(160deg,#6a6a2f,#333318)}
+.sorter-fly.n20{background:linear-gradient(160deg,#3a4f7a,#1d2944)}.sorter-fly.n50{background:linear-gradient(160deg,#7a4f2f,#3a2414)}
+.sorter-fly.n100{background:linear-gradient(160deg,#5a3a6a,#2a1833)}
+@keyframes sorterFly{0%{left:6%;opacity:0;transform:translateY(-50%) scale(.85)}12%{opacity:1;transform:translateY(-50%) scale(1)}
+  88%{opacity:1}100%{left:72%;opacity:.35;transform:translateY(-50%) scale(.9)}}
+.sorter-pockets{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:8px 10px 10px}
+.spk{border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:8px 2px 6px;background:linear-gradient(180deg,#2a3228,#161a14);
+  color:#e8f0e0;font-weight:900;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:72px;pointer-events:none}
+.spk .d{font-size:13px}.spk .c{font-size:16px;color:var(--dirty)}.spk .sm{font-size:8px;color:var(--muted);font-weight:700}
+.spk.ok-flash{background:linear-gradient(180deg,#2a4a30,#1a2a18);border-color:rgba(125,222,160,.6);box-shadow:0 0 0 2px rgba(125,222,160,.25)}
+.spk.reject{border-color:rgba(255,120,80,.35)}.spk.reject .d{color:#ff8a6a;font-size:10px}
+.spk.hot{border-color:rgba(155,227,125,.65);box-shadow:0 0 0 2px rgba(155,227,125,.2)}
+.sorter-bar{display:flex;gap:6px;padding:0 10px 10px}
+.sorter-bar .btn{margin:0}
+.sorter-fly{animation-duration:.28s!important}
+.journal .item{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px}
+.journal .item .c{color:rgba(255,220,160,.4);font-size:11px;margin-top:2px}
+.seg{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.lock{opacity:.55;filter:grayscale(.3)}
+.hero{font-size:13px;line-height:1.4;color:rgba(255,236,210,.75);margin:8px 0 14px;padding:12px;border-radius:14px;
+  background:linear-gradient(135deg,rgba(255,45,85,.12),rgba(0,196,106,.08));border:1px solid rgba(255,255,255,.08)}
+/* —— Emballage D31 : 1 barrette → 1 zip centre → pile droite —— */
+.bag-prompt{text-align:center;font-size:13px;font-weight:800;color:rgba(255,236,210,.85);margin:0 0 8px;letter-spacing:.2px}
+.bag-bench{position:relative;height:min(48vh,340px);border-radius:18px;overflow:hidden;touch-action:none;
+  background:
+    radial-gradient(70% 50% at 50% 8%,rgba(255,240,200,.18),transparent 50%),
+    linear-gradient(180deg,#4a4338 0%,#2e2922 55%,#1c1915 100%);
+  border:1px solid rgba(255,220,160,.18);box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
+.bag-tray{position:absolute;left:10px;top:22%;width:28%;height:58%;border-radius:8px;
+  background:linear-gradient(160deg,#222226,#0e0e10);border:2px solid #333;box-shadow:inset 0 6px 18px #000}
+.bag-tray .lb,.bag-done .lb{position:absolute;left:0;right:0;top:-16px;text-align:center;font-size:9px;font-weight:800;letter-spacing:.4px}
+.bag-tray .lb{color:var(--muted)}.bag-done .lb{color:#9be37d}
+.bag-tray .wait{position:absolute;left:8%;right:8%;top:12%;bottom:12%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;opacity:.45;pointer-events:none}
+.bag-tray .wait .mini-bar{width:78%;height:14px;border-radius:999px;
+  background:linear-gradient(180deg,#c4a06a 0%,#8a6238 40%,#4a3220 100%);
+  box-shadow:0 1px 2px #000}
+/* barrette active — forme lozenge + texture (PNG fond transparent) */
+.bag-bar{position:absolute;width:110px;height:42px;z-index:5;cursor:grab;touch-action:none;
+  border-radius:999px;overflow:visible;background:transparent;border:0;box-shadow:none}
+.bag-bar .skin{position:absolute;inset:0;border-radius:999px;overflow:hidden;
+  background:
+    url("./assets/barrette.png") center/85% auto no-repeat,
+    linear-gradient(180deg,#c9a06a 0%,#8a5a32 42%,#4a2e18 100%);
+  box-shadow:0 4px 12px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,230,180,.3);
+  border:1px solid rgba(50,30,15,.55)}
+.bag-bar .skin::after{content:"";position:absolute;left:0;right:0;bottom:0;height:40%;
+  background:linear-gradient(180deg,transparent,rgba(30,18,8,.5));pointer-events:none}
+.bag-bar.drag{z-index:40;cursor:grabbing;transform:scale(1.08)}
+.bag-bar.drag .skin{box-shadow:0 14px 28px rgba(0,0,0,.65),0 0 0 2px rgba(255,180,84,.55)}
+.bag-bar .w{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;
+  font-size:10px;font-weight:900;color:rgba(255,245,220,.92);text-shadow:0 1px 3px #000;pointer-events:none}
+.bag-bar .n{position:absolute;top:-8px;right:-8px;z-index:2;background:#ffb454;color:#201206;
+  font-size:10px;font-weight:900;border-radius:999px;padding:2px 6px;box-shadow:0 2px 6px rgba(0,0,0,.4);pointer-events:none}
+/* un seul zip au centre */
+.bag-slot{position:absolute;left:50%;top:50%;width:78px;height:110px;z-index:3;
+  transform:translate(-50%,-50%);transition:transform .35s cubic-bezier(.2,.8,.2,1),left .35s cubic-bezier(.2,.8,.2,1),top .35s cubic-bezier(.2,.8,.2,1),opacity .3s}
+.bag-slot.to-done{left:88%;top:62%;transform:translate(-50%,-50%) scale(.55);opacity:.15;pointer-events:none}
+.bag-zip{position:absolute;inset:0;border-radius:6px 6px 14px 14px;
+  background:linear-gradient(180deg,rgba(210,230,255,.18),rgba(160,180,200,.06));
+  border:1.5px solid rgba(230,245,255,.55);box-shadow:0 8px 18px rgba(0,0,0,.45);overflow:hidden}
+.bag-zip::before{content:"";position:absolute;left:10%;right:10%;top:9px;height:8px;border-radius:2px;
+  background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.3)}
+.bag-zip.open{border-color:rgba(200,230,255,.75)}
+.bag-zip.open.hot{border-color:rgba(255,200,100,.95);box-shadow:0 0 0 3px rgba(255,180,84,.4),0 8px 18px rgba(0,0,0,.45);transform:scale(1.05)}
+.bag-zip .fill{position:absolute;left:14%;right:14%;bottom:14px;height:0;border-radius:6px;
+  background:linear-gradient(180deg,#c4a06a,#4a3220);transition:height .18s ease-out}
+.bag-zip.sealed{border-color:rgba(155,227,125,.55);background:linear-gradient(180deg,rgba(160,200,180,.2),rgba(80,100,90,.12))}
+.bag-zip.sealed .fill{height:48%}
+.bag-zip .tag{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:11px;font-weight:900;color:rgba(255,255,255,.78)}
+.bag-done{position:absolute;right:8px;top:22%;width:20%;height:58%;border-radius:8px;border:1px dashed rgba(155,227,125,.4);
+  background:rgba(0,50,24,.18);overflow:hidden}
+.bag-done .stack{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);display:flex;flex-direction:column-reverse;align-items:center;gap:3px}
+.bag-mini{width:32px;height:42px;border-radius:4px;border:1px solid rgba(200,220,255,.45);
+  background:linear-gradient(180deg,rgba(190,210,230,.3),rgba(70,90,110,.18));box-shadow:0 2px 5px rgba(0,0,0,.35);
+  animation:bagPop .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes bagPop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+.bag-hint{font-size:11px;color:var(--muted);text-align:center;margin-top:8px;line-height:1.35}
+</style>
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
+</head>
+<body>
+<div id="phone">
+  <div id="top">
+    <div class="row"><div class="pill">La Loupe</div><div class="pill" id="hudHit" style="display:none">planque ·</div><div class="pill" id="daypill">J1</div></div>
+    <div class="row">
+      <div class="pill cash" id="hudCash">propre 0</div>
+      <div class="pill dirty" id="hudDirty">liquide 0</div>
+      <div class="pill heat" id="hudHeat">chaleur 0</div>
+      <div class="pill expo" id="hudExpo">buzz 10</div>
+    </div>
+  </div>
+  <div id="main">
+    <div id="stage"></div>
+    <div id="view3d"><div id="hud3d">
+      <div id="hint3d"></div>
+      <div id="presslbl">Maintiens pour couper</div>
+      <div id="pressbar"><div id="pressfill"></div></div>
+      <div id="wraptext">Glisse ⬆️ pour enrouler</div>
+      <div id="wrapbar"><div id="wrapfill"></div></div>
+      <button id="seal">🔥 Sceller</button>
+      <div id="fmtBar"></div>
+      <div id="buyOverlay"></div>
+      <div id="load3d"><div class="ld">Chargement 3D…</div>
+        <button class="btn ghost" id="skip3d" style="width:auto;margin:0;padding:10px 16px">Continuer en 2D ▸</button></div>
+    </div></div>
+  </div>
+  <div id="dock"></div>
+</div>
+<div id="toast"></div>
+<script type="module">
+/* snap/beuher d'abord — Three.js (scene3d) en lazy load.
+   Sur mobile, unpkg bloqué cassait TOUT le proto (écran fantôme « enrouler »). */
+import * as snap from "./snap.mjs?v=18";
+import * as beuher from "./beuher.mjs?v=18";
+import * as shelter from "./shelter.mjs?v=18";
+
+const SAVE_VERSION = "18";
+// La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
+// La demande Snap reste calée sur 2/5/8 (snap.SC.DOSE_FORMATS) — couper autre chose = risque assumé.
+const CUT_MIN = 1, CUT_MAX = 20, CUT_DEFAULT = 2;
+const SORT_POCKETS = [5, 20, 50, 100]; // trieuse 4+1 (+ reject / monnaie)
+const SORT_FEED = 0.28; // s entre chaque billet (machine, pas mini-jeu)
+const T3D_MS = 8000; // au-delà : réseau mobile qui bloque unpkg → bascule 2D
+let scene3d = null;
+let scene3dPromise = null;
+let no3d = false; // 3D KO cette session → coupe/appro passent en 2D (réessayable)
+async function ensure3d() {
+  if (scene3d) return scene3d;
+  if (!scene3dPromise) {
+    scene3dPromise = Promise.race([
+      import("./scene3d.mjs?v=19"),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
+    ]).then((m) => {
+      if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
+      scene3d = m;
+      scene3d.mount(view3d, {
+        pressbar: document.getElementById("pressbar"),
+        pressfill: document.getElementById("pressfill"),
+        presslbl: document.getElementById("presslbl"),
+        wrapbar: document.getElementById("wrapbar"),
+        wrapfill: document.getElementById("wrapfill"),
+        wraptext: document.getElementById("wraptext"),
+        seal: document.getElementById("seal"),
+        hint: document.getElementById("hint3d"),
+      }, {
+        getPainG: () => { const p = activePain(); return p ? p.g : 0; },
+        getStash: () => ({ sizes: S.pains.map((p) => Math.round(p.g)), sel: S.painSel }),
+        onSelectPain: (i) => {
+          if (i >= 0 && i < S.pains.length && i !== S.painSel) {
+            S.painSel = i; save(); renderFmtBar();
+            toast(`Pain ${Math.round(S.pains[i].g)} g sur la planche.`);
+          }
+        },
+        getBarG: () => barsG(),
+        getBarCount: () => barCount(),
+        getCutSize: () => S.cutSize || CUT_DEFAULT,
+        getDoseFormat: () => S.cutSize || CUT_DEFAULT,
+        getSachetCount: () => Object.values(S.sachets).reduce((a, n) => a + n, 0),
+        toast,
+        onCut: (g) => { applyCut(g, "maintien lame 3D"); save(); hud(); renderFmtBar(); },
+        onSwipeRight: () => { if (tab === "atelier") { atelierSub = "bag"; render(); } },
+        onTakeBar: () => {}, // wrap 3D retiré — la taille est figée à la coupe
+        onReturnBar: () => {},
+        onPack: () => { /* wrap 3D retiré — conditionnement = renderDoseBag */ },
+      });
+      window.addEventListener("resize", () => scene3d && scene3d.resize());
+      return scene3d;
+    }).catch((err) => {
+      scene3dPromise = null;
+      no3d = true;
+      console.error("3D indisponible", err);
+      toast("3D indisponible (réseau) — mode 2D.");
+      throw err;
+    });
+  }
+  return scene3dPromise;
+}
+const LS = "loupe_";
+const START_CASH = 220;
+// Une savonnette = 250 g max (réalisme filière) — au-delà, on livre un LOT de pains.
+const PAIN_100 = { g:100, price:200, q:52, label:"Pain 100" };
+const PAIN_250 = { g:250, price:1700, q:78, label:"Pain 250", reputGate:40 };
+const PAIN_500 = { g:500, price:3200, q:70, label:"Lot 500 (2×250)", reputGate:65, split:250 };
+const PLANQUE_CAP_BASE = 250;
+const DIRTY_HOLD_SOFT = 180, DIRTY_HOLD_HARD = 450, BUNDLE_SIZE = 5, COUNTER_RATE = 40;
+const UPG = {
+  scooter: { cost:350, max:1, title:"Flotte+", desc:"+accès Go fast débloqué tôt" },
+  planque: { cost:400, max:3, title:"Planque", desc:"+120 g" },
+  counter: { cost:900, max:1, title:"Compteur", desc:"auto si plus de billets lâches" },
+};
+
+const APPS = [
+  { id:"shelter", ic:"⌖", lb:"Quartier" },
+  { id:"snap", ic:"⚡", lb:"SnapShit" },
+  { id:"atelier", ic:"✂", lb:"Atelier" },
+  { id:"beuher", ic:"🛵", lb:"Beuher" },
+  { id:"cash", ic:"▣", lb:"Liquide" },
+];
+
+const store = { get:k=>localStorage.getItem(LS+k), set:(k,v)=>localStorage.setItem(LS+k,v) };
+const money = n => String(Math.round(n));
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+function defaultState(){
+  return {
+    cash: START_CASH, dirty:0, heat:0, reput:20, day:1, clock:0,
+    pains:[], painSel:0, bars:{}, barQ:60, wasteG:0,
+    sachets:{}, sachetQ:60, cutSize:CUT_DEFAULT,
+    orders:[], runs:[], bills:[],
+    bundles:{5:0,20:0,50:0,100:0}, _pile:{5:0,20:0,50:0,100:0},
+    upgrades:{scooter:0, planque:0, counter:0},
+    journal:[], orderSeq:1, soldDay:0,
+    assign:{}, counted:0, atelierMode:"cut",
+    shelter: shelter.shelterDefaults(),
+    ...snap.snapDefaults(),
+  };
+}
+
+let S = defaultState();
+if (store.get("ver") !== SAVE_VERSION) {
+  Object.keys(localStorage).filter(k=>k.startsWith(LS)).forEach(k=>localStorage.removeItem(k));
+  store.set("ver", SAVE_VERSION);
+}
+try { const raw=store.get("save"); if(raw) S={...defaultState(), ...JSON.parse(raw)}; } catch {}
+// Migration douce v17 : painG (pool de grammes) → pains (liste discrète), sans reset
+if(!Array.isArray(S.pains)) S.pains=[];
+if(S.painG>0 && !S.pains.length) S.pains=[{ g:S.painG, q:S.painQ||60 }];
+S.painG=0; S.painQ=0; // évite une double migration au prochain chargement
+if(!(S.painSel>=0) || S.painSel>=S.pains.length) S.painSel=0;
+if(!S.shelter) S.shelter=shelter.shelterDefaults();
+else S.shelter={...shelter.shelterDefaults(), ...S.shelter};
+// Save pré-Shelter : pas de cinématique front si déjà en course
+if(!S.shelter.introSeen && (S.day>1 || shelter.stockG(S)>0 || (S.journal&&S.journal.length))){
+  S.shelter.introSeen=true;
+}
+
+let tab="shelter", toastT=0, atelierSub="menu", cashSub="sorter", shelterSub="map";
+/** Session trieuse (non persistée) — feel Kisan 4+1 fitness sorter. */
+const sorter = { running:false, current:null, cooldown:0, combo:0, sessionOk:0, sessionRj:0, dirtyUi:false };
+const stage=document.getElementById("stage");
+const dock=document.getElementById("dock");
+const toastEl=document.getElementById("toast");
+const view3d=document.getElementById("view3d");
+const buyOverlay=document.getElementById("buyOverlay");
+const fmtBar=document.getElementById("fmtBar");
+const load3d=document.getElementById("load3d");
+document.getElementById("skip3d").onclick=()=>{ // sortie de secours pendant le chargement
+  atelierSub = atelierSub==="buy" ? "buy2d" : "cut2d";
+  render();
+};
+
+function save(){ store.set("save", JSON.stringify(S)); }
+function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>toastEl.classList.remove("show"),1800); }
+function cause(txt, why){ S.journal.unshift({t:Date.now(),txt,cause:why}); if(S.journal.length>50) S.journal.length=50; }
+function planqueCap(){ return PLANQUE_CAP_BASE + S.upgrades.planque*120; }
+function sizesOf(map){ return Object.keys(map).map(Number).filter(f=>map[f]>0).sort((a,b)=>b-a); }
+function barsG(){ return Object.entries(S.bars).reduce((a,[f,n])=>a+n*+f,0); }
+function barCount(){ return Object.values(S.bars).reduce((a,n)=>a+n,0); }
+function finiG(){ return barsG() + Object.entries(S.sachets).reduce((a,[f,n])=>a+n*+f,0); }
+function avgMerge(oG,oQ,aG,aQ){ const t=oG+aG; return t<=0?0:(oG*oQ+aG*aQ)/t; }
+function fmtBars(){ const ks=sizesOf(S.bars); return ks.length?ks.map(f=>`${S.bars[f]}×${f}g`).join(" · "):"—"; }
+function activePain(){ return S.pains[S.painSel]||S.pains[0]||null; }
+function painsG(){ return S.pains.reduce((a,p)=>a+p.g,0); }
+function fmtPains(){ return S.pains.length?S.pains.map((p,i)=>`${i===S.painSel?"▶":""}${Math.round(p.g)}g`).join(" · "):"—"; }
+/** Une coupe = une barrette, prise sur le PAIN ACTIF (partagé 3D / débit 2D).
+    La qualité de CE pain part dans la barrette. Retourne false si rien à couper. */
+function applyCut(take, why){
+  const p=activePain(); if(!p) return false;
+  take=Math.min(take,p.g); if(take<1) return false;
+  p.g-=take;
+  S.barQ=avgMerge(barsG(),S.barQ,take,p.q||60);
+  const key=Math.max(1,Math.round(take));
+  S.bars[key]=(S.bars[key]||0)+1;
+  cause(`Coupe ${take.toFixed(1)} g`,`Barrette ${key} g — ${why}`);
+  if(p.g<1){ S.pains.splice(S.pains.indexOf(p),1); S.painSel=0; } // pain fini → au suivant
+  return true;
+}
+function fmtSachets(){ const ks=sizesOf(S.sachets); return ks.length?ks.map(f=>`${S.sachets[f]}×${f}g`).join(" · "):"—"; }
+function qualAvg(){ return Math.round(S.sachetQ || S.barQ || 60); }
+
+function hud(){
+  document.getElementById("hudCash").textContent=`propre ${money(S.cash)}`;
+  document.getElementById("hudDirty").textContent=`liquide ${money(S.dirty)}`;
+  document.getElementById("hudHeat").textContent=`chaleur ${Math.round(S.heat)}`;
+  document.getElementById("hudExpo").textContent=`buzz ${Math.round(S.expo)}`;
+  document.getElementById("daypill").textContent=`J${S.day}`;
+  const hitEl=document.getElementById("hudHit");
+  const hit=shelter.stashHit(S, planqueCap());
+  if(hit>0 || shelter.stockG(S)>0){
+    const lb=shelter.hitLabel(hit);
+    hitEl.style.display="";
+    hitEl.textContent=`planque ${lb.txt}`;
+    hitEl.className=`pill heat`;
+  } else {
+    hitEl.style.display="none";
+  }
+}
+
+function renderDock(){
+  dock.innerHTML=APPS.map(t=>`<button class="tab ${tab===t.id?"on":""}" data-t="${t.id}"><span class="ic">${t.ic}</span>${t.lb}</button>`).join("");
+  dock.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
+    tab=b.dataset.t;
+    atelierSub = tab==="atelier" ? "cut" : "menu"; // découpe = scène par défaut
+    if(tab==="cash") cashSub="sorter";
+    render();
+  });
+}
+
+function set3d(mode){
+  const on=mode!=="hidden";
+  view3d.classList.toggle("on",on);
+  stage.classList.toggle("behind",on);
+  buyOverlay.classList.toggle("on", mode==="buy");
+  fmtBar.classList.toggle("on", mode==="cut"); // sélecteur de taille de coupe
+  if(mode==="cut") renderFmtBar();
+  if(mode==="buy") renderBuyOverlay(); // liste dispo tout de suite, même si la 3D traîne
+  if(mode==="hidden"){
+    load3d.classList.remove("on");
+    if(scene3d) scene3d.setMode("hidden");
+    return;
+  }
+  if(!scene3d) load3d.classList.add("on"); // jamais d'écran noir muet pendant le chargement
+  ensure3d().then((m)=>{
+    load3d.classList.remove("on");
+    if(tab!=="atelier"||(atelierSub!=="cut"&&atelierSub!=="buy")) return; // parti ailleurs entre-temps
+    m.setMode(atelierSub);
+    m.resize();
+  }).catch(()=>{
+    load3d.classList.remove("on");
+    view3d.classList.remove("on");
+    stage.classList.remove("behind");
+    if(tab==="atelier"&&(atelierSub==="cut"||atelierSub==="buy")) render(); // no3d → routes 2D
+  });
+}
+/** Taille de coupe — libre (CUT_MIN..CUT_MAX), défaut 2 g. Décidée ICI, pas au conditionnement.
+    + ligne d'état : restant du pain actif, stock de pains, barrettes déjà coupées. */
+function renderFmtBar(){
+  if(!fmtBar.classList.contains("on")) return;
+  const cs=S.cutSize||CUT_DEFAULT;
+  const p=activePain();
+  const others=S.pains.length-(p?1:0);
+  fmtBar.innerHTML=`
+    <button class="chip" data-d="-1">−</button>
+    <span class="chip on" style="pointer-events:none">coupe ${cs} g</span>
+    <button class="chip" data-d="1">+</button>`
+    +[2,5,8].map(x=>`<button class="chip ${cs===x?"on":""}" data-set="${x}">${x}g</button>`).join("")
+    +`<span class="chip cs">${p?`Pain : <b>${Math.round(p.g)} g</b>`:"Pas de pain — appro"}${others>0?` · réserve ${others} pain${others>1?"s":""} (${Math.round(painsG()-(p?p.g:0))} g)`:""}</span>
+    <span class="chip cs">Barrettes : ${fmtBars()}</span>`;
+  fmtBar.querySelectorAll("[data-d]").forEach(b=>b.onclick=e=>{
+    e.stopPropagation();
+    S.cutSize=clamp((S.cutSize||CUT_DEFAULT)+ +b.dataset.d, CUT_MIN, CUT_MAX);
+    renderFmtBar(); save();
+  });
+  fmtBar.querySelectorAll("[data-set]").forEach(b=>b.onclick=e=>{
+    e.stopPropagation(); S.cutSize=+b.dataset.set; renderFmtBar(); save();
+  });
+}
+
+function render(){
+  hud(); renderDock();
+  // 3D KO cette session → coupe/appro basculent sur leurs équivalents 2D
+  if(tab==="atelier" && no3d){
+    if(atelierSub==="cut") atelierSub="cut2d";
+    if(atelierSub==="buy") atelierSub="buy2d";
+  }
+  if(tab==="atelier" && (atelierSub==="cut"||atelierSub==="buy")){
+    set3d(atelierSub); stage.innerHTML=`<div class="card muted" style="margin:40px 12px">Chargement 3D…</div>`; return;
+  }
+  set3d("hidden");
+  if(tab==="shelter" || tab==="home") renderShelter();
+  else if(tab==="snap") renderSnap();
+  else if(tab==="atelier" && atelierSub==="bag") renderDoseBag();
+  else if(tab==="atelier" && atelierSub==="dose") renderDoseFast();
+  else if(tab==="atelier" && atelierSub==="cut2d") renderCut2D();
+  else if(tab==="atelier" && atelierSub==="buy2d") renderBuy2D();
+  else if(tab==="atelier") renderAtelierMenu();
+  else if(tab==="beuher") renderBeuher();
+  else if(tab==="cash") renderCashSorter();
+}
+
+function renderShelter(){
+  tab="shelter";
+  const hit=shelter.stashHit(S, planqueCap());
+  const hitLb=shelter.hitLabel(hit);
+  const debt=shelter.debtStrip(S);
+  const sel=S.shelter.selectedPin ? shelter.PINS[S.shelter.selectedPin] : null;
+  const showIntro=!S.shelter.introSeen;
+
+  stage.innerHTML=`
+    <h2>Quartier Nord</h2>
+    <div class="sub">Ton bloc. Un corner, une cage. La carte dit où ça chauffe — le téléphone fait le reste.</div>
+    ${showIntro?renderIntroCard():""}
+    ${debt?`<div class="debt-strip"><span>☎ <b>${debt.name}</b> · ${money(debt.due)} · J${debt.day}${debt.left>0?` · J-${debt.left}`:" · RETARD"}</span>
+      <button class="go" id="repay">Rembourser</button></div>`:""}
+    <div class="map-wrap" id="map">
+      <img src="./assets/quartier-nord.jpg" alt="Quartier Nord" draggable="false"/>
+      ${Object.values(shelter.PINS).map(pinMapBtn).join("")}
+    </div>
+    <div class="card">
+      <div class="stat"><span>Hit planque</span><b><span class="hit-chip ${hitLb.cls}">${hit} · ${hitLb.txt}</span></b></div>
+      <div class="bar"><i style="width:${hit}%;background:linear-gradient(90deg,#6ec8ff,#ff8a6a)"></i></div>
+      <div class="stat"><span>Stock (pains+bar+sachets)</span><b>${money(shelter.stockG(S))} / ${planqueCap()} g</b></div>
+      <div class="stat"><span>Standing · Buzz</span><b>${Math.round(S.reput)} · ${Math.round(S.expo)}</b></div>
+    </div>
+    ${sel?pinSheet(sel, hit, hitLb):`<div class="card muted">Tape un pin sur la carte. Planque = stock & hit. Corner = vitrine / DM.</div>`}
+    <div class="apps">
+      <button class="app snap" data-go="snap"><div class="icon">⚡</div><div class="nm">SnapShit</div></button>
+      <button class="app atelier" data-go="atelier"><div class="icon">✂</div><div class="nm">Atelier</div></button>
+      <button class="app beuher" data-go="beuher"><div class="icon">🛵</div><div class="nm">Beuher</div></button>
+      <button class="app appro" data-go="buy"><div class="icon">◎</div><div class="nm">Appro</div></button>
+      <button class="app cash" data-go="cash"><div class="icon">▣</div><div class="nm">Liquide</div></button>
+      <button class="app karnet" data-go="karnet"><div class="icon">📓</div><div class="nm">Karnet</div></button>
+    </div>
+    <div class="card">
+      <h3>Réinvest</h3>
+      ${shopRow("planque",UPG.planque)}${shopRow("counter",UPG.counter)}
+    </div>
+    <button class="btn bad" id="reset">Reset save</button>`;
+
+  stage.querySelectorAll(".map-pin").forEach(b=>b.onclick=()=>{
+    const id=b.dataset.pin;
+    S.shelter.selectedPin=id;
+    save(); renderShelter();
+  });
+  stage.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{
+    const g=b.dataset.go;
+    if(g==="buy"){ tab="atelier"; atelierSub="buy"; render(); return; }
+    if(g==="atelier"){ tab="atelier"; atelierSub="cut"; render(); return; }
+    if(g==="karnet"){ renderKarnet(); return; }
+    tab=g; atelierSub="menu"; render();
+  });
+  stage.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>buyUp(b.dataset.up));
+  const introBtn=document.getElementById("takeFront");
+  if(introBtn) introBtn.onclick=()=>acceptFront();
+  const repayBtn=document.getElementById("repay");
+  if(repayBtn) repayBtn.onclick=()=>openRepay();
+  stage.querySelectorAll("[data-pin-go]").forEach(b=>b.onclick=()=>{
+    const g=b.dataset.pinGo;
+    if(g==="cut"){ tab="atelier"; atelierSub="cut"; render(); return; }
+    if(g==="buy"){ tab="atelier"; atelierSub="buy"; render(); return; }
+    if(g==="snap"){ tab="snap"; render(); return; }
+  });
+  document.getElementById("reset").onclick=()=>{
+    Object.keys(localStorage).filter(k=>k.startsWith(LS)).forEach(k=>localStorage.removeItem(k));
+    store.set("ver",SAVE_VERSION); S=defaultState(); save(); toast("Nouveau rêve."); render();
+  };
+}
+
+function pinMapBtn(p){
+  const on=S.shelter.selectedPin===p.id?"on":"";
+  const locked=p.locked?"locked":"";
+  return `<button class="map-pin ${p.kind} ${on} ${locked}" style="left:${p.x}%;top:${p.y}%" data-pin="${p.id}" type="button">
+    <span class="dot"></span><span class="lbl">${p.title}</span></button>`;
+}
+
+function pinSheet(p, hit, hitLb){
+  if(p.kind==="planque"){
+    return `<div class="card">
+      <h3>${p.title}</h3>
+      <div class="muted">${p.blurb}</div>
+      <div class="stat"><span>Hit</span><b><span class="hit-chip ${hitLb.cls}">${hit} · ${hitLb.txt}</span></b></div>
+      <div class="stat"><span>Pains</span><b>${fmtPains()}</b></div>
+      <div class="stat"><span>Barrettes · Sachets</span><b>${fmtBars()} · ${fmtSachets()}</b></div>
+      <div class="grid2">
+        <button class="btn ok" style="margin:0" data-pin-go="cut">✂ Couper</button>
+        <button class="btn ghost" style="margin:0" data-pin-go="buy">◎ Appro</button>
+      </div>
+    </div>`;
+  }
+  if(p.kind==="pdv"){
+    const pending=(S.dms||[]).filter(d=>d.status==="pending").length;
+    return `<div class="card">
+      <h3>${p.title}</h3>
+      <div class="muted">${p.blurb}</div>
+      <div class="stat"><span>DM en attente</span><b>${pending}</b></div>
+      <div class="stat"><span>Commandes prêtes</span><b>${S.orders.filter(o=>o.status==="ready").length}</b></div>
+      <button class="btn snap" data-pin-go="snap">⚡ Ouvrir SnapShit</button>
+    </div>`;
+  }
+  return `<div class="card">
+    <h3>${p.title}${p.locked?' · bientôt':''}</h3>
+    <div class="muted">${p.blurb}</div>
+  </div>`;
+}
+
+function renderIntroCard(){
+  return `<div class="intro-card">
+    <div class="from">Snapshit · ${shelter.SUPPLIER.handle}</div>
+    <div class="bubble">Le spot vient de se libérer. T'as toujours été bon au chouff — <b>il est à toi</b>.<br><br>
+    Voilà <b>${shelter.SUPPLIER.frontG} g</b>. Tu me rembourses <b>${shelter.SUPPLIER.creditPrice}</b> avant J${(S.day||1)+shelter.SUPPLIER.dueDays-1}.
+    Si t'as le propre plus tôt : <b>${shelter.SUPPLIER.cashPrice}</b>. Cash = moins cher. Crédit = je dors pas.</div>
+    <button class="btn ok" id="takeFront">Prendre le spot · +${shelter.SUPPLIER.frontG} g</button>
+  </div>`;
+}
+
+function acceptFront(){
+  const r=shelter.grantOpeningFront(S);
+  if(!r.ok){
+    S.shelter.introSeen=true; save(); renderShelter();
+    toast(r.reason==="déjà lancé"?"T'as déjà du stock — carte ouverte.":"Ok.");
+    return;
+  }
+  cause(`Front ${shelter.SUPPLIER.name}`, r.msg);
+  toast("100 g en cage. Coupe, vitrine, rembourse.");
+  save(); renderShelter();
+}
+
+function openRepay(){
+  shelterSub="repay";
+  const debt=shelter.debtStrip(S);
+  if(!debt){ shelterSub="map"; return; }
+  const early=debt.canEarly;
+  const price=early?debt.cashEarly:debt.due;
+  const sheet=document.getElementById("repaySheet");
+  if(sheet) sheet.remove();
+  const strip=stage.querySelector(".debt-strip");
+  if(!strip) return;
+  strip.insertAdjacentHTML("afterend", `
+    <div class="card" id="repaySheet">
+      <h3>Rembourser ${debt.name}</h3>
+      <div class="muted">Il veut du <b>propre</b> — pas tes billets froissés. Cash tôt = ${money(debt.cashEarly)}. Après l'échéance = ${money(debt.due)}.</div>
+      <div class="stat"><span>Ton propre</span><b>${money(S.cash)}</b></div>
+      <button class="btn ok" id="payCash" ${S.cash<price?"disabled":""}>
+        Payer ${money(price)} propre${early?" · tarif cash":" · tarif crédit"}
+      </button>
+      <button class="btn ghost" id="payCancel">Plus tard</button>
+    </div>`);
+  document.getElementById("payCash").onclick=()=>{
+    const r=shelter.repayDebt(S);
+    if(!r.ok){ toast(r.reason); return; }
+    cause(`Remboursé ${shelter.SUPPLIER.name}`, `−${money(r.paid)} propre${r.early?" · tarif cash":""}`);
+    toast(r.early?"Payé cash. Il te respecte un peu.":"Dette soldée.");
+    shelterSub="map"; save(); renderShelter();
+  };
+  document.getElementById("payCancel").onclick=()=>{ shelterSub="map"; renderShelter(); };
+}
+function shopRow(key,conf){
+  const lv=S.upgrades[key]||0, maxed=lv>=conf.max, cost=conf.cost*(lv+1);
+  return `<div class="stat"><span>${conf.title} · ${lv}/${conf.max}<br><span class="muted">${conf.desc}</span></span>
+    <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-up="${key}" ${maxed||S.cash<cost?"disabled":""}>${maxed?"MAX":money(cost)}</button></div>`;
+}
+function buyUp(key){
+  const conf=UPG[key]; if(!conf) return;
+  const lv=S.upgrades[key]||0; if(lv>=conf.max) return;
+  const cost=conf.cost*(lv+1); if(S.cash<cost){ toast("Propre insuffisant."); return; }
+  S.cash-=cost; S.upgrades[key]=lv+1; cause(`Upgrade ${conf.title}`,`−${money(cost)}`); toast("Ça scale."); save(); render();
+}
+
+function renderKarnet(){
+  tab="shelter"; set3d("hidden"); hud(); renderDock();
+  stage.innerHTML=`<h2>Karnet</h2><div class="sub">Chaque ligne a une cause. L'UI n'invente rien.</div>
+    <div class="card journal">${S.journal.slice(0,20).map(j=>`<div class="item">${j.txt}<div class="c">↩ ${j.cause}</div></div>`).join("")||`<div class="muted">Vide.</div>`}</div>
+    <button class="btn ghost" id="back">↩ Quartier</button>`;
+  document.getElementById("back").onclick=()=>{ tab="shelter"; shelterSub="map"; render(); };
+}
+
+/* ---------- SnapShit ---------- */
+function renderSnap(){
+  const pending=S.dms.filter(d=>d.status==="pending");
+  stage.innerHTML=`
+    <h2 style="color:#ff8ab8">SnapShit</h2>
+    <div class="sub">Tu vends la fantasy avant le gramme. Story → DM → BeuherShit livre. Le cash arrive en liquide, jamais en propre.</div>
+    <div class="story-row">
+      <div class="ring live"><div class="ava">+</div><div class="lb">Toi</div></div>
+      <div class="ring ${S.posteAujourdhui?"live":""}"><div class="ava">⚡</div><div class="lb">Drop</div></div>
+      <div class="ring"><div class="ava">👑</div><div class="lb">Comtesse</div></div>
+      <div class="ring"><div class="ava">🔥</div><div class="lb">Accro</div></div>
+      <div class="ring"><div class="ava">📦</div><div class="lb">Gros</div></div>
+    </div>
+    <div class="card">
+      <h3>Composer</h3>
+      <div class="muted">Vitrine = buzz soft. Drop = promesse. Premium = tu joues ta crédibilité.</div>
+      <div class="grid3">
+        <button class="btn snap" id="vitr">Vitrine</button>
+        <button class="btn snap" id="dropN">Drop</button>
+        <button class="btn snap" id="dropP">Premium</button>
+      </div>
+    </div>
+    ${S.storyFlash?.length?`<div class="card"><h3>Réactions</h3>${S.storyFlash.map(f=>`<div class="flash"><b>${f.nm}</b> — ${f.txt}</div>`).join("")}</div>`:""}
+    <div class="card">
+      <div class="stat"><span>Buzz / crédibilité</span><b>${Math.round(S.expo)} · ${S.credibilite.toFixed(2)}</b></div>
+      <div class="stat"><span>Flakes</span><b>${Math.round(S.flake*100)}%</b></div>
+      <div class="stat"><span>Sachets</span><b>${fmtSachets()}</b></div>
+    </div>
+    <div class="card">
+      <h3>Boîte DM · ${pending.length}</h3>
+      ${pending.map(dmCard).join("")||`<div class="muted">Calme plat. Drop quelque chose, ou passe la soirée.</div>`}
+    </div>
+    <button class="btn ghost" id="night">Clôturer la soirée → nouvelle demande</button>
+    <button class="btn beuher" id="toBeuher">Envoyer vers BeuherShit (${S.orders.filter(o=>o.status==="ready").length})</button>`;
+  document.getElementById("vitr").onclick=()=>{ snap.posterVitrine(S,"vitrine"); cause("Story vitrine","+buzz soft"); toast("En ligne. Discret."); save(); renderSnap(); };
+  document.getElementById("dropN").onclick=()=>{ snap.posterVitrine(S,"normal"); cause("Drop story","Promesse normal"); toast("Drop posté. Le feed s'enflamme."); save(); renderSnap(); };
+  document.getElementById("dropP").onclick=()=>{ snap.posterVitrine(S,"premium"); cause("Drop premium","Promesse premium"); toast("Premium. Tu as intérêt à tenir."); save(); renderSnap(); };
+    document.getElementById("night").onclick=()=>{
+    const qLivree=snap.deliveredQuality(S, qualAvg()); // RT-6 : qualité vendue, pas le stock
+    const cons=snap.passerSoiree(S, qLivree);
+    S.day++; S.heat=clamp(S.heat-6,0,100); S.soldDay=0;
+    cons.forEach(c=>cause(c.t,c.c));
+    const sh=shelter.nightTick(S, planqueCap());
+    sh.cons.forEach(c=>cause(c.t,c.c));
+    const last=sh.cons[sh.cons.length-1] || cons[cons.length-1];
+    toast(last?.c || "Nouvelle nuit.");
+    save(); renderSnap();
+  };
+  document.getElementById("toBeuher").onclick=()=>{ tab="beuher"; render(); };
+  stage.querySelectorAll("[data-sell]").forEach(b=>b.onclick=()=>doSell(b.dataset.sell,"sell"));
+  stage.querySelectorAll("[data-brade]").forEach(b=>b.onclick=()=>doSell(b.dataset.brade,"brade"));
+  stage.querySelectorAll("[data-vol]").forEach(b=>b.onclick=()=>doSell(b.dataset.vol,"volume"));
+  stage.querySelectorAll("[data-ref]").forEach(b=>b.onclick=()=>{ snap.refuseDM(S,b.dataset.ref); cause("DM ignoré","standing −?"); toast("Lu. Pas répondu."); save(); renderSnap(); });
+}
+function dmCard(d){
+  const tot=d.qty*d.ppu;
+  return `<div class="dm"><div class="who"><span>${d.nm}</span><span class="tag">${d.tag}</span></div>
+    <div class="txt">« ${d.msg} » — <b>${d.qty} g</b> · ${money(tot)}</div>
+    <div class="grid3">
+      <button class="btn ok" style="margin:0;padding:9px 6px;font-size:11px" data-sell="${d.id}">Vendre</button>
+      <button class="btn ghost" style="margin:0;padding:9px 6px;font-size:11px" data-brade="${d.id}">Brader</button>
+      <button class="btn ghost" style="margin:0;padding:9px 6px;font-size:11px" data-ref="${d.id}">Ignorer</button>
+    </div>
+    ${d.kind==="grossiste"||d.qty>=8?`<button class="btn snap" style="margin-top:6px" data-vol="${d.id}">Volume (remise)</button>`:""}
+  </div>`;
+}
+function doSell(id, mode){
+  const r=snap.acceptDM(S,id,mode);
+  if(!r.ok){ toast(r.reason); return; }
+  S.orders.push(r.order);
+  if(r.heatExtra) S.heat=clamp(S.heat+r.heatExtra,0,100);
+  cause(`Deal Snap ${r.order.client}`,`${r.order.g} g · ${money(r.order.price)} → file Beuher`);
+  toast("Validé. Envoie un coursier.");
+  save(); renderSnap();
+}
+
+/* ---------- Atelier menu ---------- */
+function renderAtelierMenu(){
+  stage.innerHTML=`
+    <h2>Atelier</h2>
+    <div class="sub">La taille se décide à la lame. Le zip ne fait qu'emballer ce qui existe. Express = quand le geste t'ennuie (R6).</div>
+    <div class="card">
+      <div class="stat"><span>Pains</span><b>${fmtPains()} (${Math.round(painsG())} g)</b></div>
+      <div class="stat"><span>Barrettes</span><b>${fmtBars()}</b></div>
+      <div class="stat"><span>Sachets</span><b>${fmtSachets()}</b></div>
+    </div>
+    <button class="btn ok" id="gCut">✂ Coupe 3D — taille au choix (déf. ${CUT_DEFAULT} g)</button>
+    <button class="btn ok" id="gBag">📦 Ensacher — drag barrette → zip</button>
+    <button class="btn ghost" id="gDose">⚖ Dosage express — délégation</button>
+    <button class="btn ghost" id="gBuy">◎ Appro — visionneuse pain</button>`;
+  document.getElementById("gBag").onclick=()=>{ atelierSub="bag"; render(); };
+  document.getElementById("gCut").onclick=()=>{ atelierSub="cut"; render(); };
+  document.getElementById("gDose").onclick=()=>{ atelierSub="dose"; render(); };
+  document.getElementById("gBuy").onclick=()=>{ atelierSub="buy"; render(); };
+}
+
+/** Emballe UNE barrette de taille f (telle que coupée). Retourne true si OK. */
+function commitSachet(f, why){
+  if(!(S.bars[f]>0)) return false;
+  const stockG=Object.entries(S.sachets).reduce((a,[ff,nn])=>a+nn*+ff,0);
+  S.bars[f]--; if(!S.bars[f]) delete S.bars[f];
+  S.sachetQ=avgMerge(stockG,S.sachetQ,+f,S.barQ);
+  S.sachets[f]=(S.sachets[f]||0)+1;
+  cause(`Sachet ${f} g`, why);
+  return true;
+}
+
+/**
+ * Emballage D31 : le bac STOCK montre les TYPES de barrettes (une par taille
+ * de coupe, avec compteur) → drag vers le zip au centre → le sachet glisse
+ * vers PRÊT à droite. La taille du sachet = la taille coupée. R1 : raté = retour.
+ */
+function renderDoseBag(){
+  const sizes=sizesOf(S.bars);
+  const doneN=Object.values(S.sachets).reduce((a,n)=>a+n,0);
+  stage.innerHTML=`
+    <div class="bag-prompt">Glisse une barrette dans le sachet</div>
+    <div class="bag-bench" id="bench">
+      <div class="bag-tray" id="tray"><div class="lb">STOCK</div></div>
+      <div class="bag-done" id="done"><div class="lb">PRÊT</div><div class="stack" id="stack"></div></div>
+    </div>
+    <div class="bag-hint">${sizes.length
+      ?`Chaque barrette garde sa taille de coupe · ${fmtBars()} · sachets : ${fmtSachets()}`
+      :`Aucune barrette. Swipe ◂ (ou ✂) pour retourner couper.`}</div>
+    <div class="grid2">
+      <button class="btn ghost" id="back">✂ ◂ Découpe</button>
+      <button class="btn ghost" id="toFast">Express ▸</button>
+    </div>
+    <button class="btn ghost" id="menu">↩ Atelier</button>`;
+  document.getElementById("back").onclick=()=>{ atelierSub="cut"; render(); };
+  document.getElementById("menu").onclick=()=>{ atelierSub="menu"; render(); };
+  document.getElementById("toFast").onclick=()=>{ atelierSub="dose"; render(); };
+
+  const bench=document.getElementById("bench");
+  const stack=document.getElementById("stack");
+  for(let i=0;i<Math.min(8,doneN);i++){
+    const m=document.createElement("div"); m.className="bag-mini"; stack.appendChild(m);
+  }
+
+  // un seul zip ouvert au centre — il prend la taille de ce qu'on y met
+  const slot=document.createElement("div");
+  slot.className="bag-slot";
+  slot.innerHTML=`<div class="bag-zip open" id="zip"><div class="fill"></div><div class="tag">zip</div></div>`;
+  bench.appendChild(slot);
+  const zip=slot.querySelector(".bag-zip");
+
+  // le bac de gauche présente une barrette par taille, badge ×count
+  sizes.slice(0,5).forEach((f,i)=>{
+    const bar=document.createElement("div");
+    bar.className="bag-bar";
+    bar.dataset.f=f;
+    bar.innerHTML=`<div class="skin"></div><span class="w">${f} g</span><span class="n">×${S.bars[f]}</span>`;
+    bar.style.width=clamp(56+f*4,64,110)+"px";
+    bar.style.height=clamp(28+f*1.2,30,42)+"px";
+    bar.style.left="5%";
+    bar.style.top=(16+i*16)+"%";
+    bench.appendChild(bar);
+  });
+
+  let drag=null, swipe=null;
+  const pt=(e)=>{ const t=e.touches?e.touches[0]:e; return {x:t.clientX,y:t.clientY}; };
+  const hitZip=(x,y)=>{
+    if(zip.classList.contains("sealed")) return null;
+    const r=zip.getBoundingClientRect();
+    const pad=12;
+    if(x>=r.left-pad&&x<=r.right+pad&&y>=r.top-pad&&y<=r.bottom+pad) return zip;
+    return null;
+  };
+
+  const onDown=(e)=>{
+    const el=e.target.closest(".bag-bar");
+    if(!el||el.classList.contains("used")){
+      // geste hors barrette = candidat swipe retour découpe
+      if(e.target.closest("#bench")){ const p=pt(e); swipe={x:p.x,y:p.y}; }
+      return;
+    }
+    e.preventDefault();
+    const p=pt(e);
+    const r=el.getBoundingClientRect();
+    const homeL=el.style.left, homeT=el.style.top;
+    el.classList.add("drag");
+    drag={el, f:+el.dataset.f, ox:p.x-r.left, oy:p.y-r.top, homeL, homeT};
+  };
+  const onMove=(e)=>{
+    if(!drag) return;
+    e.preventDefault();
+    const p=pt(e);
+    const b=bench.getBoundingClientRect();
+    drag.el.style.left=(((p.x-drag.ox)-b.left)/b.width*100)+"%";
+    drag.el.style.top=(((p.y-drag.oy)-b.top)/b.height*100)+"%";
+    zip.classList.toggle("hot", !!hitZip(p.x,p.y));
+  };
+  const onUp=(e)=>{
+    const p=e.changedTouches?{x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY}:pt(e);
+    if(swipe){
+      const dx=p.x-swipe.x, dy=p.y-swipe.y; swipe=null;
+      if(dx<-60&&Math.abs(dx)>Math.abs(dy)*1.2){ atelierSub="cut"; render(); }
+      return;
+    }
+    if(!drag) return;
+    const z=hitZip(p.x,p.y);
+    zip.classList.remove("hot");
+    const {el, f, homeL, homeT}=drag;
+    el.classList.remove("drag");
+    drag=null;
+    if(!z){
+      el.style.left=homeL; el.style.top=homeT; // R1
+      return;
+    }
+    if(!commitSachet(f, "Barrette → zip (D31)")){
+      el.style.left=homeL; el.style.top=homeT;
+      toast("Plus de stock.");
+      return;
+    }
+    // fill + barrette disparaît dans le zip
+    z.querySelector(".fill").style.height="48%";
+    z.querySelector(".tag").textContent=`${f}g`;
+    z.classList.remove("open","hot");
+    z.classList.add("sealed");
+    el.classList.add("used");
+    el.style.opacity="0";
+    el.style.transform="scale(.2)";
+    el.style.transition="opacity .2s, transform .2s";
+    // sachet part automatiquement à droite
+    requestAnimationFrame(()=>slot.classList.add("to-done"));
+    toast(`Zip ${f} g.`);
+    save(); hud();
+    setTimeout(()=>{
+      const m=document.createElement("div"); m.className="bag-mini"; stack.appendChild(m);
+      while(stack.children.length>8) stack.removeChild(stack.firstChild);
+      renderDoseBag(); // prochain zip + bac à jour
+    }, 380);
+  };
+
+  if(renderDoseBag._ac) renderDoseBag._ac.abort();
+  renderDoseBag._ac=new AbortController();
+  const sig=renderDoseBag._ac.signal;
+  bench.addEventListener("pointerdown", onDown, {passive:false, signal:sig});
+  window.addEventListener("pointermove", onMove, {passive:false, signal:sig});
+  window.addEventListener("pointerup", onUp, {passive:false, signal:sig});
+}
+
+/** Dosage express — R5/R6 : satisfaction épuisée → geste minimal (coût : moins fun, même stock).
+    La taille reste celle de la coupe — ici on emballe juste plus vite. */
+function renderDoseFast(){
+  const sizes=sizesOf(S.bars);
+  stage.innerHTML=`
+    <h2>Dosage express</h2>
+    <div class="sub">Délégation (R6). Chaque barrette garde sa taille de coupe — zéro geste. Le zip reste le plaisir.</div>
+    <div class="card">
+      ${sizes.map(f=>`<div class="stat"><span>${S.bars[f]}× barrette ${f} g</span>
+        <span style="display:flex;gap:6px">
+          <button class="btn ok" style="width:auto;margin:0;padding:8px 12px" data-e1="${f}">+1</button>
+          <button class="btn snap" style="width:auto;margin:0;padding:8px 12px" data-ea="${f}">tout</button>
+        </span></div>`).join("")||`<div class="muted">Aucune barrette. Va couper — la taille se décide à la lame.</div>`}
+      <div class="stat"><span>Sachets</span><b>${fmtSachets()}</b></div>
+      <button class="btn ghost" id="toBag">↩ Table zip</button>
+      <button class="btn ghost" id="back">↩ Atelier</button>
+    </div>`;
+  stage.querySelectorAll("[data-e1]").forEach(b=>b.onclick=()=>dosePack(+b.dataset.e1,1));
+  stage.querySelectorAll("[data-ea]").forEach(b=>b.onclick=()=>dosePack(+b.dataset.ea,S.bars[+b.dataset.ea]||0));
+  document.getElementById("toBag").onclick=()=>{ atelierSub="bag"; render(); };
+  document.getElementById("back").onclick=()=>{ atelierSub="menu"; render(); };
+}
+function dosePack(f,n){
+  let did=0;
+  for(let i=0;i<n;i++){
+    if(!commitSachet(f, "Barrettes → sachets (express)")) break;
+    did++;
+  }
+  if(!did){ toast("Pas assez de barrettes."); return; }
+  toast(did===1?"Sachet.":`${did} sachets. Suivant.`);
+  save(); renderDoseFast();
+}
+function renderBuyOverlay(){
+  const items=[PAIN_100,PAIN_250]; if(S.reput>=40) items.push(PAIN_500);
+  buyOverlay.innerHTML=`<h3 style="margin:0 0 6px">Appro</h3>
+    <div class="muted" style="margin-bottom:8px">Propre uniquement. Planque : ${money(finiG()+painsG())}/${planqueCap()} g (pains + barrettes + sachets).</div>
+    ${items.map(p=>{ const locked=p.reputGate&&S.reput<p.reputGate;
+      return `<div class="stat"><span>${p.label}</span>
+        <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-buy="${p.g}" ${locked||S.cash<p.price?"disabled":""}>${locked?"Standing":money(p.price)}</button></div>`; }).join("")}`;
+  buyOverlay.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>{
+    buyPain([PAIN_100,PAIN_250,PAIN_500].find(p=>p.g===+b.dataset.buy));
+    renderBuyOverlay(); if(scene3d) scene3d.syncFromState();
+  });
+}
+function buyPain(p){
+  if(!p) return;
+  if(p.reputGate&&S.reput<p.reputGate){ toast("Standing insuffisant."); return; }
+  if(S.cash<p.price){ toast("Propre insuffisant."); return; }
+  if(finiG()+painsG()+p.g>planqueCap()){
+    // la planque compte TOUT (pains + barrettes + sachets) — dire les chiffres, pas juste « pleine »
+    toast(`Planque ${money(finiG()+painsG())}/${planqueCap()} g — pas la place pour +${p.g} g. Vends, ou agrandis (Réinvest, Home).`);
+    return;
+  }
+  S.cash-=p.price;
+  // chaque pain garde SA qualité ; un lot livre plusieurs savonnettes (split)
+  const chunk=p.split||p.g;
+  for(let left=p.g; left>0; left-=chunk) S.pains.push({ g:Math.min(chunk,left), q:p.q });
+  if(S.painSel>=S.pains.length) S.painSel=0;
+  cause(`Achat ${p.label}`,`−${money(p.price)}`); toast("Pain reçu."); save(); hud();
+}
+
+/* ---------- Secours 2D (3D indisponible : unpkg bloqué sur mobile) ---------- */
+/** Découpe 2D — mêmes règles que la lame : taille décidée ici, une coupe = une barrette. */
+function renderCut2D(){
+  const cs=S.cutSize||CUT_DEFAULT;
+  stage.innerHTML=`
+    <h2>Découpe <span style="opacity:.5;font-size:13px">(2D)</span></h2>
+    <div class="sub">La 3D n'a pas chargé (réseau). Même règle : la taille se décide ICI, à la coupe.</div>
+    <div class="card">
+      <div class="stat"><span>Pain sur la planche</span><b>${activePain()?Math.round(activePain().g)+" g":"—"}</b></div>
+      <div class="stat"><span>Barrettes</span><b>${fmtBars()}</b></div>
+      ${S.pains.length>1?`<div class="muted" style="margin-top:6px">Choisir le pain à découper :</div>
+      <div class="seg">${S.pains.map((p,i)=>`<button class="chip ${i===S.painSel?"on":""}" data-p="${i}">${Math.round(p.g)} g</button>`).join("")}</div>`:""}
+      <div class="seg">
+        <button class="chip" data-d="-1">−</button>
+        <span class="chip on" style="pointer-events:none">coupe ${cs} g</span>
+        <button class="chip" data-d="1">+</button>
+        ${[2,5,8].map(x=>`<button class="chip ${cs===x?"on":""}" data-set="${x}">${x}g</button>`).join("")}
+      </div>
+      <button class="btn ok" id="c1" ${!activePain()?"disabled":""}>✂ Couper 1 barrette</button>
+      <button class="btn ok" id="c5" ${!activePain()?"disabled":""}>✂ ×5</button>
+      ${!activePain()?`<button class="btn ghost" id="gBuy2">◎ Appro d'abord</button>`:""}
+      <button class="btn ghost" id="gBag2">📦 Table zip ▸</button>
+      <button class="btn ghost" id="retry3d">↻ Réessayer la 3D</button>
+      <button class="btn ghost" id="menu2">↩ Atelier</button>
+    </div>`;
+  stage.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{
+    S.cutSize=clamp((S.cutSize||CUT_DEFAULT)+ +b.dataset.d, CUT_MIN, CUT_MAX); save(); renderCut2D();
+  });
+  stage.querySelectorAll("[data-set]").forEach(b=>b.onclick=()=>{ S.cutSize=+b.dataset.set; save(); renderCut2D(); });
+  stage.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{ S.painSel=+b.dataset.p; save(); renderCut2D(); });
+  document.getElementById("c1").onclick=()=>manualCut(1);
+  document.getElementById("c5").onclick=()=>manualCut(5);
+  const gb=document.getElementById("gBuy2"); if(gb) gb.onclick=()=>{ atelierSub="buy"; render(); };
+  document.getElementById("gBag2").onclick=()=>{ atelierSub="bag"; render(); };
+  document.getElementById("retry3d").onclick=()=>{ no3d=false; atelierSub="cut"; render(); };
+  document.getElementById("menu2").onclick=()=>{ atelierSub="menu"; render(); };
+}
+function manualCut(n){
+  let did=0;
+  for(let i=0;i<n;i++){
+    if(!applyCut(S.cutSize||CUT_DEFAULT, "débit 2D")) break;
+    did++;
+  }
+  if(!did){ toast("Plus de pain. Appro d'abord."); return; }
+  toast(did===1?"Barrette.":`${did} barrettes.`);
+  save(); hud(); renderCut2D();
+}
+/** Appro 2D — la même liste que l'overlay 3D, en pleine page. */
+function renderBuy2D(){
+  const items=[PAIN_100,PAIN_250]; if(S.reput>=40) items.push(PAIN_500);
+  stage.innerHTML=`
+    <h2>Appro <span style="opacity:.5;font-size:13px">(2D)</span></h2>
+    <div class="sub">La visionneuse 3D n'a pas chargé — la liste marche pareil. Propre uniquement.</div>
+    <div class="card">
+      <div class="stat"><span>Propre</span><b>${money(S.cash)}</b></div>
+      <div class="stat"><span>Planque (pains + barrettes + sachets)</span><b>${money(finiG()+painsG())} / ${planqueCap()} g</b></div>
+      <div class="stat"><span>Pains en stock</span><b>${fmtPains()}</b></div>
+      ${items.map(p=>{ const locked=p.reputGate&&S.reput<p.reputGate;
+        return `<div class="stat"><span>${p.label} · ${p.g} g · q${p.q}</span>
+          <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-buy="${p.g}" ${locked||S.cash<p.price?"disabled":""}>${locked?"Standing":money(p.price)}</button></div>`; }).join("")}
+      <button class="btn ok" id="gCut2">✂ Aller couper</button>
+      <button class="btn ghost" id="retry3d">↻ Réessayer la visionneuse 3D</button>
+      <button class="btn ghost" id="menu2">↩ Atelier</button>
+    </div>`;
+  stage.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>{
+    buyPain([PAIN_100,PAIN_250,PAIN_500].find(p=>p.g===+b.dataset.buy));
+    renderBuy2D();
+  });
+  document.getElementById("gCut2").onclick=()=>{ atelierSub="cut"; render(); };
+  document.getElementById("retry3d").onclick=()=>{ no3d=false; atelierSub="buy"; render(); };
+  document.getElementById("menu2").onclick=()=>{ atelierSub="menu"; render(); };
+}
+
+/* ---------- BeuherShit ---------- */
+function renderBeuher(){
+  const ready=S.orders.filter(o=>o.status==="ready");
+  const active=S.runs.filter(r=>r.left>0);
+  const done=S.runs.filter(r=>r.left<=0&&!r.collected);
+  // projected risk per courier if all assigned to him
+  stage.innerHTML=`
+    <h2 style="color:#7ddea0">BeuherShit</h2>
+    <div class="sub">La livraison n'est pas un Uber. C'est un pari sur le cumul de grammes. Assigne. Lance. Récupère le liquide. Ou la chaleur.</div>
+    <div class="card">
+      <div class="stat"><span>Chaleur</span><b>${Math.round(S.heat)} / ${beuher.HEAT_CAP}</b></div>
+      <div class="bar"><i style="width:${S.heat}%;background:linear-gradient(90deg,#e8c96a,#ff8a6a)"></i></div>
+      <div class="stat"><span>File</span><b>${ready.length} prêtes · ${active.length} en route</b></div>
+    </div>
+    <div class="card"><h3>File à dispatcher</h3>
+      ${ready.map(o=>{
+        const cid=S.assign[o.id]||"";
+        const deal=beuher.dealById(o.deal);
+        return `<div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.06)">
+          <div class="stat"><span>${o.client} · ${o.g} g · ${money(o.price)}</span><b>${deal.emoji} ${deal.nm}</b></div>
+          <div class="seg">${beuher.COURIERS.map(c=>{
+            const locked=c.id==="gofast"&&S.upgrades.scooter<1&&S.reput<35;
+            return `<button class="chip ${cid===c.id?"on":""}" data-as="${o.id}:${c.id}" ${locked?"disabled":""} style="${cid===c.id?`border-color:${c.col}`:""}">${c.emoji} ${c.nm}</button>`;
+          }).join("")}</div>
+        </div>`;
+      }).join("")||`<div class="muted">Rien. Va closer des DM sur SnapShit.</div>`}
+    </div>
+    <div class="card"><h3>Flotte</h3>
+      ${beuher.COURIERS.map(c=>{
+        const assigned=ready.filter(o=>S.assign[o.id]===c.id);
+        const g=assigned.reduce((a,o)=>a+o.g,0);
+        const risk=beuher.riskChip(c,g);
+        return `<div class="courier ${assigned.length?"on":""}">
+          <div class="stat"><span>${c.emoji} <b>${c.nm}</b></span>
+            ${risk?`<span class="risk ${risk.cls}">${risk.txt}</span>`:`<span class="muted">idle</span>`}</div>
+          <div class="muted">${c.tip}</div>
+          <div class="stat"><span>Charge</span><b>${beuher.fmtG(g)} / ${beuher.fmtG(c.capG)} · max ${beuher.fmtG(beuher.seuilSaisie(c))}</b></div>
+        </div>`;
+      }).join("")}
+    </div>
+    <button class="btn beuher" id="launch" ${ready.every(o=>S.assign[o.id])&&ready.length?"":"disabled"}>Lancer les tournées</button>
+    <div class="card"><h3>En route</h3>
+      ${active.map(r=>`<div class="stat"><span>${r.courierNm} · ${r.g} g ${r.busted?"🚨":""}</span><b>${Math.ceil(r.left)}s</b></div>
+        <div class="bar"><i style="width:${(1-r.left/r.total)*100}%;background:${r.col}"></i></div>`).join("")||`<div class="muted">Personne dehors.</div>`}
+    </div>
+    <div class="card"><h3>Retours</h3>
+      ${done.map(r=>`<div class="stat"><span>${r.courierNm} · ${money(r.net)} ${r.busted?"SAISI":""}</span>
+        <button class="btn ${r.busted?"bad":"ok"}" style="width:auto;margin:0;padding:8px 10px" data-col="${r.id}">${r.busted?"Constater":"Compter le liquide"}</button></div>`).join("")||`<div class="muted">—</div>`}
+    </div>`;
+  stage.querySelectorAll("[data-as]").forEach(b=>b.onclick=()=>{
+    const [oid,cid]=b.dataset.as.split(":"); S.assign[oid]=cid; save(); renderBeuher();
+  });
+  document.getElementById("launch").onclick=()=>launchRuns();
+  stage.querySelectorAll("[data-col]").forEach(b=>b.onclick=()=>collectRun(b.dataset.col));
+}
+
+function launchRuns(){
+  const ready=S.orders.filter(o=>o.status==="ready"&&S.assign[o.id]);
+  if(!ready.length){ toast("Assigne d'abord."); return; }
+  const blocks=beuher.resolveRuns(S.assign, ready, S.heat);
+  // RT-8 : pas de lancement suicide silencieux
+  if(blocks.some(b=>b.busted)){
+    toast("CHAUD — allège la charge ou change de coursier.");
+    return;
+  }
+  for(const bl of blocks){
+    S.heat=clamp(S.heat+bl.hx,0,beuher.HEAT_CAP);
+    const time=bl.eta;
+    S.runs.push({
+      id:"r"+Math.round(S.clock*10)+"_"+bl.courier.id,
+      courierId:bl.courier.id, courierNm:bl.courier.nm, col:bl.courier.col,
+      g:bl.totalG, pay:bl.pay, fee:0, net:bl.net, busted:false,
+      left:time, total:time, collected:false,
+      orderIds:bl.orders.map(o=>o.id),
+    });
+    bl.orders.forEach(o=>{ o.status="assigned"; delete S.assign[o.id]; });
+    cause(`Tournée ${bl.courier.nm}`, `${bl.totalG} g · ETA ${time}s · 0 fee`);
+  }
+  toast("Tournées lancées.");
+  save(); renderBeuher();
+}
+
+function collectRun(id){
+  const r=S.runs.find(x=>x.id===id);
+  if(!r||r.collected||r.left>0) return;
+  r.collected=true;
+  if(r.busted){
+    cause(`Saisie ${r.courierNm}`,`+chaleur · argent perdu`);
+    toast("Saisi. BeuherShit envoie un emoji triste.");
+  } else {
+    S.dirty+=r.net;
+    pushBills(r.net);
+    S.reput=clamp(S.reput+1+(r.g>=15?1:0),0,100);
+    S.soldDay+=r.g;
+    cause(`Retour ${r.courierNm}`,`+${money(r.net)} liquide`);
+    toast("Liquide en trémie.");
+  }
+  save();
+  if(!r.busted){
+    tab="cash"; cashSub="sorter";
+    sorter.running=true; sorter.cooldown=0.15; // auto-start : tu attends
+    render();
+  } else renderBeuher();
+}
+
+function pushBills(amount){
+  // RT-1 : jamais inventer de valeur — reste exact en monnaie (1)
+  let left=Math.round(amount);
+  for(const d of [100,50,20,5,1]){
+    while(left>=d){
+      S.bills.push({ id:"b"+S.bills.length+"_"+d+"_"+Math.round(S.clock*10)+"_"+left, v:d });
+      left-=d;
+    }
+  }
+}
+
+/* ---------- Liquide : trieuse auto 4+1 (pas de mini-jeu) ---------- */
+function cashBundleVal(){ return Object.entries(S.bundles).reduce((a,[d,n])=>a+(+d)*BUNDLE_SIZE*n,0); }
+function cashBankTotal(){ return cashBundleVal()+(S.looseChange||0); }
+function pileOf(d){ return (S._pile&&S._pile[d])||0; }
+
+function renderCashSorter(){
+  set3d("hidden"); hud(); renderDock();
+  sorter.dirtyUi=false;
+  const cur=sorter.current;
+  const cls=cur?(cur.v===1?"n1":cur.v):"";
+  const rjHot=cur&&(cur.v===1||!SORT_POCKETS.includes(cur.v));
+  stage.innerHTML=`
+    <h2 style="color:var(--dirty)">Trieuse</h2>
+    <div class="sub">Tu charges, tu lances, tu attends. La machine trie. ${BUNDLE_SIZE} identiques → liasse. Puis encaisser.</div>
+    <div class="sorter" id="sorter">
+      <div class="sorter-top">
+        <div class="sorter-hopper"><div class="lb">TRÉMIE</div><div class="n">${S.bills.length}</div><div class="muted" style="font-size:10px">${money(S.dirty)} à trier</div></div>
+        <div class="sorter-lcd">
+          <div class="ttl">AUTO SORT · 4+1</div>
+          ${SORT_POCKETS.map(d=>`<div class="row"><span>${money(d)}</span><span>${pileOf(d)}/${BUNDLE_SIZE}</span></div>`).join("")}
+          <div class="row"><span>POCHE</span><span>${money(S.looseChange||0)}</span></div>
+          <div class="row"><span>OK</span><span>${sorter.sessionOk}</span></div>
+        </div>
+      </div>
+      <div class="sorter-throat" id="throat">
+        ${cur?`<div class="sorter-fly n${cls}" id="fly">${money(cur.v)}</div>`:`<div class="muted" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px">${sorter.running?"…":"Prêt"}</div>`}
+      </div>
+      <div class="sorter-pockets">
+        ${SORT_POCKETS.map(d=>{
+          const hot=cur&&cur.v===d?"hot ok-flash":"";
+          return `<div class="spk ${hot}" data-p="${d}"><span class="d">${money(d)}</span><span class="c">${pileOf(d)}</span><span class="sm">liasses ${S.bundles[d]||0}</span></div>`;
+        }).join("")}
+        <div class="spk reject ${rjHot?"hot ok-flash":""}"><span class="d">POCHE</span><span class="c">${money(S.looseChange||0)}</span><span class="sm">monnaie</span></div>
+      </div>
+      <div class="sorter-bar">
+        <button class="btn ${sorter.running?"bad":"ok"}" id="run" ${S.bills.length<1&&!cur?"disabled":""}>${sorter.running?"■ STOP":"▶ START"}</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="stat"><span>Compté</span><b>${money(S.counted||0)}</b></div>
+      <div class="stat"><span>Liasses + poche</span><b>${money(cashBundleVal())} + ${money(S.looseChange||0)}</b></div>
+      <button class="btn ok" id="bank" ${cashBankTotal()<=0?"disabled":""}>Encaisser (+${money(cashBankTotal())} propre)</button>
+    </div>`;
+  document.getElementById("run").onclick=()=>{
+    if(sorter.running){ sorter.running=false; toast("Stop."); }
+    else { sorter.running=true; sorter.cooldown=0; toast("Tri en cours."); }
+    renderCashSorter();
+  };
+  document.getElementById("bank").onclick=()=>bankBundles();
+}
+
+/** Commit le billet en gorge dans la bonne poche (toujours correct — machine). */
+function sorterCommit(){
+  const cur=sorter.current; if(!cur) return;
+  sortBill(cur.id);
+  sorter.current=null;
+  sorter.sessionOk++;
+  sorter.cooldown=0.04;
+  try{ navigator.vibrate&&navigator.vibrate(6); }catch{}
+  if(tab==="cash") renderCashSorter();
+}
+
+function sorterTick(dt){
+  if(tab!=="cash") return;
+  if(sorter.cooldown>0) sorter.cooldown-=dt;
+  // billet en vol → à la fin du passage, poche auto
+  if(sorter.current){
+    sorter.current.t+=dt;
+    if(sorter.current.t>=SORT_FEED) sorterCommit();
+    return;
+  }
+  if(!sorter.running || sorter.cooldown>0) return;
+  if(!S.bills.length){
+    sorter.running=false;
+    if(!sorter.dirtyUi){ sorter.dirtyUi=true; toast("Trémie vide. Encaisser."); renderCashSorter(); }
+    return;
+  }
+  const b=S.bills[0];
+  sorter.current={ id:b.id, v:b.v, t:0 };
+  renderCashSorter();
+}
+function sortBill(id){
+  const i=S.bills.findIndex(x=>x.id===id); if(i<0) return;
+  const [b]=S.bills.splice(i,1);
+  const d=b.v;
+  S.dirty=Math.max(0,S.dirty-d);
+  // Monnaie exacte (1) → poche, bankable 1:1
+  if(d===1){
+    S.looseChange=(S.looseChange||0)+1;
+    save();
+    return;
+  }
+  if(![5,20,50,100].includes(d)){ S.looseChange=(S.looseChange||0)+d; save(); return; }
+  if(!S._pile) S._pile={5:0,20:0,50:0,100:0};
+  S._pile[d]=(S._pile[d]||0)+1;
+  S.counted=(S.counted||0)+d;
+  if(S._pile[d]>=BUNDLE_SIZE){
+    S._pile[d]-=BUNDLE_SIZE; S.bundles[d]=(S.bundles[d]||0)+1;
+    S.counted=Math.max(0,(S.counted||0)-d*BUNDLE_SIZE);
+    toast(`Liasse ${money(d)}. Enfin.`);
+    try{ navigator.vibrate&&navigator.vibrate(25); }catch{}
+  }
+  save();
+}
+function bankBundles(){
+  let got=0;
+  for(const d of [5,20,50,100]){ const n=S.bundles[d]||0; if(n>0){ got+=d*BUNDLE_SIZE*n; S.bundles[d]=0; } }
+  const loose=S.looseChange||0;
+  got+=loose; S.looseChange=0;
+  if(got<=0) return;
+  S.cash+=got; S.counted=0;
+  cause("Liasses encaissées",`+${money(got)} propre`);
+  toast(`+${money(got)} propre. Rachat autorisé.`);
+  save(); render();
+}
+
+/* ---------- Seed DMs if empty ---------- */
+function ensureDemand(){
+  if(!S.dms || !S.dms.length){
+    const spike=S.posteAujourdhui?Math.round(snap.SC.DROP_SPIKE*S.credibilite):0;
+    const good=Math.max(2, Math.round(S.reput/14 + S.expo/22 + spike/8));
+    const bad=Math.round(good*S.flake);
+    S.dms=snap.buildDMs(S, good, bad, S.expo);
+  }
+}
+
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  S.clock+=dt;
+  if(S.dirty>DIRTY_HOLD_SOFT){
+    S._dirtyAcc=(S._dirtyAcc||0)+dt;
+    if(S._dirtyAcc>=3){ S._dirtyAcc=0; S.heat=clamp(S.heat+(S.dirty>DIRTY_HOLD_HARD?2:1),0,100); }
+  }
+  if(S.upgrades.counter>0 && S.dirty>0 && S.bills.length===0){
+    const take=Math.min(S.dirty, COUNTER_RATE*dt); S.dirty-=take; S.cash+=take;
+  }
+  let dirtyRun=false, runDone=false;
+  for(const r of S.runs){
+    if(r.left>0){ r.left-=dt; if(r.left<=0){ r.left=0; runDone=true; } dirtyRun=true; }
+  }
+  if(tab==="beuher"){
+    // arrivée d'une tournée → refresh immédiat : le retour de liquide
+    // apparaît sans quitter l'onglet (avant, le dernier render pouvait sauter)
+    if(runDone){ frame._acc=0; renderBeuher(); }
+    else if(dirtyRun){
+      if(!frame._acc) frame._acc=0; frame._acc+=dt;
+      if(frame._acc>0.35){ frame._acc=0; renderBeuher(); }
+    }
+  }
+  sorterTick(dt);
+  if(scene3d) scene3d.tick(dt);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+setInterval(()=>save(),2000);
+
+ensureDemand();
+render();
+toast(S.shelter?.introSeen
+  ? "Quartier Nord · planque · corner."
+  : "Karim t'écrit. Le spot est à toi.");
+</script>
+</body>
+</html>
