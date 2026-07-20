@@ -4,7 +4,7 @@ import * as THREE from "three";
 
 const LOAF_L = 1.7, LOAF_W = 0.55, LOAF_H = 0.34;
 const PER_LEN = 100;
-const BAR_G = 10;
+const SWIPE_NAV = 60; // px — swipe ▸ en mode cut = aller au conditionnement
 const PRESS_TIME = 0.6;
 const PILE_CAP = 18;
 const WRAP_K = 0.34;
@@ -144,12 +144,12 @@ function syncLoafFromPain() {
   const g = hooks.getPainG();
   const len = Math.min(LOAF_L, Math.max(0, g / PER_LEN));
   rightNeg = rightPos = len;
-  over = len < 0.05;
+  over = g < 1;
   rebuildLoaf();
 }
 
 function refreshBins() {
-  const bars = Math.min(PILE_CAP, Math.floor(hooks.getBarG() / BAR_G));
+  const bars = Math.min(PILE_CAP, hooks.getBarCount());
   const packs = Math.min(PILE_CAP, hooks.getSachetCount());
   if (coupeStockPile) showPile(coupeStockPile, bars);
   if (condInPile) showPile(condInPile, bars);
@@ -178,8 +178,9 @@ function spawnBarrette(cutNeg, cutPos) {
 const BIN_TARGET = new THREE.Vector3(1.1, 0.14, 0.82);
 
 function pressCut() {
-  if (over || hooks.getPainG() < 4) return;
-  const take = Math.min(hooks.getPainG(), BAR_G);
+  if (over || hooks.getPainG() < 1) return;
+  // la taille de la barrette se décide ICI, à la lame (défaut 2 g, libre)
+  const take = Math.min(hooks.getPainG(), hooks.getCutSize());
   const thick = take / PER_LEN;
   let cn = rightNeg - thick, cp = rightPos - thick;
   if (cn < 0.001 && cp < 0.001) { cn = 0; cp = 0; }
@@ -188,7 +189,7 @@ function pressCut() {
   spawnBarrette(cn, cp);
   hooks.onCut(take);
   haptic(40);
-  if (Math.max(rightNeg, rightPos) < 0.05 || hooks.getPainG() < 4) {
+  if (hooks.getPainG() < 1) {
     over = true;
     hooks.toast("Pain fini. Rachat requis.");
   }
@@ -230,7 +231,7 @@ function updateKnife(dt) {
   const show = mode === "cut" && !over;
   bladeMesh.visible = show;
   const right = (rightNeg + rightPos) / 2;
-  const cutX = Math.max(0, right - BAR_G / PER_LEN);
+  const cutX = Math.max(0, right - hooks.getCutSize() / PER_LEN);
   let y = LOAF_H + 0.10 - (pressing ? (pressT / PRESS_TIME) * 0.5 : 0);
   if (bladeChop > 0) {
     bladeChop = Math.max(0, bladeChop - dt * 4.5);
@@ -393,7 +394,7 @@ function setVisibleGroups() {
   if (benchCond) benchCond.visible = mode === "cond";
   if (buyGroup) buyGroup.visible = mode === "buy";
   if (hintEl) {
-    if (mode === "cut") hintEl.textContent = "Maintiens pour trancher · pain → barrettes";
+    if (mode === "cut") hintEl.textContent = "Maintiens pour trancher · swipe ▸ conditionnement";
     else if (mode === "cond") hintEl.textContent = "Tap = prendre · glisse ⬆️ = enrouler · 🔥 sceller";
     else if (mode === "buy") hintEl.textContent = "Aperçu matière · achat dans la liste";
     else hintEl.textContent = "";
@@ -402,6 +403,9 @@ function setVisibleGroups() {
 
 function onPointerDown(e) {
   if (mode !== "cut" && mode !== "cond") return;
+  // les contrôles HUD (taille de coupe, appro, sceller) gardent leurs clics :
+  // sans ce garde, setPointerCapture recible le click sur #view3d et les boutons sont morts
+  if (e.target && e.target.closest && e.target.closest("#fmtBar,#buyOverlay,#seal")) return;
   if (pid !== null) return;
   pid = e.pointerId;
   root.setPointerCapture(pid);
@@ -441,6 +445,15 @@ function onPointerUp(e) {
   if (e.pointerId !== pid) return;
   try { root.releasePointerCapture(pid); } catch (_) {}
   pid = null;
+  if (moved && mode === "cut") {
+    // swipe vers la droite = rail atelier → conditionnement
+    const dx = lastX - startX, dy = lastY - startY;
+    if (dx > SWIPE_NAV && Math.abs(dx) > Math.abs(dy) * 1.2 && hooks.onSwipeRight) {
+      holding = false; pressing = false; pressT = 0; cutConsumed = false;
+      hooks.onSwipeRight();
+      return;
+    }
+  }
   if (!moved) {
     if (mode === "cut" && over) {
       syncLoafFromPain();

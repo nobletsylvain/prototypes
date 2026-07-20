@@ -140,23 +140,35 @@ export function buildDMs(S, good, bad, peakExpo) {
   return list;
 }
 
-/** Map qty grammes → sachets DOSE_FORMATS. Exact match only (jamais sur-livrer). */
+/** Map qty grammes → sachets en stock (tailles libres, fixées à la coupe).
+    Exact match only (jamais sur-livrer). DP bornée : trouve une combinaison
+    exacte quand elle existe (le glouton ratait 10 = 5+5 avec un 8 en stock). */
 export function qtyToSachets(qty, sachets) {
-  const formats = [...SC.DOSE_FORMATS].sort((a, b) => b - a);
-  let left = qty;
-  const plan = Object.fromEntries(SC.DOSE_FORMATS.map((f) => [f, 0]));
-  for (const f of formats) {
-    while (left >= f && (sachets[f] || 0) - plan[f] > 0) {
-      plan[f]++;
-      left -= f;
+  const sizes = Object.keys(sachets).map(Number)
+    .filter((f) => f > 0 && (sachets[f] || 0) > 0).sort((a, b) => b - a);
+  const empty = () => Object.fromEntries(sizes.map((f) => [f, 0]));
+  const dp = new Array(qty + 1).fill(null);
+  dp[0] = empty();
+  for (let a = 1; a <= qty; a++) {
+    for (const f of sizes) {
+      if (a < f || !dp[a - f]) continue;
+      if ((dp[a - f][f] || 0) >= sachets[f]) continue;
+      dp[a] = { ...dp[a - f], [f]: (dp[a - f][f] || 0) + 1 };
+      break;
     }
   }
-  const covered = qty - left;
-  return { plan, covered, short: left, exact: left === 0 };
+  let best = qty;
+  while (best > 0 && !dp[best]) best--;
+  const plan = dp[qty] || dp[best] || empty();
+  const covered = dp[qty] ? qty : best;
+  return { plan, covered, short: qty - covered, exact: covered === qty };
 }
 
 export function applySachetPlan(sachets, plan) {
-  for (const f of SC.DOSE_FORMATS) sachets[f] -= plan[f] || 0;
+  for (const f of Object.keys(plan)) {
+    sachets[f] -= plan[f] || 0;
+    if (!(sachets[f] > 0)) delete sachets[f];
+  }
 }
 
 /**
@@ -195,7 +207,8 @@ export function acceptDM(S, dmId, mode /* sell|brade|volume */) {
   }
 
   applySachetPlan(S.sachets, plan);
-  const g = [2, 5, 8].reduce((a, f) => a + plan[f] * f, 0);
+  const used = Object.keys(plan).map(Number).filter((f) => plan[f] > 0).sort((a, b) => b - a);
+  const g = used.reduce((a, f) => a + plan[f] * f, 0);
   const price = Math.round(qty * ppu); // jamais facturer plus que la demande
   d.status = "sold";
   S.dayTally.sold++;
@@ -207,8 +220,8 @@ export function acceptDM(S, dmId, mode /* sell|brade|volume */) {
     id: "o" + S.orderSeq++,
     client: d.nm,
     vibe: d.msg,
-    format: plan[8] ? 8 : plan[5] ? 5 : 2,
-    qty: plan[2] + plan[5] + plan[8],
+    format: used[0] || 2,
+    qty: used.reduce((a, f) => a + plan[f], 0),
     plan,
     g,
     price,
