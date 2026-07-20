@@ -9,6 +9,24 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-20 — La Loupe : « Planque pleine » doit dire les chiffres
+
+Retour de test tel : « je n'ai pas pu acheter, ça disait planque pleine alors
+que je n'avais aucun pain ». Pas un bug : la planque compte TOUT le produit
+(pain + barrettes + sachets, `finiG()+painG`), cap de base 250 g — donc un
+Pain 250 exige une planque quasi vide tant qu'on n'a pas pris l'upgrade
+Planque (+120 g/niveau, Réinvest). C'est la deuxième porte de scale voulue
+(SCOPE §2), mais l'UI ne l'expliquait pas :
+
+- le toast donne maintenant les chiffres : « Planque 130/250 g — pas la place
+  pour +250 g. Vends, ou agrandis (Réinvest, Home) » ;
+- l'overlay d'appro 3D et l'appro 2D affichent le remplissage et ce qui compte
+  dedans (pain + barrettes + sachets).
+
+Équilibrage inchangé (cap 250, gates standing 40/65) — question ouverte si la
+friction se confirme en test : cap de base plus haut, ou sortir les sachets
+du compte planque.
+
 ## 2026-07-20 — La Loupe : secours 2D pour la coupe et l'appro (retour de test tel)
 
 Retour de Sylvain sur tel après la v17 : « broken — plus la possibilité de
