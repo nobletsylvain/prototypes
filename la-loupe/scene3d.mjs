@@ -15,6 +15,9 @@ let root = null;
 let renderer, scene, camera;
 let coupeRig, cakeMesh, bladeMesh, coupeStockPile, condGroup, condInPile, condOutPile;
 let benchCut, benchCond;
+let stashGroup = null, matStashSel = null; // réserve de pains au fond, sélection au tap
+const _ray = new THREE.Raycaster();
+const _ndc = new THREE.Vector2();
 let rightNeg = 0, rightPos = 0, over = false, bladeChop = 0;
 let slices = [];
 let loafMats, matCrust, plasticMat, twistGeoBig, slabGeo;
@@ -154,6 +157,29 @@ function refreshBins() {
   if (coupeStockPile) showPile(coupeStockPile, bars);
   if (condInPile) showPile(condInPile, bars);
   if (condOutPile) showPile(condOutPile, packs);
+  refreshStash();
+}
+
+/** Réserve de pains au fond de l'établi — un bloc par pain, le sélectionné surligné. */
+function refreshStash() {
+  if (!stashGroup || !hooks.getStash) return;
+  while (stashGroup.children.length) {
+    const c = stashGroup.children.pop();
+    stashGroup.remove(c);
+    if (c.geometry) c.geometry.dispose();
+  }
+  const st = hooks.getStash();
+  const n = Math.min(6, st.sizes.length);
+  for (let i = 0; i < n; i++) {
+    const g = st.sizes[i];
+    const lenZ = Math.max(0.22, Math.min(0.6, g / 500));
+    const sel = i === st.sel;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, lenZ), sel ? matStashSel : matCrust);
+    mesh.position.set(-1.15 + i * 0.46, 0.08 + (sel ? 0.06 : 0), 0);
+    mesh.castShadow = true;
+    mesh.userData.stashIdx = i;
+    stashGroup.add(mesh);
+  }
 }
 
 function spawnBarrette(cutNeg, cutPos) {
@@ -180,7 +206,8 @@ const BIN_TARGET = new THREE.Vector3(1.1, 0.14, 0.82);
 function pressCut() {
   if (over || hooks.getPainG() < 1) return;
   // la taille de la barrette se décide ICI, à la lame (défaut 2 g, libre)
-  const take = Math.min(hooks.getPainG(), hooks.getCutSize());
+  const beforeG = hooks.getPainG();
+  const take = Math.min(beforeG, hooks.getCutSize());
   const thick = take / PER_LEN;
   let cn = rightNeg - thick, cp = rightPos - thick;
   if (cn < 0.001 && cp < 0.001) { cn = 0; cp = 0; }
@@ -189,9 +216,15 @@ function pressCut() {
   spawnBarrette(cn, cp);
   hooks.onCut(take);
   haptic(40);
-  if (hooks.getPainG() < 1) {
+  // le visuel plafonne à LOAF_L (170 g) : quand la planche est vide mais qu'il
+  // reste des grammes, on recharge — plus jamais de coupe « dans le vide »
+  const afterG = hooks.getPainG();
+  if (afterG < 1) {
     over = true;
-    hooks.toast("Pain fini. Rachat requis.");
+    hooks.toast("Plus de pain. Appro requis.");
+  } else if (Math.max(rightNeg, rightPos) < 0.03) {
+    syncLoafFromPain();
+    hooks.toast(beforeG - take >= 1 ? "La suite du pain sur la planche." : "Pain suivant sur la planche.");
   }
   refreshBins();
 }
@@ -358,6 +391,13 @@ function buildScene() {
   sbin.position.set(0.85, 1.02, 0.82);
   coupeStockPile = makePile(3, PILE_CAP, () => new THREE.Mesh(slabGeo, matCrust));
   sbin.add(coupeStockPile); benchCut.add(sbin);
+  // réserve de pains au fond de l'établi (tap = choisir le prochain à découper)
+  matStashSel = matCrust.clone();
+  matStashSel.emissive = new THREE.Color(0xff9a3c);
+  matStashSel.emissiveIntensity = 0.35;
+  stashGroup = new THREE.Group();
+  stashGroup.position.set(0, 1.02, -1.75);
+  benchCut.add(stashGroup);
   scene.add(benchCut);
 
   // Cond
@@ -454,7 +494,21 @@ function onPointerUp(e) {
       return;
     }
   }
-  if (!moved) {
+  if (!moved && !cutConsumed) { // relâcher après une coupe ≠ un tap
+    // tap sur un pain de la réserve = le mettre sur la planche
+    if (mode === "cut" && stashGroup && stashGroup.children.length && hooks.onSelectPain) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      _ndc.set(((lastX - rect.left) / rect.width) * 2 - 1, -((lastY - rect.top) / rect.height) * 2 + 1);
+      _ray.setFromCamera(_ndc, camera);
+      const hits = _ray.intersectObjects(stashGroup.children, false);
+      if (hits.length) {
+        hooks.onSelectPain(hits[0].object.userData.stashIdx);
+        syncLoafFromPain();
+        refreshBins();
+        holding = false; pressing = false; pressT = 0; cutConsumed = false;
+        return;
+      }
+    }
     if (mode === "cut" && over) {
       syncLoafFromPain();
       if (!over) hooks.toast("Pain rechargé sur la planche.");
@@ -519,14 +573,20 @@ export function syncFromState() {
   refreshBins();
 }
 
+let lastTickMs = 0;
 export function tick(dt) {
   if (mode === "hidden" || !renderer) return;
+  // temps RÉEL pour le geste de presse : à bas fps (mobile qui chauffe,
+  // headless), le dt simulé clampé (0.05) allongeait le maintien requis
+  const nowMs = performance.now();
+  const realDt = lastTickMs ? Math.min(0.3, (nowMs - lastTickMs) / 1000) : dt;
+  lastTickMs = nowMs;
 
   if (mode === "buy" && buyMesh) buyMesh.rotation.y += dt * 0.55;
 
   pressing = holding && pid !== null && !moved && mode === "cut" && !over && !cutConsumed;
   if (pressing) {
-    pressT += dt;
+    pressT += realDt;
     if (pressT >= PRESS_TIME) { pressCut(); pressT = 0; cutConsumed = true; pressing = false; }
   } else if (!holding) pressT = 0;
 

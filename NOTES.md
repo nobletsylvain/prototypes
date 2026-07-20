@@ -9,6 +9,33 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-20 — La Loupe : pains discrets, réserve sélectionnable, fin du « couper dans le vide »
+
+Retours de test tel (screenshot) sur l'écran de coupe : pas de restant visible
+sur le pain, pas d'état du stock/barrettes, coupe « dans le vide » quand le
+pain dépasse ce que la planche affiche, et demande d'afficher les savonnettes
+en réserve, sélectionnables. Quatre réponses :
+
+- **painG (pool de grammes) → S.pains (liste discrète {g, q})** : chaque pain
+  garde SA qualité (elle part dans les barrettes à la coupe — avant, tout se
+  moyennait dans painQ). **Migration douce** sans reset : painG>0 devient un
+  pain unique, painG remis à 0 (garde anti double-migration). Pas de bump.
+- **UI de coupe** : la barre du haut affiche « Pain : X g · réserve N pains
+  (Y g) » + « Barrettes : … », mise à jour à chaque coupe.
+- **Fin du « couper dans le vide »** : le visuel plafonne à LOAF_L (170 g) ;
+  quand la planche est visuellement vide mais qu'il reste des grammes, elle se
+  **recharge** (toast « La suite du pain / Pain suivant »). Vérifié : pain
+  190 g, 9×20 g débités = conservation exacte.
+- **Réserve au fond de l'établi** : un bloc par pain (taille ∝ grammes), le
+  sélectionné surligné + surélevé ; **tap = le mettre sur la planche**
+  (raycast ; garde : le relâcher d'un maintien-coupe ne compte pas comme tap).
+  Équivalent chips dans la découpe 2D de secours.
+- **Fix transversal déniché au passage** : le temps de presse était compté en
+  dt simulé **clampé** (0.05/frame) → à bas fps (téléphone qui chauffe,
+  headless à 4 fps), le maintien de 0.6 s réclamait 3 s+ de vrai temps. Le
+  geste se mesure désormais en **temps réel** (la physique des tranches garde
+  le dt clampé).
+
 ## 2026-07-20 — La Loupe : les labels 3D s'empilaient en haut (CSS max() invalide)
 
 Screenshot de Sylvain : dans la coupe 3D, « Maintiens pour couper », l'indice
