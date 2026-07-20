@@ -9,6 +9,34 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-20 — La Loupe : la taille se décide à la lame (anti-triche) + rail atelier
+
+Retours de Sylvain sur la dernière build La Loupe — cinq changements, save
+v16 → v17 :
+
+- **Anti-triche conditionnement** : la taille de la barrette est fixée AU
+  MOMENT DE LA COUPE. Le stock devient discret par taille (`S.bars{taille:n}`),
+  plus un pool de grammes — impossible de couper large puis de « décider »
+  des 8 g au zip.
+- **Taille de coupe libre** : sélecteur au-dessus de la lame (− / +, chips
+  2/5/8), défaut **2 g**. Le dernier morceau du pain peut sortir plus petit
+  que la taille choisie — assumé (c'est un « morceau »).
+- **Conditionnement** : le bac STOCK montre les TYPES de barrettes (une par
+  taille, badge ×n) ; drag & drop vers le zip central → sachet de LA taille
+  draguée. L'express suit le même modèle (par taille). `qtyToSachets` passe
+  en DP exacte (le glouton ratait 10 = 5+5 quand un 8 traînait en stock).
+- **Rail atelier** : la découpe est la scène par défaut de l'Atelier ;
+  swipe ▸ dans la 3D → conditionnement ; swipe ◂ sur l'établi zip → découpe.
+- **BeuherShit** : l'arrivée d'une tournée re-render immédiatement l'onglet —
+  le retour de liquide apparaît sans quitter l'écran (avant, le throttle
+  0.35 s pouvait sauter le dernier render et l'écran restait figé).
+- **Fix réel déniché en test headless** : le `setPointerCapture` de la scène
+  3D reciblait les clicks des contrôles HUD (#fmtBar/#buyOverlay/#seal) →
+  boutons morts. Garde ajoutée dans `onPointerDown`.
+- Outillage : `tools/shots-loupe.mjs` (serveur HTTP local — les modules .mjs
+  de la-loupe ne chargent pas en file:// ; parcours complet appro → coupe →
+  swipe → zip, état vérifié via `loupe_save`).
+
 ## 2026-07-04 — Plantation : l'arrachage (tap & hold + tirer vers le haut)
 
 Le geste de récolte du plant change encore, sur retour de test : le swipe

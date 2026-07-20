@@ -172,6 +172,8 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .bag-bar.drag .skin{box-shadow:0 14px 28px rgba(0,0,0,.65),0 0 0 2px rgba(255,180,84,.55)}
 .bag-bar .w{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;
   font-size:10px;font-weight:900;color:rgba(255,245,220,.92);text-shadow:0 1px 3px #000;pointer-events:none}
+.bag-bar .n{position:absolute;top:-8px;right:-8px;z-index:2;background:#ffb454;color:#201206;
+  font-size:10px;font-weight:900;border-radius:999px;padding:2px 6px;box-shadow:0 2px 6px rgba(0,0,0,.4);pointer-events:none}
 /* un seul zip au centre */
 .bag-slot{position:absolute;left:50%;top:50%;width:78px;height:110px;z-index:3;
   transform:translate(-50%,-50%);transition:transform .35s cubic-bezier(.2,.8,.2,1),left .35s cubic-bezier(.2,.8,.2,1),top .35s cubic-bezier(.2,.8,.2,1),opacity .3s}
@@ -229,11 +231,13 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 <script type="module">
 /* snap/beuher d'abord — Three.js (scene3d) en lazy load.
    Sur mobile, unpkg bloqué cassait TOUT le proto (écran fantôme « enrouler »). */
-import * as snap from "./snap.mjs?v=16";
-import * as beuher from "./beuher.mjs?v=16";
+import * as snap from "./snap.mjs?v=17";
+import * as beuher from "./beuher.mjs?v=17";
 
-const SAVE_VERSION = "16";
-const DOSE_FORMATS = [2, 5, 8]; // synchro snap.SC.DOSE_FORMATS
+const SAVE_VERSION = "17";
+// La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
+// La demande Snap reste calée sur 2/5/8 (snap.SC.DOSE_FORMATS) — couper autre chose = risque assumé.
+const CUT_MIN = 1, CUT_MAX = 20, CUT_DEFAULT = 2;
 const SORT_POCKETS = [5, 20, 50, 100]; // trieuse 4+1 (+ reject / monnaie)
 const SORT_FEED = 0.28; // s entre chaque billet (machine, pas mini-jeu)
 let scene3d = null;
@@ -241,7 +245,7 @@ let scene3dPromise = null;
 async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
-    scene3dPromise = import("./scene3d.mjs?v=16").then((m) => {
+    scene3dPromise = import("./scene3d.mjs?v=17").then((m) => {
       scene3d = m;
       scene3d.mount(view3d, {
         pressbar: document.getElementById("pressbar"),
@@ -254,21 +258,25 @@ async function ensure3d() {
         hint: document.getElementById("hint3d"),
       }, {
         getPainG: () => S.painG,
-        getBarG: () => S.barG,
-        getDoseFormat: () => S.doseFormat,
+        getBarG: () => barsG(),
+        getBarCount: () => barCount(),
+        getCutSize: () => S.cutSize || CUT_DEFAULT,
+        getDoseFormat: () => S.cutSize || CUT_DEFAULT,
         getSachetCount: () => Object.values(S.sachets).reduce((a, n) => a + n, 0),
         toast,
         onCut: (g) => {
           const take = Math.min(S.painG, g);
           S.painG -= take;
-          S.barQ = avgMerge(S.barG, S.barQ, take, S.painQ || 60);
-          S.barG += take;
-          cause(`Coupe 3D ${take.toFixed(1)} g`, `Maintien lame`);
+          S.barQ = avgMerge(barsG(), S.barQ, take, S.painQ || 60);
+          const key = Math.max(1, Math.round(take));
+          S.bars[key] = (S.bars[key] || 0) + 1;
+          cause(`Coupe 3D ${take.toFixed(1)} g`, `Barrette ${key} g — taille fixée à la lame`);
           save(); hud();
         },
-        onTakeBar: (fmt) => { S.barG -= fmt; save(); hud(); },
-        onReturnBar: (fmt) => { S.barG += fmt; save(); hud(); },
-        onPack: () => { /* wrap 3D retiré — dosage = renderDoseFast */ },
+        onSwipeRight: () => { if (tab === "atelier") { atelierSub = "bag"; render(); } },
+        onTakeBar: () => {}, // wrap 3D retiré — la taille est figée à la coupe
+        onReturnBar: () => {},
+        onPack: () => { /* wrap 3D retiré — conditionnement = renderDoseBag */ },
       });
       window.addEventListener("resize", () => scene3d && scene3d.resize());
       return scene3d;
@@ -286,7 +294,6 @@ const START_CASH = 220;
 const PAIN_100 = { g:100, price:200, q:52, label:"Pain 100" };
 const PAIN_250 = { g:250, price:1700, q:78, label:"Pain 250", reputGate:40 };
 const PAIN_500 = { g:500, price:3200, q:70, label:"Lot 500", reputGate:65 };
-const DOSE_PRICE = { 2:9.5, 5:8.0, 8:7.0 };
 const PLANQUE_CAP_BASE = 250;
 const DIRTY_HOLD_SOFT = 180, DIRTY_HOLD_HARD = 450, BUNDLE_SIZE = 5, COUNTER_RATE = 40;
 const UPG = {
@@ -310,12 +317,12 @@ const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 function defaultState(){
   return {
     cash: START_CASH, dirty:0, heat:0, reput:20, day:1, clock:0,
-    painG:0, painQ:0, barG:0, barQ:60, wasteG:0,
-    sachets:{2:0,5:0,8:0}, sachetQ:60,
+    painG:0, painQ:0, bars:{}, barQ:60, wasteG:0,
+    sachets:{}, sachetQ:60, cutSize:CUT_DEFAULT,
     orders:[], runs:[], bills:[],
     bundles:{5:0,20:0,50:0,100:0}, _pile:{5:0,20:0,50:0,100:0},
     upgrades:{scooter:0, planque:0, counter:0},
-    journal:[], orderSeq:1, soldDay:0, doseFormat:8,
+    journal:[], orderSeq:1, soldDay:0,
     assign:{}, counted:0, atelierMode:"cut",
     ...snap.snapDefaults(),
   };
@@ -342,9 +349,13 @@ function save(){ store.set("save", JSON.stringify(S)); }
 function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>toastEl.classList.remove("show"),1800); }
 function cause(txt, why){ S.journal.unshift({t:Date.now(),txt,cause:why}); if(S.journal.length>50) S.journal.length=50; }
 function planqueCap(){ return PLANQUE_CAP_BASE + S.upgrades.planque*120; }
-function finiG(){ return S.barG + Object.entries(S.sachets).reduce((a,[f,n])=>a+n*+f,0); }
+function sizesOf(map){ return Object.keys(map).map(Number).filter(f=>map[f]>0).sort((a,b)=>b-a); }
+function barsG(){ return Object.entries(S.bars).reduce((a,[f,n])=>a+n*+f,0); }
+function barCount(){ return Object.values(S.bars).reduce((a,n)=>a+n,0); }
+function finiG(){ return barsG() + Object.entries(S.sachets).reduce((a,[f,n])=>a+n*+f,0); }
 function avgMerge(oG,oQ,aG,aQ){ const t=oG+aG; return t<=0?0:(oG*oQ+aG*aQ)/t; }
-function fmtSachets(){ return DOSE_FORMATS.map(f=>`${S.sachets[f]||0}×${f}g`).join(" · "); }
+function fmtBars(){ const ks=sizesOf(S.bars); return ks.length?ks.map(f=>`${S.bars[f]}×${f}g`).join(" · "):"—"; }
+function fmtSachets(){ const ks=sizesOf(S.sachets); return ks.length?ks.map(f=>`${S.sachets[f]}×${f}g`).join(" · "):"—"; }
 function qualAvg(){ return Math.round(S.sachetQ || S.barQ || 60); }
 
 function hud(){
@@ -359,7 +370,7 @@ function renderDock(){
   dock.innerHTML=APPS.map(t=>`<button class="tab ${tab===t.id?"on":""}" data-t="${t.id}"><span class="ic">${t.ic}</span>${t.lb}</button>`).join("");
   dock.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
     tab=b.dataset.t;
-    atelierSub = tab==="atelier" ? "bag" : "menu";
+    atelierSub = tab==="atelier" ? "cut" : "menu"; // découpe = scène par défaut
     if(tab==="cash") cashSub="sorter";
     render();
   });
@@ -370,7 +381,8 @@ function set3d(mode){
   view3d.classList.toggle("on",on);
   stage.classList.toggle("behind",on);
   buyOverlay.classList.toggle("on", mode==="buy");
-  fmtBar.classList.toggle("on", false); // plus de cond 3D
+  fmtBar.classList.toggle("on", mode==="cut"); // sélecteur de taille de coupe
+  if(mode==="cut") renderFmtBar();
   if(mode==="hidden"){
     if(scene3d) scene3d.setMode("hidden");
     return;
@@ -386,9 +398,22 @@ function set3d(mode){
     render();
   });
 }
+/** Taille de coupe — libre (CUT_MIN..CUT_MAX), défaut 2 g. Décidée ICI, pas au conditionnement. */
 function renderFmtBar(){
-  fmtBar.innerHTML=[2,5,8].map(x=>`<button class="chip ${S.doseFormat===x?"on":""}" data-f="${x}">${x}g</button>`).join("");
-  fmtBar.querySelectorAll("[data-f]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); S.doseFormat=+b.dataset.f; renderFmtBar(); save(); });
+  const cs=S.cutSize||CUT_DEFAULT;
+  fmtBar.innerHTML=`
+    <button class="chip" data-d="-1">−</button>
+    <span class="chip on" style="pointer-events:none">coupe ${cs} g</span>
+    <button class="chip" data-d="1">+</button>`
+    +[2,5,8].map(x=>`<button class="chip ${cs===x?"on":""}" data-set="${x}">${x}g</button>`).join("");
+  fmtBar.querySelectorAll("[data-d]").forEach(b=>b.onclick=e=>{
+    e.stopPropagation();
+    S.cutSize=clamp((S.cutSize||CUT_DEFAULT)+ +b.dataset.d, CUT_MIN, CUT_MAX);
+    renderFmtBar(); save();
+  });
+  fmtBar.querySelectorAll("[data-set]").forEach(b=>b.onclick=e=>{
+    e.stopPropagation(); S.cutSize=+b.dataset.set; renderFmtBar(); save();
+  });
 }
 
 function render(){
@@ -435,7 +460,7 @@ function renderHome(){
   stage.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{
     const g=b.dataset.go;
     if(g==="buy"){ tab="atelier"; atelierSub="buy"; render(); return; }
-    if(g==="atelier"){ tab="atelier"; atelierSub="bag"; render(); return; } // D31 ensachage zip
+    if(g==="atelier"){ tab="atelier"; atelierSub="cut"; render(); return; } // découpe d'abord, swipe ▸ zip
     if(g==="karnet"){ renderKarnet(); return; }
     tab=g; atelierSub="menu"; render();
   });
@@ -542,10 +567,14 @@ function doSell(id, mode){
 function renderAtelierMenu(){
   stage.innerHTML=`
     <h2>Atelier</h2>
-    <div class="sub">Conditionnement zip (Schedule 1 / D31). Express = quand le geste t'ennuie (R6).</div>
-    <div class="card"><div class="stat"><span>Pain / barrettes / sachets</span><b>${S.painG.toFixed(0)} · ${S.barG.toFixed(0)} · ${fmtSachets()}</b></div></div>
-    <button class="btn ok" id="gBag">📦 Ensacher — drag dans le zip</button>
-    <button class="btn ok" id="gCut">✂ Coupe 3D — maintien lame</button>
+    <div class="sub">La taille se décide à la lame. Le zip ne fait qu'emballer ce qui existe. Express = quand le geste t'ennuie (R6).</div>
+    <div class="card">
+      <div class="stat"><span>Pain</span><b>${S.painG.toFixed(0)} g</b></div>
+      <div class="stat"><span>Barrettes</span><b>${fmtBars()}</b></div>
+      <div class="stat"><span>Sachets</span><b>${fmtSachets()}</b></div>
+    </div>
+    <button class="btn ok" id="gCut">✂ Coupe 3D — taille au choix (déf. ${CUT_DEFAULT} g)</button>
+    <button class="btn ok" id="gBag">📦 Ensacher — drag barrette → zip</button>
     <button class="btn ghost" id="gDose">⚖ Dosage express — délégation</button>
     <button class="btn ghost" id="gBuy">◎ Appro — visionneuse pain</button>`;
   document.getElementById("gBag").onclick=()=>{ atelierSub="bag"; render(); };
@@ -554,73 +583,70 @@ function renderAtelierMenu(){
   document.getElementById("gBuy").onclick=()=>{ atelierSub="buy"; render(); };
 }
 
-/** Commit 1 sachet format f depuis barrettes. Retourne true si OK. */
+/** Emballe UNE barrette de taille f (telle que coupée). Retourne true si OK. */
 function commitSachet(f, why){
-  if(S.barG<f) return false;
+  if(!(S.bars[f]>0)) return false;
   const stockG=Object.entries(S.sachets).reduce((a,[ff,nn])=>a+nn*+ff,0);
-  S.barG-=f;
-  S.sachetQ=avgMerge(stockG,S.sachetQ,f,S.barQ);
-  S.sachets[f]++;
+  S.bars[f]--; if(!S.bars[f]) delete S.bars[f];
+  S.sachetQ=avgMerge(stockG,S.sachetQ,+f,S.barQ);
+  S.sachets[f]=(S.sachets[f]||0)+1;
   cause(`Sachet ${f} g`, why);
   return true;
 }
 
 /**
- * Emballage D31 : UNE barrette (visuel référence) → UN zip au centre →
- * le sachet glisse tout seul vers PRÊT à droite. R1 : raté = retour.
+ * Emballage D31 : le bac STOCK montre les TYPES de barrettes (une par taille
+ * de coupe, avec compteur) → drag vers le zip au centre → le sachet glisse
+ * vers PRÊT à droite. La taille du sachet = la taille coupée. R1 : raté = retour.
  */
 function renderDoseBag(){
-  const f=S.doseFormat;
-  const pieces=Math.floor(S.barG/f);
-  const doneN=S.sachets[f]||0;
-  const waiting=Math.max(0, pieces-1);
+  const sizes=sizesOf(S.bars);
+  const doneN=Object.values(S.sachets).reduce((a,n)=>a+n,0);
   stage.innerHTML=`
-    <div class="bag-prompt">Place la barrette dans le sachet</div>
-    <div class="seg">
-      ${DOSE_FORMATS.map(x=>`<button class="chip ${f===x?"on":""}" data-f="${x}">${x} g</button>`).join("")}
-    </div>
+    <div class="bag-prompt">Glisse une barrette dans le sachet</div>
     <div class="bag-bench" id="bench">
-      <div class="bag-tray" id="tray">
-        <div class="lb">STOCK</div>
-        <div class="wait">${waiting?`<div class="mini-bar"></div><div class="mini-bar"></div><div style="font-size:9px;font-weight:800;color:var(--muted)">+${waiting}</div>`:""}</div>
-      </div>
+      <div class="bag-tray" id="tray"><div class="lb">STOCK</div></div>
       <div class="bag-done" id="done"><div class="lb">PRÊT</div><div class="stack" id="stack"></div></div>
     </div>
-    <div class="bag-hint">${pieces?`Glisse la barrette sur le zip · ${pieces} restantes · ${fmtSachets()}`:`Coupe d'abord — plus de barrettes pour ${f} g.`}</div>
+    <div class="bag-hint">${sizes.length
+      ?`Chaque barrette garde sa taille de coupe · ${fmtBars()} · sachets : ${fmtSachets()}`
+      :`Aucune barrette. Swipe ◂ (ou ✂) pour retourner couper.`}</div>
     <div class="grid2">
-      <button class="btn ghost" id="back">↩ Atelier</button>
+      <button class="btn ghost" id="back">✂ ◂ Découpe</button>
       <button class="btn ghost" id="toFast">Express ▸</button>
-    </div>`;
-  stage.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{ S.doseFormat=+b.dataset.f; save(); renderDoseBag(); });
-  document.getElementById("back").onclick=()=>{ atelierSub="menu"; render(); };
+    </div>
+    <button class="btn ghost" id="menu">↩ Atelier</button>`;
+  document.getElementById("back").onclick=()=>{ atelierSub="cut"; render(); };
+  document.getElementById("menu").onclick=()=>{ atelierSub="menu"; render(); };
   document.getElementById("toFast").onclick=()=>{ atelierSub="dose"; render(); };
 
   const bench=document.getElementById("bench");
-  const tray=document.getElementById("tray");
   const stack=document.getElementById("stack");
   for(let i=0;i<Math.min(8,doneN);i++){
     const m=document.createElement("div"); m.className="bag-mini"; stack.appendChild(m);
   }
 
-  // un seul zip ouvert au centre
+  // un seul zip ouvert au centre — il prend la taille de ce qu'on y met
   const slot=document.createElement("div");
   slot.className="bag-slot";
-  slot.innerHTML=`<div class="bag-zip open" id="zip"><div class="fill"></div><div class="tag">${f}g</div></div>`;
+  slot.innerHTML=`<div class="bag-zip open" id="zip"><div class="fill"></div><div class="tag">zip</div></div>`;
   bench.appendChild(slot);
   const zip=slot.querySelector(".bag-zip");
 
-  // une seule barrette présentée (à droite du tray)
-  let bar=null;
-  if(pieces>0){
-    bar=document.createElement("div");
+  // le bac de gauche présente une barrette par taille, badge ×count
+  sizes.slice(0,5).forEach((f,i)=>{
+    const bar=document.createElement("div");
     bar.className="bag-bar";
-    bar.innerHTML=`<div class="skin"></div><span class="w">${f}g</span>`;
-    bar.style.left="22%";
-    bar.style.top="42%";
+    bar.dataset.f=f;
+    bar.innerHTML=`<div class="skin"></div><span class="w">${f} g</span><span class="n">×${S.bars[f]}</span>`;
+    bar.style.width=clamp(56+f*4,64,110)+"px";
+    bar.style.height=clamp(28+f*1.2,30,42)+"px";
+    bar.style.left="5%";
+    bar.style.top=(16+i*16)+"%";
     bench.appendChild(bar);
-  }
+  });
 
-  let drag=null;
+  let drag=null, swipe=null;
   const pt=(e)=>{ const t=e.touches?e.touches[0]:e; return {x:t.clientX,y:t.clientY}; };
   const hitZip=(x,y)=>{
     if(zip.classList.contains("sealed")) return null;
@@ -632,13 +658,17 @@ function renderDoseBag(){
 
   const onDown=(e)=>{
     const el=e.target.closest(".bag-bar");
-    if(!el||el.classList.contains("used")) return;
+    if(!el||el.classList.contains("used")){
+      // geste hors barrette = candidat swipe retour découpe
+      if(e.target.closest("#bench")){ const p=pt(e); swipe={x:p.x,y:p.y}; }
+      return;
+    }
     e.preventDefault();
     const p=pt(e);
     const r=el.getBoundingClientRect();
     const homeL=el.style.left, homeT=el.style.top;
     el.classList.add("drag");
-    drag={el, ox:p.x-r.left, oy:p.y-r.top, homeL, homeT};
+    drag={el, f:+el.dataset.f, ox:p.x-r.left, oy:p.y-r.top, homeL, homeT};
   };
   const onMove=(e)=>{
     if(!drag) return;
@@ -650,11 +680,16 @@ function renderDoseBag(){
     zip.classList.toggle("hot", !!hitZip(p.x,p.y));
   };
   const onUp=(e)=>{
-    if(!drag) return;
     const p=e.changedTouches?{x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY}:pt(e);
+    if(swipe){
+      const dx=p.x-swipe.x, dy=p.y-swipe.y; swipe=null;
+      if(dx<-60&&Math.abs(dx)>Math.abs(dy)*1.2){ atelierSub="cut"; render(); }
+      return;
+    }
+    if(!drag) return;
     const z=hitZip(p.x,p.y);
     zip.classList.remove("hot");
-    const {el, homeL, homeT}=drag;
+    const {el, f, homeL, homeT}=drag;
     el.classList.remove("drag");
     drag=null;
     if(!z){
@@ -668,6 +703,7 @@ function renderDoseBag(){
     }
     // fill + barrette disparaît dans le zip
     z.querySelector(".fill").style.height="48%";
+    z.querySelector(".tag").textContent=`${f}g`;
     z.classList.remove("open","hot");
     z.classList.add("sealed");
     el.classList.add("used");
@@ -681,7 +717,7 @@ function renderDoseBag(){
     setTimeout(()=>{
       const m=document.createElement("div"); m.className="bag-mini"; stack.appendChild(m);
       while(stack.children.length>8) stack.removeChild(stack.firstChild);
-      renderDoseBag(); // prochain zip + prochaine barrette
+      renderDoseBag(); // prochain zip + bac à jour
     }, 380);
   };
 
@@ -693,35 +729,29 @@ function renderDoseBag(){
   window.addEventListener("pointerup", onUp, {passive:false, signal:sig});
 }
 
-/** Dosage express — R5/R6 : satisfaction épuisée → geste minimal (coût : moins fun, même stock). */
+/** Dosage express — R5/R6 : satisfaction épuisée → geste minimal (coût : moins fun, même stock).
+    La taille reste celle de la coupe — ici on emballe juste plus vite. */
 function renderDoseFast(){
-  const f=S.doseFormat;
-  const can=Math.floor(S.barG/f);
+  const sizes=sizesOf(S.bars);
   stage.innerHTML=`
     <h2>Dosage express</h2>
-    <div class="sub">Délégation (R6). Même conversion barrettes → sachets, zéro geste. Le zip reste le plaisir.</div>
-    <div class="seg">
-      ${DOSE_FORMATS.map(x=>`<button class="chip ${f===x?"on":""}" data-f="${x}">${x} g · ${DOSE_PRICE[x]}/g</button>`).join("")}
-    </div>
+    <div class="sub">Délégation (R6). Chaque barrette garde sa taille de coupe — zéro geste. Le zip reste le plaisir.</div>
     <div class="card">
-      <div class="stat"><span>Barrettes</span><b>${S.barG.toFixed(1)} g</b></div>
+      ${sizes.map(f=>`<div class="stat"><span>${S.bars[f]}× barrette ${f} g</span>
+        <span style="display:flex;gap:6px">
+          <button class="btn ok" style="width:auto;margin:0;padding:8px 12px" data-e1="${f}">+1</button>
+          <button class="btn snap" style="width:auto;margin:0;padding:8px 12px" data-ea="${f}">tout</button>
+        </span></div>`).join("")||`<div class="muted">Aucune barrette. Va couper — la taille se décide à la lame.</div>`}
       <div class="stat"><span>Sachets</span><b>${fmtSachets()}</b></div>
-      <div class="stat"><span>Possible maintenant</span><b>${can}×${f} g</b></div>
-      <button class="btn ok" id="one" ${can<1?"disabled":""}>Ensacher 1×${f} g</button>
-      <button class="btn ok" id="five" ${can<5?"disabled":""}>×5 sachets</button>
-      <button class="btn snap" id="all" ${can<1?"disabled":""}>Tout ensacher (${can})</button>
       <button class="btn ghost" id="toBag">↩ Table zip</button>
       <button class="btn ghost" id="back">↩ Atelier</button>
     </div>`;
-  stage.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{ S.doseFormat=+b.dataset.f; save(); renderDoseFast(); });
-  document.getElementById("one").onclick=()=>dosePack(1);
-  document.getElementById("five").onclick=()=>dosePack(5);
-  document.getElementById("all").onclick=()=>dosePack(can);
+  stage.querySelectorAll("[data-e1]").forEach(b=>b.onclick=()=>dosePack(+b.dataset.e1,1));
+  stage.querySelectorAll("[data-ea]").forEach(b=>b.onclick=()=>dosePack(+b.dataset.ea,S.bars[+b.dataset.ea]||0));
   document.getElementById("toBag").onclick=()=>{ atelierSub="bag"; render(); };
   document.getElementById("back").onclick=()=>{ atelierSub="menu"; render(); };
 }
-function dosePack(n){
-  const f=S.doseFormat;
+function dosePack(f,n){
   let did=0;
   for(let i=0;i<n;i++){
     if(!commitSachet(f, "Barrettes → sachets (express)")) break;
@@ -1005,13 +1035,18 @@ function frame(now){
   if(S.upgrades.counter>0 && S.dirty>0 && S.bills.length===0){
     const take=Math.min(S.dirty, COUNTER_RATE*dt); S.dirty-=take; S.cash+=take;
   }
-  let dirtyRun=false;
+  let dirtyRun=false, runDone=false;
   for(const r of S.runs){
-    if(r.left>0){ r.left-=dt; if(r.left<=0){ r.left=0; } dirtyRun=true; }
+    if(r.left>0){ r.left-=dt; if(r.left<=0){ r.left=0; runDone=true; } dirtyRun=true; }
   }
-  if(tab==="beuher"&&dirtyRun){
-    if(!frame._acc) frame._acc=0; frame._acc+=dt;
-    if(frame._acc>0.35){ frame._acc=0; renderBeuher(); }
+  if(tab==="beuher"){
+    // arrivée d'une tournée → refresh immédiat : le retour de liquide
+    // apparaît sans quitter l'onglet (avant, le dernier render pouvait sauter)
+    if(runDone){ frame._acc=0; renderBeuher(); }
+    else if(dirtyRun){
+      if(!frame._acc) frame._acc=0; frame._acc+=dt;
+      if(frame._acc>0.35){ frame._acc=0; renderBeuher(); }
+    }
   }
   sorterTick(dt);
   if(scene3d) scene3d.tick(dt);
