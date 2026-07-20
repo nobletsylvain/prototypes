@@ -307,9 +307,10 @@ async function ensure3d() {
 }
 const LS = "loupe_";
 const START_CASH = 220;
+// Une savonnette = 250 g max (réalisme filière) — au-delà, on livre un LOT de pains.
 const PAIN_100 = { g:100, price:200, q:52, label:"Pain 100" };
 const PAIN_250 = { g:250, price:1700, q:78, label:"Pain 250", reputGate:40 };
-const PAIN_500 = { g:500, price:3200, q:70, label:"Lot 500", reputGate:65 };
+const PAIN_500 = { g:500, price:3200, q:70, label:"Lot 500 (2×250)", reputGate:65, split:250 };
 const PLANQUE_CAP_BASE = 250;
 const DIRTY_HOLD_SOFT = 180, DIRTY_HOLD_HARD = 450, BUNDLE_SIZE = 5, COUNTER_RATE = 40;
 const UPG = {
@@ -841,8 +842,10 @@ function buyPain(p){
     return;
   }
   S.cash-=p.price;
-  S.pains.push({ g:p.g, q:p.q }); // chaque pain garde SA qualité
-  if(S.pains.length===1) S.painSel=0;
+  // chaque pain garde SA qualité ; un lot livre plusieurs savonnettes (split)
+  const chunk=p.split||p.g;
+  for(let left=p.g; left>0; left-=chunk) S.pains.push({ g:Math.min(chunk,left), q:p.q });
+  if(S.painSel>=S.pains.length) S.painSel=0;
   cause(`Achat ${p.label}`,`−${money(p.price)}`); toast("Pain reçu."); save(); hud();
 }
 

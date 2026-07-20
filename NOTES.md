@@ -35,6 +35,9 @@ en réserve, sélectionnables. Quatre réponses :
   headless à 4 fps), le maintien de 0.6 s réclamait 3 s+ de vrai temps. Le
   geste se mesure désormais en **temps réel** (la physique des tranches garde
   le dt clampé).
+- **Réalisme (remarque de Sylvain)** : une savonnette = **250 g max**. Le
+  « Lot 500 » livre donc **2×250 g** (champ `split` sur le produit), pas une
+  plaque de 500 g — deux blocs dans la réserve, même prix, même total.
 
 ## 2026-07-20 — La Loupe : les labels 3D s'empilaient en haut (CSS max() invalide)
 
