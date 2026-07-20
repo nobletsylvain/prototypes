@@ -1,9 +1,16 @@
 # La Loupe — scope complet
 
-**Statut :** vertical slice HTML jouable (v2) · hash live · weed mid stub  
+**Statut :** vertical slice HTML jouable (v18) · hash live · **Shelter P0** (carte)  
 **Produit :** hash d’abord, weed ensuite. Rien d’autre.  
 **Ton :** français, humour caustique. Pas d’argot importé.  
 **Argent :** neutre (aucune devise). On adopte €/$ plus tard.
+
+### Shelter P0 (sur La Loupe)
+
+- Carte **Quartier Nord** (onglet Quartier) : pins planque · corner · rival (locked) · voies (locked)
+- Front d’ouverture Karim : +100 g à crédit, cash tôt moins cher
+- **Hit planque** = f(stock, valeur) → chaleur douce en fin de soirée si brûlant
+- Hors P0 (plus tard) : chouff, onion/crypto, multi-PDV, soldats, nourrices
 
 ---
 
@@ -103,6 +110,7 @@ Shell téléphone = `le-bigo` (bus, causes, apps). La Loupe = boucle économique
 - [x] Red-team P0/High patchés (v5) : bills exacts, caps coursiers, stock exact, fees, promesse
 - [ ] Weed mid débloqué (pas stub)
 - [ ] Embed bus-compatible Bigo
+- [x] Shelter P0 : carte + front + hit planque (save v18)
 - [ ] Save version bumpée à chaque rééquilibrage
 
 ---

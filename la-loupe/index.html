@@ -6,7 +6,7 @@
 <title>La Loupe — rêve</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
-:root{--line:rgba(255,220,160,.14);--muted:rgba(255,236,210,.55);--cash:#9be37d;--dirty:#e8c96a;--heat:#ff8a6a;--accent:#ffb454;--snap:#ff2d55;--beuher:#00c46a}
+:root{--line:rgba(255,220,160,.14);--muted:rgba(255,236,210,.55);--cash:#9be37d;--dirty:#e8c96a;--heat:#ff8a6a;--accent:#ffb454;--snap:#ff2d55;--beuher:#00c46a;--shelter:#6ec8ff}
 html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-ui,sans-serif;color:#f4ebe0;background:#07060a}
 #phone{position:fixed;inset:0;max-width:440px;margin:0 auto;display:flex;flex-direction:column;
   background:radial-gradient(120% 80% at 50% -10%,#3a1830 0%,#141018 45%,#07060a 100%);
@@ -80,6 +80,39 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .app.appro .icon{background:linear-gradient(145deg,#6d8ac0,#334a7a)}
 .app.cash .icon{background:linear-gradient(145deg,#e8c96a,#8a6a20)}
 .app.karnet .icon{background:linear-gradient(145deg,#9a8ab0,#4a3a60)}
+.app.shelter .icon{background:linear-gradient(145deg,#6ec8ff,#2a5a8a)}
+/* ---- Shelter · carte Quartier Nord ---- */
+.map-wrap{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--line);
+  background:#1a1510;margin-bottom:10px;aspect-ratio:1;max-height:min(52vh,360px)}
+.map-wrap img{display:block;width:100%;height:100%;object-fit:cover;filter:saturate(.9) contrast(1.05)}
+.map-pin{position:absolute;transform:translate(-50%,-100%);border:0;background:transparent;padding:0;
+  display:flex;flex-direction:column;align-items:center;cursor:pointer;z-index:2;filter:drop-shadow(0 3px 6px rgba(0,0,0,.55))}
+.map-pin .dot{width:18px;height:18px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
+  border:2px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.25)}
+.map-pin .lbl{margin-top:3px;font-size:9px;font-weight:800;color:#fff;text-shadow:0 1px 3px #000;
+  background:rgba(0,0,0,.55);padding:2px 6px;border-radius:6px;white-space:nowrap;max-width:72px;
+  overflow:hidden;text-overflow:ellipsis}
+.map-pin.planque .dot{background:#6ec8ff}
+.map-pin.pdv .dot{background:#9be37d}
+.map-pin.rival .dot{background:#ff8a6a}
+.map-pin.info .dot{background:#e8c96a}
+.map-pin.on .dot{box-shadow:0 0 0 3px rgba(255,180,84,.55),0 0 12px rgba(255,180,84,.35)}
+.map-pin.locked{opacity:.55}
+.map-pin.locked .dot{filter:grayscale(.4)}
+.debt-strip{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:12px;margin-bottom:10px;
+  background:rgba(200,68,47,.14);border:1px solid rgba(255,138,106,.4);font-size:11px;font-weight:700}
+.debt-strip b{color:#ffb0a0}
+.debt-strip .go{margin-left:auto;appearance:none;border:1px solid rgba(155,227,125,.45);background:rgba(30,60,40,.6);
+  color:#c8f5d6;font-weight:800;font-size:11px;padding:6px 10px;border-radius:9px;white-space:nowrap}
+.hit-chip{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+.hit-chip.ok{background:rgba(0,196,106,.18);color:#9be37d}
+.hit-chip.mid{background:rgba(232,201,106,.18);color:#e8c96a}
+.hit-chip.hot{background:rgba(255,80,80,.22);color:#ff8a6a}
+.intro-card{background:linear-gradient(180deg,rgba(40,28,18,.98),rgba(20,14,10,.98));border:1px solid rgba(255,180,84,.35);
+  border-radius:18px;padding:16px;margin-bottom:12px}
+.intro-card .from{font-size:11px;font-weight:800;color:#ffb454;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px}
+.intro-card .bubble{background:rgba(255,255,255,.06);border-radius:14px;padding:12px;font-size:13px;line-height:1.4;margin-bottom:10px}
+.intro-card .bubble b{color:#ffe4b5}
 .story-row{display:flex;gap:10px;overflow-x:auto;padding:4px 0 12px}
 .ring{flex:none;width:64px;text-align:center}
 .ring .ava{width:56px;height:56px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:22px;
@@ -212,7 +245,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 <body>
 <div id="phone">
   <div id="top">
-    <div class="row"><div class="pill">La Loupe</div><div class="pill" id="daypill">J1</div></div>
+    <div class="row"><div class="pill">La Loupe</div><div class="pill" id="hudHit" style="display:none">planque ·</div><div class="pill" id="daypill">J1</div></div>
     <div class="row">
       <div class="pill cash" id="hudCash">propre 0</div>
       <div class="pill dirty" id="hudDirty">liquide 0</div>
@@ -241,10 +274,11 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 <script type="module">
 /* snap/beuher d'abord — Three.js (scene3d) en lazy load.
    Sur mobile, unpkg bloqué cassait TOUT le proto (écran fantôme « enrouler »). */
-import * as snap from "./snap.mjs?v=17";
-import * as beuher from "./beuher.mjs?v=17";
+import * as snap from "./snap.mjs?v=18";
+import * as beuher from "./beuher.mjs?v=18";
+import * as shelter from "./shelter.mjs?v=18";
 
-const SAVE_VERSION = "17";
+const SAVE_VERSION = "18";
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
 // La demande Snap reste calée sur 2/5/8 (snap.SC.DOSE_FORMATS) — couper autre chose = risque assumé.
 const CUT_MIN = 1, CUT_MAX = 20, CUT_DEFAULT = 2;
@@ -320,7 +354,7 @@ const UPG = {
 };
 
 const APPS = [
-  { id:"home", ic:"⌂", lb:"Home" },
+  { id:"shelter", ic:"⌖", lb:"Quartier" },
   { id:"snap", ic:"⚡", lb:"SnapShit" },
   { id:"atelier", ic:"✂", lb:"Atelier" },
   { id:"beuher", ic:"🛵", lb:"Beuher" },
@@ -341,6 +375,7 @@ function defaultState(){
     upgrades:{scooter:0, planque:0, counter:0},
     journal:[], orderSeq:1, soldDay:0,
     assign:{}, counted:0, atelierMode:"cut",
+    shelter: shelter.shelterDefaults(),
     ...snap.snapDefaults(),
   };
 }
@@ -356,8 +391,14 @@ if(!Array.isArray(S.pains)) S.pains=[];
 if(S.painG>0 && !S.pains.length) S.pains=[{ g:S.painG, q:S.painQ||60 }];
 S.painG=0; S.painQ=0; // évite une double migration au prochain chargement
 if(!(S.painSel>=0) || S.painSel>=S.pains.length) S.painSel=0;
+if(!S.shelter) S.shelter=shelter.shelterDefaults();
+else S.shelter={...shelter.shelterDefaults(), ...S.shelter};
+// Save pré-Shelter : pas de cinématique front si déjà en course
+if(!S.shelter.introSeen && (S.day>1 || shelter.stockG(S)>0 || (S.journal&&S.journal.length))){
+  S.shelter.introSeen=true;
+}
 
-let tab="home", toastT=0, atelierSub="menu", cashSub="sorter";
+let tab="shelter", toastT=0, atelierSub="menu", cashSub="sorter", shelterSub="map";
 /** Session trieuse (non persistée) — feel Kisan 4+1 fitness sorter. */
 const sorter = { running:false, current:null, cooldown:0, combo:0, sessionOk:0, sessionRj:0, dirtyUi:false };
 const stage=document.getElementById("stage");
@@ -407,6 +448,16 @@ function hud(){
   document.getElementById("hudHeat").textContent=`chaleur ${Math.round(S.heat)}`;
   document.getElementById("hudExpo").textContent=`buzz ${Math.round(S.expo)}`;
   document.getElementById("daypill").textContent=`J${S.day}`;
+  const hitEl=document.getElementById("hudHit");
+  const hit=shelter.stashHit(S, planqueCap());
+  if(hit>0 || shelter.stockG(S)>0){
+    const lb=shelter.hitLabel(hit);
+    hitEl.style.display="";
+    hitEl.textContent=`planque ${lb.txt}`;
+    hitEl.className=`pill heat`;
+  } else {
+    hitEl.style.display="none";
+  }
 }
 
 function renderDock(){
@@ -480,7 +531,7 @@ function render(){
     set3d(atelierSub); stage.innerHTML=`<div class="card muted" style="margin:40px 12px">Chargement 3D…</div>`; return;
   }
   set3d("hidden");
-  if(tab==="home") renderHome();
+  if(tab==="shelter" || tab==="home") renderShelter();
   else if(tab==="snap") renderSnap();
   else if(tab==="atelier" && atelierSub==="bag") renderDoseBag();
   else if(tab==="atelier" && atelierSub==="dose") renderDoseFast();
@@ -491,43 +542,161 @@ function render(){
   else if(tab==="cash") renderCashSorter();
 }
 
-function renderHome(){
+function renderShelter(){
+  tab="shelter";
+  const hit=shelter.stashHit(S, planqueCap());
+  const hitLb=shelter.hitLabel(hit);
+  const debt=shelter.debtStrip(S);
+  const sel=S.shelter.selectedPin ? shelter.PINS[S.shelter.selectedPin] : null;
+  const showIntro=!S.shelter.introSeen;
+
   stage.innerHTML=`
-    <h2>Bonsoir.</h2>
-    <div class="hero">Tu tiens le téléphone. Tu drops sur SnapShit, tu découpes en 3D, tu délègues à BeuherShit, tu comptes les billets comme un adulte dysfonctionnel. Puis tu rachètes plus gros.</div>
+    <h2>Quartier Nord</h2>
+    <div class="sub">Ton bloc. Un corner, une cage. La carte dit où ça chauffe — le téléphone fait le reste.</div>
+    ${showIntro?renderIntroCard():""}
+    ${debt?`<div class="debt-strip"><span>☎ <b>${debt.name}</b> · ${money(debt.due)} · J${debt.day}${debt.left>0?` · J-${debt.left}`:" · RETARD"}</span>
+      <button class="go" id="repay">Rembourser</button></div>`:""}
+    <div class="map-wrap" id="map">
+      <img src="./assets/quartier-nord.jpg" alt="Quartier Nord" draggable="false"/>
+      ${Object.values(shelter.PINS).map(pinMapBtn).join("")}
+    </div>
+    <div class="card">
+      <div class="stat"><span>Hit planque</span><b><span class="hit-chip ${hitLb.cls}">${hit} · ${hitLb.txt}</span></b></div>
+      <div class="bar"><i style="width:${hit}%;background:linear-gradient(90deg,#6ec8ff,#ff8a6a)"></i></div>
+      <div class="stat"><span>Stock (pains+bar+sachets)</span><b>${money(shelter.stockG(S))} / ${planqueCap()} g</b></div>
+      <div class="stat"><span>Standing · Buzz</span><b>${Math.round(S.reput)} · ${Math.round(S.expo)}</b></div>
+    </div>
+    ${sel?pinSheet(sel, hit, hitLb):`<div class="card muted">Tape un pin sur la carte. Planque = stock & hit. Corner = vitrine / DM.</div>`}
     <div class="apps">
       <button class="app snap" data-go="snap"><div class="icon">⚡</div><div class="nm">SnapShit</div></button>
-      <button class="app beuher" data-go="beuher"><div class="icon">🛵</div><div class="nm">BeuherShit</div></button>
       <button class="app atelier" data-go="atelier"><div class="icon">✂</div><div class="nm">Atelier</div></button>
+      <button class="app beuher" data-go="beuher"><div class="icon">🛵</div><div class="nm">Beuher</div></button>
       <button class="app appro" data-go="buy"><div class="icon">◎</div><div class="nm">Appro</div></button>
       <button class="app cash" data-go="cash"><div class="icon">▣</div><div class="nm">Liquide</div></button>
       <button class="app karnet" data-go="karnet"><div class="icon">📓</div><div class="nm">Karnet</div></button>
-    </div>
-    <div class="card">
-      <div class="stat"><span>Standing</span><b>${Math.round(S.reput)}</b></div>
-      <div class="bar"><i style="width:${S.reput}%"></i></div>
-      <div class="stat"><span>Buzz</span><b>${Math.round(S.expo)}</b></div>
-      <div class="bar"><i style="width:${S.expo}%;background:linear-gradient(90deg,#ff4d6d,#ffb454)"></i></div>
-      <div class="stat"><span>Stock sachets</span><b>${fmtSachets()}</b></div>
-      <div class="stat"><span>Commandes prêtes</span><b>${S.orders.filter(o=>o.status==="ready").length}</b></div>
     </div>
     <div class="card">
       <h3>Réinvest</h3>
       ${shopRow("planque",UPG.planque)}${shopRow("counter",UPG.counter)}
     </div>
     <button class="btn bad" id="reset">Reset save</button>`;
+
+  stage.querySelectorAll(".map-pin").forEach(b=>b.onclick=()=>{
+    const id=b.dataset.pin;
+    S.shelter.selectedPin=id;
+    save(); renderShelter();
+  });
   stage.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{
     const g=b.dataset.go;
     if(g==="buy"){ tab="atelier"; atelierSub="buy"; render(); return; }
-    if(g==="atelier"){ tab="atelier"; atelierSub="cut"; render(); return; } // découpe d'abord, swipe ▸ zip
+    if(g==="atelier"){ tab="atelier"; atelierSub="cut"; render(); return; }
     if(g==="karnet"){ renderKarnet(); return; }
     tab=g; atelierSub="menu"; render();
   });
   stage.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>buyUp(b.dataset.up));
+  const introBtn=document.getElementById("takeFront");
+  if(introBtn) introBtn.onclick=()=>acceptFront();
+  const repayBtn=document.getElementById("repay");
+  if(repayBtn) repayBtn.onclick=()=>openRepay();
+  stage.querySelectorAll("[data-pin-go]").forEach(b=>b.onclick=()=>{
+    const g=b.dataset.pinGo;
+    if(g==="cut"){ tab="atelier"; atelierSub="cut"; render(); return; }
+    if(g==="buy"){ tab="atelier"; atelierSub="buy"; render(); return; }
+    if(g==="snap"){ tab="snap"; render(); return; }
+  });
   document.getElementById("reset").onclick=()=>{
     Object.keys(localStorage).filter(k=>k.startsWith(LS)).forEach(k=>localStorage.removeItem(k));
     store.set("ver",SAVE_VERSION); S=defaultState(); save(); toast("Nouveau rêve."); render();
   };
+}
+
+function pinMapBtn(p){
+  const on=S.shelter.selectedPin===p.id?"on":"";
+  const locked=p.locked?"locked":"";
+  return `<button class="map-pin ${p.kind} ${on} ${locked}" style="left:${p.x}%;top:${p.y}%" data-pin="${p.id}" type="button">
+    <span class="dot"></span><span class="lbl">${p.title}</span></button>`;
+}
+
+function pinSheet(p, hit, hitLb){
+  if(p.kind==="planque"){
+    return `<div class="card">
+      <h3>${p.title}</h3>
+      <div class="muted">${p.blurb}</div>
+      <div class="stat"><span>Hit</span><b><span class="hit-chip ${hitLb.cls}">${hit} · ${hitLb.txt}</span></b></div>
+      <div class="stat"><span>Pains</span><b>${fmtPains()}</b></div>
+      <div class="stat"><span>Barrettes · Sachets</span><b>${fmtBars()} · ${fmtSachets()}</b></div>
+      <div class="grid2">
+        <button class="btn ok" style="margin:0" data-pin-go="cut">✂ Couper</button>
+        <button class="btn ghost" style="margin:0" data-pin-go="buy">◎ Appro</button>
+      </div>
+    </div>`;
+  }
+  if(p.kind==="pdv"){
+    const pending=(S.dms||[]).filter(d=>d.status==="pending").length;
+    return `<div class="card">
+      <h3>${p.title}</h3>
+      <div class="muted">${p.blurb}</div>
+      <div class="stat"><span>DM en attente</span><b>${pending}</b></div>
+      <div class="stat"><span>Commandes prêtes</span><b>${S.orders.filter(o=>o.status==="ready").length}</b></div>
+      <button class="btn snap" data-pin-go="snap">⚡ Ouvrir SnapShit</button>
+    </div>`;
+  }
+  return `<div class="card">
+    <h3>${p.title}${p.locked?' · bientôt':''}</h3>
+    <div class="muted">${p.blurb}</div>
+  </div>`;
+}
+
+function renderIntroCard(){
+  return `<div class="intro-card">
+    <div class="from">Snapshit · ${shelter.SUPPLIER.handle}</div>
+    <div class="bubble">Le spot vient de se libérer. T'as toujours été bon au chouff — <b>il est à toi</b>.<br><br>
+    Voilà <b>${shelter.SUPPLIER.frontG} g</b>. Tu me rembourses <b>${shelter.SUPPLIER.creditPrice}</b> avant J${(S.day||1)+shelter.SUPPLIER.dueDays-1}.
+    Si t'as le propre plus tôt : <b>${shelter.SUPPLIER.cashPrice}</b>. Cash = moins cher. Crédit = je dors pas.</div>
+    <button class="btn ok" id="takeFront">Prendre le spot · +${shelter.SUPPLIER.frontG} g</button>
+  </div>`;
+}
+
+function acceptFront(){
+  const r=shelter.grantOpeningFront(S);
+  if(!r.ok){
+    S.shelter.introSeen=true; save(); renderShelter();
+    toast(r.reason==="déjà lancé"?"T'as déjà du stock — carte ouverte.":"Ok.");
+    return;
+  }
+  cause(`Front ${shelter.SUPPLIER.name}`, r.msg);
+  toast("100 g en cage. Coupe, vitrine, rembourse.");
+  save(); renderShelter();
+}
+
+function openRepay(){
+  shelterSub="repay";
+  const debt=shelter.debtStrip(S);
+  if(!debt){ shelterSub="map"; return; }
+  const early=debt.canEarly;
+  const price=early?debt.cashEarly:debt.due;
+  const sheet=document.getElementById("repaySheet");
+  if(sheet) sheet.remove();
+  const strip=stage.querySelector(".debt-strip");
+  if(!strip) return;
+  strip.insertAdjacentHTML("afterend", `
+    <div class="card" id="repaySheet">
+      <h3>Rembourser ${debt.name}</h3>
+      <div class="muted">Il veut du <b>propre</b> — pas tes billets froissés. Cash tôt = ${money(debt.cashEarly)}. Après l'échéance = ${money(debt.due)}.</div>
+      <div class="stat"><span>Ton propre</span><b>${money(S.cash)}</b></div>
+      <button class="btn ok" id="payCash" ${S.cash<price?"disabled":""}>
+        Payer ${money(price)} propre${early?" · tarif cash":" · tarif crédit"}
+      </button>
+      <button class="btn ghost" id="payCancel">Plus tard</button>
+    </div>`);
+  document.getElementById("payCash").onclick=()=>{
+    const r=shelter.repayDebt(S);
+    if(!r.ok){ toast(r.reason); return; }
+    cause(`Remboursé ${shelter.SUPPLIER.name}`, `−${money(r.paid)} propre${r.early?" · tarif cash":""}`);
+    toast(r.early?"Payé cash. Il te respecte un peu.":"Dette soldée.");
+    shelterSub="map"; save(); renderShelter();
+  };
+  document.getElementById("payCancel").onclick=()=>{ shelterSub="map"; renderShelter(); };
 }
 function shopRow(key,conf){
   const lv=S.upgrades[key]||0, maxed=lv>=conf.max, cost=conf.cost*(lv+1);
@@ -542,11 +711,11 @@ function buyUp(key){
 }
 
 function renderKarnet(){
-  tab="home"; set3d("hidden"); hud(); renderDock();
+  tab="shelter"; set3d("hidden"); hud(); renderDock();
   stage.innerHTML=`<h2>Karnet</h2><div class="sub">Chaque ligne a une cause. L'UI n'invente rien.</div>
     <div class="card journal">${S.journal.slice(0,20).map(j=>`<div class="item">${j.txt}<div class="c">↩ ${j.cause}</div></div>`).join("")||`<div class="muted">Vide.</div>`}</div>
-    <button class="btn ghost" id="back">↩ Home</button>`;
-  document.getElementById("back").onclick=()=>{ tab="home"; render(); };
+    <button class="btn ghost" id="back">↩ Quartier</button>`;
+  document.getElementById("back").onclick=()=>{ tab="shelter"; shelterSub="map"; render(); };
 }
 
 /* ---------- SnapShit ---------- */
@@ -591,7 +760,10 @@ function renderSnap(){
     const cons=snap.passerSoiree(S, qLivree);
     S.day++; S.heat=clamp(S.heat-6,0,100); S.soldDay=0;
     cons.forEach(c=>cause(c.t,c.c));
-    toast(cons[cons.length-1]?.c || "Nouvelle nuit.");
+    const sh=shelter.nightTick(S, planqueCap());
+    sh.cons.forEach(c=>cause(c.t,c.c));
+    const last=sh.cons[sh.cons.length-1] || cons[cons.length-1];
+    toast(last?.c || "Nouvelle nuit.");
     save(); renderSnap();
   };
   document.getElementById("toBeuher").onclick=()=>{ tab="beuher"; render(); };
@@ -1197,7 +1369,9 @@ setInterval(()=>save(),2000);
 
 ensureDemand();
 render();
-toast("SnapShit · zip Schedule 1 · Beuher · liquide.");
+toast(S.shelter?.introSeen
+  ? "Quartier Nord · planque · corner."
+  : "Karim t'écrit. Le spot est à toi.");
 </script>
 </body>
 </html>
