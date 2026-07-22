@@ -9,6 +9,39 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-22 — Shelter : proposition GDD « Le Bloc » (la-loupe/SHELTER.md)
+
+Demande de Sylvain (screenshot carte Quartier Nord) : améliorer la core loop
+(achat gros → coupe → conditionnement → advertising → vente) en y ajoutant la
+**gestion d'un bloc d'immeuble** à la française — four, appro, nourrice,
+chouf, fournisseurs, clientèle, raids police, rivalités. Proposition écrite
+dans `la-loupe/SHELTER.md`, ancrée dans le documenté (rôles/salaires réels,
+pilonnage/place nette, guerres de points, jobbeurs — sources en fin de doc) :
+
+- **Deux boucles imbriquées** : la boucle produit existante (tactile, à la
+  minute) alimente une boucle bloc (gestion, à la session) : tenir le point →
+  encaisser → payer → répartir → renforcer → encaisser la pression.
+- **Triangle logistique** planque → nourrice → tampon du four ; règle d'or
+  « tout ce qui est exposé peut être saisi, ce qui est rangé jamais » — la
+  taille du tampon devient LA décision continue.
+- **Police en deux jauges** (VISIBILITÉ qui redescend, DOSSIER qui ne se
+  rembourse pas) et 4 paliers annoncés : patrouille → pilonnage → place nette
+  → la Chute. Zéro dé : conforme R1/R4 (le chouf donne un préavis, le mini-jeu
+  d'évacuation ne peut que SAUVER une perte déjà écrite).
+- **Rivalité œil pour œil** déterministe : frictions déclenchées par la
+  croissance du joueur, réponses graduées toutes chiffrées avant décision ;
+  la violence rentable court terme mais DOSSIER à vie.
+- **Actes 0→4** : planque + 100 g à crédit (front Karim P0) → location du
+  spot 20 % CA → four + équipe → bloc/multi-PDV → devenir Karim (fournir à
+  crédit aux petits nouveaux — la boucle se referme).
+- **Méta « la Chute »** : roguelite doux, run de 15-25 h, réputation conservée.
+- **Monétisation** : recommandation premium + web/PWA (le F2P à timers
+  contredit R4/R7 ; stores hostiles au thème, cf. guideline Apple 1.4.3).
+
+Questions ouvertes : la Chute (fin de run) est-elle acceptable pour Sylvain ou
+faut-il une purge du DOSSIER plus généreuse ? Le corner P1 doit-il coexister
+avec la vente DM dès le début (cannibalisation à régler) ?
+
 ## 2026-07-20 — La Loupe : pains discrets, réserve sélectionnable, fin du « couper dans le vide »
 
 Retours de test tel (screenshot) sur l'écran de coupe : pas de restant visible
