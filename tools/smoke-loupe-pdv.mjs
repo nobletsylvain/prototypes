@@ -40,7 +40,7 @@ page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 
 // seed : stock de sachets + PDV réservoir amorcé, intro passée
 await page.evaluateOnNewDocument(() => {
-  localStorage.setItem("loupe_ver", "20");
+  localStorage.setItem("loupe_ver", "21");
   localStorage.setItem("loupe_save", JSON.stringify({
     sachets: { "2": 20, "5": 30 }, sachetQ: 62,
     shelter: { introSeen: true, frontActive: false, paidOff: true,
