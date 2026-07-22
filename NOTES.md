@@ -9,6 +9,28 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-22 — La Loupe : efficience coupe, achats plus gros, horloge unique
+
+Retours de test tel de Sylvain (session corner-PDV v2) :
+
+- **Découpe répétitive** → **efficience par paliers avant l'auto** (choix de
+  Sylvain : un massicot immédiat idle trop vite). Nouvel upgrade **Gabarit**
+  (`UPG.gabarit`, max 4) : `cutBatch()=1+niveau` barrettes **par geste** (3D
+  `onCut` boucle ; 2D « Couper ×N » / « ×5N »). Le geste reste, le débit monte
+  avec l'investissement ; l'automatisation complète viendra plus tard (R2/R9).
+- **Impossible d'acheter > 100 g** → gates de standing baissés : Pain 250 **sans
+  gate** (dispo d'entrée), Lot 500 gate 65 → 30 (visible dès reput 25).
+- **Temps incohérent** (corner temps réel vs SnapShit à la soirée) → **horloge
+  UNIQUE** : `advanceDay()` extrait du bouton ; la soirée se clôture **toute
+  seule** tous les `DAY_SEC_REAL=90 s` depuis `frame()` (nouvelle demande Snap,
+  paie chouffes, dette, hit planque). « Clôturer » devient **⏭ Passer la nuit
+  maintenant** (avancer plus vite). Jauge de progression de soirée sur la pill
+  « J{n} » du HUD.
+- **200+ clients/h** : gardé tel quel (Sylvain : pratique pour tester vite,
+  fine-tuning plus tard).
+- SAVE_VERSION 20 → 21. Vérifs : `node --check` ; smoke corner (vente/tri/
+  déception) zéro erreur ; check features (gabarit acheté, jour 3→4 via bouton).
+
 ## 2026-07-22 — Corner PDV v2 : vente par client (file + ledger), barrettes, rush, fix tri
 
 Retours de test tel de Sylvain sur le corner-PDV → refonte :
