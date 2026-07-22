@@ -9,6 +9,37 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-22 — Le Bloc : 1er proto jouable (le-bloc/, PDV à 3 curseurs)
+
+Premier proto du cadre décidé : **hash seul, 1 PDV, boucle complète**
+(`le-bloc/index.html`, 2D DOM+canvas, portrait mobile, préfixe `bloc_`,
+SAVE_VERSION 1). Zéro Three.js, zéro hasard d'état. Valide le **cœur du CADRE** :
+
+- **3 curseurs** en temps réel : Demande (clients/h ← réservoir × attractivité
+  prix), Satisfaction (contentement = livré vs annoncé, + pénalité prix > juste
+  → cible du réservoir, convergence lente), Heat (∝ activité, amortie par les
+  chouffes, **seuil déterministe** → descente qui saisit le stock + le bac
+  exposés ; ce qui est en planque est sauf).
+- **Déception jouable** : sélecteur « qualité annoncée » vs qualité livrée du
+  stock ; annoncer plus haut que livré = vente OK mais réservoir qui fuit
+  (ligne d'état verte/rouge en direct). Vérifié en headless.
+- **Cash exposé/rangé** : les ventes tombent dans le **bac** (exposé, saisi à la
+  descente) ; **Encaisser** le rentre en planque. **1er automatisme** : embaucher
+  un **porteur** (400 €) qui auto-encaisse — la délégation du geste (R7).
+- **Appro Karim** : plaquettes 100 g, 4 tiers de hash (Q12→Q72), 1re à crédit
+  (dette 900 €, remboursable sans timer). **Charcler** : +30 % volume, −qualité
+  (levier R10, descend l'échelle de VARIETES).
+- **Paie** en fin de « jour » (100 s) : chouffes 60 €/j ; pas de cash → un
+  chouffe part (pas de game over, R1).
+
+Tous les nombres sont des **constantes nommées** en tête de fichier (à régler).
+Outillage : `tools/smoke-bloc.mjs` (Puppeteer — charge, joue appro/charcler/
+encaisse/chouffe, vérifie zéro erreur console + capture). Rééquilibrage initial
+après 1er run (revenus trop lents) : panier 3 g, corner 150 clients/h.
+
+Prochaines passes possibles : tampon/planque séparés (exposition réglable),
+courbe de demande (rush), 2e PDV, pub SnapShit, puis les autres produits.
+
 ## 2026-07-22 — Le Bloc : CADRE recentré + VARIETES (catalogue 15 produits)
 
 Longue session de design avec Sylvain (à partir du corpus de recherche qu'il a
