@@ -79,6 +79,8 @@ export function shelterDefaults() {
     paidOff: false,
     selectedPin: null,
     mapTipSeen: false,
+    // PDV (corner) — point de vente à 3 curseurs
+    pdv: { res: 30, bac: 0, advQ: 0, prix: 10, chouffes: 0, tamponG: 0, tamponQ: 0 },
   };
 }
 
