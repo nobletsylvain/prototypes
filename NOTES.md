@@ -9,6 +9,51 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-22 — Le Bloc : CADRE recentré + VARIETES (catalogue 15 produits)
+
+Longue session de design avec Sylvain (à partir du corpus de recherche qu'il a
+réuni : org des réseaux FR, blanchiment, gestion du cash, RH, débit des PDV,
+prix). On a **recentré** la proposition SHELTER (trop touffue) dans un cadre
+jouable — `la-loupe/CADRE.md` — puis détaillé le système de variétés dans
+`la-loupe/VARIETES.md`. SHELTER.md reste comme réserve d'idées.
+
+**CADRE.md — le cœur.** Un PDV = **3 curseurs** : Demande (potentiel du lieu +
+pub, segmentée par produit, zéro substitution entre produits), Satisfaction
+(qualité du sourcing + prix → réservoir de clients fidélisés), Heat (**seuil
+déterministe**, pas de proba — R4 ; repoussé par les chouffes). Prix ~fixé par
+le marché → battre un rival coûte la marge (qualité↑ ou prix↓) OU la violence ;
+la sortie = **intégration verticale** (posséder la chaîne : sourcer/produire/
+distribuer) et **horizontale** (absorber les concurrents). Manuel → automatismes
+(embauche + outils). Argent en 3 outils : liquide (paie auto le soir) → hawala
+(dark web, services/prod étranger, **caisse noire = corruption qui baisse la
+Heat d'un secteur**) → blanchiment (**plafonné par le CA plausible des
+façades**). Violence feutrée. Poids = système à part. **Temps réel + hors-ligne
+plafonné, actif sans limite** (garde-fou anti-idle). Principe directeur nommé :
+**le puits infini** (jamais de mur en jeu actif ; le tactile est le puits).
+Échelle **quartier → ville → monde** (la carte partagée = 1 quartier). Arc :
+petit jobbeur → producteur-distributeur.
+
+**VARIETES.md — variété = QUALITÉ, pas goût.** 15 produits, chacun une échelle
+de tiers (hash, weed, coke, héro, crack, ecsta, MDMA, 3-MMC, kétamine, speed,
+méth, tucibi/2C-B, LSD, GHB, champis). 4 stats par variété (qualité, prix,
+coût, segment+sensibilité). **Mécanique de déception** (idée de Sylvain) :
+annoncé vs livré — sous-livrer n'empêche pas la vente mais **déçoit** (érode le
+réservoir ∝ écart × sensibilité), déterministe. Native sur les produits « à
+arnaque » (écaille coke, 3-MMC/3-CMC, tucibi, LSD/NBOMe). Quatre ascenseurs de
+qualité : production / sourcing d'import / cuisson / synthèse. Pipelines
+weed→hash, coke→crack. Ancré sur sources OFDT/presse/Psychoactif.
+
+**Décisions tranchées** (fondations + round 3, détaillées dans CADRE) : Heat
+déterministe, échec = perte bornée (pas de game over), temps réel plafonné,
+qualité = sourcing (coupe = format + charcler optionnel, R10 réconcilié), € assumé
+(supersede le « neutre » du SCOPE), demande par emplacement+pub, automatismes
+embauche+outils, corruption = anti-Heat, blanchiment plafonné par le CA façade.
+**1er proto décidé : hash seul, 1 PDV, boucle complète.**
+
+Deux artefacts visuels publiés (boucle éco ; catalogue des 15 échelles avec
+rendus procéduraux + démo de déception jouable). Prochaine étape : prototyper le
+1er proto.
+
 ## 2026-07-22 — Shelter : proposition GDD « Le Bloc » (la-loupe/SHELTER.md)
 
 Demande de Sylvain (screenshot carte Quartier Nord) : améliorer la core loop
