@@ -9,6 +9,115 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-22 — Le Bloc : 1er proto jouable (le-bloc/, PDV à 3 curseurs)
+
+Premier proto du cadre décidé : **hash seul, 1 PDV, boucle complète**
+(`le-bloc/index.html`, 2D DOM+canvas, portrait mobile, préfixe `bloc_`,
+SAVE_VERSION 1). Zéro Three.js, zéro hasard d'état. Valide le **cœur du CADRE** :
+
+- **3 curseurs** en temps réel : Demande (clients/h ← réservoir × attractivité
+  prix), Satisfaction (contentement = livré vs annoncé, + pénalité prix > juste
+  → cible du réservoir, convergence lente), Heat (∝ activité, amortie par les
+  chouffes, **seuil déterministe** → descente qui saisit le stock + le bac
+  exposés ; ce qui est en planque est sauf).
+- **Déception jouable** : sélecteur « qualité annoncée » vs qualité livrée du
+  stock ; annoncer plus haut que livré = vente OK mais réservoir qui fuit
+  (ligne d'état verte/rouge en direct). Vérifié en headless.
+- **Cash exposé/rangé** : les ventes tombent dans le **bac** (exposé, saisi à la
+  descente) ; **Encaisser** le rentre en planque. **1er automatisme** : embaucher
+  un **porteur** (400 €) qui auto-encaisse — la délégation du geste (R7).
+- **Appro Karim** : plaquettes 100 g, 4 tiers de hash (Q12→Q72), 1re à crédit
+  (dette 900 €, remboursable sans timer). **Charcler** : +30 % volume, −qualité
+  (levier R10, descend l'échelle de VARIETES).
+- **Paie** en fin de « jour » (100 s) : chouffes 60 €/j ; pas de cash → un
+  chouffe part (pas de game over, R1).
+
+Tous les nombres sont des **constantes nommées** en tête de fichier (à régler).
+Outillage : `tools/smoke-bloc.mjs` (Puppeteer — charge, joue appro/charcler/
+encaisse/chouffe, vérifie zéro erreur console + capture). Rééquilibrage initial
+après 1er run (revenus trop lents) : panier 3 g, corner 150 clients/h.
+
+Prochaines passes possibles : tampon/planque séparés (exposition réglable),
+courbe de demande (rush), 2e PDV, pub SnapShit, puis les autres produits.
+
+## 2026-07-22 — Le Bloc : CADRE recentré + VARIETES (catalogue 15 produits)
+
+Longue session de design avec Sylvain (à partir du corpus de recherche qu'il a
+réuni : org des réseaux FR, blanchiment, gestion du cash, RH, débit des PDV,
+prix). On a **recentré** la proposition SHELTER (trop touffue) dans un cadre
+jouable — `la-loupe/CADRE.md` — puis détaillé le système de variétés dans
+`la-loupe/VARIETES.md`. SHELTER.md reste comme réserve d'idées.
+
+**CADRE.md — le cœur.** Un PDV = **3 curseurs** : Demande (potentiel du lieu +
+pub, segmentée par produit, zéro substitution entre produits), Satisfaction
+(qualité du sourcing + prix → réservoir de clients fidélisés), Heat (**seuil
+déterministe**, pas de proba — R4 ; repoussé par les chouffes). Prix ~fixé par
+le marché → battre un rival coûte la marge (qualité↑ ou prix↓) OU la violence ;
+la sortie = **intégration verticale** (posséder la chaîne : sourcer/produire/
+distribuer) et **horizontale** (absorber les concurrents). Manuel → automatismes
+(embauche + outils). Argent en 3 outils : liquide (paie auto le soir) → hawala
+(dark web, services/prod étranger, **caisse noire = corruption qui baisse la
+Heat d'un secteur**) → blanchiment (**plafonné par le CA plausible des
+façades**). Violence feutrée. Poids = système à part. **Temps réel + hors-ligne
+plafonné, actif sans limite** (garde-fou anti-idle). Principe directeur nommé :
+**le puits infini** (jamais de mur en jeu actif ; le tactile est le puits).
+Échelle **quartier → ville → monde** (la carte partagée = 1 quartier). Arc :
+petit jobbeur → producteur-distributeur.
+
+**VARIETES.md — variété = QUALITÉ, pas goût.** 15 produits, chacun une échelle
+de tiers (hash, weed, coke, héro, crack, ecsta, MDMA, 3-MMC, kétamine, speed,
+méth, tucibi/2C-B, LSD, GHB, champis). 4 stats par variété (qualité, prix,
+coût, segment+sensibilité). **Mécanique de déception** (idée de Sylvain) :
+annoncé vs livré — sous-livrer n'empêche pas la vente mais **déçoit** (érode le
+réservoir ∝ écart × sensibilité), déterministe. Native sur les produits « à
+arnaque » (écaille coke, 3-MMC/3-CMC, tucibi, LSD/NBOMe). Quatre ascenseurs de
+qualité : production / sourcing d'import / cuisson / synthèse. Pipelines
+weed→hash, coke→crack. Ancré sur sources OFDT/presse/Psychoactif.
+
+**Décisions tranchées** (fondations + round 3, détaillées dans CADRE) : Heat
+déterministe, échec = perte bornée (pas de game over), temps réel plafonné,
+qualité = sourcing (coupe = format + charcler optionnel, R10 réconcilié), € assumé
+(supersede le « neutre » du SCOPE), demande par emplacement+pub, automatismes
+embauche+outils, corruption = anti-Heat, blanchiment plafonné par le CA façade.
+**1er proto décidé : hash seul, 1 PDV, boucle complète.**
+
+Deux artefacts visuels publiés (boucle éco ; catalogue des 15 échelles avec
+rendus procéduraux + démo de déception jouable). Prochaine étape : prototyper le
+1er proto.
+
+## 2026-07-22 — Shelter : proposition GDD « Le Bloc » (la-loupe/SHELTER.md)
+
+Demande de Sylvain (screenshot carte Quartier Nord) : améliorer la core loop
+(achat gros → coupe → conditionnement → advertising → vente) en y ajoutant la
+**gestion d'un bloc d'immeuble** à la française — four, appro, nourrice,
+chouf, fournisseurs, clientèle, raids police, rivalités. Proposition écrite
+dans `la-loupe/SHELTER.md`, ancrée dans le documenté (rôles/salaires réels,
+pilonnage/place nette, guerres de points, jobbeurs — sources en fin de doc) :
+
+- **Deux boucles imbriquées** : la boucle produit existante (tactile, à la
+  minute) alimente une boucle bloc (gestion, à la session) : tenir le point →
+  encaisser → payer → répartir → renforcer → encaisser la pression.
+- **Triangle logistique** planque → nourrice → tampon du four ; règle d'or
+  « tout ce qui est exposé peut être saisi, ce qui est rangé jamais » — la
+  taille du tampon devient LA décision continue.
+- **Police en deux jauges** (VISIBILITÉ qui redescend, DOSSIER qui ne se
+  rembourse pas) et 4 paliers annoncés : patrouille → pilonnage → place nette
+  → la Chute. Zéro dé : conforme R1/R4 (le chouf donne un préavis, le mini-jeu
+  d'évacuation ne peut que SAUVER une perte déjà écrite).
+- **Rivalité œil pour œil** déterministe : frictions déclenchées par la
+  croissance du joueur, réponses graduées toutes chiffrées avant décision ;
+  la violence rentable court terme mais DOSSIER à vie.
+- **Actes 0→4** : planque + 100 g à crédit (front Karim P0) → location du
+  spot 20 % CA → four + équipe → bloc/multi-PDV → devenir Karim (fournir à
+  crédit aux petits nouveaux — la boucle se referme).
+- **Méta « la Chute »** : roguelite doux, run de 15-25 h, réputation conservée.
+- **Monétisation** : recommandation premium + web/PWA (le F2P à timers
+  contredit R4/R7 ; stores hostiles au thème, cf. guideline Apple 1.4.3).
+
+Questions ouvertes : la Chute (fin de run) est-elle acceptable pour Sylvain ou
+faut-il une purge du DOSSIER plus généreuse ? Le corner P1 doit-il coexister
+avec la vente DM dès le début (cannibalisation à régler) ?
+
 ## 2026-07-20 — La Loupe : pains discrets, réserve sélectionnable, fin du « couper dans le vide »
 
 Retours de test tel (screenshot) sur l'écran de coupe : pas de restant visible

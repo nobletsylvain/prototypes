@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Le Bloc — proto 1 : le point de vente</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+  :root{
+    --ground:#151814; --panel:#1d211b; --panel-2:#242820; --panel-3:#2b3026;
+    --ink:#ecefe6; --muted:#8b9186; --line:#343a30;
+    --accent:#e6b23a; --accent-ink:#1a1508;
+    --heat:#e0565a; --argent:#46c2e6; --produit:#7b7be0; --growth:#5aa96a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; height:100%}
+  body{
+    background:var(--ground); color:var(--ink);
+    font-family:"Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+    line-height:1.4; overflow:hidden; user-select:none;
+  }
+  .app{max-width:520px; margin:0 auto; height:100%; display:flex; flex-direction:column}
+  .mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+
+  /* HUD */
+  .hud{padding:10px 12px 8px; border-bottom:1px solid var(--line); background:var(--panel)}
+  .hud .top{display:flex; align-items:center; gap:10px; justify-content:space-between}
+  .stat{display:flex; flex-direction:column; line-height:1.1}
+  .stat .k{font-family:ui-monospace,monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+  .stat .v{font-size:17px; font-weight:800; font-variant-numeric:tabular-nums}
+  .stat .v.cash{color:var(--accent)}
+  .stat .v.bac{color:var(--argent)}
+  .pill{font-family:ui-monospace,monospace; font-size:10px; font-weight:700; padding:3px 8px; border-radius:20px; border:1px solid var(--line); color:var(--muted)}
+  .bars{display:flex; gap:8px; margin-top:8px}
+  .bar{flex:1}
+  .bar .bl{display:flex; justify-content:space-between; font-family:ui-monospace,monospace; font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:3px}
+  .bar .tr{height:8px; border-radius:6px; background:var(--panel-2); border:1px solid var(--line); position:relative; overflow:hidden}
+  .bar .fl{position:absolute; left:0; top:0; bottom:0; width:0; transition:width .2s linear}
+  .bar.heat .fl{background:var(--heat)}
+  .bar.res .fl{background:var(--growth)}
+  .bar .seuil{position:absolute; top:-2px; bottom:-2px; width:2px; background:var(--ink); opacity:.5}
+
+  /* scene */
+  .scene{position:relative; flex:1; min-height:120px}
+  canvas{display:block; width:100%; height:100%}
+  .scene .lbl{position:absolute; left:12px; top:10px; font-family:ui-monospace,monospace; font-size:10px; color:var(--muted); letter-spacing:.1em; text-transform:uppercase}
+  .scene .demande{position:absolute; right:12px; top:10px; text-align:right}
+  .scene .demande .v{font-size:22px; font-weight:800; font-variant-numeric:tabular-nums}
+  .scene .demande .k{font-family:ui-monospace,monospace; font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)}
+
+  .toast{position:absolute; left:50%; top:44%; transform:translateX(-50%); background:rgba(20,24,20,.94); border:1px solid var(--line); border-radius:12px; padding:12px 16px; font-size:14px; font-weight:600; text-align:center; max-width:86%; opacity:0; pointer-events:none; transition:opacity .25s; z-index:5}
+  .toast.show{opacity:1}
+  .toast.bad{border-color:var(--heat); color:var(--heat)}
+  .toast.good{border-color:var(--growth); color:var(--growth)}
+
+  /* controls */
+  .ctl{background:var(--panel); border-top:1px solid var(--line); padding:10px 12px calc(10px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:9px}
+  .row{display:flex; gap:8px; align-items:center}
+  .card{background:var(--panel-2); border:1px solid var(--line); border-radius:11px; padding:9px 11px; flex:1; min-width:0}
+  .card .h{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px}
+  .card .h .t{font-family:ui-monospace,monospace; font-size:9.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--muted)}
+  .card .h .val{font-size:13px; font-weight:800; font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%; margin:2px 0; accent-color:var(--accent)}
+  .chips{display:flex; gap:5px; flex-wrap:wrap}
+  .chip{border:1px solid var(--line); background:var(--panel-3); color:var(--ink); border-radius:8px; padding:5px 8px; font-size:11px; font-family:inherit; cursor:pointer; font-weight:600}
+  .chip[aria-pressed=true]{border-color:var(--accent); background:color-mix(in srgb,var(--accent) 18%,var(--panel-3))}
+  .chip small{display:block; font-family:ui-monospace,monospace; font-size:8.5px; color:var(--muted); font-weight:400}
+  .chip[aria-pressed=true] small{color:var(--ink)}
+  .stepper{display:flex; align-items:center; gap:8px}
+  .stepper button{width:30px; height:30px; border-radius:8px; border:1px solid var(--line); background:var(--panel-3); color:var(--ink); font-size:17px; font-weight:800; cursor:pointer}
+  .btn{border:1px solid var(--line); background:var(--panel-3); color:var(--ink); border-radius:10px; padding:10px 12px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; flex:1; text-align:center}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+  .btn.wide{flex:1}
+  .btn:disabled{opacity:.4; cursor:not-allowed}
+  .btn small{display:block; font-family:ui-monospace,monospace; font-size:9px; font-weight:400; opacity:.8}
+  .warn{color:var(--heat)}
+  .deception{font-family:ui-monospace,monospace; font-size:10px; margin-top:4px}
+  .deception.ok{color:var(--growth)}
+  .deception.bad{color:var(--heat)}
+
+  .sheet{position:fixed; inset:0; background:rgba(10,12,10,.7); display:none; align-items:flex-end; justify-content:center; z-index:20}
+  .sheet.show{display:flex}
+  .sheet .inner{background:var(--panel); border:1px solid var(--line); border-radius:16px 16px 0 0; width:100%; max-width:520px; padding:16px 14px calc(18px + env(safe-area-inset-bottom)); max-height:80%; overflow:auto}
+  .sheet h2{margin:0 0 4px; font-size:18px; font-weight:800}
+  .sheet .sub{color:var(--muted); font-size:12.5px; margin:0 0 14px}
+  .buy{display:flex; align-items:center; gap:10px; background:var(--panel-2); border:1px solid var(--line); border-radius:11px; padding:11px; margin-bottom:9px}
+  .buy .info{flex:1}
+  .buy .nm{font-weight:700; font-size:14px}
+  .buy .ds{font-size:11.5px; color:var(--muted)}
+  .buy .grade{font-family:ui-monospace,monospace; font-size:11px; font-weight:700; padding:2px 7px; border-radius:6px; border:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hud">
+    <div class="top">
+      <div class="stat"><span class="k">Cash (planque)</span><span class="v cash" id="cash">50 €</span></div>
+      <div class="stat"><span class="k">Bac (exposé)</span><span class="v bac" id="bac">0 €</span></div>
+      <div class="stat" style="text-align:right"><span class="k">Jour</span><span class="v" id="jour">1</span></div>
+    </div>
+    <div class="bars">
+      <div class="bar heat"><div class="bl"><span>Heat</span><span id="heatTxt">0</span></div><div class="tr"><span class="seuil" id="seuil"></span><span class="fl" id="heatFl"></span></div></div>
+      <div class="bar res"><div class="bl"><span>Réservoir clients</span><span id="resTxt">20</span></div><div class="tr"><span class="fl" id="resFl"></span></div></div>
+    </div>
+  </div>
+
+  <div class="scene">
+    <canvas id="cv"></canvas>
+    <div class="lbl" id="stockLbl">Stock —</div>
+    <div class="demande"><div class="v" id="demV">0</div><div class="k">clients / h</div></div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <div class="ctl">
+    <div class="row">
+      <div class="card">
+        <div class="h"><span class="t">Prix de vente</span><span class="val" id="prixV">10 €/g</span></div>
+        <input type="range" id="prix" min="4" max="24" step="0.5" value="10">
+        <div class="mono" style="font-size:9.5px;color:var(--muted)" id="prixHint">marché ~10 €/g</div>
+      </div>
+      <div class="card">
+        <div class="h"><span class="t">Chouffes</span><span class="val" id="chouffeV">0</span></div>
+        <div class="stepper">
+          <button id="chMinus">−</button>
+          <div class="mono" style="font-size:10px;color:var(--muted);flex:1;text-align:center">60 €/j chacun<br>baisse la Heat</div>
+          <button id="chPlus">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="h"><span class="t">Qualité annoncée (ta pub)</span><span class="val" id="advV">—</span></div>
+      <div class="chips" id="advChips"></div>
+      <div class="deception" id="decep">—</div>
+    </div>
+
+    <div class="row">
+      <button class="btn primary" id="btnBuy">Voir Karim<small>appro hash</small></button>
+      <button class="btn" id="btnCharcler">Charcler<small>+30 % vol · −qualité</small></button>
+      <button class="btn" id="btnEncaisser">Encaisser<small id="encHint">bac → planque</small></button>
+    </div>
+    <div class="row" id="autoRow">
+      <button class="btn wide" id="btnPorteur">Embaucher un porteur — 400 €<small>auto-encaisse le bac (délégation)</small></button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="sheet">
+  <div class="inner">
+    <h2>Karim — appro hash</h2>
+    <p class="sub" id="debtLine">Plaquette de 100 g. La qualité vient du produit sourcé.</p>
+    <div id="buyList"></div>
+    <div class="row" style="margin-top:6px"><button class="btn wide" id="btnClose">Fermer</button></div>
+  </div>
+</div>
+
+<script type="module">
+"use strict";
+/* ============ Le Bloc — proto 1 : le point de vente (hash seul, 1 PDV) ============
+   Valide le cœur du CADRE : un PDV = 3 curseurs (Demande / Satisfaction / Heat),
+   + la mécanique de déception (qualité annoncée vs livrée), + cash exposé/rangé,
+   + Heat déterministe → descente, + paie, + 1er automatisme (porteur).
+   Tous les nombres sont des CONSTANTES nommées (placeholders à régler). Zéro hasard. */
+
+const SAVE_VERSION = 1;
+const K = 'bloc_';
+
+// --- constantes de réglage (placeholders) ---
+const DAY_SEC       = 100;    // durée d'un « jour » en secondes réelles
+const BASE_DEMAND   = 150;    // clients/h à réservoir plein (corner passant)
+const AVG_DOSE      = 3;      // g par client (panier ~30 € à 10 €/g)
+const RES_START     = 30;
+const RES_EASE      = 0.08;   // convergence LENTE du réservoir (slow to build/lose)
+const HEAT_RATE     = 2.5;    // montée de Heat/s à pleine activité (avant chouffes)
+const HEAT_DECAY    = 0.7;    // /s
+const HEAT_SEUIL    = 100;
+const HEAT_WARN     = 80;
+const CHOUFFE_PAY   = 60;     // €/jour
+const CHOUFFE_DAMP  = 0.7;    // efficacité par chouffe (heat /(1+n*damp))
+const PORTEUR_COST  = 400;
+const CHARCLER_VOL  = 1.30;   // +30 % de volume
+const CHARCLER_Q    = 0.72;   // qualité ×0.72
+const DEBT_MULT     = 1.5;    // dette = 1.5 × prix cash de la plaquette front
+
+// produits Karim (hash) — la qualité vient du sourcing (CADRE §1)
+const TIERS = [
+  {id:'savon', nm:'Savonnette', q:12, cost:3,  ds:'coupée, dépannage'},
+  {id:'maroc', nm:'Marocain',   q:35, cost:6,  ds:'brune de rue'},
+  {id:'pollen',nm:'Pollen',     q:55, cost:8,  ds:'kief blond'},
+  {id:'zzz',   nm:'Zéro-zéro',  q:72, cost:11, ds:'tamisage fin'},
+];
+const PLAQ = 100; // g par plaquette
+const tierByQ = (q)=>{ let best=TIERS[0]; for(const t of TIERS) if(q>=t.q-1) best=t; return best; };
+const fairPrice = (q)=> 5 + q*0.10;            // prix « juste » attendu pour une qualité annoncée
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+
+// --- état ---
+let S = load() || {
+  ver:SAVE_VERSION, cash:50, bac:0, jour:1, tsec:0,
+  stockG:PLAQ, stockQ:TIERS[1].q,   // front Karim : 100 g Marocain
+  advQ:TIERS[1].q,                  // qualité annoncée (défaut = livrée)
+  prix:10, chouffes:0, heat:0, res:RES_START, dossier:0,
+  debt:Math.round(PLAQ*TIERS[1].cost*DEBT_MULT), porteur:false,
+};
+
+function load(){ try{ const r=JSON.parse(localStorage.getItem(K+'save')); if(r&&r.ver===SAVE_VERSION) return r; }catch(e){} return null; }
+function save(){ try{ localStorage.setItem(K+'save', JSON.stringify(S)); }catch(e){} }
+
+// --- DOM ---
+const $=id=>document.getElementById(id);
+const cv=$('cv'), ctx=cv.getContext('2d');
+let DPR=1, CW=0, CH=0;
+function resize(){ DPR=Math.min(2,window.devicePixelRatio||1); const r=cv.getBoundingClientRect(); CW=r.width; CH=r.height; cv.width=CW*DPR; cv.height=CH*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
+window.addEventListener('resize',resize);
+
+// advertised-quality chips
+function buildAdvChips(){
+  const box=$('advChips'); box.innerHTML='';
+  TIERS.forEach(t=>{
+    const b=document.createElement('button'); b.className='chip'; b.type='button';
+    b.innerHTML=t.nm+'<small>Q'+t.q+'</small>';
+    b.setAttribute('aria-pressed', S.advQ===t.q?'true':'false');
+    b.onclick=()=>{ S.advQ=t.q; render(); save(); };
+    box.appendChild(b);
+  });
+}
+
+// --- économie (par tick, dt en secondes) ---
+let clientFlow=[], visAcc=0; // pour la scène
+function step(dt){
+  const Qd=S.stockQ, Qa=S.advQ, fp=fairPrice(Qa);
+  const priceRatio=S.prix/fp;
+  // contentement (déterministe) : livré vs annoncé, et prix vs juste
+  const content=clamp(0.55 + (Qd-Qa)*0.010 - 0.8*Math.max(0,priceRatio-1), 0, 1);
+  const resTarget=content*100;
+  S.res += (resTarget - S.res)*Math.min(1, RES_EASE*dt);
+  // attractivité prix (cher = moins de monde)
+  const priceAttract=clamp(1.3 - priceRatio*0.5, 0.12, 1.35);
+  const demande = BASE_DEMAND*(S.res/100)*priceAttract;         // clients/h
+  $('demV').textContent=Math.round(demande);
+  // ventes (limité par le stock exposé)
+  let gWant=demande*AVG_DOSE*dt/3600;
+  const gSold=Math.min(gWant, S.stockG);
+  S.stockG-=gSold; S.bac+=gSold*S.prix;
+  // scène : afflux visuel proportionnel à la demande
+  visAcc += demande*dt/3600*30; while(visAcc>=1){ spawnClient(); visAcc-=1; }
+  // Heat (déterministe) : ∝ activité (visibilité), amortie par les chouffes ; retombe sinon
+  const selling = S.stockG>0 ? 1 : 0.15;
+  const activity = selling*(demande/BASE_DEMAND);
+  S.heat += (activity*HEAT_RATE/(1+S.chouffes*CHOUFFE_DAMP) - HEAT_DECAY)*dt;
+  S.heat = clamp(S.heat, 0, 130);
+  if(S.heat>=HEAT_SEUIL) descente();
+  // porteur : auto-encaisse
+  if(S.porteur && S.bac>0){ const mv=Math.min(S.bac, 30*dt); S.bac-=mv; S.cash+=mv; }
+  // jour / paie
+  S.tsec+=dt;
+  if(S.tsec>=DAY_SEC){ S.tsec-=DAY_SEC; endDay(); }
+}
+
+function descente(){
+  const lost=Math.round(S.bac + S.stockG*S.prix);
+  S.bac=0; S.stockG=0; S.heat=45; S.res=Math.max(0,S.res-15); S.dossier=Math.min(100,S.dossier+12);
+  toast('🚨 Descente ! Stock + bac saisis (−'+lost+' € exposés). Ce qui était en planque est sauf.', 'bad', 2600);
+  save();
+}
+
+let warned=false;
+function endDay(){
+  S.jour++;
+  const due=S.chouffes*CHOUFFE_PAY;
+  if(due>0){
+    if(S.cash>=due){ S.cash-=due; toast('Soir — paie équipe : −'+due+' €','',1400); }
+    else { S.chouffes=Math.max(0,S.chouffes-1); toast('Pas de quoi payer : un chouffe est parti.','bad',2000); }
+  }
+  save();
+}
+
+// --- scène canvas ---
+function spawnClient(){ if(clientFlow.length<40) clientFlow.push({t:0, side:Math.random()<0.5?-1:1, s:0.5+Math.random()*0.5}); }
+function drawScene(){
+  ctx.clearRect(0,0,CW,CH);
+  // sol
+  ctx.fillStyle='#20241d'; ctx.fillRect(0,CH*0.62,CW,CH*0.38);
+  // barre d'immeuble (le bloc)
+  const bw=CW*0.5, bh=CH*0.5, bx=CW*0.5-bw/2, by=CH*0.12;
+  ctx.fillStyle='#3a4034'; ctx.fillRect(bx,by,bw,bh);
+  ctx.fillStyle='#2f3429';
+  for(let r=0;r<6;r++)for(let c=0;c<7;c++){ if((r*7+c)%3) { ctx.fillRect(bx+6+c*(bw-12)/7, by+8+r*(bh-16)/6, (bw-12)/7-3, (bh-16)/6-4); } }
+  // le hall (PDV) — porche éclairé
+  const hx0=CW*0.5-16, hy0=by+bh-34;
+  ctx.fillStyle=S.stockG>0?'#e6b23a':'#5a5f52'; ctx.globalAlpha=.85; ctx.fillRect(hx0,hy0,32,34); ctx.globalAlpha=1;
+  ctx.fillStyle='#151814'; ctx.fillRect(hx0+8,hy0+10,16,24);
+  // chouffes (points rouges sur les côtés)
+  ctx.fillStyle='#e0565a';
+  for(let i=0;i<S.chouffes;i++){ const side=i%2?1:-1; ctx.beginPath(); ctx.arc(CW*0.5+side*(bw*0.5+10+((i>>1)*10)), by+18+((i>>1)*16), 4,0,7); ctx.fill(); }
+  // clients qui affluent vers le hall (PDV)
+  const hallX=CW*0.5, hallY=by+bh-16;
+  for(const cl of clientFlow){ cl.t+=0.01*cl.s;
+    const startX=cl.side<0?CW*0.08:CW*0.92, startY=CH*0.92;
+    const x=startX+(hallX-startX)*cl.t, y=startY+(hallY-startY)*cl.t;
+    ctx.fillStyle='rgba(205,210,200,'+(0.85*(1-cl.t*0.4))+')';
+    ctx.beginPath(); ctx.arc(x,y,3,0,7); ctx.fill();
+  }
+  clientFlow=clientFlow.filter(c=>c.t<1);
+}
+
+// --- render HUD/controls ---
+function render(){
+  $('cash').textContent=Math.round(S.cash)+' €';
+  $('bac').textContent=Math.round(S.bac)+' €';
+  $('jour').textContent=S.jour;
+  $('heatFl').style.width=clamp(S.heat,0,100)+'%';
+  $('heatTxt').textContent=Math.round(S.heat);
+  $('seuil').style.left=HEAT_SEUIL+'%';
+  $('resFl').style.width=clamp(S.res,0,100)+'%';
+  $('resTxt').textContent=Math.round(S.res);
+  const t=tierByQ(S.stockQ);
+  $('stockLbl').textContent='Stock '+Math.round(S.stockG)+' g · '+t.nm+' (Q'+Math.round(S.stockQ)+')';
+  $('prixV').textContent=S.prix+' €/g';
+  $('prixHint').textContent='juste pour Q'+Math.round(S.advQ)+' ≈ '+fairPrice(S.advQ).toFixed(1)+' €/g';
+  $('chouffeV').textContent=S.chouffes;
+  $('advV').textContent='Q'+Math.round(S.advQ);
+  // déception
+  const gap=S.advQ-S.stockQ;
+  const d=$('decep');
+  if(gap<=0){ d.className='deception ok'; d.textContent='✓ Tu livres au moins ce que tu annonces — le réservoir se remplit.'; }
+  else { d.className='deception bad'; d.textContent='⚠ Tu annonces Q'+Math.round(S.advQ)+' et livres Q'+Math.round(S.stockQ)+' : vente OK mais déception (le réservoir fuit).'; }
+  // boutons
+  $('btnCharcler').disabled = S.stockG<=0;
+  $('btnEncaisser').disabled = S.bac<=0 || S.porteur;
+  $('encHint').textContent = S.porteur?'auto (porteur)':'bac → planque';
+  $('autoRow').style.display = S.porteur ? 'none':'flex';
+  $('btnPorteur').disabled = S.cash<PORTEUR_COST;
+  document.querySelectorAll('#advChips .chip').forEach((b,i)=>b.setAttribute('aria-pressed', S.advQ===TIERS[i].q?'true':'false'));
+}
+
+// --- toast ---
+let toastT=null;
+function toast(msg,cls,ms){ const el=$('toast'); el.textContent=msg; el.className='toast show '+(cls||''); clearTimeout(toastT); toastT=setTimeout(()=>el.className='toast '+(cls||''), ms||1600); }
+
+// --- appro (Karim) ---
+function openBuy(){
+  const list=$('buyList'); list.innerHTML='';
+  $('debtLine').innerHTML = S.debt>0
+    ? 'Dette envers Karim : <b class="warn">'+S.debt+' €</b> (rembourse quand tu veux). Plaquette 100 g.'
+    : 'Dette soldée. Plaquette 100 g. La qualité vient du produit sourcé.';
+  TIERS.forEach(t=>{
+    const price=PLAQ*t.cost;
+    const el=document.createElement('div'); el.className='buy';
+    el.innerHTML='<span class="grade" style="color:var(--accent)">Q'+t.q+'</span><div class="info"><div class="nm">'+t.nm+'</div><div class="ds">'+t.ds+' · '+t.cost+' €/g</div></div>';
+    const b=document.createElement('button'); b.className='btn'; b.style.flex='0 0 auto'; b.innerHTML=price+' €';
+    b.onclick=()=>{ if(S.cash<price){ toast('Pas assez de cash ('+price+' € pour 100 g).','bad'); return; }
+      S.cash-=price; addStock(PLAQ,t.q); toast('+100 g '+t.nm+' en planque.','good'); render(); save(); openBuy(); };
+    el.appendChild(b); list.appendChild(el);
+  });
+  if(S.debt>0){
+    const el=document.createElement('div'); el.className='buy';
+    el.innerHTML='<span class="grade warn">DETTE</span><div class="info"><div class="nm">Rembourser Karim</div><div class="ds">'+S.debt+' € — libère ton standing</div></div>';
+    const b=document.createElement('button'); b.className='btn primary'; b.style.flex='0 0 auto'; b.innerHTML='Payer';
+    b.onclick=()=>{ const pay=Math.min(S.cash,S.debt); if(pay<=0){toast('Pas de cash.','bad');return;} S.cash-=pay; S.debt-=pay; toast(S.debt<=0?'Dette soldée ✓':'−'+pay+' € sur la dette','good'); render(); save(); openBuy(); };
+    el.appendChild(b); list.appendChild(el);
+  }
+  $('sheet').classList.add('show');
+}
+// mélange pondéré à l'ajout de stock
+function addStock(g,q){ const tot=S.stockG+g; S.stockQ = tot>0 ? (S.stockG*S.stockQ + g*q)/tot : q; S.stockG=tot; }
+
+// --- events ---
+$('prix').addEventListener('input',e=>{ S.prix=parseFloat(e.target.value); render(); });
+$('prix').addEventListener('change',save);
+$('chPlus').onclick=()=>{ S.chouffes++; render(); save(); };
+$('chMinus').onclick=()=>{ S.chouffes=Math.max(0,S.chouffes-1); render(); save(); };
+$('btnBuy').onclick=openBuy;
+$('btnClose').onclick=()=>$('sheet').classList.remove('show');
+$('btnCharcler').onclick=()=>{ if(S.stockG<=0) return; S.stockG*=CHARCLER_VOL; S.stockQ*=CHARCLER_Q; toast('Charclé : +30 % de volume, qualité ↓ (Q'+Math.round(S.stockQ)+').',''); render(); save(); };
+$('btnEncaisser').onclick=()=>{ if(S.bac<=0) return; S.cash+=S.bac; toast('Encaissé '+Math.round(S.bac)+' € en planque.','good'); S.bac=0; render(); save(); };
+$('btnPorteur').onclick=()=>{ if(S.cash<PORTEUR_COST) return; S.cash-=PORTEUR_COST; S.porteur=true; toast('Porteur embauché — le bac s\'encaisse tout seul. (délégation)','good',2200); render(); save(); };
+
+// --- boucle ---
+let last=0;
+function frame(ts){
+  if(!last) last=ts;
+  let dt=(ts-last)/1000; last=ts; dt=Math.min(dt,0.05); // clamp
+  step(dt);
+  // préavis Heat
+  if(S.heat>=HEAT_WARN && S.heat<HEAT_SEUIL){ if(!warned){ warned=true; toast('👀 Ça chauffe — la Heat approche du seuil. Baisse le tampon ou paie des chouffes.','bad',2200);} }
+  else if(S.heat<HEAT_WARN) warned=false;
+  drawScene(); render();
+  requestAnimationFrame(frame);
+}
+
+// init
+buildAdvChips(); resize(); render();
+requestAnimationFrame(frame);
+window.addEventListener('beforeunload',save);
+</script>
+</body>
+</html>
