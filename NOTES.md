@@ -9,6 +9,34 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-22 — Corner PDV v2 : vente par client (file + ledger), barrettes, rush, fix tri
+
+Retours de test tel de Sylvain sur le corner-PDV → refonte :
+
+- **Débit trop lent → rush** : temps de jeu accéléré (`PDV_TIME_COMPRESS`) +
+  pics cycliques (`pdvRush()` sinus, badge « RUSH ») + demande boostée par le
+  **buzz** (`S.expo`, vitrine). Le corner vit (ex. 266 clients/h en rush).
+- **Vente par CLIENT (file d'attente virtuelle)** : `P.queue` de clients
+  nominatifs, chacun un panier de barrettes ; arrivées ∝ demande, service à
+  `PDV_SERVE_RATE`, patience `PDV_MAX_WAIT` (sinon départ = rupture douce). Sert
+  le **ledger** (`P.ledger`, dernières ventes affichées) — on en aura besoin
+  pour la suite.
+- **Vente par BARRETTE, plus au grammage** : tampon = sachets (unités)
+  `P.tampon{taille:n}` ; chaque client débite N barrettes (petites d'abord) ;
+  prix = grammes × €/g.
+- **Choisir la quantité livrée** : ravitaillement +10 / +25 / Max barrettes
+  (planque → tampon exposé).
+- **Menu = vitrine SnapShit** : la carte « Menu · vitrine » (qualité annoncée =
+  déception) + bouton **Poster la vitrine** (`snap.posterVitrine` → +buzz →
+  +demande). Relie le PDV au moteur Snap existant.
+- **Fix bug tri liquide** : `Encaisser` ajoutait à `S.dirty` sans créer les
+  **billets** (`S.bills`) que la trieuse consomme → trémie vide. Ajout de
+  `pushBills(v)` (comme le retour BeuherShit). Vérifié : après encaisse,
+  `dirty>0` ET `bills>0`.
+- État PDV étendu (`shelter.mjs` : tampon/queue/ledger/…), **SAVE_VERSION 19→20**
+  (reset propre). Smoke `tools/smoke-loupe-pdv.mjs` mis à jour (Max, file,
+  ledger, tri) : **zéro erreur console**.
+
 ## 2026-07-22 — Le corner devient le PDV à 3 curseurs (intégré DANS La Loupe)
 
 Correction de cap : Sylvain attendait le proto **sur La Loupe**, pas dans un

@@ -40,11 +40,12 @@ page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 
 // seed : stock de sachets + PDV réservoir amorcé, intro passée
 await page.evaluateOnNewDocument(() => {
-  localStorage.setItem("loupe_ver", "19");
+  localStorage.setItem("loupe_ver", "20");
   localStorage.setItem("loupe_save", JSON.stringify({
-    sachets: { "5": 30 }, sachetQ: 62,
+    sachets: { "2": 20, "5": 30 }, sachetQ: 62,
     shelter: { introSeen: true, frontActive: false, paidOff: true,
-      pdv: { res: 60, bac: 0, advQ: 0, prix: 10, chouffes: 0, tamponG: 0, tamponQ: 0 } },
+      pdv: { res: 70, bac: 0, advQ: 0, prix: 10, chouffes: 0,
+        tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0 } },
   }));
 });
 
@@ -59,21 +60,23 @@ await page.click('[data-pin-go="pdv"]');
 await sleep(300);
 await page.screenshot({ path: path.join(OUT, "02-pdv.png") });
 
-// ravitailler (sachets → tampon), puis laisser vendre
-await page.click("#ravito");
-await sleep(2500);
+// ravitailler (Max barrettes → tampon), puis laisser la file se vendre
+await page.click('[data-rav="0"]');
+await sleep(3000);
 const afterSell = await page.evaluate(() => ({
   bac: document.getElementById("pBac")?.textContent,
   tampon: document.getElementById("pTamp")?.textContent,
   res: document.getElementById("pResT")?.textContent,
-  heat: document.getElementById("pHeat")?.textContent,
+  file: document.getElementById("pQ")?.textContent,
   dem: document.getElementById("pDem")?.textContent,
+  ledger: document.querySelectorAll("#pLed .stat").length,
 }));
 await page.screenshot({ path: path.join(OUT, "03-selling.png") });
 
-// encaisser le bac
+// encaisser le bac → doit créer des billets triables
 await page.click("#enc");
 await sleep(200);
+const afterEnc = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")); return { dirty: s.dirty, bills: (s.bills || []).length }; });
 
 // déception : annoncer Top (Q78) alors qu'on livre Q62 → réservoir doit fuir
 await page.click('[data-adv="78"]');
@@ -89,6 +92,7 @@ await browser.close();
 server.close();
 
 console.log("après vente   :", JSON.stringify(afterSell));
+console.log("après encaisse:", JSON.stringify(afterEnc), "(bills>0 = tri OK)");
 console.log("après décep.  :", JSON.stringify(afterDecep));
 console.log("pdv sauvegardé:", JSON.stringify(state));
 console.log("erreurs       :", errors.length ? errors : "AUCUNE");

@@ -278,7 +278,7 @@ import * as snap from "./snap.mjs?v=18";
 import * as beuher from "./beuher.mjs?v=18";
 import * as shelter from "./shelter.mjs?v=18";
 
-const SAVE_VERSION = "19";
+const SAVE_VERSION = "20";
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
 // La demande Snap reste calée sur 2/5/8 (snap.SC.DOSE_FORMATS) — couper autre chose = risque assumé.
 const CUT_MIN = 1, CUT_MAX = 20, CUT_DEFAULT = 2;
@@ -640,7 +640,7 @@ function pinSheet(p, hit, hitLb){
     return `<div class="card">
       <h3>${p.title}</h3>
       <div class="muted">${p.blurb}</div>
-      <div class="stat"><span>Tampon · bac au corner</span><b>${Math.round(P.tamponG||0)} g · ${money(P.bac||0)}</b></div>
+      <div class="stat"><span>Tampon · bac au corner</span><b>${tampN(P.tampon)} barrettes · ${money(P.bac||0)}</b></div>
       <div class="stat"><span>DM en attente · prêtes</span><b>${pending} · ${S.orders.filter(o=>o.status==="ready").length}</b></div>
       <button class="btn ok" data-pin-go="pdv">▶ Tenir le corner (point de vente)</button>
       <button class="btn snap" style="margin-top:6px" data-pin-go="snap">⚡ Ouvrir SnapShit (DM)</button>
@@ -654,89 +654,131 @@ function pinSheet(p, hit, hitLb){
 
 /* ============ PDV — le corner : point de vente à 3 curseurs (CADRE) ============
    Demande / Satisfaction (déception annoncé vs livré) / Heat déterministe.
-   Vend le TAMPON (sachets stagés au corner, exposés) → bac (liquide de rue).
-   Descente au seuil de Heat : saisit tampon + bac ; la planque est sauve.
+   Vente PAR CLIENT (file d'attente virtuelle) : chaque client achète un panier
+   de BARRETTES (sachets) depuis le TAMPON exposé → bac (liquide de rue) → ledger.
+   Menu = vitrine SnapShit (buzz). Descente au seuil : saisit tampon + bac.
    Constantes de réglage (placeholders) : */
-const PDV_BASE_DEMAND=150, PDV_AVG_DOSE=3, PDV_RES_EASE=0.08;
-const PDV_HEAT_RATE=2.2, PDV_HEAT_DECAY=0.7, PDV_SEUIL=95, PDV_AFTER=45;
-const PDV_CHOUFFE_DAMP=0.7, PDV_CHOUFFE_PAY=60, PDV_TAMPON_MAX=120;
+const PDV_BASE_DEMAND=200;        // clients/h à réservoir plein, prix juste
+const PDV_TIME_COMPRESS=20;       // temps de jeu accéléré (fait vivre le débit)
+const PDV_RUSH_AMP=1.3, PDV_RUSH_PERIOD=38; // pics de rush cycliques
+const PDV_EXPO_SCALE=140;         // buzz (vitrine SnapShit) → demande
+const PDV_SERVE_RATE=4;           // clients servis/s (débit du corner)
+const PDV_MAX_WAIT=5, PDV_MAX_QUEUE=14, PDV_RES_PER_SALE=0.05, PDV_RUPTURE_HIT=1.2;
+const PDV_HEAT_RATE=2.0, PDV_HEAT_DECAY=0.7, PDV_SEUIL=95, PDV_AFTER=45;
+const PDV_CHOUFFE_DAMP=0.7, PDV_CHOUFFE_PAY=60, PDV_TAMPON_MAX=60; // barrettes
+const PDV_WANT=[1,1,2,1,3,2,1,2]; // paniers clients (barrettes)
+const PDV_NAMES=["Momo","Inès","Yaz","Riton","Sofia","Sami","Lou","Nassim","Aya","Diego","Zoé","Paul"];
 const PDV_ADV=[{q:25,l:"Merdique"},{q:45,l:"Correct"},{q:62,l:"Bonne"},{q:78,l:"Top"}];
 const pdvFair=q=>5+q*0.10;
+const tampN=t=>Object.values(t||{}).reduce((a,n)=>a+n,0);      // barrettes au tampon
+const tampG=t=>Object.entries(t||{}).reduce((a,[f,n])=>a+n*+f,0); // grammes au tampon
+const pdvRush=()=>1+PDV_RUSH_AMP*(0.5+0.5*Math.sin((S.clock||0)*2*Math.PI/PDV_RUSH_PERIOD));
+const pdvRushHot=()=>pdvRush()>1+PDV_RUSH_AMP*0.7;
 
 function pdvDemande(){
-  const P=S.shelter.pdv; const Qd=P.tamponG>0?P.tamponQ:(S.sachetQ||55); const Qa=P.advQ||Qd;
+  const P=S.shelter.pdv; const Qd=tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55); const Qa=P.advQ||Qd;
   const pr=P.prix/pdvFair(Qa); const attract=clamp(1.3-pr*0.5,0.12,1.35);
-  return PDV_BASE_DEMAND*(P.res/100)*attract;
+  const buzz=1+(S.expo||0)/PDV_EXPO_SCALE;
+  return PDV_BASE_DEMAND*(P.res/100)*attract*buzz*pdvRush();
+}
+// sert un client (le premier de la file) : débite des barrettes du tampon
+function pdvServe(P){
+  const cl=P.queue.shift(); if(!cl) return;
+  const sizes=Object.keys(P.tampon).map(Number).filter(f=>P.tampon[f]>0).sort((a,b)=>a-b);
+  let n=0,g=0;
+  for(const f of sizes){ while(P.tampon[f]>0 && n<cl.want){ P.tampon[f]--; if(P.tampon[f]<=0) delete P.tampon[f]; n++; g+=f; } if(n>=cl.want) break; }
+  if(n===0){ P.res=clamp(P.res-PDV_RUPTURE_HIT,0,100); return; } // rupture : rien à vendre
+  const price=Math.round(g*P.prix); P.bac+=price;
+  const Qd=P.tamponQ||S.sachetQ||55, Qa=P.advQ||Qd, pr=P.prix/pdvFair(Qa);
+  const content=clamp(0.55+(Qd-Qa)*0.010-0.8*Math.max(0,pr-1),0,1);
+  P.res+=(content*100-P.res)*PDV_RES_PER_SALE;
+  P.ledger.unshift({nm:cl.nm,n,g,eur:price}); if(P.ledger.length>6) P.ledger.length=6;
 }
 function pdvTick(dt){
   const P=S.shelter&&S.shelter.pdv; if(!P) return;
-  if(!(tab==="shelter"&&shelterSub==="pdv")) return; // v1 : on tient le corner en présence
-  const Qd=P.tamponG>0?P.tamponQ:(S.sachetQ||55), Qa=P.advQ||Qd, fp=pdvFair(Qa), pr=P.prix/fp;
-  const content=clamp(0.55+(Qd-Qa)*0.010-0.8*Math.max(0,pr-1),0,1);
-  P.res+=(content*100-P.res)*Math.min(1,PDV_RES_EASE*dt);
-  const attract=clamp(1.3-pr*0.5,0.12,1.35);
-  const demande=PDV_BASE_DEMAND*(P.res/100)*attract;
-  const gSold=Math.min(demande*PDV_AVG_DOSE*dt/3600, P.tamponG);
-  P.tamponG-=gSold; P.bac+=gSold*P.prix;
-  const selling=P.tamponG>0?1:0.15, activity=selling*(demande/PDV_BASE_DEMAND);
+  if(!(tab==="shelter"&&shelterSub==="pdv")) return; // on tient le corner en présence
+  if(!P.queue) P.queue=[]; if(!P.ledger) P.ledger=[]; if(!P.tampon) P.tampon={};
+  const demande=pdvDemande();
+  // arrivées de clients (temps de jeu accéléré → le débit vit)
+  P.qacc=(P.qacc||0)+demande*dt*PDV_TIME_COMPRESS/3600;
+  while(P.qacc>=1 && P.queue.length<PDV_MAX_QUEUE){ P.qacc-=1; P.seq=(P.seq||0)+1; P.queue.push({nm:PDV_NAMES[P.seq%PDV_NAMES.length], want:PDV_WANT[P.seq%PDV_WANT.length], wait:0}); }
+  if(P.qacc>PDV_MAX_QUEUE) P.qacc=PDV_MAX_QUEUE;
+  // service (débit du corner)
+  P.serveAcc=(P.serveAcc||0)+PDV_SERVE_RATE*dt;
+  while(P.serveAcc>=1 && P.queue.length){ P.serveAcc-=1; pdvServe(P); }
+  // patience : les clients qui attendent trop partent (rupture douce)
+  for(const cl of P.queue) cl.wait+=dt;
+  const before=P.queue.length; P.queue=P.queue.filter(c=>c.wait<PDV_MAX_WAIT);
+  if(P.queue.length<before) P.res=clamp(P.res-PDV_RUPTURE_HIT*(before-P.queue.length),0,100);
+  // Heat : activité + longueur de file (visibilité), amortie par les chouffes
+  const activity=clamp(demande/PDV_BASE_DEMAND + P.queue.length*0.04, 0, 1.6);
   S.heat=clamp(S.heat+(activity*PDV_HEAT_RATE/(1+P.chouffes*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY)*dt,0,100);
   if(S.heat>=PDV_SEUIL){ pdvDescente(); return; }
   pdvPatch();
 }
 function pdvPatch(){
-  const P=S.shelter.pdv, Qd=Math.round(P.tamponG>0?P.tamponQ:(S.sachetQ||55));
+  const P=S.shelter.pdv, Qd=Math.round(tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55));
   const set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
-  set("pDem",Math.round(pdvDemande())+" clients/h");
+  set("pDem",Math.round(pdvDemande())+" clients/h"+(pdvRushHot()?" · RUSH":""));
   const r=document.getElementById("pRes"); if(r) r.style.width=clamp(P.res,0,100)+"%";
   set("pResT",Math.round(P.res));
   const hl=shelter.hitLabel(S.heat), h=document.getElementById("pHeat");
   if(h){ h.textContent=Math.round(S.heat)+" · "+hl.txt; h.className="hit-chip "+hl.cls; }
   const hb=document.getElementById("pHeatB"); if(hb) hb.style.width=clamp(S.heat,0,100)+"%";
-  set("pTamp",Math.round(P.tamponG)+" g · Q"+Qd);
+  set("pTamp",tampN(P.tampon)+" barrettes · "+Math.round(tampG(P.tampon))+" g · Q"+Qd);
   set("pBac",money(P.bac));
+  set("pQ",P.queue.length);
+  const led=document.getElementById("pLed");
+  if(led) led.innerHTML=P.ledger.length ? P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr. (${e.g} g)</span><b class="pill dirty">+${money(e.eur)}</b></div>`).join("") : `<div class="muted" style="font-size:11px">Aucune vente encore.</div>`;
 }
 function pdvDescente(){
-  const P=S.shelter.pdv, lost=Math.round(P.bac+P.tamponG*P.prix);
-  P.bac=0; P.tamponG=0; S.heat=PDV_AFTER; S.reput=clamp(S.reput-6,0,100);
+  const P=S.shelter.pdv, lost=Math.round(P.bac+tampG(P.tampon)*P.prix);
+  P.bac=0; P.tampon={}; P.queue=[]; S.heat=PDV_AFTER; S.reput=clamp(S.reput-6,0,100);
   cause("Descente au corner","−"+lost+" exposé"); hud();
-  toast("🚨 Descente — tampon + bac saisis (−"+lost+"). La planque est sauve.");
+  toast("🚨 Descente — barrettes + bac saisis (−"+lost+"). La planque est sauve.");
   save(); if(tab==="shelter"&&shelterSub==="pdv") renderPDV();
 }
-function pdvRavito(){
-  const P=S.shelter.pdv; let need=PDV_TAMPON_MAX-P.tamponG;
-  if(need<=0){ toast("Tampon plein ("+PDV_TAMPON_MAX+" g)."); return; }
+// livre nWant barrettes (sachets) de la planque vers le tampon exposé (petites d'abord)
+function pdvRavito(nWant){
+  const P=S.shelter.pdv; if(!P.tampon) P.tampon={};
+  const room=PDV_TAMPON_MAX-tampN(P.tampon);
+  if(room<=0){ toast("Tampon plein ("+PDV_TAMPON_MAX+" barrettes)."); return; }
   const sizes=sizesOf(S.sachets); if(!sizes.length){ toast("Pas de sachets — coupe et conditionne d'abord (Atelier)."); return; }
-  let moved=0;
-  for(const f of sizes){ while(S.sachets[f]>0 && moved<need){ S.sachets[f]--; moved+=f; } if(S.sachets[f]<=0) delete S.sachets[f]; if(moved>=need) break; }
-  if(moved>0){ P.tamponQ=P.tamponG>0?(P.tamponG*P.tamponQ+moved*(S.sachetQ||55))/(P.tamponG+moved):(S.sachetQ||55); P.tamponG+=moved; toast("+"+moved+" g stagés au corner (exposés)."); save(); renderPDV(); }
+  const target=Math.min(nWant||room, room); let moved=0, movedG=0;
+  for(const f of sizes.slice().sort((a,b)=>a-b)){ while(S.sachets[f]>0 && moved<target){ S.sachets[f]--; if(S.sachets[f]<=0) delete S.sachets[f]; P.tampon[f]=(P.tampon[f]||0)+1; moved++; movedG+=f; } if(moved>=target) break; }
+  if(moved>0){ const newG=tampG(P.tampon), oldG=newG-movedG; P.tamponQ=newG>0?(oldG*(P.tamponQ||S.sachetQ||55)+movedG*(S.sachetQ||55))/newG:(S.sachetQ||55); toast("+"+moved+" barrettes stagées au corner (exposées)."); save(); renderPDV(); }
+  else toast("Plus de sachets à charger.");
 }
 function renderPDV(){
   tab="shelter"; shelterSub="pdv"; if(typeof set3d==="function") set3d("hidden"); hud(); renderDock();
-  const P=S.shelter.pdv;
-  const Qd=Math.round(P.tamponG>0?P.tamponQ:(S.sachetQ||55)), Qa=P.advQ||Qd;
+  const P=S.shelter.pdv; if(!P.tampon) P.tampon={}; if(!P.queue) P.queue=[]; if(!P.ledger) P.ledger=[];
+  const Qd=Math.round(tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55)), Qa=P.advQ||Qd;
   const hl=shelter.hitLabel(S.heat);
-  const gap=Qa-Qd;
-  const decep = gap<=0
-    ? `<div class="muted" style="color:var(--cash);font-size:11px">✓ Tu livres au moins ce que tu annonces — le réservoir se remplit.</div>`
-    : `<div class="muted" style="color:var(--heat);font-size:11px">⚠ Tu annonces Q${Qa} et livres Q${Qd} : vente OK mais déception (le réservoir fuit).</div>`;
+  const stockSach=sizesOf(S.sachets).reduce((a,f)=>a+(S.sachets[f]||0),0);
+  const decep = (Qa-Qd)<=0
+    ? `<div class="muted" style="color:var(--cash);font-size:11px">✓ Tu livres au moins ce que ton menu annonce — le réservoir se remplit.</div>`
+    : `<div class="muted" style="color:var(--heat);font-size:11px">⚠ Menu Q${Qa} mais tu livres Q${Qd} : la vente se fait mais le client est déçu (le réservoir fuit).</div>`;
   stage.innerHTML=`
     <button class="btn ghost" id="back">↩ Quartier</button>
     <h2>Le corner</h2>
-    <div class="sub">Tu tiens le spot. Prix + qualité annoncée = ton arbitrage ; les chouffes tiennent la Heat. Ce que tu exposes (tampon + bac) peut être saisi ; la planque est sauve.</div>
+    <div class="sub">Les clients arrivent en file. Tu vends des barrettes depuis le tampon exposé ; ton menu (vitrine SnapShit) fixe l'attente. Ce que tu exposes peut être saisi ; la planque est sauve.</div>
     <div class="card">
-      <div class="stat"><span>Demande</span><b id="pDem">${Math.round(pdvDemande())} clients/h</b></div>
+      <div class="stat"><span>Demande</span><b id="pDem">${Math.round(pdvDemande())} clients/h${pdvRushHot()?" · RUSH":""}</b></div>
       <div class="bar"><i id="pRes" style="width:${clamp(P.res,0,100)}%;background:linear-gradient(90deg,#6ec8ff,#5aa96a)"></i></div>
-      <div class="stat"><span>Réservoir clients</span><b id="pResT">${Math.round(P.res)}</b></div>
+      <div class="stat"><span>Réservoir clients · file</span><b><span id="pResT">${Math.round(P.res)}</span> · <span id="pQ">${P.queue.length}</span> en file</b></div>
       <div class="stat"><span>Heat rue</span><b><span class="hit-chip ${hl.cls}" id="pHeat">${Math.round(S.heat)} · ${hl.txt}</span></b></div>
       <div class="bar"><i id="pHeatB" style="width:${clamp(S.heat,0,100)}%;background:linear-gradient(90deg,#ffd06a,#ff6a6a)"></i></div>
     </div>
     <div class="card">
-      <div class="stat"><span>Tampon (exposé)</span><b id="pTamp">${Math.round(P.tamponG)} g · Q${Qd}</b></div>
+      <div class="stat"><span>Tampon (exposé)</span><b id="pTamp">${tampN(P.tampon)} barrettes · ${Math.round(tampG(P.tampon))} g · Q${Qd}</b></div>
       <div class="stat"><span>Bac de rue (exposé)</span><b class="pill dirty" id="pBac">${money(P.bac)}</b></div>
-      <div class="grid2">
-        <button class="btn ok" style="margin:0" id="ravito">Ravitailler ▸ corner</button>
-        <button class="btn ghost" style="margin:0" id="enc">Encaisser le bac</button>
+      <div class="muted" style="font-size:10px;margin:2px 0 6px">Livrer des barrettes au corner (réserve : ${stockSach} sachets) :</div>
+      <div class="grid3">
+        <button class="btn ok" style="margin:0" data-rav="10">+10</button>
+        <button class="btn ok" style="margin:0" data-rav="25">+25</button>
+        <button class="btn ok" style="margin:0" data-rav="0">Max</button>
       </div>
+      <button class="btn ghost" style="margin-top:6px" id="enc">Encaisser le bac ▸ liquide</button>
     </div>
     <div class="card">
       <div class="stat"><span>Prix de vente</span><b id="pPrix">${P.prix} €/g</b></div>
@@ -744,17 +786,23 @@ function renderPDV(){
       <div class="muted" id="pPrixH" style="font-size:10px">juste pour Q${Qa} ≈ ${pdvFair(Qa).toFixed(1)} €/g</div>
     </div>
     <div class="card">
-      <div class="stat"><span>Qualité annoncée (ta pub)</span><b id="pAdv">Q${Qa}</b></div>
+      <div class="stat"><span>Menu · vitrine SnapShit</span><b id="pAdv">Q${Qa}</b></div>
       <div class="grid2" style="margin-top:4px">${PDV_ADV.map(a=>`<button class="btn ghost" data-adv="${a.q}" style="margin:0;padding:8px 4px;font-size:11px${P.advQ===a.q?';border-color:var(--accent);color:#fff':''}">${a.l}<br><small style="opacity:.6">Q${a.q}</small></button>`).join("")}</div>
+      <button class="btn snap" style="margin-top:6px" id="vitr">📣 Poster la vitrine ▸ +buzz (buzz ${Math.round(S.expo)})</button>
       ${decep}
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 6px">Ledger · dernières ventes</h3>
+      <div id="pLed">${P.ledger.length?P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr. (${e.g} g)</span><b class="pill dirty">+${money(e.eur)}</b></div>`).join(""):`<div class="muted" style="font-size:11px">Aucune vente encore.</div>`}</div>
     </div>
     <div class="card">
       <div class="stat"><span>Chouffes (${PDV_CHOUFFE_PAY} €/soir · baissent la Heat)</span><b id="pCh">${P.chouffes}</b></div>
       <div class="grid2"><button class="btn ghost" style="margin:0" id="chM">− chouffe</button><button class="btn ok" style="margin:0" id="chP">+ chouffe</button></div>
     </div>`;
   document.getElementById("back").onclick=()=>{ shelterSub="map"; render(); };
-  document.getElementById("ravito").onclick=pdvRavito;
-  document.getElementById("enc").onclick=()=>{ if(P.bac<=0){toast("Bac vide.");return;} S.dirty+=P.bac; toast("Encaissé "+money(P.bac)+" en liquide (à trier au Liquide)."); P.bac=0; hud(); save(); renderPDV(); };
+  stage.querySelectorAll("[data-rav]").forEach(b=>b.onclick=()=>pdvRavito(+b.dataset.rav));
+  document.getElementById("enc").onclick=()=>{ if(P.bac<=0){toast("Bac vide.");return;} const v=Math.round(P.bac); S.dirty+=v; pushBills(v); toast("Encaissé "+money(v)+" en liquide (à trier au Liquide)."); P.bac=0; hud(); save(); renderPDV(); };
+  document.getElementById("vitr").onclick=()=>{ snap.posterVitrine(S,"vitrine"); cause("Vitrine corner","+buzz"); toast("Vitrine en ligne — le buzz monte, la file grossit."); save(); renderPDV(); };
   const pr=document.getElementById("pPrixR");
   pr.oninput=e=>{ P.prix=parseFloat(e.target.value); document.getElementById("pPrix").textContent=P.prix+" €/g"; };
   pr.onchange=()=>{ save(); renderPDV(); };
