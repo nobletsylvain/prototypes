@@ -9,6 +9,35 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-22 — Le corner devient le PDV à 3 curseurs (intégré DANS La Loupe)
+
+Correction de cap : Sylvain attendait le proto **sur La Loupe**, pas dans un
+dossier autonome. Le `le-bloc/` standalone est **fondu dans La Loupe puis
+supprimé** (carte hub + `tools/smoke-bloc.mjs` retirés). Le **pin « corner »**
+de la carte Quartier Nord devient le **point de vente jouable à 3 curseurs**
+(Shelter P1) — bouton « Tenir le corner » depuis la fiche du pin.
+
+- **`renderPDV()`** dans `la-loupe/index.html` : Demande / Satisfaction
+  (déception annoncé vs livré) / Heat, en temps réel via `pdvTick(dt)` branché
+  sur la boucle `frame()` (on tient le corner **en présence** — délégation plus
+  tard). Réutilise les classes CSS existantes → rendu natif La Loupe.
+- **Stock réel** : vend le **tampon** (sachets stagés au corner, exposés,
+  débités de `S.sachets` au ravitaillement, en grammes) → **bac** (liquide de
+  rue). **Encaisser** verse le bac dans `S.dirty` (à trier au Liquide). La
+  **descente** (seuil de Heat) saisit tampon + bac ; la planque est sauve.
+- **Qualité livrée = `S.sachetQ`** ; annoncée = sélecteur (Merdique/Correct/
+  Bonne/Top). Prix €/g, chouffes (paie 60 €/soir à la clôture — sinon un part).
+- **État** dans `S.shelter.pdv` (défauts dans `shelter.mjs`, migration douce) ;
+  **SAVE_VERSION 18 → 19** (reset propre, convention).
+- Vérif : `node --check` (module + shelter.mjs) OK ; smoke Puppeteer
+  `tools/smoke-loupe-pdv.mjs` (sert en HTTP, seed sachets, carte → corner →
+  ravitailler → vente → encaisser → déception) : **zéro erreur console**,
+  déception vérifiée (annoncer Q78 en livrant Q62 → réservoir qui fuit).
+
+Le `le-bloc/` reste consultable dans l'historique (commits d3a6e65 / PR #167).
+Prochaines passes : rush horaire, charbonneur (délégation = vente sans présence),
+2e PDV, puis les autres produits du catalogue VARIETES.
+
 ## 2026-07-22 — Le Bloc : 1er proto jouable (le-bloc/, PDV à 3 curseurs)
 
 Premier proto du cadre décidé : **hash seul, 1 PDV, boucle complète**
