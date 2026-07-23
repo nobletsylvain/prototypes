@@ -171,6 +171,12 @@
   #compo{min-height:24px;font-size:13px;color:var(--tx2)}
   #compo .sac{background:var(--chip);border-radius:7px;padding:3px 8px;margin-right:5px;color:var(--tx);cursor:pointer;display:inline-block;margin-bottom:4px}
   #priceRow{display:flex;align-items:center;gap:7px;margin:8px 0 4px}
+  /* grimace à mi-négo (Recettear) : le client réagit au prix en cours */
+  #negoFace{display:flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--card2);border-radius:10px;padding:7px 10px;margin:2px 0 8px;font-size:13px}
+  #negoFace .nfEmo{font-size:22px;transition:transform .15s}
+  #negoFace.bump .nfEmo{transform:scale(1.35)}
+  #negoFace .nfTx{color:var(--tx2);font-weight:600}
   .pb{border:0;border-radius:9px;background:var(--chip);color:var(--tx);font:inherit;font-weight:800;padding:9px 0;width:46px;cursor:pointer}
   .pb:active{transform:scale(.93)}
   #price{flex:1;text-align:center;font-size:23px;font-weight:800}
@@ -272,6 +278,7 @@
       <button class="pb" data-d="1">+1</button>
       <button class="pb" data-d="5">+5</button>
     </div>
+    <div id="negoFace"><span class="nfAv">🙂</span><span class="nfEmo">😊</span><span class="nfTx">—</span></div>
     <div id="fairHint">Prix menu ≈ <b>0</b></div>
     <div id="shActs">
       <button class="big cancel" id="shCancel">Annuler</button>
@@ -318,7 +325,7 @@ const CFG = {
   ],
   PRIX_FAIR: 10,            // base €/g fictif (argent neutre)
   FAIR_BAND: 0.10,          // fenêtre "prix juste" : menu ±10 % (Moonlighter)
-  NEGO_MAX: 1.35,           // au-dessus du menu jusqu'à ×1.35 = BONNE NÉGO (marge du
+  NEGO_MAX: 1.2,            // au-dessus du menu jusqu'à ×1.2 = BONNE NÉGO (marge du
                             // présentiel — l'auto vend au menu, la main vend au-dessus) ;
                             // au-delà, si accepté (accros…), c'est de l'abus (gouge)
   TIP_JUSTE: 0.18,          // pourboire de base sur un deal JUSTE (× combo)
@@ -331,7 +338,7 @@ const CFG = {
   WAIT_FREEZE_S: 8, WAIT_MELT: 1.6,
   /* tolérance €/g : le plafond de ce que chacun accepte. L'écart entre le haut
      de la fenêtre juste (×1.1) et la tolérance = l'espace de NÉGO du présentiel. */
-  TOL: { regulier: 1.35, lowball: 0.82, accro: 1.5, grossiste: 0.78, hesitant: 1.2, louche: 99 },
+  TOL: { regulier: 1.2, lowball: 0.82, accro: 1.35, grossiste: 0.78, hesitant: 1.15, louche: 99 },
   TOL_PER_REL: 1 / 600,
   BUDGET: { regulier: 70, lowball: 110, accro: 50, grossiste: 260, hesitant: 60, louche: 999 },
   BUDGET_PER_REL: 1 / 100,
@@ -343,11 +350,9 @@ const CFG = {
   FLAIR_BONUS: 25,
   LOUCHE_FROM_DAY: 2, LOUCHE_EVERY: 2,
   REP_DEAL: 1, REP_JUSTE: 1, REP_GOUGE: -2, REP_WALK: -1,
-  /* entonnoir : un RADIN fidélisé propose de charbonner (R6 : ton choix).
-     Délégué = volume au prix du client, commission, zéro négo/pourboire/relation,
-     et il vend à N'IMPORTE QUI (louches → chaleur). La marge du présentiel
-     devient mesurable en comparant les deux rapports. */
-  CHARBON_REL: 45, CHARBON_CUT: 0.25,
+  /* NB : le recrutement (radin fidélisé → charbonneur, soirée déléguée) a été
+     retiré du banc d'essai — il sera branché sur le système d'embauche de La
+     Loupe (S.upgrades.charbonneur). Spec conservée dans INTEGRATION.md §6. */
 };
 
 const FORMATS = [2, 5, 8];
@@ -1042,6 +1047,31 @@ function renderCompo() {
   });
 }
 function autoPrice() { if (SH && SH.dm.mode !== "ambig") SH.total = R(grams() * fairPpu()); }
+/* la grimace à mi-négo (Recettear) : lecture DÉTERMINISTE de la tête du client
+   pendant qu'on règle le prix — le skill devient lire le visage, pas deviner. */
+function negoFace() {
+  const nf = $("negoFace");
+  if (!SH || SH.dm.mode === "ambig") { nf.style.display = "none"; return; }
+  nf.style.display = "";
+  const dm = SH.dm, g = grams(), fair = fairPpu();
+  nf.querySelector(".nfAv").textContent = dm.av;
+  const set = (emo, tx) => {
+    const e = nf.querySelector(".nfEmo");
+    if (e.textContent !== emo) { nf.classList.remove("bump"); void nf.offsetWidth; nf.classList.add("bump"); }
+    e.textContent = emo; nf.querySelector(".nfTx").textContent = tx;
+  };
+  if (!g) { set("🤨", "Il attend de voir…"); return; }
+  if (dm.kind === "louche") { set("😐", "Aucune réaction… bizarre."); return; }
+  const ppu = SH.total / g;
+  const tol = tolPpu(dm.kind, S.clients[dm.pid].rel);
+  const bud = budget(dm.kind, S.clients[dm.pid].rel);
+  if (SH.total > bud) set("😤", "Au-dessus de sa poche.");
+  else if (ppu > tol) set("😤", "À ce prix, c'est mort pour lui.");
+  else if (ppu > tol * 0.9) set("😬", "Il grimace — t'es à la limite.");
+  else if (ppu <= fair * 0.9) set("😍", "Belle affaire… pour lui.");
+  else if (ppu <= fair * 1.1) set("😊", "Prix menu, ça lui va.");
+  else set("😏", "Il suit… y a de la marge.");
+}
 function renderPrice() {
   if (!SH) return;
   const g = grams(), fair = fairPpu();
@@ -1049,6 +1079,7 @@ function renderPrice() {
   $("fairHint").innerHTML = g
     ? `Prix menu ≈ <b>${R(g * fair)}</b> (${fair}/g) — tap pour caler, la zone juste paie un pourboire`
     : `Prix menu : <b>${fair}/g</b>`;
+  negoFace();
 }
 $("fairHint").onclick = () => {
   if (!SH || SH.dm.mode === "ambig") return;
@@ -1108,18 +1139,6 @@ function endSoiree() {
       unlocks.push("🤝 " + par.nm + " t'a présenté " + p.nm + " (" + KIND_TAG[p.kind] + ")");
     }
   }
-  // l'entonnoir se referme : un RADIN fidélisé propose de charbonner (R6 : ton choix)
-  if (!S.charbon) {
-    for (const p of PERSONAS) {
-      const c = S.clients[p.id];
-      if (p.kind === "lowball" && c.unlocked && !c.quit && c.rel >= CFG.CHARBON_REL) {
-        S.charbon = p.id;
-        unlocks.push("💼 " + p.nm + " veut charbonner pour toi — dispo au Corner (commission " +
-          R(CFG.CHARBON_CUT * 100) + " %, mais il vend à N'IMPORTE QUI)");
-        break;
-      }
-    }
-  }
   const T = G.tally;
   const gained = S.cash - T.cash0;
   const rep = $("report");
@@ -1144,69 +1163,6 @@ function endSoiree() {
       ${T.notes.map(n => `<div class="noteLine${n.startsWith("🚨") || n.startsWith("💔") ? " warn" : ""}">${n}</div>`).join("")}
       ${S.heat >= CFG.HEAT_WARN ? `<div class="noteLine warn">🚔 Ça parle de toi au commissariat — lève le pied sur les inconnus.</div>` : ""}
     </div>` : ""}
-    <button class="cta" id="nextDay">Soirée suivante ▸</button>
-    <button class="ghost" id="toHome">Retour au corner</button>`;
-  rep.classList.add("show");
-  $("nextDay").onclick = () => { S.day++; save(); startSoiree(); };
-  $("toHome").onclick = () => { S.day++; save(); renderHome(); };
-  save();
-}
-
-/* -------------------- soirée charbonnée (délégation) ---------------------- */
-function runCharbonSoiree() {
-  const ch = PERSONAS.find(x => x.id === S.charbon); if (!ch) return;
-  const fair = fairPpu();
-  const stock = { ...CFG.STOCK };
-  const sched = buildSchedule();
-  let gross = 0, deals = 0, louches = 0, seq = 1;
-  for (const ev of sched) {
-    const i = seq++;
-    if (ev.mode === "louche") {
-      const L = pick(TXT.louche, S.day + i);
-      const comp = compose(L.g, stock);
-      if (comp) {
-        for (const f of comp) stock[f]--;
-        gross += R(L.g * fair * 1.3); deals++; louches++;
-        S.heat += CFG.HEAT_LOUCHE;    // il vend à n'importe qui — c'est le prix de la délégation
-      }
-      continue;
-    }
-    const cl = PERSONAS.find(x => x.id === ev.pid);
-    if (cl.id === S.charbon) continue;         // il tient le corner, il n'achète pas
-    let g, total;
-    if (ev.mode === "explicit") {
-      g = cl.kind === "grossiste" ? (16 + (hh(S.day, i) > 0.6 ? 8 : 0)) : cl.usual;
-      const off = CFG.OFFER[cl.kind];
-      const m = off[0] + (off.length > 1 ? hh(S.day * 5, i) * (off[1] - off[0]) : 0);
-      total = Math.max(1, R(g * fair * m));    // il prend l'offre du client telle quelle : zéro négo
-    } else { g = 2; total = R(2 * fair); }     // ambigus/hésitants : il met un petit, sans lire
-    const comp = compose(g, stock);
-    if (!comp) continue;
-    for (const f of comp) stock[f]--;
-    gross += total; deals++;
-  }
-  const cut = R(gross * CFG.CHARBON_CUT);
-  S.cash += gross - cut;
-  S.heat = Math.max(0, S.heat - CFG.HEAT_DECAY);
-  const rep = $("report");
-  $("home").classList.remove("show");
-  rep.innerHTML = `
-    <div class="ovTitle">Soirée ${S.day} — charbonnée</div>
-    <div class="ovSub">${ch.av} ${ch.nm} a tenu le corner à ta place.</div>
-    <div class="panel">
-      <div class="repLine"><span>Brut vendu</span><b>${gross}</b></div>
-      <div class="repLine"><span>Commission ${ch.nm} (${R(CFG.CHARBON_CUT * 100)} %)</span><b class="neg">−${cut}</b></div>
-      <div class="repLine"><span>Net pour toi</span><b class="pos">+${gross - cut}</b></div>
-      <div class="repLine"><span>Ventes conclues</span><b>${deals}</b></div>
-      <div class="repLine"><span>Profils cramés servis</span><b class="${louches ? "neg" : ""}">${louches}</b></div>
-      <div class="repLine"><span>Chaleur</span><b class="${S.heat >= CFG.HEAT_WARN ? "neg" : ""}">🔥 ${R(S.heat)}</b></div>
-    </div>
-    <div class="panel">
-      <div class="noteLine">${ch.nm} vend au prix que les clients proposent : zéro négo, zéro pourboire, zéro relation qui monte.</div>
-      ${louches ? `<div class="noteLine warn">🚨 Il a servi ${louches} profil(s) cramé(s) sans sourciller — chaleur +${louches * CFG.HEAT_LOUCHE}.</div>` : ""}
-      <div class="noteLine">💡 En présentiel, tu aurais pu pousser au-dessus du menu (marge) et toucher des pourboires.</div>
-      ${S.heat >= CFG.HEAT_WARN ? `<div class="noteLine warn">🚔 Ça parle de toi au commissariat.</div>` : ""}
-    </div>
     <button class="cta" id="nextDay">Soirée suivante ▸</button>
     <button class="ghost" id="toHome">Retour au corner</button>`;
   rep.classList.add("show");
@@ -1243,7 +1199,7 @@ function renderHome() {
           const lock = !c.unlocked || c.quit;
           return `<div class="ct${lock ? " lock" : ""}">
             <div class="cav">${ringSvg(lock ? 0 : c.rel)}${p.av}</div>
-            <div class="cnm">${c.quit ? "💔 " : ""}${S.charbon === p.id ? "💼 " : ""}${p.nm}</div>
+            <div class="cnm">${c.quit ? "💔 " : ""}${p.nm}</div>
             <div class="ck">${KIND_TAG[p.kind]} · ${p.usual} g${c.unlocked && !c.quit ? " · rel " + c.rel : ""}</div>
           </div>`;
         }).join("")}
@@ -1253,18 +1209,15 @@ function renderHome() {
       <h3>RAPPEL</h3>
       <div class="noteLine">📋 Le <b>menu</b> affiche TES prix — l'écart de l'offre du client est marqué dessus (−45 %, prix menu, +30 %…)</div>
       <div class="noteLine">🤝 Prix dans la zone <b style="color:var(--gold)">menu ±10 %</b> du premier coup → pourboire + combo ⚡</div>
-      <div class="noteLine">😏 Au-dessus du menu (jusqu'à ×1.35) → <b>bien négocié</b> : la marge du présentiel, sans fâcher</div>
+      <div class="noteLine">😏 Au-dessus du menu (jusqu'à ×${CFG.NEGO_MAX}) → <b>bien négocié</b> : la marge du présentiel — lis sa tête pendant la négo</div>
       <div class="noteLine">😒 Au-delà, c'est de l'abus — deux d'affilée sur le même client → il ne revient plus</div>
       <div class="noteLine">👆 Dans la rue, <b>tape un client de la file</b> pour le servir en premier</div>
-      <div class="noteLine">🕶️ Les profils cramés se flairent : trop poli, trop gros, surpaie sans discuter… refuse-les</div>
-      <div class="noteLine">💼 Un radin fidélisé (rel ${CFG.CHARBON_REL}) proposera de <b>charbonner</b> à ta place — volume sans marge, et il vend à n'importe qui</div>
+      <div class="noteLine">🕶️ Les profils cramés se flairent : trop poli, trop gros, surpaie sans discuter, <b>aucune réaction en négo</b>… refuse-les</div>
     </div>
     <button class="cta" id="go">Descendre au corner ▸</button>
-    ${S.charbon ? `<button class="cta" id="goCharbon" style="background:#2a3450;color:var(--tx);margin-top:10px">💼 Laisser ${PERSONAS.find(x => x.id === S.charbon).nm} tenir la soirée</button>` : ""}
     <button class="ghost" id="reset">↺ Reset du proto (efface la save)</button>`;
   home.classList.add("show");
   $("go").onclick = startSoiree;
-  if (S.charbon) $("goCharbon").onclick = runCharbonSoiree;
   $("reset").onclick = () => {
     if (!confirm("Effacer la sauvegarde du proto ?")) return;
     S = defaults(); save(); renderHome();
