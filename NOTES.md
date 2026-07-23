@@ -9,6 +9,38 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-23 — Le Corner dans La Loupe : la mise en scène rue (Option B)
+
+Retour de Sylvain : « pourquoi on a pas le background de corner du proto ? » —
+je l'avais reporté à 2b. Choix **Option B** (scène plein écran, comme le proto,
+vs bandeau). Porté :
+
+- **Scène plein écran** en Phase B : `#stage.corner-mode` (plein cadre, sans
+  scroll) → décor nuit (ciel dégradé, **deux barres avec fenêtres allumées
+  déterministes**, **lampadaire + halo**, cône de lumière, sol, tag `CORNER`).
+- **Silhouettes en file** (`.cperso`) = les clients de `P.queue` : l'actif
+  s'avance sous le lampadaire (anneau bleu), la file s'étage dans des `SLOTS`,
+  jauge de patience sous chaque silhouette. Entrent par la droite, sortent à
+  gauche (servi) / droite (parti). `cornerLayoutPersos` positionne chaque frame
+  (transitions CSS pour la fluidité), map runtime `client → DOM` (pas persistée).
+- **Priorisation** (Overcooked) : **taper une silhouette de la file** la passe
+  en tête (`cornerPrioritize`).
+- **Carte du client actif** = slide-up en bas (`#cActive`) au lieu d'une carte
+  dans le flux. **Contrôles rangés dans un tiroir « Gérer »** (`#cDrawer`) :
+  menu, tampon, ravito, encaisser, chouffes, ledger — la rue reste lisible.
+  Bandeau haut : retour, menu €/g, heat, combo.
+- `renderPDV` **scindé** : Phase A = cartes (charbonneur salarié) ; Phase B =
+  `renderCorner` (scène). `render()` retire `corner-mode` en sortant.
+- **Aucun changement de save** (scène = pure UI, `SAVE_VERSION` reste 24). Smoke
+  étendu : scène + **2 silhouettes** présentes, carte active, accepter → vente,
+  contrer → JUSTE+combo, encaisser via le tiroir. Vert. Capture vérifiée à l'œil.
+
+**Toujours reporté** (2b, suite) : louche (heat) + grimace à mi-négo, ambigu,
+hésitant, bilan de nuit fusionné, graphe social. Puis étape 3 : SnapShit +
+charbonneur embauché.
+
+---
+
 ## 2026-07-23 — Intégration Le Corner → La Loupe : étape 2 (la négo présentielle)
 
 Le cœur du branchement : en **Phase B présent**, la vente auto laisse place à la
