@@ -9,6 +9,41 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-23 — Intégration Le Corner → La Loupe : étape 1/… (fondations + menu)
+
+Feu vert de Sylvain pour brancher le banc d'essai `le-corner/` dans La Loupe, en
+suivant `le-corner/INTEGRATION.md`, **par étapes** (1 étape = 1 PR). Calages :
+
+- **Arbitrage tranché** (friction plan ↔ code que j'ai remontée) : la **négo
+  présentielle** (marge, pourboires, relations) est un **système de Phase B**
+  (indépendant). En **Phase A** (charbonneur salarié de Karim) : pas de négo,
+  tu écoules pour un salaire fixe (= leur spec §6 vécue de l'intérieur). Fidèle
+  à *employé → patron*.
+- **Coordination** : je pilote côté `la-loupe/` ; la session Le Corner reste sur
+  `le-corner/` (banc d'essai **gardé intact** dans le hub, utile pour itérer la
+  vente sans toucher au jeu). Évite la collision §9.
+- **CFG transposé tel quel** : bloc `CORNER` en tête de module La Loupe (une seule
+  source de tuning), + `CORNER_PERSONAS`, `CORNER_TAG`.
+
+Livré cette étape (fondations, **aucun changement de gameplay** — plan steps 1-2) :
+
+- **`SAVE_VERSION` 22 → 23** + table **`S.clients`** (relations/déblocages,
+  seedée depuis les personas, migration douce).
+- Helpers portés (dormants tant que la négo n'est pas branchée) : `cornerFair()`
+  (= même formule que `snap.mjs`, un seul barème), `cornerTol`, `cornerBudget`,
+  `offerQual` (écart % au menu). Sanity math OK (fair 6→8→10→14 selon réput).
+- **Menu affiché** sur le corner Phase B : tes prix par format (2/5/8 g) dérivés
+  de la réput — la future référence de la négo. Affichage seul.
+- Piège corrigé en route : les `const CORNER*` étaient déclarés APRÈS
+  `defaultState()` qui les utilise → TDZ. Bloc remonté avant `defaultState`.
+- Smoke : check menu présent ; **la version de save est désormais lue depuis la
+  source** (`SAVE_VER`) pour ne plus casser à chaque bump. Vert.
+
+**Prochaine étape (2/…)** : file + carte client + patience à la place de la vente
+auto quand présent (Phase B), puis la négo complète (zones, contre-offre, grimace).
+
+---
+
 ## 2026-07-23 — La Loupe : onboarding charbonneur → indépendant (Phase A/B)
 
 Gros recadrage de l'ouverture après test (retours de Sylvain). L'arc de départ
