@@ -282,7 +282,7 @@ import * as snap from "./snap.mjs?v=18";
 import * as beuher from "./beuher.mjs?v=18";
 import * as shelter from "./shelter.mjs?v=18";
 
-const SAVE_VERSION = "22";
+const SAVE_VERSION = "23";
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
 // La demande Snap reste calée sur 2/5/8 (snap.SC.DOSE_FORMATS) — couper autre chose = risque assumé.
 const CUT_MIN = 1, CUT_MAX = 20, CUT_DEFAULT = 2;
@@ -381,6 +381,68 @@ const store = { get:k=>localStorage.getItem(LS+k), set:(k,v)=>localStorage.setIt
 const money = n => String(Math.round(n));
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 
+/* ===== Le Corner — vente présentielle (négo) : porté du banc d'essai le-corner/ =====
+   Intégration par étapes (voir le-corner/INTEGRATION.md). Système de PHASE B : quand tu
+   tiens TON corner (indépendant), la vente auto laissera place à la négo au pied de la
+   barre (carte client, zones de prix, pourboires, relations). En Phase A (charbonneur
+   salarié) et en auto (charbonneur embauché) : pas de négo. Tout le tuning est ICI,
+   transposé tel quel du CFG du banc d'essai — une seule source de vérité.
+   [Étape 1/2 : fondations + menu affiché. Ces constantes/helpers sont dormants tant que
+    la négo (étape suivante) n'est pas branchée ; seul le MENU les utilise pour l'instant.] */
+const CORNER = {
+  PRIX_FAIR: 10,            // base €/g — MÊME valeur que snap.SC.PRIX_FAIR (un seul barème)
+  FAIR_BAND: 0.10,          // fenêtre « prix juste » : menu ±10 %
+  NEGO_MAX: 1.2,            // au-dessus du menu jusqu'à ×1.2 = bonne négo (marge du présentiel)
+  TIP_JUSTE: 0.18, TIP_LU: 0.22,
+  COMBO_STEP: 0.5, COMBO_MAX: 3,
+  PATIENCE: { regulier:26, lowball:30, accro:15, grossiste:40, hesitant:32, louche:30 },
+  QUEUE_MELT: 0.8, WAIT_FREEZE_S: 8, WAIT_MELT: 1.6,
+  // tolérance €/g : plafond accepté par chacun ; l'écart haut-de-zone-juste (×1.1) → tol = l'espace de négo
+  TOL: { regulier:1.2, lowball:0.82, accro:1.35, grossiste:0.78, hesitant:1.15, louche:99 },
+  TOL_PER_REL: 1/600,
+  BUDGET: { regulier:70, lowball:110, accro:50, grossiste:260, hesitant:60, louche:999 },
+  BUDGET_PER_REL: 1/100,
+  OFFER: { regulier:[0.92,1.0], lowball:[0.55,0.62], accro:[1.0,1.05], grossiste:[0.68,0.74] },
+  REL_DEAL:2, REL_JUSTE:2, REL_PERSO:3, REL_GOUGE:-2, REL_WALK:-2,
+  UNLOCK_REL:40, GOUGE_STREAK_QUIT:2,
+  HEAT_LOUCHE:20, FLAIR_BONUS:25,
+  REP_DEAL:1, REP_JUSTE:1, REP_GOUGE:-2, REP_WALK:-1,
+};
+// personas du corner (relation → budget/fréquence ; fidèle → présente un contact)
+const CORNER_PERSONAS = [
+  { id:"momo",  nm:"Momo",  av:"🧢", kind:"regulier",  usual:5,  exig:55, start:true },
+  { id:"ines",  nm:"Inès",  av:"🎧", kind:"regulier",  usual:2,  exig:70, start:true },
+  { id:"riton", nm:"Riton", av:"🥀", kind:"accro",     usual:2,  exig:20, start:true },
+  { id:"yaz",   nm:"Yaz",   av:"🛵", kind:"lowball",   usual:8,  exig:40, start:true },
+  { id:"sofia", nm:"Sofia", av:"💅", kind:"hesitant",  usual:5,  exig:65, start:true },
+  { id:"bilal", nm:"Bilal", av:"🎒", kind:"regulier",  usual:8,  exig:50, start:true },
+  { id:"diego", nm:"Diego", av:"🏗️", kind:"grossiste", usual:16, exig:45, unlockedBy:"momo" },
+  { id:"lina",  nm:"Lina",  av:"🌙", kind:"regulier",  usual:5,  exig:80, unlockedBy:"ines" },
+  { id:"nassim",nm:"Nassim",av:"🎲", kind:"accro",     usual:8,  exig:25, unlockedBy:"riton" },
+  { id:"kenza", nm:"Kenza", av:"👟", kind:"lowball",   usual:5,  exig:35, unlockedBy:"yaz" },
+  { id:"lea",   nm:"Léa",   av:"🎀", kind:"hesitant",  usual:2,  exig:60, unlockedBy:"sofia" },
+];
+const CORNER_TAG = { regulier:"CLIENT", lowball:"RADIN", accro:"ACCRO", grossiste:"GROS", hesitant:"HESIT", louche:"INCONNU" };
+const CORNER_FORMATS = [2,5,8];
+// barème présentiel — même formule que snap.mjs (prix « fair » dérivé de la réput)
+function cornerFair(){ return Math.max(4, Math.round(CORNER.PRIX_FAIR*(0.6 + (S.reput||0)/120))); }
+function cornerTol(kind, rel){ return cornerFair()*(CORNER.TOL[kind] + (rel||0)*CORNER.TOL_PER_REL); }
+function cornerBudget(kind, rel){ return CORNER.BUDGET[kind]*(1 + (rel||0)*CORNER.BUDGET_PER_REL); }
+// qualité d'une offre vs TON menu (l'info centrale : l'écart % au menu)
+function offerQual(ppu){
+  const r=ppu/cornerFair(), pct=Math.round((r-1)*100);
+  if(r>=1+CORNER.FAIR_BAND) return { cls:"q-good", lbl:"+"+pct+" % menu" };
+  if(r>=1-CORNER.FAIR_BAND) return { cls:"q-fair", lbl:"prix menu" };
+  if(r>=0.75) return { cls:"q-low", lbl:pct+" % menu" };
+  return { cls:"q-scam", lbl:pct+" % menu" };
+}
+// table clients (relations, déblocages) — seedée depuis les personas
+function cornerClientsDefault(){
+  const c={};
+  for(const p of CORNER_PERSONAS) c[p.id]={ rel:10, unlocked:!!p.start, missed:0, gougeStreak:0, quit:false };
+  return c;
+}
+
 function defaultState(){
   return {
     cash: START_CASH, dirty:0, heat:0, reput:20, day:1, clock:0,
@@ -391,6 +453,7 @@ function defaultState(){
     upgrades:{couteau:0, gabarit:0, scooter:0, planque:0, counter:0},
     journal:[], orderSeq:1, soldDay:0,
     assign:{}, counted:0, atelierMode:"cut",
+    clients: cornerClientsDefault(), // clientèle du corner (négo Phase B — voir INTEGRATION)
     shelter: shelter.shelterDefaults(),
     ...snap.snapDefaults(),
   };
@@ -409,6 +472,9 @@ S.painG=0; S.painQ=0; // évite une double migration au prochain chargement
 if(!(S.painSel>=0) || S.painSel>=S.pains.length) S.painSel=0;
 if(!S.shelter) S.shelter=shelter.shelterDefaults();
 else S.shelter={...shelter.shelterDefaults(), ...S.shelter};
+// clientèle du corner : seed + migration douce (nouveaux personas ajoutés en cours de route)
+if(!S.clients || typeof S.clients!=="object") S.clients=cornerClientsDefault();
+else for(const p of CORNER_PERSONAS) if(!S.clients[p.id]) S.clients[p.id]={ rel:10, unlocked:!!p.start, missed:0, gougeStreak:0, quit:false };
 // Save pré-Shelter : pas de cinématique front si déjà en course
 if(!S.shelter.introSeen && (S.day>1 || shelter.stockG(S)>0 || (S.journal&&S.journal.length))){
   S.shelter.introSeen=true;
@@ -830,6 +896,14 @@ function renderPDV(){
       <button class="btn snap" style="margin-top:6px" id="vitr">📣 Poster la vitrine ▸ +buzz (buzz ${Math.round(S.expo)})</button>
       ${decep}
     </div>`;
+  // Le Corner (étape 1/2) : ton MENU affiché — le barème présentiel qui servira de
+  // référence à la négo client (étape suivante). Affichage seul ; vente auto inchangée.
+  const cardMenuPrix = `
+    <div class="card">
+      <div class="stat"><span>📋 Menu du corner</span><b>${cornerFair()} €/g</b></div>
+      <div class="stat"><span>2 g · 5 g · 8 g</span><b>${2*cornerFair()} · ${5*cornerFair()} · ${8*cornerFair()}</b></div>
+      <div class="muted" style="font-size:10px">Barème présentiel (dérivé de ta réput ${Math.round(S.reput)}). Bientôt : la négo client se jugera contre ce menu.</div>
+    </div>`;
   stage.innerHTML=`
     <button class="btn ghost" id="back">↩ Quartier</button>
     <h2>Le corner${A?` <span style="opacity:.5;font-size:13px">· charbonneur</span>`:""}</h2>
@@ -844,6 +918,7 @@ function renderPDV(){
       <div class="bar"><i id="pHeatB" style="width:${clamp(S.heat,0,100)}%;background:linear-gradient(90deg,#ffd06a,#ff6a6a)"></i></div>
     </div>
     ${A ? cardKarim : cardStock}
+    ${A ? "" : cardMenuPrix}
     ${A ? "" : cardPrix}
     ${A ? "" : cardMenu}
     <div class="card">

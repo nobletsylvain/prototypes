@@ -13,6 +13,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const OUT = path.join(__dirname, "shots", "la-loupe-pdv");
 mkdirSync(OUT, { recursive: true });
+// version de save lue depuis la source → le seed suit les bumps de SAVE_VERSION tout seul
+const SAVE_VER = (readFileSync(path.join(ROOT, "la-loupe/index.html"), "utf8").match(/SAVE_VERSION\s*=\s*"(\d+)"/) || [, "23"])[1];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MIME = { ".html":"text/html", ".mjs":"text/javascript", ".js":"text/javascript",
   ".png":"image/png", ".jpg":"image/jpeg", ".jpeg":"image/jpeg" };
@@ -39,15 +41,15 @@ page.on("console", (m) => {
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 
 // seed : Phase B (indépendant), stock de sachets, corner amorcé, intro passée
-await page.evaluateOnNewDocument(() => {
-  localStorage.setItem("loupe_ver", "22");
+await page.evaluateOnNewDocument((ver) => {
+  localStorage.setItem("loupe_ver", ver);
   localStorage.setItem("loupe_save", JSON.stringify({
     sachets: { "2": 60 }, sachetQ: 62,
     shelter: { phase: "B", introSeen: true, frontActive: false, paidOff: true,
       pdv: { res: 70, bac: 0, advQ: 0, prix: 10, chouffes: 0,
         tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0 } },
   }));
-});
+}, SAVE_VER);
 
 await page.goto(`http://127.0.0.1:${PORT}/la-loupe/index.html`, { waitUntil: "load" });
 await sleep(500);
@@ -70,7 +72,9 @@ const afterSell = await page.evaluate(() => ({
   file: document.getElementById("pQ")?.textContent,
   dem: document.getElementById("pDem")?.textContent,
   ledger: document.querySelectorAll("#pLed .stat").length,
+  menu: [...document.querySelectorAll(".stat span")].some(e => e.textContent.includes("Menu du corner")),
 }));
+const menuShown = afterSell.menu; // étape 2 : menu (barème présentiel) affiché sur le corner Phase B
 await page.screenshot({ path: path.join(OUT, "03-selling.png") });
 
 // --- présence requise : on QUITTE l'écran corner → le corner est FERMÉ, plus de vente ---
@@ -117,7 +121,7 @@ const seedPage = async (save) => {
   pg.on("console", (m) => { if (m.type() !== "error") return; const t = m.text(), u = (m.location && m.location().url) || "";
     if (/favicon/.test(t) || /favicon/.test(u) || /Failed to load resource/.test(t)) return; errors.push("console: " + t); });
   pg.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  await pg.evaluateOnNewDocument((s) => { localStorage.setItem("loupe_ver", "22"); localStorage.setItem("loupe_save", s); }, JSON.stringify(save));
+  await pg.evaluateOnNewDocument((s, ver) => { localStorage.setItem("loupe_ver", ver); localStorage.setItem("loupe_save", s); }, JSON.stringify(save), SAVE_VER);
   await pg.goto(`http://127.0.0.1:${PORT}/la-loupe/index.html`, { waitUntil: "load" });
   await sleep(400);
   return pg;
@@ -154,12 +158,12 @@ await pageC.close();
 await browser.close();
 server.close();
 
-console.log("B · vente     :", JSON.stringify(afterSell), soldOnScreen > 0 ? "(vend en présence ✓)" : "(⚠ rien vendu en présence)");
+console.log("B · vente     :", JSON.stringify(afterSell), soldOnScreen > 0 ? "(vend en présence ✓)" : "(⚠ rien vendu en présence)", menuShown ? "· menu ✓" : "· ⚠ pas de menu");
 console.log("B · présence  :", JSON.stringify({ bgStart, bgEnd }), closedAway ? "(corner fermé hors présence ✓)" : "(⚠ vend hors présence)");
 console.log("B · encaisse  :", JSON.stringify(afterEnc), "(bills>0 = tri OK)");
 console.log("B · déception :", JSON.stringify(afterDecep));
 console.log("A · charbonn. :", JSON.stringify({ aSell, aWage }), aStocked ? "(Karim fournit+on vend ✓)" : "(⚠ pas d'appro Karim)", wagePaid ? "· salaire versé ✓" : "· ⚠ pas de salaire");
 console.log("A→B plaquette :", JSON.stringify(cBuy), becameIndep ? "(bascule indépendant ✓)" : "(⚠ pas de bascule)");
 console.log("erreurs       :", errors.length ? errors : "AUCUNE");
-const ok = !errors.length && soldOnScreen > 0 && closedAway && aStocked && wagePaid && becameIndep;
+const ok = !errors.length && soldOnScreen > 0 && closedAway && aStocked && wagePaid && becameIndep && menuShown;
 process.exit(ok ? 0 : 1);
