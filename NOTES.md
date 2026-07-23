@@ -98,6 +98,27 @@ en charbonneurs** ; soirée trop courte, pas assez de monde. Implémenté :
   (HESIT, présentée par Sofia). **Migration douce** de la save : les clients
   manquants sont backfillés au load, pas de bump.
 
+**v4 — grimace, tolérance, et préparation du branchement** (retours suivants) :
+
+- **Grimace à mi-négo (Recettear)** : pendant la contre-offre, la tête du
+  client réagit EN DIRECT au prix réglé — 😍 belle affaire / 😊 prix menu /
+  😏 il suit / 😬 il grimace (à 90 % de sa tolérance) / 😤 refus ou hors
+  budget. Déterministe (R4) : le skill devient lire le visage, pas deviner le
+  chiffre. Le **louche ne réagit pas** (😐 « Aucune réaction… bizarre ») — un
+  indice de plus, listé au rappel.
+- **Tolérances redescendues** (×1.35 jugé trop haut) : `NEGO_MAX` 1.35 → **1.2**,
+  réguliers 1.35 → 1.2, accros 1.5 → 1.35, hésitants 1.2 → 1.15. La zone d'abus
+  ne subsiste au-dessus de ×1.2 que chez accros/hésitants.
+- **Recrutement retiré du proto** (charbonneur v3 : proposition, bouton, soirée
+  déléguée) : ça sera porté par le système d'**embauche de La Loupe**
+  (`S.upgrades.charbonneur`, hook posé au recentrage). La v3 reste la spec.
+- **`le-corner/INTEGRATION.md`** : plan de branchement complet dans La Loupe —
+  horloge unique (la soirée = le jour), remplacement de la vente auto du PDV
+  par la file quand présent (hook « fermé hors présence »), menu sur l'éco
+  réelle, zones de négo, clients persistants + entonnoir corner → SnapShit,
+  spec charbonneur, liquide/heat/bilan fusionnés, ordre d'implémentation en
+  7 étapes et points de vigilance (collision avec le loop minimal en chantier).
+
 ## 2026-07-23 — La Loupe : recentrage — présence au corner, loop minimal, dette 280/4j
 
 Après coup, Sylvain recadre : « ça me va que le joueur fasse tout lui-même durant
