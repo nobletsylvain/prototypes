@@ -99,6 +99,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .map-pin.on .dot{box-shadow:0 0 0 3px rgba(255,180,84,.55),0 0 12px rgba(255,180,84,.35)}
 .map-pin.locked{opacity:.55}
 .map-pin.locked .dot{filter:grayscale(.4)}
+.map-pin .pin-bac{position:absolute;top:-11px;left:50%;transform:translateX(-50%);
+  font-size:9px;font-weight:800;color:#0b120c;background:#9be37d;padding:1px 5px;border-radius:8px;
+  white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.55);z-index:3;pointer-events:none}
+.map-pin .pin-bac.off{display:none}
 .debt-strip{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:12px;margin-bottom:10px;
   background:rgba(200,68,47,.14);border:1px solid rgba(255,138,106,.4);font-size:11px;font-weight:700}
 .debt-strip b{color:#ffb0a0}
@@ -619,8 +623,10 @@ function renderShelter(){
 function pinMapBtn(p){
   const on=S.shelter.selectedPin===p.id?"on":"";
   const locked=p.locked?"locked":"";
+  const bac=p.id==="pdv"?((S.shelter.pdv&&S.shelter.pdv.bac)||0):0;
+  const badge=p.id==="pdv"?`<span class="pin-bac${bac>0?"":" off"}" id="pinBac">€${money(bac)}</span>`:"";
   return `<button class="map-pin ${p.kind} ${on} ${locked}" style="left:${p.x}%;top:${p.y}%" data-pin="${p.id}" type="button">
-    <span class="dot"></span><span class="lbl">${p.title}</span></button>`;
+    ${badge}<span class="dot"></span><span class="lbl">${p.title}</span></button>`;
 }
 
 function pinSheet(p, hit, hitLb){
@@ -699,26 +705,38 @@ function pdvServe(P){
 }
 function pdvTick(dt){
   const P=S.shelter&&S.shelter.pdv; if(!P) return;
-  if(!(tab==="shelter"&&shelterSub==="pdv")) return; // on tient le corner en présence
+  // PRÉSENCE REQUISE : au début, le charbonneur c'est TOI — tu ne vends au corner
+  // que quand tu le tiens (écran corner). Vendre au corner ⇄ vendre/livrer sur
+  // SnapShit = un arbitrage de ta présence. L'embauche d'un charbonneur (plus tard)
+  // posera S.upgrades.charbonneur et fera tourner le corner en fond (le reste du
+  // tick gère déjà ce cas : file, ventes, bac, badge sur le pin).
+  const held=tab==="shelter"&&shelterSub==="pdv";
+  if(!held && !(S.upgrades&&S.upgrades.charbonneur)) return; // pas là & pas de charbonneur → corner fermé
   if(!P.queue) P.queue=[]; if(!P.ledger) P.ledger=[]; if(!P.tampon) P.tampon={};
+  const open=tampN(P.tampon)>0;   // charbonneur au poste seulement s'il a de quoi vendre
   const demande=pdvDemande();
-  // arrivées de clients (temps de jeu accéléré → le débit vit)
-  P.qacc=(P.qacc||0)+demande*dt*PDV_TIME_COMPRESS/3600;
-  while(P.qacc>=1 && P.queue.length<PDV_MAX_QUEUE){ P.qacc-=1; P.seq=(P.seq||0)+1; P.queue.push({nm:PDV_NAMES[P.seq%PDV_NAMES.length], want:PDV_WANT[P.seq%PDV_WANT.length], wait:0}); }
-  if(P.qacc>PDV_MAX_QUEUE) P.qacc=PDV_MAX_QUEUE;
-  // service (débit du corner)
+  // arrivées de clients — seulement quand le corner a du stock (à sec = « fermé »)
+  if(open){
+    P.qacc=(P.qacc||0)+demande*dt*PDV_TIME_COMPRESS/3600;
+    while(P.qacc>=1 && P.queue.length<PDV_MAX_QUEUE){ P.qacc-=1; P.seq=(P.seq||0)+1; P.queue.push({nm:PDV_NAMES[P.seq%PDV_NAMES.length], want:PDV_WANT[P.seq%PDV_WANT.length], wait:0}); }
+    if(P.qacc>PDV_MAX_QUEUE) P.qacc=PDV_MAX_QUEUE;
+  } else P.qacc=0;
+  // service (débit du corner) — le charbonneur sert la file en continu
   P.serveAcc=(P.serveAcc||0)+PDV_SERVE_RATE*dt;
   while(P.serveAcc>=1 && P.queue.length){ P.serveAcc-=1; pdvServe(P); }
   // patience : les clients qui attendent trop partent (rupture douce)
   for(const cl of P.queue) cl.wait+=dt;
   const before=P.queue.length; P.queue=P.queue.filter(c=>c.wait<PDV_MAX_WAIT);
   if(P.queue.length<before) P.res=clamp(P.res-PDV_RUPTURE_HIT*(before-P.queue.length),0,100);
-  // Heat : activité + longueur de file (visibilité), amortie par les chouffes
-  const activity=clamp(demande/PDV_BASE_DEMAND + P.queue.length*0.04, 0, 1.6);
+  // Heat : le corner ne chauffe que quand il tourne (à sec → il refroidit), amortie par les chouffes
+  const activity=open ? clamp(demande/PDV_BASE_DEMAND + P.queue.length*0.04, 0, 1.6) : 0;
   S.heat=clamp(S.heat+(activity*PDV_HEAT_RATE/(1+P.chouffes*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY)*dt,0,100);
   if(S.heat>=PDV_SEUIL){ pdvDescente(); return; }
-  pdvPatch();
+  if(tab==="shelter"&&shelterSub==="pdv") pdvPatch();        // écran corner : maj live des compteurs
+  else if(tab==="shelter"&&shelterSub==="map") pdvBadge(P);  // carte : le bac qui monte sur le pin
 }
+// badge « bac de rue » sur le pin corner (la recette passive, visible depuis la carte)
+function pdvBadge(P){ const b=document.getElementById("pinBac"); if(b){ b.textContent="€"+money(P.bac); b.classList.toggle("off",!(P.bac>0)); } }
 function pdvPatch(){
   const P=S.shelter.pdv, Qd=Math.round(tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55));
   const set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
@@ -818,8 +836,7 @@ function renderIntroCard(){
   return `<div class="intro-card">
     <div class="from">Snapshit · ${shelter.SUPPLIER.handle}</div>
     <div class="bubble">Le spot vient de se libérer. T'as toujours été bon au chouff — <b>il est à toi</b>.<br><br>
-    Voilà <b>${shelter.SUPPLIER.frontG} g</b>. Tu me rembourses <b>${shelter.SUPPLIER.creditPrice}</b> avant J${(S.day||1)+shelter.SUPPLIER.dueDays-1}.
-    Si t'as le propre plus tôt : <b>${shelter.SUPPLIER.cashPrice}</b>. Cash = moins cher. Crédit = je dors pas.</div>
+    Voilà <b>${shelter.SUPPLIER.frontG} g</b>. Tu me rembourses <b>${shelter.SUPPLIER.price}</b> propre avant J${(S.day||1)+shelter.SUPPLIER.dueDays-1}. Crédit = je dors pas.</div>
     <button class="btn ok" id="takeFront">Prendre le spot · +${shelter.SUPPLIER.frontG} g</button>
   </div>`;
 }
@@ -840,8 +857,7 @@ function openRepay(){
   shelterSub="repay";
   const debt=shelter.debtStrip(S);
   if(!debt){ shelterSub="map"; return; }
-  const early=debt.canEarly;
-  const price=early?debt.cashEarly:debt.due;
+  const price=debt.due;
   const sheet=document.getElementById("repaySheet");
   if(sheet) sheet.remove();
   const strip=stage.querySelector(".debt-strip");
@@ -849,18 +865,18 @@ function openRepay(){
   strip.insertAdjacentHTML("afterend", `
     <div class="card" id="repaySheet">
       <h3>Rembourser ${debt.name}</h3>
-      <div class="muted">Il veut du <b>propre</b> — pas tes billets froissés. Cash tôt = ${money(debt.cashEarly)}. Après l'échéance = ${money(debt.due)}.</div>
+      <div class="muted">Il veut du <b>propre</b> — pas tes billets froissés. ${money(price)} avant J${debt.day}.</div>
       <div class="stat"><span>Ton propre</span><b>${money(S.cash)}</b></div>
       <button class="btn ok" id="payCash" ${S.cash<price?"disabled":""}>
-        Payer ${money(price)} propre${early?" · tarif cash":" · tarif crédit"}
+        Payer ${money(price)} propre
       </button>
       <button class="btn ghost" id="payCancel">Plus tard</button>
     </div>`);
   document.getElementById("payCash").onclick=()=>{
     const r=shelter.repayDebt(S);
     if(!r.ok){ toast(r.reason); return; }
-    cause(`Remboursé ${shelter.SUPPLIER.name}`, `−${money(r.paid)} propre${r.early?" · tarif cash":""}`);
-    toast(r.early?"Payé cash. Il te respecte un peu.":"Dette soldée.");
+    cause(`Remboursé ${shelter.SUPPLIER.name}`, `−${money(r.paid)} propre`);
+    toast("Dette soldée.");
     shelterSub="map"; save(); renderShelter();
   };
   document.getElementById("payCancel").onclick=()=>{ shelterSub="map"; renderShelter(); };

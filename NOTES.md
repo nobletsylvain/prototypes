@@ -9,6 +9,68 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-23 — La Loupe : recentrage — présence au corner, loop minimal, dette 280/4j
+
+Après coup, Sylvain recadre : « ça me va que le joueur fasse tout lui-même durant
+les premières actions » — mais **le corner demande explicitement sa présence**.
+L'autonomie notée juste avant est en fait l'état d'**après** embauche, pas le
+défaut. On revient donc sur la direction :
+
+- **Présence requise au corner** : au début, le charbonneur c'est **toi** — tu ne
+  vends au corner que quand tu le **tiens** (écran corner). Le code d'autonomie
+  reste, mais **dormant derrière un hook** `S.upgrades.charbonneur` (posé plus
+  tard par l'embauche) ; sans lui, le corner est **fermé** quand tu n'y es pas.
+- **Le vrai arbitrage (à caler ensuite)** : ta présence est unique → **tenir le
+  corner** ⇄ **vendre/livrer sur SnapShit**. Deux niveaux discutés : *soft* (=
+  quel écran tu regardes) ou *fort* (= une livraison **coûte du temps** pendant
+  lequel le corner ferme). Non tranché — prochaine étape design.
+- **Deux canaux qui se différencient** (idée, à confirmer) : le **corner** = détail
+  au comptoir, **petites barrettes (2 g ≈ 20 €)**, présence requise, gros volume /
+  petit ticket ; **SnapShit** = le canal des **grosses commandes** (min ~**50 € /
+  5 g+**), sur DM + livraison, branché **plus tard**. C'est ce qui justifie de
+  **parquer SnapShit** maintenant sans le jeter : on le rallumera pour le haut du
+  panier, pas pour la vente à la barrette.
+- **Loop minimal en cours** : barrettes **2 g** → **corner** → **rembourser
+  Karim**. Tranche verticale qu'on veut solide avant d'élargir.
+- **Dette Karim simplifiée** (demande directe) : **prix unique 280 propre**, plus
+  de rabais « cash tôt » (**200 supprimé**), **4 jours** (front J1 → échéance J4).
+  `SUPPLIER.cashPrice`/`creditPrice` → `SUPPLIER.price` ; `repayDebt`, `debtStrip`,
+  `openRepay`, la carte d'intro et le rappel de nuit nettoyés en conséquence.
+- **Smoke** `smoke-loupe-pdv.mjs` : bascule de « vend hors écran » à **« fermé
+  hors présence »** (bac **et** `seq` gelés quand on quitte le corner). Vert.
+
+L'entrée ci-dessous (autonomie « charbonneur implicite ») reste pour la trace :
+elle décrit désormais l'état **post-embauche**, pas le comportement par défaut.
+
+## 2026-07-23 — La Loupe : le corner vend tout seul (charbonneur implicite)
+
+Remarque de Sylvain : « théoriquement on a déjà un charbonneur avec le premier
+point de vente ». La fiction l'implique déjà — le corner ne devait donc pas se
+figer dès qu'on quitte son écran.
+
+- **Fin du présentiel** : `pdvTick` ne se coupe plus quand on n'est pas sur
+  l'écran corner (l'ancien `if(!(tab==="shelter"&&shelterSub==="pdv")) return;`).
+  Le charbonneur **tient le poste en fond** : la file, les ventes, le bac et la
+  Heat tournent tant que l'app est ouverte. Hors-ligne toujours plafonné (rAF se
+  met en pause onglet masqué ; `dt` plafonné à 0,05 s → pas de pic au réveil).
+  Aligné CADRE (délégation, « puits infini ») et R6/R7 : on délègue la
+  **répétition** (charbonner la file), pas la **décision** (prix, menu, ravito,
+  chouffes, encaisse).
+- **Le corner ne chauffe que s'il tourne** : arrivées clients **et** montée de
+  Heat conditionnées à `tampon > 0`. À sec, le corner est « fermé » — plus de
+  clients qui s'entassent, la Heat **redescend**. Corrige une punition muette
+  qui apparaissait avec l'autonomie (un corner vide se serait cuit tout seul
+  jusqu'à la descente, saisie d'un bac vide → interdit par R1).
+- **Recette visible depuis la carte** : petit badge `€…` sur le pin corner qui
+  suit le **bac de rue** en direct (`pdvBadge`), pour savoir qu'il y a à
+  encaisser sans ouvrir l'écran. Caché quand le bac est vide.
+- Smoke `tools/smoke-loupe-pdv.mjs` étendu : on quitte le corner, on vérifie que
+  le **bac grossit hors écran** (`bgSold`) et que le badge s'affiche. Vert.
+- Pas de bump `SAVE_VERSION` : schéma de save inchangé (état `pdv` identique),
+  simple changement de comportement — inutile de wiper les sauvegardes.
+
+---
+
 ## 2026-07-22 — La Loupe : efficience coupe, achats plus gros, horloge unique
 
 Retours de test tel de Sylvain (session corner-PDV v2) :
