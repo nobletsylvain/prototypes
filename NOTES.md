@@ -9,6 +9,35 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-23 — La Loupe : le corner vend tout seul (charbonneur implicite)
+
+Remarque de Sylvain : « théoriquement on a déjà un charbonneur avec le premier
+point de vente ». La fiction l'implique déjà — le corner ne devait donc pas se
+figer dès qu'on quitte son écran.
+
+- **Fin du présentiel** : `pdvTick` ne se coupe plus quand on n'est pas sur
+  l'écran corner (l'ancien `if(!(tab==="shelter"&&shelterSub==="pdv")) return;`).
+  Le charbonneur **tient le poste en fond** : la file, les ventes, le bac et la
+  Heat tournent tant que l'app est ouverte. Hors-ligne toujours plafonné (rAF se
+  met en pause onglet masqué ; `dt` plafonné à 0,05 s → pas de pic au réveil).
+  Aligné CADRE (délégation, « puits infini ») et R6/R7 : on délègue la
+  **répétition** (charbonner la file), pas la **décision** (prix, menu, ravito,
+  chouffes, encaisse).
+- **Le corner ne chauffe que s'il tourne** : arrivées clients **et** montée de
+  Heat conditionnées à `tampon > 0`. À sec, le corner est « fermé » — plus de
+  clients qui s'entassent, la Heat **redescend**. Corrige une punition muette
+  qui apparaissait avec l'autonomie (un corner vide se serait cuit tout seul
+  jusqu'à la descente, saisie d'un bac vide → interdit par R1).
+- **Recette visible depuis la carte** : petit badge `€…` sur le pin corner qui
+  suit le **bac de rue** en direct (`pdvBadge`), pour savoir qu'il y a à
+  encaisser sans ouvrir l'écran. Caché quand le bac est vide.
+- Smoke `tools/smoke-loupe-pdv.mjs` étendu : on quitte le corner, on vérifie que
+  le **bac grossit hors écran** (`bgSold`) et que le badge s'affiche. Vert.
+- Pas de bump `SAVE_VERSION` : schéma de save inchangé (état `pdv` identique),
+  simple changement de comportement — inutile de wiper les sauvegardes.
+
+---
+
 ## 2026-07-22 — La Loupe : efficience coupe, achats plus gros, horloge unique
 
 Retours de test tel de Sylvain (session corner-PDV v2) :
