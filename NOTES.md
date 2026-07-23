@@ -9,6 +9,36 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-23 — Le Corner : scène rue en Phase A + retour ↩ réparé
+
+La mise en scène rue (Option B, plein écran) était **réservée à la Phase B**
+(indépendant). Le joueur ne voyait donc **rien de la rue** pendant tout
+l'onboarding charbonneur. Deux bugs remontés en test : *« c'est coupé comme
+visuel »* et *« impossible de revenir à l'écran d'accueil »*.
+
+Corrections :
+
+- **Scène en Phase A aussi** (choix « Option b » du joueur). `renderPDV()`
+  appelle **toujours** `renderCorner(P)` ; ce dernier branche sur `phase` : en A,
+  bannière **charbonneur** (recette à Karim, salaire `${CHARB_WAGE}`/service, CTA
+  1ère plaquette) + silhouettes **auto-servies** ; en B, négo au client + tampon.
+  Les clients anonymes de la Phase A ont maintenant un **avatar** (`PDV_AV`) et
+  peuplent la scène (`cornerLayoutPersos` appelé dans le tick auto).
+- **Retour ↩ réparé** : le backdrop du tiroir (`.cdrawer-bk`, z19) couvrait la
+  barre du haut (`.ctop`, z6) → le bouton retour était **inatteignable** tiroir
+  ouvert. `.ctop` passe **z-index 22** (au-dessus du tiroir). Confirmé cliquable
+  en diag headless.
+- **Robustesse** : `.cscene{width/height:100%}` (plein cadre garanti) ;
+  `cornerSilhouette` tolère un avatar manquant (`av||"👤"`) ; garde `chouffes||0`
+  dans le calcul de heat (un save legacy sans `chouffes` ne casse plus le compteur
+  → fini le `🔥 NaN`). `advanceDay` re-render la scène (salaire/plaquette à jour).
+
+Le *« coupé »* venait du tiroir ouvert masquant le bas de la scène (pas d'une
+scène tronquée) : la scène est bien pleine (immeubles à mi-hauteur, sol en bas,
+tag CORNER). Smoke complet vert (scène A+B, négo, salaire, bascule A→B, modes 2b).
+
+---
+
 ## 2026-07-23 — Le Corner 2b (suite) : louche, grimace, ambigu, hésitant
 
 Les modes de client qui manquaient à la négo, portés du proto :

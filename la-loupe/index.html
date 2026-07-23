@@ -134,7 +134,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .nego-face .nfTx{color:#9aa4b8;font-weight:600;font-size:12px}
 /* Le Corner — mise en scène rue (étape 2b, Option B : scène plein écran) */
 #stage.corner-mode{padding:0;overflow:hidden}
-.cscene{position:absolute;inset:0;background:linear-gradient(180deg,#070a16 0%,#0d1226 40%,#131a30 58%,#131a30 100%);overflow:hidden}
+.cscene{position:absolute;inset:0;width:100%;height:100%;background:linear-gradient(180deg,#070a16 0%,#0d1226 40%,#131a30 58%,#131a30 100%);overflow:hidden}
 .cbat{position:absolute;bottom:34%;background:#0d1120;box-shadow:0 -2px 30px #0009}
 .cbat .cgrid{position:absolute;inset:10px 8px;opacity:.5;background-image:repeating-linear-gradient(0deg,#1a2138 0 7px,transparent 7px 16px),repeating-linear-gradient(90deg,#1a2138 0 9px,transparent 9px 20px)}
 .cwin{position:absolute;width:9px;height:7px;background:#ffd977;border-radius:1px;box-shadow:0 0 8px #ffd97788}
@@ -155,7 +155,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .clbl{font-size:10px;font-weight:700;margin-top:3px;color:#e8ecf4;text-shadow:0 1px 3px #000}
 .cpat2{width:36px;height:3.5px;background:#232a3add;border-radius:3px;overflow:hidden;margin-top:3px}
 .cpat2 i{display:block;height:100%;width:100%;background:#3ddc84}
-.ctop{position:absolute;top:8px;left:8px;right:8px;z-index:6;display:flex;align-items:center;gap:6px}
+.ctop{position:absolute;top:8px;left:8px;right:8px;z-index:22;display:flex;align-items:center;gap:6px} /* au-dessus du tiroir → le retour ↩ reste toujours cliquable */
 .cbtn{border:0;border-radius:9px;background:rgba(0,0,0,.55);color:#e8ecf4;font:inherit;font-weight:700;font-size:12px;padding:8px 11px;cursor:pointer}
 .cchip{background:rgba(0,0,0,.55);border-radius:20px;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap}
 .cchip.gold{color:#ffd66b}
@@ -752,6 +752,7 @@ const PDV_HEAT_RATE=2.0, PDV_HEAT_DECAY=0.7, PDV_SEUIL=95, PDV_AFTER=45;
 const PDV_CHOUFFE_DAMP=0.7, PDV_CHOUFFE_PAY=60, PDV_TAMPON_MAX=60; // barrettes
 const PDV_WANT=[1,1,2,1,3,2,1,2]; // paniers clients (barrettes)
 const PDV_NAMES=["Momo","Inès","Yaz","Riton","Sofia","Sami","Lou","Nassim","Aya","Diego","Zoé","Paul"];
+const PDV_AV=["🧢","🎧","🛵","🥀","💅","🎒","👟","🎲","🌙","🏗️","🎀","👤"]; // avatars des silhouettes (auto, Phase A)
 const PDV_ADV=[{q:25,l:"Merdique"},{q:45,l:"Correct"},{q:62,l:"Bonne"},{q:78,l:"Top"}];
 const pdvFair=q=>5+q*0.10;
 const tampN=t=>Object.values(t||{}).reduce((a,n)=>a+n,0);      // barrettes au tampon
@@ -820,7 +821,7 @@ function cornerLitWindows(){ // fenêtres allumées déterministes par soirée
 function cornerSilhouette(cl){
   const pe=document.createElement("div"); pe.className="cperso"; pe.dataset.k=cl.kind;
   pe.style.left="108%"; pe.style.bottom="26%"; pe.style.setProperty("--s",0.7);
-  pe.innerHTML=`<div class="chead">${cl.av}</div><div class="cbody"></div><div class="clbl">${cl.nm}</div><div class="cpat2"><i></i></div>`;
+  pe.innerHTML=`<div class="chead">${cl.av||"👤"}</div><div class="cbody"></div><div class="clbl">${cl.nm}</div><div class="cpat2"><i></i></div>`;
   pe.onclick=()=>{ const P=S.shelter.pdv; cornerPrioritize(P, cl); };
   return pe;
 }
@@ -1019,7 +1020,7 @@ function pdvTick(dt){
     // débit AUTO (Phase A salarié, ou charbonneur embauché) : clients anonymes servis en continu
     if(open){
       P.qacc=(P.qacc||0)+demande*dt*PDV_TIME_COMPRESS/3600;
-      while(P.qacc>=1 && P.queue.length<PDV_MAX_QUEUE){ P.qacc-=1; P.seq=(P.seq||0)+1; P.queue.push({nm:PDV_NAMES[P.seq%PDV_NAMES.length], want:PDV_WANT[P.seq%PDV_WANT.length], wait:0}); }
+      while(P.qacc>=1 && P.queue.length<PDV_MAX_QUEUE){ P.qacc-=1; P.seq=(P.seq||0)+1; P.queue.push({nm:PDV_NAMES[P.seq%PDV_NAMES.length], av:PDV_AV[P.seq%PDV_AV.length], want:PDV_WANT[P.seq%PDV_WANT.length], wait:0}); }
       if(P.qacc>PDV_MAX_QUEUE) P.qacc=PDV_MAX_QUEUE;
     } else P.qacc=0;
     P.serveAcc=(P.serveAcc||0)+PDV_SERVE_RATE*dt;
@@ -1027,10 +1028,11 @@ function pdvTick(dt){
     for(const cl of P.queue) cl.wait=(cl.wait||0)+dt;
     const before=P.queue.length; P.queue=P.queue.filter(c=>(c.wait||0)<PDV_MAX_WAIT);
     if(P.queue.length<before) P.res=clamp(P.res-PDV_RUPTURE_HIT*(before-P.queue.length),0,100);
+    if(held&&shelterSub==="pdv") cornerLayoutPersos(P); // Phase A : silhouettes dans la scène
   }
   // Heat : le corner ne chauffe que quand il tourne (à sec → il refroidit), amortie par les chouffes
   const activity=open ? clamp(demande/PDV_BASE_DEMAND + P.queue.length*0.04, 0, 1.6) : 0;
-  S.heat=clamp(S.heat+(activity*PDV_HEAT_RATE/(1+P.chouffes*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY)*dt,0,100);
+  S.heat=clamp(S.heat+(activity*PDV_HEAT_RATE/(1+(P.chouffes||0)*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY)*dt,0,100);
   if(S.heat>=PDV_SEUIL){ pdvDescente(); return; }
   if(tab==="shelter"&&shelterSub==="pdv") pdvPatch();        // écran corner : maj live des compteurs
   else if(tab==="shelter"&&shelterSub==="map") pdvBadge(P);  // carte : le bac qui monte sur le pin
@@ -1076,63 +1078,34 @@ function pdvRavito(nWant){
 function renderPDV(){
   tab="shelter"; shelterSub="pdv"; if(typeof set3d==="function") set3d("hidden"); hud(); renderDock();
   const P=S.shelter.pdv; if(!P.tampon) P.tampon={}; if(!P.queue) P.queue=[]; if(!P.ledger) P.ledger=[];
-  if(S.shelter.phase==="B"){ renderCorner(P); return; } // Phase B : scène plein écran (négo au pied de la barre)
-  stage.classList.remove("corner-mode");
-  // Phase A — charbonneur salarié de Karim (cartes)
-  const hl=shelter.hitLabel(S.heat), canPlaq=S.dirty>=PAIN_100.price;
-  stage.innerHTML=`
-    <button class="btn ghost" id="back">↩ Quartier</button>
-    <h2>Le corner <span style="opacity:.5;font-size:13px">· charbonneur</span></h2>
-    <div class="sub">Tu tiens le corner pour <b>Karim</b> : il fournit les barrettes, tu écoules. La recette est à lui ; il te paie ${CHARB_WAGE}/service. Mets de côté pour ta 1ère plaquette.</div>
-    <div class="card">
-      <div class="stat"><span>Demande</span><b id="pDem">${Math.round(pdvDemande())} clients/h${pdvRushHot()?" · RUSH":""}</b></div>
-      <div class="bar"><i id="pRes" style="width:${clamp(P.res,0,100)}%;background:linear-gradient(90deg,#6ec8ff,#5aa96a)"></i></div>
-      <div class="stat"><span>Réservoir clients · file</span><b><span id="pResT">${Math.round(P.res)}</span> · <span id="pQ">${P.queue.length}</span> en file</b></div>
-      <div class="stat"><span>Heat rue</span><b><span class="hit-chip ${hl.cls}" id="pHeat">${Math.round(S.heat)} · ${hl.txt}</span></b></div>
-      <div class="bar"><i id="pHeatB" style="width:${clamp(S.heat,0,100)}%;background:linear-gradient(90deg,#ffd06a,#ff6a6a)"></i></div>
-    </div>
-    <div class="card">
-      <div class="stat"><span>Recette du service</span><b class="pill dirty" id="pBac">${money(P.bac)}</b></div>
-      <div class="muted" style="font-size:10px;margin:2px 0 6px">Elle est à <b>Karim</b> — les barrettes sont les siennes. En fin de service il te paie <b>${CHARB_WAGE}</b> (liquide).</div>
-      <div class="stat"><span>Ton liquide de côté</span><b>${money(S.dirty)} / ${PAIN_100.price}</b></div>
-      <div class="bar"><i style="width:${clamp(S.dirty/PAIN_100.price*100,0,100)}%;background:linear-gradient(90deg,#6ec8ff,#5aa96a)"></i></div>
-      <button class="btn ${canPlaq?"ok":"ghost"}" id="buyPlaq" ${canPlaq?"":"disabled"} style="margin-top:6px">🧱 T'offrir ta 1ère plaquette (100 g) — ${PAIN_100.price} liquide</button>
-    </div>
-    <div class="card">
-      <div class="stat"><span>Chouffes (${PDV_CHOUFFE_PAY} €/soir · baissent la Heat)</span><b id="pCh">${P.chouffes}</b></div>
-      <div class="grid2"><button class="btn ghost" style="margin:0" id="chM">− chouffe</button><button class="btn ok" style="margin:0" id="chP">+ chouffe</button></div>
-    </div>`;
-  document.getElementById("back").onclick=()=>{ shelterSub="map"; render(); };
-  const bp=document.getElementById("buyPlaq"); if(bp) bp.onclick=()=>buyPremierePlaquette();
-  document.getElementById("chP").onclick=()=>{ P.chouffes++; save(); renderPDV(); };
-  document.getElementById("chM").onclick=()=>{ P.chouffes=Math.max(0,P.chouffes-1); save(); renderPDV(); };
+  renderCorner(P); // le corner est TOUJOURS la scène rue (Phase A charbonneur ou B indépendant)
 }
-// Phase B — la rue, plein écran (Option B) : silhouettes en file, carte du client actif en slide-up,
-// contrôles (tampon/ravito, encaisser, chouffes, ledger) rangés dans un tiroir « Gérer ».
+// La rue, plein écran (Option B). Phase A (charbonneur) : silhouettes auto-servies, bannière Karim,
+// tiroir « Gérer » (recette/salaire/plaquette). Phase B (indépendant) : négo au client + tampon/ravito.
 function renderCorner(P){
   stage.classList.add("corner-mode");
   cornerEls=new Map(); // silhouettes reconstruites
-  const fair=corner.cornerFair(S.reput);
+  const A=S.shelter.phase==="A", fair=corner.cornerFair(S.reput);
   const stockSach=sizesOf(S.sachets).reduce((a,f)=>a+(S.sachets[f]||0),0);
-  stage.innerHTML=`
-    <div class="cscene" id="cScene">
-      <div class="cbat" id="cBat1" style="left:-4%;width:42%;height:36%"><div class="cgrid"></div></div>
-      <div class="cbat" id="cBat2" style="left:54%;width:54%;height:44%"><div class="cgrid"></div></div>
-      <div class="ctag">CORNER</div><div class="ccone"></div><div class="clamp"></div><div class="cground"></div>
-      <div id="cPersos"></div>
-      <div class="cempty" id="cEmpty">La rue est calme… ravitaille (Gérer) et attends.</div>
-    </div>
-    <div class="ctop">
-      <button class="cbtn" id="back">↩</button>
-      <span class="cchip">📋 ${fair}/g</span>
-      <span class="cchip" id="cHeatChip">🔥 ${Math.round(S.heat)}</span>
-      <span class="cchip gold" id="cComboChip">⚡×${(P.combo||1).toFixed(1).replace(".0","")}</span>
-      <button class="cbtn" id="cManage">▤ Gérer</button>
-    </div>
-    <div id="cActive"></div>
-    <div class="cdrawer-bk" id="cDrawerBk"></div>
-    <div class="cdrawer" id="cDrawer">
-      <h3 style="margin:0 0 8px;font-size:13px">Le corner</h3>
+  const canPlaq=S.dirty>=PAIN_100.price;
+  const emptyTx=A ? "Karim garde le corner fourni — les clients passent, tu écoules." : "La rue est calme… ravitaille (Gérer) et attends.";
+  const activeInit=A
+    ? `<div class="card"><div class="nego-tx">🧢 <b>Charbonneur</b> — tu écoules les barrettes de <b>Karim</b> (recette à lui, il te paie <b>${CHARB_WAGE}</b>/service).</div>${canPlaq
+        ? `<button class="btn ok" style="margin-top:6px" id="buyPlaq2">🧱 T'offrir ta 1ère plaquette — ${PAIN_100.price} liquide</button>`
+        : `<div class="muted" style="font-size:10px;margin-top:4px">Mets de côté (${money(S.dirty)} / ${PAIN_100.price}) pour ta plaquette.</div>`}</div>`
+    : "";
+  const drawerBody=A
+    ? `<h3 style="margin:0 0 8px;font-size:13px">Le corner · charbonneur</h3>
+      <div class="stat"><span>📋 Menu (Karim)</span><b>${fair}/g · 2g ${2*fair} · 5g ${5*fair} · 8g ${8*fair}</b></div>
+      <div class="stat"><span>Recette du service</span><b class="pill dirty" id="pBac">${money(P.bac)}</b></div>
+      <div class="muted" style="font-size:10px;margin:2px 0 4px">À <b>Karim</b> — en fin de service il te paie <b>${CHARB_WAGE}</b> (liquide).</div>
+      <div class="stat"><span>Ton liquide de côté</span><b>${money(S.dirty)} / ${PAIN_100.price}</b></div>
+      <div class="bar"><i style="width:${clamp(S.dirty/PAIN_100.price*100,0,100)}%;background:linear-gradient(90deg,#6ec8ff,#5aa96a)"></i></div>
+      <button class="btn ${canPlaq?"ok":"ghost"}" id="buyPlaq" ${canPlaq?"":"disabled"} style="margin-top:6px">🧱 T'offrir ta 1ère plaquette — ${PAIN_100.price} liquide</button>
+      <div class="stat" style="margin-top:10px"><span>Chouffes (${PDV_CHOUFFE_PAY}/soir · −Heat)</span><b id="pCh">${P.chouffes}</b></div>
+      <div class="grid2"><button class="btn ghost" style="margin:0" id="chM">− chouffe</button><button class="btn ok" style="margin:0" id="chP">+ chouffe</button></div>
+      <button class="btn ghost" style="margin-top:10px" id="cClose">Fermer</button>`
+    : `<h3 style="margin:0 0 8px;font-size:13px">Le corner</h3>
       <div class="stat"><span>📋 Menu</span><b>${fair}/g · 2g ${2*fair} · 5g ${5*fair} · 8g ${8*fair}</b></div>
       <div class="stat"><span>Tampon exposé</span><b id="pTamp">${tampN(P.tampon)} barrettes · ${Math.round(tampG(P.tampon))} g</b></div>
       <div class="stat"><span>Bac de rue</span><b class="pill dirty" id="pBac">${money(P.bac)}</b></div>
@@ -1143,21 +1116,42 @@ function renderCorner(P){
       <div class="grid2"><button class="btn ghost" style="margin:0" id="chM">− chouffe</button><button class="btn ok" style="margin:0" id="chP">+ chouffe</button></div>
       <h3 style="margin:10px 0 4px;font-size:12px">Ledger</h3>
       <div id="pLed">${P.ledger.length?P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr.</span><b class="pill dirty">+${money(e.eur)}</b></div>`).join(""):`<div class="muted" style="font-size:11px">Aucune vente encore.</div>`}</div>
-      <button class="btn ghost" style="margin-top:10px" id="cClose">Fermer</button>
-    </div>`;
+      <button class="btn ghost" style="margin-top:10px" id="cClose">Fermer</button>`;
+  stage.innerHTML=`
+    <div class="cscene" id="cScene">
+      <div class="cbat" id="cBat1" style="left:-4%;width:42%;height:36%"><div class="cgrid"></div></div>
+      <div class="cbat" id="cBat2" style="left:54%;width:54%;height:44%"><div class="cgrid"></div></div>
+      <div class="ctag">CORNER</div><div class="ccone"></div><div class="clamp"></div><div class="cground"></div>
+      <div id="cPersos"></div>
+      <div class="cempty" id="cEmpty">${emptyTx}</div>
+    </div>
+    <div class="ctop">
+      <button class="cbtn" id="back">↩</button>
+      <span class="cchip">📋 ${fair}/g</span>
+      <span class="cchip" id="cHeatChip">🔥 ${Math.round(S.heat)}</span>
+      ${A?`<span class="cchip">🧢 ${CHARB_WAGE}/service</span>`:`<span class="cchip gold" id="cComboChip">⚡×${(P.combo||1).toFixed(1).replace(".0","")}</span>`}
+      <button class="cbtn" id="cManage">▤ Gérer</button>
+    </div>
+    <div id="cActive">${activeInit}</div>
+    <div class="cdrawer-bk" id="cDrawerBk"></div>
+    <div class="cdrawer" id="cDrawer">${drawerBody}</div>`;
   document.getElementById("back").onclick=()=>{ stage.classList.remove("corner-mode"); shelterSub="map"; render(); };
   const drawer=document.getElementById("cDrawer"), bk=document.getElementById("cDrawerBk");
   const openDr=on=>{ drawer.classList.toggle("on",on); bk.classList.toggle("on",on); };
   document.getElementById("cManage").onclick=()=>openDr(true);
   document.getElementById("cClose").onclick=()=>openDr(false);
   bk.onclick=()=>openDr(false);
-  stage.querySelectorAll("[data-rav]").forEach(b=>b.onclick=()=>pdvRavito(+b.dataset.rav));
-  document.getElementById("enc").onclick=()=>{ if(P.bac<=0){toast("Bac vide.");return;} const v=Math.round(P.bac); S.dirty+=v; pushBills(v); toast("Encaissé "+money(v)+" en liquide (à trier au Liquide)."); P.bac=0; hud(); save(); renderCorner(P); };
   document.getElementById("chP").onclick=()=>{ P.chouffes++; save(); renderCorner(P); };
   document.getElementById("chM").onclick=()=>{ P.chouffes=Math.max(0,P.chouffes-1); save(); renderCorner(P); };
+  if(A){
+    stage.querySelectorAll("#buyPlaq,#buyPlaq2").forEach(b=>b.onclick=()=>buyPremierePlaquette());
+  } else {
+    stage.querySelectorAll("[data-rav]").forEach(b=>b.onclick=()=>pdvRavito(+b.dataset.rav));
+    document.getElementById("enc").onclick=()=>{ if(P.bac<=0){toast("Bac vide.");return;} const v=Math.round(P.bac); S.dirty+=v; pushBills(v); toast("Encaissé "+money(v)+" en liquide (à trier au Liquide)."); P.bac=0; hud(); save(); renderCorner(P); };
+    renderCornerActive(P); // Phase B : carte client dynamique
+  }
   cornerLitWindows();
   cornerLayoutPersos(P);
-  renderCornerActive(P);
 }
 // Phase A → B : t'offrir ta 1ère plaquette (100 g) en LIQUIDE. Le corner devient le tien.
 function buyPremierePlaquette(){
@@ -1875,6 +1869,7 @@ function advanceDay(manual){
   const last=sh.cons[sh.cons.length-1] || cons[cons.length-1];
   toast(manual ? (last?.c || "Nouvelle nuit.") : ("J"+S.day+" — demande rafraîchie, paie faite."));
   save(); hud();
+  if(tab==="shelter"&&shelterSub==="pdv") renderCorner(S.shelter.pdv); // rafraîchit la scène (salaire, plaquette)
 }
 
 let last=performance.now();

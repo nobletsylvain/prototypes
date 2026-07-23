@@ -136,7 +136,7 @@ await pageA.close();
 const pageC = await seedPage({ dirty: 250, shelter: { phase: "A", introSeen: true, pdv: { ...pdvSeed } } });
 await pageC.click('.map-pin[data-pin="pdv"]'); await sleep(200);
 await pageC.click('[data-pin-go="pdv"]'); await sleep(300);
-await pageC.click('#buyPlaq'); await sleep(300);
+await pageC.click('#buyPlaq2'); await sleep(300); // CTA plaquette dans la bannière charbonneur (scène)
 const cBuy = await pageC.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save"));
   return { phase: s.shelter.phase, pains: (s.pains || []).length, dirty: s.dirty }; });
 const becameIndep = cBuy.phase === "B" && cBuy.pains > 0 && cBuy.dirty <= 50; // 250 − 200 = 50
