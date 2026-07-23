@@ -112,6 +112,23 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .hit-chip.ok{background:rgba(0,196,106,.18);color:#9be37d}
 .hit-chip.mid{background:rgba(232,201,106,.18);color:#e8c96a}
 .hit-chip.hot{background:rgba(255,80,80,.22);color:#ff8a6a}
+/* Le Corner — négo présentielle (étape 2) */
+.nego-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.nego-av{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-size:19px;flex:none}
+.nego-nm{font-weight:800;font-size:14px}
+.nego-tag{font-size:9px;font-weight:800;letter-spacing:.4px;border-radius:4px;padding:1px 5px;margin-left:5px;background:rgba(255,255,255,.08)}
+.nego-rel{margin-left:auto;font-size:10px;color:var(--muted,#9aa)}.nego-rel b{color:#e8ecf4}
+.nego-tx{background:rgba(255,255,255,.05);border-radius:4px 12px 12px 12px;padding:8px 10px;margin:4px 0 6px;font-size:13px}
+.offer{font-weight:800;border-radius:6px;padding:1px 6px;white-space:nowrap;font-size:12px}
+.offer.q-fair{background:rgba(255,214,107,.16);color:#ffd66b}
+.offer.q-good{background:rgba(113,230,164,.16);color:#71e6a4}
+.offer.q-low{background:rgba(255,184,76,.16);color:#ffb84c}
+.offer.q-scam{background:rgba(255,93,108,.16);color:#ff9aa5}
+.nego-pat{height:4px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin:4px 0 8px}
+.nego-pat i{display:block;height:100%;width:100%;background:#3ddc84}
+.nego-price{display:flex;align-items:center;gap:6px;margin:6px 0}
+.nego-price .pb{border:0;border-radius:8px;background:rgba(255,255,255,.08);color:#e8ecf4;font:inherit;font-weight:800;padding:8px 0;width:42px;cursor:pointer}
+.nego-price #negoP{flex:1;text-align:center;font-size:20px;font-weight:800}
 .intro-card{background:linear-gradient(180deg,rgba(40,28,18,.98),rgba(20,14,10,.98));border:1px solid rgba(255,180,84,.35);
   border-radius:18px;padding:16px;margin-bottom:12px}
 .intro-card .from{font-size:11px;font-weight:800;color:#ffb454;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px}
@@ -281,8 +298,9 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 import * as snap from "./snap.mjs?v=18";
 import * as beuher from "./beuher.mjs?v=18";
 import * as shelter from "./shelter.mjs?v=18";
+import * as corner from "./corner.mjs?v=1";
 
-const SAVE_VERSION = "23";
+const SAVE_VERSION = "24";
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
 // La demande Snap reste calée sur 2/5/8 (snap.SC.DOSE_FORMATS) — couper autre chose = risque assumé.
 const CUT_MIN = 1, CUT_MAX = 20, CUT_DEFAULT = 2;
@@ -381,68 +399,6 @@ const store = { get:k=>localStorage.getItem(LS+k), set:(k,v)=>localStorage.setIt
 const money = n => String(Math.round(n));
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 
-/* ===== Le Corner — vente présentielle (négo) : porté du banc d'essai le-corner/ =====
-   Intégration par étapes (voir le-corner/INTEGRATION.md). Système de PHASE B : quand tu
-   tiens TON corner (indépendant), la vente auto laissera place à la négo au pied de la
-   barre (carte client, zones de prix, pourboires, relations). En Phase A (charbonneur
-   salarié) et en auto (charbonneur embauché) : pas de négo. Tout le tuning est ICI,
-   transposé tel quel du CFG du banc d'essai — une seule source de vérité.
-   [Étape 1/2 : fondations + menu affiché. Ces constantes/helpers sont dormants tant que
-    la négo (étape suivante) n'est pas branchée ; seul le MENU les utilise pour l'instant.] */
-const CORNER = {
-  PRIX_FAIR: 10,            // base €/g — MÊME valeur que snap.SC.PRIX_FAIR (un seul barème)
-  FAIR_BAND: 0.10,          // fenêtre « prix juste » : menu ±10 %
-  NEGO_MAX: 1.2,            // au-dessus du menu jusqu'à ×1.2 = bonne négo (marge du présentiel)
-  TIP_JUSTE: 0.18, TIP_LU: 0.22,
-  COMBO_STEP: 0.5, COMBO_MAX: 3,
-  PATIENCE: { regulier:26, lowball:30, accro:15, grossiste:40, hesitant:32, louche:30 },
-  QUEUE_MELT: 0.8, WAIT_FREEZE_S: 8, WAIT_MELT: 1.6,
-  // tolérance €/g : plafond accepté par chacun ; l'écart haut-de-zone-juste (×1.1) → tol = l'espace de négo
-  TOL: { regulier:1.2, lowball:0.82, accro:1.35, grossiste:0.78, hesitant:1.15, louche:99 },
-  TOL_PER_REL: 1/600,
-  BUDGET: { regulier:70, lowball:110, accro:50, grossiste:260, hesitant:60, louche:999 },
-  BUDGET_PER_REL: 1/100,
-  OFFER: { regulier:[0.92,1.0], lowball:[0.55,0.62], accro:[1.0,1.05], grossiste:[0.68,0.74] },
-  REL_DEAL:2, REL_JUSTE:2, REL_PERSO:3, REL_GOUGE:-2, REL_WALK:-2,
-  UNLOCK_REL:40, GOUGE_STREAK_QUIT:2,
-  HEAT_LOUCHE:20, FLAIR_BONUS:25,
-  REP_DEAL:1, REP_JUSTE:1, REP_GOUGE:-2, REP_WALK:-1,
-};
-// personas du corner (relation → budget/fréquence ; fidèle → présente un contact)
-const CORNER_PERSONAS = [
-  { id:"momo",  nm:"Momo",  av:"🧢", kind:"regulier",  usual:5,  exig:55, start:true },
-  { id:"ines",  nm:"Inès",  av:"🎧", kind:"regulier",  usual:2,  exig:70, start:true },
-  { id:"riton", nm:"Riton", av:"🥀", kind:"accro",     usual:2,  exig:20, start:true },
-  { id:"yaz",   nm:"Yaz",   av:"🛵", kind:"lowball",   usual:8,  exig:40, start:true },
-  { id:"sofia", nm:"Sofia", av:"💅", kind:"hesitant",  usual:5,  exig:65, start:true },
-  { id:"bilal", nm:"Bilal", av:"🎒", kind:"regulier",  usual:8,  exig:50, start:true },
-  { id:"diego", nm:"Diego", av:"🏗️", kind:"grossiste", usual:16, exig:45, unlockedBy:"momo" },
-  { id:"lina",  nm:"Lina",  av:"🌙", kind:"regulier",  usual:5,  exig:80, unlockedBy:"ines" },
-  { id:"nassim",nm:"Nassim",av:"🎲", kind:"accro",     usual:8,  exig:25, unlockedBy:"riton" },
-  { id:"kenza", nm:"Kenza", av:"👟", kind:"lowball",   usual:5,  exig:35, unlockedBy:"yaz" },
-  { id:"lea",   nm:"Léa",   av:"🎀", kind:"hesitant",  usual:2,  exig:60, unlockedBy:"sofia" },
-];
-const CORNER_TAG = { regulier:"CLIENT", lowball:"RADIN", accro:"ACCRO", grossiste:"GROS", hesitant:"HESIT", louche:"INCONNU" };
-const CORNER_FORMATS = [2,5,8];
-// barème présentiel — même formule que snap.mjs (prix « fair » dérivé de la réput)
-function cornerFair(){ return Math.max(4, Math.round(CORNER.PRIX_FAIR*(0.6 + (S.reput||0)/120))); }
-function cornerTol(kind, rel){ return cornerFair()*(CORNER.TOL[kind] + (rel||0)*CORNER.TOL_PER_REL); }
-function cornerBudget(kind, rel){ return CORNER.BUDGET[kind]*(1 + (rel||0)*CORNER.BUDGET_PER_REL); }
-// qualité d'une offre vs TON menu (l'info centrale : l'écart % au menu)
-function offerQual(ppu){
-  const r=ppu/cornerFair(), pct=Math.round((r-1)*100);
-  if(r>=1+CORNER.FAIR_BAND) return { cls:"q-good", lbl:"+"+pct+" % menu" };
-  if(r>=1-CORNER.FAIR_BAND) return { cls:"q-fair", lbl:"prix menu" };
-  if(r>=0.75) return { cls:"q-low", lbl:pct+" % menu" };
-  return { cls:"q-scam", lbl:pct+" % menu" };
-}
-// table clients (relations, déblocages) — seedée depuis les personas
-function cornerClientsDefault(){
-  const c={};
-  for(const p of CORNER_PERSONAS) c[p.id]={ rel:10, unlocked:!!p.start, missed:0, gougeStreak:0, quit:false };
-  return c;
-}
-
 function defaultState(){
   return {
     cash: START_CASH, dirty:0, heat:0, reput:20, day:1, clock:0,
@@ -453,7 +409,7 @@ function defaultState(){
     upgrades:{couteau:0, gabarit:0, scooter:0, planque:0, counter:0},
     journal:[], orderSeq:1, soldDay:0,
     assign:{}, counted:0, atelierMode:"cut",
-    clients: cornerClientsDefault(), // clientèle du corner (négo Phase B — voir INTEGRATION)
+    clients: corner.cornerClientsDefault(), // clientèle du corner (négo Phase B — voir INTEGRATION)
     shelter: shelter.shelterDefaults(),
     ...snap.snapDefaults(),
   };
@@ -473,8 +429,8 @@ if(!(S.painSel>=0) || S.painSel>=S.pains.length) S.painSel=0;
 if(!S.shelter) S.shelter=shelter.shelterDefaults();
 else S.shelter={...shelter.shelterDefaults(), ...S.shelter};
 // clientèle du corner : seed + migration douce (nouveaux personas ajoutés en cours de route)
-if(!S.clients || typeof S.clients!=="object") S.clients=cornerClientsDefault();
-else for(const p of CORNER_PERSONAS) if(!S.clients[p.id]) S.clients[p.id]={ rel:10, unlocked:!!p.start, missed:0, gougeStreak:0, quit:false };
+if(!S.clients || typeof S.clients!=="object") S.clients=corner.cornerClientsDefault();
+else for(const p of corner.CORNER_PERSONAS) if(!S.clients[p.id]) S.clients[p.id]={ rel:10, unlocked:!!p.start, missed:0, gougeStreak:0, quit:false };
 // Save pré-Shelter : pas de cinématique front si déjà en course
 if(!S.shelter.introSeen && (S.day>1 || shelter.stockG(S)>0 || (S.journal&&S.journal.length))){
   S.shelter.introSeen=true;
@@ -783,6 +739,123 @@ function pdvServe(P){
   P.res+=(content*100-P.res)*PDV_RES_PER_SALE;
   P.ledger.unshift({nm:cl.nm,n,g,eur:price}); if(P.ledger.length>6) P.ledger.length=6;
 }
+/* ---------- Le Corner — négo présentielle (Phase B présent) : porté de le-corner/ ----------
+   Quand tu tiens TON corner (indépendant), la carte client remplace la vente auto :
+   offre vs menu, accepter / contrer (steppers de prix) / refuser, zones déterministes.
+   Phase A (salarié) et auto (charbonneur embauché) gardent pdvServe. */
+const CORNER_MAX_QUEUE=6;   // on sert un client à la fois → file courte
+const CORNER_ARRIVAL=3.2;   // arrivées négo : quelques clients/soirée (pas le flux auto)
+function cornerActive(P){ return P.queue&&P.queue.length?P.queue[0]:null; }
+function cornerTake(P, wantB){ // débite wantB barrettes du tampon (petites d'abord) → {n,g}
+  const sizes=Object.keys(P.tampon).map(Number).filter(f=>P.tampon[f]>0).sort((a,b)=>a-b);
+  let n=0,g=0;
+  for(const f of sizes){ while(P.tampon[f]>0 && n<wantB){ P.tampon[f]--; if(P.tampon[f]<=0) delete P.tampon[f]; n++; g+=f; } if(n>=wantB) break; }
+  return {n,g};
+}
+function cornerSpawn(P){ // client persona + offre (déterministe) ; null si rien (hésitant/plus de perso)
+  const avail=corner.CORNER_PERSONAS.filter(p=>S.clients[p.id]&&S.clients[p.id].unlocked&&!S.clients[p.id].quit);
+  if(!avail.length) return null;
+  const p=avail[(P.seq)%avail.length], c=S.clients[p.id];
+  const o=corner.makeOffer(p, c.rel, S.reput, S.day, P.seq);
+  if(!o) return null; // hésitant : « à interpréter » (étape 2b)
+  const want=clamp(Math.round(o.qty/2),1,6), pat=corner.patienceOf(p.kind);
+  return { cid:p.id, nm:p.nm, av:p.av, kind:p.kind, rel:c.rel, want, g:o.qty, offer:o.offer, tx:o.tx,
+    pat, pat0:pat, mode:"offer", negoP:o.offer, dernier:null };
+}
+function cornerNegoTick(P, dt, demande, open){
+  const was=cornerActive(P);
+  if(open){
+    P.qacc=(P.qacc||0)+demande*dt*CORNER_ARRIVAL/3600;
+    while(P.qacc>=1 && P.queue.length<CORNER_MAX_QUEUE){ P.qacc-=1; P.seq=(P.seq||0)+1; const cl=cornerSpawn(P); if(cl) P.queue.push(cl); else break; }
+    if(P.qacc>CORNER_MAX_QUEUE) P.qacc=CORNER_MAX_QUEUE;
+  } else P.qacc=0;
+  let expired=0;
+  for(let i=0;i<P.queue.length;i++){ const cl=P.queue[i]; if(cl.mode!=="offer") continue; cl.pat-=dt*(i===0?1:corner.CORNER.QUEUE_MELT); }
+  const keep=[];
+  for(const cl of P.queue){ if(cl.mode==="offer"&&cl.pat<=0){ expired++; if(cl.cid&&S.clients[cl.cid]) S.clients[cl.cid].missed++; } else keep.push(cl); }
+  if(expired){ P.queue=keep; P.res=clamp(P.res-corner.CORNER.RES_WALK*0.4*expired,0,100); P.combo=1; }
+  if(cornerActive(P)!==was) renderCornerActive(P); else cornerPatchActive(P);
+}
+function applyDeltas(cl, v){
+  const c=S.clients[cl.cid]; if(!c) return;
+  if(v.rel) c.rel=clamp(c.rel+v.rel,0,100);
+  if(v.reput) S.reput=clamp(S.reput+v.reput,0,100);
+  if(v.res){ const P=S.shelter.pdv; P.res=clamp(P.res+v.res,0,100); }
+  if(v.resetGouge) c.gougeStreak=0;
+  if(v.gouge){ c.gougeStreak=(c.gougeStreak||0)+1; if(c.gougeStreak>=corner.CORNER.GOUGE_STREAK_QUIT){ c.quit=true; toast("💔 "+cl.nm+" ne reviendra plus (trop d'abus)."); } }
+}
+function cornerLeave(P, cl, why, v, tip){
+  P.queue=P.queue.filter(c=>c!==cl);
+  if(why==="done"){ const rc=v?corner.reactLine(v.outcome, S.day+(P.seq||0)):""; toast((v?v.emo:"")+" "+cl.nm+(tip?" +"+tip+" 💝":"")+(rc?" — "+rc:"")); }
+  else if(why==="walk") toast("🤬 "+cl.nm+" — vente perdue");
+  else if(why==="refus") toast("Ok, une autre fois. (aucun malus)");
+  else if(why==="rupture") toast("Rupture — ravitaille le tampon.");
+  save(); hud(); renderCornerActive(P);
+}
+function cornerResolve(P, cl, total, firstTry, isClientOffer){
+  const v=corner.resolveOffer(cl, cl.g, total, firstTry, isClientOffer, S.reput);
+  if(v.outcome==="counter"){ cl.countered=true; cl.dernier=v.counterTotal; cl.mode="dernier"; renderCornerActive(P); toast("Il contre — dernier prix "+v.counterTotal); return; }
+  if(v.outcome==="walk"){ applyDeltas(cl, v); P.combo=1; cornerLeave(P, cl, "walk", v); return; }
+  const sold=cornerTake(P, cl.want);
+  if(sold.n===0){ P.res=clamp(P.res-PDV_RUPTURE_HIT,0,100); cornerLeave(P, cl, "rupture"); return; }
+  let tip=0;
+  if(v.tipRate){ tip=Math.round(total*v.tipRate*(P.combo||1)); P.combo=Math.min(corner.CORNER.COMBO_MAX,(P.combo||1)+corner.CORNER.COMBO_STEP); }
+  P.bac+=total+tip;
+  applyDeltas(cl, v);
+  P.ledger.unshift({nm:cl.nm, n:sold.n, g:sold.g, eur:total+tip}); if(P.ledger.length>6) P.ledger.length=6;
+  cause("Vente corner", cl.nm+" · "+v.outcome+" +"+(total+tip));
+  cornerLeave(P, cl, "done", v, tip);
+}
+function cornerAct(P, a){
+  const cl=cornerActive(P); if(!cl) return;
+  if(a==="refuse"||a==="refuse2") return cornerLeave(P, cl, "refus");
+  if(a==="cancel"){ cl.mode="offer"; return renderCornerActive(P); }
+  if(a==="counter"){ cl.mode="nego"; cl.negoP=cl.offer; return renderCornerActive(P); }
+  if(a==="accept") return cornerResolve(P, cl, cl.offer, true, true);
+  if(a==="send"){ const first=!cl.countered; cl.mode="offer"; return cornerResolve(P, cl, cl.negoP, first, false); }
+  if(a==="accept2") return cornerResolve(P, cl, cl.dernier, false, true);
+}
+// jauge de patience de la carte active (chaque frame, sans reconstruire la carte)
+function cornerPatchActive(P){
+  const cl=cornerActive(P), e=document.getElementById("pNegoPat");
+  if(cl&&e&&cl.mode==="offer"){ const r=clamp(cl.pat/cl.pat0,0,1); e.style.width=(r*100)+"%"; e.style.background=r>0.5?"#3ddc84":r>0.22?"#ffd06a":"#ff6a6a"; }
+}
+// carte du client actif (offre / négo / dernier prix) dans #pNego
+function renderCornerActive(P){
+  const host=document.getElementById("pNego"); if(!host) return;
+  const cl=cornerActive(P);
+  const cb=document.getElementById("pCombo"); if(cb) cb.textContent=(P.combo||1).toFixed(1).replace(".0","");
+  if(!cl){ host.innerHTML=`<div class="muted" style="font-size:12px;padding:8px 2px">La rue est calme… ravitaille le tampon et attends le client.</div>`; return; }
+  const fair=corner.cornerFair(S.reput), tag=corner.CORNER_TAG[cl.kind];
+  const patW=clamp(cl.pat/cl.pat0,0,1)*100;
+  let body;
+  if(cl.mode==="nego"){
+    const qp=corner.offerQual(cl.negoP/cl.g, S.reput);
+    body=`<div class="nego-tx">Tu proposes <span class="offer ${qp.cls}">${cl.negoP} · ${qp.lbl}</span> pour ${cl.want} barr. — menu ${cl.g*fair}</div>
+      <div class="nego-price"><button class="pb" data-negp="-5">−5</button><button class="pb" data-negp="-1">−1</button>
+        <div id="negoP">${cl.negoP}</div>
+        <button class="pb" data-negp="1">+1</button><button class="pb" data-negp="5">+5</button></div>
+      <div class="grid2"><button class="btn ok" style="margin:0" data-neg="send">Vendre à ${cl.negoP}</button>
+        <button class="btn ghost" style="margin:0" data-neg="cancel">Annuler</button></div>`;
+  } else if(cl.mode==="dernier"){
+    const qd=corner.offerQual(cl.dernier/cl.g, S.reput);
+    body=`<div class="nego-tx">« Trop cher. Mon dernier prix : <span class="offer ${qd.cls}">${cl.dernier} · ${qd.lbl}</span> » À prendre ou à laisser.</div>
+      <div class="grid2"><button class="btn ok" style="margin:0" data-neg="accept2">✅ Vendu ${cl.dernier}</button>
+        <button class="btn bad" style="margin:0" data-neg="refuse2">❌ Laisse</button></div>`;
+  } else {
+    const q=corner.offerQual(cl.offer/cl.g, S.reput);
+    body=`<div class="nego-tx">${cl.tx} <span class="offer ${q.cls}">[${cl.want} barr. → ${cl.offer} · ${q.lbl}]</span></div>
+      <div class="nego-pat"><i id="pNegoPat" style="width:${patW}%"></i></div>
+      <div class="grid3"><button class="btn ok" style="margin:0" data-neg="accept">✅ OK ${cl.offer}</button>
+        <button class="btn ghost" style="margin:0" data-neg="counter">↔️ Contrer</button>
+        <button class="btn bad" style="margin:0" data-neg="refuse">❌</button></div>`;
+  }
+  host.innerHTML=`<div class="nego-head"><div class="nego-av">${cl.av}</div>
+      <div><span class="nego-nm">${cl.nm}</span><span class="nego-tag">${tag}</span></div>
+      <div class="nego-rel">relation<br><b>${cl.rel}</b></div></div>${body}`;
+  host.querySelectorAll("[data-neg]").forEach(b=>b.onclick=()=>cornerAct(P, b.dataset.neg));
+  host.querySelectorAll("[data-negp]").forEach(b=>b.onclick=()=>{ cl.negoP=Math.max(1,cl.negoP+ +b.dataset.negp); renderCornerActive(P); });
+}
 function pdvTick(dt){
   const P=S.shelter&&S.shelter.pdv; if(!P) return;
   // PRÉSENCE REQUISE : au début, le charbonneur c'est TOI — tu ne vends au corner
@@ -797,19 +870,22 @@ function pdvTick(dt){
   if(S.shelter.phase==="A" && tampN(P.tampon)<=0){ P.tampon={2:PDV_KARIM_BATCH}; P.tamponQ=PDV_KARIM_Q; }
   const open=tampN(P.tampon)>0;   // charbonneur au poste seulement s'il a de quoi vendre
   const demande=pdvDemande();
-  // arrivées de clients — seulement quand le corner a du stock (à sec = « fermé »)
-  if(open){
-    P.qacc=(P.qacc||0)+demande*dt*PDV_TIME_COMPRESS/3600;
-    while(P.qacc>=1 && P.queue.length<PDV_MAX_QUEUE){ P.qacc-=1; P.seq=(P.seq||0)+1; P.queue.push({nm:PDV_NAMES[P.seq%PDV_NAMES.length], want:PDV_WANT[P.seq%PDV_WANT.length], wait:0}); }
-    if(P.qacc>PDV_MAX_QUEUE) P.qacc=PDV_MAX_QUEUE;
-  } else P.qacc=0;
-  // service (débit du corner) — le charbonneur sert la file en continu
-  P.serveAcc=(P.serveAcc||0)+PDV_SERVE_RATE*dt;
-  while(P.serveAcc>=1 && P.queue.length){ P.serveAcc-=1; pdvServe(P); }
-  // patience : les clients qui attendent trop partent (rupture douce)
-  for(const cl of P.queue) cl.wait+=dt;
-  const before=P.queue.length; P.queue=P.queue.filter(c=>c.wait<PDV_MAX_WAIT);
-  if(P.queue.length<before) P.res=clamp(P.res-PDV_RUPTURE_HIT*(before-P.queue.length),0,100);
+  const nego = (S.shelter.phase==="B" && held); // Phase B présent → négo au client ; sinon débit auto
+  if(nego){
+    cornerNegoTick(P, dt, demande, open); // arrivées personas + patience + carte active (pas d'auto-serve)
+  } else {
+    // débit AUTO (Phase A salarié, ou charbonneur embauché) : clients anonymes servis en continu
+    if(open){
+      P.qacc=(P.qacc||0)+demande*dt*PDV_TIME_COMPRESS/3600;
+      while(P.qacc>=1 && P.queue.length<PDV_MAX_QUEUE){ P.qacc-=1; P.seq=(P.seq||0)+1; P.queue.push({nm:PDV_NAMES[P.seq%PDV_NAMES.length], want:PDV_WANT[P.seq%PDV_WANT.length], wait:0}); }
+      if(P.qacc>PDV_MAX_QUEUE) P.qacc=PDV_MAX_QUEUE;
+    } else P.qacc=0;
+    P.serveAcc=(P.serveAcc||0)+PDV_SERVE_RATE*dt;
+    while(P.serveAcc>=1 && P.queue.length){ P.serveAcc-=1; pdvServe(P); }
+    for(const cl of P.queue) cl.wait=(cl.wait||0)+dt;
+    const before=P.queue.length; P.queue=P.queue.filter(c=>(c.wait||0)<PDV_MAX_WAIT);
+    if(P.queue.length<before) P.res=clamp(P.res-PDV_RUPTURE_HIT*(before-P.queue.length),0,100);
+  }
   // Heat : le corner ne chauffe que quand il tourne (à sec → il refroidit), amortie par les chouffes
   const activity=open ? clamp(demande/PDV_BASE_DEMAND + P.queue.length*0.04, 0, 1.6) : 0;
   S.heat=clamp(S.heat+(activity*PDV_HEAT_RATE/(1+P.chouffes*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY)*dt,0,100);
@@ -831,6 +907,7 @@ function pdvPatch(){
   set("pTamp",tampN(P.tampon)+" barrettes · "+Math.round(tampG(P.tampon))+" g · Q"+Qd);
   set("pBac",money(P.bac));
   set("pQ",P.queue.length);
+  set("pCombo",(P.combo||1).toFixed(1).replace(".0",""));
   const led=document.getElementById("pLed");
   if(led) led.innerHTML=P.ledger.length ? P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr. (${e.g} g)</span><b class="pill dirty">+${money(e.eur)}</b></div>`).join("") : `<div class="muted" style="font-size:11px">Aucune vente encore.</div>`;
 }
@@ -883,33 +960,25 @@ function renderPDV(){
       </div>
       <button class="btn ghost" style="margin-top:6px" id="enc">Encaisser le bac ▸ liquide</button>
     </div>`;
-  const cardPrix = `
-    <div class="card">
-      <div class="stat"><span>Prix de vente</span><b id="pPrix">${P.prix} €/g</b></div>
-      <input type="range" id="pPrixR" min="4" max="24" step="0.5" value="${P.prix}" style="width:100%;accent-color:var(--accent)">
-      <div class="muted" id="pPrixH" style="font-size:10px">juste pour Q${Qa} ≈ ${pdvFair(Qa).toFixed(1)} €/g</div>
-    </div>`;
-  const cardMenu = `
-    <div class="card">
-      <div class="stat"><span>Menu · vitrine SnapShit</span><b id="pAdv">Q${Qa}</b></div>
-      <div class="grid2" style="margin-top:4px">${PDV_ADV.map(a=>`<button class="btn ghost" data-adv="${a.q}" style="margin:0;padding:8px 4px;font-size:11px${P.advQ===a.q?';border-color:var(--accent);color:#fff':''}">${a.l}<br><small style="opacity:.6">Q${a.q}</small></button>`).join("")}</div>
-      <button class="btn snap" style="margin-top:6px" id="vitr">📣 Poster la vitrine ▸ +buzz (buzz ${Math.round(S.expo)})</button>
-      ${decep}
-    </div>`;
-  // Le Corner (étape 1/2) : ton MENU affiché — le barème présentiel qui servira de
-  // référence à la négo client (étape suivante). Affichage seul ; vente auto inchangée.
+  // Le Corner (étape 1) : ton MENU affiché — le barème présentiel, référence des offres client.
   const cardMenuPrix = `
     <div class="card">
-      <div class="stat"><span>📋 Menu du corner</span><b>${cornerFair()} €/g</b></div>
-      <div class="stat"><span>2 g · 5 g · 8 g</span><b>${2*cornerFair()} · ${5*cornerFair()} · ${8*cornerFair()}</b></div>
-      <div class="muted" style="font-size:10px">Barème présentiel (dérivé de ta réput ${Math.round(S.reput)}). Bientôt : la négo client se jugera contre ce menu.</div>
+      <div class="stat"><span>📋 Menu du corner</span><b>${corner.cornerFair(S.reput)} €/g</b></div>
+      <div class="stat"><span>2 g · 5 g · 8 g</span><b>${2*corner.cornerFair(S.reput)} · ${5*corner.cornerFair(S.reput)} · ${8*corner.cornerFair(S.reput)}</b></div>
+      <div class="muted" style="font-size:10px">Barème présentiel (dérivé de ta réput ${Math.round(S.reput)}). Les offres des clients se jugent contre ce menu.</div>
+    </div>`;
+  // Le Corner (étape 2) : la carte du client actif remplace la vente auto — accepter / contrer / refuser.
+  const cardNego = `
+    <div class="card">
+      <div class="stat"><span>Au comptoir</span><b>⚡ combo ×<span id="pCombo">${(P.combo||1).toFixed(1).replace(".0","")}</span></b></div>
+      <div id="pNego"></div>
     </div>`;
   stage.innerHTML=`
     <button class="btn ghost" id="back">↩ Quartier</button>
     <h2>Le corner${A?` <span style="opacity:.5;font-size:13px">· charbonneur</span>`:""}</h2>
     <div class="sub">${A
       ? `Tu tiens le corner pour <b>Karim</b> : il fournit les barrettes, tu écoules. La recette est à lui ; il te paie ${CHARB_WAGE}/service. Mets de côté pour ta 1ère plaquette.`
-      : `Les clients arrivent en file. Tu vends TES barrettes depuis le tampon ; ton menu fixe l'attente. Ce que tu exposes peut être saisi ; la planque est sauve.`}</div>
+      : `Au pied de la barre : les clients arrivent, chacun avec son offre. Tu la juges contre ton menu et tu <b>négocies</b> (accepte, contre, ou laisse). Ce que tu exposes peut être saisi ; la planque est sauve.`}</div>
     <div class="card">
       <div class="stat"><span>Demande</span><b id="pDem">${Math.round(pdvDemande())} clients/h${pdvRushHot()?" · RUSH":""}</b></div>
       <div class="bar"><i id="pRes" style="width:${clamp(P.res,0,100)}%;background:linear-gradient(90deg,#6ec8ff,#5aa96a)"></i></div>
@@ -919,8 +988,7 @@ function renderPDV(){
     </div>
     ${A ? cardKarim : cardStock}
     ${A ? "" : cardMenuPrix}
-    ${A ? "" : cardPrix}
-    ${A ? "" : cardMenu}
+    ${A ? "" : cardNego}
     <div class="card">
       <h3 style="margin:0 0 6px">Ledger · dernières ventes</h3>
       <div id="pLed">${P.ledger.length?P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr. (${e.g} g)</span><b class="pill dirty">+${money(e.eur)}</b></div>`).join(""):`<div class="muted" style="font-size:11px">Aucune vente encore.</div>`}</div>
@@ -935,11 +1003,7 @@ function renderPDV(){
   } else {
     stage.querySelectorAll("[data-rav]").forEach(b=>b.onclick=()=>pdvRavito(+b.dataset.rav));
     document.getElementById("enc").onclick=()=>{ if(P.bac<=0){toast("Bac vide.");return;} const v=Math.round(P.bac); S.dirty+=v; pushBills(v); toast("Encaissé "+money(v)+" en liquide (à trier au Liquide)."); P.bac=0; hud(); save(); renderPDV(); };
-    document.getElementById("vitr").onclick=()=>{ snap.posterVitrine(S,"vitrine"); cause("Vitrine corner","+buzz"); toast("Vitrine en ligne — le buzz monte, la file grossit."); save(); renderPDV(); };
-    const pr=document.getElementById("pPrixR");
-    pr.oninput=e=>{ P.prix=parseFloat(e.target.value); document.getElementById("pPrix").textContent=P.prix+" €/g"; };
-    pr.onchange=()=>{ save(); renderPDV(); };
-    stage.querySelectorAll("[data-adv]").forEach(b=>b.onclick=()=>{ P.advQ=+b.dataset.adv; save(); renderPDV(); });
+    renderCornerActive(P); // remplit la carte du client actif (négo)
   }
   document.getElementById("chP").onclick=()=>{ P.chouffes++; save(); renderPDV(); };
   document.getElementById("chM").onclick=()=>{ P.chouffes=Math.max(0,P.chouffes-1); save(); renderPDV(); };
@@ -1649,6 +1713,7 @@ function advanceDay(manual){
     if(due>0){ if(S.dirty>=due){ S.dirty-=due; cause("Paie chouffes","−"+due+" liquide"); }
       else if(S.cash>=due){ S.cash-=due; cause("Paie chouffes","−"+due+" propre"); }
       else { P.chouffes=Math.max(0,P.chouffes-1); cause("Chouffe parti","paie manquée"); } } }
+  if(S.shelter&&S.shelter.pdv) S.shelter.pdv.combo=1; // combo négo : remis à zéro à chaque clôture de soirée
   // Phase A : fin de service — la recette part chez Karim, il te paie le tarif jour (liquide)
   { const P=S.shelter&&S.shelter.pdv;
     if(S.shelter.phase==="A" && P){ const took=Math.round(P.bac||0);

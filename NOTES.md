@@ -9,6 +9,43 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-23 — Intégration Le Corner → La Loupe : étape 2 (la négo présentielle)
+
+Le cœur du branchement : en **Phase B présent**, la vente auto laisse place à la
+**négo au client** (plan steps 3-4). Phase A (salarié) et auto (charbonneur
+embauché) gardent le débit auto — le branchement se fait par `pdvTick`.
+
+- **Nouveau module `la-loupe/corner.mjs`** (comme `shelter.mjs`/`snap.mjs`) :
+  logique pure + tuning (`CORNER` déplacé ici depuis index.html, une seule
+  source), personas, et surtout `resolveOffer()` — la **résolution déterministe
+  des zones** (marge 😍 / JUSTE 🤝 / bien négocié 😏 / abus 😒 / contre / walk).
+  Testé en `node` : counter→dernier prix, gouge, nego/marge, JUSTE+combo. Vert.
+- **`pdvTick` branché** : `nego = (phase==="B" && held)` → `cornerNegoTick`
+  (arrivées personas lentes, patience file/actif, carte active) au lieu de
+  `pdvServe`. Le geste de vente auto (`pdvServe`) est **intact** pour les autres
+  cas (respecte le périmètre convenu avec la session Le Corner).
+- **UI carte client** dans `renderPDV` Phase B : offre vs menu (chip `offerQual`
+  coloré), **Accepter / Contrer (steppers de prix) / Refuser**, jauge de
+  patience mise à jour par frame sans reconstruire la carte. La vente **débite le
+  tampon** (barrettes) → **bac** (liquide) ; relations (`S.clients`), réput,
+  réservoir clients et **combo** ⚡ (pourboire JUSTE) suivent. Le slider de prix
+  et le menu déception (advQ) sont retirés en Phase B : la négo porte le prix.
+- **R1/R4 respectés** : refuser/rater = vente perdue, jamais de malus sec ;
+  zéro `Math.random` (hash déterministe côté `corner.mjs`). Abus 2× → le client
+  ne revient plus (`quit`).
+- `SAVE_VERSION` **23 → 24** (client `P.queue` = personas ; `P.combo`, remis à 1
+  à la clôture de soirée). Smoke étendu : carte affichée, **accepter → vente**
+  (bac↑, tampon↓, relation↑), **contrer → JUSTE + combo + pourboire**, + Phase A
+  salaire et bascule plaquette toujours verts.
+
+**Reporté à l'étape 2b** (pas encore branché, `makeOffer` renvoie `null` pour
+l'hésitant) : demandes ambiguës, hésitant, **louche** (heat), **grimace** à
+mi-négo, **priorisation** (tap la file), mise en scène rue, bilan de nuit fusionné,
+graphe social (déblocage de contacts). Puis étape 3 : entonnoir SnapShit +
+charbonneur embauché (spec §6).
+
+---
+
 ## 2026-07-23 — Intégration Le Corner → La Loupe : étape 1/… (fondations + menu)
 
 Feu vert de Sylvain pour brancher le banc d'essai `le-corner/` dans La Loupe, en

@@ -81,8 +81,9 @@ export function shelterDefaults() {
     selectedPin: null,
     mapTipSeen: false,
     // PDV (corner) — point de vente à 3 curseurs, vente par client (file + ledger)
+    // combo : chaîne de deals JUSTE de la soirée (négo Phase B) — remis à 1 à la clôture / sur raté
     pdv: { res: 30, bac: 0, advQ: 0, prix: 10, chouffes: 0,
-      tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0 },
+      tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0, combo: 1 },
   };
 }
 

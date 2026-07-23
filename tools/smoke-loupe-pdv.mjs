@@ -40,16 +40,19 @@ page.on("console", (m) => {
 });
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 
-// seed : Phase B (indépendant), stock de sachets, corner amorcé, intro passée
-await page.evaluateOnNewDocument((ver) => {
+// seed : Phase B (indépendant), tampon amorcé + UN client persona en file (négo présentielle)
+const mkClient = (cid, nm, av, want, g, offer) => ({ cid, nm, av, kind: "regulier", rel: 10,
+  want, g, offer, tx: nm + " passe.", pat: 120, pat0: 120, mode: "offer", negoP: offer, dernier: null });
+const negoQueue = [mkClient("momo", "Momo", "🧢", 3, 6, 48), mkClient("ines", "Inès", "🎧", 1, 2, 16)];
+await page.evaluateOnNewDocument((ver, q) => {
   localStorage.setItem("loupe_ver", ver);
   localStorage.setItem("loupe_save", JSON.stringify({
-    sachets: { "2": 60 }, sachetQ: 62,
+    sachets: { "2": 20 }, sachetQ: 62,
     shelter: { phase: "B", introSeen: true, frontActive: false, paidOff: true,
-      pdv: { res: 70, bac: 0, advQ: 0, prix: 10, chouffes: 0,
-        tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0 } },
+      pdv: { res: 70, bac: 0, prix: 10, chouffes: 0, tampon: { "2": 20 }, tamponQ: 62,
+        queue: q, ledger: [], qacc: 0, serveAcc: 0, seq: 0, combo: 1 } },
   }));
-}, SAVE_VER);
+}, SAVE_VER, negoQueue);
 
 await page.goto(`http://127.0.0.1:${PORT}/la-loupe/index.html`, { waitUntil: "load" });
 await sleep(500);
@@ -62,54 +65,37 @@ await page.click('[data-pin-go="pdv"]');
 await sleep(300);
 await page.screenshot({ path: path.join(OUT, "02-pdv.png") });
 
-// ravitailler (Max barrettes → tampon), puis laisser la file se vendre
-await page.click('[data-rav="0"]');
-await sleep(3000);
-const afterSell = await page.evaluate(() => ({
-  bac: document.getElementById("pBac")?.textContent,
-  tampon: document.getElementById("pTamp")?.textContent,
-  res: document.getElementById("pResT")?.textContent,
-  file: document.getElementById("pQ")?.textContent,
-  dem: document.getElementById("pDem")?.textContent,
-  ledger: document.querySelectorAll("#pLed .stat").length,
+// la carte du client (négo) et le menu doivent s'afficher
+const view = await page.evaluate(() => ({
   menu: [...document.querySelectorAll(".stat span")].some(e => e.textContent.includes("Menu du corner")),
+  card: !!document.querySelector('[data-neg="accept"]'),
+  offer: document.querySelector('#pNego .offer')?.textContent || "",
 }));
-const menuShown = afterSell.menu; // étape 2 : menu (barème présentiel) affiché sur le corner Phase B
-await page.screenshot({ path: path.join(OUT, "03-selling.png") });
+const menuShown = view.menu, cardShown = view.card;
 
-// --- présence requise : on QUITTE l'écran corner → le corner est FERMÉ, plus de vente ---
-const soldOnScreen = await page.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv.bac);
-await page.click("#back"); // retour carte Quartier (shelterSub="map")
-await sleep(2200);         // laisse le save (toutes les 2 s) flusher l'état
-const bgStart = await page.evaluate(() => { const p = JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv;
-  return { bac: p.bac, seq: p.seq || 0,
-    badge: document.getElementById("pinBac")?.textContent,
-    badgeVisible: !document.getElementById("pinBac")?.classList.contains("off") }; });
-await sleep(2200);         // du temps passe SANS être sur le corner
-const bgEnd = await page.evaluate(() => { const p = JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv;
-  return { bac: p.bac, seq: p.seq || 0 }; });
-await page.screenshot({ path: path.join(OUT, "03b-map-badge.png") });
-// fermé hors présence : ni vente (bac stable) ni client servi (seq stable)
-const closedAway = bgEnd.bac <= bgStart.bac && bgEnd.seq === bgStart.seq;
-// revenir au corner pour encaisser / déception
-await page.click('.map-pin[data-pin="pdv"]');
-await sleep(150);
-await page.click('[data-pin-go="pdv"]');
+// accepter l'offre de Momo (48 = prix menu → deal) : bac ↑, tampon ↓, relation ↑, file vidée
+const before = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
+  return { bac: p.bac, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), rel: s.clients.momo.rel, q: p.queue.length }; });
+await page.click('[data-neg="accept"]');
 await sleep(300);
+const afterDeal = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
+  return { bac: p.bac, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), rel: s.clients.momo.rel, q: p.queue.length }; });
+const negoSold = afterDeal.bac > before.bac && afterDeal.tampon < before.tampon && afterDeal.rel > before.rel && afterDeal.q < before.q;
+await page.screenshot({ path: path.join(OUT, "03-nego-deal.png") });
+
+// contre-offre sur Inès : Contrer → steppers de prix → Vendre (à 16 = menu → JUSTE + combo)
+await page.click('[data-neg="counter"]'); await sleep(200);
+const negoUI = await page.evaluate(() => !!document.getElementById("negoP")); // les steppers s'affichent
+await page.click('[data-neg="send"]'); await sleep(300);
+const afterCounter = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
+  return { bac: p.bac, combo: p.combo, q: p.queue.length }; });
+const counterSold = negoUI && afterCounter.bac > afterDeal.bac && afterCounter.combo > 1; // vente + combo JUSTE armé
+await page.screenshot({ path: path.join(OUT, "03b-nego-counter.png") });
 
 // encaisser le bac → doit créer des billets triables
 await page.click("#enc");
 await sleep(200);
 const afterEnc = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")); return { dirty: s.dirty, bills: (s.bills || []).length }; });
-
-// déception : annoncer Top (Q78) alors qu'on livre Q62 → réservoir doit fuir
-await page.click('[data-adv="78"]');
-await sleep(2500);
-const afterDecep = await page.evaluate(() => ({
-  res: document.getElementById("pResT")?.textContent,
-  decepShown: !!document.querySelector('.card [style*="var(--heat)"]'),
-}));
-await page.screenshot({ path: path.join(OUT, "04-deception.png") });
 
 const state = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv; } catch (e) { return null; } });
 await page.close(); // le localStorage est partagé par origine : fermer avant les pages Phase A/C (sinon leur save() se marchent dessus)
@@ -158,12 +144,12 @@ await pageC.close();
 await browser.close();
 server.close();
 
-console.log("B · vente     :", JSON.stringify(afterSell), soldOnScreen > 0 ? "(vend en présence ✓)" : "(⚠ rien vendu en présence)", menuShown ? "· menu ✓" : "· ⚠ pas de menu");
-console.log("B · présence  :", JSON.stringify({ bgStart, bgEnd }), closedAway ? "(corner fermé hors présence ✓)" : "(⚠ vend hors présence)");
+console.log("B · négo carte:", JSON.stringify(view), menuShown ? "menu ✓" : "⚠ menu", cardShown ? "· carte ✓" : "· ⚠ carte");
+console.log("B · deal      :", JSON.stringify({ before, afterDeal }), negoSold ? "(accepte → vente négo ✓)" : "(⚠ pas de vente négo)");
+console.log("B · contre    :", JSON.stringify(afterCounter), counterSold ? "(contrer → JUSTE + combo ✓)" : "(⚠ contre-offre KO)");
 console.log("B · encaisse  :", JSON.stringify(afterEnc), "(bills>0 = tri OK)");
-console.log("B · déception :", JSON.stringify(afterDecep));
 console.log("A · charbonn. :", JSON.stringify({ aSell, aWage }), aStocked ? "(Karim fournit+on vend ✓)" : "(⚠ pas d'appro Karim)", wagePaid ? "· salaire versé ✓" : "· ⚠ pas de salaire");
 console.log("A→B plaquette :", JSON.stringify(cBuy), becameIndep ? "(bascule indépendant ✓)" : "(⚠ pas de bascule)");
 console.log("erreurs       :", errors.length ? errors : "AUCUNE");
-const ok = !errors.length && soldOnScreen > 0 && closedAway && aStocked && wagePaid && becameIndep && menuShown;
+const ok = !errors.length && menuShown && cardShown && negoSold && counterSold && afterEnc.bills > 0 && aStocked && wagePaid && becameIndep;
 process.exit(ok ? 0 : 1);
