@@ -23,6 +23,8 @@ export const CORNER = {
   REL_DEAL:2, REL_JUSTE:2, REL_PERSO:3, REL_GOUGE:-2, REL_WALK:-2,
   UNLOCK_REL:40, GOUGE_STREAK_QUIT:2,
   HEAT_LOUCHE:20, FLAIR_BONUS:25,
+  LOUCHE_FROM_DAY:2, LOUCHE_CHANCE:0.14, // un profil cramé apparaît à partir de J2 (déterministe)
+  AMBIG_CHANCE:0.38,                     // part des réguliers avec une demande ambiguë (à interpréter)
   REP_DEAL:1, REP_JUSTE:1, REP_GOUGE:-2, REP_WALK:-1,
   RES_DEAL:3, RES_WALK:6,    // réservoir clients (satisfaction) : bon deal ↑, client fâché/parti ↓
 };
@@ -51,6 +53,19 @@ const TXT = {
   grossiste:["On parle volume : {q} g d'un coup, {t}. Carré chaque semaine si t'es réglo.", "{q} g, {t}, et je vide ton bac tous les soirs."],
   hesitant: ["Je sais pas trop ce qu'il me faut… 🫤"],
 };
+// demandes ambiguës (Good Pizza) : le client ne dit pas la quantité, à toi de composer
+const AMBIG = [
+  { tx:"Faut que je tienne le week-end là…", g:8 },
+  { tx:"Un petit truc léger pour ce soir 🙏", g:2 },
+  { tx:"On est deux ce soir 👀", g:4 },
+  { tx:"Grosse soirée, toute la bande débarque.", g:16 },
+];
+// profils cramés (Papers Please) : trop polis / gros volume / surpaient sans discuter
+const LOUCHE = [
+  { nm:"Tête inconnue", av:"🕶️", g:20, tx:"Bonjour. Auriez-vous de la marchandise ? Je souhaiterais 20 g, le prix importe peu." },
+  { nm:"Kevin B.",      av:"🧔", g:16, tx:"slt, on se connaît pas. c'est toi qui tiens le spot ? je prends 16 g, peu importe le prix" },
+  { nm:"Le trop poli",  av:"👤", g:12, tx:"Bonsoir, on m'a indiqué cet endroit. Il me faudrait 12 g. Quel que soit votre tarif, je paierai." },
+];
 const REACT = {
   marge: ["Frérot le prix 😍", "À ce prix je ramène tout le tieks !"],
   juste: ["PRIX JUSTE.", "Tu lis dans les pensées."],
@@ -58,6 +73,8 @@ const REACT = {
   nego:  ["Tu sais vendre, toi…", "Ok ok, t'es un commerçant.", "Ça va, t'as le bagou."],
   gouge: ["Abusé… mais bon, vas-y.", "Tu t'es cru où ? Allez, donne."],
   walk:  ["C'est mort. Je passe ailleurs.", "Tu me reverras pas."],
+  lu:    ["C'est EXACTEMENT ça.", "Tu lis dans les pensées toi."],
+  mouais:["Mouais, ça fera l'affaire.", "Bon, ok, si tu le dis."],
 };
 
 // hash déterministe (R4 : pas de Math.random sur l'état)
@@ -89,17 +106,43 @@ export function cornerClientsDefault(){
 export function personaById(id){ return CORNER_PERSONAS.find(p=>p.id===id) || null; }
 export function patienceOf(kind){ return CORNER.PATIENCE[kind] || 26; }
 
-/* Génère la demande d'un client (qty g + prix offert + phrase) — déterministe (persona/jour/seq).
-   Renvoie null pour les kinds sans offre explicite (hésitant) — gérés plus tard (étape 2b). */
+/* Génère la demande d'un client — déterministe (persona/jour/seq). Renvoie un objet avec `mode` :
+   - "hesit" : hésitant, à convertir à la main (son habituel paie mieux)
+   - "ambig" : demande ambiguë, à interpréter (bien lu = pourboire, sinon vendu quand même)
+   - "offer" : offre explicite (qty + prix) → accepter / contrer / refuser */
 export function makeOffer(persona, rel, reput, day, seq){
   const kind = persona.kind;
-  if(kind==="hesitant") return null; // mode « à interpréter » : reporté à l'étape suivante
+  if(kind==="hesitant") return { mode:"hesit", qty:0, offer:0, usual:persona.usual, tx:pick(TXT.hesitant, day+seq) };
+  if(kind==="regulier" && hh(day*7, seq) > 1-CORNER.AMBIG_CHANCE){
+    const A = pick(AMBIG, day*2+seq);
+    return { mode:"ambig", qty:0, offer:0, expect:A.g, tx:A.tx };
+  }
   const qty = kind==="grossiste" ? (16 + (hh(day, seq)>0.6 ? 8 : 0)) : persona.usual;
   const off = CORNER.OFFER[kind] || [0.9, 1.0];
   const m = off[0] + (off.length>1 ? hh(day*5, seq)*(off[1]-off[0]) : 0);
   const offer = Math.max(1, R(qty*cornerFair(reput)*m));
   const tx = pick(TXT[kind]||TXT.regulier, day+seq).replace("{q}", qty).replace("{t}", offer);
-  return { qty, offer, tx };
+  return { mode:"offer", qty, offer, tx };
+}
+
+// profil cramé (louche) — il surpaie ×1.3 sans discuter (un indice). Vendre → chaleur ; refuser → discrétion.
+export function makeLouche(day, seq, reput){
+  const L = pick(LOUCHE, day+seq);
+  return { kind:"louche", mode:"louche", nm:L.nm, av:L.av, tx:L.tx, qty:L.g, offer:R(L.g*cornerFair(reput)*1.3) };
+}
+
+// grimace à mi-négo (Recettear) : lecture DÉTERMINISTE de la tête du client pendant qu'on règle le prix.
+export function negoFace(client, total, reput){
+  const g = client.g || client.qty || 0, fair = cornerFair(reput);
+  if(client.kind==="louche") return { emo:"😐", tx:"Aucune réaction… bizarre." };
+  if(!g || !total) return { emo:"🤨", tx:"Il attend de voir…" };
+  const ppu = total/g, tol = cornerTol(client.kind, client.rel, reput), bud = cornerBudget(client.kind, client.rel);
+  if(total>bud) return { emo:"😤", tx:"Au-dessus de sa poche." };
+  if(ppu>tol) return { emo:"😤", tx:"À ce prix, c'est mort pour lui." };
+  if(ppu>tol*0.9) return { emo:"😬", tx:"Il grimace — t'es à la limite." };
+  if(ppu<=fair*0.9) return { emo:"😍", tx:"Belle affaire… pour lui." };
+  if(ppu<=fair*1.1) return { emo:"😊", tx:"Prix menu, ça lui va." };
+  return { emo:"😏", tx:"Il suit… y a de la marge." };
 }
 
 export function reactLine(outcome, i){ return pick(REACT[outcome]||REACT.deal, i); }
