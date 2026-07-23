@@ -69,10 +69,11 @@ export function stockG(S) {
 
 export function shelterDefaults() {
   return {
-    // phase de progression : "A" = charbonneur salarié de Karim (on vend SES barrettes,
-    // il nous paie un tarif jour) ; "B" = indépendant (on achète le pain, on coupe, on garde la marge).
-    phase: "A",
-    introSeen: false,
+    // On démarre directement dans la core loop (indépendant) : on coupe notre plaquette,
+    // on écoule au corner (négo), on garde la marge, on rachète. Pas de tuto, pas de Phase A.
+    // ("phase" conservé pour un éventuel palier futur ; "B" = la boucle de base.)
+    phase: "B",
+    introSeen: true,
     frontActive: false,
     debtDue: 0,       // montant restant à payer
     debtDueDay: 0,    // jour d'échéance

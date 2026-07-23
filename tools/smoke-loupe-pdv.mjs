@@ -14,7 +14,7 @@ const ROOT = path.resolve(__dirname, "..");
 const OUT = path.join(__dirname, "shots", "la-loupe-pdv");
 mkdirSync(OUT, { recursive: true });
 // version de save lue depuis la source → le seed suit les bumps de SAVE_VERSION tout seul
-const SAVE_VER = (readFileSync(path.join(ROOT, "la-loupe/index.html"), "utf8").match(/SAVE_VERSION\s*=\s*"(\d+)"/) || [, "23"])[1];
+const SAVE_VER = (readFileSync(path.join(ROOT, "la-loupe/index.html"), "utf8").match(/SAVE_VERSION\s*=\s*"(\d+)"/) || [, "26"])[1];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MIME = { ".html":"text/html", ".mjs":"text/javascript", ".js":"text/javascript",
   ".png":"image/png", ".jpg":"image/jpeg", ".jpeg":"image/jpeg" };
@@ -116,32 +116,33 @@ const seedPage = async (save) => {
 };
 const pdvSeed = { res: 80, bac: 0, advQ: 0, prix: 10, chouffes: 0, tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0 };
 
-// ===== Phase A (charbonneur) : Karim approvisionne, on vend POUR LUI, fin de service = salaire =====
-const pageA = await seedPage({ dirty: 0, shelter: { phase: "A", introSeen: true, pdv: { ...pdvSeed } } });
-await pageA.click('.map-pin[data-pin="pdv"]'); await sleep(200);
-await pageA.click('[data-pin-go="pdv"]'); await sleep(1600); // Karim auto-stocke, on écoule → recette (à Karim)
-const aSell = await pageA.evaluate(() => { const p = JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv;
-  return { bac: p.bac, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), seq: p.seq || 0 }; });
-const aStocked = aSell.bac > 0 && (aSell.tampon > 0 || aSell.seq > 0); // Karim a fourni, on a vendu
-// fin de service via « Passer la nuit » (onglet SnapShit) → salaire versé en liquide
-await pageA.click('.tab[data-t="snap"]'); await sleep(300);
-const aDirtyBefore = await pageA.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).dirty || 0);
-await pageA.click('#night'); await sleep(300);
-const aWage = await pageA.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).dirty || 0);
-const wagePaid = aWage >= aDirtyBefore + 79; // CHARB_WAGE = 80 (liquide)
-await pageA.screenshot({ path: path.join(OUT, "05-charbonneur.png") });
-await pageA.close();
-
-// ===== Phase A → B : t'offrir la 1ère plaquette (liquide) → indépendant =====
-const pageC = await seedPage({ dirty: 250, shelter: { phase: "A", introSeen: true, pdv: { ...pdvSeed } } });
-await pageC.click('.map-pin[data-pin="pdv"]'); await sleep(200);
-await pageC.click('[data-pin-go="pdv"]'); await sleep(300);
-await pageC.click('#buyPlaq2'); await sleep(300); // CTA plaquette dans la bannière charbonneur (scène)
-const cBuy = await pageC.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save"));
-  return { phase: s.shelter.phase, pains: (s.pains || []).length, dirty: s.dirty }; });
-const becameIndep = cBuy.phase === "B" && cBuy.pains > 0 && cBuy.dirty <= 50; // 250 − 200 = 50
-await pageC.screenshot({ path: path.join(OUT, "06-plaquette.png") });
-await pageC.close();
+// ===== Défaut : core loop directe (pas de Phase A, pas d'intro) =====
+// Boot SANS loupe_save (seul loupe_ver) → defaultState : 1 plaquette, phase B, intro déjà vue.
+const pageD = await browser.newPage();
+await pageD.setViewport({ width: 412, height: 892, deviceScaleFactor: 2 });
+pageD.on("console", (m) => { if (m.type() !== "error") return; const t = m.text(), u = (m.location && m.location().url) || "";
+  if (/favicon/.test(t) || /favicon/.test(u) || /Failed to load resource/.test(t)) return; errors.push("console: " + t); });
+pageD.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+// localStorage est partagé par origine : on efface tout save laissé par les pages précédentes → vrai defaultState
+await pageD.evaluateOnNewDocument((ver) => { localStorage.removeItem("loupe_save"); localStorage.setItem("loupe_ver", ver); }, SAVE_VER);
+await pageD.goto(`http://127.0.0.1:${PORT}/la-loupe/index.html`, { waitUntil: "load" });
+await sleep(400);
+// au boot : aucune carte d'intro, aucun bouton « charbonner pour Karim »
+const introGone = await pageD.evaluate(() => !document.querySelector(".intro-card") && !document.getElementById("takeFront"));
+// tap le pin corner déclenche un save() → on peut lire l'état de départ
+await pageD.click('.map-pin[data-pin="pdv"]'); await sleep(200);
+const boot = await pageD.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save"));
+  return { pains: (s.pains || []).length, painG: (s.pains || []).reduce((a, p) => a + (p.g || 0), 0),
+    phase: s.shelter.phase, introSeen: s.shelter.introSeen }; });
+const startOK = introGone && boot.pains === 1 && boot.painG === 100 && boot.phase === "B" && boot.introSeen === true;
+// le corner s'ouvre direct en scène négo (pas de bannière charbonneur / CTA plaquette / chip salaire)
+await pageD.click('[data-pin-go="pdv"]'); await sleep(300);
+const cornerD = await pageD.evaluate(() => ({ scene: !!document.querySelector(".cscene"),
+  buyPlaq: !!document.getElementById("buyPlaq") || !!document.getElementById("buyPlaq2"),
+  wageChip: /\/service/.test(document.querySelector(".ctop")?.textContent || "") }));
+const cornerOK = cornerD.scene && !cornerD.buyPlaq && !cornerD.wageChip;
+await pageD.screenshot({ path: path.join(OUT, "05-default-start.png") });
+await pageD.close();
 
 // ===== Phase B — modes 2b : louche (flair), hésitant (perso), ambigu (bien lu) =====
 const modeQueue = [
@@ -177,11 +178,11 @@ console.log("B · scène     :", JSON.stringify(view), sceneShown ? "scène+file
 console.log("B · deal      :", JSON.stringify({ before, afterDeal }), negoSold ? "(accepte → vente négo ✓)" : "(⚠ pas de vente négo)");
 console.log("B · contre    :", JSON.stringify(afterCounter), counterSold ? "(contrer → JUSTE + combo ✓)" : "(⚠ contre-offre KO)");
 console.log("B · encaisse  :", JSON.stringify(afterEnc), "(bills>0 = tri OK)");
-console.log("A · charbonn. :", JSON.stringify({ aSell, aWage }), aStocked ? "(Karim fournit+on vend ✓)" : "(⚠ pas d'appro Karim)", wagePaid ? "· salaire versé ✓" : "· ⚠ pas de salaire");
-console.log("A→B plaquette :", JSON.stringify(cBuy), becameIndep ? "(bascule indépendant ✓)" : "(⚠ pas de bascule)");
+console.log("Départ direct :", JSON.stringify({ introGone, boot, cornerD }),
+  startOK ? "(1 plaquette · phase B · pas d'intro ✓)" : "(⚠ départ KO)", cornerOK ? "· corner négo direct ✓" : "· ⚠ corner");
 console.log("B · modes 2b  :", JSON.stringify({ mFlair, hBefore, hAfter, mAmbig }),
   loucheOK ? "louche/flair ✓" : "⚠ louche", hesitOK ? "· hésitant ✓" : "· ⚠ hésitant", ambigOK ? "· ambigu ✓" : "· ⚠ ambigu");
 console.log("erreurs       :", errors.length ? errors : "AUCUNE");
 const ok = !errors.length && sceneShown && cardShown && negoSold && counterSold && afterEnc.bills > 0
-  && aStocked && wagePaid && becameIndep && loucheOK && hesitOK && ambigOK;
+  && startOK && cornerOK && loucheOK && hesitOK && ambigOK;
 process.exit(ok ? 0 : 1);

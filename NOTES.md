@@ -9,6 +9,40 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-23 — Coupe de la Phase A + intro : go direct à la core loop
+
+Retour de test tranchant : en Phase A (charbonneur salarié), **on ne fait rien
+à la main** — les silhouettes se font servir toutes seules pendant qu'on regarde.
+Ça contredit frontalement **R3 (le tactile EST le plaisir)** : un onboarding en
+pilote auto, c'est l'inverse du jeu. Décision joueur : **couper la Phase A et
+l'intro, démarrer directement dans la core loop.**
+
+Changements :
+
+- **Départ en Phase B (indépendant), sans intro.** `shelterDefaults()` :
+  `phase:"B"`, `introSeen:true`. `defaultState()` amorce **1 plaquette 100 g**
+  dans la planque. Boucle dès J1 : **couper (Atelier) → écouler au corner (négo)
+  → encaisser → racheter un pain**. Un simple toast d'amorce (« Une plaquette
+  t'attend — coupe-la à l'Atelier, écoule au corner »), plus aucune carte/cinématique.
+- **Pas de dette** (cohérent avec la ligne « salaire » suivie jusqu'ici et R1) :
+  on garde la marge, on rachète quand on a le liquide. Le système de dette reste
+  dormant dans le code (`grantOpeningFront`/`repayDebt`) pour un usage futur.
+- **Suppressions** : carte d'intro Karim (`renderIntroCard`/`acceptFront`),
+  bascule `buyPremierePlaquette` (#buyPlaq/#buyPlaq2), branche Phase A de
+  `renderCorner` (bannière charbonneur, chip salaire, appro auto Karim dans
+  `pdvTick`, salaire en fin de service dans `advanceDay`), CSS `.intro-card`.
+  Constantes `PDV_KARIM_*` retirées ; `CHARB_WAGE` conservée (réservée : coût
+  d'embauche d'un charbonneur plus tard). `renderPDV` → toujours la scène rue.
+- **Débit auto conservé** mais réservé au *charbonneur embauché* (futur) : la
+  vanne de délégation R6 (déléguer la répétition sans plaisir), pas l'onboarding.
+- **SAVE_VERSION 25 → 26** (reset propre : nouveaux défauts phase/pain).
+- **Debug** : boutons Phase A/tuto remplacés par « Kit test (stock + liquide) ».
+- **Smoke** : les tests Phase A (salaire) et A→B (plaquette) remplacés par un test
+  « départ direct » (boot sans save → 1 plaquette, phase B, zéro intro, corner qui
+  s'ouvre direct en négo). Tout vert.
+
+---
+
 ## 2026-07-23 — Le Corner : scène rue en Phase A + retour ↩ réparé
 
 La mise en scène rue (Option B, plein écran) était **réservée à la Phase B**
