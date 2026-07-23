@@ -9,6 +9,44 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-23 — Le Corner : banc d'essai de la vente au DM (pré-intégration La Loupe)
+
+Constat de Sylvain : dans le jeu de deal, la vente est automatique → zéro juice.
+Analyse concurrentielle menée en session (jeux de deal / shopkeepers / jeux de
+service, rapports détaillés en conversation) puis prototype **séparé**
+(`le-corner/`) pour fine-tuner AVANT d'intégrer à La Loupe. Mécaniques testées,
+chacune volée à un jeu précis :
+
+- **Contre-offre** (Schedule I) : DM = qty + prix offert ; Accepter / Contre
+  (compose les sachets + steppers de prix, « prix fair » affiché) / Refuser.
+  Budget et tolérance €/g cachés par archétype × relation.
+- **« Je te dis »** (TCG Card Shop Sim « Let Me Think ») : différer sans
+  refuser — gel de patience 8 s puis fonte ×1.6.
+- **Réactions emoji à paliers + « 2 abus d'affilée → il part »** (Moonlighter) :
+  😍 marge laissée / 🤝 JUSTE / 😒 il paie mais relation− / 🤬 parti.
+- **Prix JUSTE** (Recettear pin/just combo) : fair ±10 % accepté du premier
+  coup → pourboire × combo ⚡ (reset si raté/expiré). Récompense la justesse,
+  pas le max — R4-compatible (bonus, jamais malus).
+- **Demandes ambiguës** (Good Pizza) : « de quoi tenir le week-end » → composer
+  les grammes, prix auto au fair ; bien lu = pourboire, mal lu = vendu quand
+  même (R1 : récompense réduite, pas de punition).
+- **Hésitant** (Moonlighter « Indecisive ») : convertit toujours si on s'en
+  occupe ; la réponse personnalisée (son grammage habituel) paie plus.
+- **Louche** (Papers, Please) : indices déterministes (voussoiement, gros
+  volume d'entrée, demande ton spot, surpaie ×1.3 sans discuter). Refuser =
+  bonus discrétion ; vendre = chaleur +20 (décrue −8/soirée).
+- **Clients persistants + graphe social** (Schedule I) : relation → budget ;
+  relation ≥ 40 → « te présente un pote » (Diego/Lina/Nassim verrouillés).
+
+Choix techniques : DOM pur (pas de Three.js — c'est une UI de messagerie),
+`corner_*` + `SAVE_VERSION`, zéro Math.random sur l'état (hash jour/index),
+temps réel non clampé (leçon La Loupe), tout le tuning dans un objet `CFG`
+commenté en tête de module. Captures : `tools/shots-corner.mjs` (home → DMs →
+contre-offre → réaction → rapport → soirée 2 avec louche).
+
+Bug attrapé en capture : les louches spawnaient à qty 0 → accepter payait 0
+(division NaN). Corrigé : qty par template + offre ×1.3 fair.
+
 ## 2026-07-23 — La Loupe : recentrage — présence au corner, loop minimal, dette 280/4j
 
 Après coup, Sylvain recadre : « ça me va que le joueur fasse tout lui-même durant
