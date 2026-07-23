@@ -38,12 +38,12 @@ page.on("console", (m) => {
 });
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 
-// seed : stock de sachets + PDV réservoir amorcé, intro passée
+// seed : Phase B (indépendant), stock de sachets, corner amorcé, intro passée
 await page.evaluateOnNewDocument(() => {
-  localStorage.setItem("loupe_ver", "21");
+  localStorage.setItem("loupe_ver", "22");
   localStorage.setItem("loupe_save", JSON.stringify({
     sachets: { "2": 60 }, sachetQ: 62,
-    shelter: { introSeen: true, frontActive: false, paidOff: true,
+    shelter: { phase: "B", introSeen: true, frontActive: false, paidOff: true,
       pdv: { res: 70, bac: 0, advQ: 0, prix: 10, chouffes: 0,
         tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0 } },
   }));
@@ -108,13 +108,58 @@ const afterDecep = await page.evaluate(() => ({
 await page.screenshot({ path: path.join(OUT, "04-deception.png") });
 
 const state = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv; } catch (e) { return null; } });
+await page.close(); // le localStorage est partagé par origine : fermer avant les pages Phase A/C (sinon leur save() se marchent dessus)
+
+// petit utilitaire : nouvelle page seedée + capture d'erreurs partagée
+const seedPage = async (save) => {
+  const pg = await browser.newPage();
+  await pg.setViewport({ width: 412, height: 892, deviceScaleFactor: 2 });
+  pg.on("console", (m) => { if (m.type() !== "error") return; const t = m.text(), u = (m.location && m.location().url) || "";
+    if (/favicon/.test(t) || /favicon/.test(u) || /Failed to load resource/.test(t)) return; errors.push("console: " + t); });
+  pg.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+  await pg.evaluateOnNewDocument((s) => { localStorage.setItem("loupe_ver", "22"); localStorage.setItem("loupe_save", s); }, JSON.stringify(save));
+  await pg.goto(`http://127.0.0.1:${PORT}/la-loupe/index.html`, { waitUntil: "load" });
+  await sleep(400);
+  return pg;
+};
+const pdvSeed = { res: 80, bac: 0, advQ: 0, prix: 10, chouffes: 0, tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0 };
+
+// ===== Phase A (charbonneur) : Karim approvisionne, on vend POUR LUI, fin de service = salaire =====
+const pageA = await seedPage({ dirty: 0, shelter: { phase: "A", introSeen: true, pdv: { ...pdvSeed } } });
+await pageA.click('.map-pin[data-pin="pdv"]'); await sleep(200);
+await pageA.click('[data-pin-go="pdv"]'); await sleep(1600); // Karim auto-stocke, on écoule → recette (à Karim)
+const aSell = await pageA.evaluate(() => { const p = JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv;
+  return { bac: p.bac, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), seq: p.seq || 0 }; });
+const aStocked = aSell.bac > 0 && (aSell.tampon > 0 || aSell.seq > 0); // Karim a fourni, on a vendu
+// fin de service via « Passer la nuit » (onglet SnapShit) → salaire versé en liquide
+await pageA.click('.tab[data-t="snap"]'); await sleep(300);
+const aDirtyBefore = await pageA.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).dirty || 0);
+await pageA.click('#night'); await sleep(300);
+const aWage = await pageA.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).dirty || 0);
+const wagePaid = aWage >= aDirtyBefore + 79; // CHARB_WAGE = 80 (liquide)
+await pageA.screenshot({ path: path.join(OUT, "05-charbonneur.png") });
+await pageA.close();
+
+// ===== Phase A → B : t'offrir la 1ère plaquette (liquide) → indépendant =====
+const pageC = await seedPage({ dirty: 250, shelter: { phase: "A", introSeen: true, pdv: { ...pdvSeed } } });
+await pageC.click('.map-pin[data-pin="pdv"]'); await sleep(200);
+await pageC.click('[data-pin-go="pdv"]'); await sleep(300);
+await pageC.click('#buyPlaq'); await sleep(300);
+const cBuy = await pageC.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save"));
+  return { phase: s.shelter.phase, pains: (s.pains || []).length, dirty: s.dirty }; });
+const becameIndep = cBuy.phase === "B" && cBuy.pains > 0 && cBuy.dirty <= 50; // 250 − 200 = 50
+await pageC.screenshot({ path: path.join(OUT, "06-plaquette.png") });
+await pageC.close();
+
 await browser.close();
 server.close();
 
-console.log("après vente   :", JSON.stringify(afterSell), soldOnScreen > 0 ? "(vend en présence ✓)" : "(⚠ rien vendu en présence)");
-console.log("présence      :", JSON.stringify({ bgStart, bgEnd }), closedAway ? "(corner fermé hors présence ✓)" : "(⚠ vend hors présence)");
-console.log("après encaisse:", JSON.stringify(afterEnc), "(bills>0 = tri OK)");
-console.log("après décep.  :", JSON.stringify(afterDecep));
-console.log("pdv sauvegardé:", JSON.stringify(state));
+console.log("B · vente     :", JSON.stringify(afterSell), soldOnScreen > 0 ? "(vend en présence ✓)" : "(⚠ rien vendu en présence)");
+console.log("B · présence  :", JSON.stringify({ bgStart, bgEnd }), closedAway ? "(corner fermé hors présence ✓)" : "(⚠ vend hors présence)");
+console.log("B · encaisse  :", JSON.stringify(afterEnc), "(bills>0 = tri OK)");
+console.log("B · déception :", JSON.stringify(afterDecep));
+console.log("A · charbonn. :", JSON.stringify({ aSell, aWage }), aStocked ? "(Karim fournit+on vend ✓)" : "(⚠ pas d'appro Karim)", wagePaid ? "· salaire versé ✓" : "· ⚠ pas de salaire");
+console.log("A→B plaquette :", JSON.stringify(cBuy), becameIndep ? "(bascule indépendant ✓)" : "(⚠ pas de bascule)");
 console.log("erreurs       :", errors.length ? errors : "AUCUNE");
-process.exit(errors.length || !(soldOnScreen > 0) || !closedAway ? 1 : 0);
+const ok = !errors.length && soldOnScreen > 0 && closedAway && aStocked && wagePaid && becameIndep;
+process.exit(ok ? 0 : 1);
