@@ -35,7 +35,10 @@ page.on("request", (req) => {
 });
 
 await page.goto(PAGE, { waitUntil: "load" });
-await sleep(600);
+await sleep(400);
+// save vierge pour des captures reproductibles
+await page.evaluate(() => { localStorage.clear(); location.reload(); });
+await sleep(700);
 const shot = (n) => page.screenshot({ path: path.join(OUT, n) });
 
 await shot("01-home.png");
@@ -67,7 +70,7 @@ await shot("05-rapport.png");
 await page.click("#nextDay");
 await sleep(400);
 await page.evaluate(() => window.__corner.warp(80));
-await sleep(900);
+await sleep(1800);   // laisse la file finir de marcher (transitions .6s)
 await shot("06-soiree2-louche.png");
 
 console.log("Captures ecrites dans:", OUT);

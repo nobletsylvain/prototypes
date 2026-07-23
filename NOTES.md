@@ -47,6 +47,30 @@ contre-offre → réaction → rapport → soirée 2 avec louche).
 Bug attrapé en capture : les louches spawnaient à qty 0 → accepter payait 0
 (division NaN). Corrigé : qty par template + offre ×1.3 fair.
 
+**v2 — retour de test tel (même jour)** : « la scène se passe sur un corner de
+quartier de barre d'immeuble, pas sur le téléphone » + « on doit voir les prix
+affichés (le menu) pour juger l'offre du client ». Deux réponses :
+
+- **Mise en scène rue** : nuit, deux barres avec fenêtres allumées
+  (déterministes par soirée), lampadaire + halo, tag CORNER. Les clients sont
+  des silhouettes qui arrivent dans la rue et font la **queue** ; l'actif
+  s'avance sous le lampadaire, sa demande s'affiche en carte en bas. **Taper un
+  client de la file = le servir en premier** (priorisation à la Overcooked).
+  « Je te dis » = il s'écarte physiquement (fond de file). Servi → part à
+  gauche ; fâché/expiré → repart à droite. La file s'impatiente un peu moins
+  vite que le client servi (`QUEUE_MELT` 0.8).
+- **Le menu affiché** : barre permanente sous le HUD — TES prix par format
+  (fair×f) + stock restant. L'offre du client porte son **écart vs menu**
+  (« −39 % menu », « prix menu », « +30 % ») en couleur. L'info demandée :
+  juger l'offre d'un coup d'œil, le skill se déplace du calcul mental vers la
+  décision.
+
+Bug réel attrapé au passage : les IDs de DM repartaient à 1 chaque soirée et
+`removeDM` nettoie la file en setTimeout (1,4 s) → les timeouts d'expiration
+de la soirée N tombaient au début de la soirée N+1 et **supprimaient les
+homonymes de la nouvelle file** (silhouette zombie affichée, absente de la
+file). Correctif : IDs `d<jour>_<i>` + garde `run === G` dans le timeout.
+
 ## 2026-07-23 — La Loupe : recentrage — présence au corner, loop minimal, dette 280/4j
 
 Après coup, Sylvain recadre : « ça me va que le joueur fasse tout lui-même durant
