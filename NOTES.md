@@ -71,6 +71,33 @@ de la soirée N tombaient au début de la soirée N+1 et **supprimaient les
 homonymes de la nouvelle file** (silhouette zombie affichée, absente de la
 file). Correctif : IDs `d<jour>_<i>` + garde `run === G` dans le timeout.
 
+**v3 — décisions de Sylvain (« ça marche vraiment bien »)** : la récompense du
+présentiel est actée comme centrale, et elle passe par la **négo à la hausse** ;
+l'entonnoir client est validé, avec l'idée de **convertir les radins fidélisés
+en charbonneurs** ; soirée trop courte, pas assez de monde. Implémenté :
+
+- **Palier « bien négocié » 😏** : vendre au-dessus du menu jusqu'à ×1.35
+  (`NEGO_MAX`) n'est plus un abus mais LA marge du présentiel — ni bonus ni
+  malus de relation, la récompense EST la marge (l'auto vendra au menu, la main
+  vend au-dessus). Tolérances relevées pour ouvrir l'espace de négo (réguliers
+  1.12→1.35, accros 1.25→1.5, hésitants 1.05→1.2 ; radins/grossistes inchangés
+  — leur identité est de payer sous le menu). L'abus (moue, streak « 2 → il
+  part ») ne subsiste qu'au-delà de ×1.35, donc surtout en pressant les accros.
+  Nouvelle ligne au rapport ; le choix marge (négo) vs pourboire×combo (JUSTE)
+  devient un vrai arbitrage.
+- **Radin fidélisé → charbonneur** (R6, le choix du joueur) : un lowball à
+  rel ≥ 45 (`CHARBON_REL`) propose de charbonner. Au home : « Laisser Yaz tenir
+  la soirée » → soirée **déléguée simulée** : il vend au prix que proposent les
+  clients (zéro négo), commission 25 %, zéro pourboire/relation, et il sert
+  les **louches sans sourciller** (chaleur). Le rapport comparé rend la marge
+  du présentiel mesurable. Testé headless : proposition → bouton → rapport,
+  net +283 vs brut 378, 1 louche servi, zéro erreur.
+- **Soirée 120 → 180 s**, DM 7-13 (au lieu de 5-9), 3 ambiguës max, stock
+  86 g (8×2 + 6×5 + 5×8). Trois personas de plus : Bilal (CLIENT, présent dès
+  le début), Kenza (RADIN, présentée par Yaz — le réseau des radins), Léa
+  (HESIT, présentée par Sofia). **Migration douce** de la save : les clients
+  manquants sont backfillés au load, pas de bump.
+
 ## 2026-07-23 — La Loupe : recentrage — présence au corner, loop minimal, dette 280/4j
 
 Après coup, Sylvain recadre : « ça me va que le joueur fasse tout lui-même durant
