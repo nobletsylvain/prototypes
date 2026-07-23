@@ -65,13 +65,14 @@ await page.click('[data-pin-go="pdv"]');
 await sleep(300);
 await page.screenshot({ path: path.join(OUT, "02-pdv.png") });
 
-// la carte du client (négo) et le menu doivent s'afficher
+// scène plein écran : décor + silhouettes en file + carte du client actif (slide-up)
 const view = await page.evaluate(() => ({
-  menu: [...document.querySelectorAll(".stat span")].some(e => e.textContent.includes("Menu du corner")),
-  card: !!document.querySelector('[data-neg="accept"]'),
-  offer: document.querySelector('#pNego .offer')?.textContent || "",
+  scene: !!document.querySelector(".cscene"),
+  persos: document.querySelectorAll(".cperso").length,
+  card: !!document.querySelector('#cActive [data-neg="accept"]'),
+  offer: document.querySelector('#cActive .offer')?.textContent || "",
 }));
-const menuShown = view.menu, cardShown = view.card;
+const sceneShown = view.scene && view.persos >= 2, cardShown = view.card;
 
 // accepter l'offre de Momo (48 = prix menu → deal) : bac ↑, tampon ↓, relation ↑, file vidée
 const before = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
@@ -92,7 +93,8 @@ const afterCounter = await page.evaluate(() => { const s = JSON.parse(localStora
 const counterSold = negoUI && afterCounter.bac > afterDeal.bac && afterCounter.combo > 1; // vente + combo JUSTE armé
 await page.screenshot({ path: path.join(OUT, "03b-nego-counter.png") });
 
-// encaisser le bac → doit créer des billets triables
+// encaisser le bac (dans le tiroir « Gérer ») → doit créer des billets triables
+await page.click("#cManage"); await sleep(250); // ouvre le tiroir des contrôles
 await page.click("#enc");
 await sleep(200);
 const afterEnc = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")); return { dirty: s.dirty, bills: (s.bills || []).length }; });
@@ -144,12 +146,12 @@ await pageC.close();
 await browser.close();
 server.close();
 
-console.log("B · négo carte:", JSON.stringify(view), menuShown ? "menu ✓" : "⚠ menu", cardShown ? "· carte ✓" : "· ⚠ carte");
+console.log("B · scène     :", JSON.stringify(view), sceneShown ? "scène+file ✓" : "⚠ scène", cardShown ? "· carte ✓" : "· ⚠ carte");
 console.log("B · deal      :", JSON.stringify({ before, afterDeal }), negoSold ? "(accepte → vente négo ✓)" : "(⚠ pas de vente négo)");
 console.log("B · contre    :", JSON.stringify(afterCounter), counterSold ? "(contrer → JUSTE + combo ✓)" : "(⚠ contre-offre KO)");
 console.log("B · encaisse  :", JSON.stringify(afterEnc), "(bills>0 = tri OK)");
 console.log("A · charbonn. :", JSON.stringify({ aSell, aWage }), aStocked ? "(Karim fournit+on vend ✓)" : "(⚠ pas d'appro Karim)", wagePaid ? "· salaire versé ✓" : "· ⚠ pas de salaire");
 console.log("A→B plaquette :", JSON.stringify(cBuy), becameIndep ? "(bascule indépendant ✓)" : "(⚠ pas de bascule)");
 console.log("erreurs       :", errors.length ? errors : "AUCUNE");
-const ok = !errors.length && menuShown && cardShown && negoSold && counterSold && afterEnc.bills > 0 && aStocked && wagePaid && becameIndep;
+const ok = !errors.length && sceneShown && cardShown && negoSold && counterSold && afterEnc.bills > 0 && aStocked && wagePaid && becameIndep;
 process.exit(ok ? 0 : 1);
