@@ -9,6 +9,33 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-23 — La Loupe : recentrage — présence au corner, loop minimal, dette 280/4j
+
+Après coup, Sylvain recadre : « ça me va que le joueur fasse tout lui-même durant
+les premières actions » — mais **le corner demande explicitement sa présence**.
+L'autonomie notée juste avant est en fait l'état d'**après** embauche, pas le
+défaut. On revient donc sur la direction :
+
+- **Présence requise au corner** : au début, le charbonneur c'est **toi** — tu ne
+  vends au corner que quand tu le **tiens** (écran corner). Le code d'autonomie
+  reste, mais **dormant derrière un hook** `S.upgrades.charbonneur` (posé plus
+  tard par l'embauche) ; sans lui, le corner est **fermé** quand tu n'y es pas.
+- **Le vrai arbitrage (à caler ensuite)** : ta présence est unique → **tenir le
+  corner** ⇄ **vendre/livrer sur SnapShit**. Deux niveaux discutés : *soft* (=
+  quel écran tu regardes) ou *fort* (= une livraison **coûte du temps** pendant
+  lequel le corner ferme). Non tranché — prochaine étape design.
+- **Loop minimal en cours** : barrettes **2 g** → **corner** → **rembourser
+  Karim**. Tranche verticale qu'on veut solide avant d'élargir.
+- **Dette Karim simplifiée** (demande directe) : **prix unique 280 propre**, plus
+  de rabais « cash tôt » (**200 supprimé**), **4 jours** (front J1 → échéance J4).
+  `SUPPLIER.cashPrice`/`creditPrice` → `SUPPLIER.price` ; `repayDebt`, `debtStrip`,
+  `openRepay`, la carte d'intro et le rappel de nuit nettoyés en conséquence.
+- **Smoke** `smoke-loupe-pdv.mjs` : bascule de « vend hors écran » à **« fermé
+  hors présence »** (bac **et** `seq` gelés quand on quitte le corner). Vert.
+
+L'entrée ci-dessous (autonomie « charbonneur implicite ») reste pour la trace :
+elle décrit désormais l'état **post-embauche**, pas le comportement par défaut.
+
 ## 2026-07-23 — La Loupe : le corner vend tout seul (charbonneur implicite)
 
 Remarque de Sylvain : « théoriquement on a déjà un charbonneur avec le premier

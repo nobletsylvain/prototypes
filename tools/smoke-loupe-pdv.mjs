@@ -42,7 +42,7 @@ page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 await page.evaluateOnNewDocument(() => {
   localStorage.setItem("loupe_ver", "21");
   localStorage.setItem("loupe_save", JSON.stringify({
-    sachets: { "2": 40, "5": 60 }, sachetQ: 62,
+    sachets: { "2": 60 }, sachetQ: 62,
     shelter: { introSeen: true, frontActive: false, paidOff: true,
       pdv: { res: 70, bac: 0, advQ: 0, prix: 10, chouffes: 0,
         tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0 } },
@@ -73,21 +73,20 @@ const afterSell = await page.evaluate(() => ({
 }));
 await page.screenshot({ path: path.join(OUT, "03-selling.png") });
 
-// --- vente autonome : on QUITTE l'écran corner, le charbonneur continue de vendre ---
+// --- présence requise : on QUITTE l'écran corner → le corner est FERMÉ, plus de vente ---
+const soldOnScreen = await page.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv.bac);
 await page.click("#back"); // retour carte Quartier (shelterSub="map")
-await sleep(200);
-const bgStart = await page.evaluate(() => ({
-  bac: JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv.bac,
-  badge: document.getElementById("pinBac")?.textContent,
-  badgeVisible: !document.getElementById("pinBac")?.classList.contains("off"),
-}));
-await sleep(2200); // temps qui passe SANS regarder l'écran corner
-const bgEnd = await page.evaluate(() => ({
-  bac: JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv.bac,
-  badge: document.getElementById("pinBac")?.textContent,
-}));
+await sleep(2200);         // laisse le save (toutes les 2 s) flusher l'état
+const bgStart = await page.evaluate(() => { const p = JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv;
+  return { bac: p.bac, seq: p.seq || 0,
+    badge: document.getElementById("pinBac")?.textContent,
+    badgeVisible: !document.getElementById("pinBac")?.classList.contains("off") }; });
+await sleep(2200);         // du temps passe SANS être sur le corner
+const bgEnd = await page.evaluate(() => { const p = JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv;
+  return { bac: p.bac, seq: p.seq || 0 }; });
 await page.screenshot({ path: path.join(OUT, "03b-map-badge.png") });
-const bgSold = bgEnd.bac > bgStart.bac; // le bac a grossi hors de l'écran corner
+// fermé hors présence : ni vente (bac stable) ni client servi (seq stable)
+const closedAway = bgEnd.bac <= bgStart.bac && bgEnd.seq === bgStart.seq;
 // revenir au corner pour encaisser / déception
 await page.click('.map-pin[data-pin="pdv"]');
 await sleep(150);
@@ -112,10 +111,10 @@ const state = await page.evaluate(() => { try { return JSON.parse(localStorage.g
 await browser.close();
 server.close();
 
-console.log("après vente   :", JSON.stringify(afterSell));
-console.log("vente autonome:", JSON.stringify({ bgStart, bgEnd, bgSold }), bgSold ? "(corner vend hors écran ✓)" : "(⚠ RIEN vendu hors écran)");
+console.log("après vente   :", JSON.stringify(afterSell), soldOnScreen > 0 ? "(vend en présence ✓)" : "(⚠ rien vendu en présence)");
+console.log("présence      :", JSON.stringify({ bgStart, bgEnd }), closedAway ? "(corner fermé hors présence ✓)" : "(⚠ vend hors présence)");
 console.log("après encaisse:", JSON.stringify(afterEnc), "(bills>0 = tri OK)");
 console.log("après décep.  :", JSON.stringify(afterDecep));
 console.log("pdv sauvegardé:", JSON.stringify(state));
 console.log("erreurs       :", errors.length ? errors : "AUCUNE");
-process.exit(errors.length || !bgSold ? 1 : 0);
+process.exit(errors.length || !(soldOnScreen > 0) || !closedAway ? 1 : 0);
