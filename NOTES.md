@@ -53,6 +53,118 @@ défaut — gardée dormante derrière `S.upgrades.charbonneur`).
 
 ---
 
+## 2026-07-23 — Le Corner : banc d'essai de la vente au DM (pré-intégration La Loupe)
+
+Constat de Sylvain : dans le jeu de deal, la vente est automatique → zéro juice.
+Analyse concurrentielle menée en session (jeux de deal / shopkeepers / jeux de
+service, rapports détaillés en conversation) puis prototype **séparé**
+(`le-corner/`) pour fine-tuner AVANT d'intégrer à La Loupe. Mécaniques testées,
+chacune volée à un jeu précis :
+
+- **Contre-offre** (Schedule I) : DM = qty + prix offert ; Accepter / Contre
+  (compose les sachets + steppers de prix, « prix fair » affiché) / Refuser.
+  Budget et tolérance €/g cachés par archétype × relation.
+- **« Je te dis »** (TCG Card Shop Sim « Let Me Think ») : différer sans
+  refuser — gel de patience 8 s puis fonte ×1.6.
+- **Réactions emoji à paliers + « 2 abus d'affilée → il part »** (Moonlighter) :
+  😍 marge laissée / 🤝 JUSTE / 😒 il paie mais relation− / 🤬 parti.
+- **Prix JUSTE** (Recettear pin/just combo) : fair ±10 % accepté du premier
+  coup → pourboire × combo ⚡ (reset si raté/expiré). Récompense la justesse,
+  pas le max — R4-compatible (bonus, jamais malus).
+- **Demandes ambiguës** (Good Pizza) : « de quoi tenir le week-end » → composer
+  les grammes, prix auto au fair ; bien lu = pourboire, mal lu = vendu quand
+  même (R1 : récompense réduite, pas de punition).
+- **Hésitant** (Moonlighter « Indecisive ») : convertit toujours si on s'en
+  occupe ; la réponse personnalisée (son grammage habituel) paie plus.
+- **Louche** (Papers, Please) : indices déterministes (voussoiement, gros
+  volume d'entrée, demande ton spot, surpaie ×1.3 sans discuter). Refuser =
+  bonus discrétion ; vendre = chaleur +20 (décrue −8/soirée).
+- **Clients persistants + graphe social** (Schedule I) : relation → budget ;
+  relation ≥ 40 → « te présente un pote » (Diego/Lina/Nassim verrouillés).
+
+Choix techniques : DOM pur (pas de Three.js — c'est une UI de messagerie),
+`corner_*` + `SAVE_VERSION`, zéro Math.random sur l'état (hash jour/index),
+temps réel non clampé (leçon La Loupe), tout le tuning dans un objet `CFG`
+commenté en tête de module. Captures : `tools/shots-corner.mjs` (home → DMs →
+contre-offre → réaction → rapport → soirée 2 avec louche).
+
+Bug attrapé en capture : les louches spawnaient à qty 0 → accepter payait 0
+(division NaN). Corrigé : qty par template + offre ×1.3 fair.
+
+**v2 — retour de test tel (même jour)** : « la scène se passe sur un corner de
+quartier de barre d'immeuble, pas sur le téléphone » + « on doit voir les prix
+affichés (le menu) pour juger l'offre du client ». Deux réponses :
+
+- **Mise en scène rue** : nuit, deux barres avec fenêtres allumées
+  (déterministes par soirée), lampadaire + halo, tag CORNER. Les clients sont
+  des silhouettes qui arrivent dans la rue et font la **queue** ; l'actif
+  s'avance sous le lampadaire, sa demande s'affiche en carte en bas. **Taper un
+  client de la file = le servir en premier** (priorisation à la Overcooked).
+  « Je te dis » = il s'écarte physiquement (fond de file). Servi → part à
+  gauche ; fâché/expiré → repart à droite. La file s'impatiente un peu moins
+  vite que le client servi (`QUEUE_MELT` 0.8).
+- **Le menu affiché** : barre permanente sous le HUD — TES prix par format
+  (fair×f) + stock restant. L'offre du client porte son **écart vs menu**
+  (« −39 % menu », « prix menu », « +30 % ») en couleur. L'info demandée :
+  juger l'offre d'un coup d'œil, le skill se déplace du calcul mental vers la
+  décision.
+
+Bug réel attrapé au passage : les IDs de DM repartaient à 1 chaque soirée et
+`removeDM` nettoie la file en setTimeout (1,4 s) → les timeouts d'expiration
+de la soirée N tombaient au début de la soirée N+1 et **supprimaient les
+homonymes de la nouvelle file** (silhouette zombie affichée, absente de la
+file). Correctif : IDs `d<jour>_<i>` + garde `run === G` dans le timeout.
+
+**v3 — décisions de Sylvain (« ça marche vraiment bien »)** : la récompense du
+présentiel est actée comme centrale, et elle passe par la **négo à la hausse** ;
+l'entonnoir client est validé, avec l'idée de **convertir les radins fidélisés
+en charbonneurs** ; soirée trop courte, pas assez de monde. Implémenté :
+
+- **Palier « bien négocié » 😏** : vendre au-dessus du menu jusqu'à ×1.35
+  (`NEGO_MAX`) n'est plus un abus mais LA marge du présentiel — ni bonus ni
+  malus de relation, la récompense EST la marge (l'auto vendra au menu, la main
+  vend au-dessus). Tolérances relevées pour ouvrir l'espace de négo (réguliers
+  1.12→1.35, accros 1.25→1.5, hésitants 1.05→1.2 ; radins/grossistes inchangés
+  — leur identité est de payer sous le menu). L'abus (moue, streak « 2 → il
+  part ») ne subsiste qu'au-delà de ×1.35, donc surtout en pressant les accros.
+  Nouvelle ligne au rapport ; le choix marge (négo) vs pourboire×combo (JUSTE)
+  devient un vrai arbitrage.
+- **Radin fidélisé → charbonneur** (R6, le choix du joueur) : un lowball à
+  rel ≥ 45 (`CHARBON_REL`) propose de charbonner. Au home : « Laisser Yaz tenir
+  la soirée » → soirée **déléguée simulée** : il vend au prix que proposent les
+  clients (zéro négo), commission 25 %, zéro pourboire/relation, et il sert
+  les **louches sans sourciller** (chaleur). Le rapport comparé rend la marge
+  du présentiel mesurable. Testé headless : proposition → bouton → rapport,
+  net +283 vs brut 378, 1 louche servi, zéro erreur.
+- **Soirée 120 → 180 s**, DM 7-13 (au lieu de 5-9), 3 ambiguës max, stock
+  86 g (8×2 + 6×5 + 5×8). Trois personas de plus : Bilal (CLIENT, présent dès
+  le début), Kenza (RADIN, présentée par Yaz — le réseau des radins), Léa
+  (HESIT, présentée par Sofia). **Migration douce** de la save : les clients
+  manquants sont backfillés au load, pas de bump.
+
+**v4 — grimace, tolérance, et préparation du branchement** (retours suivants) :
+
+- **Grimace à mi-négo (Recettear)** : pendant la contre-offre, la tête du
+  client réagit EN DIRECT au prix réglé — 😍 belle affaire / 😊 prix menu /
+  😏 il suit / 😬 il grimace (à 90 % de sa tolérance) / 😤 refus ou hors
+  budget. Déterministe (R4) : le skill devient lire le visage, pas deviner le
+  chiffre. Le **louche ne réagit pas** (😐 « Aucune réaction… bizarre ») — un
+  indice de plus, listé au rappel.
+- **Tolérances redescendues** (×1.35 jugé trop haut) : `NEGO_MAX` 1.35 → **1.2**,
+  réguliers 1.35 → 1.2, accros 1.5 → 1.35, hésitants 1.2 → 1.15. La zone d'abus
+  ne subsiste au-dessus de ×1.2 que chez accros/hésitants.
+- **Recrutement retiré du proto** (charbonneur v3 : proposition, bouton, soirée
+  déléguée) : ça sera porté par le système d'**embauche de La Loupe**
+  (`S.upgrades.charbonneur`, hook posé au recentrage). La v3 reste la spec.
+- **`le-corner/INTEGRATION.md`** : plan de branchement complet dans La Loupe —
+  horloge unique (la soirée = le jour), remplacement de la vente auto du PDV
+  par la file quand présent (hook « fermé hors présence »), menu sur l'éco
+  réelle, zones de négo, clients persistants + entonnoir corner → SnapShit,
+  spec charbonneur, liquide/heat/bilan fusionnés, ordre d'implémentation en
+  7 étapes et points de vigilance (collision avec le loop minimal en chantier).
+
+---
+
 ## 2026-07-23 — La Loupe : recentrage — présence au corner, loop minimal, dette 280/4j
 
 Après coup, Sylvain recadre : « ça me va que le joueur fasse tout lui-même durant
