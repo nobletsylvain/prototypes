@@ -9,6 +9,7 @@ Petits prototypes de **core loops** jouables/testables dans le navigateur (mobil
 /green-front/         ← core loop "Green Front"
 /guitar-shito/        ← core loop "GuitarShito"
 /neige/                  ← core loop "Neige"
+/plantation/          ← core loop "Plantation"
 /tools/                  ← captures d'écran headless (voir tools/README.md)
 ```
 
@@ -110,6 +111,32 @@ Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). « Gu
 - En ligne : **https://nobletsylvain.github.io/prototypes/guitar-shito/** (depuis le hub).
 - En local : ouvrir `guitar-shito/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
 
+## 🌱 Plantation (core loop)
+
+Mini-jeu mobile en **3D** (HTML + Three.js, un seul fichier `index.html`). L'étape **amont** des autres protos : la culture. Design issu d'une étude de marché (Schedule I, Weedcraft Inc, Weed Firm, Hempire + étalons tactiles Hay Day/Viridi/Prune) — voir `plantation/DESIGN.md`.
+
+**Boucle de jeu (5 stations, un geste chacune) :**
+1. **Semer** 🌱 — **maintenir le sac de terreau** pour remplir le pot, puis **glisser une graine** de la caisse jusqu'au pot (3 variétés à rendement croissant, la 1ʳᵉ offerte).
+2. **Arroser** 💧 — **maintenir l'arrosoir** : le débit s'emballe, **la terre fonce** (on lit la matière, pas une jauge). Trop tard = flaque, pousse ralentie. La plante penche quand elle a soif.
+3. **Tailler** ✂️ — des **feuilles gourmandes** poussent pendant la pousse : **swipe vif** (seuil de vélocité) pour les trancher sans toucher les têtes — chaque coupe **redirige la vigueur** (les buds gonflent, façon *Prune*). Piège à découvrir : tailler assoiffe la plante.
+4. **Couper** ✂️ — à maturité, **swipe vif sur le plant** : chaque coupe détache une **branche** qui part pendre au **séchoir**. Le pot se libère aussitôt : **on resème pendant que ça sèche**.
+5. **Récolter** 🌿 — au **séchoir** (2ᵉ scène, stepper en haut, **travelling caméra** dans la même cave) : les branches pendent au fil tête en bas et **brunissent en séchant**. **Frotter une branche sèche** : geste **lent** = têtes A au STOCK, geste **vif** = trim bradé aux schlags. Sec = **bonus de qualité** ; frotter **humide = malus** (l'impatience se paie). Puis vente par sachets **1 / 3.5 / 7 / 28 g** (petit = €/g plus élevé, × qualité × niveau).
+
+**Navigation mobile-native, tout au swipe** : **swipe ⬅️➡️** = Culture ↔ Séchoir (travelling caméra le long de la cave), **swipe ⬆️⬇️** = changer d'**étage de culture**. Les pastilles en haut et les points à droite n'indiquent que la position (tappables en secours). Un swipe qui touche quelque chose (feuille, plant, tête) est consommé par le jeu ; sinon, ample et directionnel = navigation.
+
+**Pots multiples (étagères)** : la boutique débloque jusqu'à **3 étages de culture** (rack vertical façon grow-op, une lampe par étage). Chaque étage est une station complète qui vit en continu, même hors écran — on tuile les pousses, le séchage et la vente. Le guidage pointe l'étage qui réclame (💧 soif, ✂️ feuille, plant mûr) avec la direction du swipe.
+
+**Le levier cupidité est physique** : on **verse un booster** dans le pot — 🌼 Engrais (+15 % qualité) ou 🧪 PGR (+70 % rendement, qualité plafonnée à 55 %). La qualité finale = soin d'eau + taille + booster, en un seul axe.
+
+**Progression :** Boutique — graines, doses, **goutte-à-goutte** (arrose seul, mais chichement), **tuteur** (moins de feuilles), **lampe LED** (+25 % vitesse), **sécateur auto** (taille seul, avec du retard : la main fait toujours mieux) — et **niveaux (XP)**, +3 % de revenus par niveau. Pousse courte (~2 min 30) : timer diégétique, jamais d'énergie sur les gestes. Persistance `localStorage` préfixée `plant_`.
+
+**Debug (tests)** : bouton **🐛** en bas à gauche — vitesse du temps diégétique ×1/×5/×20 (pousse, soif, séchage ; jamais les gestes), +1 000 €, +5 graines/doses, finir la pousse / le séchage, **RESET total** (avec confirmation). Le mode `?fast` dans l'URL reste dispo (pousse 12 s / séchage 8 s).
+
+### Jouer
+
+- En ligne : **https://nobletsylvain.github.io/prototypes/plantation/** (depuis le hub).
+- En local : ouvrir `plantation/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
+
 ## ❄️ Neige (core loop)
 
 Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) via CDN, un seul `index.html`). Reskin stylisé d'une chaîne **« bulk → retail »** : on transforme du gros en unités de détail sur un plan de travail vu en 3/4 plongeant (brique, dalle en verre, balance, bacs). Même base technique que Hash Slicer.
@@ -124,7 +151,11 @@ Un **halo lumineux** pulse sous la station active et un **bandeau de consigne** 
 
 **Économie & progression :** **prix calibrés sur le marché réel (UE, €)** — coke en gros ~**38–52 €/g** selon la quantité (briques 50/100/250/500 g, pureté ~80–92 %), détail rue ~**50–78 €/g** (× qualité), agents de coupe à **quelques centimes/g** : le vrai coût d'un cut bâclé, c'est la **réputation**, pas l'agent. La **coupe** a 4 paliers — **propreté** (→ qualité/€/g) vs **nocivité** (→ réput) : le cheap (Lévamisole) maximise le volume mais plombe la réput, le premium (Benzocaïne) « passe ». **Niveaux (XP)** +2,5 %/niv. Boutique : **coke** (briques dégressives) & les 4 **coupes**, **presse à briquettes** (25 g), **auto-ensacheuse** + cadence. **Formes** inspirées de *Drug Dealer Simulator* (briques pressées empilées, pots cylindriques, pochons zip plats alignés). Persistance `localStorage` préfixée **`neige_`** (isolée de `hash_` / `gf_` / `gs_`).
 
-**Feedback juteux** : sons synthétisés (WebAudio — flux de poudre, raclage du mix, zip, cha-ching), puffs de poudre, pochons qui s'alignent sur la table, secousse de caméra.
+**Feedback juteux** : sons synthétisés (WebAudio — flux de poudre, raclage du mix, zip, cha-ching), puffs de poudre, pochons qui s'empilent en tas, **« +€ » flottant** à chaque vente, **réputation qui flashe** vert/rouge, cash formaté qui défile, halo de guidage en anneau, secousse de caméra.
+
+**Rendu** : textures **procédurales** (établi bois, poudre cristalline à paillettes, cellophane froissée) + **reflets doux** (env map) sur le verre / métal / plastique — 100 % canvas, aucun fichier externe.
+
+**Animations produits** : tas de poudre en **dôme** qui grossit/fond en douceur, **source qui s'incline** vers la dalle quand on verse, **tas qui tourne** pendant le mélange, **pochons qui rebondissent** en sortant. HUD aéré (bandeaux dégradés haut/bas).
 
 > Prototype de jeu, habillage purement visuel/stylisé.
 
@@ -132,3 +163,25 @@ Un **halo lumineux** pulse sous la station active et un **bandeau de consigne** 
 
 - En ligne : **https://nobletsylvain.github.io/prototypes/neige/** (depuis le hub).
 - En local : ouvrir `neige/index.html` dans un navigateur. **Caméra** : cadrage auto + **pinch pour zoomer** (sauvegardé).
+
+## 🪨 Crack — La Cuisson (core loop)
+
+Mini-jeu mobile en **2D canvas, zéro dépendance** (un seul `index.html`, pas de CDN). La décision-clé — **volume gonflé (coupe) contre pureté** — est **incarnée dans le geste de cuisson**, sous la pression du **front à crédit**. Variation retenue (« Le Cuistot pressé ») et comparatif des 3 pistes : voir **`crack/DESIGN.md`** (avec pseudocode mobile-ready Unity/Godot).
+
+**Boucle de jeu — la coupe se verse PENDANT la cuisson :**
+1. **Charger** 🧱 — pose une fournée de coke prise **à crédit** : la **dette monte**. On ne touche du cash qu'une fois la dette remboursée (la vente rembourse la dette d'abord).
+2. **Cuisson + coupe (simultané)** — **maintiens 🔥** : la température monte, garde-la dans la **zone verte** (au-dessus de `BURN_TEMP`, **ça crame** → la *façon* chute). En même temps **maintiens 🥄** pour **verser la coupe** → le contenu **gonfle à vue d'œil** (liquide laiteux → roches beiges gonflées). La cuisson n'avance qu'en zone verte. Plus tu verses : **+ de grammes, − de pureté**.
+3. **Sécher** ✋ — un curseur balaie une jauge, **Sortir** au centre (fenêtre élargie par les paliers). Trop tôt/tard = caillou mal pris.
+4. **Briser** 👉 — **swipe** en travers de la dalle séchée : elle se fissure puis éclate en **cailloux** (gonflés par la part de coupe).
+5. **Vendre** 💸 — `revenu = volume × €/g`, `€/g = base × qualité × réput × niveau`.
+
+**Économie & progression :** **co-effets parallèles** (jamais une chaîne) — `volume` et `réputation` sortent de la **même** décision (combien verser). La **réput** (0–100) est tirée vers la qualité vendue et module le `€/g` des tours suivants : **verser trop rembourse la dette plus vite ce tour-ci, mais sabote les suivants**. **5 paliers d'outils** : 🥄 cuillère & briquet → 🔥 réchaud → 🧪 bec Bunsen + thermo → ♨️ plaque régulée (assist) → 🏭 **labo + cuisinier** (cuisson *et* séchage **automatiques**, idle). **4 paliers de coupe** (Pur / Bicarbonate / Lévamisole sale / Benzocaïne propre — le vrai coût d'un cut cheap, c'est la **réput**, pas l'agent). **Niveaux (XP)** +2,5 %/niv. **Aucun aléatoire ne pilote l'état** : chaque conséquence (réput en chute, fournée cramée) remonte à un geste. Persistance `localStorage` préfixée **`crack_`** (isolée de `hash_` / `gf_` / `gs_` / `neige_`), clé de version `crack_ver` + `SAVE_VERSION`.
+
+**Feedback juteux** : sons synthétisés (WebAudio — cha-ching, craquement du bris, grésillement de surchauffe), flamme qui réagit à la chauffe, bulles de cuisson, miettes au swipe, flashs de jugement (`SEC PILE`, `NIVEAU…`).
+
+> Prototype de jeu, habillage purement visuel/stylisé.
+
+### Jouer
+
+- En ligne : **https://nobletsylvain.github.io/prototypes/crack/** (depuis le hub).
+- En local : ouvrir `crack/index.html` dans un navigateur (aucune connexion requise). Diagnostic/captures : `cd tools && node shots-crack.mjs`.

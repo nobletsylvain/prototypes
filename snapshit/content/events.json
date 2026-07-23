@@ -1,0 +1,155 @@
+{
+  "_meta": {
+    "doc": "Snapshit — légendes d'AMBIANCE saisonnières / événementielles. Colorent le feed (stories acteurs, contexte vitrine) selon l'occasion. Pure présentation.",
+    "version": 1,
+    "updated": "2026-06-23",
+    "regles": [
+      "Le moteur décide SI/QUAND une occasion s'applique (rien n'est imposé ici). Le jeu est jour-par-jour : pas de calendrier câblé — data dormante jusqu'à usage.",
+      "captions ≤ ~55 car., 1 emoji max, opaques : ZÉRO chiffre (ni cote, ni date).",
+      "mood = indice d'ambiance ('affluence' / 'calme') que le moteur peut ignorer ou exploiter.",
+      "Gabarits {SELL_POINT}/{CUSTOMER} ok. Hors périmètre : rien sur autorités/violence (pure couleur de fond)."
+    ]
+  },
+
+  "saisons": {
+    "hiver": {
+      "mood": "calme",
+      "captions": [
+        "le froid ralentit le {SELL_POINT} 🥶",
+        "nuits longues, moins de passage",
+        "capuches et buée, on traîne pas",
+        "moins de monde, plus de fidèles"
+      ]
+    },
+    "printemps": {
+      "mood": "affluence",
+      "captions": [
+        "le quartier ressort 🌱",
+        "les soirées rallongent",
+        "ça rebouge sur le {SELL_POINT}",
+        "premier verre en terrasse 🍹"
+      ]
+    },
+    "ete": {
+      "mood": "affluence",
+      "captions": [
+        "canicule, tout le monde dehors ☀️",
+        "les nuits ne dorment plus",
+        "festival en ville, ça déborde 🎉",
+        "ça transpire sur le block"
+      ]
+    },
+    "automne": {
+      "mood": "calme",
+      "captions": [
+        "la pluie revient ☔",
+        "rentrée, retour des habitués",
+        "les jours raccourcissent 🍂",
+        "ambiance feutrée le soir"
+      ]
+    }
+  },
+
+  "occasions": {
+    "weekend": {
+      "label": "Week-end",
+      "mood": "affluence",
+      "captions": [
+        "le block bouge, c'est vendredi 🎉",
+        "week-end, ça défile",
+        "les {CUSTOMER} sont de sortie",
+        "nuit qui s'étire jusqu'au matin"
+      ]
+    },
+    "paie": {
+      "label": "Jour de paie",
+      "mood": "affluence",
+      "captions": [
+        "fin de mois, les poches pleines 💶",
+        "jour de paie, ça dépense",
+        "le {SELL_POINT} respire enfin",
+        "tout le monde solvable ce soir"
+      ]
+    },
+    "creux": {
+      "label": "Milieu de mois",
+      "mood": "calme",
+      "captions": [
+        "milieu de mois, poches vides",
+        "ça négocie plus que d'habitude",
+        "calme plat sur le {SELL_POINT}",
+        "les {CUSTOMER} comptent leurs pièces"
+      ]
+    },
+    "pluie": {
+      "label": "Pluie",
+      "mood": "calme",
+      "captions": [
+        "il pleut, peu de monde dehors ☔",
+        "RDV reportés, ça flotte",
+        "le quartier reste au sec",
+        "nuit lente sous l'averse"
+      ]
+    },
+    "canicule": {
+      "label": "Canicule",
+      "mood": "affluence",
+      "captions": [
+        "trop chaud pour dormir ☀️",
+        "les nuits débordent",
+        "terrasses pleines, block plein",
+        "ça réclame du frais"
+      ]
+    },
+    "froid": {
+      "label": "Grand froid",
+      "mood": "calme",
+      "captions": [
+        "froid mordant, peu de passage 🥶",
+        "on traîne pas dehors",
+        "les fidèles seulement",
+        "briquet et capuche"
+      ]
+    },
+    "fetes": {
+      "label": "Fêtes",
+      "mood": "affluence",
+      "captions": [
+        "fêtes de fin d'année, ça festoie 🎄",
+        "tout le monde veut son plaisir",
+        "le block en mode réveillon",
+        "générosité et excès 🥂"
+      ]
+    },
+    "nouvel_an": {
+      "label": "Nouvel An",
+      "mood": "affluence",
+      "captions": [
+        "compte à rebours, nuit folle 🎆",
+        "la plus grosse nuit de l'année",
+        "ça explose de partout",
+        "résolutions… demain"
+      ]
+    },
+    "nuit_blanche": {
+      "label": "Nuit blanche",
+      "mood": "affluence",
+      "captions": [
+        "nuit blanche, ça ne dort pas 🌃",
+        "after sur after",
+        "le block tient jusqu'au jour",
+        "les {CUSTOMER} ne lâchent rien"
+      ]
+    },
+    "calme": {
+      "label": "Nuit morte",
+      "mood": "calme",
+      "captions": [
+        "soirée morte, rien ne bouge",
+        "silence sur le {SELL_POINT}",
+        "une nuit pour souffler",
+        "personne, juste le néon 🌙"
+      ]
+    }
+  }
+}

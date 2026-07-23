@@ -47,6 +47,256 @@ contre-offre → réaction → rapport → soirée 2 avec louche).
 Bug attrapé en capture : les louches spawnaient à qty 0 → accepter payait 0
 (division NaN). Corrigé : qty par template + offre ×1.3 fair.
 
+## 2026-07-23 — La Loupe : recentrage — présence au corner, loop minimal, dette 280/4j
+
+Après coup, Sylvain recadre : « ça me va que le joueur fasse tout lui-même durant
+les premières actions » — mais **le corner demande explicitement sa présence**.
+L'autonomie notée juste avant est en fait l'état d'**après** embauche, pas le
+défaut. On revient donc sur la direction :
+
+- **Présence requise au corner** : au début, le charbonneur c'est **toi** — tu ne
+  vends au corner que quand tu le **tiens** (écran corner). Le code d'autonomie
+  reste, mais **dormant derrière un hook** `S.upgrades.charbonneur` (posé plus
+  tard par l'embauche) ; sans lui, le corner est **fermé** quand tu n'y es pas.
+- **Le vrai arbitrage (à caler ensuite)** : ta présence est unique → **tenir le
+  corner** ⇄ **vendre/livrer sur SnapShit**. Deux niveaux discutés : *soft* (=
+  quel écran tu regardes) ou *fort* (= une livraison **coûte du temps** pendant
+  lequel le corner ferme). Non tranché — prochaine étape design.
+- **Deux canaux qui se différencient** (idée, à confirmer) : le **corner** = détail
+  au comptoir, **petites barrettes (2 g ≈ 20 €)**, présence requise, gros volume /
+  petit ticket ; **SnapShit** = le canal des **grosses commandes** (min ~**50 € /
+  5 g+**), sur DM + livraison, branché **plus tard**. C'est ce qui justifie de
+  **parquer SnapShit** maintenant sans le jeter : on le rallumera pour le haut du
+  panier, pas pour la vente à la barrette.
+- **Loop minimal en cours** : barrettes **2 g** → **corner** → **rembourser
+  Karim**. Tranche verticale qu'on veut solide avant d'élargir.
+- **Dette Karim simplifiée** (demande directe) : **prix unique 280 propre**, plus
+  de rabais « cash tôt » (**200 supprimé**), **4 jours** (front J1 → échéance J4).
+  `SUPPLIER.cashPrice`/`creditPrice` → `SUPPLIER.price` ; `repayDebt`, `debtStrip`,
+  `openRepay`, la carte d'intro et le rappel de nuit nettoyés en conséquence.
+- **Smoke** `smoke-loupe-pdv.mjs` : bascule de « vend hors écran » à **« fermé
+  hors présence »** (bac **et** `seq` gelés quand on quitte le corner). Vert.
+
+L'entrée ci-dessous (autonomie « charbonneur implicite ») reste pour la trace :
+elle décrit désormais l'état **post-embauche**, pas le comportement par défaut.
+
+## 2026-07-23 — La Loupe : le corner vend tout seul (charbonneur implicite)
+
+Remarque de Sylvain : « théoriquement on a déjà un charbonneur avec le premier
+point de vente ». La fiction l'implique déjà — le corner ne devait donc pas se
+figer dès qu'on quitte son écran.
+
+- **Fin du présentiel** : `pdvTick` ne se coupe plus quand on n'est pas sur
+  l'écran corner (l'ancien `if(!(tab==="shelter"&&shelterSub==="pdv")) return;`).
+  Le charbonneur **tient le poste en fond** : la file, les ventes, le bac et la
+  Heat tournent tant que l'app est ouverte. Hors-ligne toujours plafonné (rAF se
+  met en pause onglet masqué ; `dt` plafonné à 0,05 s → pas de pic au réveil).
+  Aligné CADRE (délégation, « puits infini ») et R6/R7 : on délègue la
+  **répétition** (charbonner la file), pas la **décision** (prix, menu, ravito,
+  chouffes, encaisse).
+- **Le corner ne chauffe que s'il tourne** : arrivées clients **et** montée de
+  Heat conditionnées à `tampon > 0`. À sec, le corner est « fermé » — plus de
+  clients qui s'entassent, la Heat **redescend**. Corrige une punition muette
+  qui apparaissait avec l'autonomie (un corner vide se serait cuit tout seul
+  jusqu'à la descente, saisie d'un bac vide → interdit par R1).
+- **Recette visible depuis la carte** : petit badge `€…` sur le pin corner qui
+  suit le **bac de rue** en direct (`pdvBadge`), pour savoir qu'il y a à
+  encaisser sans ouvrir l'écran. Caché quand le bac est vide.
+- Smoke `tools/smoke-loupe-pdv.mjs` étendu : on quitte le corner, on vérifie que
+  le **bac grossit hors écran** (`bgSold`) et que le badge s'affiche. Vert.
+- Pas de bump `SAVE_VERSION` : schéma de save inchangé (état `pdv` identique),
+  simple changement de comportement — inutile de wiper les sauvegardes.
+
+---
+
+## 2026-07-22 — La Loupe : efficience coupe, achats plus gros, horloge unique
+
+Retours de test tel de Sylvain (session corner-PDV v2) :
+
+- **Découpe répétitive** → **efficience par paliers avant l'auto** (choix de
+  Sylvain : un massicot immédiat idle trop vite). Nouvel upgrade **Gabarit**
+  (`UPG.gabarit`, max 4) : `cutBatch()=1+niveau` barrettes **par geste** (3D
+  `onCut` boucle ; 2D « Couper ×N » / « ×5N »). Le geste reste, le débit monte
+  avec l'investissement ; l'automatisation complète viendra plus tard (R2/R9).
+- **Impossible d'acheter > 100 g** → gates de standing baissés : Pain 250 **sans
+  gate** (dispo d'entrée), Lot 500 gate 65 → 30 (visible dès reput 25).
+- **Temps incohérent** (corner temps réel vs SnapShit à la soirée) → **horloge
+  UNIQUE** : `advanceDay()` extrait du bouton ; la soirée se clôture **toute
+  seule** tous les `DAY_SEC_REAL=90 s` depuis `frame()` (nouvelle demande Snap,
+  paie chouffes, dette, hit planque). « Clôturer » devient **⏭ Passer la nuit
+  maintenant** (avancer plus vite). Jauge de progression de soirée sur la pill
+  « J{n} » du HUD.
+- **200+ clients/h** : gardé tel quel (Sylvain : pratique pour tester vite,
+  fine-tuning plus tard).
+- SAVE_VERSION 20 → 21. Vérifs : `node --check` ; smoke corner (vente/tri/
+  déception) zéro erreur ; check features (gabarit acheté, jour 3→4 via bouton).
+
+## 2026-07-22 — Corner PDV v2 : vente par client (file + ledger), barrettes, rush, fix tri
+
+Retours de test tel de Sylvain sur le corner-PDV → refonte :
+
+- **Débit trop lent → rush** : temps de jeu accéléré (`PDV_TIME_COMPRESS`) +
+  pics cycliques (`pdvRush()` sinus, badge « RUSH ») + demande boostée par le
+  **buzz** (`S.expo`, vitrine). Le corner vit (ex. 266 clients/h en rush).
+- **Vente par CLIENT (file d'attente virtuelle)** : `P.queue` de clients
+  nominatifs, chacun un panier de barrettes ; arrivées ∝ demande, service à
+  `PDV_SERVE_RATE`, patience `PDV_MAX_WAIT` (sinon départ = rupture douce). Sert
+  le **ledger** (`P.ledger`, dernières ventes affichées) — on en aura besoin
+  pour la suite.
+- **Vente par BARRETTE, plus au grammage** : tampon = sachets (unités)
+  `P.tampon{taille:n}` ; chaque client débite N barrettes (petites d'abord) ;
+  prix = grammes × €/g.
+- **Choisir la quantité livrée** : ravitaillement +10 / +25 / Max barrettes
+  (planque → tampon exposé).
+- **Menu = vitrine SnapShit** : la carte « Menu · vitrine » (qualité annoncée =
+  déception) + bouton **Poster la vitrine** (`snap.posterVitrine` → +buzz →
+  +demande). Relie le PDV au moteur Snap existant.
+- **Fix bug tri liquide** : `Encaisser` ajoutait à `S.dirty` sans créer les
+  **billets** (`S.bills`) que la trieuse consomme → trémie vide. Ajout de
+  `pushBills(v)` (comme le retour BeuherShit). Vérifié : après encaisse,
+  `dirty>0` ET `bills>0`.
+- État PDV étendu (`shelter.mjs` : tampon/queue/ledger/…), **SAVE_VERSION 19→20**
+  (reset propre). Smoke `tools/smoke-loupe-pdv.mjs` mis à jour (Max, file,
+  ledger, tri) : **zéro erreur console**.
+
+## 2026-07-22 — Le corner devient le PDV à 3 curseurs (intégré DANS La Loupe)
+
+Correction de cap : Sylvain attendait le proto **sur La Loupe**, pas dans un
+dossier autonome. Le `le-bloc/` standalone est **fondu dans La Loupe puis
+supprimé** (carte hub + `tools/smoke-bloc.mjs` retirés). Le **pin « corner »**
+de la carte Quartier Nord devient le **point de vente jouable à 3 curseurs**
+(Shelter P1) — bouton « Tenir le corner » depuis la fiche du pin.
+
+- **`renderPDV()`** dans `la-loupe/index.html` : Demande / Satisfaction
+  (déception annoncé vs livré) / Heat, en temps réel via `pdvTick(dt)` branché
+  sur la boucle `frame()` (on tient le corner **en présence** — délégation plus
+  tard). Réutilise les classes CSS existantes → rendu natif La Loupe.
+- **Stock réel** : vend le **tampon** (sachets stagés au corner, exposés,
+  débités de `S.sachets` au ravitaillement, en grammes) → **bac** (liquide de
+  rue). **Encaisser** verse le bac dans `S.dirty` (à trier au Liquide). La
+  **descente** (seuil de Heat) saisit tampon + bac ; la planque est sauve.
+- **Qualité livrée = `S.sachetQ`** ; annoncée = sélecteur (Merdique/Correct/
+  Bonne/Top). Prix €/g, chouffes (paie 60 €/soir à la clôture — sinon un part).
+- **État** dans `S.shelter.pdv` (défauts dans `shelter.mjs`, migration douce) ;
+  **SAVE_VERSION 18 → 19** (reset propre, convention).
+- Vérif : `node --check` (module + shelter.mjs) OK ; smoke Puppeteer
+  `tools/smoke-loupe-pdv.mjs` (sert en HTTP, seed sachets, carte → corner →
+  ravitailler → vente → encaisser → déception) : **zéro erreur console**,
+  déception vérifiée (annoncer Q78 en livrant Q62 → réservoir qui fuit).
+
+Le `le-bloc/` reste consultable dans l'historique (commits d3a6e65 / PR #167).
+Prochaines passes : rush horaire, charbonneur (délégation = vente sans présence),
+2e PDV, puis les autres produits du catalogue VARIETES.
+
+## 2026-07-22 — Le Bloc : 1er proto jouable (le-bloc/, PDV à 3 curseurs)
+
+Premier proto du cadre décidé : **hash seul, 1 PDV, boucle complète**
+(`le-bloc/index.html`, 2D DOM+canvas, portrait mobile, préfixe `bloc_`,
+SAVE_VERSION 1). Zéro Three.js, zéro hasard d'état. Valide le **cœur du CADRE** :
+
+- **3 curseurs** en temps réel : Demande (clients/h ← réservoir × attractivité
+  prix), Satisfaction (contentement = livré vs annoncé, + pénalité prix > juste
+  → cible du réservoir, convergence lente), Heat (∝ activité, amortie par les
+  chouffes, **seuil déterministe** → descente qui saisit le stock + le bac
+  exposés ; ce qui est en planque est sauf).
+- **Déception jouable** : sélecteur « qualité annoncée » vs qualité livrée du
+  stock ; annoncer plus haut que livré = vente OK mais réservoir qui fuit
+  (ligne d'état verte/rouge en direct). Vérifié en headless.
+- **Cash exposé/rangé** : les ventes tombent dans le **bac** (exposé, saisi à la
+  descente) ; **Encaisser** le rentre en planque. **1er automatisme** : embaucher
+  un **porteur** (400 €) qui auto-encaisse — la délégation du geste (R7).
+- **Appro Karim** : plaquettes 100 g, 4 tiers de hash (Q12→Q72), 1re à crédit
+  (dette 900 €, remboursable sans timer). **Charcler** : +30 % volume, −qualité
+  (levier R10, descend l'échelle de VARIETES).
+- **Paie** en fin de « jour » (100 s) : chouffes 60 €/j ; pas de cash → un
+  chouffe part (pas de game over, R1).
+
+Tous les nombres sont des **constantes nommées** en tête de fichier (à régler).
+Outillage : `tools/smoke-bloc.mjs` (Puppeteer — charge, joue appro/charcler/
+encaisse/chouffe, vérifie zéro erreur console + capture). Rééquilibrage initial
+après 1er run (revenus trop lents) : panier 3 g, corner 150 clients/h.
+
+Prochaines passes possibles : tampon/planque séparés (exposition réglable),
+courbe de demande (rush), 2e PDV, pub SnapShit, puis les autres produits.
+
+## 2026-07-22 — Le Bloc : CADRE recentré + VARIETES (catalogue 15 produits)
+
+Longue session de design avec Sylvain (à partir du corpus de recherche qu'il a
+réuni : org des réseaux FR, blanchiment, gestion du cash, RH, débit des PDV,
+prix). On a **recentré** la proposition SHELTER (trop touffue) dans un cadre
+jouable — `la-loupe/CADRE.md` — puis détaillé le système de variétés dans
+`la-loupe/VARIETES.md`. SHELTER.md reste comme réserve d'idées.
+
+**CADRE.md — le cœur.** Un PDV = **3 curseurs** : Demande (potentiel du lieu +
+pub, segmentée par produit, zéro substitution entre produits), Satisfaction
+(qualité du sourcing + prix → réservoir de clients fidélisés), Heat (**seuil
+déterministe**, pas de proba — R4 ; repoussé par les chouffes). Prix ~fixé par
+le marché → battre un rival coûte la marge (qualité↑ ou prix↓) OU la violence ;
+la sortie = **intégration verticale** (posséder la chaîne : sourcer/produire/
+distribuer) et **horizontale** (absorber les concurrents). Manuel → automatismes
+(embauche + outils). Argent en 3 outils : liquide (paie auto le soir) → hawala
+(dark web, services/prod étranger, **caisse noire = corruption qui baisse la
+Heat d'un secteur**) → blanchiment (**plafonné par le CA plausible des
+façades**). Violence feutrée. Poids = système à part. **Temps réel + hors-ligne
+plafonné, actif sans limite** (garde-fou anti-idle). Principe directeur nommé :
+**le puits infini** (jamais de mur en jeu actif ; le tactile est le puits).
+Échelle **quartier → ville → monde** (la carte partagée = 1 quartier). Arc :
+petit jobbeur → producteur-distributeur.
+
+**VARIETES.md — variété = QUALITÉ, pas goût.** 15 produits, chacun une échelle
+de tiers (hash, weed, coke, héro, crack, ecsta, MDMA, 3-MMC, kétamine, speed,
+méth, tucibi/2C-B, LSD, GHB, champis). 4 stats par variété (qualité, prix,
+coût, segment+sensibilité). **Mécanique de déception** (idée de Sylvain) :
+annoncé vs livré — sous-livrer n'empêche pas la vente mais **déçoit** (érode le
+réservoir ∝ écart × sensibilité), déterministe. Native sur les produits « à
+arnaque » (écaille coke, 3-MMC/3-CMC, tucibi, LSD/NBOMe). Quatre ascenseurs de
+qualité : production / sourcing d'import / cuisson / synthèse. Pipelines
+weed→hash, coke→crack. Ancré sur sources OFDT/presse/Psychoactif.
+
+**Décisions tranchées** (fondations + round 3, détaillées dans CADRE) : Heat
+déterministe, échec = perte bornée (pas de game over), temps réel plafonné,
+qualité = sourcing (coupe = format + charcler optionnel, R10 réconcilié), € assumé
+(supersede le « neutre » du SCOPE), demande par emplacement+pub, automatismes
+embauche+outils, corruption = anti-Heat, blanchiment plafonné par le CA façade.
+**1er proto décidé : hash seul, 1 PDV, boucle complète.**
+
+Deux artefacts visuels publiés (boucle éco ; catalogue des 15 échelles avec
+rendus procéduraux + démo de déception jouable). Prochaine étape : prototyper le
+1er proto.
+
+## 2026-07-22 — Shelter : proposition GDD « Le Bloc » (la-loupe/SHELTER.md)
+
+Demande de Sylvain (screenshot carte Quartier Nord) : améliorer la core loop
+(achat gros → coupe → conditionnement → advertising → vente) en y ajoutant la
+**gestion d'un bloc d'immeuble** à la française — four, appro, nourrice,
+chouf, fournisseurs, clientèle, raids police, rivalités. Proposition écrite
+dans `la-loupe/SHELTER.md`, ancrée dans le documenté (rôles/salaires réels,
+pilonnage/place nette, guerres de points, jobbeurs — sources en fin de doc) :
+
+- **Deux boucles imbriquées** : la boucle produit existante (tactile, à la
+  minute) alimente une boucle bloc (gestion, à la session) : tenir le point →
+  encaisser → payer → répartir → renforcer → encaisser la pression.
+- **Triangle logistique** planque → nourrice → tampon du four ; règle d'or
+  « tout ce qui est exposé peut être saisi, ce qui est rangé jamais » — la
+  taille du tampon devient LA décision continue.
+- **Police en deux jauges** (VISIBILITÉ qui redescend, DOSSIER qui ne se
+  rembourse pas) et 4 paliers annoncés : patrouille → pilonnage → place nette
+  → la Chute. Zéro dé : conforme R1/R4 (le chouf donne un préavis, le mini-jeu
+  d'évacuation ne peut que SAUVER une perte déjà écrite).
+- **Rivalité œil pour œil** déterministe : frictions déclenchées par la
+  croissance du joueur, réponses graduées toutes chiffrées avant décision ;
+  la violence rentable court terme mais DOSSIER à vie.
+- **Actes 0→4** : planque + 100 g à crédit (front Karim P0) → location du
+  spot 20 % CA → four + équipe → bloc/multi-PDV → devenir Karim (fournir à
+  crédit aux petits nouveaux — la boucle se referme).
+- **Méta « la Chute »** : roguelite doux, run de 15-25 h, réputation conservée.
+- **Monétisation** : recommandation premium + web/PWA (le F2P à timers
+  contredit R4/R7 ; stores hostiles au thème, cf. guideline Apple 1.4.3).
+
+Questions ouvertes : la Chute (fin de run) est-elle acceptable pour Sylvain ou
+faut-il une purge du DOSSIER plus généreuse ? Le corner P1 doit-il coexister
+avec la vente DM dès le début (cannibalisation à régler) ?
+
 ## 2026-07-20 — La Loupe : pains discrets, réserve sélectionnable, fin du « couper dans le vide »
 
 Retours de test tel (screenshot) sur l'écran de coupe : pas de restant visible

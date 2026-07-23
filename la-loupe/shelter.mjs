@@ -42,11 +42,9 @@ export const SUPPLIER = {
   /** Front d'ouverture : 100 g, à rembourser. */
   frontG: 100,
   frontQ: 55,
-  /** Prix cash si tu solde avant l'échéance. */
-  cashPrice: 200,
-  /** Prix crédit / si tu attends l'échéance. */
-  creditPrice: 280,
-  /** Jours pour rembourser (J1 = jour du front). */
+  /** Prix unique du front, en propre. Pas de rabais « cash tôt ». */
+  price: 280,
+  /** Jours pour rembourser Karim (J1 = jour du front). */
   dueDays: 4,
 };
 
@@ -79,6 +77,9 @@ export function shelterDefaults() {
     paidOff: false,
     selectedPin: null,
     mapTipSeen: false,
+    // PDV (corner) — point de vente à 3 curseurs, vente par client (file + ledger)
+    pdv: { res: 30, bac: 0, advQ: 0, prix: 10, chouffes: 0,
+      tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0 },
   };
 }
 
@@ -91,38 +92,32 @@ export function grantOpeningFront(S) {
   S.pains = [{ g: SUPPLIER.frontG, q: SUPPLIER.frontQ }];
   S.painSel = 0;
   S.shelter.frontActive = true;
-  S.shelter.debtDue = SUPPLIER.creditPrice;
+  S.shelter.debtDue = SUPPLIER.price;
   S.shelter.debtDueDay = (S.day || 1) + SUPPLIER.dueDays - 1;
   S.shelter.debtMode = "credit";
   S.shelter.introSeen = true;
   return {
     ok: true,
-    msg: `${SUPPLIER.name} · +${SUPPLIER.frontG} g · rembourse ${SUPPLIER.creditPrice} avant J${S.shelter.debtDueDay} (cash tôt = ${SUPPLIER.cashPrice}).`,
+    msg: `${SUPPLIER.name} · +${SUPPLIER.frontG} g · rembourse ${SUPPLIER.price} propre avant J${S.shelter.debtDueDay}.`,
   };
 }
 
 /** Solde la dette en propre uniquement (Karim refuse le liquide non trié).
-    early = avant échéance → tarif cash ; sinon tarif crédit. */
+    Prix unique (280) ; pas de rabais avant l'échéance. */
 export function repayDebt(S) {
   if (!S.shelter?.frontActive || S.shelter.debtDue <= 0) {
     return { ok: false, reason: "Rien à rembourser." };
   }
-  const early = (S.day || 1) < S.shelter.debtDueDay;
-  const price = early ? SUPPLIER.cashPrice : S.shelter.debtDue;
+  const price = S.shelter.debtDue;
   if (S.cash < price) {
-    return {
-      ok: false,
-      reason: early
-        ? `Il te faut ${price} propre (tarif cash). Trie tes liasses.`
-        : `Il te faut ${price} propre.`,
-    };
+    return { ok: false, reason: `Il te faut ${price} propre. Trie tes liasses.` };
   }
   S.cash -= price;
   S.shelter.frontActive = false;
   S.shelter.debtDue = 0;
   S.shelter.paidOff = true;
   S.shelter.debtMode = null;
-  return { ok: true, paid: price, early };
+  return { ok: true, paid: price };
 }
 
 /** Tick de fin de soirée : rappel dette + hit planque → chaleur douce. */
@@ -138,7 +133,7 @@ export function nightTick(S, planqueCap) {
   if (S.shelter?.frontActive) {
     const left = S.shelter.debtDueDay - (S.day || 1);
     if (left === 1) {
-      cons.push({ t: `${SUPPLIER.name} te rappelle`, c: `Échéance demain · ${S.shelter.debtDue} (cash tôt encore dispo aujourd'hui)` });
+      cons.push({ t: `${SUPPLIER.name} te rappelle`, c: `Échéance demain · ${S.shelter.debtDue} propre` });
     } else if (left <= 0) {
       // pénalité soft : +chaleur + standing −, dette gonfle un cran
       S.heat = clamp((S.heat || 0) + 8, 0, 100);
@@ -165,10 +160,8 @@ export function debtStrip(S) {
   return {
     name: SUPPLIER.name,
     due: S.shelter.debtDue,
-    cashEarly: SUPPLIER.cashPrice,
     day: S.shelter.debtDueDay,
     left,
-    canEarly: left > 0,
   };
 }
 
