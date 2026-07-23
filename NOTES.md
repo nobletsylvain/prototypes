@@ -9,6 +9,44 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-23 — Le Corner 2b (suite) : louche, grimace, ambigu, hésitant
+
+Les modes de client qui manquaient à la négo, portés du proto :
+
+- **Louche** (Papers Please) : profil cramé qui **surpaie ×1.3 sans discuter**
+  (un indice). Apparaît à partir de **J2** (déterministe, un seul à la fois,
+  `LOUCHE_CHANCE`). Carte spéciale : **Vendre → chaleur +20** (`HEAT_LOUCHE`,
+  pas de relation/combo) ; **Refuser → discrétion** (`FLAIR_BONUS` en liquide).
+- **Grimace à mi-négo** (Recettear) : pendant la contre-offre, la **tête du
+  client réagit en direct** au prix réglé (😍/😊/😏/😬/😤), déterministe
+  (`corner.negoFace`). Le **louche ne réagit pas** (😐) — un tell de plus. Le
+  skill = lire le visage.
+- **Ambigu** (Good Pizza) : un régulier a parfois une demande **sans quantité**
+  (« de quoi tenir le week-end »). Le joueur **compose** (steppers barrettes) ;
+  **bien lu** (grammes == attendu) → pourboire + combo ; sinon **vendu quand
+  même**, récompense réduite (R1, pas de punition).
+- **Hésitant** (Moonlighter) : « je sais pas ce qu'il me faut » → **son habituel**
+  (réponse perso, pourboire + relation) **ou** un petit ; toujours converti.
+
+Détails :
+
+- `corner.mjs` : `makeOffer` renvoie un **`mode`** (offer/hesit/ambig), +
+  `makeLouche`, `negoFace`, templates AMBIG/LOUCHE, réactions lu/mouais.
+  Logique pure testée en node (modes, faces, surpaie louche).
+- `index.html` : `cornerSpawn` gère louche + modes ; `renderCornerActive`
+  branche 6 cartes ; `cornerAct` route les nouvelles actions ;
+  `cornerResolveLouche/Hesit/Ambig` + `cornerFlair` + `cornerSell` (débit tampon
+  commun). Patience : gèle seulement pendant négo/dernier prix (les autres
+  attendent et peuvent partir).
+- `SAVE_VERSION` **24 → 25** (forme du client en file enrichie). Smoke étendu :
+  louche→flair (+25), hésitant→vente+relation, ambigu bien lu→vente+combo. Vert.
+
+**Reste** (fin de 2b / étape 3) : bilan de nuit fusionné (lignes ventes/JUSTE/
+négo/lu/combo/passés/louches), graphe social (déblocage de contacts à rel ≥ 40),
+puis SnapShit (grossistes → DM) + charbonneur embauché (spec §6).
+
+---
+
 ## 2026-07-23 — Le Corner dans La Loupe : la mise en scène rue (Option B)
 
 Retour de Sylvain : « pourquoi on a pas le background de corner du proto ? » —

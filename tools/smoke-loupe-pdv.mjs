@@ -143,6 +143,33 @@ const becameIndep = cBuy.phase === "B" && cBuy.pains > 0 && cBuy.dirty <= 50; //
 await pageC.screenshot({ path: path.join(OUT, "06-plaquette.png") });
 await pageC.close();
 
+// ===== Phase B — modes 2b : louche (flair), hésitant (perso), ambigu (bien lu) =====
+const modeQueue = [
+  { cid: null, nm: "Louche", av: "🕶️", kind: "louche", rel: 0, want: 6, g: 12, offer: 120, tx: "Peu importe le prix.", pat: 300, pat0: 300, mode: "louche", negoP: 120, dernier: null },
+  { cid: "sofia", nm: "Sofia", av: "💅", kind: "hesitant", rel: 10, want: 3, g: 5, usual: 5, offer: 0, tx: "Je sais pas trop…", pat: 300, pat0: 300, mode: "hesit", negoP: 0, dernier: null },
+  { cid: "momo", nm: "Momo", av: "🧢", kind: "regulier", rel: 10, want: 1, g: 0, expect: 4, composeB: 0, offer: 0, tx: "On est deux ce soir", pat: 300, pat0: 300, mode: "ambig", negoP: 0, dernier: null },
+];
+const pageM = await seedPage({ shelter: { phase: "B", introSeen: true, pdv: { ...pdvSeed, tampon: { "2": 20 }, tamponQ: 62, queue: modeQueue } } });
+await pageM.click('.map-pin[data-pin="pdv"]'); await sleep(200);
+await pageM.click('[data-pin-go="pdv"]'); await sleep(400);
+// louche : refuser → discrétion (dirty += FLAIR_BONUS)
+await pageM.click('[data-neg="loucheNo"]'); await sleep(250);
+const mFlair = await pageM.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).dirty || 0);
+// hésitant (Sofia) : son habituel → vente + relation
+const hBefore = await pageM.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")); return { bac: s.shelter.pdv.bac, rel: s.clients.sofia.rel }; });
+await pageM.click('[data-neg="hesitPerso"]'); await sleep(250);
+const hAfter = await pageM.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")); return { bac: s.shelter.pdv.bac, rel: s.clients.sofia.rel }; });
+// ambigu (Momo) : composer 2 barrettes (4 g = attendu) → bien lu → vente + combo
+await pageM.click('[data-comp="1"]'); await sleep(120);
+await pageM.click('[data-comp="1"]'); await sleep(120);
+await pageM.click('[data-neg="compSell"]'); await sleep(250);
+const mAmbig = await pageM.evaluate(() => { const p = JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv; return { bac: p.bac, combo: p.combo, q: p.queue.length }; });
+await pageM.screenshot({ path: path.join(OUT, "07-modes.png") });
+await pageM.close();
+const loucheOK = mFlair >= 25;                                            // discrétion versée
+const hesitOK = hAfter.bac > hBefore.bac && hAfter.rel > hBefore.rel;     // converti + relation
+const ambigOK = mAmbig.bac > hAfter.bac && mAmbig.combo > 1 && mAmbig.q === 0; // bien lu → vente + combo
+
 await browser.close();
 server.close();
 
@@ -152,6 +179,9 @@ console.log("B · contre    :", JSON.stringify(afterCounter), counterSold ? "(co
 console.log("B · encaisse  :", JSON.stringify(afterEnc), "(bills>0 = tri OK)");
 console.log("A · charbonn. :", JSON.stringify({ aSell, aWage }), aStocked ? "(Karim fournit+on vend ✓)" : "(⚠ pas d'appro Karim)", wagePaid ? "· salaire versé ✓" : "· ⚠ pas de salaire");
 console.log("A→B plaquette :", JSON.stringify(cBuy), becameIndep ? "(bascule indépendant ✓)" : "(⚠ pas de bascule)");
+console.log("B · modes 2b  :", JSON.stringify({ mFlair, hBefore, hAfter, mAmbig }),
+  loucheOK ? "louche/flair ✓" : "⚠ louche", hesitOK ? "· hésitant ✓" : "· ⚠ hésitant", ambigOK ? "· ambigu ✓" : "· ⚠ ambigu");
 console.log("erreurs       :", errors.length ? errors : "AUCUNE");
-const ok = !errors.length && sceneShown && cardShown && negoSold && counterSold && afterEnc.bills > 0 && aStocked && wagePaid && becameIndep;
+const ok = !errors.length && sceneShown && cardShown && negoSold && counterSold && afterEnc.bills > 0
+  && aStocked && wagePaid && becameIndep && loucheOK && hesitOK && ambigOK;
 process.exit(ok ? 0 : 1);
