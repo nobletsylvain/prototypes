@@ -1621,8 +1621,52 @@ function frame(now){
 requestAnimationFrame(frame);
 setInterval(()=>save(),2000);
 
+// ---------- Panneau debug (test rapide : argent, phase, stock, upgrades) ----------
+// Outil de dev : bouton flottant 🐞 → panneau d'actions. Rien de tout ça n'affecte
+// une partie « propre » tant qu'on n'y touche pas. À retirer avant une vraie release.
+function setupDebug(){
+  if(document.getElementById("dbgBtn")) return;
+  const btn=document.createElement("button");
+  btn.id="dbgBtn"; btn.textContent="🐞"; btn.title="Debug";
+  btn.style.cssText="position:fixed;right:10px;bottom:80px;z-index:99999;width:42px;height:42px;border-radius:50%;border:1px solid #555;background:#1b1b22;color:#fff;font-size:18px;box-shadow:0 2px 8px rgba(0,0,0,.55);cursor:pointer";
+  const panel=document.createElement("div");
+  panel.id="dbgPanel";
+  panel.style.cssText="position:fixed;right:10px;bottom:130px;z-index:99999;width:238px;max-height:72vh;overflow:auto;display:none;padding:10px;border-radius:12px;border:1px solid #555;background:rgba(18,18,24,.97);color:#fff;box-shadow:0 6px 24px rgba(0,0,0,.6)";
+  const A={};
+  const H=t=>`<div style="margin:9px 0 2px;font-weight:800;opacity:.55;font-size:10px;letter-spacing:.4px;text-transform:uppercase">${t}</div>`;
+  const add=(label,fn)=>{ A[label]=fn; return `<button data-dbg="${label}" style="display:block;width:100%;margin:3px 0;padding:7px 9px;border-radius:8px;border:1px solid #444;background:#2a2a33;color:#fff;font-size:12px;text-align:left;cursor:pointer">${label}</button>`; };
+  let h=`<div style="font-weight:800;margin-bottom:2px">Debug · test</div>`;
+  h+=H("Argent");
+  h+=add("+200 liquide", ()=>S.dirty+=200);
+  h+=add("+1000 liquide", ()=>S.dirty+=1000);
+  h+=add("+200 propre", ()=>S.cash+=200);
+  h+=H("Tuto / phase");
+  h+=add("⏩ Finir le tuto (→ indépendant)", ()=>{ S.shelter.introSeen=true; S.shelter.phase="B"; S.pains.push({g:100,q:52},{g:100,q:52}); S.painSel=0; S.sachets["2"]=(S.sachets["2"]||0)+60; S.sachetQ=S.sachetQ||62; S.dirty+=1000; S.reput=Math.max(S.reput,30); const P=S.shelter.pdv; P.bac=0; P.tampon={}; P.tamponQ=0; P.queue=[]; });
+  h+=add("Phase A (charbonneur)", ()=>{ S.shelter.introSeen=true; S.shelter.phase="A"; const P=S.shelter.pdv; P.tampon={}; P.tamponQ=0; P.bac=0; P.queue=[]; });
+  h+=add("Phase B (indépendant)", ()=>{ S.shelter.introSeen=true; S.shelter.phase="B"; });
+  h+=add("Embauche charbonneur (on/off)", ()=>{ S.upgrades.charbonneur=S.upgrades.charbonneur?0:1; });
+  h+=H("Stock");
+  h+=add("+Pain 100 g", ()=>{ S.pains.push({g:100,q:52}); });
+  h+=add("+Pain 250 g", ()=>{ S.pains.push({g:250,q:78}); });
+  h+=add("+60 sachets 2 g", ()=>{ S.sachets["2"]=(S.sachets["2"]||0)+60; S.sachetQ=S.sachetQ||62; });
+  h+=add("+30 barrettes 2 g", ()=>{ S.bars["2"]=(S.bars["2"]||0)+30; S.barQ=S.barQ||60; });
+  h+=H("Upgrades");
+  h+=add("Couteau +1 (coupe plus gros)", ()=>{ S.upgrades.couteau=Math.min(UPG.couteau.max,(S.upgrades.couteau||0)+1); });
+  h+=add("Tous les upgrades au max", ()=>{ for(const k in UPG) S.upgrades[k]=UPG[k].max; });
+  h+=add("Reput +20", ()=>{ S.reput=clamp((S.reput||0)+20,0,100); });
+  h+=H("Divers");
+  h+=add("Heat → 0", ()=>{ S.heat=0; });
+  h+=add("⏭ Passer la nuit (fin de service)", ()=>{ advanceDay(true); });
+  h+=add("🗑 Reset save", ()=>{ Object.keys(localStorage).filter(k=>k.startsWith(LS)).forEach(k=>localStorage.removeItem(k)); store.set("ver",SAVE_VERSION); S=defaultState(); });
+  panel.innerHTML=h;
+  document.body.appendChild(btn); document.body.appendChild(panel);
+  btn.onclick=()=>{ panel.style.display = panel.style.display==="none" ? "block" : "none"; };
+  panel.querySelectorAll("[data-dbg]").forEach(b=>b.onclick=()=>{ const fn=A[b.dataset.dbg]; if(fn) fn(); save(); render(); toast("debug: "+b.dataset.dbg); });
+}
+
 ensureDemand();
 render();
+setupDebug();
 toast(S.shelter?.introSeen
   ? "Quartier Nord · planque · corner."
   : "Karim t'écrit. Le spot est à toi.");
