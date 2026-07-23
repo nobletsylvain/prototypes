@@ -24,6 +24,12 @@ défaut. On revient donc sur la direction :
   corner** ⇄ **vendre/livrer sur SnapShit**. Deux niveaux discutés : *soft* (=
   quel écran tu regardes) ou *fort* (= une livraison **coûte du temps** pendant
   lequel le corner ferme). Non tranché — prochaine étape design.
+- **Deux canaux qui se différencient** (idée, à confirmer) : le **corner** = détail
+  au comptoir, **petites barrettes (2 g ≈ 20 €)**, présence requise, gros volume /
+  petit ticket ; **SnapShit** = le canal des **grosses commandes** (min ~**50 € /
+  5 g+**), sur DM + livraison, branché **plus tard**. C'est ce qui justifie de
+  **parquer SnapShit** maintenant sans le jeter : on le rallumera pour le haut du
+  panier, pas pour la vente à la barrette.
 - **Loop minimal en cours** : barrettes **2 g** → **corner** → **rembourser
   Karim**. Tranche verticale qu'on veut solide avant d'élargir.
 - **Dette Karim simplifiée** (demande directe) : **prix unique 280 propre**, plus
