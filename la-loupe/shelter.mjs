@@ -69,6 +69,9 @@ export function stockG(S) {
 
 export function shelterDefaults() {
   return {
+    // phase de progression : "A" = charbonneur salarié de Karim (on vend SES barrettes,
+    // il nous paie un tarif jour) ; "B" = indépendant (on achète le pain, on coupe, on garde la marge).
+    phase: "A",
     introSeen: false,
     frontActive: false,
     debtDue: 0,       // montant restant à payer

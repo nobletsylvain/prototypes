@@ -9,6 +9,50 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-23 — La Loupe : onboarding charbonneur → indépendant (Phase A/B)
+
+Gros recadrage de l'ouverture après test (retours de Sylvain). L'arc de départ
+devient **employé → patron**, et le corner **demande la présence** du joueur
+(l'autonomie « charbonneur » d'avant est l'état d'**après** embauche, pas le
+défaut — gardée dormante derrière `S.upgrades.charbonneur`).
+
+- **Phase A — charbonneur salarié** (`S.shelter.phase="A"`) : Karim **approvisionne
+  le corner** (réappro auto du tampon en 2 g tant qu'on le tient), on **vend pour
+  lui**, la recette est **à lui**. En **fin de service** (clôture de journée), la
+  recette part chez Karim et il paie un **tarif jour** `CHARB_WAGE=80` en
+  **liquide**. Pas de dette : c'est un **salaire**, pas un front. (Le front à
+  crédit `grantOpeningFront`/`repayDebt` reste dans `shelter.mjs`, **dormant**,
+  pour un futur achat de pain à crédit.)
+- **Bascule A→B** : quand on a assez de liquide de côté, bouton **« T'offrir ta
+  1ère plaquette (100 g) »** payée **en liquide** (`PAIN_100.price=200`) →
+  `phase="B"`, Karim reprend ses barrettes (tampon remis à zéro), on a un pain à
+  couper.
+- **Phase B — indépendant** : corner à soi (tampon/ravito/encaisse/prix/menu),
+  coupe manuelle, revente (marge à soi), **rachat de pain**.
+- **Symétrie** : le tarif jour qu'on **encaisse** en A = ce qu'on **paiera** pour
+  **embaucher** un charbonneur plus tard (hook `S.upgrades.charbonneur`).
+- **Couteau (gatekeep coupe)** : nouvel upgrade `couteau` (`UPG.couteau`, max 4).
+  `cutCap()` plafonne la taille de coupe par niveau — `CUT_CAPS=[2,5,8,12,20]` :
+  au début **2 g only**, les paliers 5 g/8 g se débloquent (colle au canal
+  SnapShit « grosses commandes 5 g+ »). Sélecteurs bornés + presets 🔒.
+- **Tout en liquide en début de partie** (validé avec Sylvain, blanchiment plus
+  tard) : `buyPain`, l'appro (overlay + 2D) et les **upgrades** (`buyUp`) passent
+  de `S.cash` (propre) → `S.dirty` (liquide). `START_CASH=0` (charbonneur fauché).
+  Le tri/propre reste pour le blanchiment tardif. ⚠ Extrapolation à surveiller.
+- **Phrase Karim** « Crédit = je dors pas » supprimée (vestige de l'ancienne
+  double tarif) ; l'intro devient le **pitch charbonnage**.
+- **Swipe atelier inversé corrigé** : convention carrousel — **swipe ◂ = avancer
+  au conditionnement**, **swipe ▸ = revenir couper** (2D + 3D `scene3d`, hook
+  `onSwipeRight`→`onSwipeToBag`).
+- `SAVE_VERSION` **21 → 22** (reset propre). Smoke `smoke-loupe-pdv` étendu :
+  Phase B (présence/fermé/encaisse/déception) + Phase A (appro Karim + salaire) +
+  bascule plaquette. Isolation localStorage par page (même origine). Vert.
+- **Périmètre** (coordination autre agent) : je n'ai **pas touché au geste de
+  vente** (`pdvServe`, la file) — l'autre agent gamifie ça. Le corner reste un
+  joint : `pdvServe` remplit `P.bac`, et la Phase décide à qui appartient ce bac.
+
+---
+
 ## 2026-07-23 — Le Corner : banc d'essai de la vente au DM (pré-intégration La Loupe)
 
 Constat de Sylvain : dans le jeu de deal, la vente est automatique → zéro juice.
@@ -118,6 +162,8 @@ en charbonneurs** ; soirée trop courte, pas assez de monde. Implémenté :
   réelle, zones de négo, clients persistants + entonnoir corner → SnapShit,
   spec charbonneur, liquide/heat/bilan fusionnés, ordre d'implémentation en
   7 étapes et points de vigilance (collision avec le loop minimal en chantier).
+
+---
 
 ## 2026-07-23 — La Loupe : recentrage — présence au corner, loop minimal, dette 280/4j
 

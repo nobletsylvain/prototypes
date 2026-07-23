@@ -282,10 +282,13 @@ import * as snap from "./snap.mjs?v=18";
 import * as beuher from "./beuher.mjs?v=18";
 import * as shelter from "./shelter.mjs?v=18";
 
-const SAVE_VERSION = "21";
+const SAVE_VERSION = "22";
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
 // La demande Snap reste calée sur 2/5/8 (snap.SC.DOSE_FORMATS) — couper autre chose = risque assumé.
 const CUT_MIN = 1, CUT_MAX = 20, CUT_DEFAULT = 2;
+// Couteau : au début « de fortune », on ne coupe que du 2 g. Les paliers supérieurs
+// (5 g, 8 g…) se débloquent avec l'upgrade Couteau — colle au canal « grosses commandes 5 g+ ».
+const CUT_CAPS = [2, 5, 8, 12, 20]; // plafond de coupe par niveau de couteau (0→2 g … 4→20 g)
 const SORT_POCKETS = [5, 20, 50, 100]; // trieuse 4+1 (+ reject / monnaie)
 const SORT_FEED = 0.28; // s entre chaque billet (machine, pas mini-jeu)
 const T3D_MS = 8000; // au-delà : réseau mobile qui bloque unpkg → bascule 2D
@@ -326,7 +329,7 @@ async function ensure3d() {
         getSachetCount: () => Object.values(S.sachets).reduce((a, n) => a + n, 0),
         toast,
         onCut: (g) => { const n=cutBatch(); for(let i=0;i<n;i++){ if(!applyCut(S.cutSize||CUT_DEFAULT, "lame 3D")) break; } save(); hud(); renderFmtBar(); },
-        onSwipeRight: () => { if (tab === "atelier") { atelierSub = "bag"; render(); } },
+        onSwipeToBag: () => { if (tab === "atelier") { atelierSub = "bag"; render(); } },
         onTakeBar: () => {}, // wrap 3D retiré — la taille est figée à la coupe
         onReturnBar: () => {},
         onPack: () => { /* wrap 3D retiré — conditionnement = renderDoseBag */ },
@@ -344,15 +347,22 @@ async function ensure3d() {
   return scene3dPromise;
 }
 const LS = "loupe_";
-const START_CASH = 220;
+const START_CASH = 0; // on démarre charbonneur fauché : le liquide vient des services (salaire)
 // Une savonnette = 250 g max (réalisme filière) — au-delà, on livre un LOT de pains.
 const PAIN_100 = { g:100, price:200, q:52, label:"Pain 100" };
 const PAIN_250 = { g:250, price:1700, q:78, label:"Pain 250" };
 const PAIN_500 = { g:500, price:3200, q:70, label:"Lot 500 (2×250)", reputGate:30, split:250 };
+// Onboarding « charbonneur » (Phase A). Tu vends les barrettes de Karim, la recette
+// est à lui, il te paie un tarif jour. Tu bankes en liquide jusqu'à t'offrir ta 1ère
+// plaquette (= PAIN_100, en liquide) → Phase B (indépendant : coupe, revente, rachat).
+const CHARB_WAGE = 80;         // tarif jour d'un charbonneur (liquide) — c'est aussi ce qu'on paiera pour EN embaucher un plus tard
+const PDV_KARIM_Q = 52;        // qualité des barrettes que Karim te confie (Phase A)
+const PDV_KARIM_BATCH = 30;    // barrettes 2 g que Karim garde au corner (réappro auto tant que tu tiens, Phase A)
 const PLANQUE_CAP_BASE = 250;
 const DIRTY_HOLD_SOFT = 180, DIRTY_HOLD_HARD = 450, BUNDLE_SIZE = 5, COUNTER_RATE = 40;
 const DAY_SEC_REAL = 90; // une soirée s'écoule en temps réel (horloge unique) puis se clôture
 const UPG = {
+  couteau: { cost:250, max:4, title:"Couteau", desc:"coupe des morceaux plus gros (5 g, 8 g…)" },
   gabarit: { cost:300, max:4, title:"Gabarit", desc:"+1 barrette / geste (coupe plus efficace)" },
   scooter: { cost:350, max:1, title:"Flotte+", desc:"+accès Go fast débloqué tôt" },
   planque: { cost:400, max:3, title:"Planque", desc:"+120 g" },
@@ -378,7 +388,7 @@ function defaultState(){
     sachets:{}, sachetQ:60, cutSize:CUT_DEFAULT,
     orders:[], runs:[], bills:[],
     bundles:{5:0,20:0,50:0,100:0}, _pile:{5:0,20:0,50:0,100:0},
-    upgrades:{gabarit:0, scooter:0, planque:0, counter:0},
+    upgrades:{couteau:0, gabarit:0, scooter:0, planque:0, counter:0},
     journal:[], orderSeq:1, soldDay:0,
     assign:{}, counted:0, atelierMode:"cut",
     shelter: shelter.shelterDefaults(),
@@ -446,6 +456,7 @@ function applyCut(take, why){
   return true;
 }
 function cutBatch(){ return 1 + (S.upgrades.gabarit||0); } // barrettes par geste (gabarit, R2/R9)
+function cutCap(){ return CUT_CAPS[Math.min(CUT_CAPS.length-1, S.upgrades.couteau||0)]; } // taille max de coupe (couteau)
 function fmtSachets(){ const ks=sizesOf(S.sachets); return ks.length?ks.map(f=>`${S.sachets[f]}×${f}g`).join(" · "):"—"; }
 function qualAvg(){ return Math.round(S.sachetQ || S.barQ || 60); }
 
@@ -508,23 +519,26 @@ function set3d(mode){
     + ligne d'état : restant du pain actif, stock de pains, barrettes déjà coupées. */
 function renderFmtBar(){
   if(!fmtBar.classList.contains("on")) return;
-  const cs=S.cutSize||CUT_DEFAULT;
+  const cap=cutCap();
+  const cs=clamp(S.cutSize||CUT_DEFAULT, CUT_MIN, cap);
+  if((S.cutSize||CUT_DEFAULT)!==cs){ S.cutSize=cs; save(); }
   const p=activePain();
   const others=S.pains.length-(p?1:0);
   fmtBar.innerHTML=`
     <button class="chip" data-d="-1">−</button>
     <span class="chip on" style="pointer-events:none">coupe ${cs} g</span>
-    <button class="chip" data-d="1">+</button>`
-    +[2,5,8].map(x=>`<button class="chip ${cs===x?"on":""}" data-set="${x}">${x}g</button>`).join("")
+    <button class="chip" data-d="1" ${cs>=cap?"disabled":""}>+</button>`
+    +[2,5,8].map(x=>{ const lock=x>cap; return `<button class="chip ${cs===x?"on":""}" data-set="${x}" ${lock?"disabled":""}>${x}g${lock?" 🔒":""}</button>`; }).join("")
+    +`<span class="chip cs">Couteau : max <b>${cap} g</b></span>`
     +`<span class="chip cs">${p?`Pain : <b>${Math.round(p.g)} g</b>`:"Pas de pain — appro"}${others>0?` · réserve ${others} pain${others>1?"s":""} (${Math.round(painsG()-(p?p.g:0))} g)`:""}</span>
     <span class="chip cs">Barrettes : ${fmtBars()}</span>`;
   fmtBar.querySelectorAll("[data-d]").forEach(b=>b.onclick=e=>{
     e.stopPropagation();
-    S.cutSize=clamp((S.cutSize||CUT_DEFAULT)+ +b.dataset.d, CUT_MIN, CUT_MAX);
+    S.cutSize=clamp((S.cutSize||CUT_DEFAULT)+ +b.dataset.d, CUT_MIN, cutCap());
     renderFmtBar(); save();
   });
   fmtBar.querySelectorAll("[data-set]").forEach(b=>b.onclick=e=>{
-    e.stopPropagation(); S.cutSize=+b.dataset.set; renderFmtBar(); save();
+    e.stopPropagation(); S.cutSize=clamp(+b.dataset.set, CUT_MIN, cutCap()); renderFmtBar(); save();
   });
 }
 
@@ -713,6 +727,8 @@ function pdvTick(dt){
   const held=tab==="shelter"&&shelterSub==="pdv";
   if(!held && !(S.upgrades&&S.upgrades.charbonneur)) return; // pas là & pas de charbonneur → corner fermé
   if(!P.queue) P.queue=[]; if(!P.ledger) P.ledger=[]; if(!P.tampon) P.tampon={};
+  // Phase A (charbonneur) : Karim garde le corner approvisionné tant que tu le tiens
+  if(S.shelter.phase==="A" && tampN(P.tampon)<=0){ P.tampon={2:PDV_KARIM_BATCH}; P.tamponQ=PDV_KARIM_Q; }
   const open=tampN(P.tampon)>0;   // charbonneur au poste seulement s'il a de quoi vendre
   const demande=pdvDemande();
   // arrivées de clients — seulement quand le corner a du stock (à sec = « fermé »)
@@ -773,23 +789,23 @@ function pdvRavito(nWant){
 function renderPDV(){
   tab="shelter"; shelterSub="pdv"; if(typeof set3d==="function") set3d("hidden"); hud(); renderDock();
   const P=S.shelter.pdv; if(!P.tampon) P.tampon={}; if(!P.queue) P.queue=[]; if(!P.ledger) P.ledger=[];
+  const A = S.shelter.phase==="A"; // charbonneur salarié (Phase A) vs indépendant (Phase B)
   const Qd=Math.round(tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55)), Qa=P.advQ||Qd;
   const hl=shelter.hitLabel(S.heat);
   const stockSach=sizesOf(S.sachets).reduce((a,f)=>a+(S.sachets[f]||0),0);
   const decep = (Qa-Qd)<=0
     ? `<div class="muted" style="color:var(--cash);font-size:11px">✓ Tu livres au moins ce que ton menu annonce — le réservoir se remplit.</div>`
     : `<div class="muted" style="color:var(--heat);font-size:11px">⚠ Menu Q${Qa} mais tu livres Q${Qd} : la vente se fait mais le client est déçu (le réservoir fuit).</div>`;
-  stage.innerHTML=`
-    <button class="btn ghost" id="back">↩ Quartier</button>
-    <h2>Le corner</h2>
-    <div class="sub">Les clients arrivent en file. Tu vends des barrettes depuis le tampon exposé ; ton menu (vitrine SnapShit) fixe l'attente. Ce que tu exposes peut être saisi ; la planque est sauve.</div>
+  const canPlaq = S.dirty >= PAIN_100.price;
+  const cardKarim = `
     <div class="card">
-      <div class="stat"><span>Demande</span><b id="pDem">${Math.round(pdvDemande())} clients/h${pdvRushHot()?" · RUSH":""}</b></div>
-      <div class="bar"><i id="pRes" style="width:${clamp(P.res,0,100)}%;background:linear-gradient(90deg,#6ec8ff,#5aa96a)"></i></div>
-      <div class="stat"><span>Réservoir clients · file</span><b><span id="pResT">${Math.round(P.res)}</span> · <span id="pQ">${P.queue.length}</span> en file</b></div>
-      <div class="stat"><span>Heat rue</span><b><span class="hit-chip ${hl.cls}" id="pHeat">${Math.round(S.heat)} · ${hl.txt}</span></b></div>
-      <div class="bar"><i id="pHeatB" style="width:${clamp(S.heat,0,100)}%;background:linear-gradient(90deg,#ffd06a,#ff6a6a)"></i></div>
-    </div>
+      <div class="stat"><span>Recette du service</span><b class="pill dirty" id="pBac">${money(P.bac)}</b></div>
+      <div class="muted" style="font-size:10px;margin:2px 0 6px">Elle est à <b>Karim</b> — les barrettes sont les siennes. En fin de service il te paie <b>${CHARB_WAGE}</b> (liquide).</div>
+      <div class="stat"><span>Ton liquide de côté</span><b>${money(S.dirty)} / ${PAIN_100.price}</b></div>
+      <div class="bar"><i style="width:${clamp(S.dirty/PAIN_100.price*100,0,100)}%;background:linear-gradient(90deg,#6ec8ff,#5aa96a)"></i></div>
+      <button class="btn ${canPlaq?"ok":"ghost"}" id="buyPlaq" ${canPlaq?"":"disabled"} style="margin-top:6px">🧱 T'offrir ta 1ère plaquette (100 g) — ${PAIN_100.price} liquide</button>
+    </div>`;
+  const cardStock = `
     <div class="card">
       <div class="stat"><span>Tampon (exposé)</span><b id="pTamp">${tampN(P.tampon)} barrettes · ${Math.round(tampG(P.tampon))} g · Q${Qd}</b></div>
       <div class="stat"><span>Bac de rue (exposé)</span><b class="pill dirty" id="pBac">${money(P.bac)}</b></div>
@@ -800,18 +816,36 @@ function renderPDV(){
         <button class="btn ok" style="margin:0" data-rav="0">Max</button>
       </div>
       <button class="btn ghost" style="margin-top:6px" id="enc">Encaisser le bac ▸ liquide</button>
-    </div>
+    </div>`;
+  const cardPrix = `
     <div class="card">
       <div class="stat"><span>Prix de vente</span><b id="pPrix">${P.prix} €/g</b></div>
       <input type="range" id="pPrixR" min="4" max="24" step="0.5" value="${P.prix}" style="width:100%;accent-color:var(--accent)">
       <div class="muted" id="pPrixH" style="font-size:10px">juste pour Q${Qa} ≈ ${pdvFair(Qa).toFixed(1)} €/g</div>
-    </div>
+    </div>`;
+  const cardMenu = `
     <div class="card">
       <div class="stat"><span>Menu · vitrine SnapShit</span><b id="pAdv">Q${Qa}</b></div>
       <div class="grid2" style="margin-top:4px">${PDV_ADV.map(a=>`<button class="btn ghost" data-adv="${a.q}" style="margin:0;padding:8px 4px;font-size:11px${P.advQ===a.q?';border-color:var(--accent);color:#fff':''}">${a.l}<br><small style="opacity:.6">Q${a.q}</small></button>`).join("")}</div>
       <button class="btn snap" style="margin-top:6px" id="vitr">📣 Poster la vitrine ▸ +buzz (buzz ${Math.round(S.expo)})</button>
       ${decep}
+    </div>`;
+  stage.innerHTML=`
+    <button class="btn ghost" id="back">↩ Quartier</button>
+    <h2>Le corner${A?` <span style="opacity:.5;font-size:13px">· charbonneur</span>`:""}</h2>
+    <div class="sub">${A
+      ? `Tu tiens le corner pour <b>Karim</b> : il fournit les barrettes, tu écoules. La recette est à lui ; il te paie ${CHARB_WAGE}/service. Mets de côté pour ta 1ère plaquette.`
+      : `Les clients arrivent en file. Tu vends TES barrettes depuis le tampon ; ton menu fixe l'attente. Ce que tu exposes peut être saisi ; la planque est sauve.`}</div>
+    <div class="card">
+      <div class="stat"><span>Demande</span><b id="pDem">${Math.round(pdvDemande())} clients/h${pdvRushHot()?" · RUSH":""}</b></div>
+      <div class="bar"><i id="pRes" style="width:${clamp(P.res,0,100)}%;background:linear-gradient(90deg,#6ec8ff,#5aa96a)"></i></div>
+      <div class="stat"><span>Réservoir clients · file</span><b><span id="pResT">${Math.round(P.res)}</span> · <span id="pQ">${P.queue.length}</span> en file</b></div>
+      <div class="stat"><span>Heat rue</span><b><span class="hit-chip ${hl.cls}" id="pHeat">${Math.round(S.heat)} · ${hl.txt}</span></b></div>
+      <div class="bar"><i id="pHeatB" style="width:${clamp(S.heat,0,100)}%;background:linear-gradient(90deg,#ffd06a,#ff6a6a)"></i></div>
     </div>
+    ${A ? cardKarim : cardStock}
+    ${A ? "" : cardPrix}
+    ${A ? "" : cardMenu}
     <div class="card">
       <h3 style="margin:0 0 6px">Ledger · dernières ventes</h3>
       <div id="pLed">${P.ledger.length?P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr. (${e.g} g)</span><b class="pill dirty">+${money(e.eur)}</b></div>`).join(""):`<div class="muted" style="font-size:11px">Aucune vente encore.</div>`}</div>
@@ -821,35 +855,50 @@ function renderPDV(){
       <div class="grid2"><button class="btn ghost" style="margin:0" id="chM">− chouffe</button><button class="btn ok" style="margin:0" id="chP">+ chouffe</button></div>
     </div>`;
   document.getElementById("back").onclick=()=>{ shelterSub="map"; render(); };
-  stage.querySelectorAll("[data-rav]").forEach(b=>b.onclick=()=>pdvRavito(+b.dataset.rav));
-  document.getElementById("enc").onclick=()=>{ if(P.bac<=0){toast("Bac vide.");return;} const v=Math.round(P.bac); S.dirty+=v; pushBills(v); toast("Encaissé "+money(v)+" en liquide (à trier au Liquide)."); P.bac=0; hud(); save(); renderPDV(); };
-  document.getElementById("vitr").onclick=()=>{ snap.posterVitrine(S,"vitrine"); cause("Vitrine corner","+buzz"); toast("Vitrine en ligne — le buzz monte, la file grossit."); save(); renderPDV(); };
-  const pr=document.getElementById("pPrixR");
-  pr.oninput=e=>{ P.prix=parseFloat(e.target.value); document.getElementById("pPrix").textContent=P.prix+" €/g"; };
-  pr.onchange=()=>{ save(); renderPDV(); };
-  stage.querySelectorAll("[data-adv]").forEach(b=>b.onclick=()=>{ P.advQ=+b.dataset.adv; save(); renderPDV(); });
+  if(A){
+    const bp=document.getElementById("buyPlaq"); if(bp) bp.onclick=()=>buyPremierePlaquette();
+  } else {
+    stage.querySelectorAll("[data-rav]").forEach(b=>b.onclick=()=>pdvRavito(+b.dataset.rav));
+    document.getElementById("enc").onclick=()=>{ if(P.bac<=0){toast("Bac vide.");return;} const v=Math.round(P.bac); S.dirty+=v; pushBills(v); toast("Encaissé "+money(v)+" en liquide (à trier au Liquide)."); P.bac=0; hud(); save(); renderPDV(); };
+    document.getElementById("vitr").onclick=()=>{ snap.posterVitrine(S,"vitrine"); cause("Vitrine corner","+buzz"); toast("Vitrine en ligne — le buzz monte, la file grossit."); save(); renderPDV(); };
+    const pr=document.getElementById("pPrixR");
+    pr.oninput=e=>{ P.prix=parseFloat(e.target.value); document.getElementById("pPrix").textContent=P.prix+" €/g"; };
+    pr.onchange=()=>{ save(); renderPDV(); };
+    stage.querySelectorAll("[data-adv]").forEach(b=>b.onclick=()=>{ P.advQ=+b.dataset.adv; save(); renderPDV(); });
+  }
   document.getElementById("chP").onclick=()=>{ P.chouffes++; save(); renderPDV(); };
   document.getElementById("chM").onclick=()=>{ P.chouffes=Math.max(0,P.chouffes-1); save(); renderPDV(); };
+}
+// Phase A → B : t'offrir ta 1ère plaquette (100 g) en LIQUIDE. Le corner devient le tien.
+function buyPremierePlaquette(){
+  if(S.shelter.phase!=="A") return;
+  if(S.dirty < PAIN_100.price){ toast("Pas assez de liquide de côté."); return; }
+  S.dirty -= PAIN_100.price;
+  S.pains.push({ g:PAIN_100.g, q:PAIN_100.q }); S.painSel=0;
+  S.shelter.phase="B";
+  const P=S.shelter.pdv; P.tampon={}; P.tamponQ=0; P.bac=0; P.queue=[]; if(!(P.prix>0)) P.prix=10; // Karim reprend ses barrettes
+  cause("1ère plaquette","−"+money(PAIN_100.price)+" liquide · 100 g à couper");
+  toast("Ta plaquette ! Coupe-la (2 g), conditionne, ravitaille le corner. La marge est à toi.");
+  save(); renderPDV();
 }
 
 function renderIntroCard(){
   return `<div class="intro-card">
     <div class="from">Snapshit · ${shelter.SUPPLIER.handle}</div>
-    <div class="bubble">Le spot vient de se libérer. T'as toujours été bon au chouff — <b>il est à toi</b>.<br><br>
-    Voilà <b>${shelter.SUPPLIER.frontG} g</b>. Tu me rembourses <b>${shelter.SUPPLIER.price}</b> propre avant J${(S.day||1)+shelter.SUPPLIER.dueDays-1}. Crédit = je dors pas.</div>
-    <button class="btn ok" id="takeFront">Prendre le spot · +${shelter.SUPPLIER.frontG} g</button>
+    <div class="bubble">Le corner s'est libéré. T'as toujours été réglo au chouff — je te mets au <b>charbonnage</b>.<br><br>
+    Je fournis les <b>barrettes</b>, toi tu <b>tiens le corner</b> et t'écoules. La recette est à moi ; toi je te paie <b>${CHARB_WAGE}/service</b>, cash.<br><br>
+    Mets de côté. Quand t'es prêt, tu t'achètes ta <b>1ère plaquette</b> (100 g) — là tu bosses pour <b>toi</b>.</div>
+    <button class="btn ok" id="takeFront">Prendre le corner · charbonner pour Karim</button>
   </div>`;
 }
 
+// Ouverture : on démarre charbonneur (Phase A). Pas de dette — c'est un salaire, pas un front.
 function acceptFront(){
-  const r=shelter.grantOpeningFront(S);
-  if(!r.ok){
-    S.shelter.introSeen=true; save(); renderShelter();
-    toast(r.reason==="déjà lancé"?"T'as déjà du stock — carte ouverte.":"Ok.");
-    return;
-  }
-  cause(`Front ${shelter.SUPPLIER.name}`, r.msg);
-  toast("100 g en cage. Coupe, vitrine, rembourse.");
+  if(!S.shelter) S.shelter=shelter.shelterDefaults();
+  S.shelter.introSeen=true;
+  S.shelter.phase="A";
+  cause("Charbonneur", `Tu tiens le corner pour Karim · ${CHARB_WAGE}/service`);
+  toast("Tiens le corner et écoule les barrettes de Karim. Fin de service : il te paie.");
   save(); renderShelter();
 }
 
@@ -884,13 +933,13 @@ function openRepay(){
 function shopRow(key,conf){
   const lv=S.upgrades[key]||0, maxed=lv>=conf.max, cost=conf.cost*(lv+1);
   return `<div class="stat"><span>${conf.title} · ${lv}/${conf.max}<br><span class="muted">${conf.desc}</span></span>
-    <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-up="${key}" ${maxed||S.cash<cost?"disabled":""}>${maxed?"MAX":money(cost)}</button></div>`;
+    <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-up="${key}" ${maxed||S.dirty<cost?"disabled":""}>${maxed?"MAX":money(cost)}</button></div>`;
 }
 function buyUp(key){
   const conf=UPG[key]; if(!conf) return;
   const lv=S.upgrades[key]||0; if(lv>=conf.max) return;
-  const cost=conf.cost*(lv+1); if(S.cash<cost){ toast("Propre insuffisant."); return; }
-  S.cash-=cost; S.upgrades[key]=lv+1; cause(`Upgrade ${conf.title}`,`−${money(cost)}`); toast("Ça scale."); save(); render();
+  const cost=conf.cost*(lv+1); if(S.dirty<cost){ toast("Liquide insuffisant."); return; }
+  S.dirty-=cost; S.upgrades[key]=lv+1; cause(`Upgrade ${conf.title}`,`−${money(cost)}`); toast("Ça scale."); save(); render();
 }
 
 function renderKarnet(){
@@ -1014,7 +1063,7 @@ function renderDoseBag(){
     </div>
     <div class="bag-hint">${sizes.length
       ?`Chaque barrette garde sa taille de coupe · ${fmtBars()} · sachets : ${fmtSachets()}`
-      :`Aucune barrette. Swipe ◂ (ou ✂) pour retourner couper.`}</div>
+      :`Aucune barrette. Swipe ▸ (ou ✂) pour retourner couper.`}</div>
     <div class="grid2">
       <button class="btn ghost" id="back">✂ ◂ Découpe</button>
       <button class="btn ghost" id="toFast">Express ▸</button>
@@ -1087,7 +1136,7 @@ function renderDoseBag(){
     const p=e.changedTouches?{x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY}:pt(e);
     if(swipe){
       const dx=p.x-swipe.x, dy=p.y-swipe.y; swipe=null;
-      if(dx<-60&&Math.abs(dx)>Math.abs(dy)*1.2){ atelierSub="cut"; render(); }
+      if(dx>60&&Math.abs(dx)>Math.abs(dy)*1.2){ atelierSub="cut"; render(); } // swipe ▸ = revenir couper
       return;
     }
     if(!drag) return;
@@ -1168,10 +1217,10 @@ function dosePack(f,n){
 function renderBuyOverlay(){
   const items=[PAIN_100,PAIN_250]; if(S.reput>=25) items.push(PAIN_500);
   buyOverlay.innerHTML=`<h3 style="margin:0 0 6px">Appro</h3>
-    <div class="muted" style="margin-bottom:8px">Propre uniquement. Planque : ${money(finiG()+painsG())}/${planqueCap()} g (pains + barrettes + sachets).</div>
+    <div class="muted" style="margin-bottom:8px">Payé en <b>liquide</b> (${money(S.dirty)}). Planque : ${money(finiG()+painsG())}/${planqueCap()} g (pains + barrettes + sachets).</div>
     ${items.map(p=>{ const locked=p.reputGate&&S.reput<p.reputGate;
       return `<div class="stat"><span>${p.label}</span>
-        <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-buy="${p.g}" ${locked||S.cash<p.price?"disabled":""}>${locked?"Standing":money(p.price)}</button></div>`; }).join("")}`;
+        <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-buy="${p.g}" ${locked||S.dirty<p.price?"disabled":""}>${locked?"Standing":money(p.price)}</button></div>`; }).join("")}`;
   buyOverlay.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>{
     buyPain([PAIN_100,PAIN_250,PAIN_500].find(p=>p.g===+b.dataset.buy));
     renderBuyOverlay(); if(scene3d) scene3d.syncFromState();
@@ -1180,13 +1229,13 @@ function renderBuyOverlay(){
 function buyPain(p){
   if(!p) return;
   if(p.reputGate&&S.reput<p.reputGate){ toast("Standing insuffisant."); return; }
-  if(S.cash<p.price){ toast("Propre insuffisant."); return; }
+  if(S.dirty<p.price){ toast("Liquide insuffisant."); return; }
   if(finiG()+painsG()+p.g>planqueCap()){
     // la planque compte TOUT (pains + barrettes + sachets) — dire les chiffres, pas juste « pleine »
     toast(`Planque ${money(finiG()+painsG())}/${planqueCap()} g — pas la place pour +${p.g} g. Vends, ou agrandis (Réinvest, Home).`);
     return;
   }
-  S.cash-=p.price;
+  S.dirty-=p.price;
   // chaque pain garde SA qualité ; un lot livre plusieurs savonnettes (split)
   const chunk=p.split||p.g;
   for(let left=p.g; left>0; left-=chunk) S.pains.push({ g:Math.min(chunk,left), q:p.q });
@@ -1197,20 +1246,23 @@ function buyPain(p){
 /* ---------- Secours 2D (3D indisponible : unpkg bloqué sur mobile) ---------- */
 /** Découpe 2D — mêmes règles que la lame : taille décidée ici, une coupe = une barrette. */
 function renderCut2D(){
-  const cs=S.cutSize||CUT_DEFAULT;
+  const cap=cutCap();
+  const cs=clamp(S.cutSize||CUT_DEFAULT, CUT_MIN, cap);
+  if((S.cutSize||CUT_DEFAULT)!==cs) S.cutSize=cs;
   stage.innerHTML=`
     <h2>Découpe <span style="opacity:.5;font-size:13px">(2D)</span></h2>
     <div class="sub">La 3D n'a pas chargé (réseau). Même règle : la taille se décide ICI, à la coupe.</div>
     <div class="card">
       <div class="stat"><span>Pain sur la planche</span><b>${activePain()?Math.round(activePain().g)+" g":"—"}</b></div>
       <div class="stat"><span>Barrettes</span><b>${fmtBars()}</b></div>
+      <div class="stat"><span>Couteau</span><b>max ${cap} g</b></div>
       ${S.pains.length>1?`<div class="muted" style="margin-top:6px">Choisir le pain à découper :</div>
       <div class="seg">${S.pains.map((p,i)=>`<button class="chip ${i===S.painSel?"on":""}" data-p="${i}">${Math.round(p.g)} g</button>`).join("")}</div>`:""}
       <div class="seg">
         <button class="chip" data-d="-1">−</button>
         <span class="chip on" style="pointer-events:none">coupe ${cs} g</span>
-        <button class="chip" data-d="1">+</button>
-        ${[2,5,8].map(x=>`<button class="chip ${cs===x?"on":""}" data-set="${x}">${x}g</button>`).join("")}
+        <button class="chip" data-d="1" ${cs>=cap?"disabled":""}>+</button>
+        ${[2,5,8].map(x=>{ const lock=x>cap; return `<button class="chip ${cs===x?"on":""}" data-set="${x}" ${lock?"disabled":""}>${x}g${lock?" 🔒":""}</button>`; }).join("")}
       </div>
       <button class="btn ok" id="c1" ${!activePain()?"disabled":""}>✂ Couper ×${cutBatch()}</button>
       <button class="btn ok" id="c5" ${!activePain()?"disabled":""}>✂ ×${5*cutBatch()}</button>
@@ -1220,9 +1272,9 @@ function renderCut2D(){
       <button class="btn ghost" id="menu2">↩ Atelier</button>
     </div>`;
   stage.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{
-    S.cutSize=clamp((S.cutSize||CUT_DEFAULT)+ +b.dataset.d, CUT_MIN, CUT_MAX); save(); renderCut2D();
+    S.cutSize=clamp((S.cutSize||CUT_DEFAULT)+ +b.dataset.d, CUT_MIN, cutCap()); save(); renderCut2D();
   });
-  stage.querySelectorAll("[data-set]").forEach(b=>b.onclick=()=>{ S.cutSize=+b.dataset.set; save(); renderCut2D(); });
+  stage.querySelectorAll("[data-set]").forEach(b=>b.onclick=()=>{ S.cutSize=clamp(+b.dataset.set, CUT_MIN, cutCap()); save(); renderCut2D(); });
   stage.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{ S.painSel=+b.dataset.p; save(); renderCut2D(); });
   document.getElementById("c1").onclick=()=>manualCut(cutBatch());
   document.getElementById("c5").onclick=()=>manualCut(5*cutBatch());
@@ -1246,14 +1298,14 @@ function renderBuy2D(){
   const items=[PAIN_100,PAIN_250]; if(S.reput>=25) items.push(PAIN_500);
   stage.innerHTML=`
     <h2>Appro <span style="opacity:.5;font-size:13px">(2D)</span></h2>
-    <div class="sub">La visionneuse 3D n'a pas chargé — la liste marche pareil. Propre uniquement.</div>
+    <div class="sub">La visionneuse 3D n'a pas chargé — la liste marche pareil. Payé en liquide.</div>
     <div class="card">
-      <div class="stat"><span>Propre</span><b>${money(S.cash)}</b></div>
+      <div class="stat"><span>Liquide</span><b>${money(S.dirty)}</b></div>
       <div class="stat"><span>Planque (pains + barrettes + sachets)</span><b>${money(finiG()+painsG())} / ${planqueCap()} g</b></div>
       <div class="stat"><span>Pains en stock</span><b>${fmtPains()}</b></div>
       ${items.map(p=>{ const locked=p.reputGate&&S.reput<p.reputGate;
         return `<div class="stat"><span>${p.label} · ${p.g} g · q${p.q}</span>
-          <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-buy="${p.g}" ${locked||S.cash<p.price?"disabled":""}>${locked?"Standing":money(p.price)}</button></div>`; }).join("")}
+          <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-buy="${p.g}" ${locked||S.dirty<p.price?"disabled":""}>${locked?"Standing":money(p.price)}</button></div>`; }).join("")}
       <button class="btn ok" id="gCut2">✂ Aller couper</button>
       <button class="btn ghost" id="retry3d">↻ Réessayer la visionneuse 3D</button>
       <button class="btn ghost" id="menu2">↩ Atelier</button>
@@ -1522,6 +1574,10 @@ function advanceDay(manual){
     if(due>0){ if(S.dirty>=due){ S.dirty-=due; cause("Paie chouffes","−"+due+" liquide"); }
       else if(S.cash>=due){ S.cash-=due; cause("Paie chouffes","−"+due+" propre"); }
       else { P.chouffes=Math.max(0,P.chouffes-1); cause("Chouffe parti","paie manquée"); } } }
+  // Phase A : fin de service — la recette part chez Karim, il te paie le tarif jour (liquide)
+  { const P=S.shelter&&S.shelter.pdv;
+    if(S.shelter.phase==="A" && P){ const took=Math.round(P.bac||0);
+      if(took>0){ P.bac=0; S.dirty+=CHARB_WAGE; cause("Fin de service","Karim encaisse "+money(took)+" · te paie "+money(CHARB_WAGE)); } } }
   const sh=shelter.nightTick(S, planqueCap());
   sh.cons.forEach(c=>cause(c.t,c.c));
   S.dayAcc=0;
@@ -1565,8 +1621,52 @@ function frame(now){
 requestAnimationFrame(frame);
 setInterval(()=>save(),2000);
 
+// ---------- Panneau debug (test rapide : argent, phase, stock, upgrades) ----------
+// Outil de dev : bouton flottant 🐞 → panneau d'actions. Rien de tout ça n'affecte
+// une partie « propre » tant qu'on n'y touche pas. À retirer avant une vraie release.
+function setupDebug(){
+  if(document.getElementById("dbgBtn")) return;
+  const btn=document.createElement("button");
+  btn.id="dbgBtn"; btn.textContent="🐞"; btn.title="Debug";
+  btn.style.cssText="position:fixed;right:10px;bottom:80px;z-index:99999;width:42px;height:42px;border-radius:50%;border:1px solid #555;background:#1b1b22;color:#fff;font-size:18px;box-shadow:0 2px 8px rgba(0,0,0,.55);cursor:pointer";
+  const panel=document.createElement("div");
+  panel.id="dbgPanel";
+  panel.style.cssText="position:fixed;right:10px;bottom:130px;z-index:99999;width:238px;max-height:72vh;overflow:auto;display:none;padding:10px;border-radius:12px;border:1px solid #555;background:rgba(18,18,24,.97);color:#fff;box-shadow:0 6px 24px rgba(0,0,0,.6)";
+  const A={};
+  const H=t=>`<div style="margin:9px 0 2px;font-weight:800;opacity:.55;font-size:10px;letter-spacing:.4px;text-transform:uppercase">${t}</div>`;
+  const add=(label,fn)=>{ A[label]=fn; return `<button data-dbg="${label}" style="display:block;width:100%;margin:3px 0;padding:7px 9px;border-radius:8px;border:1px solid #444;background:#2a2a33;color:#fff;font-size:12px;text-align:left;cursor:pointer">${label}</button>`; };
+  let h=`<div style="font-weight:800;margin-bottom:2px">Debug · test</div>`;
+  h+=H("Argent");
+  h+=add("+200 liquide", ()=>S.dirty+=200);
+  h+=add("+1000 liquide", ()=>S.dirty+=1000);
+  h+=add("+200 propre", ()=>S.cash+=200);
+  h+=H("Tuto / phase");
+  h+=add("⏩ Finir le tuto (→ indépendant)", ()=>{ S.shelter.introSeen=true; S.shelter.phase="B"; S.pains.push({g:100,q:52},{g:100,q:52}); S.painSel=0; S.sachets["2"]=(S.sachets["2"]||0)+60; S.sachetQ=S.sachetQ||62; S.dirty+=1000; S.reput=Math.max(S.reput,30); const P=S.shelter.pdv; P.bac=0; P.tampon={}; P.tamponQ=0; P.queue=[]; });
+  h+=add("Phase A (charbonneur)", ()=>{ S.shelter.introSeen=true; S.shelter.phase="A"; const P=S.shelter.pdv; P.tampon={}; P.tamponQ=0; P.bac=0; P.queue=[]; });
+  h+=add("Phase B (indépendant)", ()=>{ S.shelter.introSeen=true; S.shelter.phase="B"; });
+  h+=add("Embauche charbonneur (on/off)", ()=>{ S.upgrades.charbonneur=S.upgrades.charbonneur?0:1; });
+  h+=H("Stock");
+  h+=add("+Pain 100 g", ()=>{ S.pains.push({g:100,q:52}); });
+  h+=add("+Pain 250 g", ()=>{ S.pains.push({g:250,q:78}); });
+  h+=add("+60 sachets 2 g", ()=>{ S.sachets["2"]=(S.sachets["2"]||0)+60; S.sachetQ=S.sachetQ||62; });
+  h+=add("+30 barrettes 2 g", ()=>{ S.bars["2"]=(S.bars["2"]||0)+30; S.barQ=S.barQ||60; });
+  h+=H("Upgrades");
+  h+=add("Couteau +1 (coupe plus gros)", ()=>{ S.upgrades.couteau=Math.min(UPG.couteau.max,(S.upgrades.couteau||0)+1); });
+  h+=add("Tous les upgrades au max", ()=>{ for(const k in UPG) S.upgrades[k]=UPG[k].max; });
+  h+=add("Reput +20", ()=>{ S.reput=clamp((S.reput||0)+20,0,100); });
+  h+=H("Divers");
+  h+=add("Heat → 0", ()=>{ S.heat=0; });
+  h+=add("⏭ Passer la nuit (fin de service)", ()=>{ advanceDay(true); });
+  h+=add("🗑 Reset save", ()=>{ Object.keys(localStorage).filter(k=>k.startsWith(LS)).forEach(k=>localStorage.removeItem(k)); store.set("ver",SAVE_VERSION); S=defaultState(); });
+  panel.innerHTML=h;
+  document.body.appendChild(btn); document.body.appendChild(panel);
+  btn.onclick=()=>{ panel.style.display = panel.style.display==="none" ? "block" : "none"; };
+  panel.querySelectorAll("[data-dbg]").forEach(b=>b.onclick=()=>{ const fn=A[b.dataset.dbg]; if(fn) fn(); save(); render(); toast("debug: "+b.dataset.dbg); });
+}
+
 ensureDemand();
 render();
+setupDebug();
 toast(S.shelter?.introSeen
   ? "Quartier Nord · planque · corner."
   : "Karim t'écrit. Le spot est à toi.");

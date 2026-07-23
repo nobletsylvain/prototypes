@@ -4,7 +4,7 @@ import * as THREE from "three";
 
 const LOAF_L = 1.7, LOAF_W = 0.55, LOAF_H = 0.34;
 const PER_LEN = 100;
-const SWIPE_NAV = 60; // px — swipe ▸ en mode cut = aller au conditionnement
+const SWIPE_NAV = 60; // px — swipe ◂ en mode cut = aller au conditionnement
 const PRESS_TIME = 0.6;
 const PILE_CAP = 18;
 const WRAP_K = 0.34;
@@ -434,7 +434,7 @@ function setVisibleGroups() {
   if (benchCond) benchCond.visible = mode === "cond";
   if (buyGroup) buyGroup.visible = mode === "buy";
   if (hintEl) {
-    if (mode === "cut") hintEl.textContent = "Swipe ▸ conditionnement"; // « Maintiens » est déjà dit par #presslbl
+    if (mode === "cut") hintEl.textContent = "Swipe ◂ conditionnement"; // « Maintiens » est déjà dit par #presslbl
     else if (mode === "cond") hintEl.textContent = "Tap = prendre · glisse ⬆️ = enrouler · 🔥 sceller";
     else if (mode === "buy") hintEl.textContent = "Aperçu matière · achat dans la liste";
     else hintEl.textContent = "";
@@ -486,11 +486,11 @@ function onPointerUp(e) {
   try { root.releasePointerCapture(pid); } catch (_) {}
   pid = null;
   if (moved && mode === "cut") {
-    // swipe vers la droite = rail atelier → conditionnement
+    // swipe vers la GAUCHE = avancer vers le conditionnement (convention carrousel)
     const dx = lastX - startX, dy = lastY - startY;
-    if (dx > SWIPE_NAV && Math.abs(dx) > Math.abs(dy) * 1.2 && hooks.onSwipeRight) {
+    if (dx < -SWIPE_NAV && Math.abs(dx) > Math.abs(dy) * 1.2 && hooks.onSwipeToBag) {
       holding = false; pressing = false; pressT = 0; cutConsumed = false;
-      hooks.onSwipeRight();
+      hooks.onSwipeToBag();
       return;
     }
   }
