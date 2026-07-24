@@ -168,7 +168,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .cdrawer-bk.on{display:block}
 /* panneau « Gérer » : plein écran quand ouvert (translateY 0), caché sinon (110%). Une poignée persistante
    « Le corner » (.cpeek) reste au-dessus de la barre du bas pour le rouvrir (tap ou glissement vers le haut). */
-.cdrawer{position:absolute;left:0;right:0;bottom:0;z-index:20;background:rgba(24,20,16,.98);border-radius:16px 16px 0 0;border-top:1px solid var(--line);padding:12px 12px max(12px,env(safe-area-inset-bottom));transform:translateY(110%);transition:transform .28s cubic-bezier(.2,.9,.25,1);max-height:82%;overflow:auto}
+.cdrawer{position:absolute;left:0;right:0;bottom:0;z-index:20;background:rgba(24,20,16,.98);border-radius:16px 16px 0 0;border-top:1px solid var(--line);padding:12px 12px max(12px,env(safe-area-inset-bottom));transform:translateY(115%);transition:transform .28s cubic-bezier(.2,.9,.25,1);max-height:82%;overflow:auto}
 .cdrawer.on{transform:translateY(0)}
 /* poignée persistante (panneau fermé) : on la voit toujours, on la tire vers le haut / on tape pour ouvrir */
 .cpeek{position:absolute;left:0;right:0;bottom:0;z-index:18;background:rgba(24,20,16,.96);border-radius:14px 14px 0 0;border-top:1px solid var(--line);padding:7px 12px 9px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -419,7 +419,7 @@ const PAIN_500 = { g:500, price:3200, q:70, label:"Lot 500 (2×250)", reputGate:
 const CHARB_WAGE = 80; // (réservé) tarif jour d'un charbonneur — ce qu'on paiera pour EN embaucher un plus tard
 const PLANQUE_CAP_BASE = 250;
 const DIRTY_HOLD_SOFT = 180, DIRTY_HOLD_HARD = 450, BUNDLE_SIZE = 5, COUNTER_RATE = 40;
-const DAY_SEC_REAL = 90; // une soirée s'écoule en temps réel (horloge unique) puis se clôture
+const DAY_SEC_REAL = 180; // une journée s'écoule en temps réel (horloge unique) puis se clôture — assez longue pour souffler entre les clients
 const UPG = {
   couteau: { cost:250, max:4, title:"Couteau", desc:"coupe des morceaux plus gros (5 g, 8 g…)" },
   gabarit: { cost:300, max:4, title:"Gabarit", desc:"+1 barrette / geste (coupe plus efficace)" },
@@ -883,12 +883,15 @@ function cornerLeave(P, cl, why, v, tip){
   else if(why==="rupture") toast("Rupture — ravitaille le tampon.");
   save(); hud(); renderCornerActive(P);
 }
-// vente commune : débite wantB barrettes du tampon, remplit le bac + ledger. false si rupture.
+// vente commune : débite wantB barrettes du tampon → liquide direct + ledger. false si rupture.
+// Présentiel (joueur au corner) : tu es là, l'argent tombe direct en liquide — aucun « encaisser » à taper (R6/R7).
+// (Le bac ne sert plus qu'au charbonneur embauché plus tard : corner qui tourne en ton absence → recette à ramasser.)
 function cornerSell(P, cl, wantB, total, tip){
   const sold=cornerTake(P, wantB);
   if(sold.n===0){ P.res=clamp(P.res-PDV_RUPTURE_HIT,0,100); cornerLeave(P, cl, "rupture"); return false; }
-  P.bac+=total+(tip||0);
-  P.ledger.unshift({nm:cl.nm, n:sold.n, g:sold.g, eur:total+(tip||0)}); if(P.ledger.length>6) P.ledger.length=6;
+  const gain=total+(tip||0);
+  S.dirty+=gain; pushBills(gain);
+  P.ledger.unshift({nm:cl.nm, n:sold.n, g:sold.g, eur:gain}); if(P.ledger.length>6) P.ledger.length=6;
   return true;
 }
 function cornerResolve(P, cl, total, firstTry, isClientOffer){
@@ -1143,10 +1146,10 @@ function renderCorner(P){
         <button class="pb" data-prix="1">+1</button></div>
       <div class="muted" id="pPrixHint" style="font-size:10px;margin:0 0 8px">${prixHint(prix,fair)}</div>
       <div class="stat"><span>Tampon exposé</span><b id="pTamp">${tampN(P.tampon)} barrettes · ${Math.round(tampG(P.tampon))} g</b></div>
-      <div class="stat"><span>Bac de rue</span><b class="pill dirty" id="pBac">${money(P.bac)}</b></div>
+      ${P.bac>0?`<div class="stat"><span>Bac du corner <span class="muted" style="font-size:10px">· charbonneur</span></span><b class="pill dirty" id="pBac">${money(P.bac)}</b></div>
+      <button class="btn ghost" style="margin:4px 0 6px" id="enc">Encaisser le bac ▸ liquide</button>`:`<div class="muted" style="font-size:10px;margin:2px 0 6px">💸 Tes ventes tombent direct en <b class="pill dirty" style="font-size:10px;padding:1px 6px">liquide</b> — rien à encaisser.</div>`}
       <div class="muted" style="font-size:10px;margin:2px 0 6px">Livrer des barrettes (réserve : ${stockSach} sachets) :</div>
       <div class="grid3"><button class="btn ok" style="margin:0" data-rav="10">+10</button><button class="btn ok" style="margin:0" data-rav="25">+25</button><button class="btn ok" style="margin:0" data-rav="0">Max</button></div>
-      <button class="btn ghost" style="margin-top:6px" id="enc">Encaisser le bac ▸ liquide</button>
       <div class="stat" style="margin-top:10px"><span>Chouffes (${PDV_CHOUFFE_PAY}/soir · −Heat)</span><b id="pCh">${P.chouffes}</b></div>
       <div class="grid2"><button class="btn ghost" style="margin:0" id="chM">− chouffe</button><button class="btn ok" style="margin:0" id="chP">+ chouffe</button></div>
       <h3 style="margin:10px 0 4px;font-size:12px">Ledger</h3>
@@ -1177,8 +1180,23 @@ function renderCorner(P){
   // #stage se termine PILE au-dessus de la barre du bas (dock) → panneau et poignée à bottom:0 (CSS)
   // reposent déjà sur le dock, collés, sans mesure. La carte client passe juste au-dessus de la poignée.
   { const cAct=document.getElementById("cActive"); if(cAct) cAct.style.bottom=((peekEl.offsetHeight||40)+8)+"px"; }
-  // ouvert = plein (translateY 0) ; fermé = poussé sous le bas de #stage → clippé (overflow:hidden) = caché, poignée seule.
-  const openDr=on=>{ drawer.classList.toggle("on",on); bk.classList.toggle("on",on); peekEl.style.display=on?"none":"flex"; drawer.style.transform= on?"translateY(0px)":"translateY(115%)"; };
+  // Fermé = tiroir RETIRÉ du flux (display:none) → aucune 2e poignée possible, zéro dépendance à la hauteur
+  // mesurée au 1er paint (le bug « double poignée » venait d'un translateY(%) appliqué avant que le layout iOS
+  // ne soit stabilisé). Ouvert = slide-up (translateY 0). Seule la poignée .cpeek reste visible quand c'est fermé.
+  const openDr=on=>{
+    bk.classList.toggle("on",on); peekEl.style.display=on?"none":"flex";
+    if(on){
+      const wasHidden = drawer.style.display==="none" || !drawer.style.display;
+      drawer.style.display="block";
+      if(wasHidden){ drawer.style.transform="translateY(115%)"; void drawer.offsetHeight; } // reflow → l'anim part d'en bas
+      drawer.classList.add("on"); drawer.style.transform="translateY(0px)";
+    } else {
+      drawer.classList.remove("on"); drawer.style.transform="translateY(115%)";
+      clearTimeout(drawer._hideT); drawer._hideT=setTimeout(()=>{ if(!drawer.classList.contains("on")) drawer.style.display="none"; }, 300);
+    }
+  };
+  // état initial : fermé, tiroir réellement retiré (pas de 2e poignée au 1er connect, avant tout settle iOS)
+  drawer.style.display="none"; drawer.classList.remove("on"); drawer.style.transform="translateY(115%)"; bk.classList.remove("on"); peekEl.style.display="flex";
   document.getElementById("cManage").onclick=()=>openDr(true);
   document.getElementById("cClose").onclick=()=>openDr(false);
   bk.onclick=()=>openDr(false);
@@ -1188,7 +1206,6 @@ function renderCorner(P){
     grab.addEventListener("pointermove",e=>{ if(!dragging) return; dy=Math.max(0,e.clientY-sy); drawer.style.transform="translateY("+dy+"px)"; if(e.cancelable) e.preventDefault(); });
     const end=()=>{ if(!dragging) return; dragging=false; drawer.style.transition=""; openDr(dy<=48); }; // <=48 → revient ouvert, sinon fermé
     grab.addEventListener("pointerup",end); grab.addEventListener("pointercancel",end); grab.addEventListener("lostpointercapture",end); }
-  openDr(false); // état initial : fermé (poignée visible, panneau caché sous l'écran)
   // poignée « Le corner » (panneau fermé) : tap OU glissement vers le haut → ouvrir
   { let sy=0,dragging=false,moved=false;
     peekEl.addEventListener("pointerdown",e=>{ sy=e.clientY; moved=false; dragging=true; try{peekEl.setPointerCapture(e.pointerId);}catch(_){}; });
@@ -1202,7 +1219,7 @@ function renderCorner(P){
     set("pPrixG",p+"/g"); set("pMenuF",`2g ${2*p} · 5g ${5*p} · 8g ${8*p}`); set("pPrixHint",prixHint(p,fair)); set("cMenuChip","📋 "+p+"/g"); };
   stage.querySelectorAll("[data-prix]").forEach(b=>b.onclick=()=>{ P.prix=clamp((P.prix||fair)+ +b.dataset.prix,1,Math.round(fair*3)); save(); patchPrix(); });
   stage.querySelectorAll("[data-rav]").forEach(b=>b.onclick=()=>pdvRavito(+b.dataset.rav));
-  document.getElementById("enc").onclick=()=>{ if(P.bac<=0){toast("Bac vide.");return;} const v=Math.round(P.bac); S.dirty+=v; pushBills(v); toast("Encaissé "+money(v)+" en liquide."); P.bac=0; hud(); save(); renderCorner(P); };
+  { const encEl=document.getElementById("enc"); if(encEl) encEl.onclick=()=>{ if(P.bac<=0){toast("Bac vide.");return;} const v=Math.round(P.bac); S.dirty+=v; pushBills(v); toast("Encaissé "+money(v)+" en liquide."); P.bac=0; hud(); save(); renderCorner(P); }; }
   renderCornerActive(P); // carte client dynamique (négo)
   cornerLitWindows();
   cornerLayoutPersos(P);

@@ -75,14 +75,15 @@ const view = await page.evaluate(() => ({
 }));
 const sceneShown = view.scene && view.persos >= 2, cardShown = view.card;
 
-// accepter l'offre de Momo (48 = prix menu → deal) : bac ↑, tampon ↓, relation ↑, file vidée
+// accepter l'offre de Momo (48 = prix menu → deal) : liquide ↑ (auto), tampon ↓, relation ↑, file vidée
 const before = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
-  return { bac: p.bac, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), rel: s.clients.momo.rel, q: p.queue.length }; });
+  return { dirty: s.dirty || 0, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), rel: s.clients.momo.rel, q: p.queue.length }; });
 await page.click('[data-neg="accept"]');
 await sleep(300);
 const afterDeal = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
-  return { bac: p.bac, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), rel: s.clients.momo.rel, q: p.queue.length }; });
-const negoSold = afterDeal.bac > before.bac && afterDeal.tampon < before.tampon && afterDeal.rel > before.rel && afterDeal.q < before.q;
+  return { dirty: s.dirty || 0, bac: p.bac, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), rel: s.clients.momo.rel, q: p.queue.length }; });
+// vente présentielle → liquide direct (le bac reste à 0, plus d'« encaisser »)
+const negoSold = afterDeal.dirty > before.dirty && afterDeal.bac === 0 && afterDeal.tampon < before.tampon && afterDeal.rel > before.rel && afterDeal.q < before.q;
 await page.screenshot({ path: path.join(OUT, "03-nego-deal.png") });
 
 // contre-offre sur Inès : Contrer → steppers de prix → Vendre (à 16 = menu → JUSTE + combo)
@@ -90,17 +91,14 @@ await page.click('[data-neg="counter"]'); await sleep(200);
 const negoUI = await page.evaluate(() => !!document.getElementById("negoP")); // les steppers s'affichent
 await page.click('[data-neg="send"]'); await sleep(300);
 const afterCounter = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
-  return { bac: p.bac, combo: p.combo, q: p.queue.length }; });
-const counterSold = negoUI && afterCounter.bac > afterDeal.bac && afterCounter.combo > 1; // vente + combo JUSTE armé
-await page.screenshot({ path: path.join(OUT, "03b-nego-counter.png") });
+  return { dirty: s.dirty || 0, combo: p.combo, q: p.queue.length }; });
+const counterSold = negoUI && afterCounter.dirty > afterDeal.dirty && afterCounter.combo > 1; // vente en liquide + combo JUSTE armé
 
-// encaisser le bac (dans le tiroir « Gérer ») → le bac passe en liquide (trieuse masquée : pas de billets)
-const dirtyBeforeEnc = await page.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).dirty || 0);
-await page.click("#cManage"); await sleep(250); // ouvre le tiroir des contrôles
-await page.click("#enc");
-await sleep(200);
-const afterEnc = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")); return { dirty: s.dirty, bills: (s.bills || []).length }; });
-const encOK = afterEnc.dirty > dirtyBeforeEnc; // le bac est passé en liquide
+// tiroir « Gérer » : plus de bouton « Encaisser » (bac=0) → note « ventes → liquide » à la place
+await page.click("#cManage"); await sleep(250);
+const drawerUI = await page.evaluate(() => ({ enc: !!document.getElementById("enc"), pBac: !!document.getElementById("pBac"), drawerShown: document.getElementById("cDrawer")?.classList.contains("on") || false }));
+await page.click("#cDrawerBk"); await sleep(250); // referme le tiroir
+const encOK = afterCounter.dirty > before.dirty && !drawerUI.enc && !drawerUI.pBac && drawerUI.drawerShown; // liquide auto, aucun encaisser à taper
 
 const state = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv; } catch (e) { return null; } });
 await page.close(); // le localStorage est partagé par origine : fermer avant les pages Phase A/C (sinon leur save() se marchent dessus)
@@ -160,19 +158,19 @@ await pageM.click('[data-pin-go="pdv"]'); await sleep(400);
 await pageM.click('[data-neg="loucheNo"]'); await sleep(250);
 const mFlair = await pageM.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).dirty || 0);
 // hésitant (Sofia) : son habituel → vente + relation
-const hBefore = await pageM.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")); return { bac: s.shelter.pdv.bac, rel: s.clients.sofia.rel }; });
+const hBefore = await pageM.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")); return { dirty: s.dirty || 0, rel: s.clients.sofia.rel }; });
 await pageM.click('[data-neg="hesitPerso"]'); await sleep(250);
-const hAfter = await pageM.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")); return { bac: s.shelter.pdv.bac, rel: s.clients.sofia.rel }; });
+const hAfter = await pageM.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")); return { dirty: s.dirty || 0, rel: s.clients.sofia.rel }; });
 // ambigu (Momo) : composer 2 barrettes (4 g = attendu) → bien lu → vente + combo
 await pageM.click('[data-comp="1"]'); await sleep(120);
 await pageM.click('[data-comp="1"]'); await sleep(120);
 await pageM.click('[data-neg="compSell"]'); await sleep(250);
-const mAmbig = await pageM.evaluate(() => { const p = JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv; return { bac: p.bac, combo: p.combo, q: p.queue.length }; });
+const mAmbig = await pageM.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv; return { dirty: s.dirty || 0, combo: p.combo, q: p.queue.length }; });
 await pageM.screenshot({ path: path.join(OUT, "07-modes.png") });
 await pageM.close();
-const loucheOK = mFlair >= 25;                                            // discrétion versée
-const hesitOK = hAfter.bac > hBefore.bac && hAfter.rel > hBefore.rel;     // converti + relation
-const ambigOK = mAmbig.bac > hAfter.bac && mAmbig.combo > 1 && mAmbig.q === 0; // bien lu → vente + combo
+const loucheOK = mFlair >= 25;                                              // discrétion versée
+const hesitOK = hAfter.dirty > hBefore.dirty && hAfter.rel > hBefore.rel;   // converti (liquide) + relation
+const ambigOK = mAmbig.dirty > hAfter.dirty && mAmbig.combo > 1 && mAmbig.q === 0; // bien lu → vente (liquide) + combo
 
 await browser.close();
 server.close();
@@ -180,7 +178,7 @@ server.close();
 console.log("B · scène     :", JSON.stringify(view), sceneShown ? "scène+file ✓" : "⚠ scène", cardShown ? "· carte ✓" : "· ⚠ carte");
 console.log("B · deal      :", JSON.stringify({ before, afterDeal }), negoSold ? "(accepte → vente négo ✓)" : "(⚠ pas de vente négo)");
 console.log("B · contre    :", JSON.stringify(afterCounter), counterSold ? "(contrer → JUSTE + combo ✓)" : "(⚠ contre-offre KO)");
-console.log("B · encaisse  :", JSON.stringify(afterEnc), encOK ? "(bac → liquide ✓)" : "(⚠ pas encaissé)");
+console.log("B · liquide   :", JSON.stringify({ dirtyStart: before.dirty, dirtyEnd: afterCounter.dirty, ...drawerUI }), encOK ? "(ventes → liquide auto, plus d'encaisser ✓)" : "(⚠ auto-liquide KO)");
 console.log("Départ direct :", JSON.stringify({ introGone, boot, cornerD }),
   startOK ? "(1 plaquette · phase B · pas d'intro ✓)" : "(⚠ départ KO)", cornerOK ? "· corner négo direct ✓" : "· ⚠ corner");
 console.log("B · modes 2b  :", JSON.stringify({ mFlair, hBefore, hAfter, mAmbig }),
