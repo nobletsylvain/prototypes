@@ -9,6 +9,26 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-24 — Ciel du corner : cycle jour complet (le corner se tient toute la journée)
+
+Correction du retour joueur « mais le corner peut être tenu toute la journée » : le
+ciel ne mappait que **20h → 04h** (soirée), donc il faisait *toujours* nuit. Refonte
+en **cycle complet aube → jour → crépuscule → nuit**.
+
+- **Heure in-game** : `cornerHourN(t) = 8 + t·16` → la journée court de **08h à minuit**
+  (`t = S.dayAcc/DAY_SEC_REAL`, 0→1 sur la journée).
+- **Ciel par paliers** : `SKY_ANCHORS` (heure → top/mid/horizon rgb), interpolés selon
+  l'heure. Matin/midi = bleu clair ; 18h30 = horizon orangé (coucher) sur ciel violet ;
+  21h→minuit = nuit noire. `cornerSky(h)` prend désormais une **heure** (0–24), plus un `t`.
+- **Facteur `--night`** (`cornerNight(h)` : 0 le jour, 1 la nuit, rampe au crépuscule/aube)
+  posé en CSS var sur `#cScene`. Le **lampadaire** (cône `.ccone` + halo `.clamp::after`)
+  et les **fenêtres allumées** (`cornerLitWindows`) s'éteignent le jour, se rallument la
+  nuit → `opacity:var(--night,1)`. Label heure : 🌤️ le jour, 🌙 la nuit.
+- Vérif headless (4 heures : 09h/13h/18h30/22h) : bleu clair sans lampe le matin,
+  crépuscule orangé + lampe qui monte à 19h, nuit noire + lampe/fenêtres allumées à 22h.
+
+---
+
 ## 2026-07-24 — Retours session : PNJ la norme, ciel jour/nuit, poignée collée
 
 - **PNJ anonymes = la norme** : `ANON_SHARE` 0.62 → **0.85** (les archétypes nommés
