@@ -43,7 +43,8 @@ page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 // seed : Phase B (indépendant), tampon amorcé + UN client persona en file (négo présentielle)
 const mkClient = (cid, nm, av, want, g, offer) => ({ cid, nm, av, kind: "regulier", rel: 10,
   want, g, offer, tx: nm + " passe.", pat: 120, pat0: 120, mode: "offer", negoP: offer, dernier: null });
-const negoQueue = [mkClient("momo", "Momo", "🧢", 3, 6, 48), mkClient("ines", "Inès", "🎧", 1, 2, 16)];
+// menu prix=10 (seed) : inès ouvre à 20 (2 g au menu) → contrer + vendre à 20 = JUSTE + combo
+const negoQueue = [mkClient("momo", "Momo", "🧢", 3, 6, 48), mkClient("ines", "Inès", "🎧", 1, 2, 20)];
 await page.evaluateOnNewDocument((ver, q) => {
   localStorage.setItem("loupe_ver", ver);
   localStorage.setItem("loupe_save", JSON.stringify({

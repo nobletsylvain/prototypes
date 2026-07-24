@@ -84,12 +84,15 @@ const R = Math.round;
 
 // barème présentiel — même formule que snap.mjs (prix « fair » dérivé de la réput)
 export function cornerFair(reput){ return Math.max(4, R(CORNER.PRIX_FAIR*(0.6 + (reput||0)/120))); }
-export function cornerTol(kind, rel, reput){ return cornerFair(reput)*(CORNER.TOL[kind] + (rel||0)*CORNER.TOL_PER_REL); }
+// tolérance €/g : base = TON menu affiché (prix) — le client négocie autour de ton prix, pas du marché.
+// (le marché, lui, pilote la DEMANDE : combien de clients passent.) base peut être le prix joueur ou, à défaut, le marché.
+export function cornerTol(kind, rel, base){ return base*(CORNER.TOL[kind] + (rel||0)*CORNER.TOL_PER_REL); }
 export function cornerBudget(kind, rel){ return CORNER.BUDGET[kind]*(1 + (rel||0)*CORNER.BUDGET_PER_REL); }
 
-// qualité d'une offre vs TON menu (l'info centrale : l'écart % au menu)
-export function offerQual(ppu, reput){
-  const r=ppu/cornerFair(reput), pct=R((r-1)*100);
+// qualité d'une offre vs TON menu (l'info centrale : l'écart % au menu que TU affiches)
+export function offerQual(ppu, reput, prix){
+  const menu = prix || cornerFair(reput);
+  const r=ppu/menu, pct=R((r-1)*100);
   if(r>=1+CORNER.FAIR_BAND) return { cls:"q-good", lbl:"+"+pct+" % menu" };
   if(r>=1-CORNER.FAIR_BAND) return { cls:"q-fair", lbl:"prix menu" };
   if(r>=0.75) return { cls:"q-low", lbl:pct+" % menu" };
@@ -110,8 +113,8 @@ export function patienceOf(kind){ return CORNER.PATIENCE[kind] || 26; }
    - "hesit" : hésitant, à convertir à la main (son habituel paie mieux)
    - "ambig" : demande ambiguë, à interpréter (bien lu = pourboire, sinon vendu quand même)
    - "offer" : offre explicite (qty + prix) → accepter / contrer / refuser */
-export function makeOffer(persona, rel, reput, day, seq){
-  const kind = persona.kind;
+export function makeOffer(persona, rel, reput, day, seq, prix){
+  const kind = persona.kind, menu = prix || cornerFair(reput);
   if(kind==="hesitant") return { mode:"hesit", qty:0, offer:0, usual:persona.usual, tx:pick(TXT.hesitant, day+seq) };
   if(kind==="regulier" && hh(day*7, seq) > 1-CORNER.AMBIG_CHANCE){
     const A = pick(AMBIG, day*2+seq);
@@ -120,28 +123,30 @@ export function makeOffer(persona, rel, reput, day, seq){
   const qty = kind==="grossiste" ? (16 + (hh(day, seq)>0.6 ? 8 : 0)) : persona.usual;
   const off = CORNER.OFFER[kind] || [0.9, 1.0];
   const m = off[0] + (off.length>1 ? hh(day*5, seq)*(off[1]-off[0]) : 0);
-  const offer = Math.max(1, R(qty*cornerFair(reput)*m));
+  // le client ouvre relatif à TON prix affiché (il négocie à partir de ton menu), plafonné plus loin par son budget
+  const offer = Math.max(1, R(qty*menu*m));
   const tx = pick(TXT[kind]||TXT.regulier, day+seq).replace("{q}", qty).replace("{t}", offer);
   return { mode:"offer", qty, offer, tx };
 }
 
 // profil cramé (louche) — il surpaie ×1.3 sans discuter (un indice). Vendre → chaleur ; refuser → discrétion.
-export function makeLouche(day, seq, reput){
-  const L = pick(LOUCHE, day+seq);
-  return { kind:"louche", mode:"louche", nm:L.nm, av:L.av, tx:L.tx, qty:L.g, offer:R(L.g*cornerFair(reput)*1.3) };
+export function makeLouche(day, seq, reput, prix){
+  const L = pick(LOUCHE, day+seq), menu = prix || cornerFair(reput);
+  return { kind:"louche", mode:"louche", nm:L.nm, av:L.av, tx:L.tx, qty:L.g, offer:R(L.g*menu*1.3) };
 }
 
 // grimace à mi-négo (Recettear) : lecture DÉTERMINISTE de la tête du client pendant qu'on règle le prix.
-export function negoFace(client, total, reput){
-  const g = client.g || client.qty || 0, fair = cornerFair(reput);
+// bande de prix = TON menu (prix) ; plafonds tol/budget = marché (garde-fou).
+export function negoFace(client, total, reput, prix){
+  const g = client.g || client.qty || 0, menu = prix || cornerFair(reput);
   if(client.kind==="louche") return { emo:"😐", tx:"Aucune réaction… bizarre." };
   if(!g || !total) return { emo:"🤨", tx:"Il attend de voir…" };
-  const ppu = total/g, tol = cornerTol(client.kind, client.rel, reput), bud = cornerBudget(client.kind, client.rel);
+  const ppu = total/g, tol = cornerTol(client.kind, client.rel, menu), bud = cornerBudget(client.kind, client.rel);
   if(total>bud) return { emo:"😤", tx:"Au-dessus de sa poche." };
   if(ppu>tol) return { emo:"😤", tx:"À ce prix, c'est mort pour lui." };
   if(ppu>tol*0.9) return { emo:"😬", tx:"Il grimace — t'es à la limite." };
-  if(ppu<=fair*0.9) return { emo:"😍", tx:"Belle affaire… pour lui." };
-  if(ppu<=fair*1.1) return { emo:"😊", tx:"Prix menu, ça lui va." };
+  if(ppu<=menu*0.9) return { emo:"😍", tx:"Belle affaire… pour lui." };
+  if(ppu<=menu*1.1) return { emo:"😊", tx:"Prix menu, ça lui va." };
   return { emo:"😏", tx:"Il suit… y a de la marge." };
 }
 
@@ -151,9 +156,9 @@ export function reactLine(outcome, i){ return pick(REACT[outcome]||REACT.deal, i
    Renvoie un VERDICT ; le caller applique les deltas (rel/reput/heat/res), débite le tampon,
    remplit le bac. `firstTry` = 1re résolution (pour le bonus JUSTE) ; `isClientOffer` = on
    accepte l'offre du client (vs on a réglé un prix). */
-export function resolveOffer(client, g, total, firstTry, isClientOffer, reput){
-  const fair = cornerFair(reput), ppu = total/g;
-  const tol = cornerTol(client.kind, client.rel, reput), bud = cornerBudget(client.kind, client.rel);
+export function resolveOffer(client, g, total, firstTry, isClientOffer, reput, prix){
+  const fair = prix || cornerFair(reput), ppu = total/g; // bande/marge/tolérance = TON menu affiché
+  const tol = cornerTol(client.kind, client.rel, fair), bud = cornerBudget(client.kind, client.rel); // budget = poche absolue du client
   const accepted = ppu <= tol && total <= bud;
   if(accepted){
     const band = ppu >= fair*(1-CORNER.FAIR_BAND) && ppu <= fair*(1+CORNER.FAIR_BAND);
