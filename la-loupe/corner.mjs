@@ -12,14 +12,15 @@ export const CORNER = {
   NEGO_MAX: 1.2,            // au-dessus du menu jusqu'à ×1.2 = bonne négo (marge du présentiel)
   TIP_JUSTE: 0.18, TIP_LU: 0.22,
   COMBO_STEP: 0.5, COMBO_MAX: 3,
-  PATIENCE: { regulier:26, lowball:30, accro:15, grossiste:40, hesitant:32, louche:30 },
+  PATIENCE: { anon:22, regulier:26, lowball:30, accro:15, grossiste:40, hesitant:32, louche:30 },
   QUEUE_MELT: 0.8, WAIT_FREEZE_S: 8, WAIT_MELT: 1.6,
   // tolérance €/g : plafond accepté ; l'écart (haut de zone juste ×1.1 → tol) = l'espace de négo
-  TOL: { regulier:1.2, lowball:0.82, accro:1.35, grossiste:0.78, hesitant:1.15, louche:99 },
+  TOL: { anon:1.12, regulier:1.2, lowball:0.82, accro:1.35, grossiste:0.78, hesitant:1.15, louche:99 },
   TOL_PER_REL: 1/600,
-  BUDGET: { regulier:70, lowball:110, accro:50, grossiste:260, hesitant:60, louche:999 },
+  BUDGET: { anon:55, regulier:70, lowball:110, accro:50, grossiste:260, hesitant:60, louche:999 },
   BUDGET_PER_REL: 1/100,
-  OFFER: { regulier:[0.92,1.0], lowball:[0.55,0.62], accro:[1.0,1.05], grossiste:[0.68,0.74] },
+  OFFER: { anon:[0.95,1.03], regulier:[0.92,1.0], lowball:[0.55,0.62], accro:[1.0,1.05], grossiste:[0.68,0.74] },
+  ANON_SHARE: 0.62, // part de PNJ anonymes (le volume) vs personas nommés (le sel) — déterministe
   REL_DEAL:2, REL_JUSTE:2, REL_PERSO:3, REL_GOUGE:-2, REL_WALK:-2,
   UNLOCK_REL:40, GOUGE_STREAK_QUIT:2,
   HEAT_LOUCHE:20, FLAIR_BONUS:25,
@@ -29,21 +30,56 @@ export const CORNER = {
   RES_DEAL:3, RES_WALK:6,    // réservoir clients (satisfaction) : bon deal ↑, client fâché/parti ↓
 };
 
-// personas du corner (relation → budget/fréquence ; fidèle → présente un contact)
+// personas du corner — chacun porte UN axe de décision, un TELL lisible (R4) et sa propre banque
+// de répliques (fini le copier-coller). {q}=grammes, {t}=total. bank.react : deal/nego/walk (le reste
+// retombe sur REACT). Les têtes connues = le sel ; le volume, ce sont les PNJ anonymes (kind:"anon").
 export const CORNER_PERSONAS = [
-  { id:"momo",  nm:"Momo",  av:"🧢", kind:"regulier",  usual:5,  exig:55, start:true },
-  { id:"ines",  nm:"Inès",  av:"🎧", kind:"regulier",  usual:2,  exig:70, start:true },
-  { id:"riton", nm:"Riton", av:"🥀", kind:"accro",     usual:2,  exig:20, start:true },
-  { id:"yaz",   nm:"Yaz",   av:"🛵", kind:"lowball",   usual:8,  exig:40, start:true },
-  { id:"sofia", nm:"Sofia", av:"💅", kind:"hesitant",  usual:5,  exig:65, start:true },
-  { id:"bilal", nm:"Bilal", av:"🎒", kind:"regulier",  usual:8,  exig:50, start:true },
-  { id:"diego", nm:"Diego", av:"🏗️", kind:"grossiste", usual:16, exig:45, unlockedBy:"momo" },
-  { id:"lina",  nm:"Lina",  av:"🌙", kind:"regulier",  usual:5,  exig:80, unlockedBy:"ines" },
-  { id:"nassim",nm:"Nassim",av:"🎲", kind:"accro",     usual:8,  exig:25, unlockedBy:"riton" },
-  { id:"kenza", nm:"Kenza", av:"👟", kind:"lowball",   usual:5,  exig:35, unlockedBy:"yaz" },
-  { id:"lea",   nm:"Léa",   av:"🎀", kind:"hesitant",  usual:2,  exig:60, unlockedBy:"sofia" },
+  { id:"momo", nm:"Momo", av:"🧢", kind:"regulier", usual:5, exig:55, start:true,
+    tell:"Toujours ~5 g au prix menu, jamais un mot sur le tarif.",
+    bank:{ arrive:["Cinq grammes, comme hier, comme demain. {t}, ça marche ?","Pas besoin de causer, tu sais ce qu'il me faut. {q} g, {t}.","Toujours toi qui tiens, ça me rassure. Les {q} g habituels."],
+      react:{ deal:["Comme d'hab. À demain.","Nickel, tu bouges jamais toi."], nego:["Bon, pour toi ça passe. M'y habitue pas."] } } },
+  { id:"ines", nm:"Inès", av:"🎧", kind:"regulier", usual:2, exig:70, start:true,
+    tell:"Petite quantité, renifle la came — regarde avant de prendre.",
+    bank:{ arrive:["Deux grammes, mais du propre. Je sens la paraffine à dix mètres.","Fais voir avant. Si c'est chargé je prends pas. {t} ?","Petite quantité, grosse exigence. Tu me connais. {q} g."],
+      react:{ deal:["Là c'est du travail. Je reviens."], nego:["Ça passe. Reste propre, hein."] } } },
+  { id:"riton", nm:"Riton", av:"🥀", kind:"accro", usual:2, exig:20, start:true,
+    tell:"Paie sans regarder le prix, mais file si tu traînes.",
+    bank:{ arrive:["Deux grammes, vite. J'ai l'oseille, discute pas. {t}.","Là tout de suite si tu peux. {t}, compte pas.","Je reste pas. Je prends et je disparais. {q} g."],
+      react:{ deal:["Merci. Vraiment."], walk:["Laisse tomber, y'en a d'autres."] } } },
+  { id:"yaz", nm:"Yaz", av:"🛵", kind:"lowball", usual:8, exig:40, start:true,
+    tell:"Ouvre toujours très bas — du théâtre. Tiens ton prix, il plie.",
+    bank:{ arrive:["{q} g à {t}. Je sais que c'est bas, commence pas à pleurer.","Partout c'est moins cher. {t}, sinon je bouge.","Allez, fais un effort. {t} et on n'en parle plus."],
+      react:{ deal:["Radin toi aussi. Ça me va, à demain."], nego:["Ouais bon. T'as gagné cette fois."], walk:["Trop cher. …Garde-moi ça pour demain quand même."] } } },
+  { id:"sofia", nm:"Sofia", av:"💅", kind:"hesitant", usual:5, exig:65, start:true,
+    tell:"Ne dit jamais la quantité — la réponse est dans sa phrase.",
+    bank:{ arrive:["Alors… c'est pour ce soir, on sera trois ou quatre, je sais pas trop.","J'hésite. Genre pas trop mais faut que ça tienne.","Tu me conseilles quoi ? J'y connais rien moi."], react:{} } },
+  { id:"bilal", nm:"Bilal", av:"🎒", kind:"regulier", usual:8, exig:50, start:true,
+    tell:"Toujours 8 g, et « tu me fais un prix si je reviens ? » — futur gros.",
+    bank:{ arrive:["Huit grammes. Tu me fais un prix si je reviens chaque semaine ?","Je refourgue à ma bande, faut que je m'y retrouve. {t} ?","Si tu m'accroches maintenant, je te ramène du monde. {q} g, {t}."],
+      react:{ deal:["Là on se comprend. Je te ramène la clientèle."], nego:["Bon, ça passe pour cette fois. On verra la prochaine."] } } },
+  { id:"diego", nm:"Diego", av:"🏗️", kind:"grossiste", usual:16, exig:45, unlockedBy:"momo",
+    tell:"Prend gros, paie clean — mais plus tu le sers, plus le coin chauffe.",
+    bank:{ arrive:["Seize grammes d'un coup. Chaque semaine si t'assures. {t} ?","Je prends gros, je paie clean, mais je traîne pas. {q} g, {t}.","Vingt grammes. Emballe vite, on nous regarde."],
+      react:{ deal:["Carré. Même heure la semaine prochaine."], nego:["Ça monte, mais le volume est là. Vendu."] } } },
+  { id:"lina", nm:"Lina", av:"🌙", kind:"regulier", usual:5, exig:80, unlockedBy:"ines",
+    tell:"Tard, discrète, paie bien si tu la sers sans bruit.",
+    bank:{ arrive:["Tard, discret, comme j'aime. Tu me sers sans bruit ? {q} g, {t}.","Cinq grammes. Je paie bien ceux qui la ramènent pas.","Quelque chose de propre pour finir la nuit. {t}."],
+      react:{ deal:["Merci d'avoir fait vite. Le quartier dort, gardons ça."], nego:["Ça me va. Discrètement."] } } },
+  { id:"nassim", nm:"Nassim", av:"🎲", kind:"accro", usual:8, exig:25, unlockedBy:"riton",
+    tell:"Impulsif — quand il a la niaque, il claque plein pot sans négocier.",
+    bank:{ arrive:["Ce soir je claque ! Mets-m'en {q}, je paie rubis sur l'ongle. {t}.","Frérot, j'ai la niaque ce soir. {q} g, {t} cash.","Allez, {q} g, je régale. {t}."],
+      react:{ deal:["Voilà voilà ! Ça c'est une soirée."], nego:["Ok ok, t'es dur mais j'aime ça."] } } },
+  { id:"kenza", nm:"Kenza", av:"👟", kind:"lowball", usual:5, exig:35, unlockedBy:"yaz",
+    tell:"Jamais seule — plus il y a de monde, plus ça chauffe, mais le panier grimpe.",
+    bank:{ arrive:["On est cinq, calcule pour tout le monde. Mais fais un prix. {t} ?","Jamais seule moi. La bande attend au coin, magne. {q} g.","Gros panier, petit prix, c'est ma came. {q} g pour {t} ?"],
+      react:{ deal:["Vu le monde, t'es gagnant. À demain."], nego:["Ok va pour ça. Je te ramène la troupe."] } } },
+  { id:"lea", nm:"Léa", av:"🎀", kind:"hesitant", usual:2, exig:60, unlockedBy:"sofia",
+    tell:"Hésite parce qu'elle débute — un petit sans pression et elle revient.",
+    bank:{ arrive:["C'est… la première fois que j'achète direct. Je sais pas comment on fait.","Un petit, le plus petit. J'ai un peu peur en fait.","On m'a dit de venir te voir, que t'étais réglo."], react:{} } },
 ];
-export const CORNER_TAG = { regulier:"CLIENT", lowball:"RADIN", accro:"ACCRO", grossiste:"GROS", hesitant:"HESIT", louche:"INCONNU" };
+export const CORNER_TAG = { anon:"PASSANT", regulier:"CLIENT", lowball:"RADIN", accro:"ACCRO", grossiste:"GROS", hesitant:"HESIT", louche:"INCONNU" };
+// PNJ anonyme (le volume) : vient chercher sa dose, sans plus. Réplique minimale, pas de relation.
+const ANON = ["Vas-y, file-moi {q} g. {t} ?","La même que d'hab, {q} g.","T'as de quoi ? {q} g, {t}.","Juste un p'tit truc, {q} g.","{q} g et je file. {t}.","Yo. {q} g steuplé."];
 export const CORNER_FORMATS = [2,5,8];
 
 const TXT = {
@@ -60,11 +96,18 @@ const AMBIG = [
   { tx:"On est deux ce soir 👀", g:4 },
   { tx:"Grosse soirée, toute la bande débarque.", g:16 },
 ];
-// profils cramés (Papers Please) : trop polis / gros volume / surpaient sans discuter
+// profils louches (Papers Please) — GRADIENT lisible : le tell fait la différence, pas la politesse.
+// cop:true = vrai infiltré (te sonde sur ta source/équipe → vendre = +chaleur, refuser = +discrétion).
+// cop:false = pigeon légitime (a l'air louche mais cite un contact / ne demande rien → vente grasse, refuser = juste une vente perdue, R1).
 const LOUCHE = [
-  { nm:"Tête inconnue", av:"🕶️", g:20, tx:"Bonjour. Auriez-vous de la marchandise ? Je souhaiterais 20 g, le prix importe peu." },
-  { nm:"Kevin B.",      av:"🧔", g:16, tx:"slt, on se connaît pas. c'est toi qui tiens le spot ? je prends 16 g, peu importe le prix" },
-  { nm:"Le trop poli",  av:"👤", g:12, tx:"Bonsoir, on m'a indiqué cet endroit. Il me faudrait 12 g. Quel que soit votre tarif, je paierai." },
+  { nm:"Tête inconnue", av:"🕶️", g:20, cop:true,  tell:"Surpaie ET veut savoir d'où vient la came.",
+    tx:"Bonsoir. On m'a parlé de vous. Vous fournissez en quelle quantité, d'habitude ?" },
+  { nm:"L'envoyé de Momo", av:"👤", g:20, cop:false, tell:"Poli et surpaie, MAIS cite un contact que tu connais.",
+    tx:"Excusez-moi… c'est Momo qui m'envoie. Il a dit que t'étais réglo. Vingt grammes ?" },
+  { nm:"Le bourge perdu", av:"🧑‍💼", g:12, cop:false, tell:"Nerveux mais civil — ne pose aucune question sur toi.",
+    tx:"Bon-bonsoir, je fais ça rarement. Le prix m'importe peu, je veux juste que ce soit propre." },
+  { nm:"Kevin B.", av:"🧔", g:16, cop:true, tell:"Te tutoie mal, veut savoir avec qui tu bosses.",
+    tx:"slt, on se connaît pas. c'est toi qui tiens le spot ? tu tournes avec qui ?" },
 ];
 const REACT = {
   marge: ["Frérot le prix 😍", "À ce prix je ramène tout le tieks !"],
@@ -113,26 +156,37 @@ export function patienceOf(kind){ return CORNER.PATIENCE[kind] || 26; }
    - "hesit" : hésitant, à convertir à la main (son habituel paie mieux)
    - "ambig" : demande ambiguë, à interpréter (bien lu = pourboire, sinon vendu quand même)
    - "offer" : offre explicite (qty + prix) → accepter / contrer / refuser */
+const pickBank = (persona, i) => { const a=persona.bank&&persona.bank.arrive; return a&&a.length?pick(a,i):null; };
 export function makeOffer(persona, rel, reput, day, seq, prix){
-  const kind = persona.kind, menu = prix || cornerFair(reput);
-  if(kind==="hesitant") return { mode:"hesit", qty:0, offer:0, usual:persona.usual, tx:pick(TXT.hesitant, day+seq) };
+  const kind = persona.kind, menu = prix || cornerFair(reput), tell = persona.tell || "";
+  if(kind==="hesitant") return { mode:"hesit", qty:0, offer:0, usual:persona.usual, tell, tx:pickBank(persona, day+seq) || pick(TXT.hesitant, day+seq) };
   if(kind==="regulier" && hh(day*7, seq) > 1-CORNER.AMBIG_CHANCE){
     const A = pick(AMBIG, day*2+seq);
-    return { mode:"ambig", qty:0, offer:0, expect:A.g, tx:A.tx };
+    return { mode:"ambig", qty:0, offer:0, expect:A.g, tell, tx:A.tx };
   }
   const qty = kind==="grossiste" ? (16 + (hh(day, seq)>0.6 ? 8 : 0)) : persona.usual;
   const off = CORNER.OFFER[kind] || [0.9, 1.0];
   const m = off[0] + (off.length>1 ? hh(day*5, seq)*(off[1]-off[0]) : 0);
   // le client ouvre relatif à TON prix affiché (il négocie à partir de ton menu), plafonné plus loin par son budget
   const offer = Math.max(1, R(qty*menu*m));
-  const tx = pick(TXT[kind]||TXT.regulier, day+seq).replace("{q}", qty).replace("{t}", offer);
-  return { mode:"offer", qty, offer, tx };
+  const tx = (pickBank(persona, day+seq) || pick(TXT[kind]||TXT.regulier, day+seq)).replace("{q}", qty).replace("{t}", offer);
+  return { mode:"offer", qty, offer, tell, tx };
 }
 
-// profil cramé (louche) — il surpaie ×1.3 sans discuter (un indice). Vendre → chaleur ; refuser → discrétion.
+// PNJ anonyme (le volume) : petite dose, ouvre proche du menu, accepte vite. Ni relation ni tell.
+export function makeAnon(day, seq, reput, prix){
+  const menu = prix || cornerFair(reput);
+  const qty = [2,2,3,5,2][((day+seq)%5+5)%5];            // petites doses déterministes
+  const off = CORNER.OFFER.anon, m = off[0] + hh(day*5, seq)*(off[1]-off[0]);
+  const offer = Math.max(1, R(qty*menu*m));
+  const tx = pick(ANON, day+seq).replace("{q}", qty).replace("{t}", offer);
+  return { kind:"anon", mode:"offer", qty, offer, tx, tell:"" };
+}
+
+// profil louche — surpaie ×1.3 (un indice). cop:true = infiltré (vendre → chaleur) ; cop:false = pigeon (vente grasse).
 export function makeLouche(day, seq, reput, prix){
   const L = pick(LOUCHE, day+seq), menu = prix || cornerFair(reput);
-  return { kind:"louche", mode:"louche", nm:L.nm, av:L.av, tx:L.tx, qty:L.g, offer:R(L.g*menu*1.3) };
+  return { kind:"louche", mode:"louche", nm:L.nm, av:L.av, tx:L.tx, tell:L.tell, cop:L.cop, qty:L.g, offer:R(L.g*menu*1.3) };
 }
 
 // grimace à mi-négo (Recettear) : lecture DÉTERMINISTE de la tête du client pendant qu'on règle le prix.
@@ -150,7 +204,11 @@ export function negoFace(client, total, reput, prix){
   return { emo:"😏", tx:"Il suit… y a de la marge." };
 }
 
-export function reactLine(outcome, i){ return pick(REACT[outcome]||REACT.deal, i); }
+export function reactLine(outcome, i, persona){
+  const b = persona && persona.bank && persona.bank.react && persona.bank.react[outcome];
+  if(b && b.length) return pick(b, i);
+  return pick(REACT[outcome]||REACT.deal, i);
+}
 
 /* Cœur du système : résout une offre (g grammes, total €) — DÉTERMINISTE.
    Renvoie un VERDICT ; le caller applique les deltas (rel/reput/heat/res), débite le tampon,
