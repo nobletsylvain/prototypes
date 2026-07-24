@@ -46,6 +46,10 @@ Gros lot de feedback joueur (4 axes). État :
   staged : (1) `tell`+`bank` par persona + afficher le tell [zéro risque moteur],
   (2) gradient louche, (3) axes heat/qualité/temps via `traits`, (4) mode crédit
   (touche la save → bump `SAVE_VERSION`). Tout rétro-compatible (kind/usual intacts).
+  **Ajout demandé** : des **PNJ anonymes** (`kind:"anon"`, pas de `cid`/relation,
+  nom+avatar génériques, petite dose, accepte vite au menu, réplique minimale) mêlés
+  aux personas nommés — ~2/3 anonymes (le volume) / ~1/3 personnages, tirage
+  déterministe (hash seq/jour). Les têtes connues = le sel, pas la totalité.
 
 ---
 
