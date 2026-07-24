@@ -95,10 +95,21 @@ const afterCounter = await page.evaluate(() => { const s = JSON.parse(localStora
 const counterSold = negoUI && afterCounter.dirty > afterDeal.dirty && afterCounter.combo > 1; // vente en liquide + combo JUSTE armé
 
 // tiroir « Gérer » : plus de bouton « Encaisser » (bac=0) → note « ventes → liquide » à la place
+// + marché du jour : la référence affichée (tiroir + chip ⚖) = marketPrice(reput, day) recalculé dans la page
 await page.click("#cManage"); await sleep(250);
-const drawerUI = await page.evaluate(() => ({ enc: !!document.getElementById("enc"), pBac: !!document.getElementById("pBac"), drawerShown: document.getElementById("cDrawer")?.classList.contains("on") || false }));
+const drawerUI = await page.evaluate(async () => {
+  const s = JSON.parse(localStorage.getItem("loupe_save"));
+  const M = await import("/la-loupe/corner.mjs?v=3");
+  const m = M.marketPrice(s.reput ?? 20, s.day ?? 1);
+  const txt = document.getElementById("cDrawer")?.textContent || "";
+  return { enc: !!document.getElementById("enc"), pBac: !!document.getElementById("pBac"),
+    drawerShown: document.getElementById("cDrawer")?.classList.contains("on") || false,
+    m, marche: txt.includes("marché " + m + "/g"),
+    mChip: (document.getElementById("cMarChip")?.textContent || "").includes(String(m)) };
+});
 await page.click("#cDrawerBk"); await sleep(250); // referme le tiroir
 const encOK = afterCounter.dirty > before.dirty && !drawerUI.enc && !drawerUI.pBac && drawerUI.drawerShown; // liquide auto, aucun encaisser à taper
+const marcheOK = drawerUI.marche && drawerUI.mChip; // référence marché affichée et juste (tiroir + chip)
 
 const state = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv; } catch (e) { return null; } });
 await page.close(); // le localStorage est partagé par origine : fermer avant les pages Phase A/C (sinon leur save() se marchent dessus)
@@ -253,7 +264,7 @@ server.close();
 console.log("B · scène     :", JSON.stringify(view), sceneShown ? "scène+file ✓" : "⚠ scène", cardShown ? "· carte ✓" : "· ⚠ carte");
 console.log("B · deal      :", JSON.stringify({ before, afterDeal }), negoSold ? "(accepte → vente négo ✓)" : "(⚠ pas de vente négo)");
 console.log("B · contre    :", JSON.stringify(afterCounter), counterSold ? "(contrer → JUSTE + combo ✓)" : "(⚠ contre-offre KO)");
-console.log("B · liquide   :", JSON.stringify({ dirtyStart: before.dirty, dirtyEnd: afterCounter.dirty, ...drawerUI }), encOK ? "(ventes → liquide auto, plus d'encaisser ✓)" : "(⚠ auto-liquide KO)");
+console.log("B · liquide   :", JSON.stringify({ dirtyStart: before.dirty, dirtyEnd: afterCounter.dirty, ...drawerUI }), encOK ? "(ventes → liquide auto, plus d'encaisser ✓)" : "(⚠ auto-liquide KO)", marcheOK ? "· marché affiché ✓" : "· ⚠ marché");
 console.log("Départ direct :", JSON.stringify({ introGone, boot, cornerD }),
   startOK ? "(1 plaquette · phase B · pas d'intro ✓)" : "(⚠ départ KO)", cornerOK ? "· corner négo direct ✓" : "· ⚠ corner");
 console.log("B · modes 2b  :", JSON.stringify({ mFlair, hBefore, hAfter, mAmbig }),
@@ -263,7 +274,7 @@ console.log("B · traits 3-4:", JSON.stringify({ unitOK, tArd, qualChip, tQual, 
   qMissOK ? "· qualité ratée ✓" : "· ⚠ qualité ratée", heatOK ? "· heat ✓" : "· ⚠ heat",
   unlockOK ? "· déblocage ✓" : "· ⚠ déblocage", settleOK ? "· règlement à échéance ✓" : "· ⚠ règlement");
 console.log("erreurs       :", errors.length ? errors : "AUCUNE");
-const ok = !errors.length && sceneShown && cardShown && negoSold && counterSold && encOK
+const ok = !errors.length && sceneShown && cardShown && negoSold && counterSold && encOK && marcheOK
   && startOK && cornerOK && loucheOK && hesitOK && ambigOK
   && unitOK && ardOK && qualOK && qMissOK && heatOK && unlockOK && settleOK;
 process.exit(ok ? 0 : 1);

@@ -9,6 +9,39 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-24 — Prix marché dynamique : la concurrence fait bouger la référence
+
+Backlog n°1 du brief. Le marché n'est plus une constante dérivée de la réput :
+il **bouge chaque matin** et ton prix module la demande **relative** — la négo,
+elle, reste calée sur TON menu (décision du 2026-07-24 conservée).
+
+- **Marché du jour** = `cornerFair(reput) × marketFac(jour)` (`corner.mjs`) —
+  facteur **déterministe par hash du jour** (R4 : une météo *annoncée*, pas un
+  bruit) dans **[0.8, 1.3]**, neutre avant J3 (démarrage sans parasite). Fonction
+  pure (reput, jour) → **zéro état en save, pas de bump** `SAVE_VERSION`.
+- **Annoncé chaque matin** (`advanceDay`) : toast « J5 — marché 12/g ▲ », entrée
+  journal « Marché 12/g (+2) », et aux extrêmes (≥×1.18 / ≤×0.9) une **news qui
+  explique le mouvement** (« 📦 Gros arrivage chez la concurrence — ils cassent
+  les prix ») via la file de toasts.
+- **Demande vraiment relative** : `attract = 0.8 − (prix/marché − 1) × 0.9`
+  (avant : pente 0.5 sur le ratio brut). Baseline inchangée à prix=marché (0.8),
+  mais suivre ou ignorer la concurrence se sent : marché qui plonge + menu
+  inchangé → −28 % de passage ; marché qui flambe + menu inchangé → +26 %.
+  Le levier joueur : coller au marché (volume) ou tenir son prix (marge) — R9,
+  la tension est systémique.
+- **UI** : chip **⚖ marché** au corner (patchée en live), référence
+  « marché X/g ▲/▼ » + news dans le tiroir « Gérer », hint de prix recalculé sur
+  le marché du jour. `snapMenuPrix` et le texte SnapShit suivent.
+- **Vérifs** : unit-test node (neutralité J1-J2, déterminisme, bornes J3-J200,
+  cohérence news/seuils, plancher) + smoke : l'affichage (tiroir + chip) doit
+  égaler `marketPrice(reput, jour)` recalculé dans la page. Tout vert.
+
+*Prochaine marche possible* : marché **réactif** au joueur (sous-couper des
+jours d'affilée tire la référence vers le bas — la concurrence s'aligne), à
+tester seulement si le marché exogène ne suffit pas à faire vivre la décision.
+
+---
+
 ## 2026-07-24 — Personas étape 3-4 : traits (qualité/heat/heures) + ardoise + graphe social
 
 Fin du plan personas (étapes 1-2 livrées plus tôt dans la journée). Tout est
