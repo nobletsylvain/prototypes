@@ -1135,6 +1135,11 @@ function renderCorner(P){
     <div class="cdrawer" id="cDrawer"><div class="cdrawer-head" id="cGrab"><span class="cdrawer-bar"></span><h3>Le corner</h3></div>${drawerBody}</div>`;
   document.getElementById("back").onclick=()=>{ stage.classList.remove("corner-mode"); shelterSub="map"; render(); };
   const drawer=document.getElementById("cDrawer"), bk=document.getElementById("cDrawerBk");
+  // le tiroir repose SUR la barre du bas (dock) : son contenu (Fermer, ledger…) ne passe jamais dessous,
+  // même sur un écran court/large (bug « se réfugier sous le bandeau bottom »).
+  const dockH=(dock&&dock.offsetHeight)||56;
+  drawer.style.bottom=dockH+"px";
+  drawer.style.maxHeight="calc(88vh - "+dockH+"px)";
   const openDr=on=>{ drawer.classList.toggle("on",on); bk.classList.toggle("on",on); };
   document.getElementById("cManage").onclick=()=>openDr(true);
   document.getElementById("cClose").onclick=()=>openDr(false);
