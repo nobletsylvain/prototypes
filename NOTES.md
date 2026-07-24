@@ -9,6 +9,41 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-24 — Retours de test : scène, tiroir, pricing, tri→inventaire, personas
+
+Gros lot de feedback joueur (4 axes). État :
+
+- **Scène corner « tronquée » → corrigé.** Bande de ciel morte en haut, immeubles
+  qui flottaient (surtout tiroir ouvert). Horizon abaissé (34→28 %), immeubles
+  montés (h 36/44 → 60/68 %) : la rue remplit le cadre, sol de premier plan gardé.
+- **Tiroir « Gérer » : swipe-down pour cacher.** Ajout d'une poignée (`.cdrawer-grab`)
+  + drag pointer : glisser le tiroir vers le bas le referme → la scène respire
+  (idée joueur : « hide ce menu, plus de place à la scène »).
+- **Gérer les prix (à faire, en attente de validation).** Proposition : levier de
+  prix dans le tiroir (Cassé −20 % / Menu / Cher +25 % / Abusé +50 %), effet
+  déterministe (R4) marge vs volume vs walk-away/relation (R8). Chapeaute la négo
+  client-par-client.
+- **Tri de monnaie → à repousser (confirmé).** `buyPain`/`buyUp`/chouffes tournent
+  au **liquide** ; depuis la coupe de la dette, le **propre** (sortie de la trieuse)
+  n'a plus d'usage → billets bloqués (liasse = 5 identiques, le reste coince pour
+  rien). Plan : masquer la trieuse tôt, la ressortir **plus tard en inventaire**.
+  Réfs joueur (Schedule I / Drug Dealer Simulator) : sac à dos à **capacité
+  poids + volume**, slots, drag'n'drop, badges de quantité, **deux poches d'argent**
+  (cash/carte). Cible pour la refonte tri→inventaire.
+- **Personas clients trop caricaturaux → refonte (copywriter).** Diagnostic : la
+  « personnalité » = un `kind` (bucket de prix), le comportement n'est jamais par
+  personne → momo/inès/bilal mécaniquement identiques ; un seul axe vit (le prix) ;
+  louche = même gag ×3. Proposition livrée : roster de **11 archétypes** portant
+  chacun un axe nommé (relation/qualité/temps/marge/heat/discrétion/crédit/lecture),
+  `tell` lisible déterministe + banque de répliques propre, et **louche en gradient
+  à 3 cas** (vrai flic `cop:true` / pigeon légitime `cop:false` / rôdeur rival) — le
+  flair devient une lecture apprenable (R4), rater = frustration légère (R1). Intégra
+  staged : (1) `tell`+`bank` par persona + afficher le tell [zéro risque moteur],
+  (2) gradient louche, (3) axes heat/qualité/temps via `traits`, (4) mode crédit
+  (touche la save → bump `SAVE_VERSION`). Tout rétro-compatible (kind/usual intacts).
+
+---
+
 ## 2026-07-23 — Coupe de la Phase A + intro : go direct à la core loop
 
 Retour de test tranchant : en Phase A (charbonneur salarié), **on ne fait rien
