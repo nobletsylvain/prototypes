@@ -40,6 +40,13 @@ elle, reste calée sur TON menu (décision du 2026-07-24 conservée).
 jours d'affilée tire la référence vers le bas — la concurrence s'aligne), à
 tester seulement si le marché exogène ne suffit pas à faire vivre la décision.
 
+**Backlog ajouté (retour joueur)** — « va falloir revoir le carnet aussi » :
+le « 🧾 Au carnet » actuel (une ligne dans le tiroir Gérer) est un embryon.
+Périmètre à trancher : simple refonte de la partie ardoise/ledger (qui doit
+quoi, pour quand, historique lisible) ou un **vrai carnet de contacts** —
+une vue par tête connue : relation, tell, heures de passage, ardoise en cours
+(le graphe social des personas devient consultable).
+
 ---
 
 ## 2026-07-24 — Personas étape 3-4 : traits (qualité/heat/heures) + ardoise + graphe social
