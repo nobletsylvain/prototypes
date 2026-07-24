@@ -94,11 +94,13 @@ const afterCounter = await page.evaluate(() => { const s = JSON.parse(localStora
 const counterSold = negoUI && afterCounter.bac > afterDeal.bac && afterCounter.combo > 1; // vente + combo JUSTE armé
 await page.screenshot({ path: path.join(OUT, "03b-nego-counter.png") });
 
-// encaisser le bac (dans le tiroir « Gérer ») → doit créer des billets triables
+// encaisser le bac (dans le tiroir « Gérer ») → le bac passe en liquide (trieuse masquée : pas de billets)
+const dirtyBeforeEnc = await page.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).dirty || 0);
 await page.click("#cManage"); await sleep(250); // ouvre le tiroir des contrôles
 await page.click("#enc");
 await sleep(200);
 const afterEnc = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")); return { dirty: s.dirty, bills: (s.bills || []).length }; });
+const encOK = afterEnc.dirty > dirtyBeforeEnc; // le bac est passé en liquide
 
 const state = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem("loupe_save")).shelter.pdv; } catch (e) { return null; } });
 await page.close(); // le localStorage est partagé par origine : fermer avant les pages Phase A/C (sinon leur save() se marchent dessus)
@@ -178,12 +180,12 @@ server.close();
 console.log("B · scène     :", JSON.stringify(view), sceneShown ? "scène+file ✓" : "⚠ scène", cardShown ? "· carte ✓" : "· ⚠ carte");
 console.log("B · deal      :", JSON.stringify({ before, afterDeal }), negoSold ? "(accepte → vente négo ✓)" : "(⚠ pas de vente négo)");
 console.log("B · contre    :", JSON.stringify(afterCounter), counterSold ? "(contrer → JUSTE + combo ✓)" : "(⚠ contre-offre KO)");
-console.log("B · encaisse  :", JSON.stringify(afterEnc), "(bills>0 = tri OK)");
+console.log("B · encaisse  :", JSON.stringify(afterEnc), encOK ? "(bac → liquide ✓)" : "(⚠ pas encaissé)");
 console.log("Départ direct :", JSON.stringify({ introGone, boot, cornerD }),
   startOK ? "(1 plaquette · phase B · pas d'intro ✓)" : "(⚠ départ KO)", cornerOK ? "· corner négo direct ✓" : "· ⚠ corner");
 console.log("B · modes 2b  :", JSON.stringify({ mFlair, hBefore, hAfter, mAmbig }),
   loucheOK ? "louche/flair ✓" : "⚠ louche", hesitOK ? "· hésitant ✓" : "· ⚠ hésitant", ambigOK ? "· ambigu ✓" : "· ⚠ ambigu");
 console.log("erreurs       :", errors.length ? errors : "AUCUNE");
-const ok = !errors.length && sceneShown && cardShown && negoSold && counterSold && afterEnc.bills > 0
+const ok = !errors.length && sceneShown && cardShown && negoSold && counterSold && encOK
   && startOK && cornerOK && loucheOK && hesitOK && ambigOK;
 process.exit(ok ? 0 : 1);

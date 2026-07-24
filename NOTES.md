@@ -9,6 +9,32 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-24 — Personas (étape 1+2 + PNJ anonymes) + trieuse masquée : FAIT
+
+- **Personas enrichis (étape 1).** Chaque `CORNER_PERSONAS` porte un `tell` lisible
+  (affiché sous le nom, œil 👁️) + sa propre `bank` (arrive[] + react{deal/nego/walk},
+  fallback `TXT`/`REACT`). `makeOffer` renvoie `tell` et pioche la banque ; `reactLine`
+  prend le persona en 3ᵉ arg. Fini le copier-coller entre momo/inès/bilal.
+- **Louche en gradient (étape 2).** `LOUCHE` porte `cop` + `tell`. `makeLouche` renvoie
+  les deux. cop:true = vrai flic (te sonde) → vendre `+heat`, refuser `+discrétion` ;
+  cop:false = **pigeon légitime** (cite un contact / ne demande rien) → vendre = grosse
+  vente propre **sans chaleur** (+reput), refuser = vente perdue **sans malus** (R1).
+  Le flair devient une lecture apprenable (R4). Carte : le `tell` + « flic, ou client
+  chelou ? ».
+- **PNJ anonymes.** `kind:"anon"` (tables TOL/BUDGET/OFFER/PATIENCE + `ANON_SHARE:0.62`).
+  `cornerSpawn` tire ~2/3 anonymes (nom/avatar génériques `PDV_NAMES`/`PDV_AV`, petite
+  dose, ouvre au menu, réplique minimale `ANON`, tag PASSANT, « de passage », pas de
+  relation) / ~1/3 personas nommés. Le volume vs le sel. `makeAnon` déterministe.
+- **Trieuse masquée** (`SORTER_ENABLED=false`) : onglet Liquide + bouton carte +
+  upgrade « Compteur » retirés, pill « propre » du HUD masquée, `pushBills` et l'auto-
+  compteur neutralisés (sinon un `dirty→cash` fantôme). Le core loop reste 100 % liquide.
+  À ressortir plus tard en **inventaire** (réfs Schedule I / DDS).
+- Rétro-compatible (kind/usual intacts, nouveaux champs optionnels) → **pas de bump**
+  `SAVE_VERSION`. `node --check` + unit-test node (makeOffer/makeAnon/makeLouche/reactLine)
+  + smoke : tout vert. *Reste* : étape 3 (traits heat/qualité/temps) + étape 4 (crédit).
+
+---
+
 ## 2026-07-24 — Retours de test : scène, tiroir, pricing, tri→inventaire, personas
 
 Gros lot de feedback joueur (4 axes). État :
