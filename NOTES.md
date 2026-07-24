@@ -9,6 +9,48 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-24 — Ciel du corner : vrai cycle 24h (minuit → aube → jour → couchant → nuit)
+
+Correction du retour joueur « mais le corner peut être tenu toute la journée » : le
+ciel ne mappait que **20h → 04h** (soirée), donc il faisait *toujours* nuit. Refonte
+en cycle jour. Première passe **08h → minuit** (16h éveillées) ; à la question « on ne
+couvre pas minuit → 8h ? », arbitrage joueur = **vrai cycle 24h**.
+
+- **Heure in-game** : `cornerHourN(t) = t·24` → la journée court de **00h à minuit** (24h,
+  `t = S.dayAcc/DAY_SEC_REAL`). La journée ouvre en nuit profonde, aube ~6h30, etc.
+- **Ciel par paliers** : `SKY_ANCHORS` (heure → top/mid/horizon rgb), interpolés selon
+  l'heure. Ajout des paliers d'**aube** (5h nuit profonde, 6h30 horizon rosé/orangé =
+  lever) pour que le matin ne soit pas un fondu linéaire depuis le noir. Midi = bleu
+  clair ; 18h30 = horizon orangé (coucher) sur ciel violet ; 21h→minuit = nuit noire.
+  `cornerSky(h)` prend une **heure** (0–24).
+- **Facteur `--night`** (`cornerNight(h)` : 0 le jour, 1 la nuit ; rampe symétrique à
+  l'aube 6h→8h et au couchant 16h→20h) posé en CSS var sur `#cScene`. Le **lampadaire**
+  (cône `.ccone` + halo `.clamp::after`) et les **fenêtres allumées** (`cornerLitWindows`)
+  s'éteignent le jour, se rallument la nuit → `opacity:var(--night,1)`. Label heure :
+  🌤️ le jour, 🌙 la nuit.
+- Vérif headless : nuit profonde 02h, aube rosée 06h30, midi bleu clair, crépuscule
+  orangé 18h30, nuit lampe+fenêtres 22h.
+
+---
+
+## 2026-07-24 — Retours session : PNJ la norme, ciel jour/nuit, poignée collée
+
+- **PNJ anonymes = la norme** : `ANON_SHARE` 0.62 → **0.85** (les archétypes nommés
+  deviennent rares, le sel). Retour joueur : les random fonctionnent bien.
+- **Ciel de la scène reflète l'heure in-game** : `#cScene` prend un dégradé calculé
+  depuis l'avancée de la soirée (`S.dayAcc/DAY_SEC_REAL`) — crépuscule chaud
+  (rosé/violet, 🌆 20h) → nuit noire (bleu sombre, 🌙 03h). Label heure en haut à
+  droite (`.chour`). Le ciel avance en direct via `cornerSkyPatch()` dans `pdvPatch`.
+- **Poignée collée au dock (fini l'espace vide)** : la vraie cause — `#stage` (absolute
+  inset:0 dans `#main` flex:1) se termine **pile au-dessus du dock**, pas au bas de
+  l'écran. Positionner à `bottom:dockH` sur-élevait d'une hauteur de dock (le trou).
+  Corrigé : panneau + poignée à **`bottom:0`** (= haut du dock, collés) ; fermé =
+  `translateY(115%)` **clippé par `#stage overflow:hidden`** → caché proprement (plus
+  de mesure de dock, plus de « bout qui dépasse »). Carte client à `peek+8`.
+  Vérif headless : gap poignée↔dock = 0px.
+
+---
+
 ## 2026-07-24 — Tiroir corner → panneau roulant avec poignée persistante
 
 Suite des retours tiroir : « il a disparu », « impossible de le dérouler, retour

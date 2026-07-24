@@ -20,7 +20,7 @@ export const CORNER = {
   BUDGET: { anon:55, regulier:70, lowball:110, accro:50, grossiste:260, hesitant:60, louche:999 },
   BUDGET_PER_REL: 1/100,
   OFFER: { anon:[0.95,1.03], regulier:[0.92,1.0], lowball:[0.55,0.62], accro:[1.0,1.05], grossiste:[0.68,0.74] },
-  ANON_SHARE: 0.62, // part de PNJ anonymes (le volume) vs personas nommés (le sel) — déterministe
+  ANON_SHARE: 0.85, // part de PNJ anonymes (la norme : gens qui viennent chercher leur dose) vs personas nommés (rares, le sel)
   REL_DEAL:2, REL_JUSTE:2, REL_PERSO:3, REL_GOUGE:-2, REL_WALK:-2,
   UNLOCK_REL:40, GOUGE_STREAK_QUIT:2,
   HEAT_LOUCHE:20, FLAIR_BONUS:25,
