@@ -9,6 +9,49 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-24 — 🧾 Récap de session (brief) : la core loop directe prend forme
+
+Synthèse haute de la session (détails par changement dans les entrées ci-dessous,
+PR #182 → #190). État : **La Loupe** tourne en **indépendant (Phase B)** — couper un
+pain à l'Atelier → tenir le corner (négo présentielle) → écouler en **liquide** →
+racheter. Déployé sur GitHub Pages depuis `main`.
+
+**Livré cette session**
+- **Recentrage de la boucle** : suppression de la Phase A (charbonneur salarié) + de
+  l'intro → démarrage **direct** dans la core loop, plaquette 100 g offerte, sans dette
+  ni tuto. *Raison : Phase A auto-serve, rien à faire à la main → contre R3.*
+- **Le corner (négo présentielle)** : prix **réglable à la main** (pilote la demande,
+  marché = référence) ; **personas enrichis** (tells + banques de dialogue + gradient
+  louche flic/pigeon) ; **PNJ anonymes = la norme** (85 %, personas nommés = le sel) ;
+  **vente → liquide direct** (fini le bouton « Encaisser » ; bac réservé au futur
+  charbonneur).
+- **Ambiance** : scène du corner remplie ; **ciel en cycle 24h** (aube rosée ~6h30 →
+  jour → couchant ~18h30 → nuit), lampadaire + fenêtres pilotés par `--night`.
+- **UX tiroir « Gérer »** : panneau roulant + poignée persistante collée au dock ;
+  **fix double-poignée** au 1er connect (tiroir fermé = `display:none`, indépendant du
+  timing de layout iOS) — ✅ validé sur device.
+- **Rythme** : **journée 2× plus longue** (`DAY_SEC_REAL` 90 → 180 s).
+- **Reporté** : trieuse (liquide → propre) masquée (`SORTER_ENABLED=false`), en attente
+  de la refonte inventaire.
+
+**Décisions de design (rattachées aux règles)**
+- Négo **déterministe** (R4) ; le skill module la récompense, ne punit pas (R1).
+- **Auto-liquide** = R6/R7 : on délègue la répétition sans décision, on garde en main
+  l'arbitrage (prix, à qui vendre).
+- **Équilibrage systémique** (R9) : journée ralentie compensée par plus de volume clients.
+
+**Backlog / prochaines pistes**
+1. **Prix marché dynamique** : le marché varie avec la concurrence (le prix joueur module
+   alors la demande *relative*).
+2. **Refonte inventaire / trieuse** (réfs *Schedule I*, *Drug Dealer Simulator*) : sac à
+   dos (poids + volume), slots, double monnaie cash/carte.
+3. **Traits de personas** (étapes 3-4) : heat / qualité / temps d'activité, puis
+   crédit-ardoise (Nassim).
+4. **Embauche du charbonneur** : bac + « Encaisser » déjà câblés pour le corner qui
+   tourne en ton absence.
+
+---
+
 ## 2026-07-24 — Rythme du corner : journée 2× plus longue + vente → liquide direct + fix double-poignée
 
 Retours de test : (1) la journée file trop vite pour les ~5-6 clients d'une session ;
