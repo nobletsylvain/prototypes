@@ -342,7 +342,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 import * as snap from "./snap.mjs?v=18";
 import * as beuher from "./beuher.mjs?v=18";
 import * as shelter from "./shelter.mjs?v=18";
-import * as corner from "./corner.mjs?v=2";
+import * as corner from "./corner.mjs?v=3";
 
 const SAVE_VERSION = "27"; // 27 : traits personas (qualité/heat/heures) + ardoise (S.clients[id].ardoise)
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -765,10 +765,13 @@ const tampG=t=>Object.entries(t||{}).reduce((a,[f,n])=>a+n*+f,0); // grammes au 
 const pdvRush=()=>1+PDV_RUSH_AMP*(0.5+0.5*Math.sin((S.clock||0)*2*Math.PI/PDV_RUSH_PERIOD));
 const pdvRushHot=()=>pdvRush()>1+PDV_RUSH_AMP*0.7;
 
+// marché du jour (concurrence) — bouge chaque matin, annoncé à la clôture (déterministe, R4)
+function marcheDuJour(){ return corner.marketPrice(S.reput, S.day); }
 function pdvDemande(){
   const P=S.shelter.pdv; const Qd=tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55); const Qa=P.advQ||Qd;
-  // le PRIX pilote la demande : moins cher que le marché → plus de clients, plus cher → moins (déterministe, R4)
-  const pr=P.prix/corner.cornerFair(S.reput); const attract=clamp(1.3-pr*0.5,0.12,1.35);
+  // le PRIX pilote la demande, RELATIVE au marché du jour : pente raide autour de prix=marché —
+  // suivre (ou pas) la concurrence doit se sentir. Baseline inchangée à prix=marché (attract 0.8).
+  const pr=P.prix/marcheDuJour(); const attract=clamp(0.8-(pr-1)*0.9,0.12,1.35);
   const buzz=1+(S.expo||0)/PDV_EXPO_SCALE;
   return PDV_BASE_DEMAND*(P.res/100)*attract*buzz*pdvRush();
 }
@@ -962,7 +965,7 @@ function cornerResolveArdoise(P, cl){
 }
 // hésitant : toute attention convertit ; son habituel (perso) paie un pourboire
 function cornerResolveHesit(P, cl, perso){
-  const fair=P.prix||corner.cornerFair(S.reput), wantB=perso?cl.want:1, g=perso?cl.usual:2, total=Math.round(g*fair);
+  const fair=P.prix||marcheDuJour(), wantB=perso?cl.want:1, g=perso?cl.usual:2, total=Math.round(g*fair);
   const tip=perso?Math.round(total*corner.CORNER.TIP_LU):0;
   if(!cornerSell(P, cl, wantB, total, tip)) return;
   const c=S.clients[cl.cid]; if(c) c.rel=clamp(c.rel+(perso?corner.CORNER.REL_PERSO:corner.CORNER.REL_DEAL),0,100);
@@ -971,7 +974,7 @@ function cornerResolveHesit(P, cl, perso){
 }
 // ambigu : le joueur compose ; bien lu (grammes == attendu) → pourboire, sinon vendu quand même (R1)
 function cornerResolveAmbig(P, cl){
-  const fair=P.prix||corner.cornerFair(S.reput), g=(cl.composeB||0)*2;
+  const fair=P.prix||marcheDuJour(), g=(cl.composeB||0)*2;
   if(g<=0){ toast("Ajoute au moins une barrette."); return; }
   const total=Math.round(g*fair), lu=(g===cl.expect);
   let tip=lu?Math.round(total*corner.CORNER.TIP_LU*(P.combo||1)):0;
@@ -1009,7 +1012,7 @@ function renderCornerActive(P){
   const cl=cornerActive(P);
   const cb=document.getElementById("cComboChip"); if(cb) cb.textContent="⚡×"+(P.combo||1).toFixed(1).replace(".0","");
   if(!cl){ host.innerHTML=""; return; } // rue calme → la scène respire
-  const fair=P.prix||corner.cornerFair(S.reput), tag=corner.CORNER_TAG[cl.kind];
+  const fair=P.prix||marcheDuJour(), tag=corner.CORNER_TAG[cl.kind];
   const patW=clamp(cl.pat/cl.pat0,0,1)*100, patBar=`<div class="nego-pat"><i id="pNegoPat" style="width:${patW}%"></i></div>`;
   let body;
   if(cl.kind==="louche"){
@@ -1126,6 +1129,7 @@ function pdvPatch(){
   set("pQ",P.queue.length);
   set("pCombo",(P.combo||1).toFixed(1).replace(".0",""));
   const hc=document.getElementById("cHeatChip"); if(hc) hc.textContent="🔥 "+Math.round(S.heat);
+  const mc=document.getElementById("cMarChip"); if(mc) mc.textContent="⚖ "+marcheDuJour();
   const cc=document.getElementById("cComboChip"); if(cc) cc.textContent="⚡×"+(P.combo||1).toFixed(1).replace(".0","");
   cornerSkyPatch(); // le ciel avance avec la soirée (reflète l'heure)
   const led=document.getElementById("pLed");
@@ -1198,7 +1202,7 @@ function renderCorner(P){
   stage.classList.add("corner-mode");
   cornerEls=new Map(); // silhouettes reconstruites
   const dayT=cornerDayT(), hNow=cornerHourN(dayT), nNow=cornerNight(hNow);
-  const fair=corner.cornerFair(S.reput);     // prix du marché (référence)
+  const fair=marcheDuJour();                 // prix du marché DU JOUR (concurrence — bouge chaque matin)
   if(!(P.prix>0)) P.prix=fair;               // ton prix affiché (réglable à la main), défaut = marché
   const prix=P.prix;
   const prixHint=(p,f)=>{ const d=Math.round((p/f-1)*100); return d>0?`+${d} % marché · moins de clients, + de marge`:d<0?`${d} % marché · plus de clients, − de marge`:`au prix du marché`; };
@@ -1206,11 +1210,14 @@ function renderCorner(P){
   const emptyTx = tampN(P.tampon)>0
     ? "La rue est calme… un client va passer."
     : (stockSach>0 ? "Ravitaille le corner (Gérer) et attends." : "Rien à écouler — coupe un pain à l'Atelier, puis ravitaille.");
-  const drawerBody=`<div class="stat"><span>📋 Ton menu <span class="muted" style="font-size:10px">· marché ${fair}/g</span></span><b id="pPrixG">${prix}/g</b></div>
+  const mPrev=corner.marketPrice(S.reput, S.day-1), mTrend=fair>mPrev?" ▲":fair<mPrev?" ▼":"";
+  const mNews=corner.marketNews(S.day);
+  const drawerBody=`<div class="stat"><span>📋 Ton menu <span class="muted" style="font-size:10px">· marché ${fair}/g${mTrend}</span></span><b id="pPrixG">${prix}/g</b></div>
       <div class="nego-price" style="margin:2px 0 2px"><button class="pb" data-prix="-1">−1</button>
         <div id="pMenuF" style="font-size:12px">2g ${2*prix} · 5g ${5*prix} · 8g ${8*prix}</div>
         <button class="pb" data-prix="1">+1</button></div>
-      <div class="muted" id="pPrixHint" style="font-size:10px;margin:0 0 8px">${prixHint(prix,fair)}</div>
+      <div class="muted" id="pPrixHint" style="font-size:10px;margin:0 0 ${mNews?"2px":"8px"}">${prixHint(prix,fair)}</div>
+      ${mNews?`<div class="muted" style="font-size:10px;margin:0 0 8px;color:${mNews.dir>0?"#ffb454":"#8fd0ff"}">${mNews.tx}</div>`:""}
       <div class="stat"><span>Tampon exposé</span><b id="pTamp">${tampN(P.tampon)} barrettes · ${Math.round(tampG(P.tampon))} g</b></div>
       ${P.bac>0?`<div class="stat"><span>Bac du corner <span class="muted" style="font-size:10px">· charbonneur</span></span><b class="pill dirty" id="pBac">${money(P.bac)}</b></div>
       <button class="btn ghost" style="margin:4px 0 6px" id="enc">Encaisser le bac ▸ liquide</button>`:`<div class="muted" style="font-size:10px;margin:2px 0 6px">💸 Tes ventes tombent direct en <b class="pill dirty" style="font-size:10px;padding:1px 6px">liquide</b> — rien à encaisser.</div>`}
@@ -1234,6 +1241,7 @@ function renderCorner(P){
     <div class="ctop">
       <button class="cbtn" id="back">↩</button>
       <span class="cchip" id="cMenuChip">📋 ${prix}/g</span>
+      <span class="cchip" id="cMarChip" title="marché du jour">⚖ ${fair}${mTrend.trim()?" "+mTrend.trim():""}</span>
       <span class="cchip" id="cHeatChip">🔥 ${Math.round(S.heat)}</span>
       <span class="cchip gold" id="cComboChip">⚡×${(P.combo||1).toFixed(1).replace(".0","")}</span>
       <button class="cbtn" id="cManage">▤ Gérer</button>
@@ -1282,9 +1290,9 @@ function renderCorner(P){
   document.getElementById("chP").onclick=()=>{ P.chouffes++; save(); renderCorner(P); };
   document.getElementById("chM").onclick=()=>{ P.chouffes=Math.max(0,P.chouffes-1); save(); renderCorner(P); };
   // menu réglable à la main : patch en place (le tiroir reste ouvert) — le prix pilote la demande + la négo
-  const patchPrix=()=>{ const p=P.prix, set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
-    set("pPrixG",p+"/g"); set("pMenuF",`2g ${2*p} · 5g ${5*p} · 8g ${8*p}`); set("pPrixHint",prixHint(p,fair)); set("cMenuChip","📋 "+p+"/g"); };
-  stage.querySelectorAll("[data-prix]").forEach(b=>b.onclick=()=>{ P.prix=clamp((P.prix||fair)+ +b.dataset.prix,1,Math.round(fair*3)); save(); patchPrix(); });
+  const patchPrix=()=>{ const p=P.prix, f=marcheDuJour(), set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
+    set("pPrixG",p+"/g"); set("pMenuF",`2g ${2*p} · 5g ${5*p} · 8g ${8*p}`); set("pPrixHint",prixHint(p,f)); set("cMenuChip","📋 "+p+"/g"); set("cMarChip","⚖ "+f); };
+  stage.querySelectorAll("[data-prix]").forEach(b=>b.onclick=()=>{ const f=marcheDuJour(); P.prix=clamp((P.prix||f)+ +b.dataset.prix,1,Math.round(f*3)); save(); patchPrix(); });
   stage.querySelectorAll("[data-rav]").forEach(b=>b.onclick=()=>pdvRavito(+b.dataset.rav));
   { const encEl=document.getElementById("enc"); if(encEl) encEl.onclick=()=>{ if(P.bac<=0){toast("Bac vide.");return;} const v=Math.round(P.bac); S.dirty+=v; pushBills(v); toast("Encaissé "+money(v)+" en liquide."); P.bac=0; hud(); save(); renderCorner(P); }; }
   renderCornerActive(P); // carte client dynamique (négo)
@@ -1342,7 +1350,7 @@ function renderKarnet(){
 
 /* ---------- SnapShit ---------- */
 // prix affiché (menu du corner) que la story met en avant — réglé à la main au corner
-function snapMenuPrix(){ const p=S.shelter&&S.shelter.pdv&&S.shelter.pdv.prix; return p>0?p:corner.cornerFair(S.reput); }
+function snapMenuPrix(){ const p=S.shelter&&S.shelter.pdv&&S.shelter.pdv.prix; return p>0?p:marcheDuJour(); }
 function renderSnap(){
   const pending=S.dms.filter(d=>d.status==="pending");
   stage.innerHTML=`
@@ -1359,7 +1367,7 @@ function renderSnap(){
       <h3>Composer</h3>
       <div class="muted">Vitrine = buzz soft. Drop = promesse. Premium = tu joues ta crédibilité.</div>
       <div class="stat"><span>📋 Menu affiché sur la story</span><b>${snapMenuPrix()}/g · 2g ${2*snapMenuPrix()} · 5g ${5*snapMenuPrix()} · 8g ${8*snapMenuPrix()}</b></div>
-      <div class="muted" style="font-size:10px;margin:-2px 0 6px">Réglable au corner (Quartier ▸ corner ▸ Gérer). Marché : ${corner.cornerFair(S.reput)}/g.</div>
+      <div class="muted" style="font-size:10px;margin:-2px 0 6px">Réglable au corner (Quartier ▸ corner ▸ Gérer). Marché : ${marcheDuJour()}/g.</div>
       <div class="grid3">
         <button class="btn snap" id="vitr">Vitrine</button>
         <button class="btn snap" id="dropN">Drop</button>
@@ -1972,6 +1980,10 @@ function advanceDay(manual){
         if(P&&P.ledger){ const e=P.ledger.find(x=>x.ard&&!x.ok&&x.nm===p.nm); if(e){ e.ok=true; e.eur=v; } } } } // le ledger passe 🧾 → 🧾✓
     // l'offre « ce soir je suis à sec » ne survit pas à la nuit : une carte ardoise non acceptée s'en va (vente perdue, R1)
     if(P&&P.queue&&P.queue.length) P.queue=P.queue.filter(c=>c.mode!=="ardoise"); }
+  // marché du jour : la concurrence bouge la référence chaque matin — annoncé (R4), la news explique les extrêmes
+  const mNow=marcheDuJour(), mPrev=corner.marketPrice(S.reput, S.day-1), mD=mNow-mPrev, mNews=corner.marketNews(S.day);
+  cause("Marché", mNow+"/g"+(mD?" ("+(mD>0?"+":"")+mD+")":""));
+  if(mNews) toastQ.push(mNews.tx+" Marché "+mNow+"/g.");
   // paie des chouffes du corner (liquide d'abord, puis propre) — sinon un chouffe part
   { const P=S.shelter&&S.shelter.pdv; const due=(P&&P.chouffes||0)*PDV_CHOUFFE_PAY;
     if(due>0){ if(S.dirty>=due){ S.dirty-=due; cause("Paie chouffes","−"+due+" liquide"); }
@@ -1982,7 +1994,7 @@ function advanceDay(manual){
   sh.cons.forEach(c=>cause(c.t,c.c));
   S.dayAcc=0;
   const last=sh.cons[sh.cons.length-1] || cons[cons.length-1];
-  toast(manual ? (last?.c || "Nouvelle nuit.") : ("J"+S.day+" — demande rafraîchie, paie faite."));
+  toast(manual ? (last?.c || "Nouvelle nuit.") : ("J"+S.day+" — marché "+mNow+"/g"+(mD>0?" ▲":mD<0?" ▼":"")+", paie faite."));
   save(); hud();
   if(tab==="shelter"&&shelterSub==="pdv") renderCorner(S.shelter.pdv); // rafraîchit la scène après clôture
 }

@@ -29,6 +29,9 @@ export const CORNER = {
   TIP_QUAL:0.12, QUAL_TOL_UP:1.12, QUAL_TOL_DOWN:0.85, QUAL_MISS:12,
   // ardoise (crédit) : le stock part maintenant, l'argent revient à J+N avec intérêt — jamais d'impayé (R4)
   ARDOISE_RATE:0.25, ARDOISE_DAYS:2, ARDOISE_REL_MIN:25, ARDOISE_CHANCE:0.45,
+  // marché du jour (concurrence) : facteur déterministe par jour — une météo ANNONCÉE (R4), pas un bruit.
+  // Neutre avant J3 (démarrage propre) ; au-delà des seuils HI/LO, une « news » explique le mouvement.
+  MARCHE_MIN:0.8, MARCHE_MAX:1.3, MARCHE_HI:1.18, MARCHE_LO:0.9, MARCHE_FROM_DAY:3,
   LOUCHE_FROM_DAY:2, LOUCHE_CHANCE:0.14, // un profil cramé apparaît à partir de J2 (déterministe)
   AMBIG_CHANCE:0.38,                     // part des réguliers avec une demande ambiguë (à interpréter)
   REP_DEAL:1, REP_JUSTE:1, REP_GOUGE:-2, REP_WALK:-1,
@@ -137,6 +140,30 @@ const R = Math.round;
 
 // barème présentiel — même formule que snap.mjs (prix « fair » dérivé de la réput)
 export function cornerFair(reput){ return Math.max(4, R(CORNER.PRIX_FAIR*(0.6 + (reput||0)/120))); }
+
+/* ---- marché dynamique : la concurrence fait bouger la référence, ton prix module la demande RELATIVE ----
+   Le marché ne pilote QUE la demande (combien de clients passent) ; la négo reste calée sur TON menu. */
+export function marketFac(day){
+  if((day||1)<CORNER.MARCHE_FROM_DAY) return 1; // les premiers jours, marché calme (démarrage sans parasite)
+  return CORNER.MARCHE_MIN + hh(day*31, 17)*(CORNER.MARCHE_MAX-CORNER.MARCHE_MIN);
+}
+export function marketPrice(reput, day){ return Math.max(3, R(cornerFair(reput)*marketFac(day))); }
+const MARCHE_HI_TX=[
+  "🚨 Descente chez un gros — la rue est en manque, le marché flambe.",
+  "📈 Week-end de paie — tout le quartier cherche, les prix montent.",
+  "🔥 Un corner rival s'est fait ratisser — sa clientèle cherche un plan.",
+];
+const MARCHE_LO_TX=[
+  "📦 Gros arrivage chez la concurrence — ils cassent les prix.",
+  "🪓 Guerre des prix entre corners — le marché brade.",
+  "🧊 Semaine morte, tout le monde liquide — les prix plongent.",
+];
+export function marketNews(day){
+  const f=marketFac(day);
+  if(f>=CORNER.MARCHE_HI) return { dir:1, tx:pick(MARCHE_HI_TX, day) };
+  if(f<=CORNER.MARCHE_LO) return { dir:-1, tx:pick(MARCHE_LO_TX, day) };
+  return null;
+}
 // tolérance €/g : base = TON menu affiché (prix) — le client négocie autour de ton prix, pas du marché.
 // (le marché, lui, pilote la DEMANDE : combien de clients passent.) base peut être le prix joueur ou, à défaut, le marché.
 export function cornerTol(kind, rel, base){ return base*(CORNER.TOL[kind] + (rel||0)*CORNER.TOL_PER_REL); }
