@@ -1147,8 +1147,10 @@ function renderCorner(P){
   drawer.style.bottom=dockH+"px"; drawer.style.maxHeight="calc(88vh - "+dockH+"px)";
   peekEl.style.bottom=dockH+"px";
   { const cAct=document.getElementById("cActive"); if(cAct) cAct.style.bottom=(dockH+(peekEl.offsetHeight||34)+8)+"px"; } // carte client au-dessus du dock + poignée
-  // ouvert = panneau plein (classe .on) ; fermé = panneau caché + poignée « Le corner » visible pour rouvrir
-  const openDr=on=>{ drawer.classList.toggle("on",on); bk.classList.toggle("on",on); peekEl.style.display=on?"none":"flex"; };
+  // ouvert = plein (translateY 0) ; fermé = descendu SOUS l'écran (hauteur + dock + marge) → totalement caché,
+  // seule la poignée « Le corner » reste. (translateY(110%) seul laissait un bout dépasser sur écran court.)
+  const closedT="translateY(calc(100% + "+(dockH+28)+"px))";
+  const openDr=on=>{ drawer.classList.toggle("on",on); bk.classList.toggle("on",on); peekEl.style.display=on?"none":"flex"; drawer.style.transform= on?"translateY(0px)":closedT; };
   document.getElementById("cManage").onclick=()=>openDr(true);
   document.getElementById("cClose").onclick=()=>openDr(false);
   bk.onclick=()=>openDr(false);
@@ -1156,8 +1158,9 @@ function renderCorner(P){
   { let sy=0,dy=0,dragging=false;
     grab.addEventListener("pointerdown",e=>{ sy=e.clientY; dy=0; dragging=true; try{grab.setPointerCapture(e.pointerId);}catch(_){}; drawer.style.transition="none"; });
     grab.addEventListener("pointermove",e=>{ if(!dragging) return; dy=Math.max(0,e.clientY-sy); drawer.style.transform="translateY("+dy+"px)"; if(e.cancelable) e.preventDefault(); });
-    const end=()=>{ if(!dragging) return; dragging=false; drawer.style.transition=""; drawer.style.transform=""; if(dy>48) openDr(false); };
+    const end=()=>{ if(!dragging) return; dragging=false; drawer.style.transition=""; openDr(dy<=48); }; // <=48 → revient ouvert, sinon fermé
     grab.addEventListener("pointerup",end); grab.addEventListener("pointercancel",end); grab.addEventListener("lostpointercapture",end); }
+  openDr(false); // état initial : fermé (poignée visible, panneau caché sous l'écran)
   // poignée « Le corner » (panneau fermé) : tap OU glissement vers le haut → ouvrir
   { let sy=0,dragging=false,moved=false;
     peekEl.addEventListener("pointerdown",e=>{ sy=e.clientY; moved=false; dragging=true; try{peekEl.setPointerCapture(e.pointerId);}catch(_){}; });
