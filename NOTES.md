@@ -9,7 +9,31 @@ Les entrées les plus récentes en haut.
 
 ---
 
-## 2026-07-24 — Ciel du corner : vrai cycle 24h (minuit → aube → jour → couchant → nuit)
+## 2026-07-24 — Rythme du corner : journée 2× plus longue + vente → liquide direct + fix double-poignée
+
+Retours de test : (1) la journée file trop vite pour les ~5-6 clients d'une session ;
+(2) taper « Encaisser le bac ▸ liquide » est une friction sans décision ; (3) au 1er
+connect au corner, une **double poignée** de tiroir apparaît, qui ne part qu'après avoir
+rabattu le panneau une fois.
+
+- **Journée 2× plus longue** : `DAY_SEC_REAL` **90 → 180 s**. Plus de temps pour souffler
+  entre les clients, ~2× plus de clients servis par jour (le goulot reste `CORNER_MAX_QUEUE`
+  + la vitesse du joueur, pas les arrivées), et le ciel 24h défile deux fois plus lentement.
+  Chaleur observée basse (6-19/jour) → pas de risque de descente en doublant la durée.
+- **Vente au corner → liquide direct (R6/R7)** : en présentiel (joueur au corner) `cornerSell`
+  verse `total+tip` **direct dans `S.dirty`**, plus dans `P.bac`. Fini le « Encaisser » à taper :
+  c'est de la friction sans décision. Le tiroir affiche « 💸 Tes ventes tombent direct en
+  liquide » à la place. **Le bac + le bouton Encaisser ne s'affichent que si `P.bac>0`** —
+  réservé au **charbonneur** embauché plus tard (corner qui tourne en ton absence → recette à
+  ramasser). Le ledger + le HUD « liquide » donnent déjà le retour visuel.
+- **Fix double-poignée (1er connect)** : la cause — le tiroir fermé était poussé par un
+  `translateY(115%)` (% de sa **hauteur mesurée**), appliqué avant que le layout iOS ne soit
+  stabilisé au 1er paint → il restait partiellement visible (2e poignée) jusqu'à la 1re
+  interaction. Fix **structurel** : tiroir fermé = **`display:none`** (retiré du flux) → une 2e
+  poignée devient *impossible*, zéro dépendance à une hauteur mesurée. Ouverture = `display:block`
+  + reflow + slide-up (`.on`, `translateY(0)`) ; fermeture = slide-down puis `display:none` après
+  l'anim. La poignée `.cpeek` reste seule visible quand c'est fermé. (Headless ne reproduisait pas
+  le bug — spécifique au timing iOS — d'où le choix d'un fix qui ne dépend d'aucune mesure.)
 
 Correction du retour joueur « mais le corner peut être tenu toute la journée » : le
 ciel ne mappait que **20h → 04h** (soirée), donc il faisait *toujours* nuit. Refonte
