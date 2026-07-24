@@ -9,6 +9,24 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-24 — Retours session : PNJ la norme, ciel jour/nuit, poignée collée
+
+- **PNJ anonymes = la norme** : `ANON_SHARE` 0.62 → **0.85** (les archétypes nommés
+  deviennent rares, le sel). Retour joueur : les random fonctionnent bien.
+- **Ciel de la scène reflète l'heure in-game** : `#cScene` prend un dégradé calculé
+  depuis l'avancée de la soirée (`S.dayAcc/DAY_SEC_REAL`) — crépuscule chaud
+  (rosé/violet, 🌆 20h) → nuit noire (bleu sombre, 🌙 03h). Label heure en haut à
+  droite (`.chour`). Le ciel avance en direct via `cornerSkyPatch()` dans `pdvPatch`.
+- **Poignée collée au dock (fini l'espace vide)** : la vraie cause — `#stage` (absolute
+  inset:0 dans `#main` flex:1) se termine **pile au-dessus du dock**, pas au bas de
+  l'écran. Positionner à `bottom:dockH` sur-élevait d'une hauteur de dock (le trou).
+  Corrigé : panneau + poignée à **`bottom:0`** (= haut du dock, collés) ; fermé =
+  `translateY(115%)` **clippé par `#stage overflow:hidden`** → caché proprement (plus
+  de mesure de dock, plus de « bout qui dépasse »). Carte client à `peek+8`.
+  Vérif headless : gap poignée↔dock = 0px.
+
+---
+
 ## 2026-07-24 — Tiroir corner → panneau roulant avec poignée persistante
 
 Suite des retours tiroir : « il a disparu », « impossible de le dérouler, retour

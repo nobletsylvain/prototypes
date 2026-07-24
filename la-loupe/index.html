@@ -145,6 +145,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .cground{position:absolute;bottom:0;left:0;right:0;height:28%;background:linear-gradient(180deg,#1a2032 0%,#141827 18%,#0c0f1a 100%)}
 .cground::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:#242c44}
 .ctag{position:absolute;bottom:29%;left:6%;color:#2c3552;font-weight:900;font-size:20px;transform:rotate(-4deg);letter-spacing:2px}
+.chour{position:absolute;top:56px;right:14px;z-index:4;font-size:12px;font-weight:700;color:#b3bcd0;text-shadow:0 1px 4px #000;opacity:.85}
 .cempty{position:absolute;left:0;right:0;top:24%;text-align:center;color:#5a6480;font-size:13px;text-shadow:0 1px 4px #000}
 .cperso{position:absolute;display:flex;flex-direction:column;align-items:center;z-index:3;cursor:pointer;transform:translate(-50%,0) scale(var(--s,1));transform-origin:50% 100%;transition:left .6s cubic-bezier(.3,.8,.4,1),bottom .6s ease,transform .6s ease,opacity .4s}
 .cperso.active{z-index:4;filter:drop-shadow(0 0 14px #4cc2ff55)}
@@ -1067,6 +1068,7 @@ function pdvPatch(){
   set("pCombo",(P.combo||1).toFixed(1).replace(".0",""));
   const hc=document.getElementById("cHeatChip"); if(hc) hc.textContent="🔥 "+Math.round(S.heat);
   const cc=document.getElementById("cComboChip"); if(cc) cc.textContent="⚡×"+(P.combo||1).toFixed(1).replace(".0","");
+  cornerSkyPatch(); // le ciel avance avec la soirée (reflète l'heure)
   const led=document.getElementById("pLed");
   if(led) led.innerHTML=P.ledger.length ? P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr. (${e.g} g)</span><b class="pill dirty">+${money(e.eur)}</b></div>`).join("") : `<div class="muted" style="font-size:11px">Aucune vente encore.</div>`;
 }
@@ -1095,9 +1097,19 @@ function renderPDV(){
 }
 // La rue, plein écran (Option B) : négo au client (carte slide-up) + tiroir « Gérer »
 // (menu, tampon/ravito, encaisser, chouffes, ledger). Tap une silhouette pour la servir en priorité.
+// ciel de la scène selon l'avancée de la soirée (0 = crépuscule chaud, 1 = nuit noire) → reflète l'heure in-game
+function cornerDayT(){ return clamp((S.dayAcc||0)/DAY_SEC_REAL, 0, 1); }
+function cornerSky(t){
+  const L=(a,b)=>Math.round(a+(b-a)*t);
+  const top=`rgb(${L(30,4)},${L(23,6)},${L(54,16)})`, mid=`rgb(${L(50,10)},${L(31,12)},${L(62,28)})`, hz=`rgb(${L(98,16)},${L(56,22)},${L(72,44)})`;
+  return `linear-gradient(180deg, ${top} 0%, ${mid} 44%, ${hz} 66%, ${hz} 100%)`;
+}
+function cornerHour(t){ const h=Math.floor(20+t*8)%24; return (h<10?"0"+h:h)+"h"; } // soirée : 20h → 04h
+function cornerSkyPatch(){ const sc=document.getElementById("cScene"); if(sc){ const t=cornerDayT(); sc.style.background=cornerSky(t); const hr=document.getElementById("cHour"); if(hr) hr.textContent=(t<0.5?"🌆 ":"🌙 ")+cornerHour(t); } }
 function renderCorner(P){
   stage.classList.add("corner-mode");
   cornerEls=new Map(); // silhouettes reconstruites
+  const dayT=cornerDayT();
   const fair=corner.cornerFair(S.reput);     // prix du marché (référence)
   if(!(P.prix>0)) P.prix=fair;               // ton prix affiché (réglable à la main), défaut = marché
   const prix=P.prix;
@@ -1122,10 +1134,11 @@ function renderCorner(P){
       <div id="pLed">${P.ledger.length?P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr.</span><b class="pill dirty">+${money(e.eur)}</b></div>`).join(""):`<div class="muted" style="font-size:11px">Aucune vente encore.</div>`}</div>
       <button class="btn ghost" style="margin-top:10px" id="cClose">Fermer</button>`;
   stage.innerHTML=`
-    <div class="cscene" id="cScene">
+    <div class="cscene" id="cScene" style="background:${cornerSky(dayT)}">
       <div class="cbat" id="cBat1" style="left:-4%;width:42%;height:60%"><div class="cgrid"></div></div>
       <div class="cbat" id="cBat2" style="left:54%;width:54%;height:68%"><div class="cgrid"></div></div>
       <div class="ctag">CORNER</div><div class="ccone"></div><div class="clamp"></div><div class="cground"></div>
+      <div class="chour" id="cHour">${dayT<0.5?"🌆 ":"🌙 "}${cornerHour(dayT)}</div>
       <div id="cPersos"></div>
       <div class="cempty" id="cEmpty">${emptyTx}</div>
     </div>
@@ -1142,15 +1155,11 @@ function renderCorner(P){
     <div class="cpeek" id="cPeek"><span class="cdrawer-bar"></span><span class="cpeek-lb">⌃ Le corner · gérer</span></div>`;
   document.getElementById("back").onclick=()=>{ stage.classList.remove("corner-mode"); shelterSub="map"; render(); };
   const drawer=document.getElementById("cDrawer"), bk=document.getElementById("cDrawerBk"), grab=document.getElementById("cGrab"), peekEl=document.getElementById("cPeek");
-  // panneau ET poignée reposent SUR la barre du bas (dock) → rien ne passe dessous (bug écran court)
-  const dockH=(dock&&dock.offsetHeight)||56;
-  drawer.style.bottom=dockH+"px"; drawer.style.maxHeight="calc(88vh - "+dockH+"px)";
-  peekEl.style.bottom=dockH+"px";
-  { const cAct=document.getElementById("cActive"); if(cAct) cAct.style.bottom=(dockH+(peekEl.offsetHeight||34)+8)+"px"; } // carte client au-dessus du dock + poignée
-  // ouvert = plein (translateY 0) ; fermé = descendu SOUS l'écran (hauteur + dock + marge) → totalement caché,
-  // seule la poignée « Le corner » reste. (translateY(110%) seul laissait un bout dépasser sur écran court.)
-  const closedT="translateY(calc(100% + "+(dockH+28)+"px))";
-  const openDr=on=>{ drawer.classList.toggle("on",on); bk.classList.toggle("on",on); peekEl.style.display=on?"none":"flex"; drawer.style.transform= on?"translateY(0px)":closedT; };
+  // #stage se termine PILE au-dessus de la barre du bas (dock) → panneau et poignée à bottom:0 (CSS)
+  // reposent déjà sur le dock, collés, sans mesure. La carte client passe juste au-dessus de la poignée.
+  { const cAct=document.getElementById("cActive"); if(cAct) cAct.style.bottom=((peekEl.offsetHeight||40)+8)+"px"; }
+  // ouvert = plein (translateY 0) ; fermé = poussé sous le bas de #stage → clippé (overflow:hidden) = caché, poignée seule.
+  const openDr=on=>{ drawer.classList.toggle("on",on); bk.classList.toggle("on",on); peekEl.style.display=on?"none":"flex"; drawer.style.transform= on?"translateY(0px)":"translateY(115%)"; };
   document.getElementById("cManage").onclick=()=>openDr(true);
   document.getElementById("cClose").onclick=()=>openDr(false);
   bk.onclick=()=>openDr(false);
