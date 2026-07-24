@@ -19,10 +19,15 @@ Gros lot de feedback joueur (4 axes). État :
 - **Tiroir « Gérer » : swipe-down pour cacher.** Ajout d'une poignée (`.cdrawer-grab`)
   + drag pointer : glisser le tiroir vers le bas le referme → la scène respire
   (idée joueur : « hide ce menu, plus de place à la scène »).
-- **Gérer les prix (à faire, en attente de validation).** Proposition : levier de
-  prix dans le tiroir (Cassé −20 % / Menu / Cher +25 % / Abusé +50 %), effet
-  déterministe (R4) marge vs volume vs walk-away/relation (R8). Chapeaute la négo
-  client-par-client.
+- **Gérer les prix → fait (v1).** Spec joueur : prix fixé **à la main** (€/g,
+  steppers dans le tiroir), affiché sur le **menu du corner** + les **stories
+  SnapShit**, avec le **prix du marché** (`cornerFair(reput)`) en référence. Le
+  **prix pilote la demande** (R4 : `pdvDemande` = f(prix/marché) — cher → moins de
+  clients). Décision clé : le marché ne pilote QUE la demande ; la **négo est calée
+  sur TON menu** (offres, bande « juste », tolérance `cornerTol(base=prix)`), le
+  **budget** reste la poche absolue du client. Sinon, prix > marché rendait la bande
+  juste inatteignable. Menu réglable en place (patch, tiroir ne se ferme pas).
+  *Reste* : prix par format indépendant (v2), marché variable selon concurrence (plus tard).
 - **Tri de monnaie → à repousser (confirmé).** `buyPain`/`buyUp`/chouffes tournent
   au **liquide** ; depuis la coupe de la dette, le **propre** (sortie de la trieuse)
   n'a plus d'usage → billets bloqués (liasse = 5 identiques, le reste coince pour
