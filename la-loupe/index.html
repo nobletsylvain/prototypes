@@ -342,9 +342,9 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 import * as snap from "./snap.mjs?v=18";
 import * as beuher from "./beuher.mjs?v=18";
 import * as shelter from "./shelter.mjs?v=18";
-import * as corner from "./corner.mjs?v=1";
+import * as corner from "./corner.mjs?v=2";
 
-const SAVE_VERSION = "26";
+const SAVE_VERSION = "27"; // 27 : traits personas (qualité/heat/heures) + ardoise (S.clients[id].ardoise)
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
 // La demande Snap reste calée sur 2/5/8 (snap.SC.DOSE_FORMATS) — couper autre chose = risque assumé.
 const CUT_MIN = 1, CUT_MAX = 20, CUT_DEFAULT = 2;
@@ -496,7 +496,10 @@ document.getElementById("skip3d").onclick=()=>{ // sortie de secours pendant le 
 };
 
 function save(){ store.set("save", JSON.stringify(S)); }
-function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>toastEl.classList.remove("show"),1800); }
+// toastQ : annonces différées (ex. déblocage de contact) — jouées à la suite, sans couper le toast courant
+let toastQ=[];
+function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show"); clearTimeout(toastT);
+  toastT=setTimeout(()=>{ toastEl.classList.remove("show"); if(toastQ.length) toastT=setTimeout(()=>toast(toastQ.shift()),250); },1800); }
 function cause(txt, why){ S.journal.unshift({t:Date.now(),txt,cause:why}); if(S.journal.length>50) S.journal.length=50; }
 function planqueCap(){ return PLANQUE_CAP_BASE + S.upgrades.planque*120; }
 function sizesOf(map){ return Object.keys(map).map(Number).filter(f=>map[f]>0).sort((a,b)=>b-a); }
@@ -802,7 +805,11 @@ function cornerSpawn(P){ // client (persona ou louche) + sa demande (déterminis
     return { cid:null, nm:L.nm, av:L.av, kind:"louche", rel:0, want:clamp(Math.round(L.qty/2),1,10),
       g:L.qty, offer:L.offer, tx:L.tx, tell:L.tell, cop:L.cop, pat, pat0:pat, mode:"louche", negoP:L.offer, dernier:null };
   }
-  const avail=corner.CORNER_PERSONAS.filter(p=>S.clients[p.id]&&S.clients[p.id].unlocked&&!S.clients[p.id].quit);
+  // heures de passage (traits.hours) : le cycle 24h filtre QUI passe ; une ardoise ouverte = il se fait discret
+  const hourNow=cornerHourN(cornerDayT());
+  const avail=corner.CORNER_PERSONAS.filter(p=>{ const c=S.clients[p.id];
+    return c&&c.unlocked&&!c.quit&&!c.ardoise&&corner.inHours(p, hourNow)
+      && !P.queue.some(q=>q.cid===p.id); }); // jamais deux fois la même tête en file (et une seule ardoise possible)
   // PNJ anonyme (le volume : vient chercher sa dose, sans plus) vs persona nommé (le sel) — tirage déterministe
   if(!avail.length || cornerHash(S.day*11, P.seq) < corner.CORNER.ANON_SHARE){
     const a=corner.makeAnon(S.day, P.seq, S.reput, P.prix), i=P.seq, pat=corner.patienceOf("anon");
@@ -810,8 +817,18 @@ function cornerSpawn(P){ // client (persona ou louche) + sa demande (déterminis
       want:clamp(Math.round(a.qty/2),1,4), g:a.qty, offer:a.offer, tx:a.tx, tell:"", pat, pat0:pat, mode:"offer", negoP:a.offer, dernier:null };
   }
   const p=avail[(P.seq)%avail.length], c=S.clients[p.id];
+  // ardoise (étape 4) : soir de dèche déterministe → il demande son habituel à crédit (règle à J+N, +intérêt)
+  if(corner.wantsArdoise(p, c.rel, S.day, P.seq)){
+    const a=corner.makeArdoise(p, c.rel, S.reput, S.day, P.seq, P.prix), pat=corner.patienceOf(p.kind);
+    return { cid:p.id, nm:p.nm, av:p.av, kind:p.kind, rel:c.rel, pat, pat0:pat, mode:"ardoise", tx:a.tx, tell:a.tell,
+      want:clamp(Math.round(a.qty/2),1,6), g:a.qty, due:a.due, payday:a.payday, offer:0, negoP:0, dernier:null };
+  }
   const o=corner.makeOffer(p, c.rel, S.reput, S.day, P.seq, P.prix), pat=corner.patienceOf(p.kind);
   const base={ cid:p.id, nm:p.nm, av:p.av, kind:p.kind, rel:c.rel, pat, pat0:pat, mode:o.mode, tx:o.tx, tell:o.tell, dernier:null };
+  // traits lisibles sur la carte (R4) : chaleur à la vente ; qualité reniflée À L'ARRIVÉE (tampon du moment)
+  if(p.traits&&p.traits.heat) base.heatAdd=p.traits.heat;
+  const qc=corner.qualCheck(p, Math.round(tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55)));
+  if(qc){ base.qc=qc; base.qFac=qc.fac; }
   if(o.mode==="hesit") return { ...base, want:clamp(Math.round(o.usual/2),1,6), g:o.usual, usual:o.usual, offer:0, negoP:0 };
   if(o.mode==="ambig") return { ...base, want:1, g:0, expect:o.expect, composeB:0, offer:0, negoP:0 };
   return { ...base, want:clamp(Math.round(o.qty/2),1,6), g:o.qty, offer:o.offer, negoP:o.offer };
@@ -881,6 +898,12 @@ function cornerLeave(P, cl, why, v, tip){
   else if(why==="walk") toast("🤬 "+cl.nm+" — vente perdue");
   else if(why==="refus") toast("Ok, une autre fois. (aucun malus)");
   else if(why==="rupture") toast("Rupture — ravitaille le tampon.");
+  else if(why==="ardoise") toast("🧾 "+cl.nm+" note "+cl.due+" au carnet — il règle J"+cl.payday+".");
+  // graphe social : une relation qui vient de grimper peut débloquer un filleul (« X t'envoie Y »)
+  const news=corner.checkUnlocks(S.clients);
+  for(const u of news){ cause("Nouveau contact", (u.by?u.by.nm+" t'envoie ":"")+u.p.nm);
+    const hl=corner.hoursLabel(u.p);
+    toastQ.push("🤝 "+(u.by?u.by.nm+" a parlé de toi — ":"")+u.p.nm+" passera te voir"+(hl?" ("+hl+")":"")+"."); }
   save(); hud(); renderCornerActive(P);
 }
 // vente commune : débite wantB barrettes du tampon → liquide direct + ledger. false si rupture.
@@ -900,9 +923,12 @@ function cornerResolve(P, cl, total, firstTry, isClientOffer){
   if(v.outcome==="walk"){ applyDeltas(cl, v); P.combo=1; cornerLeave(P, cl, "walk", v); return; }
   let tip=0;
   if(v.tipRate){ tip=Math.round(total*v.tipRate*(P.combo||1)); }
+  if(cl.qc&&cl.qc.ok&&v.outcome!=="gouge") tip+=Math.round(total*corner.CORNER.TIP_QUAL); // le connaisseur paie le propre
   if(!cornerSell(P, cl, cl.want, total, tip)) return;
   if(v.tipRate) P.combo=Math.min(corner.CORNER.COMBO_MAX,(P.combo||1)+corner.CORNER.COMBO_STEP);
   applyDeltas(cl, v);
+  if(cl.qc&&cl.qc.ok&&v.outcome!=="gouge"){ const c=S.clients[cl.cid]; if(c) c.rel=clamp(c.rel+1,0,100); }
+  if(cl.heatAdd){ S.heat=clamp(S.heat+cl.heatAdd,0,100); cause("Le coin chauffe", cl.nm+" · chaleur +"+cl.heatAdd); }
   cause("Vente corner", cl.nm+" · "+v.outcome+" +"+(total+tip));
   cornerLeave(P, cl, "done", v, tip);
 }
@@ -919,6 +945,21 @@ function cornerFlair(P, cl){
   if(cl.cop===false){ P.combo=1; cornerLeave(P, cl, "pigeonRefus"); }
   else { S.dirty+=corner.CORNER.FLAIR_BONUS; cause("Flic flairé","+"+corner.CORNER.FLAIR_BONUS+" discrétion"); cornerLeave(P, cl, "flair"); }
 }
+// ardoise (étape 4) : le stock part MAINTENANT, l'argent revient à J+N (+intérêt) — réglé à la clôture
+// de journée, jamais d'impayé (R4). Refuser = vente perdue, aucun malus (R1).
+function cornerResolveArdoise(P, cl){
+  const sold=cornerTake(P, cl.want);
+  if(sold.n===0){ P.res=clamp(P.res-PDV_RUPTURE_HIT,0,100); cornerLeave(P, cl, "rupture"); return; }
+  if(sold.g<cl.g) cl.due=Math.max(1,Math.round(cl.due*sold.g/cl.g)); // rupture partielle : dette au prorata des grammes partis (R4)
+  const c=S.clients[cl.cid];
+  // cumul (jamais d'écrasement de dette → jamais d'impayé) — ne devrait plus arriver avec la file dédoublonnée
+  if(c){ c.ardoise = c.ardoise ? { due:c.ardoise.due+cl.due, day:Math.max(c.ardoise.day, cl.payday) } : { due:cl.due, day:cl.payday };
+    c.rel=clamp(c.rel+corner.CORNER.REL_DEAL,0,100); }
+  P.queue=P.queue.filter(x=>x===cl||x.cid!==cl.cid); // il se fait discret tant qu'il doit : ses autres cartes s'en vont
+  P.ledger.unshift({nm:cl.nm, n:sold.n, g:sold.g, eur:0, ard:"J"+cl.payday}); if(P.ledger.length>6) P.ledger.length=6;
+  cause("Ardoise ouverte", cl.nm+" · "+cl.due+" à J"+cl.payday);
+  cornerLeave(P, cl, "ardoise");
+}
 // hésitant : toute attention convertit ; son habituel (perso) paie un pourboire
 function cornerResolveHesit(P, cl, perso){
   const fair=P.prix||corner.cornerFair(S.reput), wantB=perso?cl.want:1, g=perso?cl.usual:2, total=Math.round(g*fair);
@@ -933,7 +974,8 @@ function cornerResolveAmbig(P, cl){
   const fair=P.prix||corner.cornerFair(S.reput), g=(cl.composeB||0)*2;
   if(g<=0){ toast("Ajoute au moins une barrette."); return; }
   const total=Math.round(g*fair), lu=(g===cl.expect);
-  const tip=lu?Math.round(total*corner.CORNER.TIP_LU*(P.combo||1)):0;
+  let tip=lu?Math.round(total*corner.CORNER.TIP_LU*(P.combo||1)):0;
+  if(lu&&cl.qc&&cl.qc.ok) tip+=Math.round(total*corner.CORNER.TIP_QUAL); // connaisseur bien servi ET bien lu
   if(!cornerSell(P, cl, cl.composeB, total, tip)) return;
   const c=S.clients[cl.cid];
   if(lu){ if(c) c.rel=clamp(c.rel+corner.CORNER.REL_JUSTE+1,0,100); P.combo=Math.min(corner.CORNER.COMBO_MAX,(P.combo||1)+corner.CORNER.COMBO_STEP); }
@@ -951,6 +993,7 @@ function cornerAct(P, a){
   if(a==="accept2") return cornerResolve(P, cl, cl.dernier, false, true);
   if(a==="loucheOk") return cornerResolveLouche(P, cl);
   if(a==="loucheNo") return cornerFlair(P, cl);
+  if(a==="ardoiseOk") return cornerResolveArdoise(P, cl);
   if(a==="hesitPerso") return cornerResolveHesit(P, cl, true);
   if(a==="hesitGen") return cornerResolveHesit(P, cl, false);
   if(a==="compSell") return cornerResolveAmbig(P, cl);
@@ -958,7 +1001,7 @@ function cornerAct(P, a){
 // jauge de patience de la carte active (chaque frame, sans reconstruire la carte)
 function cornerPatchActive(P){
   const cl=cornerActive(P), e=document.getElementById("pNegoPat");
-  if(cl&&e&&(cl.mode==="offer"||cl.mode==="louche"||cl.mode==="hesit"||cl.mode==="ambig")){ const r=clamp(cl.pat/cl.pat0,0,1); e.style.width=(r*100)+"%"; e.style.background=r>0.5?"#3ddc84":r>0.22?"#ffd06a":"#ff6a6a"; }
+  if(cl&&e&&(cl.mode==="offer"||cl.mode==="louche"||cl.mode==="hesit"||cl.mode==="ambig"||cl.mode==="ardoise")){ const r=clamp(cl.pat/cl.pat0,0,1); e.style.width=(r*100)+"%"; e.style.background=r>0.5?"#3ddc84":r>0.22?"#ffd06a":"#ff6a6a"; }
 }
 // carte du client actif (offre / négo / dernier prix / louche / hésitant / ambigu) — slide-up dans #cActive
 function renderCornerActive(P){
@@ -989,6 +1032,12 @@ function renderCornerActive(P){
         <button class="pb" data-comp="1">+</button></div>
       <div class="grid2"><button class="btn ok" style="margin:0" data-neg="compSell" ${g?"":"disabled"}>Vendre ${g} g</button>
         <button class="btn bad" style="margin:0" data-neg="refuse">❌</button></div>`;
+  } else if(cl.mode==="ardoise"){
+    body=`<div class="nego-tx">${cl.tx}</div>
+      <div class="muted" style="font-size:10px;margin:0 0 6px">🧾 ${cl.g} g maintenant → <b>${cl.due}</b> en liquide à <b>J${cl.payday}</b> (+${Math.round(corner.CORNER.ARDOISE_RATE*100)} %). Il ne repassera pas tant qu'il doit.</div>
+      ${patBar}
+      <div class="grid2"><button class="btn ok" style="margin:0" data-neg="ardoiseOk">🧾 Sur l'ardoise</button>
+        <button class="btn bad" style="margin:0" data-neg="refuse">❌ Pas de crédit</button></div>`;
   } else if(cl.mode==="nego"){
     const qp=corner.offerQual(cl.negoP/cl.g, S.reput, P.prix), face=corner.negoFace(cl, cl.negoP, S.reput, P.prix);
     body=`<div class="nego-tx">Tu proposes <span class="offer ${qp.cls}">${cl.negoP} · ${qp.lbl}</span> pour ${cl.want} barr. — menu ${cl.g*fair}</div>
@@ -1012,9 +1061,16 @@ function renderCornerActive(P){
   }
   const relTxt = cl.kind==="louche" ? "contact<br><b>inconnu</b>" : cl.kind==="anon" ? "<b>de passage</b>" : "relation<br><b>"+cl.rel+"</b>";
   const tellLine = (cl.tell && cl.kind!=="louche") ? `<div class="muted" style="font-size:10px;color:#9aa4b8;margin:-2px 0 6px">👁️ ${cl.tell}</div>` : "";
+  // traits mécaniques AFFICHÉS avant de décider (R4) : le coût/bénéfice se lit, jamais ne se devine
+  const chips=[];
+  if(cl.heatAdd) chips.push(`<span style="color:var(--heat)">🔥 +${cl.heatAdd} chaleur s'il achète</span>`);
+  if(cl.qc){ const qb=`exige Q${cl.qc.exig} · tampon Q${cl.qc.q}`;
+    if(cl.mode==="ambig") chips.push(cl.qc.ok?`<span style="color:#3ddc84">✔ ${qb} — pourboire si bien lu</span>`:`<span style="color:#9aa4b8">👃 ${qb}</span>`); // pas de « il rogne » ici : sans effet en mode ambigu
+    else chips.push(`<span style="color:${cl.qc.ok?"#3ddc84":cl.qc.miss?"#ff6a6a":"#ffd06a"}">${cl.qc.ok?"✔":cl.qc.miss?"✖":"≈"} ${qb}${cl.qc.ok?" — paie mieux":cl.qc.miss?" — il rogne":" — sans effet"}</span>`); }
+  const traitLine = chips.length ? `<div style="font-size:10px;margin:-2px 0 6px">${chips.join(" · ")}</div>` : "";
   host.innerHTML=`<div class="card"><div class="nego-head"><div class="nego-av">${cl.av}</div>
       <div><span class="nego-nm">${cl.nm}</span><span class="nego-tag">${tag}</span></div>
-      <div class="nego-rel">${relTxt}</div></div>${tellLine}${body}</div>`;
+      <div class="nego-rel">${relTxt}</div></div>${tellLine}${traitLine}${body}</div>`;
   host.querySelectorAll("[data-neg]").forEach(b=>b.onclick=()=>cornerAct(P, b.dataset.neg));
   host.querySelectorAll("[data-negp]").forEach(b=>b.onclick=()=>{ cl.negoP=Math.max(1,cl.negoP+ +b.dataset.negp); renderCornerActive(P); });
   host.querySelectorAll("[data-comp]").forEach(b=>b.onclick=()=>{ cl.composeB=Math.max(0,(cl.composeB||0)+ +b.dataset.comp); renderCornerActive(P); });
@@ -1073,7 +1129,9 @@ function pdvPatch(){
   const cc=document.getElementById("cComboChip"); if(cc) cc.textContent="⚡×"+(P.combo||1).toFixed(1).replace(".0","");
   cornerSkyPatch(); // le ciel avance avec la soirée (reflète l'heure)
   const led=document.getElementById("pLed");
-  if(led) led.innerHTML=P.ledger.length ? P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr. (${e.g} g)</span><b class="pill dirty">+${money(e.eur)}</b></div>`).join("") : `<div class="muted" style="font-size:11px">Aucune vente encore.</div>`;
+  if(led) led.innerHTML=ledRows(P);
+  const ar=document.getElementById("pArds");
+  if(ar) ar.innerHTML=ardsRow();
 }
 function pdvDescente(){
   const P=S.shelter.pdv, lost=Math.round(P.bac+tampG(P.tampon)*P.prix);
@@ -1090,7 +1148,10 @@ function pdvRavito(nWant){
   const sizes=sizesOf(S.sachets); if(!sizes.length){ toast("Pas de sachets — coupe et conditionne d'abord (Atelier)."); return; }
   const target=Math.min(nWant||room, room); let moved=0, movedG=0;
   for(const f of sizes.slice().sort((a,b)=>a-b)){ while(S.sachets[f]>0 && moved<target){ S.sachets[f]--; if(S.sachets[f]<=0) delete S.sachets[f]; P.tampon[f]=(P.tampon[f]||0)+1; moved++; movedG+=f; } if(moved>=target) break; }
-  if(moved>0){ const newG=tampG(P.tampon), oldG=newG-movedG; P.tamponQ=newG>0?(oldG*(P.tamponQ||S.sachetQ||55)+movedG*(S.sachetQ||55))/newG:(S.sachetQ||55); toast("+"+moved+" barrettes stagées au corner (exposées)."); save(); renderPDV(); }
+  if(moved>0){ const newG=tampG(P.tampon), oldG=newG-movedG; P.tamponQ=newG>0?(oldG*(P.tamponQ||S.sachetQ||55)+movedG*(S.sachetQ||55))/newG:(S.sachetQ||55);
+    // les connaisseurs en file re-reniflent le tampon du moment (R4 : la chip et le paiement suivent la vraie qualité)
+    for(const cl of P.queue){ if(cl.qc&&cl.cid){ const q=corner.qualCheck(corner.personaById(cl.cid), Math.round(P.tamponQ)); if(q){ cl.qc=q; cl.qFac=q.fac; } } }
+    toast("+"+moved+" barrettes stagées au corner (exposées)."); save(); renderPDV(); }
   else toast("Plus de sachets à charger.");
 }
 function renderPDV(){
@@ -1128,6 +1189,11 @@ function cornerHourLabel(h){ h=Math.round(h)%24; return (h<10?"0"+h:h)+"h"; }
 function cornerSkyPatch(){ const sc=document.getElementById("cScene"); if(!sc) return; const h=cornerHourN(cornerDayT()), n=cornerNight(h);
   sc.style.background=cornerSky(h); sc.style.setProperty("--night", n.toFixed(2));
   const hr=document.getElementById("cHour"); if(hr) hr.textContent=(n>0.5?"🌙 ":"🌤️ ")+cornerHourLabel(h); }
+// lignes du ledger — vente cash (+liquide), ardoise ouverte (🧾 règle J+N) ou ardoise réglée (🧾✓)
+function ledRows(P){ return P.ledger.length ? P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr. (${e.g} g)</span>${e.ard?(e.ok?`<b class="pill dirty">🧾✓ +${money(e.eur)}</b>`:`<b class="pill" style="color:#ffd06a">🧾 ${e.ard}</b>`):`<b class="pill dirty">+${money(e.eur)}</b>`}</div>`).join("") : `<div class="muted" style="font-size:11px">Aucune vente encore.</div>`; }
+// ligne « Au carnet » du tiroir (crédits ouverts) — dans un conteneur fixe #pArds, patchée en live par pdvPatch
+function ardsRow(){ const ards=corner.CORNER_PERSONAS.filter(p=>S.clients[p.id]&&S.clients[p.id].ardoise);
+  return ards.length?`<div class="stat"><span>🧾 Au carnet</span><b style="color:#ffd06a">${ards.map(p=>p.nm+" "+money(S.clients[p.id].ardoise.due)+" · J"+S.clients[p.id].ardoise.day).join(" · ")}</b></div>`:""; }
 function renderCorner(P){
   stage.classList.add("corner-mode");
   cornerEls=new Map(); // silhouettes reconstruites
@@ -1153,7 +1219,8 @@ function renderCorner(P){
       <div class="stat" style="margin-top:10px"><span>Chouffes (${PDV_CHOUFFE_PAY}/soir · −Heat)</span><b id="pCh">${P.chouffes}</b></div>
       <div class="grid2"><button class="btn ghost" style="margin:0" id="chM">− chouffe</button><button class="btn ok" style="margin:0" id="chP">+ chouffe</button></div>
       <h3 style="margin:10px 0 4px;font-size:12px">Ledger</h3>
-      <div id="pLed">${P.ledger.length?P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr.</span><b class="pill dirty">+${money(e.eur)}</b></div>`).join(""):`<div class="muted" style="font-size:11px">Aucune vente encore.</div>`}</div>
+      <div id="pArds">${ardsRow()}</div>
+      <div id="pLed">${ledRows(P)}</div>
       <button class="btn ghost" style="margin-top:10px" id="cClose">Fermer</button>`;
   stage.innerHTML=`
     <div class="cscene" id="cScene" style="background:${cornerSky(hNow)};--night:${nNow.toFixed(2)}">
@@ -1897,6 +1964,14 @@ function advanceDay(manual){
   const cons=snap.passerSoiree(S, qLivree);
   S.day++; S.heat=clamp(S.heat-6,0,100); S.soldDay=0;
   cons.forEach(c=>cause(c.t,c.c));
+  // ardoises : le crédit se règle tout seul au jour dit (déterministe, R4) — l'argent revient en liquide
+  { const P=S.shelter&&S.shelter.pdv;
+    for(const p of corner.CORNER_PERSONAS){ const c=S.clients&&S.clients[p.id];
+      if(c&&c.ardoise&&S.day>=c.ardoise.day){ const v=Math.round(c.ardoise.due); S.dirty+=v; pushBills(v);
+        c.rel=clamp(c.rel+2,0,100); cause("Ardoise réglée", p.nm+" +"+v+" liquide"); delete c.ardoise;
+        if(P&&P.ledger){ const e=P.ledger.find(x=>x.ard&&!x.ok&&x.nm===p.nm); if(e){ e.ok=true; e.eur=v; } } } } // le ledger passe 🧾 → 🧾✓
+    // l'offre « ce soir je suis à sec » ne survit pas à la nuit : une carte ardoise non acceptée s'en va (vente perdue, R1)
+    if(P&&P.queue&&P.queue.length) P.queue=P.queue.filter(c=>c.mode!=="ardoise"); }
   // paie des chouffes du corner (liquide d'abord, puis propre) — sinon un chouffe part
   { const P=S.shelter&&S.shelter.pdv; const due=(P&&P.chouffes||0)*PDV_CHOUFFE_PAY;
     if(due>0){ if(S.dirty>=due){ S.dirty-=due; cause("Paie chouffes","−"+due+" liquide"); }
@@ -1978,6 +2053,7 @@ function setupDebug(){
   h+=add("Couteau +1 (coupe plus gros)", ()=>{ S.upgrades.couteau=Math.min(UPG.couteau.max,(S.upgrades.couteau||0)+1); });
   h+=add("Tous les upgrades au max", ()=>{ for(const k in UPG) S.upgrades[k]=UPG[k].max; });
   h+=add("Reput +20", ()=>{ S.reput=clamp((S.reput||0)+20,0,100); });
+  h+=add("🤝 Relations +15 (test déblocages)", ()=>{ for(const id in S.clients){ S.clients[id].rel=clamp((S.clients[id].rel||0)+15,0,100); } const n=corner.checkUnlocks(S.clients); if(n.length) toast("Débloqués : "+n.map(u=>u.p.nm).join(", ")); });
   h+=H("Divers");
   h+=add("Heat → 0", ()=>{ S.heat=0; });
   h+=add("⏭ Passer la nuit (clôture soirée)", ()=>{ advanceDay(true); });

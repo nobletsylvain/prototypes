@@ -9,6 +9,66 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-24 — Personas étape 3-4 : traits (qualité/heat/heures) + ardoise + graphe social
+
+Fin du plan personas (étapes 1-2 livrées plus tôt dans la journée). Tout est
+**lisible sur la carte avant de décider** (R4) et **déterministe** ; refuser =
+vente perdue, jamais de malus sec (R1).
+
+- **`traits` par persona** (`corner.mjs`) — l'axe mécanique, plus seulement du texte :
+  - **qual** (Inès, Lina) : le connaisseur renifle le tampon à l'arrivée et compare à
+    son `exig` (enfin branché) — Q suffisante → tolérance ×1.12 **+ pourboire**
+    (`TIP_QUAL` 12 %) + rel bonus ; Q < exig−12 → il **rogne** (tolérance ×0.85, son
+    « dernier prix » baisse d'autant). 3 bandes lisibles, chip colorée sur la carte
+    (« ✔ exige Q70 · tampon Q78 — paie mieux »). Le curseur d'achat : le Pain 250 (q78)
+    pour la clientèle exigeante.
+  - **heat** (Diego +6, Kenza +4) : les servir **chauffe le coin**, affiché avant de
+    décider — la marge contre la température. Refuser = vente perdue, point.
+  - **hours** (Lina 21h–4h, Diego 9h–19h, Nassim 19h–2h) : le **cycle 24h devient
+    mécanique** (il ne pilotait que le ciel) — `cornerSpawn` filtre par heure, wrap
+    minuit géré (`inHours`, fin > 24).
+- **Ardoise (étape 4, Nassim `traits.credit`)** : certains soirs (hash jour/seq,
+  gated rel ≥ 25), il est à sec → son habituel **à crédit** : le stock part maintenant,
+  l'argent revient en **liquide à J+2 avec +25 %** (`ARDOISE_RATE`), réglé tout seul à
+  la clôture de journée (`advanceDay`) — **jamais d'impayé** (R4 : la tension c'est
+  l'argent immobilisé + le stock parti, pas une loterie). Une seule ardoise à la fois :
+  il ne repasse pas tant qu'il doit. Tiroir « Gérer » : ligne **« 🧾 Au carnet »** +
+  entrée ledger dédiée (🧾 → 🧾✓ au règlement). Touche la save → **`SAVE_VERSION` 26 → 27**.
+- **Passe de revue adversariale (avant push)** — 3 vrais trous bouchés :
+  - *« dernier prix » refusé par son auteur* : `t2=R(g·tol·0.97)` pouvait dépasser
+    `tol` (arrondi), rendu atteignable par `qFac 0.85` → accepter le contre affiché
+    finissait en walk avec malus (anti-R1/R4). Fix : `Math.floor` — le contre passe
+    toujours son propre test (brute force rel×prix×qFac : 0 échec).
+  - *ardoise exploitable / dominante* : la dette suivait TON menu sans borne (menu ×3
+    juste avant d'accepter = crédit gonflé). Fix : **plafond poche** comme toute vente —
+    `due = min(qty·menu·1.25, budget(kind,rel)·1.25)`.
+  - *double ardoise* : deux cartes Nassim en file → la 2ᵉ écrasait la dette de la 1ʳᵉ
+    (impayé). Fix : file **dédoublonnée par persona** au spawn + cumul en garde + purge
+    des cartes restantes à l'accept ; les offres d'ardoise non prises meurent à la nuit.
+  - Et la toilette UX : re-sniff du tampon par les connaisseurs en file à chaque ravito
+    (chip + paiement = vraie qualité, le geste correctif vit) ; chip véridique par mode
+    (ambigu ≠ offre, bande neutre « ≈ sans effet ») ; « Au carnet » patchée en live ;
+    file de toasts pour les annonces de déblocage ; dette au prorata si rupture partielle.
+- **Graphe social réparé** : `unlockedBy`/`UNLOCK_REL` étaient des données mortes
+  (aucun code ne débloquait jamais Diego/Lina/Nassim/Kenza/Léa !). `checkUnlocks()`
+  après chaque client servi : parrain à rel ≥ 40 → toast différé « X a parlé de toi —
+  Y passera te voir ». Debug : bouton « Relations +15 » pour tester sur device.
+- **Vérifs** : `node --check` ×2, unit-test node (inHours/qualCheck/wantsArdoise/
+  makeArdoise/checkUnlocks/resolveOffer×qFac) tout vert, smoke Puppeteer étendu
+  (ardoise → règlement J+2, pourboire qualité, heat, déblocage) tout vert, 0 erreur console.
+
+**Backlog ajouté (retours joueur du jour)**
+- **Sources d'appro à revoir** : sur les premières étapes on se fournit auprès de
+  **Karim** ; l'app Appro (dark web) n'est **pas encore disponible** — à débloquer
+  plus tard dans la progression.
+- **Échelonnage des améliorations de l'Atelier**, sur les deux gestes :
+  - *découpe* : vitesse +, couper de **plus gros morceaux**, et accepter de **plus
+    gros pains** (> 100 g) ;
+  - *ensachage* : **manuel → semi-auto → automatisé** (la vanne R6/R7 appliquée à la
+    mise en sachet).
+
+---
+
 ## 2026-07-24 — 🧾 Récap de session (brief) : la core loop directe prend forme
 
 Synthèse haute de la session (détails par changement dans les entrées ci-dessous,

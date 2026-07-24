@@ -24,6 +24,11 @@ export const CORNER = {
   REL_DEAL:2, REL_JUSTE:2, REL_PERSO:3, REL_GOUGE:-2, REL_WALK:-2,
   UNLOCK_REL:40, GOUGE_STREAK_QUIT:2,
   HEAT_LOUCHE:20, FLAIR_BONUS:25,
+  // traits (étape 3-4) — connaisseur : au-dessus de son exigence il paie plus cher (+ pourboire),
+  // loin en dessous il rogne ; l'écart QUAL_MISS = la bande neutre entre les deux
+  TIP_QUAL:0.12, QUAL_TOL_UP:1.12, QUAL_TOL_DOWN:0.85, QUAL_MISS:12,
+  // ardoise (crédit) : le stock part maintenant, l'argent revient à J+N avec intérêt — jamais d'impayé (R4)
+  ARDOISE_RATE:0.25, ARDOISE_DAYS:2, ARDOISE_REL_MIN:25, ARDOISE_CHANCE:0.45,
   LOUCHE_FROM_DAY:2, LOUCHE_CHANCE:0.14, // un profil cramé apparaît à partir de J2 (déterministe)
   AMBIG_CHANCE:0.38,                     // part des réguliers avec une demande ambiguë (à interpréter)
   REP_DEAL:1, REP_JUSTE:1, REP_GOUGE:-2, REP_WALK:-1,
@@ -33,13 +38,18 @@ export const CORNER = {
 // personas du corner — chacun porte UN axe de décision, un TELL lisible (R4) et sa propre banque
 // de répliques (fini le copier-coller). {q}=grammes, {t}=total. bank.react : deal/nego/walk (le reste
 // retombe sur REACT). Les têtes connues = le sel ; le volume, ce sont les PNJ anonymes (kind:"anon").
+// traits (étape 3-4) — l'axe MÉCANIQUE, affiché sur la carte (R4, jamais caché) :
+//   qual   : connaisseur — compare la qualité du tampon à `exig` (voir qualCheck)
+//   heat   : le servir chauffe le coin (+N chaleur) — la marge contre la température
+//   hours  : fenêtre de passage [début, fin) en heures (fin > 24 = déborde après minuit)
+//   credit : peut demander une ardoise (étape 4) — stock maintenant, liquide à J+N (+intérêt)
 export const CORNER_PERSONAS = [
   { id:"momo", nm:"Momo", av:"🧢", kind:"regulier", usual:5, exig:55, start:true,
     tell:"Toujours ~5 g au prix menu, jamais un mot sur le tarif.",
     bank:{ arrive:["Cinq grammes, comme hier, comme demain. {t}, ça marche ?","Pas besoin de causer, tu sais ce qu'il me faut. {q} g, {t}.","Toujours toi qui tiens, ça me rassure. Les {q} g habituels."],
       react:{ deal:["Comme d'hab. À demain.","Nickel, tu bouges jamais toi."], nego:["Bon, pour toi ça passe. M'y habitue pas."] } } },
-  { id:"ines", nm:"Inès", av:"🎧", kind:"regulier", usual:2, exig:70, start:true,
-    tell:"Petite quantité, renifle la came — regarde avant de prendre.",
+  { id:"ines", nm:"Inès", av:"🎧", kind:"regulier", usual:2, exig:70, start:true, traits:{qual:true},
+    tell:"Petite quantité, renifle la came — le propre, elle le paie plus cher.",
     bank:{ arrive:["Deux grammes, mais du propre. Je sens la paraffine à dix mètres.","Fais voir avant. Si c'est chargé je prends pas. {t} ?","Petite quantité, grosse exigence. Tu me connais. {q} g."],
       react:{ deal:["Là c'est du travail. Je reviens."], nego:["Ça passe. Reste propre, hein."] } } },
   { id:"riton", nm:"Riton", av:"🥀", kind:"accro", usual:2, exig:20, start:true,
@@ -57,20 +67,20 @@ export const CORNER_PERSONAS = [
     tell:"Toujours 8 g, et « tu me fais un prix si je reviens ? » — futur gros.",
     bank:{ arrive:["Huit grammes. Tu me fais un prix si je reviens chaque semaine ?","Je refourgue à ma bande, faut que je m'y retrouve. {t} ?","Si tu m'accroches maintenant, je te ramène du monde. {q} g, {t}."],
       react:{ deal:["Là on se comprend. Je te ramène la clientèle."], nego:["Bon, ça passe pour cette fois. On verra la prochaine."] } } },
-  { id:"diego", nm:"Diego", av:"🏗️", kind:"grossiste", usual:16, exig:45, unlockedBy:"momo",
-    tell:"Prend gros, paie clean — mais plus tu le sers, plus le coin chauffe.",
+  { id:"diego", nm:"Diego", av:"🏗️", kind:"grossiste", usual:16, exig:45, unlockedBy:"momo", traits:{heat:6, hours:[9,19]},
+    tell:"Passe en journée, prend gros, paie clean — mais le servir chauffe le coin.",
     bank:{ arrive:["Seize grammes d'un coup. Chaque semaine si t'assures. {t} ?","Je prends gros, je paie clean, mais je traîne pas. {q} g, {t}.","Vingt grammes. Emballe vite, on nous regarde."],
       react:{ deal:["Carré. Même heure la semaine prochaine."], nego:["Ça monte, mais le volume est là. Vendu."] } } },
-  { id:"lina", nm:"Lina", av:"🌙", kind:"regulier", usual:5, exig:80, unlockedBy:"ines",
-    tell:"Tard, discrète, paie bien si tu la sers sans bruit.",
+  { id:"lina", nm:"Lina", av:"🌙", kind:"regulier", usual:5, exig:80, unlockedBy:"ines", traits:{qual:true, hours:[21,28]},
+    tell:"Ne passe que la nuit — exigeante, mais le travail propre, elle le paie très bien.",
     bank:{ arrive:["Tard, discret, comme j'aime. Tu me sers sans bruit ? {q} g, {t}.","Cinq grammes. Je paie bien ceux qui la ramènent pas.","Quelque chose de propre pour finir la nuit. {t}."],
       react:{ deal:["Merci d'avoir fait vite. Le quartier dort, gardons ça."], nego:["Ça me va. Discrètement."] } } },
-  { id:"nassim", nm:"Nassim", av:"🎲", kind:"accro", usual:8, exig:25, unlockedBy:"riton",
-    tell:"Impulsif — quand il a la niaque, il claque plein pot sans négocier.",
+  { id:"nassim", nm:"Nassim", av:"🎲", kind:"accro", usual:8, exig:25, unlockedBy:"riton", traits:{credit:true, hours:[19,26]},
+    tell:"Rôde le soir. Les bons jours il claque plein pot ; à sec, il tape l'ardoise — il règle toujours.",
     bank:{ arrive:["Ce soir je claque ! Mets-m'en {q}, je paie rubis sur l'ongle. {t}.","Frérot, j'ai la niaque ce soir. {q} g, {t} cash.","Allez, {q} g, je régale. {t}."],
       react:{ deal:["Voilà voilà ! Ça c'est une soirée."], nego:["Ok ok, t'es dur mais j'aime ça."] } } },
-  { id:"kenza", nm:"Kenza", av:"👟", kind:"lowball", usual:5, exig:35, unlockedBy:"yaz",
-    tell:"Jamais seule — plus il y a de monde, plus ça chauffe, mais le panier grimpe.",
+  { id:"kenza", nm:"Kenza", av:"👟", kind:"lowball", usual:5, exig:35, unlockedBy:"yaz", traits:{heat:4},
+    tell:"Jamais seule — sa bande fait du bruit (ça chauffe), mais le panier grimpe.",
     bank:{ arrive:["On est cinq, calcule pour tout le monde. Mais fais un prix. {t} ?","Jamais seule moi. La bande attend au coin, magne. {q} g.","Gros panier, petit prix, c'est ma came. {q} g pour {t} ?"],
       react:{ deal:["Vu le monde, t'es gagnant. À demain."], nego:["Ok va pour ça. Je te ramène la troupe."] } } },
   { id:"lea", nm:"Léa", av:"🎀", kind:"hesitant", usual:2, exig:60, unlockedBy:"sofia",
@@ -152,6 +162,56 @@ export function cornerClientsDefault(){
 export function personaById(id){ return CORNER_PERSONAS.find(p=>p.id===id) || null; }
 export function patienceOf(kind){ return CORNER.PATIENCE[kind] || 26; }
 
+/* ---- traits (étape 3-4) : heures de passage, connaisseur, ardoise, graphe social ---- */
+// fenêtre de passage : sans traits.hours le persona passe à toute heure ; fin > 24 = déborde après minuit
+export function inHours(p, h){
+  const w=p.traits&&p.traits.hours; if(!w) return true;
+  h=((h%24)+24)%24;
+  return w[1]<=24 ? (h>=w[0]&&h<w[1]) : (h>=w[0]||h<w[1]-24);
+}
+export function hoursLabel(p){
+  const w=p.traits&&p.traits.hours; if(!w) return null;
+  const f=x=>Math.round(x%24)+"h"; return f(w[0])+"–"+f(w[1]);
+}
+// connaisseur : compare la qualité du tampon (q) à son exigence — 3 bandes lisibles (R4).
+// ok → tolérance ×QUAL_TOL_UP + pourboire ; raté large (q < exig−QUAL_MISS) → il rogne (×QUAL_TOL_DOWN).
+export function qualCheck(p, q){
+  if(!(p.traits&&p.traits.qual)) return null;
+  const exig=p.exig||60;
+  if(q>=exig) return { ok:true, miss:false, exig, q, fac:CORNER.QUAL_TOL_UP };
+  if(q<exig-CORNER.QUAL_MISS) return { ok:false, miss:true, exig, q, fac:CORNER.QUAL_TOL_DOWN };
+  return { ok:false, miss:false, exig, q, fac:1 };
+}
+// ardoise (étape 4) : certains soirs le client à crédit est à sec — déterministe (jour/seq), gated par la relation
+export function wantsArdoise(p, rel, day, seq){
+  return !!(p.traits&&p.traits.credit) && (rel||0)>=CORNER.ARDOISE_REL_MIN && hh(day*17, seq)<CORNER.ARDOISE_CHANCE;
+}
+const ARDOISE_TX=[
+  "Frérot… ce soir je suis à sec. Mets-m'en {q} g, je te règle {t} à {d}, parole.",
+  "Me regarde pas comme ça — la paie tombe {d}. {q} g sur l'ardoise, je rajoute pour la peine.",
+  "T'inquiète, j'ai jamais planté personne. {q} g, et {d} t'as {t} cash.",
+];
+export function makeArdoise(p, rel, reput, day, seq, prix){
+  const menu=prix||cornerFair(reput), qty=p.usual;
+  // plafonné par sa poche (comme toute vente : budget = borne absolue) — sinon monter le menu
+  // juste avant d'accepter gonflait le crédit sans limite ; l'intérêt s'applique aussi au plafond
+  const cap=R(cornerBudget(p.kind, rel)*(1+CORNER.ARDOISE_RATE));
+  const due=Math.max(1, Math.min(R(qty*menu*(1+CORNER.ARDOISE_RATE)), cap)), payday=day+CORNER.ARDOISE_DAYS;
+  const tx=pick(ARDOISE_TX, day+seq).replace("{q}", qty).replace("{d}", "J"+payday).replace("{t}", due);
+  return { mode:"ardoise", qty, due, payday, tx, tell:p.tell||"" };
+}
+// graphe social : la relation avec le parrain (unlockedBy) débloque le filleul — renvoie les nouveaux contacts
+export function checkUnlocks(clients){
+  const news=[];
+  for(const p of CORNER_PERSONAS){
+    if(!p.unlockedBy) continue;
+    const c=clients[p.id]; if(!c||c.unlocked||c.quit) continue;
+    const by=clients[p.unlockedBy];
+    if(by&&by.rel>=CORNER.UNLOCK_REL){ c.unlocked=true; news.push({ p, by:personaById(p.unlockedBy) }); }
+  }
+  return news;
+}
+
 /* Génère la demande d'un client — déterministe (persona/jour/seq). Renvoie un objet avec `mode` :
    - "hesit" : hésitant, à convertir à la main (son habituel paie mieux)
    - "ambig" : demande ambiguë, à interpréter (bien lu = pourboire, sinon vendu quand même)
@@ -195,7 +255,8 @@ export function negoFace(client, total, reput, prix){
   const g = client.g || client.qty || 0, menu = prix || cornerFair(reput);
   if(client.kind==="louche") return { emo:"😐", tx:"Aucune réaction… bizarre." };
   if(!g || !total) return { emo:"🤨", tx:"Il attend de voir…" };
-  const ppu = total/g, tol = cornerTol(client.kind, client.rel, menu), bud = cornerBudget(client.kind, client.rel);
+  // connaisseur (traits.qual) : sa tolérance suit la qualité reniflée au spawn (qFac)
+  const ppu = total/g, tol = cornerTol(client.kind, client.rel, menu)*(client.qFac||1), bud = cornerBudget(client.kind, client.rel);
   if(total>bud) return { emo:"😤", tx:"Au-dessus de sa poche." };
   if(ppu>tol) return { emo:"😤", tx:"À ce prix, c'est mort pour lui." };
   if(ppu>tol*0.9) return { emo:"😬", tx:"Il grimace — t'es à la limite." };
@@ -216,7 +277,8 @@ export function reactLine(outcome, i, persona){
    accepte l'offre du client (vs on a réglé un prix). */
 export function resolveOffer(client, g, total, firstTry, isClientOffer, reput, prix){
   const fair = prix || cornerFair(reput), ppu = total/g; // bande/marge/tolérance = TON menu affiché
-  const tol = cornerTol(client.kind, client.rel, fair), bud = cornerBudget(client.kind, client.rel); // budget = poche absolue du client
+  // connaisseur (traits.qual) : qFac (lu au spawn) élargit ou rogne la tolérance — le budget reste sa poche absolue
+  const tol = cornerTol(client.kind, client.rel, fair)*(client.qFac||1), bud = cornerBudget(client.kind, client.rel);
   const accepted = ppu <= tol && total <= bud;
   if(accepted){
     const band = ppu >= fair*(1-CORNER.FAIR_BAND) && ppu <= fair*(1+CORNER.FAIR_BAND);
@@ -234,7 +296,9 @@ export function resolveOffer(client, g, total, firstTry, isClientOffer, reput, p
   }
   // refusé par le client
   if(!isClientOffer && firstTry){
-    const t2 = Math.max(1, Math.min(R(g*tol*0.97), Math.floor(bud)));
+    // floor (pas round) : son « dernier prix » doit TOUJOURS passer son propre test d'acceptation (R4) —
+    // avec qFac 0.85 un arrondi au-dessus de tol faisait refuser au client le prix qu'il venait d'annoncer
+    const t2 = Math.max(1, Math.min(Math.floor(g*tol*0.97), Math.floor(bud)));
     return { outcome:"counter", accepted:false, counterTotal:t2 }; // son « dernier prix »
   }
   return { outcome:"walk", accepted:false, emo:"🤬", rel:CORNER.REL_WALK, reput:CORNER.REP_WALK, res:-CORNER.RES_WALK };
