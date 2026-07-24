@@ -172,6 +172,81 @@ const loucheOK = mFlair >= 25;                                              // d
 const hesitOK = hAfter.dirty > hBefore.dirty && hAfter.rel > hBefore.rel;   // converti (liquide) + relation
 const ambigOK = mAmbig.dirty > hAfter.dirty && mAmbig.combo > 1 && mAmbig.q === 0; // bien lu → vente (liquide) + combo
 
+// ===== Étape 3-4 — traits (qualité / heat / déblocage) + ardoise (crédit Nassim) =====
+// unit-asserts node sur la logique pure (le chemin cornerSpawn/makeArdoise que la file seedée court-circuite)
+const cornerM = await import("../la-loupe/corner.mjs");
+const pN = cornerM.personaById("nassim"), pI = cornerM.personaById("ines");
+const uArd = cornerM.makeArdoise(pN, 30, 0, 1, 1, 10); // menu 10 · plafond poche accro rel 30 = R(65×1.25) = 81
+const unitOK = uArd.due === 81 && uArd.payday === 1 + cornerM.CORNER.ARDOISE_DAYS
+  && cornerM.makeArdoise(pN, 30, 0, 1, 1, 30).due === 81            // menu ×3 → même due (plafond poche)
+  && cornerM.wantsArdoise(pN, 10, 3, 1) === false                   // rel < ARDOISE_REL_MIN
+  && cornerM.inHours(cornerM.personaById("diego"), 23) === false && cornerM.inHours(pN, 23) === true
+  && cornerM.inHours(cornerM.personaById("lina"), 5) === false && cornerM.inHours(cornerM.personaById("lina"), 22) === true
+  && cornerM.qualCheck(pI, 78).fac === cornerM.CORNER.QUAL_TOL_UP && cornerM.qualCheck(pI, 50).fac === cornerM.CORNER.QUAL_TOL_DOWN;
+const cl0 = { rel: 10, unlocked: true, missed: 0, gougeStreak: 0, quit: false };
+const traitQueue = [
+  // Nassim à sec : ardoise 8 g → 100 à J2 (stock part, zéro liquide maintenant)
+  { cid: "nassim", nm: "Nassim", av: "🎲", kind: "accro", rel: 30, want: 4, g: 8, due: 100, payday: 2,
+    offer: 0, tx: "À sec ce soir…", tell: "", pat: 300, pat0: 300, mode: "ardoise", negoP: 0, dernier: null },
+  // Inès connaisseuse : tampon Q78 ≥ exig 70 → pourboire TIP_QUAL sur le deal
+  { cid: "ines", nm: "Inès", av: "🎧", kind: "regulier", rel: 10, want: 1, g: 2, offer: 20, tx: "Du propre ?",
+    tell: "", qc: { ok: true, miss: false, exig: 70, q: 78, fac: 1.12 }, qFac: 1.12,
+    pat: 300, pat0: 300, mode: "offer", negoP: 20, dernier: null },
+  // Inès « il rogne » (qFac 0.85) : ppu 11 ≤ tol de base 12.17 mais > tol×0.85 = 10.34 → SEUL le qFac fait refuser
+  { cid: "ines", nm: "Inès", av: "🎧", kind: "regulier", rel: 10, want: 1, g: 2, offer: 22, tx: "Allez, 22.",
+    tell: "", qc: { ok: false, miss: true, exig: 70, q: 50, fac: 0.85 }, qFac: 0.85,
+    pat: 300, pat0: 300, mode: "offer", negoP: 22, dernier: null },
+  // Diego : le servir chauffe le coin (+6)
+  { cid: "diego", nm: "Diego", av: "🏗️", kind: "grossiste", rel: 10, want: 8, g: 16, offer: 112, tx: "Seize d'un coup.",
+    tell: "", heatAdd: 6, pat: 300, pat0: 300, mode: "offer", negoP: 112, dernier: null },
+  // Momo rel 39 : le deal (+2) passe la barre des 40 → débloque Diego (graphe social)
+  { cid: "momo", nm: "Momo", av: "🧢", kind: "regulier", rel: 39, want: 3, g: 5, offer: 48, tx: "Comme d'hab.",
+    tell: "", pat: 300, pat0: 300, mode: "offer", negoP: 48, dernier: null },
+];
+const pageT = await seedPage({ heat: 0, day: 1,
+  clients: { momo: { ...cl0, rel: 39 }, nassim: { ...cl0, rel: 30 }, ines: { ...cl0 }, diego: { ...cl0, unlocked: false },
+    riton: { ...cl0, ardoise: { due: 50, day: 3 } } }, // ardoise PAS encore échue : ne doit PAS s'encaisser à J2
+  shelter: { phase: "B", introSeen: true, pdv: { ...pdvSeed, tampon: { "2": 30 }, tamponQ: 78, queue: traitQueue } } });
+await pageT.click('.map-pin[data-pin="pdv"]'); await sleep(200);
+await pageT.click('[data-pin-go="pdv"]'); await sleep(400);
+await pageT.screenshot({ path: path.join(OUT, "08-ardoise.png") }); // carte ardoise de Nassim
+// ardoise : stock débité, AUCUN liquide maintenant, dette posée sur le client
+await pageT.click('[data-neg="ardoiseOk"]'); await sleep(250);
+const tArd = await pageT.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
+  return { dirty: s.dirty || 0, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), ard: s.clients.nassim.ardoise || null }; });
+// qualité : chip affichée + deal à 20 → pourboire 12 % (dirty +22, pas +20) + rel 10+2+1
+const qualChip = await pageT.evaluate(() => /exige Q70/.test(document.getElementById("cActive")?.textContent || ""));
+await pageT.click('[data-neg="accept"]'); await sleep(250);
+const tQual = await pageT.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save"));
+  return { dirty: s.dirty || 0, rel: s.clients.ines.rel }; });
+// qualité ratée : accepter ses 22 → la tolérance ×0.85 fait REFUSER (walk, rel −2, zéro vente)
+await pageT.click('[data-neg="accept"]'); await sleep(250);
+const tMiss = await pageT.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save"));
+  return { dirty: s.dirty || 0, rel: s.clients.ines.rel }; });
+// heat : servir Diego chauffe le coin (delta autour du clic, pas la valeur absolue — dérive passive du tick)
+const hBefore2 = await pageT.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).heat || 0);
+await pageT.click('[data-neg="accept"]'); await sleep(250);
+const tHeat = await pageT.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).heat || 0);
+// déblocage : le deal avec Momo (39 → 41 ≥ 40) débloque Diego
+await pageT.click('[data-neg="accept"]'); await sleep(250);
+const tUnlock = await pageT.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save"));
+  return { relMomo: s.clients.momo.rel, diego: s.clients.diego.unlocked }; });
+// clôture de soirée (debug « Passer la nuit ») : SEULE l'ardoise échue (Nassim, J2) se règle — pas celle de Riton (J3)
+await pageT.click("#dbgBtn"); await sleep(150);
+await pageT.click('[data-dbg="⏭ Passer la nuit (clôture soirée)"]'); await sleep(350);
+const tSettle = await pageT.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save"));
+  return { day: s.day, dirty: s.dirty || 0, ard: s.clients.nassim.ardoise || null, rel: s.clients.nassim.rel,
+    ard2: s.clients.riton.ardoise || null }; });
+await pageT.screenshot({ path: path.join(OUT, "09-traits.png") });
+await pageT.close();
+const ardOK = tArd.dirty === 0 && tArd.tampon === 26 && tArd.ard && tArd.ard.due === 100 && tArd.ard.day === 2; // stock parti, zéro cash, dette posée
+const qualOK = qualChip && tQual.dirty === 22 && tQual.rel === 13;  // 20 + pourboire qualité 2 · rel 10+2(deal)+1(connaisseur)
+const qMissOK = tMiss.dirty === tQual.dirty && tMiss.rel === 11;    // refus PAR le qFac (sinon 11 ≤ 12.17 aurait vendu) · rel 13−2
+const heatOK = tHeat - hBefore2 >= 5;                               // +6 à la vente (delta ; la dérive seule < 1 sur ~0.5 s)
+const unlockOK = tUnlock.relMomo >= 40 && tUnlock.diego === true;   // graphe social branché
+const settleOK = tSettle.day === 2 && !tSettle.ard && tSettle.rel === 34 && tSettle.dirty === 282
+  && tSettle.ard2 && tSettle.ard2.due === 50;                       // 182 de ventes + 100 Nassim · Riton (J3) intact
+
 await browser.close();
 server.close();
 
@@ -183,7 +258,12 @@ console.log("Départ direct :", JSON.stringify({ introGone, boot, cornerD }),
   startOK ? "(1 plaquette · phase B · pas d'intro ✓)" : "(⚠ départ KO)", cornerOK ? "· corner négo direct ✓" : "· ⚠ corner");
 console.log("B · modes 2b  :", JSON.stringify({ mFlair, hBefore, hAfter, mAmbig }),
   loucheOK ? "louche/flair ✓" : "⚠ louche", hesitOK ? "· hésitant ✓" : "· ⚠ hésitant", ambigOK ? "· ambigu ✓" : "· ⚠ ambigu");
+console.log("B · traits 3-4:", JSON.stringify({ unitOK, tArd, qualChip, tQual, tMiss, hBefore2, tHeat, tUnlock, tSettle }),
+  unitOK ? "unités corner ✓" : "⚠ unités", ardOK ? "· ardoise ✓" : "· ⚠ ardoise", qualOK ? "· qualité ✓" : "· ⚠ qualité",
+  qMissOK ? "· qualité ratée ✓" : "· ⚠ qualité ratée", heatOK ? "· heat ✓" : "· ⚠ heat",
+  unlockOK ? "· déblocage ✓" : "· ⚠ déblocage", settleOK ? "· règlement à échéance ✓" : "· ⚠ règlement");
 console.log("erreurs       :", errors.length ? errors : "AUCUNE");
 const ok = !errors.length && sceneShown && cardShown && negoSold && counterSold && encOK
-  && startOK && cornerOK && loucheOK && hesitOK && ambigOK;
+  && startOK && cornerOK && loucheOK && hesitOK && ambigOK
+  && unitOK && ardOK && qualOK && qMissOK && heatOK && unlockOK && settleOK;
 process.exit(ok ? 0 : 1);
