@@ -9,23 +9,27 @@ Les entrées les plus récentes en haut.
 
 ---
 
-## 2026-07-24 — Ciel du corner : cycle jour complet (le corner se tient toute la journée)
+## 2026-07-24 — Ciel du corner : vrai cycle 24h (minuit → aube → jour → couchant → nuit)
 
 Correction du retour joueur « mais le corner peut être tenu toute la journée » : le
 ciel ne mappait que **20h → 04h** (soirée), donc il faisait *toujours* nuit. Refonte
-en **cycle complet aube → jour → crépuscule → nuit**.
+en cycle jour. Première passe **08h → minuit** (16h éveillées) ; à la question « on ne
+couvre pas minuit → 8h ? », arbitrage joueur = **vrai cycle 24h**.
 
-- **Heure in-game** : `cornerHourN(t) = 8 + t·16` → la journée court de **08h à minuit**
-  (`t = S.dayAcc/DAY_SEC_REAL`, 0→1 sur la journée).
+- **Heure in-game** : `cornerHourN(t) = t·24` → la journée court de **00h à minuit** (24h,
+  `t = S.dayAcc/DAY_SEC_REAL`). La journée ouvre en nuit profonde, aube ~6h30, etc.
 - **Ciel par paliers** : `SKY_ANCHORS` (heure → top/mid/horizon rgb), interpolés selon
-  l'heure. Matin/midi = bleu clair ; 18h30 = horizon orangé (coucher) sur ciel violet ;
-  21h→minuit = nuit noire. `cornerSky(h)` prend désormais une **heure** (0–24), plus un `t`.
-- **Facteur `--night`** (`cornerNight(h)` : 0 le jour, 1 la nuit, rampe au crépuscule/aube)
-  posé en CSS var sur `#cScene`. Le **lampadaire** (cône `.ccone` + halo `.clamp::after`)
-  et les **fenêtres allumées** (`cornerLitWindows`) s'éteignent le jour, se rallument la
-  nuit → `opacity:var(--night,1)`. Label heure : 🌤️ le jour, 🌙 la nuit.
-- Vérif headless (4 heures : 09h/13h/18h30/22h) : bleu clair sans lampe le matin,
-  crépuscule orangé + lampe qui monte à 19h, nuit noire + lampe/fenêtres allumées à 22h.
+  l'heure. Ajout des paliers d'**aube** (5h nuit profonde, 6h30 horizon rosé/orangé =
+  lever) pour que le matin ne soit pas un fondu linéaire depuis le noir. Midi = bleu
+  clair ; 18h30 = horizon orangé (coucher) sur ciel violet ; 21h→minuit = nuit noire.
+  `cornerSky(h)` prend une **heure** (0–24).
+- **Facteur `--night`** (`cornerNight(h)` : 0 le jour, 1 la nuit ; rampe symétrique à
+  l'aube 6h→8h et au couchant 16h→20h) posé en CSS var sur `#cScene`. Le **lampadaire**
+  (cône `.ccone` + halo `.clamp::after`) et les **fenêtres allumées** (`cornerLitWindows`)
+  s'éteignent le jour, se rallument la nuit → `opacity:var(--night,1)`. Label heure :
+  🌤️ le jour, 🌙 la nuit.
+- Vérif headless : nuit profonde 02h, aube rosée 06h30, midi bleu clair, crépuscule
+  orangé 18h30, nuit lampe+fenêtres 22h.
 
 ---
 

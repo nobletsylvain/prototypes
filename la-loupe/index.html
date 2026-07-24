@@ -1097,12 +1097,14 @@ function renderPDV(){
 }
 // La rue, plein écran (Option B) : négo au client (carte slide-up) + tiroir « Gérer »
 // (menu, tampon/ravito, encaisser, chouffes, ledger). Tap une silhouette pour la servir en priorité.
-// le corner se tient toute la journée → cycle complet aube→jour→crépuscule→nuit selon l'heure in-game.
+// le corner se tient toute la journée → cycle 24h complet : minuit→aube→jour→crépuscule→nuit.
 function cornerDayT(){ return clamp((S.dayAcc||0)/DAY_SEC_REAL, 0, 1); }
-function cornerHourN(t){ return 8 + t*16; } // la journée au corner : 08h → minuit
+function cornerHourN(t){ return t*24; } // journée complète : 00h → minuit (24h)
 // paliers de ciel [heure, top, mid, horizon] (rgb) — interpolés selon l'heure
 const SKY_ANCHORS=[
   [0,   [7,9,20],    [12,15,32],   [20,26,46]],     // minuit — nuit noire
+  [5,   [10,12,28],  [18,20,42],   [30,32,58]],      // nuit profonde (avant l'aube)
+  [6.5, [40,44,80],  [96,82,112],  [216,138,116]],   // aube — horizon rosé/orangé (lever)
   [8,   [58,100,152],[120,152,188],[176,198,216]],  // matin clair
   [13,  [64,118,178],[122,162,202],[196,216,234]],  // midi — plus clair
   [16,  [70,108,166],[140,150,180],[206,192,180]],  // après-midi (chaud léger)
