@@ -9,6 +9,33 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-24 — Tiroir corner → panneau roulant avec poignée persistante
+
+Suite des retours tiroir : « il a disparu », « impossible de le dérouler, retour
+auto ». Diag : (1) sur écran court, le bas du tiroir passait **derrière la barre
+du bas** (fix : le tiroir repose sur le dock, `bottom=hauteur dock`) ; (2) une fois
+replié (caché), **rien à attraper pour rouvrir** — le swipe ne gère que la fermeture,
+d'où « retour auto ». Le « Gérer » rouvrait bien (vérifié) mais le geste de tirage
+manquait.
+
+Refonte en **panneau roulant robuste** :
+- Une **poignée persistante `.cpeek`** (« ⌃ Le corner · gérer ») reste **toujours
+  visible** au-dessus de la barre du bas quand le panneau est fermé — **tap OU
+  glissement vers le haut** = ouvrir. Elle ne disparaît jamais.
+- Panneau **ouvert** = plein (classe `.on`, `translateY(0)`) ; **fermé** = caché
+  (`translateY(110%)`) + poignée visible. Glisser l'en-tête vers le bas = fermer.
+- Ouverture/fermeture pilotées par **classe** (pas de mesure de hauteur fragile) ;
+  la poignée est un élément **display-based** (peint partout de façon fiable).
+- Carte client (`#cActive`) **remontée** au-dessus du dock + poignée (plus jamais
+  cachée par la barre du bas non plus).
+- Note test : en **headless**, `translateY(110%)` déclenché par un simple changement
+  de classe ne se **repeint pas** de façon fiable (artefact puppeteer — un cas
+  minimal identique, lui, se cache bien) ; sur **appareil réel** le masquage marche
+  (c'est ce que le joueur voyait « disparaître »). Logique vérifiée : replié→tap/
+  pull-up→ouvert→swipe-bas→replié, transitions correctes. Smoke vert.
+
+---
+
 ## 2026-07-24 — Personas (étape 1+2 + PNJ anonymes) + trieuse masquée : FAIT
 
 - **Personas enrichis (étape 1).** Chaque `CORNER_PERSONAS` porte un `tell` lisible
