@@ -420,7 +420,9 @@ const RELACHE_MIN     = 0.35;    // s de repos CONTIGU avant que la lame reprenn
                                  // lame nette pour rien : un cookie clicker)
 const NETTETE_RECOVER = 0.55;    // /s une fois le repos amorcé
 const PERTE_LAME_MAX  = 0.22;    // lame à plat : jusqu'à +22 % de miettes par coupe
-const NETTETE_TROUBLE = 0.72;    // en dessous, ça se voit sur les barrettes
+const NETTETE_TROUBLE = 0.72;    // en dessous, le bandeau le dit
+const NETTETE_VISIBLE = 0.92;    // dès ici, la barrette penche (ça s'enseigne tôt)
+const NETTETE_SATURE  = 0.30;    // en dessous, la déformation ne croît plus
 
 // Demande : courbe journalière déterministe (SHELTER §7 — rush 18 h → 2 h).
 const DEMANDE_PIC = 45;          // g/h à réservoir 100, à l'heure de pointe
@@ -517,6 +519,7 @@ function defaultState(){
     // stock : sachets prêts, par calibre → { "2": n, "5": n, "8": n }
     sachets: {}, sacQ: 0,           // qualité moyenne pondérée du stock prêt
     miettes: 0,                     // reliquat sous un sachet, rendu au pain suivant
+    lame: 1,                        // état de la lame (persisté : un reload ne l'affûte pas)
     pain: null,                     // { id, g, q } en cours de découpe
     format: 5,
     poche: 0, pocheQ: 0,            // ce que tu portes sur toi
@@ -1041,7 +1044,7 @@ function acheterPain(p){
   const bonus = S.miettes; S.miettes = 0;
   const g = p.g + bonus;
   S.pain = { id: p.id, g, q: p.q, col: p.col, g0: g };
-  lame = 1; lot = null; cutCarry = 0;
+  lame = 1; S.lame = 1; lot = null; cutCarry = 0;
   journal(`appro — ${p.nm}`, -p.price, "negv");
   toast(`${p.nm} sur la planche · grade ${gradeOf(p.q)}`
         + (bonus >= 1 ? ` (+${R(bonus)} g de miettes)` : ""), "good");
@@ -1053,14 +1056,14 @@ function acheterPain(p){
 // dans la main. Relâcher en cours de route ne perd RIEN (R1) : on reprend.
 let cutHold = null;
 let cutCarry = 0;          // progrès partiel reporté d'un maintien au suivant
-let lame = 1;              // netteté du geste, 0..1 — vit en dehors de S (temps réel)
+let lame = 1;              // miroir de travail de S.lame (écrit à chaque coupe)
 let lot = null;            // cumul du pain en cours : { n, net } pour le bilan
 
 function cutStart(e){
   if (!S.pain || S.pain.g < S.format) return;
   e.preventDefault();
   const total = Math.floor(S.pain.g / S.format);
-  cutHold = { done: 0, total, t: cutCarry };
+  cutHold = { done: 0, total, t0: performance.now(), base: cutCarry, t: cutCarry };
 }
 function cutEnd(){
   if (!cutHold) return;
@@ -1079,7 +1082,7 @@ let repos = 0;
 function tickLame(dt){
   if (cutHold){ repos = 0; return; }          // le doigt est posé : rien ne reprend
   repos += dt;
-  if (repos >= RELACHE_MIN) lame = Math.min(1, lame + NETTETE_RECOVER * dt);
+  if (repos >= RELACHE_MIN){ lame = Math.min(1, lame + NETTETE_RECOVER * dt); S.lame = lame; }
 }
 const lameMot = () => lame > 0.85 ? "lame nette — ça tombe droit"
                     : lame > NETTETE_TROUBLE ? "ça tire un peu"
@@ -1087,7 +1090,9 @@ const lameMot = () => lame > 0.85 ? "lame nette — ça tombe droit"
                     : "ça s'écrase plus que ça ne coupe";
 function tickCut(dt){
   if (!cutHold || !S.pain) return;
-  cutHold.t += dt;
+  // horodatage réel plutôt que cumul de dt : deux téléphones à 30 et 120 fps
+  // doivent rendre le même lot pour le même geste (R4)
+  cutHold.t = cutHold.base + (performance.now() - cutHold.t0) / 1000;
   const cible = Math.min(cutHold.total, Math.floor(cutHold.t / CUT_S_PAR_SACHET));
   while (cutHold.done < cible){
     cutHold.done++;
@@ -1107,17 +1112,21 @@ function tickCut(dt){
     // CHAQUE COUPE émousse — pas chaque seconde. Donc 50 coupes en 2 g
     // émoussent quatre fois plus que 12 coupes en 8 g : la propreté devient un
     // TROISIÈME prix du petit calibre, au lieu d'un multiplicateur uniforme.
-    lame = Math.max(0, lame - NETTETE_PAR_COUPE);
+    lame = Math.max(0, lame - NETTETE_PAR_COUPE); S.lame = lame;
     // On LIT LA MATIÈRE, pas un cadran : la barrette sort de travers quand le
     // geste s'émousse (le sens de la déformation est de la présentation, seedée)
-    const d = clamp((NETTETE_TROUBLE - lame) / NETTETE_TROUBLE, 0, 1);
+    // seuils dédiés : la 3ᵉ barrette penche déjà, au lieu de la 13ᵉ — sinon la
+    // dégradation ne s'enseigne pas avant que le pain soit à moitié coupé
+    const d = clamp((NETTETE_VISIBLE - lame) / (NETTETE_VISIBLE - NETTETE_SATURE), 0, 1);
+    const sens = hh(lot.n, 7) < 0.5 ? -1 : 1;   // le SENS est de la présentation
+    const rot = d === 0 ? 0 : sens * (6 + 16 * d);  // l'amplitude, elle, est déterministe
     const el = document.createElement("div");
     el.className = "sac";
     el.style.background = S.pain.col;
     el.style.width = (13 - d * 4.5).toFixed(1) + "px";
     el.style.height = (16 - d * 2).toFixed(1) + "px";
     el.style.borderRadius = (2 + d * 2).toFixed(1) + "px";
-    el.style.transform = `rotate(${((hh(lot.n, 7) - 0.5) * d * 38).toFixed(1)}deg)`;
+    el.style.transform = `rotate(${rot.toFixed(1)}deg)`;
     $("sachets").appendChild(el);
     if ($("sachets").children.length > 60) $("sachets").firstChild.remove();
     $("loaf").style.width = Math.max(6, 200 * (S.pain.g / S.pain.g0)) + "px";
@@ -1488,7 +1497,10 @@ $("dbg").addEventListener("pointerdown", e => {
 $("planche").addEventListener("pointerdown", cutStart);
 window.addEventListener("pointerup", cutEnd);
 window.addEventListener("pointercancel", cutEnd);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) last = performance.now(); });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) cutEnd();          // sinon le doigt reste « posé » en arrière-plan
+  else last = performance.now();
+});
 
 render();
 if (!S.seen) intro();

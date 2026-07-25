@@ -238,25 +238,27 @@ await shot("05-coupe-en-8g.png");
      propre.miettes < conserv.miettes * 0.7,
      `continu ${conserv.miettes.toFixed(1)} g écrasés · alterné ${propre.miettes.toFixed(1)} g`);
 
-  // ANTI-DÉGÉNÉRESCENCE : le micro-tap à 5 Hz ne doit plus garder la lame nette
-  const spam = await page.evaluate(async () => {
+  // ANTI-DÉGÉNÉRESCENCE : un relâchement plus court que RELACHE_MIN ne doit
+  // accorder AUCUNE reprise. Sans ce plancher, taper 0,10 s / lâcher 0,11 s
+  // gardait la lame nette gratuitement — le proto enseignait « spamme ».
+  const relache = await page.evaluate(async () => {
     const w = window.__spot, st = w.S();
     st.pain = { id: "t", g: 400, q: 60, col: "#5c4632", g0: 400 };
-    st.format = 5; st.miettes = 0;
-    w.setLame(1);
+    st.format = 5;
     const el = document.getElementById("planche");
-    const t0 = performance.now();
-    while (performance.now() - t0 < 2500) {               // 0,10 s pressé / 0,11 s lâché
+    const cycle = async (repos) => {
+      w.setLame(0.5);
       el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
-      await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 30));       // trop court pour couper
       window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
-      await new Promise((r) => setTimeout(r, 110));
-    }
-    return { lame: w.lame() };
+      await new Promise((r) => setTimeout(r, repos));
+      return w.lame();
+    };
+    return { court: await cycle(150), long: await cycle(900) };
   });
-  ok("Le martèlement du pouce ne garde plus la lame nette (RELACHE_MIN)",
-     spam.lame < 0.6,
-     `netteté après 2,5 s de tap à ~5 Hz : ${spam.lame.toFixed(2)} (repos requis : ${k.RELACHE_MIN} s)`);
+  ok("Un relâchement trop court n'accorde AUCUNE reprise (RELACHE_MIN)",
+     Math.abs(relache.court - 0.5) < 0.01 && relache.long > 0.6,
+     `repos 150 ms → ${relache.court.toFixed(2)} (inchangé) · repos 900 ms → ${relache.long.toFixed(2)}`);
 
   // R8 — le calibre porte la propreté : 50 coupes émoussent 4× plus que 12
   const parCalibre = await page.evaluate(() => {

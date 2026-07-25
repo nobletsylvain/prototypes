@@ -108,6 +108,11 @@ après le €/g et la visibilité.
 | 5 g | 20 | 0,70 |
 | 8 g | 12,5 | 0,44 |
 
+**Reste ouvert** — `[DÉCISION REQUISE]` : **aucun palier d'outil n'allège encore
+le geste** (R2/R6). Un affûtage, ou une planche qui ralentit l'usure, devrait
+exister pour que la coupe se délègue le jour où elle lasse. À designer, pas à
+improviser.
+
 **Écarté après pré-vol adverse** : une prime de +15 % au gramme sur les lots nets.
 Elle ne changeait aucun rapport entre calibres (inflation uniforme), érodait
 `LOYER_FIXE` — le second bras de la bascule —, et son optimum était un
