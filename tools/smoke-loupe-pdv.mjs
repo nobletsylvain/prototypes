@@ -208,7 +208,11 @@ const traitQueue = [
     tell: "", qc: { ok: false, miss: true, exig: 70, q: 50, fac: 0.85 }, qFac: 0.85,
     pat: 300, pat0: 300, mode: "offer", negoP: 22, dernier: null },
   // Diego : le servir chauffe le coin (+6)
-  { cid: "diego", nm: "Diego", av: "🏗️", kind: "grossiste", rel: 10, want: 8, g: 16, offer: 112, tx: "Seize d'un coup.",
+  // 96 € et non 112 : depuis le rabais au volume (2026-07-25) la référence d'un panier
+  // de 16 g tombe à 7,75 €/g, donc la tolérance grossiste à 6,17 €/g. L'ancien fixture
+  // (7,00 €/g) est désormais au-dessus de sa tolérance et partait en walk — c'est le
+  // barème qui a changé, pas la mécanique : l'offre que le jeu GÉNÈRE (5,50 €/g) passe.
+  { cid: "diego", nm: "Diego", av: "🏗️", kind: "grossiste", rel: 10, want: 8, g: 16, offer: 96, tx: "Seize d'un coup.",
     tell: "", heatAdd: 6, pat: 300, pat0: 300, mode: "offer", negoP: 112, dernier: null },
   // Momo rel 39 : le deal (+2) passe la barre des 40 → débloque Diego (graphe social)
   { cid: "momo", nm: "Momo", av: "🧢", kind: "regulier", rel: 39, want: 3, g: 5, offer: 48, tx: "Comme d'hab.",
@@ -261,7 +265,10 @@ const unlockOK = tUnlock.relMomo >= 40 && tUnlock.diego === true;   // graphe so
 // un tampon de 8 g face à un client de 5 g sortait 24 g pour 5 g facturés. Les
 // 10 de moins ne sont pas une régression : c'est de la marchandise qu'on ne
 // donne plus. Voir tools/invariants-loupe.mjs (grammes facturés == livrés).
-const settleOK = tSettle.day === 2 && !tSettle.ard && tSettle.rel === 34 && tSettle.dirty === 272
+// 256 et non 272 : les 16 € d'écart sont EXACTEMENT le fixture Diego passé de 112 à 96
+// (voir plus haut). Le reste de l'assertion — jour, ardoise soldée, rel, échéance de
+// Riton non touchée — est inchangé : c'est bien le barème qui a bougé, pas la clôture.
+const settleOK = tSettle.day === 2 && !tSettle.ard && tSettle.rel === 34 && tSettle.dirty === 256
   && tSettle.ard2 && tSettle.ard2.due === 50;
 
 await browser.close();

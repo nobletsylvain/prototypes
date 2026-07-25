@@ -9,6 +9,103 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-25 — La Loupe : l'annonce du format, et le rabais au volume
+
+Deux demandes de Sylvain : *« la demande de morceaux plus gros pourrait se déclencher
+au moment où le joueur coupe le morceau de taille la première fois »* et *« poster des
+stories devrait être au cœur de la communication des nouveaux produits… le prix au
+gramme d'un 8 g doit être plus attractif que celui pour un 2 g »*. Elles se sont
+révélées être **la même chose**.
+
+### La reconnaissance a trouvé un défaut dans ce que je venais d'écrire
+
+Ma première version du déclencheur posait `S.rueMax = take` — un **maximum**, qui ne
+redescend jamais. Un faux clic sur le stepper de calibre redéfinissait la clientèle
+*définitivement* : perte sèche issue d'une erreur de manipulation, silencieuse et
+irréversible. R1 l'interdit, R8 aussi (ce n'était pas une décision). Mesuré sur la
+version à inertie seule : 69 à 123 coupes de 2 g pour redescendre.
+
+### La correction est exactement la demande (B) : la coupe ARME, le joueur ANNONCE
+
+`applyCut` ne bascule plus la rue. Il arme `S.annonce = { calibre, jour }` et le dit :
+« Tu sors du 8 g. Annonce-le sur SnapShit pour que la rue le demande. » L'annonce est
+un geste explicite sur SnapShit, **symétrique** (ré-annoncer le petit calibre fait
+revenir les petites doses), et elle donne enfin un rôle à l'app.
+
+Deux signaux distincts, et c'est délibéré :
+- `rueMax` — CE QU'ON DEMANDE, immédiat, piloté par l'annonce ;
+- `rue` — COMBIEN en demandent, progressif, gagné à la coupe.
+
+Sans cette séparation, une seule barrette de 8 g convertirait 46 % du trafic du jour
+au lendemain et assécherait la clientèle de petites doses.
+
+Le gain mesuré sur le décalage offre/demande : **14 à 20 coupes invendables → 1**.
+
+### Le rabais au volume : la forme comptait autant que la courbe
+
+Exprimé comme un facteur sur la tolérance, le rabais aurait rogné le plafond que le
+client s'impose APRÈS avoir annoncé son offre — le bug Nassim/Bilal, que nos propres
+invariants **interdisent explicitement**. Exprimé comme un **menu par format**
+(`menuAt(menu, qty)`), il baisse la référence de prix elle-même : comme
+`cornerTol(kind, rel, base)` prend cette référence en entrée, le plafond et l'offre
+bougent ensemble. La classe de bugs entière est évitée par construction.
+
+Barème (placeholder) : **2 g 10,00 €/g · 5 g 9,20 · 8 g 8,50 · 12 g 8,00 · 20 g 7,50**.
+Appliqué aux trois canaux — corner, PDV auto, DM SnapShit — une seule échelle.
+
+### Le contre-poids R9 existait déjà, il n'était juste jamais nommé
+
+Un rabais au gramme rend le gros panier moins rentable *au gramme*. Ce qui le rend
+malgré tout désirable : **la chaleur est un impôt sur les secondes d'ouverture**, pas
+sur les grammes ni sur le nombre de ventes (`activity` ne contient aucun terme en
+quantité). Écouler 200 g au corner :
+
+| panier moyen | clients | chaleur accumulée |
+| --- | --- | --- |
+| 2 g | 100 | **422** → descente garantie (seuil 95) |
+| 5 g | 40 | 169 → descente |
+| 12 g | 17 | **70** → tu passes |
+
+Le gros panier coûte **6× moins d'exposition** pour les mêmes grammes. Avant ce
+rabais, il rapportait autant au gramme ET coûtait 6× moins cher : il était
+strictement meilleur, donc gratuit. Le rabais est **le prix de la discrétion**.
+
+### Trois trous trouvés dans mes propres tests
+
+1. **L'invariant recopiait la formule qu'il testait** (`const RUE_INERTIE = 0.08;
+   // même valeur que index.html`). Changer la règle dans `applyCut` laissait le test
+   vérifier l'ancienne et passer au vert. `rueApres()` est maintenant exportée de
+   `corner.mjs`, appelée par le jeu ET importée par le test : une seule source.
+2. **L'invariant du stock mort sautait la rampe** : 40 coupes pour stabiliser, PUIS
+   le tampon, PUIS la vente. Coupe et vente jamais entrelacées — c'est-à-dire un
+   scénario incapable d'exhiber le seul moment où le stock mort se forme. Réécrit en
+   jouant 14 soirées, coupe et vente alternées.
+3. **La part d'abus se mesurait sur une grille** : le bruit d'échantillonnage
+   (0,17 pt à 2 000 pas) était du même ordre que le signal, et le test échouait sur
+   des cas affichant « 4 % → 4 % ». Remplacé par une bissection sur les deux
+   frontières réelles. Zéro bruit — et la discrimination passe de 104/216 à
+   **115/216** cas rouges sans le correctif.
+
+### `[DÉCISION REQUISE]` — un point d'économie que je ne tranche pas
+
+**Le grossiste est maintenant doublement remisé.** `CORNER.OFFER.grossiste
+[0.68, 0.74]` et `TOL.grossiste 0.78` étaient DÉJÀ un rabais volume déguisé, propre à
+ce type de client. `menuAt` s'applique par-dessus : Diego paie **5,50 €/g** contre
+10,00 €/g pour un anonyme à 2 g, soit −45 %. Trois options : assumer (le gros
+acheteur est vraiment le moins cher), retirer le rabais `OFFER`/`TOL` du grossiste
+puisque `menuAt` le porte désormais pour tout le monde, ou plafonner le cumul.
+
+Autres placeholders en attente : `RABAIS_FORMAT`, `RUE_INERTIE`, `RUE_PART_MAX`,
+`RUE_PENTE`, `LAME_NETTETE`, `QUAL_REF`, `QUAL_TOL_MAX`.
+
+Non fait, signalé : la promesse SnapShit ne porte pas encore le calibre (seulement la
+qualité) ; l'affichage des secondes d'ouverture restantes manque, et sans lui le
+rabais se lit comme une punition alors que la mécanique le rembourse au double.
+
+`SAVE_VERSION` 29 → 30 (les prix changent).
+
+---
+
 ## 2026-07-25 — La Loupe : le bouche-à-oreille — la rue t'envoie les clients que tu mérites
 
 J'avais laissé un `[DÉCISION REQUISE]` mal posé : « quelle clientèle monte en panier,

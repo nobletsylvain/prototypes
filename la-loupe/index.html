@@ -344,7 +344,7 @@ import * as beuher from "./beuher.mjs?v=18";
 import * as shelter from "./shelter.mjs?v=18";
 import * as corner from "./corner.mjs?v=3";
 
-const SAVE_VERSION = "29"; // 29 : le couteau devient le levier qualité (R10) + la qualité achète de la tolérance
+const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
 // La demande Snap reste calée sur 2/5/8 (snap.SC.DOSE_FORMATS) — couper autre chose = risque assumé.
 const CUT_MIN = 1, CUT_MAX = 20, CUT_DEFAULT = 2;
@@ -474,7 +474,7 @@ function defaultState(){
   return {
     cash: START_CASH, dirty:0, heat:0, reput:20, day:1, clock:0,
     pains:[{ g:PAIN_100.g, q:PAIN_100.q }], painSel:0, bars:{}, barQ:60, wasteG:0, // amorce : 1 plaquette à couper (core loop directe)
-    rue:corner.RUE_MIN, // ce pour quoi la rue te connaît : le calibre que tu débites (bouche-à-oreille)
+    rue:corner.RUE_MIN, rueMax:corner.RUE_MIN, annonce:null, // bouche-à-oreille : rueMax = ce qu'on demande (immédiat), rue = combien en demandent (progressif)
     sachets:{}, sachetQ:60, cutSize:CUT_DEFAULT,
     orders:[], runs:[], bills:[],
     bundles:{5:0,20:0,50:0,100:0}, _pile:{5:0,20:0,50:0,100:0},
@@ -555,7 +555,21 @@ function applyCut(take, why){
      avoir déjà vendu du gros pour que des acheteurs de gros se présentent), et
      chaque barrette coupée en avance serait du stock mort. Inertie pondérée par les
      grammes : quelques coupes ne retournent pas ta réputation, une série si. */
-  S.rue=Math.max(corner.RUE_MIN, (S.rue||corner.RUE_MIN)+(take-(S.rue||corner.RUE_MIN))*RUE_INERTIE*Math.min(1,take/8));
+  S.rue=corner.rueApres(S.rue, take);
+  /* La coupe ARME, elle n'annonce pas. C'est le joueur qui annonce, sur SnapShit.
+     Pourquoi ce détour plutôt qu'un déclenchement direct à la première coupe : une
+     réputation de calibre qui monte toute seule ne redescend jamais (`rueMax` est un
+     maximum). Un faux clic sur le stepper de taille redéfinirait la clientèle pour
+     de bon — une perte sèche issue d'une erreur de manipulation, silencieuse et
+     irréversible. R1 l'interdit, et R8 aussi : ce ne serait pas une décision.
+     En passant par l'annonce, le geste devient explicite, réversible (on annonce le
+     petit calibre pour revenir), et il a enfin un coût de décision. */
+  const nomme=corner.rueCalibre(take);
+  if(nomme>corner.rueCalibre(S.rueMax||corner.RUE_MIN) && (!S.annonce||S.annonce.calibre!==nomme)){
+    S.annonce={ calibre:nomme, jour:S.day };
+    cause("Nouveau format en stock", `Premier ${nomme} g coupé — annonce-le sur SnapShit`);
+    toastQ.push(`📣 Tu sors du ${nomme} g. Annonce-le sur SnapShit pour que la rue le demande.`);
+  }
   const key=Math.max(1,Math.round(take));
   S.bars[key]=(S.bars[key]||0)+1;
   cause(`Coupe ${take.toFixed(1)} g`,`Barrette ${key} g — ${why}`);
@@ -568,9 +582,11 @@ function lameNettete(){ return LAME_NETTETE[Math.min(LAME_NETTETE.length-1, S.up
 /** « Ce pour quoi la rue te connaît » — le calibre débité et la part de gros paniers
     qu'il t'amène. Rendu tel quel : le joueur doit pouvoir relier son geste au trafic. */
 function rueLabel(){
-  const r=S.rue||corner.RUE_MIN, part=Math.round(100*corner.ruePartGros(r));
-  if(part<=0) return `La rue : <b>petites doses</b>`;
-  return `La rue : <b>${Math.round(r)} g</b> · ${part} % de gros paniers`;
+  const nomme=corner.rueCalibre(S.rueMax||corner.RUE_MIN);
+  const part=Math.round(100*corner.ruePartGros(S.rue||corner.RUE_MIN));
+  if(nomme<=corner.RUE_MIN) return `La rue : <b>petites doses</b>`;
+  // les deux signaux, dits séparément : ce qu'on te demande, et combien en demandent
+  return `La rue : <b>${nomme} g</b> · ${part} % de gros paniers`;
 }
 function fmtSachets(){ const ks=sizesOf(S.sachets); return ks.length?ks.map(f=>`${S.sachets[f]}×${f}g`).join(" · "):"—"; }
 function qualAvg(){ return Math.round(S.sachetQ || S.barQ || 60); }
@@ -829,7 +845,7 @@ function pdvServe(P){
   const cl=P.queue.shift(); if(!cl) return;
   const { n, g }=cornerTakeG(P, cl.g);   // même unité que la négo : des grammes
   if(g===0){ P.res=clamp(P.res-PDV_RUPTURE_HIT,0,100); return; } // rupture : rien à vendre
-  const price=Math.round(g*P.prix); P.bac+=price;
+  const price=Math.round(g*corner.menuAt(P.prix, g)); P.bac+=price; // même barème volume que la négo
   const Qd=P.tamponQ||S.sachetQ||55, Qa=P.advQ||Qd, pr=P.prix/pdvFair(Qa);
   const content=clamp(0.55+(Qd-Qa)*0.010-0.8*Math.max(0,pr-1),0,1);
   P.res+=(content*100-P.res)*PDV_RES_PER_SALE;
@@ -887,7 +903,7 @@ function cornerSpawn(P){ // client (persona ou louche) + sa demande (déterminis
       && !P.queue.some(q=>q.cid===p.id); }); // jamais deux fois la même tête en file (et une seule ardoise possible)
   // PNJ anonyme (le volume : vient chercher sa dose, sans plus) vs persona nommé (le sel) — tirage déterministe
   if(!avail.length || cornerHash(S.day*11, P.seq) < corner.CORNER.ANON_SHARE){
-    const a=corner.makeAnon(S.day, P.seq, S.reput, P.prix, S.rue), i=P.seq, pat=corner.patienceOf("anon");
+    const a=corner.makeAnon(S.day, P.seq, S.reput, P.prix, S.rue, S.rueMax), i=P.seq, pat=corner.patienceOf("anon");
     // 85 % du volume : c'est ICI que la qualité doit se sentir, pas seulement chez les 2 connaisseurs
     return { cid:null, nm:PDV_NAMES[i%PDV_NAMES.length], av:PDV_AV[i%PDV_AV.length], kind:"anon", rel:0,
       g:a.qty, offer:a.offer, tx:a.tx, tell:"", pat, pat0:pat, mode:"offer", negoP:a.offer, dernier:null,
@@ -913,7 +929,7 @@ function cornerSpawn(P){ // client (persona ou louche) + sa demande (déterminis
   // le connaisseur déçu rogne sa tolérance APRÈS que l'offre soit formée : on
   // re-borne, sinon il refuse le montant qu'il vient lui-même d'annoncer
   if(base.qFac && base.qFac !== 1 && o.mode==="offer")
-    o.offer=Math.min(o.offer, corner.offerCap(p.kind, c.rel, P.prix||corner.cornerFair(S.reput), o.qty, base.qFac));
+    o.offer=Math.min(o.offer, corner.offerCap(p.kind, c.rel, corner.menuAt(P.prix||corner.cornerFair(S.reput), o.qty), o.qty, base.qFac));
   if(o.mode==="hesit") return { ...base, g:o.usual, usual:o.usual, offer:0, negoP:0 };
   if(o.mode==="ambig") return { ...base, g:0, expect:o.expect, composeG:0, offer:0, negoP:0 };
   return { ...base, g:o.qty, offer:o.offer, negoP:o.offer };
@@ -989,7 +1005,7 @@ function cornerLeave(P, cl, why, v, tip){
   else if(why==="rupture") toast("Rupture — ravitaille le tampon.");
   else if(why==="ardoise") toast("🧾 "+cl.nm+" note "+cl.due+" au carnet — il règle J"+cl.payday+".");
   // graphe social : une relation qui vient de grimper peut débloquer un filleul (« X t'envoie Y »)
-  const news=corner.checkUnlocks(S.clients, S.rue);
+  const news=corner.checkUnlocks(S.clients, S.rueMax);
   for(const u of news){
     // dire la CAUSE, toujours : « untel t'envoie » ou « on parle de ton calibre »
     const par=u.rue?`la rue parle de ton calibre (${Math.round(S.rue)} g)`:(u.by?u.by.nm+" t'envoie":"");
@@ -1457,6 +1473,40 @@ function renderKarnet(){
 /* ---------- SnapShit ---------- */
 // prix affiché (menu du corner) que la story met en avant — réglé à la main au corner
 function snapMenuPrix(){ const p=S.shelter&&S.shelter.pdv&&S.shelter.pdv.prix; return p>0?p:marcheDuJour(); }
+/* L'ANNONCE — c'est ici que SnapShit sert enfin à quelque chose : communiquer le
+   format. Couper du 8 g ne suffit pas à ce que la rue en demande ; il faut le dire.
+   Et parce que c'est un geste explicite, il est SYMÉTRIQUE : on ré-annonce le petit
+   calibre pour revenir en arrière. La réputation ne se subit pas, elle se pilote. */
+function snapFormatsDispo(){
+  const fmts=new Set([corner.RUE_MIN]);
+  for(const f of Object.keys(S.bars||{})) if(S.bars[f]>0) fmts.add(corner.rueCalibre(+f));
+  for(const f of Object.keys(S.sachets||{})) if(S.sachets[f]>0) fmts.add(corner.rueCalibre(+f));
+  fmts.add(corner.rueCalibre(S.rueMax||corner.RUE_MIN));
+  return [...fmts].sort((a,b)=>a-b);
+}
+function snapFormatCard(){
+  const dispo=snapFormatsDispo(), actuel=corner.rueCalibre(S.rueMax||corner.RUE_MIN);
+  const neuf=S.annonce&&S.annonce.calibre>actuel ? S.annonce.calibre : 0;
+  return `<div class="card">
+    <h3>Ton format${neuf?` · <span style="color:#3ddc84">nouveau ${neuf} g en stock</span>`:""}</h3>
+    <div class="muted">Ce que la rue te demande. ${neuf
+      ? `Tu as sorti du <b>${neuf} g</b> — annonce-le pour qu'on vienne le chercher.`
+      : `Annoncer un format plus petit fait revenir les petites doses.`}</div>
+    <div class="seg" style="margin-top:8px">${dispo.map(f=>
+      `<button class="chip ${f===actuel?"on":""}" data-fmt="${f}">${f} g${f===actuel?" ✔":""}</button>`).join("")}</div>
+    <div class="muted" style="font-size:10px;margin-top:6px">Annoncé : <b>${actuel} g</b> · ${Math.round(100*corner.ruePartGros(S.rue||corner.RUE_MIN))} % de gros paniers au corner.</div>
+  </div>`;
+}
+function annoncerFormat(f){
+  const avant=corner.rueCalibre(S.rueMax||corner.RUE_MIN);
+  if(f===avant){ toast("C'est déjà ton format annoncé."); return; }
+  S.rueMax=f;
+  if(f<avant) S.rue=Math.min(S.rue||corner.RUE_MIN, f); // descente : la rue suit tout de suite (R1, réversible)
+  if(S.annonce&&S.annonce.calibre===f) S.annonce=null;
+  cause("Format annoncé", `${avant} g → ${f} g sur SnapShit`);
+  toast(f>avant?`📣 Le quartier sait que tu sors du ${f} g.`:`📣 Retour au ${f} g annoncé.`);
+  save(); renderSnap();
+}
 function renderSnap(){
   const pending=S.dms.filter(d=>d.status==="pending");
   stage.innerHTML=`
@@ -1469,11 +1519,12 @@ function renderSnap(){
       <div class="ring"><div class="ava">🔥</div><div class="lb">Accro</div></div>
       <div class="ring"><div class="ava">📦</div><div class="lb">Gros</div></div>
     </div>
+    ${snapFormatCard()}
     <div class="card">
       <h3>Composer</h3>
       <div class="muted">Vitrine = buzz soft. Drop = promesse. Premium = tu joues ta crédibilité.</div>
-      <div class="stat"><span>📋 Menu affiché sur la story</span><b>${snapMenuPrix()}/g · 2g ${2*snapMenuPrix()} · 5g ${5*snapMenuPrix()} · 8g ${8*snapMenuPrix()}</b></div>
-      <div class="muted" style="font-size:10px;margin:-2px 0 6px">Réglable au corner (Quartier ▸ corner ▸ Gérer). Marché : ${marcheDuJour()}/g.</div>
+      <div class="stat"><span>📋 Menu affiché sur la story</span><b>${[2,5,8].map(f=>`${f}g ${Math.round(f*corner.menuAt(snapMenuPrix(),f))}`).join(" · ")}</b></div>
+      <div class="muted" style="font-size:10px;margin:-2px 0 6px">La grosse portion est moins chère au gramme : ${[2,5,8].map(f=>`${f}g → ${corner.menuAt(snapMenuPrix(),f).toFixed(1)}/g`).join(" · ")}. Marché : ${marcheDuJour()}/g.</div>
       <div class="grid3">
         <button class="btn snap" id="vitr">Vitrine</button>
         <button class="btn snap" id="dropN">Drop</button>
@@ -1492,6 +1543,7 @@ function renderSnap(){
     </div>
     <button class="btn ghost" id="night">⏭ Passer la nuit maintenant <span style="opacity:.6">(sinon auto)</span></button>
     <button class="btn beuher" id="toBeuher">Envoyer vers BeuherShit (${S.orders.filter(o=>o.status==="ready").length})</button>`;
+  stage.querySelectorAll("[data-fmt]").forEach(b=>b.onclick=()=>annoncerFormat(+b.dataset.fmt));
   document.getElementById("vitr").onclick=()=>{ snap.posterVitrine(S,"vitrine"); cause("Story vitrine","+buzz soft"); toast("En ligne. Discret."); save(); renderSnap(); };
   document.getElementById("dropN").onclick=()=>{ snap.posterVitrine(S,"normal"); cause("Drop story","Promesse normal"); toast("Drop posté. Le feed s'enflamme."); save(); renderSnap(); };
   document.getElementById("dropP").onclick=()=>{ snap.posterVitrine(S,"premium"); cause("Drop premium","Promesse premium"); toast("Premium. Tu as intérêt à tenir."); save(); renderSnap(); };
@@ -2171,7 +2223,7 @@ function setupDebug(){
   h+=add("Couteau +1 (coupe plus gros)", ()=>{ S.upgrades.couteau=Math.min(UPG.couteau.max,(S.upgrades.couteau||0)+1); });
   h+=add("Tous les upgrades au max", ()=>{ for(const k in UPG) S.upgrades[k]=UPG[k].max; });
   h+=add("Reput +20", ()=>{ S.reput=clamp((S.reput||0)+20,0,100); });
-  h+=add("🤝 Relations +15 (test déblocages)", ()=>{ for(const id in S.clients){ S.clients[id].rel=clamp((S.clients[id].rel||0)+15,0,100); } const n=corner.checkUnlocks(S.clients); if(n.length) toast("Débloqués : "+n.map(u=>u.p.nm).join(", ")); });
+  h+=add("🤝 Relations +15 (test déblocages)", ()=>{ for(const id in S.clients){ S.clients[id].rel=clamp((S.clients[id].rel||0)+15,0,100); } const n=corner.checkUnlocks(S.clients, S.rueMax); if(n.length) toast("Débloqués : "+n.map(u=>u.p.nm).join(", ")); });
   h+=H("Divers");
   h+=add("Heat → 0", ()=>{ S.heat=0; });
   h+=add("⏭ Passer la nuit (clôture soirée)", ()=>{ advanceDay(true); });

@@ -1,5 +1,6 @@
 /* SnapShit — moteur de demande (story → DM → commandes).
    Conséquences déterministes. Math.random = présentation uniquement. */
+import { menuAt } from "./corner.mjs";   // une seule échelle de prix pour tout le jeu
 export const SC = {
   EXPO_INIT: 10, EXPO_PAR_DROP: 30, EXPO_PAR_VITRINE: 12, EXPO_DECAY: 0.72, EXPO_CAP: 100,
   EXPO_SEUIL_MAUVAIS_PUBLIC: 60, EXPO_DELAI_MAUVAIS_PUBLIC: 2,
@@ -110,12 +111,17 @@ export function buildDMs(S, good, bad, peakExpo) {
   let seq = S.orderSeq || 1;
 
   // Accro toujours là
-  pushDM(list, "dm" + (seq++), "accro", pick(SC.QTY_GENUINE, S.day), ppuG,
+  // Le prix du DM suit le MÊME barème volume que le corner (une seule échelle dans
+  // tout le jeu) : la grosse portion est moins chère au gramme. Sans ça les deux
+  // canaux annonceraient des tarifs contradictoires sur la même marchandise.
+  const qAccro = pick(SC.QTY_GENUINE, S.day);
+  pushDM(list, "dm" + (seq++), "accro", qAccro, Math.max(3, Math.round(menuAt(ppuG, qAccro))),
     pick(VIBES.accro, S.day), "ACCRO", "L'Accro");
 
   for (let i = 0; i < good; i++) {
     const nm = pick(NAMES, S.day * 3 + i);
-    pushDM(list, "dm" + (seq++), "genuine", pick(SC.QTY_GENUINE, S.day + i), ppuG,
+    const qG = pick(SC.QTY_GENUINE, S.day + i);
+    pushDM(list, "dm" + (seq++), "genuine", qG, Math.max(3, Math.round(menuAt(ppuG, qG))),
       pick(VIBES.genuine, S.day + i), "CLIENT", nm);
   }
   for (let i = 0; i < bad; i++) {
