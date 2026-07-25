@@ -167,6 +167,17 @@ export function marketNews(day){
 // tolérance €/g : base = TON menu affiché (prix) — le client négocie autour de ton prix, pas du marché.
 // (le marché, lui, pilote la DEMANDE : combien de clients passent.) base peut être le prix joueur ou, à défaut, le marché.
 export function cornerTol(kind, rel, base){ return base*(CORNER.TOL[kind] + (rel||0)*CORNER.TOL_PER_REL); }
+
+/* Plafond que le client s'impose À LUI-MÊME : sa poche ET sa tolérance au €/g.
+   Une offre spontanée doit TOUJOURS passer son propre test d'acceptation —
+   sinon accepter le montant qu'il vient d'annoncer le fait partir furieux, avec
+   malus, sans le moindre avertissement à l'écran (R1 ET R4 violés d'un coup).
+   Mesuré avant correctif : Nassim (accro, 8 g, budget 50) partait fâché dans
+   100 % de ses visites, Bilal (regulier, 8 g, budget 70) dans 42 %. */
+export function offerCap(kind, rel, base, qty, qFac){
+  const tol = cornerTol(kind, rel, base) * (qFac || 1);
+  return Math.max(1, Math.floor(Math.min(cornerBudget(kind, rel), qty * tol)));
+}
 export function cornerBudget(kind, rel){ return CORNER.BUDGET[kind]*(1 + (rel||0)*CORNER.BUDGET_PER_REL); }
 
 // qualité d'une offre vs TON menu (l'info centrale : l'écart % au menu que TU affiches)
@@ -254,8 +265,9 @@ export function makeOffer(persona, rel, reput, day, seq, prix){
   const qty = kind==="grossiste" ? (16 + (hh(day, seq)>0.6 ? 8 : 0)) : persona.usual;
   const off = CORNER.OFFER[kind] || [0.9, 1.0];
   const m = off[0] + (off.length>1 ? hh(day*5, seq)*(off[1]-off[0]) : 0);
-  // le client ouvre relatif à TON prix affiché (il négocie à partir de ton menu), plafonné plus loin par son budget
-  const offer = Math.max(1, R(qty*menu*m));
+  // le client ouvre relatif à TON prix affiché (il négocie à partir de ton menu),
+  // borné par ce qu'il peut réellement payer et accepter (offerCap)
+  const offer = Math.min(Math.max(1, R(qty*menu*m)), offerCap(kind, rel, menu, qty));
   const tx = (pickBank(persona, day+seq) || pick(TXT[kind]||TXT.regulier, day+seq)).replace("{q}", qty).replace("{t}", offer);
   return { mode:"offer", qty, offer, tell, tx };
 }
@@ -265,7 +277,7 @@ export function makeAnon(day, seq, reput, prix){
   const menu = prix || cornerFair(reput);
   const qty = [2,2,3,5,2][((day+seq)%5+5)%5];            // petites doses déterministes
   const off = CORNER.OFFER.anon, m = off[0] + hh(day*5, seq)*(off[1]-off[0]);
-  const offer = Math.max(1, R(qty*menu*m));
+  const offer = Math.min(Math.max(1, R(qty*menu*m)), offerCap("anon", 0, menu, qty));
   const tx = pick(ANON, day+seq).replace("{q}", qty).replace("{t}", offer);
   return { kind:"anon", mode:"offer", qty, offer, tx, tell:"" };
 }

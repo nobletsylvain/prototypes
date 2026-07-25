@@ -255,8 +255,14 @@ const qualOK = qualChip && tQual.dirty === 22 && tQual.rel === 13;  // 20 + pour
 const qMissOK = tMiss.dirty === tQual.dirty && tMiss.rel === 11;    // refus PAR le qFac (sinon 11 ≤ 12.17 aurait vendu) · rel 13−2
 const heatOK = tHeat - hBefore2 >= 5;                               // +6 à la vente (delta ; la dérive seule < 1 sur ~0.5 s)
 const unlockOK = tUnlock.relMomo >= 40 && tUnlock.diego === true;   // graphe social branché
-const settleOK = tSettle.day === 2 && !tSettle.ard && tSettle.rel === 34 && tSettle.dirty === 282
-  && tSettle.ard2 && tSettle.ard2.due === 50;                       // 182 de ventes + 100 Nassim · Riton (J3) intact
+// 172 de ventes + 100 Nassim · Riton (J3) intact.
+// Était 282 avant le passage du corner aux GRAMMES (2026-07-25) : l'ancien débit
+// comptait des barrettes via clamp(round(g/2),1,6) et SUR-LIVRAIT en silence —
+// un tampon de 8 g face à un client de 5 g sortait 24 g pour 5 g facturés. Les
+// 10 de moins ne sont pas une régression : c'est de la marchandise qu'on ne
+// donne plus. Voir tools/invariants-loupe.mjs (grammes facturés == livrés).
+const settleOK = tSettle.day === 2 && !tSettle.ard && tSettle.rel === 34 && tSettle.dirty === 272
+  && tSettle.ard2 && tSettle.ard2.due === 50;
 
 await browser.close();
 server.close();

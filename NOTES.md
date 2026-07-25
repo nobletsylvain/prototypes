@@ -9,6 +9,73 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-25 — La Loupe : le corner passe aux GRAMMES (et le calibre devient un levier)
+
+Arbitrage de Sylvain : **le corner vend À LA TÊTE** — « il n'y a pas de demande
+sans client ». Ça tranche le `[DÉCISION REQUISE]` ouvert par l'audit, et ça a une
+conséquence immédiate : la thèse de `le-spot/` (visibilité ∝ nombre de
+transactions, le calibre pilotant ce nombre) **ne s'applique pas à La Loupe**. En
+vente à la tête, servir 8 g en 4 barrettes ou en 1 seule, c'est une transaction
+dans les deux cas.
+
+Mais le calibre reprend aussitôt un sens, meilleur et déjà à moitié codé :
+**en quoi tu coupes décide QUI tu peux servir.** Riton veut 2 g, Momo 5, Bilal 8,
+Diego 16-24. Un tampon de 8 g ne sert pas Riton. Couper petit = servir tout le
+monde et travailler plus à la planche ; couper gros = expédier la coupe et fermer
+la porte à une partie de la clientèle. C'est social au lieu d'être statistique,
+et ça colle aux personas au lieu de leur passer à côté.
+
+**Le bug n°2 de l'audit ÉTAIT cette mécanique, mal implémentée.** Le corner
+facturait des grammes et débitait des barrettes via `clamp(round(g/2),1,6)`.
+Mesuré avant correctif :
+
+| tampon | le client veut | livré (avant) | facturé |
+|---|---|---|---|
+| 8 g | 5 g | **24 g** | 5 g |
+| 5 g | 8 g | **20 g** | 8 g |
+| 2 g | 5 g | 6 g | 5 g |
+| 2 g | 24 g (Diego) | 12 g | **24 g** |
+
+Le corner branche désormais sur `snap.qtyToSachets` — la composition exacte qui
+existait déjà à quinze mètres, testée, avec son commentaire « Exact match only
+(jamais sur-livrer) ». Facturation **au prorata des grammes réellement livrés**.
+La réparation et la feature étaient le même travail.
+
+**Nouveau cas à rendre lisible** : une commande peut devenir *incomposable*
+(5 g avec un tampon de 8 g). La carte le dit maintenant AVANT d'accepter —
+« ton tampon ne compose que N g » ou « aucune barrette ne compose 5 g, coupe plus
+fin ». Sans ça c'était un échec caché (R4).
+
+**Deux autres réparations du même passage**
+- **L'offre du client passe enfin son propre test.** `BUDGET` étant indexé sur le
+  `kind` et non sur le persona, Nassim (accro, budget 50, demande 8 g) partait
+  **fâché dans 100 % de ses visites** après qu'on ait accepté le montant qu'il
+  venait d'annoncer ; Bilal dans 42 %. Vérifié en rejouant 400 couples jour/seq.
+  Les offres sont maintenant bornées par `offerCap` — la poche ET la tolérance —
+  et re-bornées au spawn une fois le `qFac` du connaisseur connu.
+- **R1 : l'expiration de patience ne ponctionne plus le réservoir.** Elle punissait
+  la LENTEUR DE LA MAIN, et `res` pilote la demande : une amende durable pour un
+  défaut d'attention. Le walk après une contre-offre trop haute, lui, reste
+  sanctionné — il est annoncé par `negoFace` avant le bouton, donc c'est une
+  décision (R8). Trois chemins de « vente perdue », trois traitements.
+
+**Outillage** — `tools/invariants-loupe.mjs` : 7 invariants sans navigateur, dont
+les deux que l'audit réclamait (grammes facturés == livrés ; l'offre d'un client
+passe son propre test, balayée sur 21 520 offres × menus × relations × qFac).
+Le dépôt ne vérifiait jusqu'ici que la syntaxe.
+
+`SAVE_VERSION` 27 → 28 (le tampon change de sémantique de facturation).
+Le smoke attendait 282 de recette : c'est 272, et les 10 de moins sont de la
+marchandise qu'on ne donne plus. Commenté sur place pour la prochaine session.
+
+**Reste ouvert** : `[DÉCISION REQUISE]` l'échelle d'appro est inversée — à
+capital égal le petit pain rapporte **16 fois plus** (1 700 € → +4 800 en
+8× Pain 100 contre +300 en 1× Pain 250). Elle punit littéralement « grossir et
+s'étendre ». C'est de l'équilibrage structurant. Et le désync 3D du Gabarit
+(« Plus de pain » devant une savonnette à 80 %) attend son tour.
+
+---
+
 ## 2026-07-25 — Le Spot : la coupe devient une décision, payée en grammes
 
 Retour de playtest sur `le-spot/` : *« ça marche vraiment bien, le sentiment est
