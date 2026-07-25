@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Le Spot — tenir le point</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%94%A6%3C/text%3E%3C/svg%3E" />
+<style>
+/* ═══ Le Spot ═══ un seul fichier, zéro dépendance, zéro réseau.
+   Portrait mobile. Tout le rendu est DOM/CSS : pas de canvas, pas de WebGL —
+   la scène de rue de le-corner/ a prouvé que ça suffit, et ça s'ouvre en
+   file:// (les protos multi-modules de la-loupe/ ne s'ouvrent qu'en HTTP). */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none;}
+html,body{height:100%;overflow:hidden;font:400 15px/1.4 -apple-system,"Segoe UI",Roboto,sans-serif;
+  color:#f2f0f6;background:#0a0810;}
+body{display:flex;flex-direction:column;max-width:520px;margin:0 auto;position:relative;}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
+.hide{display:none!important;}
+
+/* ── HUD ─────────────────────────────────────────────────────── */
+#hud{flex:none;padding:max(8px,env(safe-area-inset-top)) 12px 8px;background:#0d0a16;
+  border-bottom:1px solid rgba(255,255,255,.08);z-index:20;}
+.hrow{display:flex;align-items:center;gap:8px;}
+.hday{font-weight:800;font-size:15px;letter-spacing:.3px;}
+.hclock{font-variant-numeric:tabular-nums;color:rgba(255,255,255,.6);font-size:14px;}
+.hcash{margin-left:auto;font-weight:800;font-size:17px;color:#bdf0a3;font-variant-numeric:tabular-nums;}
+.hcash.neg{color:#ff8f8f;}
+.gauges{display:flex;gap:14px;margin-top:7px;}
+.g{flex:1;min-width:0;}
+.glab{display:flex;gap:5px;align-items:baseline;font-size:10px;font-weight:700;letter-spacing:.5px;
+  text-transform:uppercase;color:rgba(255,255,255,.42);margin-bottom:3px;}
+.gbar{position:relative;height:9px;border-radius:5px;background:rgba(255,255,255,.09);overflow:hidden;}
+.gfill{position:absolute;inset:0 auto 0 0;border-radius:5px;transition:width .25s linear;}
+#gvisF{background:linear-gradient(90deg,#5aa9e6,#ffd166 55%,#ff6b6b);}
+#gdosF{background:linear-gradient(90deg,#8b7bd8,#b95cd8);}
+.thr{position:absolute;top:-2px;bottom:-2px;width:2px;background:rgba(255,255,255,.55);border-radius:1px;}
+.thr.hot{background:#ff6b6b;}
+.gnum{font-variant-numeric:tabular-nums;color:rgba(255,255,255,.75);}
+
+/* ── zone de scène ───────────────────────────────────────────── */
+#stage{flex:1;position:relative;overflow:hidden;}
+.place{position:absolute;inset:0;display:flex;flex-direction:column;
+  transition:opacity .22s ease;}
+.place.off{opacity:0;pointer-events:none;}
+
+/* ── la rue ──────────────────────────────────────────────────── */
+#sky{position:absolute;inset:0;transition:background 1.2s linear;}
+#blocks{position:absolute;left:0;right:0;bottom:20%;height:80%;}
+.bl{position:absolute;bottom:0;background:linear-gradient(#12111f,#090813);
+  border-radius:2px 2px 0 0;box-shadow:inset 0 18px 40px rgba(0,0,0,.55),0 0 30px rgba(0,0,0,.4);}
+.win{position:absolute;width:7px;height:10px;border-radius:1px;background:rgba(255,255,255,.04);}
+.win.on{background:#f0c26a;box-shadow:0 0 9px rgba(240,194,106,.55);}
+/* la cage : l'entrée de hall, le repère du spot */
+#cage{position:absolute;left:50%;bottom:20%;transform:translateX(-50%);width:78px;height:112px;
+  border-radius:6px 6px 0 0;background:linear-gradient(#151328,#0a0912);
+  border:2px solid rgba(255,255,255,.11);border-bottom:none;z-index:3;}
+/* le renfoncement de la porte : ce qui fait lire « entrée de hall » et pas « bloc » */
+#cage::after{content:"";position:absolute;left:11px;right:11px;bottom:0;top:22px;
+  border-radius:5px 5px 0 0;background:linear-gradient(rgba(0,0,0,.62),rgba(255,214,140,.07));
+  border:1px solid rgba(255,255,255,.07);border-bottom:none;}
+#cageL{position:absolute;left:50%;top:-9px;transform:translateX(-50%);width:30px;height:6px;
+  border-radius:4px;background:#2a2738;}
+#cageG{position:absolute;inset:-10px -22px 0;border-radius:50% 50% 0 0;opacity:0;
+  background:radial-gradient(ellipse at 50% 8%,rgba(180,200,255,.16),transparent 62%);
+  transition:opacity 1.2s linear;}
+#lamp{position:absolute;left:19%;bottom:20%;width:3px;height:40%;z-index:4;
+  background:linear-gradient(#3a3a4a,#22222e);}
+#lampH{position:absolute;left:-9px;top:-6px;width:21px;height:9px;border-radius:9px;background:#3a3a4a;}
+#lampG{position:absolute;left:-58px;top:-12px;width:118px;height:210px;border-radius:50%;
+  background:radial-gradient(ellipse at 50% 8%,rgba(255,214,140,.4),transparent 64%);
+  opacity:0;transition:opacity 1.2s linear;}
+/* silhouettes de fond : le quartier vit, ce ne sont pas des clients */
+.sil{position:absolute;bottom:19%;width:16px;height:38px;border-radius:8px 8px 2px 2px;
+  background:#04040a;z-index:2;transform-origin:50% 100%;}
+.sil::after{content:"";position:absolute;left:50%;top:-12px;transform:translateX(-50%);
+  width:13px;height:13px;border-radius:50%;background:#04040a;}
+#ground{position:absolute;left:0;right:0;bottom:0;height:20%;
+  background:linear-gradient(#191524,#0a0810);border-top:1px solid rgba(255,255,255,.09);}
+#ground::before{content:"";position:absolute;left:0;right:0;top:34%;height:1px;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.07) 0 22px,transparent 22px 44px);}
+#tagwall{position:absolute;left:12px;bottom:21%;z-index:2;font:900 27px/1 -apple-system,sans-serif;
+  letter-spacing:3px;color:rgba(255,255,255,.075);transform:rotate(-1.5deg);}
+
+/* ── file de clients ─────────────────────────────────────────── */
+#queue{position:absolute;left:0;right:0;bottom:2%;display:flex;align-items:flex-end;
+  justify-content:center;gap:6px;padding:0 6px;z-index:6;min-height:112px;}
+.cli{position:relative;width:62px;text-align:center;animation:walkin .34s ease-out;}
+@keyframes walkin{from{transform:translateX(38px);opacity:0}to{transform:none;opacity:1}}
+.cli.go{animation:walkout .3s ease-in forwards;}
+@keyframes walkout{to{transform:translateX(-30px);opacity:0}}
+.cav{width:46px;height:46px;margin:0 auto;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:24px;background:#100e1c;
+  border:2px solid rgba(255,255,255,.22);transition:transform .09s;
+  box-shadow:0 3px 14px rgba(0,0,0,.55);}
+.cli:active .cav{transform:scale(.9);}
+.cli.hot .cav{border-color:#ff6b6b;}
+.cbody{width:34px;height:30px;margin:-4px auto 0;border-radius:8px 8px 3px 3px;background:#100e1c;
+  border:2px solid rgba(255,255,255,.14);border-top:none;}
+.cwant{font-size:11px;font-weight:800;margin-top:3px;color:#ffd166;}
+.cpat{width:38px;height:3px;margin:3px auto 0;border-radius:2px;background:rgba(255,255,255,.13);
+  overflow:hidden;}
+.cpatF{height:100%;background:#9be37d;transition:width .2s linear,background .3s;}
+.cpatF.low{background:#ff8f8f;}
+
+/* rideau baissé : le point dort, la chaleur retombe */
+#shut{position:absolute;inset:0;z-index:7;display:flex;align-items:center;justify-content:center;
+  background:rgba(4,3,9,.62);backdrop-filter:saturate(.35);pointer-events:none;}
+#shut span{font:900 13px/1 -apple-system,sans-serif;letter-spacing:3px;text-transform:uppercase;
+  color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.18);border-radius:999px;
+  padding:9px 16px;background:rgba(10,8,18,.8);}
+
+/* ── flottants ───────────────────────────────────────────────── */
+.pop{position:absolute;font-weight:800;font-size:15px;pointer-events:none;z-index:30;
+  animation:pop 1s ease-out forwards;text-shadow:0 2px 6px rgba(0,0,0,.7);}
+@keyframes pop{0%{transform:translateY(0);opacity:1}100%{transform:translateY(-46px);opacity:0}}
+
+/* ── dock ────────────────────────────────────────────────────── */
+#dock{flex:none;background:#0d0a16;border-top:1px solid rgba(255,255,255,.08);
+  padding:9px 12px max(9px,env(safe-area-inset-bottom));z-index:20;}
+.expo{display:flex;gap:8px;align-items:stretch;margin-bottom:8px;}
+.ebox{flex:1;border-radius:11px;padding:7px 10px;background:rgba(255,107,107,.09);
+  border:1px solid rgba(255,107,107,.26);}
+.ebox.calm{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12);}
+.elab{font-size:9.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;
+  color:rgba(255,255,255,.45);}
+.eval{font-weight:800;font-size:18px;font-variant-numeric:tabular-nums;margin-top:1px;}
+.esub{font-size:10.5px;color:rgba(255,255,255,.42);}
+.btns{display:flex;gap:8px;}
+.b{flex:1;border-radius:12px;padding:11px 6px;text-align:center;font-weight:800;font-size:13.5px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);transition:transform .06s;}
+.b:active{transform:scale(.97);}
+.b.pri{background:rgba(90,169,230,.2);border-color:rgba(90,169,230,.5);color:#a8d5ff;}
+.b.warn{background:rgba(255,209,102,.16);border-color:rgba(255,209,102,.42);color:#ffd166;}
+.b[disabled]{opacity:.35;}
+.bsub{display:block;font-size:10px;font-weight:600;color:rgba(255,255,255,.45);margin-top:1px;}
+
+/* ── planque ─────────────────────────────────────────────────── */
+#planque{background:linear-gradient(#161226,#0b0812);overflow-y:auto;padding:12px 12px 24px;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;}
+.sect{font-size:10.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;
+  color:rgba(255,255,255,.4);margin:14px 0 7px;}
+.sect:first-child{margin-top:2px;}
+.pain{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:12px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);margin-bottom:7px;}
+.pain:active{background:rgba(255,255,255,.09);}
+.pain[disabled]{opacity:.4;}
+.pico{width:38px;height:26px;border-radius:4px;flex:none;
+  box-shadow:inset 0 -7px 12px rgba(0,0,0,.45),inset 0 3px 6px rgba(255,255,255,.09);}
+.pinfo{flex:1;min-width:0;}
+.pnm{display:block;font-weight:800;font-size:14.5px;text-align:left;}
+.pds{display:block;font-size:11px;line-height:1.35;color:rgba(255,255,255,.5);text-align:left;}
+.ppr{text-align:right;flex:none;}
+.pprv{display:block;font-weight:800;color:#bdf0a3;font-variant-numeric:tabular-nums;}
+.pprs{display:block;font-size:10.5px;color:rgba(255,255,255,.42);}
+.grade{display:inline-block;font-size:10px;font-weight:900;padding:1px 6px;border-radius:5px;margin-left:5px;}
+.gA{background:rgba(189,240,163,.2);color:#bdf0a3;}
+.gB{background:rgba(255,209,102,.18);color:#ffd166;}
+.gC{background:rgba(255,255,255,.11);color:rgba(255,255,255,.62);}
+
+.fmts{display:flex;gap:7px;}
+.fmt{flex:1;border-radius:12px;padding:9px 4px;text-align:center;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.11);}
+.fmt.sel{background:rgba(90,169,230,.2);border-color:rgba(90,169,230,.55);}
+.fg{font-weight:900;font-size:19px;}
+.fe{font-size:11px;color:#bdf0a3;font-variant-numeric:tabular-nums;}
+.fv{font-size:10px;margin-top:2px;font-weight:700;}
+
+#planche{margin-top:9px;border-radius:14px;background:rgba(0,0,0,.3);
+  touch-action:none;
+  border:1px solid rgba(255,255,255,.1);padding:12px;text-align:center;}
+#loaf{height:54px;margin:0 auto 10px;border-radius:5px;max-width:200px;
+  box-shadow:inset 0 -12px 20px rgba(0,0,0,.5),inset 0 5px 9px rgba(255,255,255,.08);
+  transition:width .18s ease,opacity .2s;}
+#cutbar{height:9px;border-radius:5px;background:rgba(255,255,255,.1);overflow:hidden;margin-bottom:8px;}
+#cutfill{height:100%;width:0;background:linear-gradient(90deg,#5aa9e6,#9be37d);}
+#cuthint{font-size:12.5px;color:rgba(255,255,255,.55);}
+#sachets{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-top:9px;min-height:16px;}
+.sac{width:13px;height:16px;border-radius:2px;background:#5c4632;
+  border:1px solid rgba(255,255,255,.14);animation:drop .2s ease-out;}
+@keyframes drop{from{transform:translateY(-9px) scale(.6);opacity:0}to{transform:none;opacity:1}}
+
+.crew{display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:12px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);margin-bottom:7px;}
+.crew[disabled]{opacity:.42;}
+.cric{font-size:24px;flex:none;}
+.crinfo{flex:1;min-width:0;}
+.crnm{display:block;font-weight:800;font-size:14px;text-align:left;}
+.crds{display:block;font-size:11px;color:rgba(255,255,255,.5);text-align:left;line-height:1.35;}
+.crpr{text-align:right;font-size:11.5px;flex:none;color:rgba(255,255,255,.6);}
+.crpr b{display:block;font-size:14px;color:#ffd166;}
+.crpr.has b{color:#bdf0a3;}
+
+/* ── overlays ────────────────────────────────────────────────── */
+.ov{position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;
+  background:rgba(6,4,12,.93);backdrop-filter:blur(7px);padding:16px 14px;overflow-y:auto;}
+/* .b porte flex:1 pour le dock (rangée horizontale) : dans un overlay en
+   colonne, ça l'étirerait sur toute la hauteur restante */
+.ov > .b{flex:none;}
+.ovt{font-weight:900;font-size:23px;letter-spacing:.3px;}
+.ovs{font-size:13px;color:rgba(255,255,255,.55);margin-top:3px;}
+.led{margin-top:12px;border-radius:12px;background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.09);overflow:hidden;}
+.ledr{display:flex;gap:9px;padding:7px 11px;font-size:12.5px;
+  border-bottom:1px solid rgba(255,255,255,.06);}
+.ledr:last-child{border:none;}
+.ledh{color:rgba(255,255,255,.35);font-variant-numeric:tabular-nums;flex:none;width:34px;}
+.ledt{flex:1;}
+.ledv{font-weight:800;font-variant-numeric:tabular-nums;flex:none;}
+.pos{color:#bdf0a3;} .negv{color:#ff8f8f;} .neu{color:rgba(255,255,255,.5);}
+
+/* ── ARA (évacuation) ────────────────────────────────────────── */
+#ara{position:absolute;inset:0;z-index:70;display:flex;flex-direction:column;
+  background:rgba(40,4,8,.62);backdrop-filter:blur(2px);animation:redpulse 1s infinite;}
+@keyframes redpulse{0%,100%{background:rgba(40,4,8,.55)}50%{background:rgba(70,6,12,.72)}}
+#arahead{padding:16px 14px 8px;text-align:center;}
+#aratitle{font-weight:900;font-size:31px;letter-spacing:3px;color:#ff8f8f;
+  text-shadow:0 0 22px rgba(255,60,60,.6);animation:shake .32s infinite;}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+#arasub{font-size:13px;color:rgba(255,255,255,.8);margin-top:4px;}
+#aratimer{height:8px;margin:10px 14px 0;border-radius:4px;background:rgba(0,0,0,.45);overflow:hidden;}
+#aratimerF{height:100%;background:#ff6b6b;transition:width .08s linear;}
+#caches{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;}
+.cache{flex:1;max-width:110px;aspect-ratio:3/4;border-radius:14px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:5px;background:rgba(12,10,20,.88);
+  border:2px solid rgba(255,255,255,.2);transition:transform .07s,border-color .15s;}
+.cache:active{transform:scale(.93);border-color:#9be37d;}
+.cache.cool{opacity:.4;}
+.cacheI{font-size:31px;}
+.cacheN{font-size:11px;font-weight:800;text-align:center;line-height:1.2;padding:0 3px;}
+#arafoot{padding:0 14px 18px;text-align:center;font-size:12.5px;color:rgba(255,255,255,.65);}
+
+/* ── toasts ──────────────────────────────────────────────────── */
+#toasts{position:absolute;left:0;right:0;top:8px;z-index:80;display:flex;flex-direction:column;
+  align-items:center;gap:5px;pointer-events:none;padding:0 14px;}
+.toast{background:rgba(10,8,18,.95);border:1px solid rgba(255,255,255,.14);border-radius:11px;
+  padding:8px 13px;font-size:13px;font-weight:700;max-width:100%;text-align:center;
+  animation:tin .25s ease-out;box-shadow:0 6px 20px rgba(0,0,0,.5);}
+@keyframes tin{from{transform:translateY(-12px);opacity:0}to{transform:none;opacity:1}}
+.toast.bad{border-color:rgba(255,107,107,.5);color:#ffbdbd;}
+.toast.good{border-color:rgba(155,227,125,.45);color:#cdf5b6;}
+
+/* En bas à droite, le 🐞 recouvrait 13 % du bouton primaire du dock (mesuré :
+   elementFromPoint y renvoyait `dbg`) : viser « La planque » avec le pouce
+   ouvrait le panneau debug ET mettait le monde en pause. Il monte au-dessus de
+   la scène, où rien n'est cliquable. */
+#dbg{position:absolute;right:9px;top:calc(8px + env(safe-area-inset-top));z-index:90;
+  width:30px;height:30px;border-radius:50%;background:rgba(20,16,30,.7);
+  border:1px solid rgba(255,255,255,.12);font-size:13px;opacity:.55;}
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="hrow">
+    <span class="hday" id="hday">J1</span>
+    <span class="hclock" id="hclock">08:00</span>
+    <span class="hcash" id="hcash">0</span>
+  </div>
+  <div class="gauges">
+    <div class="g">
+      <div class="glab"><span>visibilité</span><span class="gnum" id="gvisN">0</span></div>
+      <div class="gbar"><div class="gfill" id="gvisF" style="width:0"></div>
+        <div class="thr" id="thr1"></div><div class="thr hot" id="thr2"></div></div>
+    </div>
+    <div class="g">
+      <div class="glab"><span>dossier</span><span class="gnum" id="gdosN">0</span></div>
+      <div class="gbar"><div class="gfill" id="gdosF" style="width:0"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="stage">
+  <!-- ══ LE SPOT ══ -->
+  <div class="place" id="spot">
+    <div id="sky"></div>
+    <div id="blocks"></div>
+    <div id="sils"></div>
+    <div id="cage"><div id="cageL"></div><div id="cageG"></div></div>
+    <div id="lamp"><div id="lampH"></div><div id="lampG"></div></div>
+    <div id="tagwall">LE SPOT</div>
+    <div id="ground"></div>
+    <div id="queue"></div>
+    <div id="shut" class="hide"><span>Rideau baissé</span></div>
+  </div>
+  <div id="toasts"></div>
+  <button id="dbg">🐞</button>
+
+  <!-- ══ LA PLANQUE ══ -->
+  <div class="place off" id="planque">
+    <div class="sect">Karim · l'appro</div>
+    <div id="karim"></div>
+
+    <div class="sect">La planche · en quoi tu coupes</div>
+    <div class="fmts" id="fmts"></div>
+    <div id="planche">
+      <div id="loaf"></div>
+      <div id="cutbar"><div id="cutfill"></div></div>
+      <div id="cuthint">Maintiens la planche pour couper</div>
+      <div id="sachets"></div>
+    </div>
+
+    <div class="sect">L'équipe · ce qu'on délègue</div>
+    <div id="crew"></div>
+
+    <div class="sect">Le sac</div>
+    <div id="bagbox"></div>
+  </div>
+</div>
+
+<div id="dock">
+  <div class="expo">
+    <div class="ebox" id="eTamp">
+      <div class="elab">tampon · exposé</div>
+      <div class="eval" id="tampV">0 g</div>
+      <div class="esub" id="tampS">—</div>
+    </div>
+    <div class="ebox" id="eCaisse">
+      <div class="elab">caisse · exposée</div>
+      <div class="eval" id="caisseV">0</div>
+      <div class="esub" id="caisseS">—</div>
+    </div>
+  </div>
+  <div class="btns" id="dockBtns"></div>
+</div>
+
+
+<!-- overlays injectés -->
+<div class="ov hide" id="ovRapport"></div>
+<div class="ov hide" id="ovChute"></div>
+<div class="ov hide" id="ovIntro"></div>
+<div class="ov hide" id="ovDebug"></div>
+<div id="ara" class="hide">
+  <div id="arahead">
+    <div id="aratitle">ARA ! ARA !</div>
+    <div id="arasub">Rentre ce que tu peux.</div>
+  </div>
+  <div id="aratimer"><div id="aratimerF"></div></div>
+  <div id="caches"></div>
+  <div id="arafoot"></div>
+</div>
+
+<script type="module">
+/* ════════════════════════════════════════════════════════════════════════════
+   LE SPOT — Shelter P1 (« Le spot », SHELTER.md §14)
+
+   La thèse : dans ce dépôt, « petit format = €/g plus élevé » est une loi
+   transversale depuis un an (spec consolidée §4.3) — et c'est un bonus SEC,
+   sans contrepartie. Ici il en gagne une : chaque transaction se VOIT.
+   Couper en 2 g maximise la recette et la visibilité ; couper en 8 g rapporte
+   ~3× plus par point de chaleur, mais bien moins vite. La bascule
+   discrétion ↔ dominance (spec D10 / Q1, jamais prototypée en 26 protos)
+   devient une décision qu'on reprend à chaque pain.
+
+   Trois autres décisions vivent autour :
+   - le TAMPON : ce que tu poses dehors se vend sans rupture… et se fait saisir ;
+   - la NAVETTE : chaque minute à la planque est une minute où le spot ne vend pas ;
+   - la QUALITÉ : le tier de Karim fait le grade, donc la clientèle qui revient.
+
+   R1 : la descente est ANNONCÉE par une jauge à seuils visibles ; l'évacuation
+        ne peut que RÉDUIRE une perte déjà prévue, jamais en créer une.
+   R4 : zéro Math.random — tout dérive d'un hash (jour, tick). Vérifiable au grep.
+   R6 : chouf (la vigilance) et charbonneur (la présence) se délèguent, au choix.
+   R8 : chaque geste porte un arbitrage, jamais un simple débit d'UI.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── 1. CONSTANTES NOMMÉES (tout l'équilibrage vit ici) ─────────────────── */
+const SAVE_VERSION = "1";
+const LS = "spot_";
+
+// Horloge — la journée tourne en continu, sur les deux lieux.
+const DAY_SEC_REAL = 180;      // une journée de jeu = 180 s réelles (le rythme validé sur la-loupe)
+const DAY_START_H  = 8;        // on ouvre à 8 h
+const H_PER_SEC    = 24 / DAY_SEC_REAL;
+
+// Appro : le tier du fournisseur FAIT la qualité (spec D26 : q = f(rating)).
+// Deux formats seulement, 100 g et 250 g (spec D31). Le lot d'amorçage `depan`
+// est un 100 g décoté : à 50 g, la marche vers le tier suivant ne se franchit
+// jamais (+15 €/jour, mesuré) — le joueur reste bloqué sur le pain d'entrée.
+const PAINS = [
+  { id:"depan", nm:"Dépannage",  g:100, price:200,  q:38, col:"#6b5a48",
+    ds:"Ça sent la paraffine. Ça dépanne." },
+  { id:"pneu",  nm:"Le pneu",    g:100, price:340,  q:56, col:"#5c4632",
+    ds:"Correct. Les habitués suivent." },
+  { id:"bazar", nm:"Bazar 250",  g:250, price:950,  q:68, col:"#4e3a28",
+    ds:"Le volume au prix du milieu." },
+  { id:"camo",  nm:"Camo",       g:250, price:1450, q:82, col:"#3d2c1d",
+    ds:"Du sérieux. Ça se sait vite — dans les deux sens." },
+];
+
+// Grades (seuils spec D27) et prix retail (grille C2 actée en D8).
+const GRADE_A = 80, GRADE_B = 55;
+const PRIX_G  = { A:14, B:10, C:7 };
+
+// LE LEVIER CENTRAL. servi = part de la demande qui peut acheter à ce calibre
+// (tout le monde a 2 g en poche ; peu de monde a de quoi prendre 8 g d'un coup).
+// eurFac = la loi « petit format = €/g plus élevé », enfin payée en visibilité.
+const FORMATS = [
+  { g:2, eurFac:1.25, servi:1.00, nm:"deux" },
+  { g:5, eurFac:1.00, servi:0.70, nm:"cinq" },
+  { g:8, eurFac:0.88, servi:0.45, nm:"huit" },
+];
+const CUT_S_PAR_SACHET = 0.10;   // s de maintien par sachet : couper petit prend physiquement plus longtemps
+
+// Demande : courbe journalière déterministe (SHELTER §7 — rush 18 h → 2 h).
+const DEMANDE_PIC = 45;          // g/h à réservoir 100, à l'heure de pointe
+const COURBE_H = [0.85,0.70,0.40,0.20,0.10,0.06,0.06,0.10,
+                  0.16,0.22,0.26,0.30,0.34,0.32,0.34,0.38,
+                  0.46,0.60,0.80,0.95,1.00,1.00,0.96,0.92];
+
+// Réservoir de clientèle (satisfaction) — lent à construire, lent à perdre.
+const RES_START = 40, RES_MAX = 100;
+// PAR GRAMME servi, pas par transaction : au gramme, la clientèle se moque du
+// calibre. Créditer la transaction donnait au 2 g une clientèle qui grossissait
+// 4× plus vite EN PLUS de son meilleur €/g — dominant sur les deux axes, donc
+// plus de dilemme du tout.
+const RES_SERVI_G = { A:0.070, B:0.038, C:0.013 };
+const RES_RUPTURE = 1.2;                         // par client parti les mains vides
+
+// Visibilité (chaleur du point — redescend).
+const VIS_PAR_TX   = 1.10;       // CHAQUE transaction se voit
+const VIS_STORY    = 12;         // une story : +débit ET +visibilité (co-effet parallèle)
+// La chaleur ne retombe QUE si le point cesse de vendre. Faire tomber la
+// visibilité parce que le JOUEUR est ailleurs (pendant qu'un charbonneur
+// continue de servir) rendait l'absence gratuite : déléguer refroidissait 3×
+// plus vite sans coûter une vente, et R6 n'était jamais un arbitrage.
+const VIS_VEND_H   = 0.30;       // /h pendant que le point débite
+const VIS_CALME_H  = 1.70;       // /h rideau baissé ou point fermé : l'accalmie
+const VIS_MAX      = 100;
+const SEUIL_PATROUILLE = 45;
+const SEUIL_PILONNAGE  = 78;
+// La patrouille NE remet PAS la jauge à zéro : elle disperse et ferme, elle ne
+// blanchit pas. Avec un clamp à 22 sous un seuil de pilonnage à 78, la jauge
+// oscillait 45 → 22 → 45 et le pilonnage — la seule conséquence qui saisit
+// quelque chose — n'arrivait JAMAIS en partie réelle. Le tampon n'était donc
+// jamais en jeu et le chouf était du décor.
+const VIS_APRES_PILONNAGE  = 14;
+const PATROUILLE_RECIDIVE_H = 6; // pas deux patrouilles coup sur coup
+
+// Dossier (chaleur réseau — ne redescend presque pas).
+const DOS_PILONNAGE = 19, DOS_PATROUILLE = 2, DOS_DECAY_JOUR = 0.4, DOS_MAX = 100;
+
+// Police : les paliers, et le préavis que le chouf achète.
+const PATROUILLE_MIN = 40;       // minutes de jeu, spot fermé
+const PILONNAGE_MIN  = 150;
+const PREAVIS_S      = [0, 7, 13];   // 0, 1 ou 2 choufs — en secondes RÉELLES
+const CACHE_G        = 14;       // g rentrés par tap sur une cache
+const CACHE_COOL_MS  = 340;      // anti-spam : on ne sauve pas tout
+
+// Le spot : loyer, file, service.
+// LE LOYER FIXE EST LE DEUXIÈME BRAS DE LA BASCULE. Sans lui, se faire discret
+// ne coûte rien : on jouerait au calibre 8 g en permanence, et la visibilité
+// serait un plafond, pas un dilemme. Avec lui, chaque journée coûte, donc
+// vendre lentement COÛTE — il faut trouver le débit qui paie le bloc sans
+// franchir le seuil. (spec §4.7 : « tu paies pour EXISTER sur le block ».)
+const LOYER_FIXE  = 220;         // /jour, dû même un jour sans vente
+const LOYER_PCT   = 0.12;        // + la part du bloc sur le CA
+const QUEUE_MAX   = 5;
+const PATIENCE_S  = 9;           // s réelles avant qu'un client se lasse
+const AUTO_SERVE_S = 4.5;        // service passif quand tu es présent (sans pourboire)
+const TIP_MAIN    = 0.12;        // servir à la main : +12 % (le geste paie, R3)
+const CHARB_DEBIT = 0.70;        // le charbonneur sert à 70 % de ta cadence
+
+// Le poids (CADRE §6) : la poche borne chaque navette.
+const POCHE_BASE = 60, POCHE_SAC = 140;
+const NAVETTE_MIN = 45;          // minutes de jeu par trajet
+
+// Équipe — salaires payés à la clôture du jour.
+const CHOUF_PAY = 70, CHARB_PAY = 130, SAC_PRIX = 480;
+
+// Story (la pub) : +débit pour le reste de la journée, +visibilité tout de suite.
+const STORY_BOOST = 1.30, STORY_H = 5, STORY_COOL_H = 8;
+
+/* ─── 2. ALÉA DE PRÉSENTATION SEULEMENT (R4) ────────────────────────────────
+   hh(a,b) → [0,1[ déterministe. AUCUN Math.random dans ce fichier : ni sur
+   l'état, ni sur les conséquences, ni même sur la déco (les fenêtres allumées
+   sont stables d'une session à l'autre — c'est le même immeuble). */
+function hh(a, b){
+  let x = (a * 73856093) ^ (b * 19349663);
+  x = ((x ^ (x >> 13)) * 1274126177) | 0;
+  return (((x ^ (x >> 16)) >>> 0) % 100000) / 100000;
+}
+const pick  = (arr, i) => arr[((i % arr.length) + arr.length) % arr.length];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const R = Math.round;
+const eur = n => R(n).toLocaleString("fr-FR");
+
+/* ─── 3. ÉTAT ───────────────────────────────────────────────────────────── */
+const store = {
+  get: k => { try { return localStorage.getItem(LS + k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(LS + k, v); } catch {} },
+};
+
+function defaultState(){
+  return {
+    day: 1, clock: DAY_START_H, cash: 260,
+    // stock : sachets prêts, par calibre → { "2": n, "5": n, "8": n }
+    sachets: {}, sacQ: 0,           // sacQ = qualité moyenne pondérée du stock prêt
+    miettes: 0,                     // reliquat sous un sachet, rendu au pain suivant
+    pain: null,                     // { id, g, q } en cours de découpe
+    format: 5,
+    poche: 0, pocheQ: 0,            // ce que tu portes sur toi
+    tampon: 0, tamponQ: 0,          // EXPOSÉ au spot
+    caisse: 0,                      // EXPOSÉE au spot
+    vis: 0, dos: 0, res: RES_START,
+    lieu: "spot",                   // "spot" | "planque"
+    chouf: 0, charb: false, sac: false,
+    storyUntil: -99, storyCool: -99,
+    fermeUntil: -99,                // heure de jeu jusqu'à laquelle le spot est fermé
+    patrouilleUntil: -99,           // anti-récidive : pas deux patrouilles coup sur coup
+    rideau: false,                  // accalmie volontaire : on ferme, ça refroidit
+    caDay: 0, txDay: 0, gDay: 0, rupturesDay: 0, saisiDay: 0,
+    totalCA: 0, totalTx: 0, totalSaisi: 0, joursTenus: 0,
+    ledger: [], seq: 1, seen: false, over: false,
+  };
+}
+
+let S = defaultState();
+if (store.get("ver") !== SAVE_VERSION){
+  try { Object.keys(localStorage).filter(k => k.startsWith(LS)).forEach(k => localStorage.removeItem(k)); } catch {}
+  store.set("ver", SAVE_VERSION);
+}
+/* Chargement défensif : un JSON valide mais MAL FORMÉ (écriture interrompue,
+   future migration qui change un type) passait le try/catch, puis `sachets: null`
+   faisait lever stockG() pendant le render initial — avant `requestAnimationFrame`,
+   donc page affichée et définitivement figée, sans message. On ne reprend un
+   champ que s'il a la forme attendue. */
+try {
+  const raw = store.get("save");
+  if (raw){
+    const p = JSON.parse(raw) || {}, d = defaultState();
+    for (const k of Object.keys(d)){
+      const a = p[k], b = d[k];
+      if (a === undefined || a === null) continue;
+      if (Array.isArray(b) !== Array.isArray(a)) continue;
+      if (typeof a !== typeof b) continue;
+      S[k] = a;
+    }
+  }
+} catch { S = defaultState(); }
+let saveT = 0;
+function save(){ const n = performance.now(); if (n - saveT < 400) return; saveT = n;
+  try { store.set("save", JSON.stringify(S)); } catch {} }
+
+/* ─── 4. SIM PURE (aucune écriture DOM ici) ──────────────────────────────── */
+const gradeOf   = q => q >= GRADE_A ? "A" : q >= GRADE_B ? "B" : "C";
+const fmtOf     = g => FORMATS.find(f => f.g === g) || FORMATS[1];
+const prixSachet = (g, q) => fmtOf(g).g * PRIX_G[gradeOf(q)] * fmtOf(g).eurFac;
+const pocheMax  = () => S.sac ? POCHE_SAC : POCHE_BASE;
+const stockG    = () => Object.entries(S.sachets).reduce((a, [g, n]) => a + (+g) * n, 0);
+const stockN    = () => Object.values(S.sachets).reduce((a, n) => a + n, 0);
+const heureDuJour = () => Math.floor(S.clock) % 24;
+
+// Demande en g/h : réservoir × courbe horaire × story. Zéro tirage (R4).
+function demandeGH(){
+  const base = DEMANDE_PIC * (S.res / 100) * COURBE_H[heureDuJour()];
+  return base * (S.clock < S.storyUntil ? STORY_BOOST : 1);
+}
+// Clients/h = les grammes demandés divisés par le calibre servi.
+function clientsGH(){
+  const f = fmtOf(S.format);
+  return (demandeGH() * f.servi) / f.g;
+}
+/* Simulateur de journée — fonction PURE, sans état ni DOM. Sert au tuning et
+   au test : c'est elle qui prouve que le calibre est un dilemme et non une
+   option dominante. Renvoie ce qu'une journée pleine donnerait à ce calibre. */
+// `stockJour` = les grammes réellement disponibles ce jour-là. C'EST LE POINT :
+// la demande (200-500 g/jour) dépasse presque toujours le pain acheté (100/250 g),
+// donc le stock est le goulot et `servi` ne joue que sur la VITESSE d'écoulement.
+// Simuler sans ce plafond prouvait un dilemme dans un régime que le jeu n'atteint
+// jamais — et cachait que le petit calibre dominait.
+function simJour(formatG, res, grade, hDebut, hFin, stockJour){
+  const f = fmtOf(formatG);
+  const d = ((((hDebut === undefined ? 0 : hDebut) % 24) + 24) % 24);
+  // nombre d'heures ouvertes, fenêtre pouvant passer minuit (ex. 18 h → 2 h = 8 h)
+  let ouvertes = 24;
+  if (hDebut !== undefined && hFin !== undefined){
+    ouvertes = ((((hFin - hDebut) % 24) + 24) % 24) || 24;
+  }
+  let g = 0;
+  for (let k = 0; k < ouvertes; k++)
+    g += DEMANDE_PIC * (res / 100) * COURBE_H[(d + k) % 24];
+  // ce que la fenêtre permet d'écouler, borné par ce qu'on a en stock
+  const capacite = g * f.servi;
+  const stock = stockJour === undefined ? Infinity : stockJour;
+  const vendus = Math.min(capacite, stock);
+  const tx = vendus / f.g;
+  const ca = vendus * PRIX_G[grade] * f.eurFac;
+  // la chaleur ne retombe vite que si le point NE VEND PAS (rideau/fermé) ;
+  // tant qu'il débite, elle ne fait que s'éroder.
+  const visNette = tx * VIS_PAR_TX - VIS_VEND_H * ouvertes - VIS_CALME_H * (24 - ouvertes);
+  return { ca: R(ca), tx: +tx.toFixed(1), vendus: R(vendus), ouvertes,
+           ecoule: stock !== Infinity && capacite >= stock,   // a-t-on vidé le stock ?
+           visNette: +visNette.toFixed(1),
+           net: R(ca - LOYER_FIXE - ca * LOYER_PCT) };
+}
+
+const spotOuvert = () => S.clock >= S.fermeUntil;
+const sertSansToi = () => S.charb;
+
+// Ce que le prochain palier coûterait MAINTENANT — affiché avant de décider (R4).
+const expose = () => ({ g: S.tampon, cash: S.caisse });
+
+function journal(tx, val, cls){
+  S.ledger.push({ h: heureDuJour(), tx, val, cls });
+  if (S.ledger.length > 60) S.ledger.shift();
+}
+
+/* ─── 5. DOM ────────────────────────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+const elHday = $("hday"), elClock = $("hclock"), elCash = $("hcash");
+const elVisF = $("gvisF"), elVisN = $("gvisN"), elDosF = $("gdosF"), elDosN = $("gdosN");
+const elQueue = $("queue"), elSky = $("sky"), elLampG = $("lampG"), elBlocks = $("blocks");
+const elSpot = $("spot"), elPlanque = $("planque"), elDock = $("dockBtns");
+const elTampV = $("tampV"), elTampS = $("tampS"), elCaisseV = $("caisseV"), elCaisseS = $("caisseS");
+const elETamp = $("eTamp"), elECaisse = $("eCaisse");
+const elToasts = $("toasts");
+
+function toast(tx, cls){
+  const d = document.createElement("div");
+  d.className = "toast" + (cls ? " " + cls : "");
+  d.textContent = tx;
+  elToasts.appendChild(d);
+  setTimeout(() => { d.style.transition = "opacity .3s"; d.style.opacity = "0";
+    setTimeout(() => d.remove(), 320); }, 2000);
+  while (elToasts.children.length > 3) elToasts.firstChild.remove();
+}
+function pop(tx, x, y, col){
+  const d = document.createElement("div");
+  d.className = "pop"; d.textContent = tx;
+  d.style.left = x + "px"; d.style.top = y + "px"; d.style.color = col || "#bdf0a3";
+  elSpot.appendChild(d);
+  setTimeout(() => d.remove(), 1000);
+}
+
+/* — la barre : construite une fois, fenêtres stables (aléa de présentation) — */
+(function buildBlocks(){
+  let h = "";
+  // [left%, largeur%, hauteur%] — deux barres qui encadrent la cage, une tour au fond
+  const tours = [[-4, 40, 74], [64, 44, 88], [34, 34, 58]];
+  tours.forEach(([left, w, hp], t) => {
+    let wins = "";
+    const cols = Math.max(1, Math.floor(w / 9)), rows = Math.max(1, Math.floor(hp / 5));
+    for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++){
+      const on = hh(t * 31 + c, r) > 0.74;
+      wins += `<div class="win${on ? " on" : ""}" data-on="${on ? 1 : 0}"
+        style="left:${9 + c * 15}px;top:${11 + r * 17}px"></div>`;
+    }
+    h += `<div class="bl" style="left:${left}%;width:${w}%;height:${hp}%;z-index:${t === 2 ? 0 : 1}">${wins}</div>`;
+  });
+  elBlocks.innerHTML = h;
+  // silhouettes de fond, positions figées (aléa de PRÉSENTATION seulement, R4)
+  $("sils").innerHTML = [0, 1, 2, 3].map(i => {
+    const x = 6 + hh(i * 17, 5) * 84, s = 0.7 + hh(i, 9) * 0.5;
+    return `<div class="sil" style="left:${x}%;transform:scale(${s.toFixed(2)});
+      opacity:${(0.35 + hh(i, 3) * 0.3).toFixed(2)}"></div>`;
+  }).join("");
+})();
+
+/* — le ciel suit l'heure : c'est l'horloge qu'on lit, pas un chiffre — */
+const CIELS = [
+  [0,  "#080714", "#0d0b1c"], [5,  "#1a1230", "#2c1c3a"], [7,  "#3d2a44", "#6b4358"],
+  [9,  "#4a5a78", "#7c8fa8"], [13, "#5b7396", "#8fa8bd"], [17, "#6b5570", "#b07a68"],
+  [19, "#3a2440", "#6b3a48"], [21, "#150f26", "#241634"], [23, "#0a0816", "#100d20"],
+];
+let lastCielH = -1;
+function syncCiel(force){
+  const hi = Math.floor(S.clock);
+  if (!force && hi === lastCielH) return;   // suit l'heure, y compris quand l'horloge SAUTE
+  lastCielH = hi;
+  const h = S.clock % 24;
+  let a = CIELS[0], b = CIELS[CIELS.length - 1];
+  for (let i = 0; i < CIELS.length - 1; i++)
+    if (h >= CIELS[i][0] && h < CIELS[i + 1][0]){ a = CIELS[i]; b = CIELS[i + 1]; break; }
+  elSky.style.background = `linear-gradient(${b[1]},${a[2]} 62%,${a[1]})`;
+  const nuit = (h < 7 || h > 18.5) ? 1 : 0;
+  elLampG.style.opacity = nuit;
+  $("cageG").style.opacity = nuit ? 0.85 : 0;
+  elBlocks.querySelectorAll(".win").forEach(w => {
+    w.classList.toggle("on", w.dataset.on === "1" && (nuit || h < 8));
+  });
+}
+
+/* ─── 6. LA FILE DE CLIENTS ─────────────────────────────────────────────── */
+const AVATARS = ["🧢","🎧","🥀","🛵","💅","🎒","🏗️","🌙","🎲","👟","🎀","🧣","🕶️","👤","🧥","🎩"];
+let queue = [];       // { id, av, patience, t, el }
+let clientAcc = 0;    // accumulateur d'arrivées
+
+function spawnClient(){
+  if (queue.length >= QUEUE_MAX) return;
+  const i = S.seq++;
+  const c = { id: i, av: pick(AVATARS, i * 7 + S.day), t: 0, el: null };
+  queue.push(c);
+  const d = document.createElement("div");
+  d.className = "cli";
+  d.innerHTML = `<div class="cav">${c.av}</div><div class="cbody"></div>
+    <div class="cwant">${S.format} g</div>
+    <div class="cpat"><div class="cpatF" style="width:100%"></div></div>`;
+  d.addEventListener("pointerdown", e => { e.preventDefault(); servir(c, true); });
+  c.el = d;
+  elQueue.appendChild(d);
+}
+
+function retirer(c, walk){
+  const i = queue.indexOf(c); if (i < 0) return;
+  queue.splice(i, 1);
+  if (c.el){ c.el.classList.add("go"); const el = c.el; setTimeout(() => el.remove(), 300); }
+  if (walk){
+    S.res = Math.max(0, S.res - RES_RUPTURE);
+    S.rupturesDay++;
+  }
+}
+
+/* Servir un client. `main` = tap du joueur → pourboire (le geste paie, R3).
+   Rupture de tampon = le client part les mains vides : manque à gagner et
+   réservoir qui se vide. C'est une CONSÉQUENCE du tampon choisi, pas un dé. */
+function servir(c, main){
+  if (!queue.includes(c)) return;
+  const f = fmtOf(S.format);
+  if (S.tampon < f.g){
+    retirer(c, true);
+    journal("rupture — tampon vide", 0, "neu");
+    toast("Rupture — il repart les mains vides.", "bad");
+    return;
+  }
+  const gr = gradeOf(S.tamponQ);
+  let gain = prixSachet(f.g, S.tamponQ);
+  if (main) gain *= (1 + TIP_MAIN);
+  gain = R(gain);
+
+  S.tampon -= f.g;
+  S.caisse += gain;
+  S.caDay += gain; S.txDay++; S.gDay += f.g;
+  S.totalCA += gain; S.totalTx++;
+  S.vis = clamp(S.vis + VIS_PAR_TX, 0, VIS_MAX);
+  S.res = clamp(S.res + RES_SERVI_G[gr] * f.g, 0, RES_MAX);
+
+  if (c.el){
+    const r = c.el.getBoundingClientRect(), p = elSpot.getBoundingClientRect();
+    pop("+" + eur(gain), r.left - p.left + 4, r.top - p.top - 6, main ? "#ffd166" : "#bdf0a3");
+  }
+  retirer(c, false);
+}
+
+function tickQueue(dt){
+  // Arrivées : déterministes, dérivées de la demande de l'heure.
+  // Tampon vide = personne ne vient. Le bouche-à-oreille va vite : un point
+  // sans came ne fait pas la queue. Sans ça, une rupture creusait un trou de
+  // réservoir dont on ne remontait jamais (spirale de mort au Jour 1).
+  // On ne fait venir un client que si le tampon peut le servir EN PLUS de ceux
+  // qui attendent déjà. Sinon une file de 5 sur un tampon de 10 g produisait
+  // trois ruptures alors que le joueur était là, avec de la came posée — R1
+  // violé par la file, pas par la décision.
+  const fg = fmtOf(S.format).g;
+  const engage = queue.length * fg;
+  const servable = spotOuvert() && !S.rideau && S.tampon >= engage + fg;
+  if (servable && (S.lieu === "spot" || sertSansToi())){
+    clientAcc += clientsGH() * H_PER_SEC * dt;
+    while (clientAcc >= 1){ clientAcc -= 1; spawnClient(); }
+  } else {
+    clientAcc = 0;
+  }
+  // patience + service passif
+  for (const c of [...queue]){
+    c.t += dt;
+    const present = S.lieu === "spot" && spotOuvert();
+    const auto = present ? AUTO_SERVE_S : (sertSansToi() && spotOuvert() ? AUTO_SERVE_S / CHARB_DEBIT : Infinity);
+    if (c.t >= auto){ servir(c, false); continue; }
+    if (c.t >= PATIENCE_S){ retirer(c, true); continue; }
+    if (c.el){
+      const f = c.el.querySelector(".cpatF"), r = 1 - c.t / PATIENCE_S;
+      f.style.width = (r * 100) + "%";
+      f.classList.toggle("low", r < 0.34);
+    }
+  }
+  elQueue.classList.toggle("hide", S.lieu !== "spot");
+}
+function viderQueue(){ for (const c of [...queue]) retirer(c, false); clientAcc = 0; }
+
+/* Remet à zéro l'état de MODULE (hors S) : sans ça, un reset laissait des
+   clients fantômes dans `queue` et dans le DOM, qui étaient ensuite servis
+   — ou expiraient en ruptures — sur une partie neuve. */
+function resetRuntime(){
+  viderQueue();
+  cutHold = null; araState = null; lastCielH = -1; dockSig = null;
+  $("ara").classList.add("hide");
+  elQueue.innerHTML = "";
+  setPause(false);
+}
+
+/* ─── 7. POLICE — annoncée, jamais tirée au sort ────────────────────────── */
+let araState = null;
+
+function checkPolice(){
+  if (araState || !spotOuvert()) return;
+  if (S.vis >= SEUIL_PILONNAGE) lancerRaid(2);
+  else if (S.vis >= SEUIL_PATROUILLE && S.clock >= S.patrouilleUntil) lancerRaid(1);
+}
+
+function lancerRaid(palier){
+  // La patrouille ne saisit RIEN (elle disperse et ferme) : ouvrir l'évacuation
+  // pour elle inviterait le joueur à « sauver » un produit qui n'a jamais été
+  // menacé — un geste qui ne peut que coûter. C'est le pilonnage, et lui seul,
+  // qui met le tampon et la caisse en jeu.
+  if (palier === 1){ appliquerRaid(1, false); return; }
+  const preavis = PREAVIS_S[Math.min(S.chouf, 2)];
+  if (preavis <= 0){ appliquerRaid(palier, false); return; }
+  ouvrirAra(palier, preavis);
+}
+
+const CACHES = [
+  { ic:"⚡", nm:"Compteur EDF" },
+  { ic:"🪜", nm:"Faux plafond" },
+  { ic:"🚪", nm:"Cage d'escalier" },
+];
+function ouvrirAra(palier, preavis){
+  araState = { palier, left: preavis, total: preavis, cool: 0, sauve: 0, cash: 0 };
+  $("aratitle").textContent = "ARA ! ARA !";
+  $("arasub").textContent = palier === 2
+    ? "Pilonnage. Ils rentrent dans le tas."
+    : "Patrouille BAC. Rentre le tampon.";
+  $("caches").innerHTML = CACHES.map((c, i) =>
+    `<button class="cache" data-i="${i}"><div class="cacheI">${c.ic}</div>
+     <div class="cacheN">${c.nm}</div></button>`).join("") +
+    `<button class="cache" data-i="cash"><div class="cacheI">💶</div>
+     <div class="cacheN">La caisse</div></button>`;
+  $("caches").querySelectorAll(".cache").forEach(b => {
+    b.addEventListener("pointerdown", e => { e.preventDefault(); tapCache(b); });
+  });
+  $("ara").classList.remove("hide");
+  majAra();
+}
+function tapCache(btn){
+  if (!araState || araState.cool > 0) return;
+  if (btn.dataset.i === "cash"){
+    if (S.caisse <= 0) return;
+    araState.cash += S.caisse; S.cash += S.caisse; S.caisse = 0;
+  } else {
+    // CONSERVATION STRICTE : on ne retire du tampon que ce qu'on peut réellement
+    // remettre au stock, en sachets entiers. Retirer `g` puis n'en réinjecter que
+    // floor(g/calibre) détruisait la différence (6 g par tap au calibre 8) — soit
+    // une évacuation qui CRÉE la perte qu'elle prétend réduire, l'exact contraire
+    // de R1. Le reliquat sous un sachet reste dehors : il est saisi, pas effacé.
+    const f = S.format;
+    const n = Math.min(Math.floor(CACHE_G / f), Math.floor(S.tampon / f));
+    if (n <= 0) return;
+    const g = n * f;
+    S.tampon -= g;
+    addSachets(f, n, S.tamponQ);
+    araState.sauve += g;
+  }
+  // le temps de rentrer un bloc, toutes les caches sont indisponibles :
+  // on ne sauve jamais tout, et ça se voit
+  araState.cool = CACHE_COOL_MS / 1000;
+  $("caches").querySelectorAll(".cache").forEach(b => b.classList.add("cool"));
+  majAra();
+}
+function majAra(){
+  if (!araState) return;
+  $("aratimerF").style.width = (araState.left / araState.total * 100) + "%";
+  $("arafoot").innerHTML = `Encore dehors : <b>${R(S.tampon)} g</b> · <b>${eur(S.caisse)}</b>`
+    + (araState.sauve || araState.cash
+       ? `<br><span style="color:#9be37d">rentré : ${R(araState.sauve)} g · ${eur(araState.cash)}</span>` : "");
+}
+function tickAra(dt){
+  if (!araState) return;
+  araState.left -= dt;
+  if (araState.cool > 0){
+    araState.cool -= dt;
+    if (araState.cool <= 0) $("caches").querySelectorAll(".cache").forEach(b => b.classList.remove("cool"));
+  }
+  majAra();
+  if (araState.left <= 0){
+    const p = araState.palier;
+    araState = null;
+    $("ara").classList.add("hide");
+    appliquerRaid(p, true);
+  }
+}
+
+/* La conséquence : elle ne frappe QUE ce qui est exposé. Ce qui est rangé
+   (stock à la planque, cash encaissé) n'est jamais touché — règle d'or. */
+function appliquerRaid(palier, evacue){
+  viderQueue();
+  if (palier === 1){
+    S.fermeUntil = S.clock + PATROUILLE_MIN / 60;
+    S.patrouilleUntil = S.clock + PATROUILLE_RECIDIVE_H;
+    S.dos = clamp(S.dos + DOS_PATROUILLE, 0, DOS_MAX);
+    journal("patrouille BAC — clients dispersés", 0, "neu");
+    toast("🚓 Patrouille — fermé " + PATROUILLE_MIN + " min. La prochaine fois, ils rentrent.", "bad");
+  } else {
+    const g = R(S.tampon), c = R(S.caisse);
+    S.tampon = 0; S.tamponQ = 0; S.caisse = 0;
+    S.saisiDay += c; S.totalSaisi += c;
+    S.fermeUntil = S.clock + PILONNAGE_MIN / 60;
+    S.vis = Math.min(S.vis, VIS_APRES_PILONNAGE);
+    S.dos = clamp(S.dos + DOS_PILONNAGE, 0, DOS_MAX);
+    journal(`pilonnage — saisie ${g} g`, -c, "negv");
+    toast(`🚨 Pilonnage — ${g} g et ${eur(c)} saisis.`, "bad");
+    if (evacue) toast("Ce que t'as rentré est à la planque.", "good");
+  }
+  if (S.dos >= DOS_MAX) chute();
+  render();
+}
+
+/* ─── 8. LA JOURNÉE ─────────────────────────────────────────────────────── */
+function clotureJour(){
+  const loyer = LOYER_FIXE + R(S.caDay * LOYER_PCT);
+  const paie = S.chouf * CHOUF_PAY + (S.charb ? CHARB_PAY : 0);
+  // À la fermeture on va chercher la caisse s'il le faut : sinon un joueur qui
+  // reste au spot toute la journée (la stratégie « dominance » que le proto veut
+  // faire tester) se retrouvait à découvert et voyait son équipe partir, avec
+  // 1 500 € posés à trois mètres. Malus sec non annoncé = contraire à R1.
+  const du = loyer + paie;
+  if (S.cash < du && S.caisse > 0){
+    const pris = Math.min(S.caisse, du - S.cash);
+    S.cash += pris; S.caisse -= pris;
+    journal("caisse rentrée pour payer le bloc", pris, "neu");
+  }
+  S.cash -= du;
+  S.dos = Math.max(0, S.dos - DOS_DECAY_JOUR);
+  S.joursTenus++;
+
+  const lignes = [];
+  lignes.push(["CA du jour", S.caDay, "pos"]);
+  lignes.push([`${S.txDay} transactions · ${R(S.gDay)} g écoulés`, null, "neu"]);
+  if (S.rupturesDay) lignes.push([`${S.rupturesDay} client(s) repartis les mains vides`, null, "negv"]);
+  lignes.push([`Le bloc — ${eur(LOYER_FIXE)} fixe + ${R(LOYER_PCT * 100)} % (tu paies pour exister ici)`,
+               -loyer, "negv"]);
+  if (S.chouf) lignes.push([`Chouf ×${S.chouf}`, -S.chouf * CHOUF_PAY, "negv"]);
+  if (S.charb) lignes.push(["Charbonneur", -CHARB_PAY, "negv"]);
+  if (S.saisiDay) lignes.push(["Saisi par la BAC", -S.saisiDay, "negv"]);
+  lignes.push(["Reste en caisse", S.cash, S.cash < 0 ? "negv" : "pos"]);
+
+  if (S.cash < 0 && (S.chouf || S.charb)){
+    S.chouf = 0; S.charb = false;
+    lignes.push(["Salaires impayés — l'équipe ne vient plus", null, "negv"]);
+  }
+
+  // Pas d'impasse muette. Sans came ET sans de quoi en racheter, le joueur
+  // n'avait plus AUCUNE source de revenu et le loyer continuait de courir sans
+  // fin de partie ni issue : un soft-lock que rien n'annonçait. Karim avance un
+  // pain — la dette est le cadre financier du jeu, pas une punition (R1).
+  const rien = stockG() + S.tampon + S.poche + S.miettes < 1 && !S.pain;
+  if (rien && S.cash < PAINS[0].price){
+    const p = PAINS[0];
+    S.cash -= p.price;
+    S.pain = { id: p.id, g: p.g, q: p.q, col: p.col, g0: p.g };
+    journal(`Karim t'avance un ${p.nm}`, -p.price, "neu");
+    lignes.push([`Karim t'avance un ${p.nm} — tu lui dois`, -p.price, "negv"]);
+  }
+
+  ouvrirRapport(lignes);
+  S.day++; S.clock = DAY_START_H;
+  S.caDay = 0; S.txDay = 0; S.gDay = 0; S.rupturesDay = 0; S.saisiDay = 0;
+  // les compteurs d'horloge sont absolus : on les remet au sol avec l'horloge
+  S.ledger = []; S.storyCool = -99; S.storyUntil = -99; S.fermeUntil = -99;
+  S.patrouilleUntil = -99;
+  save();
+}
+
+function ouvrirRapport(lignes){
+  const o = $("ovRapport");
+  o.innerHTML = `<div class="ovt">Le rapport du soir</div>
+    <div class="ovs">J${S.day} · ce qui s'est passé, et pourquoi.</div>
+    <div class="led">${lignes.map(([t, v, c]) =>
+      `<div class="ledr"><span class="ledt">${t}</span>
+       <span class="ledv ${c}">${v === null ? "" : (v > 0 ? "+" : "") + eur(v)}</span></div>`).join("")}</div>
+    <div style="margin-top:14px;font-size:12.5px;color:rgba(255,255,255,.5)">
+      Clientèle : <b style="color:#f2f0f6">${R(S.res)}</b>/100 ·
+      visibilité <b style="color:#f2f0f6">${R(S.vis)}</b> ·
+      dossier <b style="color:#f2f0f6">${R(S.dos)}</b>
+    </div>
+    <div style="flex:1"></div>
+    <button class="b pri" style="margin-top:14px" id="rapOk">Jour suivant</button>`;
+  o.classList.remove("hide");
+  setPause(true);
+  $("rapOk").addEventListener("pointerdown", e => { e.preventDefault();
+    o.classList.add("hide"); setPause(false); render(); });
+}
+
+function chute(){
+  S.over = true;
+  viderQueue(); araState = null; $("ara").classList.add("hide");
+  const o = $("ovChute");
+  o.innerHTML = `<div class="ovt" style="color:#ff8f8f">La Chute</div>
+    <div class="ovs">Descente stups. Planque, nourrices, toi — tout en même temps.
+      Le dossier était plein : ça n'a surpris personne.</div>
+    <div class="led">
+      <div class="ledr"><span class="ledt">Jours tenus</span><span class="ledv">${S.joursTenus}</span></div>
+      <div class="ledr"><span class="ledt">Encaissé en tout</span><span class="ledv pos">${eur(S.totalCA)}</span></div>
+      <div class="ledr"><span class="ledt">Transactions</span><span class="ledv">${S.totalTx}</span></div>
+      <div class="ledr"><span class="ledt">Saisi par la BAC</span><span class="ledv negv">−${eur(S.totalSaisi)}</span></div>
+      <div class="ledr"><span class="ledt">Clientèle laissée</span><span class="ledv">${R(S.res)}/100</span></div>
+    </div>
+    <div style="margin-top:14px;font-size:13px;color:rgba(255,255,255,.6)">
+      Le point rouvrira. Pas avec toi.</div>
+    <div style="flex:1"></div>
+    <button class="b pri" style="margin-top:14px" id="chuteOk">Recommencer</button>`;
+  o.classList.remove("hide");
+  $("chuteOk").addEventListener("pointerdown", e => { e.preventDefault();
+    S = defaultState(); S.seen = true; save(); o.classList.add("hide"); render(); });
+}
+
+/* ─── 9. LA PLANQUE : appro, découpe, équipe, sac ───────────────────────── */
+function addSachets(g, n, q){
+  const avant = stockG(), apres = avant + g * n;
+  S.sacQ = apres > 0 ? (S.sacQ * avant + q * g * n) / apres : 0;
+  S.sachets[g] = (S.sachets[g] || 0) + n;
+}
+
+function acheterPain(p){
+  if (S.cash < p.price) { toast("Pas assez de liquide.", "bad"); return; }
+  if (S.pain){ toast("Finis le pain sur la planche d'abord.", "bad"); return; }
+  S.cash -= p.price;
+  // les miettes du pain précédent repartent avec celui-ci (rien ne se perd)
+  const bonus = S.miettes; S.miettes = 0;
+  const g = p.g + bonus;
+  S.pain = { id: p.id, g, q: p.q, col: p.col, g0: g };
+  journal(`appro — ${p.nm}`, -p.price, "negv");
+  toast(`${p.nm} sur la planche · grade ${gradeOf(p.q)}`
+        + (bonus >= 1 ? ` (+${R(bonus)} g de miettes)` : ""), "good");
+  render(); save();
+}
+
+// Le geste : UN maintien coupe le pain entier au calibre choisi. Couper petit
+// prend physiquement plus longtemps (CUT_S_PAR_SACHET) — la décision se sent
+// dans la main. Relâcher en cours de route ne perd RIEN (R1) : on reprend.
+let cutHold = null;
+function cutStart(e){
+  if (!S.pain || S.pain.g < S.format) return;
+  e.preventDefault();
+  const total = Math.floor(S.pain.g / S.format);
+  cutHold = { done: 0, total, t: 0, dur: total * CUT_S_PAR_SACHET };
+  $("cuthint").textContent = "…";
+}
+function cutEnd(){
+  if (!cutHold) return;
+  cutHold = null;
+  $("cutfill").style.width = "0";
+  renderPlanche();
+}
+function tickCut(dt){
+  if (!cutHold || !S.pain) return;
+  cutHold.t += dt;
+  const cible = Math.min(cutHold.total, Math.floor(cutHold.t / CUT_S_PAR_SACHET));
+  while (cutHold.done < cible){
+    cutHold.done++;
+    if (S.pain.g < S.format) break;
+    S.pain.g -= S.format;
+    addSachets(S.format, 1, S.pain.q);
+    const s = document.createElement("div");
+    s.className = "sac"; s.style.background = S.pain.col;
+    $("sachets").appendChild(s);
+    if ($("sachets").children.length > 60) $("sachets").firstChild.remove();
+    $("loaf").style.width = Math.max(6, 200 * (S.pain.g / S.pain.g0)) + "px";
+  }
+  $("cutfill").style.width = (cutHold.done / cutHold.total * 100) + "%";
+  if (S.pain.g < S.format){
+    // Les miettes sont VRAIMENT gardées : elles reviennent dans le pain suivant.
+    // Les jeter posait un malus caché de 0 à 7 g par pain, qui ne frappait que
+    // les gros calibres — c'est-à-dire précisément le bras « discrétion » que ce
+    // proto existe pour mesurer, et que simJour() ne modélise pas.
+    const reste = S.pain.g;
+    if (reste > 0){
+      S.miettes += reste;
+      toast(`${R(reste)} g de miettes — gardées pour le prochain pain.`, null);
+    }
+    S.pain = null; cutHold = null;
+    save(); renderPlanche(); renderBag();
+  }
+}
+
+function remplirPoche(){
+  const libre = pocheMax() - S.poche;
+  if (libre <= 0){ toast("Poche pleine.", "bad"); return; }
+  let pris = 0;
+  // on prend d'abord le calibre courant, puis le reste
+  const ordre = [String(S.format), ...Object.keys(S.sachets).filter(k => +k !== S.format)];
+  for (const k of ordre){
+    const g = +k; let n = S.sachets[k] || 0;
+    while (n > 0 && pris + g <= libre){ n--; pris += g; }
+    if (n !== (S.sachets[k] || 0)){ S.sachets[k] = n; if (!n) delete S.sachets[k]; }
+    if (pris >= libre) break;
+  }
+  if (!pris){ toast("Rien au calibre, ou plus de place.", "bad"); return; }
+  S.pocheQ = S.poche + pris > 0 ? (S.pocheQ * S.poche + S.sacQ * pris) / (S.poche + pris) : 0;
+  S.poche += pris;
+  toast(`Poche : ${R(S.poche)} g.`, "good");
+  render(); save();
+}
+
+/* ─── 10. NAVETTE (la navigation EST la décision) ───────────────────────── */
+function allerA(lieu){
+  if (S.lieu === lieu) return;
+  S.lieu = lieu;
+  S.clock += NAVETTE_MIN / 60;
+  viderQueue();
+  if (lieu === "spot" && S.poche > 0){
+    // poser la marchandise : c'est ça, exposer
+    const avant = S.tampon, apres = avant + S.poche;
+    S.tamponQ = apres > 0 ? (S.tamponQ * avant + S.pocheQ * S.poche) / apres : 0;
+    S.tampon = apres; S.poche = 0; S.pocheQ = 0;
+  }
+  if (lieu === "planque" && S.caisse > 0){
+    S.cash += S.caisse;
+    journal("caisse rentrée", S.caisse, "pos");
+    S.caisse = 0;
+  }
+  elSpot.classList.toggle("off", lieu !== "spot");
+  elPlanque.classList.toggle("off", lieu !== "planque");
+  render(); save();
+}
+
+/* L'accalmie volontaire (SHELTER §8) : le seul vrai contre-feu à la chaleur.
+   Il ne coûte rien… sauf le loyer qui court et la vente qui s'arrête. C'est le
+   deuxième axe de la décision : pas seulement EN QUOI on coupe, mais QUAND on
+   ouvre. Le rush de 18 h-2 h vaut trois fois une matinée. */
+function rideau(){
+  S.rideau = !S.rideau;
+  if (S.rideau){
+    viderQueue();
+    journal("rideau baissé — accalmie", 0, "neu");
+    toast("🚪 Rideau. Ça refroidit — et ça ne rentre plus.", null);
+  } else {
+    toast("🔓 Rouvert.", "good");
+  }
+  render(); save();
+}
+
+function story(){
+  if (S.rideau){ toast("Rideau baissé — pas de pub sur un point fermé.", "bad"); return; }
+  if (S.clock < S.storyCool){ toast("Trop tôt — laisse retomber.", "bad"); return; }
+  S.storyUntil = S.clock + STORY_H;
+  S.storyCool = S.clock + STORY_COOL_H;
+  S.vis = clamp(S.vis + VIS_STORY, 0, VIS_MAX);
+  journal("story — +débit, +visibilité", 0, "neu");
+  toast("📣 « Ça charbonne au 12 » — ça va descendre. Et ça se voit.", null);
+  render(); save();
+}
+
+/* ─── 11. RENDU ─────────────────────────────────────────────────────────── */
+function renderHud(){
+  elHday.textContent = "J" + S.day;
+  const h = Math.floor(S.clock) % 24, m = Math.floor((S.clock % 1) * 60);
+  elClock.textContent = String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+  elCash.textContent = eur(S.cash);
+  elCash.classList.toggle("neg", S.cash < 0);
+  elVisF.style.width = S.vis + "%"; elVisN.textContent = R(S.vis);
+  elDosF.style.width = S.dos + "%"; elDosN.textContent = R(S.dos);
+  $("thr1").style.left = SEUIL_PATROUILLE + "%";
+  $("thr2").style.left = SEUIL_PILONNAGE + "%";
+}
+
+let dockSig = null;      // signature de la FORME du dock (pas de ses chiffres)
+function renderDock(){
+  const f = fmtOf(S.format);
+  elTampV.textContent = R(S.tampon) + " g";
+  elTampS.textContent = S.tampon > 0
+    ? `${Math.floor(S.tampon / f.g)} × ${f.g} g · grade ${gradeOf(S.tamponQ)}`
+    : "rien dehors";
+  elCaisseV.textContent = eur(S.caisse);
+  elCaisseS.textContent = S.caisse > 0 ? "saisissable" : "rien à prendre";
+  elETamp.classList.toggle("calm", S.tampon === 0);
+  elECaisse.classList.toggle("calm", S.caisse === 0);
+
+  // Le dock n'est reconstruit QUE si sa forme change. Le réécrire à chaque tick
+  // (8 fois/s) détruisait le nœud sous le doigt : `:active` et sa transition
+  // n'existaient jamais plus de 120 ms, le bouton clignotait au lieu de
+  // s'enfoncer — le retour tactile que R3 réclame explicitement.
+  if (S.lieu === "spot"){
+    const ferme = !spotOuvert();
+    const dispo = S.clock >= S.storyCool && !S.rideau;
+    const sig = `spot|${S.rideau}|${dispo}|${ferme}|${S.charb}`;
+    if (sig === dockSig){
+      $("bStory").disabled = !dispo;
+      return;
+    }
+    dockSig = sig;
+    elDock.innerHTML = `
+      <button class="b${S.rideau ? " warn" : ""}" id="bRideau">${S.rideau ? "🔓 Rouvrir" : "🚪 Rideau"}
+        <span class="bsub">${S.rideau ? "ça refroidit, ça ne rapporte rien" : "fermer : la chaleur retombe"}</span></button>
+      <button class="b" id="bStory" ${dispo ? "" : "disabled"}>📣 Story
+        <span class="bsub">${dispo ? "+débit, +" + VIS_STORY + " vis." : (S.rideau ? "rideau baissé" : "trop tôt")}</span></button>
+      <button class="b pri" id="bGo">🏠 La planque
+        <span class="bsub">${NAVETTE_MIN} min · ${ferme ? "spot fermé" : (S.charb ? "le charbo assure" : "le spot ne vend plus")}</span></button>`;
+    $("bRideau").addEventListener("pointerdown", e => { e.preventDefault(); rideau(); });
+    $("bStory").addEventListener("pointerdown", e => { e.preventDefault(); story(); });
+    $("bGo").addEventListener("pointerdown", e => { e.preventDefault(); allerA("planque"); });
+  } else {
+    const g = R(S.poche);
+    const sig = `planque|${g}|${pocheMax()}`;
+    if (sig === dockSig) return;
+    dockSig = sig;
+    elDock.innerHTML = `
+      <button class="b" id="bFill">🎒 Remplir la poche
+        <span class="bsub">${g} / ${pocheMax()} g</span></button>
+      <button class="b pri" id="bGo">🚶 Au spot
+        <span class="bsub">${NAVETTE_MIN} min · ${g > 0 ? "pose " + g + " g dehors" : "les mains vides"}</span></button>`;
+    $("bFill").addEventListener("pointerdown", e => { e.preventDefault(); remplirPoche(); });
+    $("bGo").addEventListener("pointerdown", e => { e.preventDefault(); allerA("spot"); });
+  }
+}
+
+function renderKarim(){
+  $("karim").innerHTML = PAINS.map(p => {
+    const ok = S.cash >= p.price && !S.pain;
+    return `<button class="pain" data-p="${p.id}" ${ok ? "" : "disabled"}>
+      <span class="pico" style="background:${p.col}"></span>
+      <span class="pinfo"><span class="pnm">${p.nm}<span class="grade g${gradeOf(p.q)}">${gradeOf(p.q)}</span></span>
+        <span class="pds">${p.g} g · ${p.ds}</span></span>
+      <span class="ppr"><span class="pprv">${eur(p.price)}</span>
+        <span class="pprs">${(p.price / p.g).toFixed(2)} /g</span></span></button>`;
+  }).join("");
+  $("karim").querySelectorAll(".pain").forEach(b => b.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    const p = PAINS.find(x => x.id === b.dataset.p); if (p) acheterPain(p);
+  }));
+}
+
+function renderFmts(){
+  const q = S.pain ? S.pain.q : (stockG() ? S.sacQ : 60);
+  $("fmts").innerHTML = FORMATS.map(f => {
+    const eurG = (PRIX_G[gradeOf(q)] * f.eurFac).toFixed(1);
+    // le chiffre qui porte la décision : combien de chaleur ces grammes coûtent
+    const visPour100 = ((100 / f.g) * VIS_PAR_TX).toFixed(0);
+    return `<button class="fmt${S.format === f.g ? " sel" : ""}" data-f="${f.g}">
+      <div class="fg">${f.g} g</div>
+      <div class="fe">${eurG} €/g</div>
+      <div class="fv" style="color:${f.g === 2 ? "#ff8f8f" : f.g === 5 ? "#ffd166" : "#9be37d"}">
+        ${visPour100} vis./100 g</div></button>`;
+  }).join("");
+  $("fmts").querySelectorAll(".fmt").forEach(b => b.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    if (cutHold) return;
+    S.format = +b.dataset.f;
+    renderFmts(); renderPlanche(); renderDock(); save();
+  }));
+}
+
+function renderPlanche(){
+  const l = $("loaf");
+  if (S.pain){
+    l.style.background = S.pain.col;
+    l.style.width = Math.max(6, 200 * (S.pain.g / S.pain.g0)) + "px";
+    l.style.opacity = "1";
+    $("cuthint").textContent = cutHold ? "…"
+      : `${R(S.pain.g)} g restants — maintiens pour couper en ${S.format} g `
+        + `(${Math.floor(S.pain.g / S.format)} sachets, ~${(Math.floor(S.pain.g / S.format) * CUT_S_PAR_SACHET).toFixed(1)} s)`;
+  } else {
+    l.style.opacity = "0"; l.style.width = "0";
+    $("cuthint").textContent = "Pas de pain sur la planche. Vois Karim.";
+    $("sachets").innerHTML = "";
+  }
+}
+
+function renderCrew(){
+  const rows = [
+    { id:"chouf", ic:"👁️", nm:`Chouf ${S.chouf ? "×" + S.chouf : ""}`,
+      ds:S.chouf >= 2 ? "Deux paires d'yeux : 13 s de préavis."
+        : S.chouf === 1 ? "7 s de préavis avant qu'ils arrivent. Un 2ᵉ monte à 13 s."
+        : "Sans lui, la descente ne prévient pas.",
+      pr:CHOUF_PAY + " /jour", has:S.chouf > 0, dis:S.chouf >= 2 },
+    { id:"charb", ic:"🧍", nm:"Charbonneur",
+      ds:S.charb ? "Il tient le point quand tu n'y es pas."
+        : "Le spot continue de vendre pendant tes navettes (70 % de ta cadence).",
+      pr:CHARB_PAY + " /jour", has:S.charb, dis:S.charb },
+    { id:"sac", ic:"🎒", nm:"Le grand sac",
+      ds:S.sac ? `Poche ${POCHE_SAC} g.` : `Poche ${POCHE_BASE} g → ${POCHE_SAC} g. Moins de navettes.`,
+      pr:eur(SAC_PRIX) + " une fois", has:S.sac, dis:S.sac },
+  ];
+  $("crew").innerHTML = rows.map(r => `<button class="crew" data-c="${r.id}" ${r.dis ? "disabled" : ""}>
+    <span class="cric">${r.ic}</span>
+    <span class="crinfo"><span class="crnm">${r.nm}</span><span class="crds">${r.ds}</span></span>
+    <span class="crpr${r.has ? " has" : ""}"><b>${r.has && r.dis ? "en poste" : r.pr}</b></span></button>`).join("");
+  $("crew").querySelectorAll(".crew").forEach(b => b.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    const c = b.dataset.c;
+    if (c === "chouf" && S.chouf < 2){ S.chouf++; toast("Chouf en poste. Il coûte tous les soirs.", "good"); }
+    if (c === "charb" && !S.charb){ S.charb = true; toast("Charbonneur embauché.", "good"); }
+    if (c === "sac" && !S.sac){
+      if (S.cash < SAC_PRIX){ toast("Pas assez de liquide.", "bad"); return; }
+      S.cash -= SAC_PRIX; S.sac = true; toast("Grand sac : " + POCHE_SAC + " g par navette.", "good");
+    }
+    render(); save();
+  }));
+}
+
+function renderBag(){
+  const parts = Object.entries(S.sachets).filter(([, n]) => n > 0)
+    .map(([g, n]) => `${n} × ${g} g`).join(" · ");
+  $("bagbox").innerHTML = `<div class="pain" style="pointer-events:none">
+    <span class="pico" style="background:#3a3348"></span>
+    <span class="pinfo"><span class="pnm">Stock prêt${stockG() ? `<span class="grade g${gradeOf(S.sacQ)}">${gradeOf(S.sacQ)}</span>` : ""}</span>
+      <span class="pds">${parts || "aucun sachet"}</span></span>
+    <span class="ppr"><span class="pprv">${R(stockG())} g</span>
+      <span class="pprs">à l'abri</span></span></div>`;
+}
+
+function render(){
+  renderHud(); renderDock(); syncCiel(true);
+  $("shut").classList.toggle("hide", !(S.rideau && S.lieu === "spot"));
+  if (S.lieu === "planque"){ renderKarim(); renderFmts(); renderPlanche(); renderCrew(); renderBag(); }
+  elSpot.classList.toggle("off", S.lieu !== "spot");
+  elPlanque.classList.toggle("off", S.lieu !== "planque");
+}
+
+/* ─── 12. BOUCLE ────────────────────────────────────────────────────────── */
+let last = performance.now(), acc = 0;
+// Le monde s'arrête derrière une modale. Sans ça, lire le rapport du soir
+// 30 s laissait filer 4 heures de jeu : des clients étaient servis, la
+// visibilité bougeait, et un pilonnage pouvait même s'ouvrir PAR-DESSUS le
+// rapport (z-index 70 > 60), rendant « Jour suivant » intappable.
+let paused = false;
+function setPause(p){ paused = p; if (!p) last = performance.now(); }
+
+function loop(now){
+  requestAnimationFrame(loop);
+  let dt = (now - last) / 1000; last = now;
+  if (dt > 0.25) dt = 0.25;                       // onglet masqué : pas de saut
+  if (S.over || !S.seen || paused) return;
+
+  if (araState){ tickAra(dt); return; }           // le monde s'arrête pendant l'ARA
+
+  tickCut(dt);
+  S.clock += H_PER_SEC * dt;
+
+  // La chaleur retombe vite SEULEMENT si le point ne débite plus. Tant qu'il
+  // vend — que ce soit toi ou le charbonneur — elle ne fait que s'éroder.
+  const vend = spotOuvert() && !S.rideau && (S.lieu === "spot" || sertSansToi());
+  S.vis = Math.max(0, S.vis - (vend ? VIS_VEND_H : VIS_CALME_H) * H_PER_SEC * dt);
+
+  tickQueue(dt);
+  checkPolice();
+
+  acc += dt;
+  if (acc > 0.12){ acc = 0; renderHud(); renderDock(); if (S.lieu === "planque") renderPlanche(); syncCiel(); }
+
+  if (S.clock >= DAY_START_H + 24){ clotureJour(); render(); }
+  save();
+}
+
+/* ─── 13. INTRO ─────────────────────────────────────────────────────────── */
+function intro(){
+  const o = $("ovIntro");
+  o.innerHTML = `<div class="ovt">Le Spot</div>
+    <div class="ovs">Tu tiens le point au pied de la barre.</div>
+    <div style="margin-top:16px;font-size:14px;line-height:1.55;color:rgba(255,255,255,.8)">
+      Tout ce que tu poses dehors se vend. <b>Et se voit.</b><br><br>
+      Le calibre en dit long : <b>2 g</b> rapporte le plus au gramme, mais il faut
+      quatre fois plus de mains pour écouler les mêmes 100 g — et chaque main
+      qui passe monte la <b>visibilité</b>.<br><br>
+      La police n'improvise jamais : la jauge a des seuils, ils sont dessinés.
+      Le <b>chouf</b>, lui, t'achète des secondes.<br><br>
+      <span style="color:rgba(255,255,255,.55)">Ce qui est rangé n'est jamais saisi.
+      Seul ce qui est dehors part.</span>
+    </div>
+    <div style="flex:1"></div>
+    <button class="b pri" style="margin-top:14px" id="introOk">Ouvrir le point</button>`;
+  o.classList.remove("hide");
+  $("introOk").addEventListener("pointerdown", e => { e.preventDefault();
+    S.seen = true; o.classList.add("hide"); setPause(false); render(); save(); });
+}
+
+/* ─── 14. DEBUG (test sur device) ───────────────────────────────────────── */
+$("dbg").addEventListener("pointerdown", e => {
+  e.preventDefault();
+  const o = $("ovDebug");
+  setPause(true);
+  o.innerHTML = `<div class="ovt">🐞 Debug</div>
+    <div class="ovs">Outils de test — hors jeu.</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
+      ${[["+2 000 €","cash"],["Visibilité +30","vis"],["Dossier +25","dos"],
+         ["Clientèle +25","res"],["Avancer 2 h","time"],["Déclencher un pilonnage","raid"],
+         ["Reset complet","reset"]]
+        .map(([l, k]) => `<button class="b" data-d="${k}">${l}</button>`).join("")}
+    </div>
+    <div style="flex:1"></div>
+    <button class="b pri" style="margin-top:14px" data-d="close">Fermer</button>`;
+  o.classList.remove("hide");
+  o.querySelectorAll("[data-d]").forEach(b => b.addEventListener("pointerdown", ev => {
+    ev.preventDefault();
+    const k = b.dataset.d;
+    if (k === "cash") S.cash += 2000;
+    if (k === "vis") S.vis = clamp(S.vis + 30, 0, VIS_MAX);
+    if (k === "dos") S.dos = clamp(S.dos + 25, 0, DOS_MAX);
+    if (k === "res") S.res = clamp(S.res + 25, 0, RES_MAX);
+    if (k === "time") S.clock += 2;
+    if (k === "raid"){ o.classList.add("hide"); lancerRaid(2); return; }
+    if (k === "reset"){
+      S = defaultState(); resetRuntime(); saveT = 0; save();
+      o.classList.add("hide"); intro(); return;
+    }
+    if (k === "close"){ o.classList.add("hide"); setPause(false); render(); return; }
+    render(); save();
+  }));
+});
+
+/* ─── 15. DÉMARRAGE ─────────────────────────────────────────────────────── */
+$("planche").addEventListener("pointerdown", cutStart);
+window.addEventListener("pointerup", cutEnd);
+window.addEventListener("pointercancel", cutEnd);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) last = performance.now(); });
+
+render();
+if (!S.seen) intro();
+requestAnimationFrame(loop);
+
+// exposé pour le smoke-test headless (tools/) — aucune écriture de gameplay
+window.__spot = { S: () => S, FORMATS, PAINS, hh, demandeGH, clientsGH, prixSachet, gradeOf,
+  simJour, spawnClient, servir, queue: () => queue,
+  K: { SEUIL_PATROUILLE, SEUIL_PILONNAGE, LOYER_FIXE, LOYER_PCT, VIS_PAR_TX, DEMANDE_PIC,
+       PATIENCE_S, AUTO_SERVE_S, RES_RUPTURE } };
+</script>
+</body>
+</html>
