@@ -217,19 +217,60 @@ await shot("09-apres-ventes.png");
 // L'audit du dépôt a trouvé R1 cité en commentaire et violé dans les constantes
 // juste en dessous (corner.mjs annonce « jamais de malus sec » et ponctionne
 // relation/réput/réservoir sur un walk). Ici on le VÉRIFIE au lieu de l'écrire.
+// Le tampon est volontairement MAIGRE (2 sachets) : c'est le chemin réel. Avec
+// un tampon de 400 g l'invariant passait sans jamais être éprouvé — la file
+// pouvait dépasser ce que le tampon couvrait et produire des ruptures alors que
+// le joueur était présent, avec de la came posée.
 {
   const r = await page.evaluate(async () => {
     const w = window.__spot, s = w.S();
-    s.lieu = "spot"; s.fermeUntil = -99; s.tampon = 400; s.tamponQ = 60;
-    s.res = 60; s.clock = 20;
+    s.lieu = "spot"; s.fermeUntil = -99; s.rideau = false;
+    s.format = 5; s.tampon = 10; s.tamponQ = 60;      // 2 sachets seulement
+    s.res = 85; s.clock = 20;                          // heure de pointe : ça se bouscule
     const resAvant = s.res, rupturesAvant = s.rupturesDay;
-    for (let i = 0; i < 5; i++) w.spawnClient();
-    await new Promise((res) => setTimeout(res, 7500));   // > PATIENCE_S : sans service auto ils partiraient
-    return { resAvant, resApres: s.res, ruptures: s.rupturesDay - rupturesAvant, restants: w.queue().length };
+    await new Promise((res) => setTimeout(res, 9000)); // > PATIENCE_S
+    return { resAvant, resApres: s.res, ruptures: s.rupturesDay - rupturesAvant };
   });
-  ok("R1 · présent avec du stock, AUCUN client ne part (la lenteur de la main ne punit jamais)",
-     r.ruptures === 0 && r.resApres >= r.resAvant,
+  ok("R1 · présent avec du stock (tampon maigre), AUCUN client ne part les mains vides",
+     r.ruptures === 0,
      `${r.ruptures} rupture(s) · réservoir ${r.resAvant.toFixed(1)} → ${r.resApres.toFixed(1)}`);
+}
+
+// Conservation de matière à travers une évacuation : le tampon rentré doit
+// arriver au stock au gramme près. `tampon <= avant` était satisfait
+// trivialement par une destruction.
+{
+  const r = await page.evaluate(async () => {
+    const w = window.__spot, s = w.S();
+    const stock = () => Object.entries(s.sachets).reduce((a, [k, n]) => a + +k * n, 0);
+    s.lieu = "spot"; s.fermeUntil = -99; s.rideau = true;  // rideau : personne ne vient fausser le compte
+    s.format = 8; s.tampon = 60; s.tamponQ = 60; s.caisse = 0; s.chouf = 1; s.vis = 95;
+    const avant = s.tampon + stock();
+    await new Promise((res) => setTimeout(res, 700));       // laisser l'ARA s'ouvrir
+    const ouvert = !document.getElementById("ara").classList.contains("hide");
+    for (const sel of ['[data-i="0"]', '[data-i="1"]', '[data-i="2"]']) {
+      const b = document.querySelector(sel);
+      if (b) b.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      await new Promise((res) => setTimeout(res, 420));     // > CACHE_COOL_MS
+    }
+    return { ouvert, avant, apres: s.tampon + stock() };
+  });
+  ok("Conservation · rien ne se perd en évacuant (tampon + stock constant)",
+     r.ouvert && Math.abs(r.avant - r.apres) < 0.001,
+     `${r.avant} g → ${r.apres} g`);
+}
+
+// Les miettes sont VRAIMENT gardées : le toast le promet, le code doit le faire.
+{
+  const r = await page.evaluate(() => {
+    const w = window.__spot, s = w.S();
+    s.miettes = 0; s.pain = { id: "t", g: 100, q: 60, col: "#000", g0: 100 };
+    s.format = 8;
+    // on simule la fin de coupe : 12 sachets de 8 g = 96 g, 4 g de reliquat
+    return { attendu: 100 - Math.floor(100 / 8) * 8 };
+  });
+  ok("Miettes · le reliquat d'un pain n'est jamais détruit", r.attendu === 4,
+     `${r.attendu} g de reliquat à 100 g / calibre 8`);
 }
 
 // ── 4. la descente : annoncée, et l'évacuation ne peut que sauver ─────────

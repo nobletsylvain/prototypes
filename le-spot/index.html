@@ -479,6 +479,7 @@ function defaultState(){
     day: 1, clock: DAY_START_H, cash: 260,
     // stock : sachets prêts, par calibre → { "2": n, "5": n, "8": n }
     sachets: {}, sacQ: 0,           // sacQ = qualité moyenne pondérée du stock prêt
+    miettes: 0,                     // reliquat sous un sachet, rendu au pain suivant
     pain: null,                     // { id, g, q } en cours de découpe
     format: 5,
     poche: 0, pocheQ: 0,            // ce que tu portes sur toi
@@ -501,7 +502,24 @@ if (store.get("ver") !== SAVE_VERSION){
   try { Object.keys(localStorage).filter(k => k.startsWith(LS)).forEach(k => localStorage.removeItem(k)); } catch {}
   store.set("ver", SAVE_VERSION);
 }
-try { const raw = store.get("save"); if (raw) S = { ...defaultState(), ...JSON.parse(raw) }; } catch {}
+/* Chargement défensif : un JSON valide mais MAL FORMÉ (écriture interrompue,
+   future migration qui change un type) passait le try/catch, puis `sachets: null`
+   faisait lever stockG() pendant le render initial — avant `requestAnimationFrame`,
+   donc page affichée et définitivement figée, sans message. On ne reprend un
+   champ que s'il a la forme attendue. */
+try {
+  const raw = store.get("save");
+  if (raw){
+    const p = JSON.parse(raw) || {}, d = defaultState();
+    for (const k of Object.keys(d)){
+      const a = p[k], b = d[k];
+      if (a === undefined || a === null) continue;
+      if (Array.isArray(b) !== Array.isArray(a)) continue;
+      if (typeof a !== typeof b) continue;
+      S[k] = a;
+    }
+  }
+} catch { S = defaultState(); }
 let saveT = 0;
 function save(){ const n = performance.now(); if (n - saveT < 400) return; saveT = n;
   try { store.set("save", JSON.stringify(S)); } catch {} }
@@ -702,7 +720,13 @@ function tickQueue(dt){
   // Tampon vide = personne ne vient. Le bouche-à-oreille va vite : un point
   // sans came ne fait pas la queue. Sans ça, une rupture creusait un trou de
   // réservoir dont on ne remontait jamais (spirale de mort au Jour 1).
-  const servable = spotOuvert() && !S.rideau && S.tampon >= fmtOf(S.format).g;
+  // On ne fait venir un client que si le tampon peut le servir EN PLUS de ceux
+  // qui attendent déjà. Sinon une file de 5 sur un tampon de 10 g produisait
+  // trois ruptures alors que le joueur était là, avec de la came posée — R1
+  // violé par la file, pas par la décision.
+  const fg = fmtOf(S.format).g;
+  const engage = queue.length * fg;
+  const servable = spotOuvert() && !S.rideau && S.tampon >= engage + fg;
   if (servable && (S.lieu === "spot" || sertSansToi())){
     clientAcc += clientsGH() * H_PER_SEC * dt;
     while (clientAcc >= 1){ clientAcc -= 1; spawnClient(); }
@@ -726,6 +750,17 @@ function tickQueue(dt){
 }
 function viderQueue(){ for (const c of [...queue]) retirer(c, false); clientAcc = 0; }
 
+/* Remet à zéro l'état de MODULE (hors S) : sans ça, un reset laissait des
+   clients fantômes dans `queue` et dans le DOM, qui étaient ensuite servis
+   — ou expiraient en ruptures — sur une partie neuve. */
+function resetRuntime(){
+  viderQueue();
+  cutHold = null; araState = null; lastCielH = -1; dockSig = null;
+  $("ara").classList.add("hide");
+  elQueue.innerHTML = "";
+  setPause(false);
+}
+
 /* ─── 7. POLICE — annoncée, jamais tirée au sort ────────────────────────── */
 let araState = null;
 
@@ -736,8 +771,12 @@ function checkPolice(){
 }
 
 function lancerRaid(palier){
+  // La patrouille ne saisit RIEN (elle disperse et ferme) : ouvrir l'évacuation
+  // pour elle inviterait le joueur à « sauver » un produit qui n'a jamais été
+  // menacé — un geste qui ne peut que coûter. C'est le pilonnage, et lui seul,
+  // qui met le tampon et la caisse en jeu.
+  if (palier === 1){ appliquerRaid(1, false); return; }
   const preavis = PREAVIS_S[Math.min(S.chouf, 2)];
-  if (palier === 1 && S.tampon === 0 && S.caisse === 0){ appliquerRaid(1, false); return; }
   if (preavis <= 0){ appliquerRaid(palier, false); return; }
   ouvrirAra(palier, preavis);
 }
@@ -770,12 +809,17 @@ function tapCache(btn){
     if (S.caisse <= 0) return;
     araState.cash += S.caisse; S.cash += S.caisse; S.caisse = 0;
   } else {
-    if (S.tampon <= 0) return;
-    const g = Math.min(CACHE_G, S.tampon);
+    // CONSERVATION STRICTE : on ne retire du tampon que ce qu'on peut réellement
+    // remettre au stock, en sachets entiers. Retirer `g` puis n'en réinjecter que
+    // floor(g/calibre) détruisait la différence (6 g par tap au calibre 8) — soit
+    // une évacuation qui CRÉE la perte qu'elle prétend réduire, l'exact contraire
+    // de R1. Le reliquat sous un sachet reste dehors : il est saisi, pas effacé.
+    const f = S.format;
+    const n = Math.min(Math.floor(CACHE_G / f), Math.floor(S.tampon / f));
+    if (n <= 0) return;
+    const g = n * f;
     S.tampon -= g;
-    // ce qu'on rentre repart au stock prêt, au calibre courant
-    const n = Math.floor(g / S.format);
-    if (n > 0) addSachets(S.format, n, S.tamponQ);
+    addSachets(f, n, S.tamponQ);
     araState.sauve += g;
   }
   // le temps de rentrer un bloc, toutes les caches sont indisponibles :
@@ -836,7 +880,17 @@ function appliquerRaid(palier, evacue){
 function clotureJour(){
   const loyer = LOYER_FIXE + R(S.caDay * LOYER_PCT);
   const paie = S.chouf * CHOUF_PAY + (S.charb ? CHARB_PAY : 0);
-  S.cash -= loyer + paie;
+  // À la fermeture on va chercher la caisse s'il le faut : sinon un joueur qui
+  // reste au spot toute la journée (la stratégie « dominance » que le proto veut
+  // faire tester) se retrouvait à découvert et voyait son équipe partir, avec
+  // 1 500 € posés à trois mètres. Malus sec non annoncé = contraire à R1.
+  const du = loyer + paie;
+  if (S.cash < du && S.caisse > 0){
+    const pris = Math.min(S.caisse, du - S.cash);
+    S.cash += pris; S.caisse -= pris;
+    journal("caisse rentrée pour payer le bloc", pris, "neu");
+  }
+  S.cash -= du;
   S.dos = Math.max(0, S.dos - DOS_DECAY_JOUR);
   S.joursTenus++;
 
@@ -879,8 +933,9 @@ function ouvrirRapport(lignes){
     <div style="flex:1"></div>
     <button class="b pri" style="margin-top:14px" id="rapOk">Jour suivant</button>`;
   o.classList.remove("hide");
+  setPause(true);
   $("rapOk").addEventListener("pointerdown", e => { e.preventDefault();
-    o.classList.add("hide"); render(); });
+    o.classList.add("hide"); setPause(false); render(); });
 }
 
 function chute(){
@@ -917,9 +972,13 @@ function acheterPain(p){
   if (S.cash < p.price) { toast("Pas assez de liquide.", "bad"); return; }
   if (S.pain){ toast("Finis le pain sur la planche d'abord.", "bad"); return; }
   S.cash -= p.price;
-  S.pain = { id: p.id, g: p.g, q: p.q, col: p.col, g0: p.g };
+  // les miettes du pain précédent repartent avec celui-ci (rien ne se perd)
+  const bonus = S.miettes; S.miettes = 0;
+  const g = p.g + bonus;
+  S.pain = { id: p.id, g, q: p.q, col: p.col, g0: g };
   journal(`appro — ${p.nm}`, -p.price, "negv");
-  toast(`${p.nm} sur la planche · grade ${gradeOf(p.q)}`, "good");
+  toast(`${p.nm} sur la planche · grade ${gradeOf(p.q)}`
+        + (bonus >= 1 ? ` (+${R(bonus)} g de miettes)` : ""), "good");
   render(); save();
 }
 
@@ -957,10 +1016,17 @@ function tickCut(dt){
   }
   $("cutfill").style.width = (cutHold.done / cutHold.total * 100) + "%";
   if (S.pain.g < S.format){
-    const reste = R(S.pain.g);
-    if (reste > 0) toast(`${reste} g de miettes — gardées de côté.`, null);
+    // Les miettes sont VRAIMENT gardées : elles reviennent dans le pain suivant.
+    // Les jeter posait un malus caché de 0 à 7 g par pain, qui ne frappait que
+    // les gros calibres — c'est-à-dire précisément le bras « discrétion » que ce
+    // proto existe pour mesurer, et que simJour() ne modélise pas.
+    const reste = S.pain.g;
+    if (reste > 0){
+      S.miettes += reste;
+      toast(`${R(reste)} g de miettes — gardées pour le prochain pain.`, null);
+    }
     S.pain = null; cutHold = null;
-    save(); renderPlanche();
+    save(); renderPlanche(); renderBag();
   }
 }
 
@@ -1045,6 +1111,7 @@ function renderHud(){
   $("thr2").style.left = SEUIL_PILONNAGE + "%";
 }
 
+let dockSig = null;      // signature de la FORME du dock (pas de ses chiffres)
 function renderDock(){
   const f = fmtOf(S.format);
   elTampV.textContent = R(S.tampon) + " g";
@@ -1056,9 +1123,19 @@ function renderDock(){
   elETamp.classList.toggle("calm", S.tampon === 0);
   elECaisse.classList.toggle("calm", S.caisse === 0);
 
+  // Le dock n'est reconstruit QUE si sa forme change. Le réécrire à chaque tick
+  // (8 fois/s) détruisait le nœud sous le doigt : `:active` et sa transition
+  // n'existaient jamais plus de 120 ms, le bouton clignotait au lieu de
+  // s'enfoncer — le retour tactile que R3 réclame explicitement.
   if (S.lieu === "spot"){
     const ferme = !spotOuvert();
     const dispo = S.clock >= S.storyCool && !S.rideau;
+    const sig = `spot|${S.rideau}|${dispo}|${ferme}|${S.charb}`;
+    if (sig === dockSig){
+      $("bStory").disabled = !dispo;
+      return;
+    }
+    dockSig = sig;
     elDock.innerHTML = `
       <button class="b${S.rideau ? " warn" : ""}" id="bRideau">${S.rideau ? "🔓 Rouvrir" : "🚪 Rideau"}
         <span class="bsub">${S.rideau ? "ça refroidit, ça ne rapporte rien" : "fermer : la chaleur retombe"}</span></button>
@@ -1071,6 +1148,9 @@ function renderDock(){
     $("bGo").addEventListener("pointerdown", e => { e.preventDefault(); allerA("planque"); });
   } else {
     const g = R(S.poche);
+    const sig = `planque|${g}|${pocheMax()}`;
+    if (sig === dockSig) return;
+    dockSig = sig;
     elDock.innerHTML = `
       <button class="b" id="bFill">🎒 Remplir la poche
         <span class="bsub">${g} / ${pocheMax()} g</span></button>
@@ -1186,11 +1266,18 @@ function render(){
 
 /* ─── 12. BOUCLE ────────────────────────────────────────────────────────── */
 let last = performance.now(), acc = 0;
+// Le monde s'arrête derrière une modale. Sans ça, lire le rapport du soir
+// 30 s laissait filer 4 heures de jeu : des clients étaient servis, la
+// visibilité bougeait, et un pilonnage pouvait même s'ouvrir PAR-DESSUS le
+// rapport (z-index 70 > 60), rendant « Jour suivant » intappable.
+let paused = false;
+function setPause(p){ paused = p; if (!p) last = performance.now(); }
+
 function loop(now){
   requestAnimationFrame(loop);
   let dt = (now - last) / 1000; last = now;
   if (dt > 0.25) dt = 0.25;                       // onglet masqué : pas de saut
-  if (S.over || !S.seen) return;
+  if (S.over || !S.seen || paused) return;
 
   if (araState){ tickAra(dt); return; }           // le monde s'arrête pendant l'ARA
 
@@ -1230,13 +1317,14 @@ function intro(){
     <button class="b pri" style="margin-top:14px" id="introOk">Ouvrir le point</button>`;
   o.classList.remove("hide");
   $("introOk").addEventListener("pointerdown", e => { e.preventDefault();
-    S.seen = true; o.classList.add("hide"); last = performance.now(); render(); save(); });
+    S.seen = true; o.classList.add("hide"); setPause(false); render(); save(); });
 }
 
 /* ─── 14. DEBUG (test sur device) ───────────────────────────────────────── */
 $("dbg").addEventListener("pointerdown", e => {
   e.preventDefault();
   const o = $("ovDebug");
+  setPause(true);
   o.innerHTML = `<div class="ovt">🐞 Debug</div>
     <div class="ovs">Outils de test — hors jeu.</div>
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
@@ -1257,8 +1345,11 @@ $("dbg").addEventListener("pointerdown", e => {
     if (k === "res") S.res = clamp(S.res + 25, 0, RES_MAX);
     if (k === "time") S.clock += 2;
     if (k === "raid"){ o.classList.add("hide"); lancerRaid(2); return; }
-    if (k === "reset"){ S = defaultState(); save(); o.classList.add("hide"); intro(); return; }
-    if (k === "close"){ o.classList.add("hide"); render(); return; }
+    if (k === "reset"){
+      S = defaultState(); resetRuntime(); saveT = 0; save();
+      o.classList.add("hide"); intro(); return;
+    }
+    if (k === "close"){ o.classList.add("hide"); setPause(false); render(); return; }
     render(); save();
   }));
 });
