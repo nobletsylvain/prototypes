@@ -193,6 +193,9 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
 /* ── overlays ────────────────────────────────────────────────── */
 .ov{position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;
   background:rgba(6,4,12,.93);backdrop-filter:blur(7px);padding:16px 14px;overflow-y:auto;}
+/* .b porte flex:1 pour le dock (rangée horizontale) : dans un overlay en
+   colonne, ça l'étirerait sur toute la hauteur restante */
+.ov > .b{flex:none;}
 .ovt{font-weight:900;font-size:23px;letter-spacing:.3px;}
 .ovs{font-size:13px;color:rgba(255,255,255,.55);margin-top:3px;}
 .led{margin-top:12px;border-radius:12px;background:rgba(255,255,255,.04);
@@ -867,7 +870,7 @@ function ouvrirRapport(lignes){
   o.innerHTML = `<div class="ovt">Le rapport du soir</div>
     <div class="ovs">J${S.day} · ce qui s'est passé, et pourquoi.</div>
     <div class="led">${lignes.map(([t, v, c]) =>
-      `<div class="ledr"><span class="ledh"></span><span class="ledt">${t}</span>
+      `<div class="ledr"><span class="ledt">${t}</span>
        <span class="ledv ${c}">${v === null ? "" : (v > 0 ? "+" : "") + eur(v)}</span></div>`).join("")}</div>
     <div style="margin-top:14px;font-size:12.5px;color:rgba(255,255,255,.5)">
       Clientèle : <b style="color:#f2f0f6">${R(S.res)}</b>/100 ·
