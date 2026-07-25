@@ -34,10 +34,10 @@ le **loyer fixe** — `LOYER_FIXE` 220 €/jour, dû qu'on vende ou non (spec §
 **Le dilemme est chiffré, pas affirmé.** `simJour()` est une fonction pure dans
 le fichier, rejouée par le test, qui balaie l'espace calibre × fenêtre :
 
-| Contexte | Meilleur plan | Recette | Visibilité |
+| Contexte | Meilleur plan | Recette nette | Visibilité |
 |---|---|---|---|
-| J1 — réservoir 40, grade C | **2 g, ouvert 24 h** | 1 371 €/j | **+43,6 /j** |
-| Croisière — réservoir 85, grade B | **5 g, 16 h→2 h** | 1 722 €/j | **−5 /j** |
+| J1 — réservoir 40, grade C, pain de 100 g | **2 g, ouvert 24 h** | 550 €/j | **+47,8 /j** |
+| Croisière — réservoir 85, 250 g/jour | **8 g, 16 h→2 h** | 878 €/j | **−7,3 /j** |
 
 Les deux réponses diffèrent : à J1 on pousse (la jauge est à 0, le loyer tombe
 ce soir) ; en croisière le réservoir a grossi, donc le même calibre ferait +107
@@ -74,6 +74,32 @@ atteignable sous le dock. 6/6 vert.
 **Le geste encode le choix** : un maintien coupe le pain entier, et couper en
 2 g prend physiquement 4× plus longtemps qu'en 8 g. On sent sa décision dans la
 main plutôt que de la lire dans un menu.
+
+**La revue adversariale a cassé la thèse avant qu'elle ne parte en playtest.**
+Deux bloquants que ni la relecture ni la première batterie de tests n'ont vus :
+- **`SEUIL_PILONNAGE` (78) était mathématiquement inatteignable.** La patrouille
+  se déclenchait à 45 et clampait la jauge à 22 : elle oscillait 45 → 22 → 45, et
+  le pilonnage — la SEULE conséquence qui saisit quoi que ce soit — n'arrivait
+  jamais en partie réelle. Le tampon n'était donc jamais en jeu, le chouf et
+  l'ARA étaient du décor. *Et le test le masquait en écrivant `s.vis = 95` à la
+  main.* Corrigé : la patrouille disperse, elle ne blanchit pas ; anti-récidive
+  de 6 h ; et un invariant qui laisse la jauge monter TOUTE SEULE (elle atteint
+  77, le raid tombe).
+- **Le dilemme ne tenait pas dans le régime réel du jeu.** Le goulot est le
+  STOCK (100/250 g), pas la demande (200-500 g/jour) : `servi` ne jouait donc que
+  sur la vitesse. À produit égal, le 2 g rapportait +48 % ET faisait grossir la
+  clientèle 4× plus vite (le réservoir était crédité *par transaction*), pour une
+  chaleur qu'une journée de décroissance absorbait — dominant sur les deux axes.
+  Corrigé : réservoir **par gramme**, chaleur qui ne retombe que si le point ne
+  vend pas, `simJour()` borné par le stock. *Leçon : une preuve chiffrée vaut ce
+  que vaut son régime — la première version prouvait un dilemme dans un monde
+  où le stock était infini.*
+- Plus : `tapCache()` **détruisait** 6 g par tap (l'évacuation créait la perte
+  qu'elle prétend réduire — R1), les miettes « gardées de côté » étaient jetées,
+  la boucle ne se mettait pas en pause derrière le rapport du soir, des ruptures
+  frappaient un joueur présent, la paie ignorait la caisse exposée, et déléguer
+  ne se regrettait jamais (s'absenter refroidissait pendant que le charbonneur
+  vendait).
 
 **Trois bugs de conception attrapés par la mesure, pas par la relecture :**
 - *spirale de mort au J1* — un tampon vide attirait quand même des clients, qui
