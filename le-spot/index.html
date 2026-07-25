@@ -137,6 +137,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
 
 /* ── planque ─────────────────────────────────────────────────── */
 #planque{background:linear-gradient(#161226,#0b0812);overflow-y:auto;padding:12px 12px 24px;
+  overscroll-behavior:contain;
   -webkit-overflow-scrolling:touch;}
 .sect{font-size:10.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;
   color:rgba(255,255,255,.4);margin:14px 0 7px;}
@@ -167,6 +168,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
 .fv{font-size:10px;margin-top:2px;font-weight:700;}
 
 #planche{margin-top:9px;border-radius:14px;background:rgba(0,0,0,.3);
+  touch-action:none;
   border:1px solid rgba(255,255,255,.1);padding:12px;text-align:center;}
 #loaf{height:54px;margin:0 auto 10px;border-radius:5px;max-width:200px;
   box-shadow:inset 0 -12px 20px rgba(0,0,0,.5),inset 0 5px 9px rgba(255,255,255,.08);
@@ -239,9 +241,13 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
 .toast.bad{border-color:rgba(255,107,107,.5);color:#ffbdbd;}
 .toast.good{border-color:rgba(155,227,125,.45);color:#cdf5b6;}
 
-#dbg{position:absolute;right:9px;bottom:calc(9px + env(safe-area-inset-bottom));z-index:90;
-  width:34px;height:34px;border-radius:50%;background:rgba(20,16,30,.85);
-  border:1px solid rgba(255,255,255,.15);font-size:15px;}
+/* En bas à droite, le 🐞 recouvrait 13 % du bouton primaire du dock (mesuré :
+   elementFromPoint y renvoyait `dbg`) : viser « La planque » avec le pouce
+   ouvrait le panneau debug ET mettait le monde en pause. Il monte au-dessus de
+   la scène, où rien n'est cliquable. */
+#dbg{position:absolute;right:9px;top:calc(8px + env(safe-area-inset-top));z-index:90;
+  width:30px;height:30px;border-radius:50%;background:rgba(20,16,30,.7);
+  border:1px solid rgba(255,255,255,.12);font-size:13px;opacity:.55;}
 </style>
 </head>
 <body>
@@ -279,6 +285,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
     <div id="shut" class="hide"><span>Rideau baissé</span></div>
   </div>
   <div id="toasts"></div>
+  <button id="dbg">🐞</button>
 
   <!-- ══ LA PLANQUE ══ -->
   <div class="place off" id="planque">
@@ -318,7 +325,6 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
   <div class="btns" id="dockBtns"></div>
 </div>
 
-<button id="dbg">🐞</button>
 
 <!-- overlays injectés -->
 <div class="ov hide" id="ovRapport"></div>

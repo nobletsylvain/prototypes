@@ -66,8 +66,13 @@ for (const e of ECRANS) {
       const out = [];
       if (document.documentElement.scrollWidth > vw + 1)
         out.push(`scroll horizontal (${document.documentElement.scrollWidth} > ${vw})`);
+      // Quand une modale est ouverte, elle DOIT masquer ce qu'il y a dessous :
+      // on ne contrôle alors que les cibles de la modale elle-même.
+      const modale = [...document.querySelectorAll("#ara, .ov")]
+        .find((m) => !m.classList.contains("hide"));
+      const racine = modale || document;
       // tout élément cliquable doit être ENTIÈREMENT dans le viewport
-      for (const el of document.querySelectorAll("button, .cli, .fmt, .pain, .crew, .cache")) {
+      for (const el of racine.querySelectorAll("button, .cli, .fmt, .pain, .crew, .cache")) {
         if (el.closest(".hide") || el.classList.contains("hide")) continue;
         const s = getComputedStyle(el);
         if (s.display === "none" || s.visibility === "hidden" || +s.opacity === 0) continue;
@@ -78,6 +83,25 @@ for (const e of ECRANS) {
           out.push(`hors écran en X : ${(el.id || el.className || el.tagName)} [${Math.round(b.left)}..${Math.round(b.right)}]`);
         if (b.height < 28 && el.tagName === "BUTTON")
           out.push(`cible tactile trop basse (${Math.round(b.height)} px) : ${el.id || el.className}`);
+        // RECOUVREMENT : un bouton dont un coin est capté par un autre élément.
+        // C'est le hit-test réel du navigateur, pas la géométrie — dispatcher
+        // l'événement sur le nœud (comme on le faisait) court-circuitait
+        // justement le seul mécanisme capable de voir le problème.
+        // On ne teste que ce qui est RÉELLEMENT à l'écran : un élément sorti de
+        // son conteneur scrollable est masqué à bon droit.
+        const sc = el.closest("#planque");
+        const bornes = sc ? sc.getBoundingClientRect() : { top: 0, bottom: vh };
+        const visible = b.top >= Math.max(0, bornes.top) - 0.5
+                     && b.bottom <= Math.min(vh, bornes.bottom) + 0.5;
+        if (!visible) continue;
+        for (const [px, py, coin] of [
+          [b.left + 6, b.top + 6, "haut-gauche"], [b.right - 6, b.top + 6, "haut-droit"],
+          [b.left + 6, b.bottom - 6, "bas-gauche"], [b.right - 6, b.bottom - 6, "bas-droit"],
+        ]) {
+          const hit = document.elementFromPoint(px, py);
+          if (hit && hit !== el && !el.contains(hit) && !hit.contains(el))
+            out.push(`coin ${coin} de « ${(el.id || el.className)} » capté par « ${hit.id || hit.className || hit.tagName} »`);
+        }
       }
       return out;
     }, e.w, e.h);
