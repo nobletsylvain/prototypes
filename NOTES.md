@@ -45,11 +45,31 @@ de visibilité par jour — on se replie sur le rush. **R9 en action** : ce n'es
 pas le geste qui durcit, c'est le système qui grossit sous le geste.
 
 **Les autres décisions.** Le **tampon** (ce qu'on pose dehors se vend sans
-rupture et c'est exactement ce qu'une descente emporte) ; la **navette** (la
-navigation EST la décision : aller à la planque avance l'horloge et le spot ne
-vend plus — le « poids » de CADRE §6 en miniature) ; la **qualité** du pain de
-Karim (marge contre satisfaction) ; le **rideau** (l'accalmie volontaire de
-SHELTER §8, seul contre-feu à la chaleur : gratuit, sauf que le loyer court).
+rupture et c'est exactement ce qu'une descente emporte) ; la **navette** (voir
+ci-dessous) ; la **qualité** du pain de Karim (marge contre satisfaction) ; le
+**rideau** (l'accalmie volontaire de SHELTER §8, seul contre-feu à la chaleur :
+gratuit, sauf que le loyer court).
+
+**Au passage, l'arbitrage de présence est tranché.** Le 2026-07-23 on écrivait :
+« le vrai arbitrage (à caler ensuite) : ta présence est unique → tenir le corner
+⇄ vendre/livrer sur SnapShit », avec deux niveaux proposés, et la conclusion
+**« Non tranché — prochaine étape design »**. Quatre sessions plus tard il ne
+l'était toujours pas. La **navette** est exactement le « niveau fort » qui y
+était décrit : *une absence coûte du temps pendant lequel le point ferme*. C'est
+ce qui donne enfin une valeur au charbonneur — sans arbitrage de présence,
+déléguer la présence rend un temps dont on ne ferait rien, et R6 n'a rien à
+libérer. *À rapatrier dans La Loupe si le feel tient.*
+
+**Le choix technique répond à la frustration n°2 du journal.** En relisant les
+39 entrées, la première cause de friction en playtest n'est pas le design : c'est
+**l'écran qui masque, coupe ou casse** — 6 occurrences en 5 jours (scène
+tronquée, tiroir disparu, labels empilés, retour impossible), dont un « broken —
+plus la possibilité de tester » quand Three.js n'a pas chargé sur mobile. D'où :
+**zéro dépendance, zéro CDN, un seul fichier** (ça marche même sans réseau), et
+un contrôle de mise en page automatisé — `tools/resp-spot.mjs` vérifie sur
+**6 tailles d'écran** (320×568 → 768×1024) qu'aucun élément cliquable ne sort du
+cadre, qu'il n'y a jamais de scroll horizontal et que le bas de la planque reste
+atteignable sous le dock. 6/6 vert.
 
 **Le geste encode le choix** : un maintien coupe le pain entier, et couper en
 2 g prend physiquement 4× plus longtemps qu'en 8 g. On sent sa décision dans la

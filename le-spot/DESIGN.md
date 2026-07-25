@@ -67,6 +67,15 @@ autre*. Un dilemme dont la réponse ne change jamais n'est pas un dilemme.
   l'horloge et le spot ne vend plus pendant ce temps (jusqu'à ce qu'un
   charbonneur soit embauché). La poche borne ce qu'on rapporte : c'est le
   système « poids » de `CADRE.md` §6 en miniature.
+
+  > **C'est l'arbitrage de présence, tranché.** Le 2026-07-23, `NOTES.md`
+  > pose : *« le vrai arbitrage (à caler ensuite) : ta présence est unique →
+  > tenir le corner ⇄ vendre/livrer sur SnapShit »*, propose deux niveaux, et
+  > conclut **« Non tranché — prochaine étape design »**. Quatre sessions plus
+  > tard il ne l'était toujours pas. La navette **est** le « niveau fort » qui y
+  > était décrit : *une absence coûte du temps pendant lequel le point ferme*.
+  > C'est ce qui donne enfin une valeur au charbonneur — sans arbitrage de
+  > présence, déléguer la présence rend un temps dont on ne ferait rien.
 - **La qualité** — le tier de Karim fait le grade, le grade fait la clientèle
   qui revient. Payer 5,80 €/g au lieu de 3,40 fait grossir le réservoir deux
   fois plus vite. Marge contre satisfaction, `CADRE.md` §1.
