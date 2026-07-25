@@ -2,6 +2,16 @@
    P0 : carte Quartier Nord · 1 planque · 1 PDV · dette front · hit planque.
    Pas de police / soldats / onion — ça vient après. */
 
+/* La dette Karim est EN SOMMEIL, pas supprimée.
+   Pourquoi : `repayDebt` exige du PROPRE (S.cash), et la trieuse liquide→propre est
+   coupée (SORTER_ENABLED=false dans index.html). S.cash n'a donc aucune source in-game.
+   Une dette armée serait donc IMPAYABLE, et `nightTick` la fait enfler indéfiniment
+   (+8 chaleur, −6 standing, ×1,15 tous les 2 jours) : une boucle de punition sans
+   sortie, c'est-à-dire R1 violé de la pire façon.
+   Ce drapeau bloque l'ARMEMENT et l'ESCALADE sans effacer debtDue/debtDueDay : le jour
+   où le propre retrouve une source, on repasse à true et l'état repart où il en était. */
+export const FRONT_ENABLED = false;
+
 /** Pins en % de la carte (x,y = centre du pin). Calés sur le fond quartier-nord. */
 export const PINS = {
   planque: {
@@ -90,6 +100,7 @@ export function shelterDefaults() {
 
 /** Boot d'ouverture : Karim te file 100 g à crédit. Une seule fois. */
 export function grantOpeningFront(S) {
+  if (!FRONT_ENABLED) return { ok: false, reason: "front en sommeil (pas de circuit de remboursement)" };
   if (S.shelter?.frontActive || S.shelter?.paidOff || (S.pains && S.pains.length)) {
     return { ok: false, reason: "déjà lancé" };
   }
@@ -135,7 +146,10 @@ export function nightTick(S, planqueCap) {
     S.heat = clamp((S.heat || 0) + add, 0, 100);
     cons.push({ t: `Planque chaude (${hit})`, c: `+${add} chaleur ↩ stock ${Math.round(stockG(S))} g` });
   }
-  if (S.shelter?.frontActive) {
+  // FRONT_ENABLED : coupe aussi l'escalade sur les saves déjà porteurs d'une dette
+  // armée par une version antérieure (la migration `{...shelterDefaults(), ...S.shelter}`
+  // la fait survivre). L'état est conservé, il cesse simplement d'enfler.
+  if (FRONT_ENABLED && S.shelter?.frontActive) {
     const left = S.shelter.debtDueDay - (S.day || 1);
     if (left === 1) {
       cons.push({ t: `${SUPPLIER.name} te rappelle`, c: `Échéance demain · ${S.shelter.debtDue} propre` });
@@ -160,7 +174,8 @@ export function hitLabel(h) {
 }
 
 export function debtStrip(S) {
-  if (!S.shelter?.frontActive) return null;
+  // en sommeil : on n'affiche pas une dette que le joueur n'a aucun moyen de solder
+  if (!FRONT_ENABLED || !S.shelter?.frontActive) return null;
   const left = S.shelter.debtDueDay - (S.day || 1);
   return {
     name: SUPPLIER.name,

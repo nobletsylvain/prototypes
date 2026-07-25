@@ -168,6 +168,33 @@ export function marketNews(day){
 // (le marché, lui, pilote la DEMANDE : combien de clients passent.) base peut être le prix joueur ou, à défaut, le marché.
 export function cornerTol(kind, rel, base){ return base*(CORNER.TOL[kind] + (rel||0)*CORNER.TOL_PER_REL); }
 
+/* ---- La qualité achète de la TOLÉRANCE, jamais du prix (arbitrage Sylvain, 2026-07-25) ----
+   Le menu (`cornerFair`) reste fonction de la réput seule : du bon produit ne fait pas
+   monter ton tarif affiché, il fait accepter ton tarif plus largement. C'est ce qui
+   donne enfin une surface de gain au levier de coupe (R10) sans ajouter un
+   multiplicateur de prix de plus.
+
+   UP-ONLY par construction, et ce n'est pas un détail de tuning : `offerCap` calcule
+   min(budget, qty × tol). Élargir `tol` ne peut donc qu'AUGMENTER le plafond que le
+   client s'impose — l'invariant « une offre spontanée passe toujours son propre test »
+   tient sans une ligne de plus. Un facteur descendant, lui, le casserait
+   (cf. le bug Nassim/Bilal documenté au-dessus de `offerCap`).
+
+   En dessous de QUAL_REF : facteur 1. Pas de bonus, mais AUCUN malus — un produit
+   médiocre se vend normalement, il ne se vend simplement pas mieux (R1). */
+/* QUAL_REF doit rester SOUS le pire produit que le joueur puisse poser sur la table,
+   sinon le premier barreau de l'escalier ne montre rien : le pain de départ est à q52
+   et la lame pourrie le ramène à 43 (52 × 0,82). Avec une référence à 55, monter le
+   couteau de 0 à 4 laissait le facteur à 1,00 — l'outil que le joueur peut s'offrir en
+   PREMIER (250 €) n'aurait eu aucun effet visible, et sa promesse aurait sonné faux.
+   [PLACEHOLDERS — les deux valeurs attendent le tuning humain] */
+export const QUAL_REF = 40;       // plancher : en dessous, facteur 1 (jamais de malus)
+export const QUAL_TOL_MAX = 1.35; // tolérance à q100
+export function qualFac(q){
+  const x = (Math.max(QUAL_REF, Math.min(100, q || 0)) - QUAL_REF) / (100 - QUAL_REF);
+  return 1 + x * (QUAL_TOL_MAX - 1);
+}
+
 /* Plafond que le client s'impose À LUI-MÊME : sa poche ET sa tolérance au €/g.
    Une offre spontanée doit TOUJOURS passer son propre test d'acceptation —
    sinon accepter le montant qu'il vient d'annoncer le fait partir furieux, avec
@@ -328,9 +355,16 @@ export function resolveOffer(client, g, total, firstTry, isClientOffer, reput, p
       if(juste) return { outcome:"juste", accepted:true, emo:"🤝", rel:CORNER.REL_DEAL+CORNER.REL_JUSTE, reput:CORNER.REP_DEAL+CORNER.REP_JUSTE, res:CORNER.RES_DEAL, tipRate:CORNER.TIP_JUSTE, combo:true, resetGouge:true };
       return { outcome:"deal", accepted:true, emo:"😊", rel:CORNER.REL_DEAL, reput:CORNER.REP_DEAL, res:CORNER.RES_DEAL, tip:0, resetGouge:true };
     }
-    if(ppu <= fair*CORNER.NEGO_MAX)
+    // La frontière de l'ABUS suit la qualité, sinon la tolérance gagnée est inutilisable :
+    // avec un facteur qualité de 1,18, tout ce qui dépassait ×1,2 le menu basculait en
+    // `gouge` (rel −2, réput −2, et il ne revient plus après deux fois). Autrement dit
+    // le joueur au bon produit était PUNI d'en profiter — R1 violé par un seuil resté fixe
+    // pendant que `tol` devenait élastique. max(1, …) : un connaisseur déçu (qFac 0.85)
+    // ne déplace pas la ligne en ta faveur, il rogne seulement sa propre tolérance.
+    const abus = fair * CORNER.NEGO_MAX * Math.max(1, client.qFac || 1);
+    if(ppu <= abus)
       return { outcome:"nego", accepted:true, emo:"😏", rel:0, reput:CORNER.REP_DEAL, res:CORNER.RES_DEAL, tip:0, marge:R(total-g*fair) };
-    // abus (au-delà de ×1.2, mais il paie) : relation −, 2 d'affilée → il ne revient plus
+    // abus véritable (il paie quand même, mais il retient) : relation −, 2 d'affilée → il ne revient plus
     return { outcome:"gouge", accepted:true, emo:"😒", rel:CORNER.REL_GOUGE, reput:CORNER.REP_GOUGE, res:0, tip:0, gouge:true };
   }
   // refusé par le client

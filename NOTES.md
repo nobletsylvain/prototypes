@@ -9,6 +9,106 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-25 — La Loupe : l'escalier d'outils, barreau 1 — le couteau devient le levier qualité
+
+Arbitrages de Sylvain, en réponse au constat « la qualité ne paie pas » :
+**la qualité achète de la TOLÉRANCE, pas du prix**, et le chantier suivant est
+**l'escalier d'outils** (couteau pourri → meilleur → semi-auto → auto → salarié,
+sans consommables ni réparation : on monte en outil).
+
+### Ce que la reconnaissance a trouvé, et qui a changé le plan
+
+Le `couteau` avait ses 5 paliers **entièrement codés et branchés** — `CUT_CAPS`,
+`cutCap()`, les clamps du sélecteur, les chips 🔒, la position de la lame 3D — et
+**aucun point d'achat**. Il n'existait que dans le menu debug. L'escalier n'avait
+donc pas de premier barreau.
+
+Mais l'ajouter tel quel aurait livré un **piège**. Vérifié en balayant la vraie
+distribution de la demande (1 000 tirages) contre `qtyToSachets` :
+
+| calibre coupé | demandes servies exactement | g livrés par client |
+| --- | --- | --- |
+| 2 g | 60 % | 2,44 g |
+| 5 g | 20 % | 1,04 g |
+| 8 g | **0 %** | 0,04 g |
+| 12 g / 20 g | **0 %** | ~0 |
+
+96 % de la demande est entre 2 et 5 g. Acheter le couteau *et s'en servir* menait
+donc à la faillite : l'outil censé alléger le travail (R2) appauvrissait.
+
+### Ce qui manquait n'était pas le semi-auto, c'était la RAISON de monter
+
+Et R10 la nomme déjà : « la coupe est le levier qualité/pureté ». Le couteau porte
+désormais ce levier — `LAME_NETTETE = [0.82, 0.88, 0.94, 0.98, 1.00]`, appliqué
+dans `applyCut` : `q_barrette = q_pain × netteté(couteau)`. Une lame pourrie hache
+et chauffe, une bonne lame préserve. Ce n'est **pas** une punition (R1) : aucun
+raté possible, aucun gramme jamais perdu — c'est la ligne de base de l'outil qu'on
+possède, et dont on sort en montant (R2, mot pour mot la demande de Sylvain).
+
+Vérifié en navigateur, même pain q78 : **couteau 0 → q64, couteau 4 → q78.**
+
+### La qualité achète de la tolérance : le tuyau existait déjà
+
+`qFac` était propagé dans les trois seuls consommateurs de `cornerTol` (`offerCap`,
+`negoFace`, `resolveOffer`) — il ne servait qu'aux **2 connaisseurs sur 12**. Il
+suffisait de le donner à tout le monde : `qualFac(q)`, up-only, plancher q40,
+plafond ×1,35 à q100. Le menu (`cornerFair`) reste fonction de la réput seule :
+du bon produit ne fait pas monter ton tarif, il le fait accepter plus largement.
+
+Réponse au défaut d'origine : le Pain 250, payé ×3,4 le gramme, fait passer la
+tolérance de ×1,02 à ×1,14 — **+12 % de marge acceptée**, en plus de son volume.
+
+### Le piège qu'on a failli livrer : la frontière d'abus était restée fixe
+
+`NEGO_MAX = 1,2 × menu` en dur, pendant que `tol` devenait élastique. Résultat :
+tous les prix débloqués par la qualité tombaient en `gouge` — −2 relation, −2
+réput, et le client ne revient plus après deux fois. **Avoir du bon produit
+devenait une punition.** La frontière suit maintenant le facteur qualité.
+
+### Trois reformulations avant d'avoir un test qui prouve quelque chose
+
+Notable, parce que c'est le piège récurrent de cette session :
+
+1. « la qualité n'aggrave jamais un verdict » → **passait avant ET après**. À prix
+   fixe, monter en qualité n'a jamais pu nuire. Le test ne testait rien.
+2. « aucun prix débloqué n'est un abus » → discriminait (1081 → 209) mais restait
+   rouge : un client très lié tolère déjà plus que la ligne d'abus (×1,254 à
+   rel 80 contre ×1,2), et **ça, c'est voulu** — il avale et il s'en souvient.
+3. « la qualité n'augmente pas la PART punie », mesurée sur grille fine → **PASS
+   avec le correctif, 104/216 cas rouges sans**. En euros entiers le test gardait
+   8 faux positifs de pure discrétisation ; en continu la part vaut
+   `1 − NEGO_MAX/TOL[kind]`, strictement indépendante de `qFac`.
+
+### La dette dormante, neutralisée sans être effacée
+
+`repayDebt` exige du **propre**, et la trieuse est coupée (`SORTER_ENABLED=false`) :
+`S.cash` n'a aucune source in-game. Une dette armée était donc **impayable**, et
+`nightTick` la faisait enfler sans fin (+8 chaleur, −6 standing, ×1,15 tous les
+2 jours). Boucle de punition sans sortie, dormante par accident — R1 violé de la
+pire façon. `FRONT_ENABLED = false` bloque l'armement ET l'escalade (y compris sur
+un save déjà infecté) **sans effacer** `debtDue`/`debtDueDay` : le jour où le propre
+retrouve une source, on repasse à `true` et l'état repart où il en était.
+
+### Vérifié aussi, et laissé tel quel
+
+Le « désync » du Lot 500 (affiché dès réput 25, achetable à 30) signalé par la
+reconnaissance n'en est pas un : c'est un **teaser volontaire** — l'article
+s'affiche verrouillé pour montrer ce qui vient. Non touché.
+
+### `[DÉCISION REQUISE]` — ce qui reste ouvert avant les barreaux du haut
+
+- **Le contre-poids R9 chiffré** : quelle clientèle monte en panier, à quel palier
+  de couteau. Sans ça, le calibre reste un choix à sens unique (petit = servir
+  tout le monde), et les barreaux semi-auto / auto n'ont rien à équilibrer.
+  `CORNER.BUDGET` / `OFFER` / `usual` sont tous tunés pour du petit volume.
+- **Le sort du fallback 2D** : `manualCut ×5×cutBatch()` en un tap, gratuit et non
+  gaté — le mode dégradé est aujourd'hui **plus rapide** que le mode nominal 3D
+  (un appui de 0,6 s par geste). Le brider sur l'escalier, ou l'assumer.
+- Les **placeholders** `LAME_NETTETE`, `QUAL_REF` et `QUAL_TOL_MAX` attendent le
+  tuning humain.
+
+---
+
 ## 2026-07-25 — La Loupe : le pain sur la planche mentait (désync visuel/état)
 
 `pressCut` (scene3d) retirait **une** tranche du pain visible, pendant que le

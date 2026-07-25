@@ -344,13 +344,24 @@ import * as beuher from "./beuher.mjs?v=18";
 import * as shelter from "./shelter.mjs?v=18";
 import * as corner from "./corner.mjs?v=3";
 
-const SAVE_VERSION = "28"; // 27 : traits personas (qualité/heat/heures) + ardoise (S.clients[id].ardoise)
+const SAVE_VERSION = "29"; // 29 : le couteau devient le levier qualité (R10) + la qualité achète de la tolérance
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
 // La demande Snap reste calée sur 2/5/8 (snap.SC.DOSE_FORMATS) — couper autre chose = risque assumé.
 const CUT_MIN = 1, CUT_MAX = 20, CUT_DEFAULT = 2;
 // Couteau : au début « de fortune », on ne coupe que du 2 g. Les paliers supérieurs
 // (5 g, 8 g…) se débloquent avec l'upgrade Couteau — colle au canal « grosses commandes 5 g+ ».
 const CUT_CAPS = [2, 5, 8, 12, 20]; // plafond de coupe par niveau de couteau (0→2 g … 4→20 g)
+/* R10 — la coupe EST le levier qualité, et c'est le couteau qui le tient.
+   Tu commences avec une lame pourrie : elle hache, elle écrase, elle chauffe le produit.
+   Ce que tu débites vaut moins que le pain dont il sort. Monter d'outil, c'est préserver.
+
+   Ce n'est PAS une punition (R1) : il n'y a pas de raté possible, aucun gramme n'est
+   jamais perdu, c'est simplement la ligne de base de l'outil que tu possèdes — l'état
+   dont on part et dont on sort en montant (R2). Et c'est ce qui donne au couteau une
+   raison d'être achetée indépendamment du calibre : sans ça, monter en calibre FERME
+   des clients (96 % de la demande est à 2-5 g) et l'escalier est un piège.
+   [PLACEHOLDER — la courbe attend le tuning humain] */
+const LAME_NETTETE = [0.82, 0.88, 0.94, 0.98, 1.00];
 const SORT_POCKETS = [5, 20, 50, 100]; // trieuse 4+1 (+ reject / monnaie)
 const SORT_FEED = 0.28; // s entre chaque billet (machine, pas mini-jeu)
 const T3D_MS = 8000; // au-delà : réseau mobile qui bloque unpkg → bascule 2D
@@ -432,7 +443,7 @@ const PLANQUE_CAP_BASE = 250;
 const DIRTY_HOLD_SOFT = 180, DIRTY_HOLD_HARD = 450, BUNDLE_SIZE = 5, COUNTER_RATE = 40;
 const DAY_SEC_REAL = 180; // une journée s'écoule en temps réel (horloge unique) puis se clôture — assez longue pour souffler entre les clients
 const UPG = {
-  couteau: { cost:250, max:4, title:"Couteau", desc:"coupe des morceaux plus gros (5 g, 8 g…)" },
+  couteau: { cost:250, max:4, title:"Couteau", desc:"coupe plus net (garde la qualité) et plus gros" },
   gabarit: { cost:300, max:4, title:"Gabarit", desc:"+1 barrette / geste (coupe plus efficace)" },
   scooter: { cost:350, max:1, title:"Flotte+", desc:"+accès Go fast débloqué tôt" },
   planque: { cost:400, max:3, title:"Planque", desc:"+120 g" },
@@ -531,7 +542,8 @@ function applyCut(take, why){
   const p=activePain(); if(!p) return 0;
   take=Math.min(take,p.g); if(take<1) return 0;
   p.g-=take;
-  S.barQ=avgMerge(barsG(),S.barQ,take,p.q||60);
+  // la lame décide de ce qui survit du pain : q_barrette = q_pain × netteté(couteau)
+  S.barQ=avgMerge(barsG(),S.barQ,take,(p.q||60)*lameNettete());
   const key=Math.max(1,Math.round(take));
   S.bars[key]=(S.bars[key]||0)+1;
   cause(`Coupe ${take.toFixed(1)} g`,`Barrette ${key} g — ${why}`);
@@ -540,6 +552,7 @@ function applyCut(take, why){
 }
 function cutBatch(){ return 1 + (S.upgrades.gabarit||0); } // barrettes par geste (gabarit, R2/R9)
 function cutCap(){ return CUT_CAPS[Math.min(CUT_CAPS.length-1, S.upgrades.couteau||0)]; } // taille max de coupe (couteau)
+function lameNettete(){ return LAME_NETTETE[Math.min(LAME_NETTETE.length-1, S.upgrades.couteau||0)]; } // ce que la lame préserve (R10)
 function fmtSachets(){ const ks=sizesOf(S.sachets); return ks.length?ks.map(f=>`${S.sachets[f]}×${f}g`).join(" · "):"—"; }
 function qualAvg(){ return Math.round(S.sachetQ || S.barQ || 60); }
 
@@ -682,7 +695,7 @@ function renderShelter(){
     </div>
     <div class="card">
       <h3>Réinvest</h3>
-      ${shopRow("gabarit",UPG.gabarit)}${shopRow("planque",UPG.planque)}${SORTER_ENABLED?shopRow("counter",UPG.counter):""}
+      ${shopRow("couteau",UPG.couteau)}${shopRow("gabarit",UPG.gabarit)}${shopRow("planque",UPG.planque)}${SORTER_ENABLED?shopRow("counter",UPG.counter):""}
     </div>
     <button class="btn bad" id="reset">Reset save</button>`;
 
@@ -836,6 +849,9 @@ function cornerTakeG(P, targetG){
   snap.applySachetPlan(P.tampon, plan);
   return { n, g:covered };
 }
+/* La qualité que le client renifle À L'ARRIVÉE : celle du tampon si tu es ravitaillé,
+   sinon celle de ton stock. C'est elle qui fixe sa tolérance (corner.qualFac) — pas ton prix. */
+function cornerQNow(P){ return Math.round(tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55)); }
 function cornerSpawn(P){ // client (persona ou louche) + sa demande (déterministe)
   // profil cramé (louche) : à partir de J2, apparition déterministe, un seul à la fois
   if(S.day>=corner.CORNER.LOUCHE_FROM_DAY && !P.queue.some(c=>c.kind==="louche") && cornerHash(S.day*3, P.seq)>1-corner.CORNER.LOUCHE_CHANCE){
@@ -850,8 +866,10 @@ function cornerSpawn(P){ // client (persona ou louche) + sa demande (déterminis
   // PNJ anonyme (le volume : vient chercher sa dose, sans plus) vs persona nommé (le sel) — tirage déterministe
   if(!avail.length || cornerHash(S.day*11, P.seq) < corner.CORNER.ANON_SHARE){
     const a=corner.makeAnon(S.day, P.seq, S.reput, P.prix), i=P.seq, pat=corner.patienceOf("anon");
+    // 85 % du volume : c'est ICI que la qualité doit se sentir, pas seulement chez les 2 connaisseurs
     return { cid:null, nm:PDV_NAMES[i%PDV_NAMES.length], av:PDV_AV[i%PDV_AV.length], kind:"anon", rel:0,
-      g:a.qty, offer:a.offer, tx:a.tx, tell:"", pat, pat0:pat, mode:"offer", negoP:a.offer, dernier:null };
+      g:a.qty, offer:a.offer, tx:a.tx, tell:"", pat, pat0:pat, mode:"offer", negoP:a.offer, dernier:null,
+      qFac:corner.qualFac(cornerQNow(P)) };
   }
   const p=avail[(P.seq)%avail.length], c=S.clients[p.id];
   // ardoise (étape 4) : soir de dèche déterministe → il demande son habituel à crédit (règle à J+N, +intérêt)
@@ -864,8 +882,12 @@ function cornerSpawn(P){ // client (persona ou louche) + sa demande (déterminis
   const base={ cid:p.id, nm:p.nm, av:p.av, kind:p.kind, rel:c.rel, pat, pat0:pat, mode:o.mode, tx:o.tx, tell:o.tell, dernier:null };
   // traits lisibles sur la carte (R4) : chaleur à la vente ; qualité reniflée À L'ARRIVÉE (tampon du moment)
   if(p.traits&&p.traits.heat) base.heatAdd=p.traits.heat;
-  const qc=corner.qualCheck(p, Math.round(tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55)));
-  if(qc){ base.qc=qc; base.qFac=qc.fac; }
+  const qNow=cornerQNow(P), qc=corner.qualCheck(p, qNow);
+  if(qc) base.qc=qc;
+  // tolérance = qualité du produit (TOUT le monde la sent) × jugement du connaisseur (2 personas).
+  // Avant, seuls Inès et Lina réagissaient à la qualité : on la payait ×3,4 le gramme
+  // pour ~2 % des clients. Le tuyau qFac existait déjà, il ne servait qu'à eux.
+  base.qFac=corner.qualFac(qNow)*(qc?qc.fac:1);
   // le connaisseur déçu rogne sa tolérance APRÈS que l'offre soit formée : on
   // re-borne, sinon il refuse le montant qu'il vient lui-même d'annoncer
   if(base.qFac && base.qFac !== 1 && o.mode==="offer")
@@ -1205,8 +1227,14 @@ function pdvRavito(nWant){
   const target=Math.min(nWant||room, room); let moved=0, movedG=0;
   for(const f of sizes.slice().sort((a,b)=>a-b)){ while(S.sachets[f]>0 && moved<target){ S.sachets[f]--; if(S.sachets[f]<=0) delete S.sachets[f]; P.tampon[f]=(P.tampon[f]||0)+1; moved++; movedG+=f; } if(moved>=target) break; }
   if(moved>0){ const newG=tampG(P.tampon), oldG=newG-movedG; P.tamponQ=newG>0?(oldG*(P.tamponQ||S.sachetQ||55)+movedG*(S.sachetQ||55))/newG:(S.sachetQ||55);
-    // les connaisseurs en file re-reniflent le tampon du moment (R4 : la chip et le paiement suivent la vraie qualité)
-    for(const cl of P.queue){ if(cl.qc&&cl.cid){ const q=corner.qualCheck(corner.personaById(cl.cid), Math.round(P.tamponQ)); if(q){ cl.qc=q; cl.qFac=q.fac; } } }
+    // TOUTE la file re-renifle le tampon du moment (R4 : la chip et le prix acceptable suivent
+    // la vraie qualité). Avant, la garde `cl.cid` réservait ça aux personas — un anonyme gardait
+    // la tolérance d'un produit qui n'était plus sur la table.
+    { const qN=Math.round(P.tamponQ), gf=corner.qualFac(qN);
+      for(const cl of P.queue){
+        if(cl.qc&&cl.cid){ const q=corner.qualCheck(corner.personaById(cl.cid), qN); if(q) cl.qc=q; }
+        cl.qFac=gf*(cl.qc?cl.qc.fac:1);
+      } }
     toast("+"+moved+" barrettes stagées au corner (exposées)."); save(); renderPDV(); }
   else toast("Plus de sachets à charger.");
 }
