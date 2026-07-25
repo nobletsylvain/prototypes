@@ -134,14 +134,21 @@ autre*. Un dilemme dont la réponse ne change jamais n'est pas un dilemme.
 
 Marqués ici plutôt que tranchés en douce — tous sont des **placeholders nommés** :
 
-1. **`[DÉCISION REQUISE]` — le poids du liquide.** `CADRE.md` §6 veut que le cash
+1. **`[DÉCISION REQUISE]` — la granularité du tampon.** Aujourd'hui la poche se
+   remplit toujours au maximum et l'arrivée au spot déverse tout : le joueur ne
+   choisit pas *combien* il expose, alors que c'est censé être sa deuxième
+   décision. Deux formes possibles — des paliers au remplissage (30/60/140 g),
+   ou dissocier « arriver » de « poser » (un bouton « poser X g », le reste
+   restant en poche et non saisissable). La seconde est plus riche mais ajoute
+   une troisième quantité à lire. À trancher avant de tuner quoi que ce soit.
+2. **`[DÉCISION REQUISE]` — le poids du liquide.** `CADRE.md` §6 veut que le cash
    pèse aussi (petites coupures, sous-vide, grosse coupure). Ici la caisse rentre
    sans occuper de place : seul le produit pèse. L'ajouter double la pression de
    navette — à sentir avant de décider.
-2. **`[DÉCISION REQUISE]` — la Chute à `DOS_MAX`.** SHELTER la place en P3. Elle
+3. **`[DÉCISION REQUISE]` — la Chute à `DOS_MAX`.** SHELTER la place en P3. Elle
    est ici en version légère (fin de run + récap) parce qu'une session sans fin
    n'a pas de forme. À valider ou à repousser.
-3. **Tuning ouvert :** `DEMANDE_PIC` 45, `VIS_PAR_TX` 0,55, `LOYER_FIXE` 220,
+4. **Tuning ouvert :** `DEMANDE_PIC` 45, `VIS_PAR_TX` 0,55, `LOYER_FIXE` 220,
    `PREAVIS_S` [0, 7, 13], la table `PAINS`. Ce sont des chiffres de premier
    jet, pas des arbitrages — ils attendent le playtest, pas un registre.
 

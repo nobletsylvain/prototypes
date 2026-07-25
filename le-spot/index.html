@@ -938,6 +938,19 @@ function clotureJour(){
     lignes.push(["Salaires impayés — l'équipe ne vient plus", null, "negv"]);
   }
 
+  // Pas d'impasse muette. Sans came ET sans de quoi en racheter, le joueur
+  // n'avait plus AUCUNE source de revenu et le loyer continuait de courir sans
+  // fin de partie ni issue : un soft-lock que rien n'annonçait. Karim avance un
+  // pain — la dette est le cadre financier du jeu, pas une punition (R1).
+  const rien = stockG() + S.tampon + S.poche + S.miettes < 1 && !S.pain;
+  if (rien && S.cash < PAINS[0].price){
+    const p = PAINS[0];
+    S.cash -= p.price;
+    S.pain = { id: p.id, g: p.g, q: p.q, col: p.col, g0: p.g };
+    journal(`Karim t'avance un ${p.nm}`, -p.price, "neu");
+    lignes.push([`Karim t'avance un ${p.nm} — tu lui dois`, -p.price, "negv"]);
+  }
+
   ouvrirRapport(lignes);
   S.day++; S.clock = DAY_START_H;
   S.caDay = 0; S.txDay = 0; S.gDay = 0; S.rupturesDay = 0; S.saisiDay = 0;
@@ -1171,7 +1184,7 @@ function renderDock(){
       <button class="b" id="bStory" ${dispo ? "" : "disabled"}>📣 Story
         <span class="bsub">${dispo ? "+débit, +" + VIS_STORY + " vis." : (S.rideau ? "rideau baissé" : "trop tôt")}</span></button>
       <button class="b pri" id="bGo">🏠 La planque
-        <span class="bsub">${ferme ? "spot fermé" : (S.charb ? "le charbo assure" : "le spot ne vend plus")}</span></button>`;
+        <span class="bsub">${NAVETTE_MIN} min · ${ferme ? "spot fermé" : (S.charb ? "le charbo assure" : "le spot ne vend plus")}</span></button>`;
     $("bRideau").addEventListener("pointerdown", e => { e.preventDefault(); rideau(); });
     $("bStory").addEventListener("pointerdown", e => { e.preventDefault(); story(); });
     $("bGo").addEventListener("pointerdown", e => { e.preventDefault(); allerA("planque"); });
@@ -1184,7 +1197,7 @@ function renderDock(){
       <button class="b" id="bFill">🎒 Remplir la poche
         <span class="bsub">${g} / ${pocheMax()} g</span></button>
       <button class="b pri" id="bGo">🚶 Au spot
-        <span class="bsub">${g > 0 ? "pose " + g + " g dehors" : "les mains vides"}</span></button>`;
+        <span class="bsub">${NAVETTE_MIN} min · ${g > 0 ? "pose " + g + " g dehors" : "les mains vides"}</span></button>`;
     $("bFill").addEventListener("pointerdown", e => { e.preventDefault(); remplirPoche(); });
     $("bGo").addEventListener("pointerdown", e => { e.preventDefault(); allerA("spot"); });
   }
