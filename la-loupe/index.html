@@ -362,6 +362,11 @@ const CUT_CAPS = [2, 5, 8, 12, 20]; // plafond de coupe par niveau de couteau (0
    des clients (96 % de la demande est à 2-5 g) et l'escalier est un piège.
    [PLACEHOLDER — la courbe attend le tuning humain] */
 const LAME_NETTETE = [0.82, 0.88, 0.94, 0.98, 1.00];
+/* Vitesse à laquelle la rue apprend ton calibre. Assez lent pour qu'une coupe isolée
+   ne retourne pas ta réputation, assez rapide pour qu'une série se sente dans la
+   soirée — sinon la marchandise coupée gros dort en attendant sa clientèle (R1).
+   [PLACEHOLDER — attend le tuning humain] */
+const RUE_INERTIE = 0.08;
 const SORT_POCKETS = [5, 20, 50, 100]; // trieuse 4+1 (+ reject / monnaie)
 const SORT_FEED = 0.28; // s entre chaque billet (machine, pas mini-jeu)
 const T3D_MS = 8000; // au-delà : réseau mobile qui bloque unpkg → bascule 2D
@@ -469,6 +474,7 @@ function defaultState(){
   return {
     cash: START_CASH, dirty:0, heat:0, reput:20, day:1, clock:0,
     pains:[{ g:PAIN_100.g, q:PAIN_100.q }], painSel:0, bars:{}, barQ:60, wasteG:0, // amorce : 1 plaquette à couper (core loop directe)
+    rue:corner.RUE_MIN, // ce pour quoi la rue te connaît : le calibre que tu débites (bouche-à-oreille)
     sachets:{}, sachetQ:60, cutSize:CUT_DEFAULT,
     orders:[], runs:[], bills:[],
     bundles:{5:0,20:0,50:0,100:0}, _pile:{5:0,20:0,50:0,100:0},
@@ -544,6 +550,12 @@ function applyCut(take, why){
   p.g-=take;
   // la lame décide de ce qui survit du pain : q_barrette = q_pain × netteté(couteau)
   S.barQ=avgMerge(barsG(),S.barQ,take,(p.q||60)*lameNettete());
+  /* Bouche-à-oreille : la rue apprend le calibre que tu débites. On met à jour ICI,
+     à la coupe, et pas à la vente — sinon rien ne pourrait s'amorcer (il faudrait
+     avoir déjà vendu du gros pour que des acheteurs de gros se présentent), et
+     chaque barrette coupée en avance serait du stock mort. Inertie pondérée par les
+     grammes : quelques coupes ne retournent pas ta réputation, une série si. */
+  S.rue=Math.max(corner.RUE_MIN, (S.rue||corner.RUE_MIN)+(take-(S.rue||corner.RUE_MIN))*RUE_INERTIE*Math.min(1,take/8));
   const key=Math.max(1,Math.round(take));
   S.bars[key]=(S.bars[key]||0)+1;
   cause(`Coupe ${take.toFixed(1)} g`,`Barrette ${key} g — ${why}`);
@@ -553,6 +565,13 @@ function applyCut(take, why){
 function cutBatch(){ return 1 + (S.upgrades.gabarit||0); } // barrettes par geste (gabarit, R2/R9)
 function cutCap(){ return CUT_CAPS[Math.min(CUT_CAPS.length-1, S.upgrades.couteau||0)]; } // taille max de coupe (couteau)
 function lameNettete(){ return LAME_NETTETE[Math.min(LAME_NETTETE.length-1, S.upgrades.couteau||0)]; } // ce que la lame préserve (R10)
+/** « Ce pour quoi la rue te connaît » — le calibre débité et la part de gros paniers
+    qu'il t'amène. Rendu tel quel : le joueur doit pouvoir relier son geste au trafic. */
+function rueLabel(){
+  const r=S.rue||corner.RUE_MIN, part=Math.round(100*corner.ruePartGros(r));
+  if(part<=0) return `La rue : <b>petites doses</b>`;
+  return `La rue : <b>${Math.round(r)} g</b> · ${part} % de gros paniers`;
+}
 function fmtSachets(){ const ks=sizesOf(S.sachets); return ks.length?ks.map(f=>`${S.sachets[f]}×${f}g`).join(" · "):"—"; }
 function qualAvg(){ return Math.round(S.sachetQ || S.barQ || 60); }
 
@@ -627,7 +646,10 @@ function renderFmtBar(){
     +[2,5,8].map(x=>{ const lock=x>cap; return `<button class="chip ${cs===x?"on":""}" data-set="${x}" ${lock?"disabled":""}>${x}g${lock?" 🔒":""}</button>`; }).join("")
     +`<span class="chip cs">Couteau : max <b>${cap} g</b></span>`
     +`<span class="chip cs">${p?`Pain : <b>${Math.round(p.g)} g</b>`:"Pas de pain — appro"}${others>0?` · réserve ${others} pain${others>1?"s":""} (${Math.round(painsG()-(p?p.g:0))} g)`:""}</span>
-    <span class="chip cs">Barrettes : ${fmtBars()}</span>`;
+    <span class="chip cs">Barrettes : ${fmtBars()}</span>`
+    // Le bouche-à-oreille doit se VOIR pendant qu'on coupe : c'est la conséquence
+    // directe du geste, et une conséquence invisible n'est pas une décision (R8).
+    +`<span class="chip cs">${rueLabel()}</span>`;
   fmtBar.querySelectorAll("[data-d]").forEach(b=>b.onclick=e=>{
     e.stopPropagation();
     S.cutSize=clamp((S.cutSize||CUT_DEFAULT)+ +b.dataset.d, CUT_MIN, cutCap());
@@ -865,7 +887,7 @@ function cornerSpawn(P){ // client (persona ou louche) + sa demande (déterminis
       && !P.queue.some(q=>q.cid===p.id); }); // jamais deux fois la même tête en file (et une seule ardoise possible)
   // PNJ anonyme (le volume : vient chercher sa dose, sans plus) vs persona nommé (le sel) — tirage déterministe
   if(!avail.length || cornerHash(S.day*11, P.seq) < corner.CORNER.ANON_SHARE){
-    const a=corner.makeAnon(S.day, P.seq, S.reput, P.prix), i=P.seq, pat=corner.patienceOf("anon");
+    const a=corner.makeAnon(S.day, P.seq, S.reput, P.prix, S.rue), i=P.seq, pat=corner.patienceOf("anon");
     // 85 % du volume : c'est ICI que la qualité doit se sentir, pas seulement chez les 2 connaisseurs
     return { cid:null, nm:PDV_NAMES[i%PDV_NAMES.length], av:PDV_AV[i%PDV_AV.length], kind:"anon", rel:0,
       g:a.qty, offer:a.offer, tx:a.tx, tell:"", pat, pat0:pat, mode:"offer", negoP:a.offer, dernier:null,
@@ -967,10 +989,14 @@ function cornerLeave(P, cl, why, v, tip){
   else if(why==="rupture") toast("Rupture — ravitaille le tampon.");
   else if(why==="ardoise") toast("🧾 "+cl.nm+" note "+cl.due+" au carnet — il règle J"+cl.payday+".");
   // graphe social : une relation qui vient de grimper peut débloquer un filleul (« X t'envoie Y »)
-  const news=corner.checkUnlocks(S.clients);
-  for(const u of news){ cause("Nouveau contact", (u.by?u.by.nm+" t'envoie ":"")+u.p.nm);
+  const news=corner.checkUnlocks(S.clients, S.rue);
+  for(const u of news){
+    // dire la CAUSE, toujours : « untel t'envoie » ou « on parle de ton calibre »
+    const par=u.rue?`la rue parle de ton calibre (${Math.round(S.rue)} g)`:(u.by?u.by.nm+" t'envoie":"");
+    cause("Nouveau contact", (par?par+" — ":"")+u.p.nm);
     const hl=corner.hoursLabel(u.p);
-    toastQ.push("🤝 "+(u.by?u.by.nm+" a parlé de toi — ":"")+u.p.nm+" passera te voir"+(hl?" ("+hl+")":"")+"."); }
+    toastQ.push("🤝 "+(u.rue?"On parle de toi pour du gros — ":(u.by?u.by.nm+" a parlé de toi — ":""))
+      +u.p.nm+" passera te voir"+(hl?" ("+hl+")":"")+"."); }
   save(); hud(); renderCornerActive(P);
 }
 // vente commune : débite targetG GRAMMES du tampon → liquide direct + ledger. false si rupture.

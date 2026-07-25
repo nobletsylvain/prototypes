@@ -9,6 +9,89 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-25 — La Loupe : le bouche-à-oreille — la rue t'envoie les clients que tu mérites
+
+J'avais laissé un `[DÉCISION REQUISE]` mal posé : « quelle clientèle monte en panier,
+à quel palier de couteau », c'est-à-dire une **table de tuning**. Sylvain a répondu par
+une question qui la rend caduque : *« pourquoi ça n'attirerait pas de nouveau type de
+clients ? Ça serait légitime de penser que le bouche à oreille puisse faire changer le
+type de clientèle. »* C'était la bonne réponse, et elle est conforme à R9 —
+l'équilibrage est **systémique**, pas local. La clientèle devient une *conséquence*.
+
+### Le jeu le faisait déjà, sur le mauvais signal
+
+Une chaîne de parrainage complète existait : chaque persona a un `unlockedBy` et
+arrive quand la relation avec son parrain atteint 40 (Momo → **Diego** grossiste
+16-24 g, Riton → **Nassim** accro, Inès → Lina…). Donc « le gros consommateur
+recommandé » était déjà codé.
+
+Ce qui bloquait tenait en une ligne, dans `makeAnon` :
+
+```js
+const qty = [2,2,3,5,2][((day+seq)%5+5)%5];   // 85 % du trafic, écrit en dur
+```
+
+Les anonymes — **85 % du volume** — avaient leur panier gravé : un cycle de cinq
+valeurs, identique au jour 1 et au jour 200. Et les deux signaux qui montent dans le
+jeu ne pilotaient rien de tout ça : `S.reput` pilote le **prix**, `S.expo` pilote
+**combien** de clients viennent. Personne ne pilotait **qui**.
+
+### Signal retenu : ce que tu COUPES (arbitrage Sylvain)
+
+`S.rue` — moyenne à inertie du calibre débité, mise à jour dans `applyCut`.
+
+Le choix « à la coupe » et non « à la vente » n'est pas un détail d'implémentation,
+c'est ce qui rend le système jouable. Sur « ce que tu vends », il se bloque en rond :
+pas de gros clients tant que tu n'as pas vendu gros, pas de vente gros tant qu'il n'y
+a pas de gros clients. **Mesuré** : à 25 % du tampon coupé en 8 g, 10 barrettes sur
+40 dorment et ne repartent **jamais** (`qtyToSachets` ne casse pas une barrette).
+
+### Le piège suivant, et il était pire : la demande arrivait un cran SOUS l'offre
+
+Première version, panier de gros = `round(S.rue)`. Simulation : couper à 8 g fait
+plafonner `rue` à 6,8 → paniers de **7 g** → une barrette de 8 ne sert pas une demande
+de 7 → **0 % de servable**. La rumeur atterrissait systématiquement dans le seul
+angle mort possible.
+
+Correctif : la rumeur porte un **calibre nommé**, accroché aux paliers `[2,5,8,12,20]`
+(les mêmes que `CUT_CAPS`). On ne dit pas « il vend du 6,8 », on dit « il vend du 8 ».
+
+| coupe | rue | calibre nommé | % gros paniers | demandes servables |
+| --- | --- | --- | --- | --- |
+| 2 g | 2,0 | 2 g | 0 % | 60 % |
+| 5 g | 4,8 | 5 g | 23 % | 36 % |
+| 8 g | 7,5 | 8 g | 46 % | 46 % |
+| 12 g | 10,1 | 12 g | 55 % | 55 % |
+
+Et le joueur qui **suit le ratio affiché** (moitié gros, moitié petit) monte de 56 % à
+73 % de couverture avec **zéro barrette dormante** aux trois calibres. C'est la
+garantie R1 : couper gros est une décision, jamais un piège.
+
+### Ce qui rend ça jouable : la conséquence est VISIBLE
+
+Une chip pendant la coupe : « La rue : **8 g** · 46 % de gros paniers ». Sans ça, ce
+serait un système qui décide dans le dos du joueur — donc pas une décision (R8). Et
+le déblocage annonce sa cause : « On parle de toi pour du gros — Diego passera te voir. »
+
+### Deuxième porte pour le grossiste
+
+Diego avait `unlockedBy: "momo"`. Il a maintenant aussi `rueGate: 5` : un grossiste ne
+débarque pas par amitié, il débarque parce qu'on lui a parlé de vous. Les deux chemins
+**ouvrent** ; aucun ne devient une condition supplémentaire (invariant dédié).
+
+### Le quartier ne meurt jamais
+
+`RUE_PART_MAX = 0.55` : au plus haut, 45 % des anonymes restent le trafic de base, soit
+36 % de petites doses (la table du quartier n'est elle-même qu'à 80 % de ≤ 3 g). On
+n'enlève rien, on ajoute (R1).
+
+Pas de bump `SAVE_VERSION` : à `rue = 2` le comportement est identique à l'actuel.
+
+`[DÉCISION REQUISE]` restant : `RUE_INERTIE`, `RUE_PART_MAX`, `RUE_PENTE` sont des
+placeholders. Et le fallback 2D reste plus rapide que la 3D nominale.
+
+---
+
 ## 2026-07-25 — La Loupe : l'escalier d'outils, barreau 1 — le couteau devient le levier qualité
 
 Arbitrages de Sylvain, en réponse au constat « la qualité ne paie pas » :

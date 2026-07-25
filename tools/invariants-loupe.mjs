@@ -16,6 +16,8 @@ import {
   CORNER, CORNER_PERSONAS, makeOffer, makeAnon, makeLouche, makeArdoise,
   resolveOffer, cornerBudget, cornerTol, cornerFair, wantsArdoise, offerCap,
   qualFac, QUAL_REF, QUAL_TOL_MAX,
+  anonQty, ruePartGros, rueCalibre, checkUnlocks, cornerClientsDefault,
+  RUE_MIN, RUE_PALIERS, RUE_PART_MAX,
 } from "../la-loupe/corner.mjs";
 import { qtyToSachets, applySachetPlan } from "../la-loupe/snap.mjs";
 import { FRONT_ENABLED, grantOpeningFront, nightTick, shelterDefaults } from "../la-loupe/shelter.mjs";
@@ -253,6 +255,87 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
   }
   ok("R4 · mêmes entrées, mêmes offres (déterminisme)",
      a.every((v, i) => v === b[i]), `${a.length} tirages`);
+}
+
+// ── 6. Bouche-à-oreille : la rue envoie une clientèle SERVABLE ─────────────
+// Le signal est ce que tu COUPES. Sur « ce que tu vends », le système se bloquerait
+// en rond. Mais couper gros doit aussi amener une demande *composable* : qtyToSachets
+// ne casse jamais une barrette, donc une demande de 7 g face à un tampon de 8 g ne se
+// sert pas. Mesuré sans l'accrochage aux paliers : couper à 8 g amenait des paniers
+// de 7 g → 0 % de servable. La demande tombait pile un cran sous l'offre.
+{
+  const RUE_INERTIE = 0.08; // même valeur que index.html
+  let pire = 100, exemple = null;
+  for (const cal of [5, 8, 12]) {
+    // le joueur coupe MOITIÉ au gros calibre, moitié en petit (il suit le ratio affiché)
+    let rue = RUE_MIN;
+    for (let i = 0; i < 40; i++) {
+      const t = i % 2 ? cal : 2;
+      rue = Math.max(RUE_MIN, rue + (t - rue) * RUE_INERTIE * Math.min(1, t / 8));
+    }
+    const part = ruePartGros(rue), nomme = rueCalibre(rue);
+    const nGros = Math.round(50 * part), t = { 2: 50 - nGros };
+    t[nomme] = (t[nomme] || 0) + nGros;
+    let servis = 0, tot = 0;
+    for (let day = 1; day <= 30; day++) for (let seq = 0; seq < 10; seq++) {
+      const q = anonQty(day, seq, rue);
+      const { plan, covered } = qtyToSachets(q, t);
+      tot++;
+      if (covered === q) { servis++; applySachetPlan(t, plan); }
+      if (Object.values(t).every((n) => n <= 0)) break;
+    }
+    const dormantes = t[nomme] > 0 ? t[nomme] : 0;
+    // ce qui compte : le tampon monté au ratio annoncé s'écoule — pas de stock mort
+    if (dormantes > 0 && !exemple) exemple = `coupe ${cal} g : ${dormantes} barrettes de ${nomme} g dorment`;
+    pire = Math.min(pire, 100 * servis / tot);
+  }
+  ok("R1 · suivre le ratio affiché n'accumule jamais de stock mort",
+     exemple === null, exemple || `couverture minimale ${pire.toFixed(0)} % sur les trois calibres`);
+}
+
+// ── 6 bis. La rumeur porte un calibre NOMMÉ, et le quartier ne meurt pas ───
+{
+  let horsPalier = 0;
+  for (let r = 0; r <= 30; r += 0.1) if (!RUE_PALIERS.includes(rueCalibre(r))) horsPalier++;
+  ok("R4 · la rue nomme toujours un calibre du barème (jamais une moyenne flottante)",
+     horsPalier === 0, `paliers ${RUE_PALIERS.join("/")} g`);
+
+  // Plancher théorique : la part NON convertie vaut (1 − RUE_PART_MAX), et dans la
+  // table de base [2,2,3,5,2] seules 4 entrées sur 5 sont des petites doses (≤ 3 g)
+  // — la cinquième est un 5 g. Le plancher est donc 0,8 × (1 − RUE_PART_MAX), pas
+  // (1 − RUE_PART_MAX) : c'est la table du quartier qui le fixe, pas la rumeur.
+  const PART_BASE_PETITE = 4 / 5;
+  const plancher = 100 * (1 - RUE_PART_MAX) * PART_BASE_PETITE;
+  let minPetits = 100;
+  for (const rue of [2, 5, 8, 12, 20, 40]) {
+    let petits = 0, tot = 0;
+    for (let d = 1; d <= 40; d++) for (let s = 0; s < 20; s++) { if (anonQty(d, s, rue) <= 3) petits++; tot++; }
+    minPetits = Math.min(minPetits, 100 * petits / tot);
+  }
+  ok("R1 · le quartier ne disparaît jamais (les petites doses restent le fond du trafic)",
+     minPetits >= plancher - 1,
+     `au pire ${minPetits.toFixed(0)} % de petits paniers, jamais moins que le plancher ${plancher.toFixed(0)} %`);
+
+  const a = [], b = [];
+  for (let d = 1; d <= 40; d++) for (let s = 0; s < 12; s++) { a.push(anonQty(d, s, 7.3)); b.push(anonQty(d, s, 7.3)); }
+  ok("R4 · le panier d'un anonyme est déterministe", a.every((v, i) => v === b[i]), `${a.length} tirages`);
+}
+
+// ── 6 ter. La porte « rumeur » ouvre, elle ne ferme rien ───────────────────
+// Diego (grossiste) s'ouvrait uniquement par la relation avec Momo. Il a maintenant
+// une seconde porte : la rue parle de ton calibre. Les deux chemins OUVRENT ;
+// aucun ne doit devenir une condition supplémentaire (R1).
+{
+  const parRumeur = cornerClientsDefault();
+  const nRue = checkUnlocks(parRumeur, 8).filter((u) => u.p.id === "diego");
+  const parRelation = cornerClientsDefault();
+  parRelation.momo.rel = 100;
+  const nRel = checkUnlocks(parRelation, RUE_MIN).filter((u) => u.p.id === "diego");
+  const ni = cornerClientsDefault();
+  const nNi = checkUnlocks(ni, RUE_MIN).filter((u) => u.p.id === "diego");
+  ok("R1 · le grossiste s'ouvre par la rumeur OU par la relation, jamais par les deux exigées",
+     nRue.length === 1 && nRue[0].rue === true && nRel.length === 1 && nNi.length === 0,
+     `rumeur ${nRue.length} · relation ${nRel.length} · ni l'un ni l'autre ${nNi.length}`);
 }
 
 console.log("\n─── invariants La Loupe ───");

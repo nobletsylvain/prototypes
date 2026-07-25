@@ -70,7 +70,9 @@ export const CORNER_PERSONAS = [
     tell:"Toujours 8 g, et « tu me fais un prix si je reviens ? » — futur gros.",
     bank:{ arrive:["Huit grammes. Tu me fais un prix si je reviens chaque semaine ?","Je refourgue à ma bande, faut que je m'y retrouve. {t} ?","Si tu m'accroches maintenant, je te ramène du monde. {q} g, {t}."],
       react:{ deal:["Là on se comprend. Je te ramène la clientèle."], nego:["Bon, ça passe pour cette fois. On verra la prochaine."] } } },
-  { id:"diego", nm:"Diego", av:"🏗️", kind:"grossiste", usual:16, exig:45, unlockedBy:"momo", traits:{heat:6, hours:[9,19]},
+  // rueGate : Diego vient aussi tout seul si la rue te connaît pour du gros calibre —
+  // un grossiste ne débarque pas par amitié, il débarque parce qu'on lui a parlé de toi.
+  { id:"diego", nm:"Diego", av:"🏗️", kind:"grossiste", usual:16, exig:45, unlockedBy:"momo", rueGate:5, traits:{heat:6, hours:[9,19]},
     tell:"Passe en journée, prend gros, paie clean — mais le servir chauffe le coin.",
     bank:{ arrive:["Seize grammes d'un coup. Chaque semaine si t'assures. {t} ?","Je prends gros, je paie clean, mais je traîne pas. {q} g, {t}.","Vingt grammes. Emballe vite, on nous regarde."],
       react:{ deal:["Carré. Même heure la semaine prochaine."], nego:["Ça monte, mais le volume est là. Vendu."] } } },
@@ -265,14 +267,23 @@ export function makeArdoise(p, rel, reput, day, seq, prix){
   const tx=pick(ARDOISE_TX, day+seq).replace("{q}", qty).replace("{d}", "J"+payday).replace("{t}", due);
   return { mode:"ardoise", qty, due, payday, tx, tell:p.tell||"" };
 }
-// graphe social : la relation avec le parrain (unlockedBy) débloque le filleul — renvoie les nouveaux contacts
-export function checkUnlocks(clients){
+/* Graphe social : la relation avec le parrain (unlockedBy) débloque le filleul.
+   DEUXIÈME PORTE (2026-07-25) : le bouche-à-oreille de calibre. Un grossiste ne se
+   présente pas parce que tu t'entends bien avec quelqu'un — il vient parce qu'on lui
+   a dit que tu sers du volume. `rueGate` est donc une porte parallèle, jamais une
+   condition supplémentaire : les deux chemins ouvrent, aucun ne ferme (R1). */
+export function checkUnlocks(clients, rue){
   const news=[];
   for(const p of CORNER_PERSONAS){
-    if(!p.unlockedBy) continue;
+    if(!p.unlockedBy && !p.rueGate) continue;
     const c=clients[p.id]; if(!c||c.unlocked||c.quit) continue;
-    const by=clients[p.unlockedBy];
-    if(by&&by.rel>=CORNER.UNLOCK_REL){ c.unlocked=true; news.push({ p, by:personaById(p.unlockedBy) }); }
+    const by=p.unlockedBy?clients[p.unlockedBy]:null;
+    const parRelation = by && by.rel>=CORNER.UNLOCK_REL;
+    const parRumeur = p.rueGate && (rue||RUE_MIN) >= p.rueGate;
+    if(parRelation || parRumeur){
+      c.unlocked=true;
+      news.push({ p, by:parRelation?personaById(p.unlockedBy):null, rue:!parRelation });
+    }
   }
   return news;
 }
@@ -299,10 +310,49 @@ export function makeOffer(persona, rel, reput, day, seq, prix){
   return { mode:"offer", qty, offer, tell, tx };
 }
 
+/* ---- Le bouche-à-oreille : la rue t'envoie les clients que tu mérites ----
+   Arbitrage Sylvain (2026-07-25) : « ça serait légitime de penser que le bouche à
+   oreille puisse faire changer le type de clientèle ». Le signal est CE QUE TU
+   COUPES (`S.rue`, moyenne du calibre débité) — pas ce que tu vends, et c'est
+   délibéré : sur « ce que tu vends », le système se bloquerait en rond (pas de gros
+   clients tant que tu n'as pas vendu gros, pas de vente gros tant qu'il n'y a pas de
+   gros clients), et chaque barrette coupée trop gros serait du stock mort. Mesuré :
+   à 25 % du tampon coupé en 8 g, 10 barrettes sur 40 dorment et ne repartent jamais.
+
+   Sur « ce que tu coupes », la demande arrive AVEC la marchandise. Et le quartier ne
+   disparaît jamais : la part de gros paniers plafonne, les petites doses restent le
+   fond du trafic (R1 — on n'enlève rien, on ajoute). */
+export const RUE_MIN = 2;         // le calibre de départ : personne ne te connaît encore
+export const RUE_PART_MAX = 0.55; // [PLACEHOLDER] part maximale de gros paniers chez les anonymes
+export const RUE_PENTE = 12;      // [PLACEHOLDER] à quelle vitesse la rumeur convertit le trafic
+
+/** Part d'anonymes qui viennent pour du volume, vu ta réputation de calibre. */
+export function ruePartGros(rue){
+  return Math.max(0, Math.min(RUE_PART_MAX, ((rue || RUE_MIN) - RUE_MIN) / RUE_PENTE));
+}
+/* La rumeur porte un calibre NOMMÉ, pas une moyenne flottante : on ne dit pas « il
+   vend du 6,8 », on dit « il vend du 8 ». Ce n'est pas cosmétique, c'est ce qui
+   rend le système jouable — `qtyToSachets` ne casse pas une barrette, donc une
+   demande de 7 g face à un tampon de 8 g ne se sert PAS. Mesuré sans l'accrochage :
+   couper à 8 g amenait des paniers de 7 g, soit 0 % de servable. La demande tombait
+   systématiquement un cran sous l'offre — le pire cas possible. */
+export const RUE_PALIERS = [2, 5, 8, 12, 20]; // mêmes crans que CUT_CAPS : ce que la rue sait nommer
+export function rueCalibre(rue){
+  const r = Math.max(RUE_MIN, rue || RUE_MIN);
+  return RUE_PALIERS.reduce((a, b) => Math.abs(b - r) < Math.abs(a - r) ? b : a);
+}
+/** Panier d'un anonyme : le fond du quartier, plus une part de gros qui suit `rue`. */
+export function anonQty(day, seq, rue){
+  const base = [2,2,3,5,2][((day+seq)%5+5)%5];           // le quartier, immuable
+  const r = Math.max(RUE_MIN, rue || RUE_MIN);
+  if(r <= RUE_MIN + 0.5) return base;
+  return hh(day*13, seq) < ruePartGros(r) ? Math.max(base, rueCalibre(r)) : base;
+}
+
 // PNJ anonyme (le volume) : petite dose, ouvre proche du menu, accepte vite. Ni relation ni tell.
-export function makeAnon(day, seq, reput, prix){
+export function makeAnon(day, seq, reput, prix, rue){
   const menu = prix || cornerFair(reput);
-  const qty = [2,2,3,5,2][((day+seq)%5+5)%5];            // petites doses déterministes
+  const qty = anonQty(day, seq, rue);
   const off = CORNER.OFFER.anon, m = off[0] + hh(day*5, seq)*(off[1]-off[0]);
   const offer = Math.min(Math.max(1, R(qty*menu*m)), offerCap("anon", 0, menu, qty));
   const tx = pick(ANON, day+seq).replace("{q}", qty).replace("{t}", offer);
