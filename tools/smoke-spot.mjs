@@ -209,7 +209,8 @@ await shot("05-coupe-en-8g.png");
     await new Promise((r) => setTimeout(r, 200));
     const stock = Object.entries(st.sachets).reduce((a2, [g2, n]) => a2 + +g2 * n, 0);
     const reste = st.pain ? st.pain.g : 0;
-    return { stock, miettes: st.miettes, reste, total: stock + st.miettes + reste };
+    return { stock, miettes: st.miettes, reste, total: stock + st.miettes + reste,
+             parCoupe: stock > 0 ? st.miettes / (stock / 5) : 0 };
   });
   ok("R1 · la lame n'ANÉANTIT rien : sachets + miettes + reste = le pain entier",
      Math.abs(conserv.total - 100) < 0.01,
@@ -232,11 +233,12 @@ await shot("05-coupe-en-8g.png");
       await new Promise((r) => setTimeout(r, 900));       // > RELACHE_MIN, la lame reprend
       if (!st.pain) break;
     }
-    return { miettes: st.miettes };
+    const stock = Object.entries(st.sachets).reduce((a2, [g2, n]) => a2 + +g2 * n, 0);
+    return { miettes: st.miettes, parCoupe: stock > 0 ? st.miettes / (stock / 5) : 0 };
   });
   ok("Le rythme (couper / laisser reprendre) réduit vraiment l'écrasement",
-     propre.miettes < conserv.miettes * 0.7,
-     `continu ${conserv.miettes.toFixed(1)} g écrasés · alterné ${propre.miettes.toFixed(1)} g`);
+     propre.parCoupe < conserv.parCoupe * 0.7,
+     `par coupe : continu ${conserv.parCoupe.toFixed(2)} g · alterné ${propre.parCoupe.toFixed(2)} g`);
 
   // ANTI-DÉGÉNÉRESCENCE : un relâchement plus court que RELACHE_MIN ne doit
   // accorder AUCUNE reprise. Sans ce plancher, taper 0,10 s / lâcher 0,11 s
