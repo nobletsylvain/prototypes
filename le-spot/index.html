@@ -401,7 +401,8 @@ const FORMATS = [
   { g:5, eurFac:1.00, servi:0.70, nm:"cinq" },
   { g:8, eurFac:0.88, servi:0.45, nm:"huit" },
 ];
-const CUT_S_PAR_SACHET = 0.10;   // s de maintien par sachet : couper petit prend physiquement plus longtemps
+const CUT_S_PAR_SACHET = 0.17;   // s de maintien par sachet : couper petit prend physiquement plus longtemps
+                                 // (0,10 expédiait un pain de 100 g en 8 g en 1,3 s — le geste n'avait pas le temps d'exister)
 
 /* LA LAME CHAUFFE — ce qui fait de la coupe une décision et plus un minuteur.
    Un maintien continu émousse le geste : les barrettes sortent de plus en plus
@@ -412,7 +413,7 @@ const CUT_S_PAR_SACHET = 0.10;   // s de maintien par sachet : couper petit pren
    rush avec le tampon à sec, il coûte des ventes.
    R1 : une coupe bâclée ne retire RIEN — elle ne touche simplement pas la
    prime. Le plancher, c'est le prix de base. */
-const NETTETE_PAR_COUPE = 0.035; // chaque COUPE émousse — donc 50 coupes en 2 g
+const NETTETE_PAR_COUPE = 0.026; // chaque COUPE émousse — donc 50 coupes en 2 g
                                  // émoussent 4× plus que 12 coupes en 8 g : le
                                  // calibre porte structurellement la propreté
 const RELACHE_MIN     = 0.35;    // s de repos CONTIGU avant que la lame reprenne

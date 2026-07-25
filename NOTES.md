@@ -19,8 +19,18 @@ On maintenait, les sachets tombaient, relâcher ne coûtait rien — R8 non serv
 seconde). Une lame qui force n'ouvre plus, elle écrase : le geste prend le sachet
 *plus* ce qu'il broie, et ces grammes partent aux miettes — ils reviennent avec le
 pain suivant. Rien n'est détruit (R1), mais rien n'est disponible aujourd'hui.
-Lâcher `RELACHE_MIN` (0,35 s) laisse la lame reprendre. Mesuré sur 100 g en 5 g :
-**continu 10 g écrasés, alterné 5 g**.
+Lâcher `RELACHE_MIN` (0,35 s) laisse la lame reprendre. Mesuré PAR COUPE sur
+100 g en 5 g : **continu 0,24 g écrasés, alterné 0,01 g**.
+
+**Réglage après playtest** — retour : « ça fonctionne, c'est juste un peu trop
+rapide ». Diagnostic chiffré : à `CUT_S_PAR_SACHET` 0,10 un pain de 100 g en 8 g
+était fini en **1,3 s**, et la lame passait de neuve à visiblement émoussée en
+**0,23 s** — la phase propre n'existait pas assez longtemps pour se voir. Passé à
+**0,17 s/coupe** avec une usure ramenée de 0,035 à 0,026 : la fenêtre propre
+double (0,52 s), la saturation passe de 2,0 s à 4,6 s, et le pain de 100 g en 8 g
+dure 2,1 s au lieu de 1,3. *Au passage, le test du rythme comparait deux quantités
+différentes (les deux gestes ne produisent pas le même nombre de sachets) : il
+compare désormais l'écrasement PAR COUPE.*
 
 Le geste se lit **dans la matière** et pas dans un cadran (étalon *Viridi* du
 corpus plantation) : les barrettes sortent droites, puis penchées et rabougries.

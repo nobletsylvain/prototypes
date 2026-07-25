@@ -87,8 +87,15 @@ ce qu'il broie à côté, et ces grammes partent aux **miettes** — ils revienn
 avec le pain suivant. Rien n'est détruit (R1), mais ce n'est pas disponible
 *aujourd'hui*. Lâcher au moins `RELACHE_MIN` laisse la lame reprendre.
 
-Mesuré sur un pain de 100 g en 5 g : **maintien continu → 10 g écrasés**,
-**rythme alterné → 5 g**. Le prix de la précipitation est de l'ordre de 5 % du pain.
+Mesuré par coupe sur un pain de 100 g en 5 g : **maintien continu → 0,24 g
+écrasés par coupe**, **rythme alterné → 0,01 g**. Le prix de la précipitation est
+de l'ordre de 5 % du pain.
+
+**Rythme** (réglé après playtest — « c'est un peu trop rapide ») : `CUT_S_PAR_SACHET`
+0,10 → **0,17 s**. À 0,10, un pain de 100 g en 8 g était expédié en 1,3 s et la
+lame passait de neuve à visiblement émoussée en 0,23 s : le geste n'avait pas le
+temps d'exister. La fenêtre propre passe de 0,23 s à 0,52 s, la saturation de
+2,0 s à 4,6 s.
 
 **Pourquoi les grammes et pas les secondes.** La première version facturait la
 propreté en temps. C'était faux : la journée est bornée par le **stock**, pas par
