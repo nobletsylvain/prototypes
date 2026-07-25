@@ -405,20 +405,32 @@ const COURBE_H = [0.85,0.70,0.40,0.20,0.10,0.06,0.06,0.10,
 
 // Réservoir de clientèle (satisfaction) — lent à construire, lent à perdre.
 const RES_START = 40, RES_MAX = 100;
-const RES_SERVI = { A:0.55, B:0.30, C:0.10 };   // par transaction servie
+// PAR GRAMME servi, pas par transaction : au gramme, la clientèle se moque du
+// calibre. Créditer la transaction donnait au 2 g une clientèle qui grossissait
+// 4× plus vite EN PLUS de son meilleur €/g — dominant sur les deux axes, donc
+// plus de dilemme du tout.
+const RES_SERVI_G = { A:0.070, B:0.038, C:0.013 };
 const RES_RUPTURE = 1.2;                         // par client parti les mains vides
-const RES_PROMO = 0.35;                          // par transaction pendant une story
 
 // Visibilité (chaleur du point — redescend).
-const VIS_PAR_TX   = 0.55;       // CHAQUE transaction se voit
+const VIS_PAR_TX   = 1.10;       // CHAQUE transaction se voit
 const VIS_STORY    = 12;         // une story : +débit ET +visibilité (co-effet parallèle)
-const VIS_DECAY_H  = 0.55;       // /h de jeu, quand le spot est calme
-const VIS_CALME_H  = 1.7;        // /h quand tu n'es pas là (accalmie volontaire)
+// La chaleur ne retombe QUE si le point cesse de vendre. Faire tomber la
+// visibilité parce que le JOUEUR est ailleurs (pendant qu'un charbonneur
+// continue de servir) rendait l'absence gratuite : déléguer refroidissait 3×
+// plus vite sans coûter une vente, et R6 n'était jamais un arbitrage.
+const VIS_VEND_H   = 0.30;       // /h pendant que le point débite
+const VIS_CALME_H  = 1.70;       // /h rideau baissé ou point fermé : l'accalmie
 const VIS_MAX      = 100;
 const SEUIL_PATROUILLE = 45;
 const SEUIL_PILONNAGE  = 78;
-const VIS_APRES_PATROUILLE = 22;
+// La patrouille NE remet PAS la jauge à zéro : elle disperse et ferme, elle ne
+// blanchit pas. Avec un clamp à 22 sous un seuil de pilonnage à 78, la jauge
+// oscillait 45 → 22 → 45 et le pilonnage — la seule conséquence qui saisit
+// quelque chose — n'arrivait JAMAIS en partie réelle. Le tampon n'était donc
+// jamais en jeu et le chouf était du décor.
 const VIS_APRES_PILONNAGE  = 14;
+const PATROUILLE_RECIDIVE_H = 6; // pas deux patrouilles coup sur coup
 
 // Dossier (chaleur réseau — ne redescend presque pas).
 const DOS_PILONNAGE = 19, DOS_PATROUILLE = 2, DOS_DECAY_JOUR = 0.4, DOS_MAX = 100;
@@ -490,6 +502,7 @@ function defaultState(){
     chouf: 0, charb: false, sac: false,
     storyUntil: -99, storyCool: -99,
     fermeUntil: -99,                // heure de jeu jusqu'à laquelle le spot est fermé
+    patrouilleUntil: -99,           // anti-récidive : pas deux patrouilles coup sur coup
     rideau: false,                  // accalmie volontaire : on ferme, ça refroidit
     caDay: 0, txDay: 0, gDay: 0, rupturesDay: 0, saisiDay: 0,
     totalCA: 0, totalTx: 0, totalSaisi: 0, joursTenus: 0,
@@ -546,7 +559,12 @@ function clientsGH(){
 /* Simulateur de journée — fonction PURE, sans état ni DOM. Sert au tuning et
    au test : c'est elle qui prouve que le calibre est un dilemme et non une
    option dominante. Renvoie ce qu'une journée pleine donnerait à ce calibre. */
-function simJour(formatG, res, grade, hDebut, hFin){
+// `stockJour` = les grammes réellement disponibles ce jour-là. C'EST LE POINT :
+// la demande (200-500 g/jour) dépasse presque toujours le pain acheté (100/250 g),
+// donc le stock est le goulot et `servi` ne joue que sur la VITESSE d'écoulement.
+// Simuler sans ce plafond prouvait un dilemme dans un régime que le jeu n'atteint
+// jamais — et cachait que le petit calibre dominait.
+function simJour(formatG, res, grade, hDebut, hFin, stockJour){
   const f = fmtOf(formatG);
   const d = ((((hDebut === undefined ? 0 : hDebut) % 24) + 24) % 24);
   // nombre d'heures ouvertes, fenêtre pouvant passer minuit (ex. 18 h → 2 h = 8 h)
@@ -557,13 +575,17 @@ function simJour(formatG, res, grade, hDebut, hFin){
   let g = 0;
   for (let k = 0; k < ouvertes; k++)
     g += DEMANDE_PIC * (res / 100) * COURBE_H[(d + k) % 24];
-  const vendus = g * f.servi;
+  // ce que la fenêtre permet d'écouler, borné par ce qu'on a en stock
+  const capacite = g * f.servi;
+  const stock = stockJour === undefined ? Infinity : stockJour;
+  const vendus = Math.min(capacite, stock);
   const tx = vendus / f.g;
   const ca = vendus * PRIX_G[grade] * f.eurFac;
-  // ouvert : la chaleur monte à chaque passage et redescend lentement.
-  // rideau baissé : accalmie volontaire, elle redescend vite (SHELTER §8).
-  const visNette = tx * VIS_PAR_TX - VIS_DECAY_H * ouvertes - VIS_CALME_H * (24 - ouvertes);
+  // la chaleur ne retombe vite que si le point NE VEND PAS (rideau/fermé) ;
+  // tant qu'il débite, elle ne fait que s'éroder.
+  const visNette = tx * VIS_PAR_TX - VIS_VEND_H * ouvertes - VIS_CALME_H * (24 - ouvertes);
   return { ca: R(ca), tx: +tx.toFixed(1), vendus: R(vendus), ouvertes,
+           ecoule: stock !== Infinity && capacite >= stock,   // a-t-on vidé le stock ?
            visNette: +visNette.toFixed(1),
            net: R(ca - LOYER_FIXE - ca * LOYER_PCT) };
 }
@@ -706,7 +728,7 @@ function servir(c, main){
   S.caDay += gain; S.txDay++; S.gDay += f.g;
   S.totalCA += gain; S.totalTx++;
   S.vis = clamp(S.vis + VIS_PAR_TX, 0, VIS_MAX);
-  S.res = clamp(S.res + RES_SERVI[gr] + (S.clock < S.storyUntil ? RES_PROMO : 0), 0, RES_MAX);
+  S.res = clamp(S.res + RES_SERVI_G[gr] * f.g, 0, RES_MAX);
 
   if (c.el){
     const r = c.el.getBoundingClientRect(), p = elSpot.getBoundingClientRect();
@@ -767,7 +789,7 @@ let araState = null;
 function checkPolice(){
   if (araState || !spotOuvert()) return;
   if (S.vis >= SEUIL_PILONNAGE) lancerRaid(2);
-  else if (S.vis >= SEUIL_PATROUILLE) lancerRaid(1);
+  else if (S.vis >= SEUIL_PATROUILLE && S.clock >= S.patrouilleUntil) lancerRaid(1);
 }
 
 function lancerRaid(palier){
@@ -857,10 +879,10 @@ function appliquerRaid(palier, evacue){
   viderQueue();
   if (palier === 1){
     S.fermeUntil = S.clock + PATROUILLE_MIN / 60;
-    S.vis = Math.min(S.vis, VIS_APRES_PATROUILLE);
+    S.patrouilleUntil = S.clock + PATROUILLE_RECIDIVE_H;
     S.dos = clamp(S.dos + DOS_PATROUILLE, 0, DOS_MAX);
     journal("patrouille BAC — clients dispersés", 0, "neu");
-    toast("🚓 Patrouille — le spot ferme " + PATROUILLE_MIN + " min.", "bad");
+    toast("🚓 Patrouille — fermé " + PATROUILLE_MIN + " min. La prochaine fois, ils rentrent.", "bad");
   } else {
     const g = R(S.tampon), c = R(S.caisse);
     S.tampon = 0; S.tamponQ = 0; S.caisse = 0;
@@ -915,6 +937,7 @@ function clotureJour(){
   S.caDay = 0; S.txDay = 0; S.gDay = 0; S.rupturesDay = 0; S.saisiDay = 0;
   // les compteurs d'horloge sont absolus : on les remet au sol avec l'horloge
   S.ledger = []; S.storyCool = -99; S.storyUntil = -99; S.fermeUntil = -99;
+  S.patrouilleUntil = -99;
   save();
 }
 
@@ -1182,7 +1205,7 @@ function renderFmts(){
   $("fmts").innerHTML = FORMATS.map(f => {
     const eurG = (PRIX_G[gradeOf(q)] * f.eurFac).toFixed(1);
     // le chiffre qui porte la décision : combien de chaleur ces grammes coûtent
-    const visPour100 = ((100 * f.servi / f.g) * VIS_PAR_TX).toFixed(0);
+    const visPour100 = ((100 / f.g) * VIS_PAR_TX).toFixed(0);
     return `<button class="fmt${S.format === f.g ? " sel" : ""}" data-f="${f.g}">
       <div class="fg">${f.g} g</div>
       <div class="fe">${eurG} €/g</div>
@@ -1284,9 +1307,10 @@ function loop(now){
   tickCut(dt);
   S.clock += H_PER_SEC * dt;
 
-  // décroissance de la visibilité : plus vite si le point est calme
-  const calme = S.rideau || S.lieu !== "spot" || !spotOuvert();
-  S.vis = Math.max(0, S.vis - (calme ? VIS_CALME_H : VIS_DECAY_H) * H_PER_SEC * dt);
+  // La chaleur retombe vite SEULEMENT si le point ne débite plus. Tant qu'il
+  // vend — que ce soit toi ou le charbonneur — elle ne fait que s'éroder.
+  const vend = spotOuvert() && !S.rideau && (S.lieu === "spot" || sertSansToi());
+  S.vis = Math.max(0, S.vis - (vend ? VIS_VEND_H : VIS_CALME_H) * H_PER_SEC * dt);
 
   tickQueue(dt);
   checkPolice();

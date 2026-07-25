@@ -45,15 +45,33 @@ EXISTER sur le block »*).
 
 Chiffré par `simJour()` (fonction pure, dans le fichier, rejouée par le test) :
 
-| Contexte | Meilleur plan | Recette | Visibilité |
+À produit égal (100 g de pain, grade B) :
+
+| Calibre | Transactions | Recette | Chaleur | € par point de chaleur |
+|---|---|---|---|---|
+| **2 g** | 50 | **1 250 €** | +55 | 23 |
+| 5 g | 20 | 1 000 € | +22 | 45 |
+| **8 g** | 12,5 | 880 € | **+13,8** | **64** |
+
+Puis, en jouant une journée entière (le stock est le goulot, pas la demande) :
+
+| Contexte | Meilleur plan | Recette nette | Visibilité |
 |---|---|---|---|
-| **J1** — réservoir 40, grade C, tout ouvert | **2 g, 24 h** | 1 371 €/j | **+43,6 /j** |
-| **Croisière** — réservoir 85, grade B | **5 g, 16 h→2 h** | 1 722 €/j | **−5 /j** |
+| **J1** — réservoir 40, grade C, un pain de 100 g | **2 g, 24 h** | 550 €/j | **+47,8 /j** |
+| **Croisière** — réservoir 85, un pain de 250 g/jour | **8 g, 16 h→2 h** | 878 €/j | **−7,3 /j** |
 
 Les deux réponses ne sont pas le même plan. À J1 la visibilité est à 0 et le
-loyer tombe ce soir : on pousse. En croisière la clientèle est grosse, donc le
-même calibre ferait +107 de visibilité par jour — on se replie sur le rush et un
-calibre moyen, et la chaleur **redescend** pendant qu'on gagne davantage.
+loyer tombe ce soir : on pousse au 2 g, quitte à voir passer une patrouille. En
+croisière on écoule 250 g par jour — au 2 g ce serait 125 passages, intenable —
+donc on se replie sur le gros calibre et sur le rush, et la chaleur **redescend**
+pendant qu'on gagne davantage.
+
+> **Le goulot est le STOCK, pas la demande.** La demande d'une journée (200 à
+> 500 g) dépasse presque toujours le pain acheté (100 ou 250 g). Écouler 100 g
+> demande donc `100 / calibre` transactions, quoi qu'il arrive. C'est la
+> correction apportée après revue : la première version de `simJour()` bornait
+> par la demande et « prouvait » un dilemme dans un régime que le jeu n'atteint
+> jamais.
 
 C'est le critère qu'on s'impose : *l'option A gagne dans un contexte, B dans un
 autre*. Un dilemme dont la réponse ne change jamais n'est pas un dilemme.

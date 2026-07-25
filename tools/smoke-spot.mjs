@@ -83,44 +83,50 @@ await sleep(400);
 await shot("02-spot-matin.png");
 
 // ── 1. la sim : la formule du calibre est bien le levier annoncé ───────────
+// On compare À PRODUIT ÉGAL (100 g de pain), pas à demande égale : le stock est
+// le goulot du jeu, et écouler 100 g demande 100/calibre transactions quel que
+// soit `servi`. L'ancienne comparaison mesurait 100 g écoulés en 2 g contre 45 g
+// en 8 g — deux quantités différentes — et « prouvait » ainsi un dilemme.
 {
   const t = await page.evaluate(() => {
-    const w = window.__spot;
+    const w = window.__spot, K = w.K;
     return w.FORMATS.map((f) => {
-      // pour 100 g de demande servie, combien de transactions (donc de visibilité)
-      const tx = (100 * f.servi) / f.g;
-      const ca = 100 * f.servi * 10 * f.eurFac;   // grade B
-      return { g: f.g, tx: +tx.toFixed(1), ca: +ca.toFixed(0), parVis: +(ca / tx).toFixed(1) };
+      const tx = 100 / f.g;
+      const ca = 100 * 10 * f.eurFac;             // grade B, 100 g de produit
+      return { g: f.g, tx: +tx.toFixed(1), ca: +ca.toFixed(0),
+               vis: +(tx * K.VIS_PAR_TX).toFixed(1), parVis: +(ca / (tx * K.VIS_PAR_TX)).toFixed(0) };
     });
   });
-  console.log("\n  calibre → transactions / CA / € par point de visibilité :");
-  t.forEach((r) => console.log(`    ${r.g} g : ${r.tx} tx · ${r.ca} € · ${r.parVis} €/tx`));
-  const croissant = t[0].parVis < t[1].parVis && t[1].parVis < t[2].parVis;
-  const caDecroissant = t[0].ca > t[1].ca && t[1].ca > t[2].ca;
-  ok("R8 · le calibre est un VRAI dilemme (petit = plus de CA, gros = plus discret)",
-     croissant && caDecroissant,
-     `€/tx ${t.map((x) => x.parVis).join(" < ")} · CA ${t.map((x) => x.ca).join(" > ")}`);
+  console.log("\n  À PRODUIT ÉGAL (100 g) — transactions / CA / chaleur / € par point de chaleur :");
+  t.forEach((r) => console.log(`    ${r.g} g : ${r.tx} tx · ${r.ca} € · +${r.vis} vis · ${r.parVis} €/vis`));
+  ok("R8 · le calibre arbitre recette contre chaleur (à produit égal)",
+     t[0].ca > t[1].ca && t[1].ca > t[2].ca &&
+     t[0].parVis < t[1].parVis && t[1].parVis < t[2].parVis,
+     `CA ${t.map((x) => x.ca).join(" > ")} · €/vis ${t.map((x) => x.parVis).join(" < ")}`);
 }
 
 // ── 1b. LE test de design : le calibre optimal CHANGE selon le contexte ───
 {
   // L'espace de stratégie est à DEUX dimensions : en quoi on coupe (calibre)
   // et quand on ouvre (fenêtre). On balaie les deux et on regarde ce qui gagne.
+  // Chaque plan est borné par le STOCK du jour : un pain de 250 g écoulé au
+  // mieux, pas une demande infinie. C'est le régime réel du jeu.
   const sim = await page.evaluate(() => {
     const w = window.__spot;
     const plans = [];
     const fenetres = [[0, 24], [16, 2], [18, 2], [19, 1], [20, 0]];
+    const STOCK = 250;                       // un « Bazar 250 » écoulé dans la journée
     for (const f of w.FORMATS) for (const [d, fin] of fenetres) {
-      const r = w.simJour(f.g, 85, "B", d, fin);
+      const r = w.simJour(f.g, 85, "B", d, fin, STOCK);
       plans.push({ g: f.g, d, fin, ...r });
     }
     return {
-      j1: w.FORMATS.map((f) => ({ g: f.g, ...w.simJour(f.g, 40, "C", 0, 24) })),
+      j1: w.FORMATS.map((f) => ({ g: f.g, ...w.simJour(f.g, 40, "C", 0, 24, 100) })),
       plans, seuil: w.K.SEUIL_PILONNAGE,
     };
   });
-  console.log("\n  J1 (réservoir 40, grade C, ouvert en continu) :");
-  sim.j1.forEach((r) => console.log(`    ${r.g} g : ${r.net} € net · vis ${r.visNette > 0 ? "+" : ""}${r.visNette}/j`));
+  console.log("\n  J1 (réservoir 40, grade C, un pain de 100 g, ouvert en continu) :");
+  sim.j1.forEach((r) => console.log(`    ${r.g} g : ${r.net} € net · ${r.vendus} g écoulés · vis ${r.visNette > 0 ? "+" : ""}${r.visNette}/j`));
 
   const meilleurJ1 = sim.j1.reduce((a, b) => (b.net > a.net ? b : a));
   const tenables = sim.plans.filter((p) => p.visNette <= 0 && p.net > 0);
@@ -329,6 +335,45 @@ await shot("12-apres-pilonnage.png");
   });
   ok("R4 · le hash est déterministe et borné [0,1[", det.egal && det.borne,
      `${det.uniq} valeurs distinctes / 400`);
+}
+
+// ── 5b. LE seuil doit être ATTEIGNABLE en jouant, pas en trichant ─────────
+// La revue a montré que SEUIL_PILONNAGE était inatteignable : la patrouille
+// clampait la jauge sous le seuil, donc la seule conséquence qui saisit quelque
+// chose n'arrivait jamais. Le test le masquait en écrivant `s.vis = 95`.
+// Ici on laisse la jauge monter toute seule, en vendant.
+{
+  // laisser retomber ce que les sections précédentes ont pu ouvrir
+  await page.evaluate(() => new Promise((r) => {
+    const t = setInterval(() => {
+      if (document.getElementById("ara").classList.contains("hide")) { clearInterval(t); r(); }
+    }, 200);
+  }));
+  const r = await page.evaluate(async () => {
+    const w = window.__spot, s = w.S();
+    s.lieu = "spot"; s.rideau = false; s.fermeUntil = -99; s.patrouilleUntil = -99;
+    s.format = 2; s.tampon = 4000; s.tamponQ = 60; s.res = 95; s.clock = 19;
+    s.chouf = 0; s.vis = 0; s.dos = 0; s.over = false;   // sans chouf : la saisie tombe direct
+    const t0 = performance.now();
+    let patrouille = false, visMax = 0;
+    while (performance.now() - t0 < 115000) {
+      await new Promise((r2) => setTimeout(r2, 250));
+      visMax = Math.max(visMax, s.vis);
+      if (s.fermeUntil > s.clock && s.dos < 19) patrouille = true;
+      if (s.dos >= 19) return { pilonnage: true, patrouille, visMax, tx: s.totalTx };
+      // rester dans le rush : les compteurs d'horloge sont ABSOLUS, il faut les
+      // ramener avec elle (sinon fermeUntil reste dans le futur et le spot ne
+      // rouvre jamais — c'est ce qui bloquait la mesure à 54)
+      // On garde l'anti-récidive TELLE QUELLE : la patrouille doit prévenir une
+      // fois, puis la jauge doit pouvoir continuer à monter jusqu'au pilonnage.
+      if (s.clock > 23) { s.clock = 19; s.fermeUntil = Math.min(s.fermeUntil, -99); }
+    }
+    return { pilonnage: false, patrouille, visMax, tx: s.totalTx };
+  });
+  ok("Police · le pilonnage est ATTEIGNABLE en jouant (jauge laissée libre)",
+     r.pilonnage,
+     r.pilonnage ? `visibilité montée jusqu'à ${r.visMax.toFixed(0)}` : `bloquée à ${r.visMax.toFixed(0)}`);
+  ok("Police · la patrouille prévient AVANT le pilonnage", r.patrouille);
 }
 
 // ── 6. clôture de journée ─────────────────────────────────────────────────
