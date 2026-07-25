@@ -9,6 +9,114 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-25 — Le Spot (Shelter P1) : le calibre devient le levier discrétion ↔ dominance
+
+Nouveau proto `le-spot/`, un seul `index.html`, zéro dépendance (ni Three.js ni
+CDN — il s'ouvre en `file://`, contrairement à `la-loupe/` et ses 5 modules).
+C'est le **P1 « Le spot »** du découpage de `la-loupe/SHELTER.md` §14, écrit le
+2026-07-22 et jamais construit.
+
+**Le constat de départ.** « Petit format = €/g plus élevé » est une loi de tous
+les protos et de la spec consolidée (§4.3) depuis un an — et c'est un **bonus
+sec**, sans contrepartie. Couper petit n'a donc jamais été une décision. En
+parallèle, D10 retient discrétion ↔ dominance comme spine et Q1 est ouverte
+depuis le 04-07 : le cadran concurrence n'a **jamais été écrit** (dans tout le
+dépôt, `rival` est une règle CSS pour un pin verrouillé). Une bascule à un bras
+n'est pas un dilemme, c'est un plafond.
+
+**La thèse du proto.** On donne sa contrepartie au petit calibre : **chaque
+transaction se voit**. 100 g en sachets de 2 g = 50 mains qui passent ; en 8 g =
+6 mains. Le €/g monte quand le calibre descend, la visibilité monte avec le
+nombre de passages. Et le second bras (le coût de la discrétion) est porté par
+le **loyer fixe** — `LOYER_FIXE` 220 €/jour, dû qu'on vende ou non (spec §4.7,
+« tu paies pour EXISTER sur le block ») : vendre lentement coûte.
+
+**Le dilemme est chiffré, pas affirmé.** `simJour()` est une fonction pure dans
+le fichier, rejouée par le test, qui balaie l'espace calibre × fenêtre :
+
+| Contexte | Meilleur plan | Recette | Visibilité |
+|---|---|---|---|
+| J1 — réservoir 40, grade C | **2 g, ouvert 24 h** | 1 371 €/j | **+43,6 /j** |
+| Croisière — réservoir 85, grade B | **5 g, 16 h→2 h** | 1 722 €/j | **−5 /j** |
+
+Les deux réponses diffèrent : à J1 on pousse (la jauge est à 0, le loyer tombe
+ce soir) ; en croisière le réservoir a grossi, donc le même calibre ferait +107
+de visibilité par jour — on se replie sur le rush. **R9 en action** : ce n'est
+pas le geste qui durcit, c'est le système qui grossit sous le geste.
+
+**Les autres décisions.** Le **tampon** (ce qu'on pose dehors se vend sans
+rupture et c'est exactement ce qu'une descente emporte) ; la **navette** (la
+navigation EST la décision : aller à la planque avance l'horloge et le spot ne
+vend plus — le « poids » de CADRE §6 en miniature) ; la **qualité** du pain de
+Karim (marge contre satisfaction) ; le **rideau** (l'accalmie volontaire de
+SHELTER §8, seul contre-feu à la chaleur : gratuit, sauf que le loyer court).
+
+**Le geste encode le choix** : un maintien coupe le pain entier, et couper en
+2 g prend physiquement 4× plus longtemps qu'en 8 g. On sent sa décision dans la
+main plutôt que de la lire dans un menu.
+
+**Trois bugs de conception attrapés par la mesure, pas par la relecture :**
+- *spirale de mort au J1* — un tampon vide attirait quand même des clients, qui
+  repartaient les mains vides et creusaient le réservoir sans retour. Corrigé :
+  pas de came, pas de file (le bouche-à-oreille va vite).
+- *la jauge était un plafond* — au réservoir 85, **aucun** calibre n'était
+  tenable en continu. Le test l'a dit noir sur blanc (« aucun plan ne tient »).
+  D'où le rideau : la décision devient calibre **et** fenêtre d'ouverture.
+- *l'amorçage bloquait la partie* — avec un lot d'entrée à 50 g, la simulation
+  du ramp donne **+15 €/jour** : le joueur ne franchit jamais la marche vers le
+  tier suivant (J1 275 → J4 320, le pneu à 340 reste hors d'atteinte). Passé en
+  **100 g** (ce que D31 impose de toute façon : deux formats, 100 et 250 g) →
+  J1 610, J2 960, J3 1 310. *Leçon transposable : une marche d'appro se vérifie
+  en simulant 4 jours, pas en regardant le €/g.*
+
+**Outillage ajouté** (utile au-delà de ce proto) :
+- `tools/check.mjs` — extrait les modules d'un `index.html` et les passe à
+  `node --check`, plus les `.mjs` voisins. `node check.mjs` balaie tout le dépôt
+  (28 fichiers, tout vert). La convention de CLAUDE.md était jusqu'ici une
+  manip à refaire à la main à chaque push.
+- `tools/smoke-spot.mjs` — ne regarde pas si « ça s'affiche » : il **déroule une
+  partie** (appro → coupe → poche → navette → ventes → descente → rapport) et
+  vérifie **25 invariants**, dont le dilemme lui-même. Si un jour un seul plan
+  domine partout, le test casse.
+
+**R1 rendu mécanique.** L'audit du dépôt a trouvé R1 *cité en commentaire et
+violé douze lignes plus bas* : `corner.mjs:7` annonce « rater une négo = jamais
+de malus sec », `:24/:37/:38` ponctionnent relation (−2), réput (−1) et
+réservoir (−6) sur un walk ; et `index.html:882` punit la **lenteur de la main**
+(un client qui expire dans la file ponctionne le réservoir) — exactement ce que
+R1 interdit. Ici l'invariant est **exécuté** : cinq clients, sept secondes sans
+y toucher, zéro rupture. *Proposition : en faire un invariant du dépôt, testé
+partout — une règle qu'on ne teste pas est une règle qu'on cite.*
+
+**Écarts constatés ailleurs (à traiter séparément, hors périmètre de ce proto) :**
+- `recolte/index.html:1338-1381` — **violation R4** : la composition d'un lot est
+  tirée au sort (`sort(() => Math.random() - 0.5)`, poids `0.5 + Math.random()`,
+  `leafFrac` aléatoire consommé en `:1446`). Le contenu marchand d'une récolte
+  n'est pas reproductible.
+- `la-loupe/index.html:837` — le prix est facturé sur les grammes **demandés**
+  mais le stock est débité en **barrettes** via un `÷2` codé en dur puis clampé
+  à 6 : Diego demande 24 g, paie 24 g, **reçoit 12 g**. Et à `cutSize` 1 g
+  (autorisé, `CUT_MIN=1`) chaque barrette est payée au prix d'un 2 g — le €/g
+  double.
+- `la-loupe/index.html:414-416` — **l'échelle d'appro est inversée** : le Pain
+  100 rend ×4,0 à réput 20 quand le Pain 250 rend ×1,18 et le Lot 500 ×1,25.
+  Acheter plus gros est strictement perdant à tous les niveaux de standing.
+- `la-loupe/scene3d.mjs:206` vs `index.html:393` — avec Gabarit 4, l'état vide le
+  pain 5× plus vite que le visuel : on voit un pain plein et on lit « Plus de pain ».
+
+**Backlog ouvert par ce proto**
+1. `[DÉCISION REQUISE]` **le poids du liquide** (CADRE §6) — ici seul le produit
+   pèse, la caisse rentre sans occuper de place. L'ajouter double la pression de
+   navette : à sentir avant de trancher.
+2. `[DÉCISION REQUISE]` **la Chute à `DOS_MAX`** — présente en version légère
+   (fin de run + récap) parce qu'une session sans fin n'a pas de forme. SHELTER
+   la place en P3 : à valider ou repousser.
+3. **Tuning entièrement ouvert** — `DEMANDE_PIC` 45, `VIS_PAR_TX` 0,55,
+   `LOYER_FIXE` 220, `PREAVIS_S` [0, 7, 13], table `PAINS`. Premier jet, pas des
+   arbitrages : ils attendent le playtest.
+
+---
+
 ## 2026-07-24 — Prix marché dynamique : la concurrence fait bouger la référence
 
 Backlog n°1 du brief. Le marché n'est plus une constante dérivée de la réput :

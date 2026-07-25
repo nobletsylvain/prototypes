@@ -15,6 +15,55 @@ Petits prototypes de **core loops** jouables/testables dans le navigateur (mobil
 
 Hub en ligne : **https://nobletsylvain.github.io/prototypes/**
 
+## 🔦 Le Spot (core loop) — *tenir le point*
+
+Mini-jeu mobile en **2D DOM/CSS, zéro dépendance** (un seul `index.html`, aucun
+CDN — il s'ouvre directement en `file://`). C'est le **P1 « Le spot »** du
+découpage de `la-loupe/SHELTER.md` §14. Design détaillé : **`le-spot/DESIGN.md`**.
+
+**La thèse.** Depuis un an, tous les protos appliquent la même loi — *petit
+format = €/g plus élevé* — comme un **bonus sec**, sans contrepartie. Ici on lui
+en donne une : **chaque transaction se voit**. Écouler 100 g en sachets de 2 g,
+c'est 50 mains qui passent au pied de la barre ; en 8 g, c'est 6. Le €/g monte
+quand le calibre descend, la **visibilité** monte avec le nombre de passages.
+
+**Boucle de jeu (une journée ≈ 3 min réelles) :**
+1. **La planque** — acheter un pain chez **Karim** (le tier fait le grade, donc
+   la clientèle qui revient), choisir **en quoi on coupe** (2 / 5 / 8 g), et
+   **maintenir** : un seul geste coupe le pain entier — couper petit prend
+   physiquement 4× plus longtemps. Puis remplir **la poche** (bornée).
+2. **La navette** — *la navigation est la décision* : aller-retour avance
+   l'horloge, et le spot ne vend plus pendant ce temps (jusqu'au charbonneur).
+3. **Le spot** — poser la marchandise, c'est **l'exposer**. Le **tampon** et la
+   **caisse** sont les deux seules choses qu'une descente peut prendre. Taper un
+   client le sert tout de suite avec un pourboire ; sinon il est servi quand même.
+4. **La chaleur** — la police n'improvise jamais : la jauge a ses **seuils
+   dessinés**. Patrouille à 45, **pilonnage** à 78. Le **chouf** achète 7 s de
+   préavis (13 s à deux) : c'est le mini-jeu **ARA ! ARA !** — taper les caches
+   (compteur EDF, faux plafond, cage d'escalier) pour rentrer ce qu'on peut.
+5. **Le rideau** — l'accalmie volontaire : fermer fait retomber la chaleur, mais
+   le loyer court quand même.
+
+**L'économie.** Le loyer est **fixe** (220 €/jour, *« tu paies pour exister sur
+le block »*) plus 12 % du CA : c'est lui qui rend le temps cher, donc la
+discrétion coûteuse. Sans ça, se faire petit serait gratuit et la jauge serait
+un plafond, pas un dilemme. Résultat mesuré par `simJour()` : **à J1 le 2 g
+gagne** (1 371 €/j, mais +43,6 de visibilité) ; **en croisière c'est 5 g ouvert
+16 h→2 h** (1 722 €/j, visibilité qui *baisse*). La bonne réponse change en
+cours de partie.
+
+**Délégation (R2/R6)** : chouf (la vigilance), charbonneur (la présence pendant
+les navettes, 70 % de la cadence), grand sac (moins de trajets) — chacun payé
+tous les soirs. Persistance `localStorage` préfixée **`spot_`** + `SAVE_VERSION`.
+
+### Jouer
+
+- En ligne : **https://nobletsylvain.github.io/prototypes/le-spot/** (depuis le hub).
+- En local : ouvrir `le-spot/index.html` — **aucune connexion requise**.
+- Vérifier : `cd tools && node check.mjs le-spot && node smoke-spot.mjs`
+  (25 invariants + captures). Le smoke-test déroule une vraie partie et **prouve
+  le dilemme** au lieu de l'affirmer : si un seul plan domine partout, il casse.
+
 ## ✈️ Airliner (4 core loops)
 
 Prototypes de vérification du fun pour **Airliner** (tycoon aérien "Football Manager Airline", repo [`airliner`](https://github.com/nobletsylvain/airliner)). HTML pur, un seul fichier par loop, **zéro dépendance** (pas de CDN), données et formules **verbatim** du repo airliner (economy.json, time_loop.json, operational_events.json, world_events.json, starter_cast.json). Chaque proto répond à UNE question de fun ; les verdicts se consignent dans `docs/planning/html-playtest-plan.md` du repo airliner.
