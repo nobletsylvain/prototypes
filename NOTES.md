@@ -9,6 +9,64 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-25 — La Loupe : le pain sur la planche mentait (désync visuel/état)
+
+`pressCut` (scene3d) retirait **une** tranche du pain visible, pendant que le
+hook `onCut` (index.html) en débitait **`1 + gabarit`**. Conséquence : « Plus de
+pain. Appro requis. » s'affichait devant un pain encore à moitié plein, et
+l'écart *grandissait à chaque palier de gabarit acheté* — c'est-à-dire le long
+de l'axe de progression R2. Le joueur qui investit dans l'outil voit le jeu
+devenir de plus en plus incohérent : exactement l'inverse de la promesse.
+
+Correctif : l'**état est la vérité**. `applyCut` retourne désormais les grammes
+réellement débités (au lieu d'un booléen), `onCut` les cumule et les retourne,
+et `pressCut` retire du pain visible ce montant-là — jamais une estimation. Une
+barrette tombe par tranche réellement coupée, donc le gabarit **se voit**. La
+lame se pose aussi à la largeur du geste complet, gabarit compris.
+
+Ce qui fait qu'on ne le reverra pas : `tools/desync-loupe.mjs` joue la scène en
+vrai navigateur (vraie 3D swiftshader, vrais appuis longs) sur un pain de 250 g
+— au-dessus du plafond visuel de 170 g, donc une recharge de planche est
+*obligatoire*. Vérifié dans les deux sens : **0 recharge avant le correctif,
+1 après**. C'est la seule façon honnête de prouver un correctif visuel.
+
+### Correction d'un point d'audit : l'échelle d'appro n'est pas inversée
+
+Sylvain : « l'échelle d'appro rend l'unité plus rentable à très petite échelle,
+mais la valeur se fait dans la quantité ». Il a raison, et le jeu l'encode déjà.
+Marge **absolue** au prix `cornerFair(reput)` : à réput 20 le Pain 100 gagne
+(600 € vs 300 €), à réput 48 c'est l'égalité, au-delà le volume écrase tout
+(à réput 100 : 1 200 € vs 1 800 € vs 3 800 € pour le Lot 500). Trois verrous
+cohérents gardent le gros lot : 3 200 € de liquide, `reputGate 30`, et surtout
+`planqueCap` (250 g de base, +120/palier → **3 agrandissements** pour tenir
+500 g). Ma comparaison « à capital égal » ignorait ces plafonds, qui sont la
+vraie contrainte. Point retiré.
+
+### Ce que la vérification a fait apparaître à la place : la qualité ne paie pas
+
+On paie la qualité **×3,4 le gramme** (2,00 €/g en q52 → 6,80 €/g en q78, soit
++240 % pour +50 % de qualité). Ce qu'elle rapporte :
+
+| canal | prix de vente | apport qualité |
+| --- | --- | --- |
+| Corner (négo) | `cornerFair(reput)` | **+0 %** — fonction de la réput seule |
+| Snap (DM) | `ppuG = f(reput)` | **+0 %** — même formule |
+| PDV auto | `pdvFair(q) = 5 + 0,10q` (+25 %) | n'entre que dans le terme de *satisfaction*, jamais dans le prix ; et `pdvServe` ne tourne que pour le charbonneur, encore en debug |
+| `qualCheck` | ×1,12 tolérance, +12 % pourboire | **2 personas sur 12**, et les personas font 15 % du volume |
+
+Symptôme qui le prouve sans discussion : **dès réput 30, le Lot 500 domine
+strictement le Pain 250** — 6,40 €/g contre 6,80 €/g, et deux fois plus gros.
+Le seul avantage du Pain 250 est ses +8 de qualité, qui ne valent rien à la
+caisse : c'est un SKU mort dès qu'on a la planque.
+
+Ça percute **R10** de plein fouet (« la coupe est le levier qualité/pureté ») :
+le levier a un coût, il n'a pas de surface de gain. `[DÉCISION REQUISE]` —
+brancher la qualité sur le prix (et où : menu du corner, budget client, ou
+tolérance), ou assumer que la qualité n'achète que de la *tolérance* et
+rééquilibrer le prix des pains en conséquence.
+
+---
+
 ## 2026-07-25 — La Loupe : le corner passe aux GRAMMES (et le calibre devient un levier)
 
 Arbitrage de Sylvain : **le corner vend À LA TÊTE** — « il n'y a pas de demande

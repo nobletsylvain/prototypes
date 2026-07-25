@@ -205,17 +205,27 @@ const BIN_TARGET = new THREE.Vector3(1.1, 0.14, 0.82);
 
 function pressCut() {
   if (over || hooks.getPainG() < 1) return;
-  // la taille de la barrette se décide ICI, à la lame (défaut 2 g, libre)
+  // La taille de la barrette se décide ICI, à la lame (défaut 2 g, libre) — mais
+  // le GABARIT en débite plusieurs d'un seul geste. L'état est la vérité : on
+  // coupe d'abord, et on retire du pain exactement ce qu'il a consommé. Deviner
+  // le montant côté visuel désynchronisait dès le premier gabarit acheté.
   const beforeG = hooks.getPainG();
-  const take = Math.min(beforeG, hooks.getCutSize());
-  const thick = take / PER_LEN;
-  let cn = rightNeg - thick, cp = rightPos - thick;
-  if (cn < 0.001 && cp < 0.001) { cn = 0; cp = 0; }
-  cn = Math.max(0, cn); cp = Math.max(0, cp);
+  const size = Math.min(beforeG, hooks.getCutSize());
+  const took = hooks.onCut(size) || 0;
+  if (took <= 0) return;
+
   bladeChop = 1;
-  spawnBarrette(cn, cp);
-  hooks.onCut(take);
   haptic(40);
+  // une barrette qui tombe par tranche réellement débitée : le gabarit se VOIT.
+  // Plafond à 8 meshes par geste (garde-fou perfs) — au-delà, le pain maigrit
+  // toujours du bon montant, seul le nombre de barrettes qui tombent est capé.
+  const n = Math.max(1, Math.min(8, Math.round(took / Math.max(1, size))));
+  const thick = took / n / PER_LEN;
+  for (let i = 0; i < n; i++) {
+    let cn = rightNeg - thick, cp = rightPos - thick;
+    if (cn < 0.001 && cp < 0.001) { cn = 0; cp = 0; }
+    spawnBarrette(Math.max(0, cn), Math.max(0, cp));
+  }
   // le visuel plafonne à LOAF_L (170 g) : quand la planche est vide mais qu'il
   // reste des grammes, on recharge — plus jamais de coupe « dans le vide »
   const afterG = hooks.getPainG();
@@ -224,7 +234,7 @@ function pressCut() {
     hooks.toast("Plus de pain. Appro requis.");
   } else if (Math.max(rightNeg, rightPos) < 0.03) {
     syncLoafFromPain();
-    hooks.toast(beforeG - take >= 1 ? "La suite du pain sur la planche." : "Pain suivant sur la planche.");
+    hooks.toast(beforeG - took >= 1 ? "La suite du pain sur la planche." : "Pain suivant sur la planche.");
   }
   refreshBins();
 }
@@ -264,7 +274,9 @@ function updateKnife(dt) {
   const show = mode === "cut" && !over;
   bladeMesh.visible = show;
   const right = (rightNeg + rightPos) / 2;
-  const cutX = Math.max(0, right - hooks.getCutSize() / PER_LEN);
+  // la lame se pose là où le geste finira : gabarit compris (R2 — l'outil se voit)
+  const batch = hooks.getCutBatch ? Math.max(1, hooks.getCutBatch()) : 1;
+  const cutX = Math.max(0, right - (hooks.getCutSize() * batch) / PER_LEN);
   let y = LOAF_H + 0.10 - (pressing ? (pressT / PRESS_TIME) * 0.5 : 0);
   if (bladeChop > 0) {
     bladeChop = Math.max(0, bladeChop - dt * 4.5);

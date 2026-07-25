@@ -387,10 +387,21 @@ async function ensure3d() {
         getBarG: () => barsG(),
         getBarCount: () => barCount(),
         getCutSize: () => S.cutSize || CUT_DEFAULT,
+        getCutBatch: () => cutBatch(),
         getDoseFormat: () => S.cutSize || CUT_DEFAULT,
         getSachetCount: () => Object.values(S.sachets).reduce((a, n) => a + n, 0),
         toast,
-        onCut: (g) => { const n=cutBatch(); for(let i=0;i<n;i++){ if(!applyCut(S.cutSize||CUT_DEFAULT, "lame 3D")) break; } save(); hud(); renderFmtBar(); },
+        // Un geste = `cutBatch()` barrettes (gabarit, R2). On RETOURNE les grammes
+        // réellement débités : sans ça le visuel retirait une seule tranche
+        // pendant que l'état en retirait 1+gabarit, et « Plus de pain »
+        // s'affichait devant un pain encore aux trois quarts plein.
+        onCut: () => {
+          const n = cutBatch(), size = S.cutSize || CUT_DEFAULT;
+          let took = 0;
+          for (let i = 0; i < n; i++) { const g = applyCut(size, "lame 3D"); if (!g) break; took += g; }
+          save(); hud(); renderFmtBar();
+          return took;
+        },
         onSwipeToBag: () => { if (tab === "atelier") { atelierSub = "bag"; render(); } },
         onTakeBar: () => {}, // wrap 3D retiré — la taille est figée à la coupe
         onReturnBar: () => {},
@@ -512,17 +523,20 @@ function activePain(){ return S.pains[S.painSel]||S.pains[0]||null; }
 function painsG(){ return S.pains.reduce((a,p)=>a+p.g,0); }
 function fmtPains(){ return S.pains.length?S.pains.map((p,i)=>`${i===S.painSel?"▶":""}${Math.round(p.g)}g`).join(" · "):"—"; }
 /** Une coupe = une barrette, prise sur le PAIN ACTIF (partagé 3D / débit 2D).
-    La qualité de CE pain part dans la barrette. Retourne false si rien à couper. */
+    La qualité de CE pain part dans la barrette.
+    Retourne les GRAMMES réellement débités (0 = rien à couper) : le pain actif
+    peut être plus court que la taille demandée, et il peut être remplacé par le
+    suivant en cours de série — seul ce retour dit la vérité au visuel. */
 function applyCut(take, why){
-  const p=activePain(); if(!p) return false;
-  take=Math.min(take,p.g); if(take<1) return false;
+  const p=activePain(); if(!p) return 0;
+  take=Math.min(take,p.g); if(take<1) return 0;
   p.g-=take;
   S.barQ=avgMerge(barsG(),S.barQ,take,p.q||60);
   const key=Math.max(1,Math.round(take));
   S.bars[key]=(S.bars[key]||0)+1;
   cause(`Coupe ${take.toFixed(1)} g`,`Barrette ${key} g — ${why}`);
   if(p.g<1){ S.pains.splice(S.pains.indexOf(p),1); S.painSel=0; } // pain fini → au suivant
-  return true;
+  return take;
 }
 function cutBatch(){ return 1 + (S.upgrades.gabarit||0); } // barrettes par geste (gabarit, R2/R9)
 function cutCap(){ return CUT_CAPS[Math.min(CUT_CAPS.length-1, S.upgrades.couteau||0)]; } // taille max de coupe (couteau)
