@@ -493,7 +493,6 @@ function defaultState(){
     caDay: 0, txDay: 0, gDay: 0, rupturesDay: 0, saisiDay: 0,
     totalCA: 0, totalTx: 0, totalSaisi: 0, joursTenus: 0,
     ledger: [], seq: 1, seen: false, over: false,
-    pendingRaid: null,              // { palier, at }  — annoncé, jamais surprise
   };
 }
 
@@ -731,7 +730,7 @@ function viderQueue(){ for (const c of [...queue]) retirer(c, false); clientAcc 
 let araState = null;
 
 function checkPolice(){
-  if (araState || S.pendingRaid || !spotOuvert()) return;
+  if (araState || !spotOuvert()) return;
   if (S.vis >= SEUIL_PILONNAGE) lancerRaid(2);
   else if (S.vis >= SEUIL_PATROUILLE) lancerRaid(1);
 }
