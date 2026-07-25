@@ -9,6 +9,231 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-25 — La Loupe : l'escalier d'outils, barreau 1 — le couteau devient le levier qualité
+
+Arbitrages de Sylvain, en réponse au constat « la qualité ne paie pas » :
+**la qualité achète de la TOLÉRANCE, pas du prix**, et le chantier suivant est
+**l'escalier d'outils** (couteau pourri → meilleur → semi-auto → auto → salarié,
+sans consommables ni réparation : on monte en outil).
+
+### Ce que la reconnaissance a trouvé, et qui a changé le plan
+
+Le `couteau` avait ses 5 paliers **entièrement codés et branchés** — `CUT_CAPS`,
+`cutCap()`, les clamps du sélecteur, les chips 🔒, la position de la lame 3D — et
+**aucun point d'achat**. Il n'existait que dans le menu debug. L'escalier n'avait
+donc pas de premier barreau.
+
+Mais l'ajouter tel quel aurait livré un **piège**. Vérifié en balayant la vraie
+distribution de la demande (1 000 tirages) contre `qtyToSachets` :
+
+| calibre coupé | demandes servies exactement | g livrés par client |
+| --- | --- | --- |
+| 2 g | 60 % | 2,44 g |
+| 5 g | 20 % | 1,04 g |
+| 8 g | **0 %** | 0,04 g |
+| 12 g / 20 g | **0 %** | ~0 |
+
+96 % de la demande est entre 2 et 5 g. Acheter le couteau *et s'en servir* menait
+donc à la faillite : l'outil censé alléger le travail (R2) appauvrissait.
+
+### Ce qui manquait n'était pas le semi-auto, c'était la RAISON de monter
+
+Et R10 la nomme déjà : « la coupe est le levier qualité/pureté ». Le couteau porte
+désormais ce levier — `LAME_NETTETE = [0.82, 0.88, 0.94, 0.98, 1.00]`, appliqué
+dans `applyCut` : `q_barrette = q_pain × netteté(couteau)`. Une lame pourrie hache
+et chauffe, une bonne lame préserve. Ce n'est **pas** une punition (R1) : aucun
+raté possible, aucun gramme jamais perdu — c'est la ligne de base de l'outil qu'on
+possède, et dont on sort en montant (R2, mot pour mot la demande de Sylvain).
+
+Vérifié en navigateur, même pain q78 : **couteau 0 → q64, couteau 4 → q78.**
+
+### La qualité achète de la tolérance : le tuyau existait déjà
+
+`qFac` était propagé dans les trois seuls consommateurs de `cornerTol` (`offerCap`,
+`negoFace`, `resolveOffer`) — il ne servait qu'aux **2 connaisseurs sur 12**. Il
+suffisait de le donner à tout le monde : `qualFac(q)`, up-only, plancher q40,
+plafond ×1,35 à q100. Le menu (`cornerFair`) reste fonction de la réput seule :
+du bon produit ne fait pas monter ton tarif, il le fait accepter plus largement.
+
+Réponse au défaut d'origine : le Pain 250, payé ×3,4 le gramme, fait passer la
+tolérance de ×1,02 à ×1,14 — **+12 % de marge acceptée**, en plus de son volume.
+
+### Le piège qu'on a failli livrer : la frontière d'abus était restée fixe
+
+`NEGO_MAX = 1,2 × menu` en dur, pendant que `tol` devenait élastique. Résultat :
+tous les prix débloqués par la qualité tombaient en `gouge` — −2 relation, −2
+réput, et le client ne revient plus après deux fois. **Avoir du bon produit
+devenait une punition.** La frontière suit maintenant le facteur qualité.
+
+### Trois reformulations avant d'avoir un test qui prouve quelque chose
+
+Notable, parce que c'est le piège récurrent de cette session :
+
+1. « la qualité n'aggrave jamais un verdict » → **passait avant ET après**. À prix
+   fixe, monter en qualité n'a jamais pu nuire. Le test ne testait rien.
+2. « aucun prix débloqué n'est un abus » → discriminait (1081 → 209) mais restait
+   rouge : un client très lié tolère déjà plus que la ligne d'abus (×1,254 à
+   rel 80 contre ×1,2), et **ça, c'est voulu** — il avale et il s'en souvient.
+3. « la qualité n'augmente pas la PART punie », mesurée sur grille fine → **PASS
+   avec le correctif, 104/216 cas rouges sans**. En euros entiers le test gardait
+   8 faux positifs de pure discrétisation ; en continu la part vaut
+   `1 − NEGO_MAX/TOL[kind]`, strictement indépendante de `qFac`.
+
+### La dette dormante, neutralisée sans être effacée
+
+`repayDebt` exige du **propre**, et la trieuse est coupée (`SORTER_ENABLED=false`) :
+`S.cash` n'a aucune source in-game. Une dette armée était donc **impayable**, et
+`nightTick` la faisait enfler sans fin (+8 chaleur, −6 standing, ×1,15 tous les
+2 jours). Boucle de punition sans sortie, dormante par accident — R1 violé de la
+pire façon. `FRONT_ENABLED = false` bloque l'armement ET l'escalade (y compris sur
+un save déjà infecté) **sans effacer** `debtDue`/`debtDueDay` : le jour où le propre
+retrouve une source, on repasse à `true` et l'état repart où il en était.
+
+### Vérifié aussi, et laissé tel quel
+
+Le « désync » du Lot 500 (affiché dès réput 25, achetable à 30) signalé par la
+reconnaissance n'en est pas un : c'est un **teaser volontaire** — l'article
+s'affiche verrouillé pour montrer ce qui vient. Non touché.
+
+### `[DÉCISION REQUISE]` — ce qui reste ouvert avant les barreaux du haut
+
+- **Le contre-poids R9 chiffré** : quelle clientèle monte en panier, à quel palier
+  de couteau. Sans ça, le calibre reste un choix à sens unique (petit = servir
+  tout le monde), et les barreaux semi-auto / auto n'ont rien à équilibrer.
+  `CORNER.BUDGET` / `OFFER` / `usual` sont tous tunés pour du petit volume.
+- **Le sort du fallback 2D** : `manualCut ×5×cutBatch()` en un tap, gratuit et non
+  gaté — le mode dégradé est aujourd'hui **plus rapide** que le mode nominal 3D
+  (un appui de 0,6 s par geste). Le brider sur l'escalier, ou l'assumer.
+- Les **placeholders** `LAME_NETTETE`, `QUAL_REF` et `QUAL_TOL_MAX` attendent le
+  tuning humain.
+
+---
+
+## 2026-07-25 — La Loupe : le pain sur la planche mentait (désync visuel/état)
+
+`pressCut` (scene3d) retirait **une** tranche du pain visible, pendant que le
+hook `onCut` (index.html) en débitait **`1 + gabarit`**. Conséquence : « Plus de
+pain. Appro requis. » s'affichait devant un pain encore à moitié plein, et
+l'écart *grandissait à chaque palier de gabarit acheté* — c'est-à-dire le long
+de l'axe de progression R2. Le joueur qui investit dans l'outil voit le jeu
+devenir de plus en plus incohérent : exactement l'inverse de la promesse.
+
+Correctif : l'**état est la vérité**. `applyCut` retourne désormais les grammes
+réellement débités (au lieu d'un booléen), `onCut` les cumule et les retourne,
+et `pressCut` retire du pain visible ce montant-là — jamais une estimation. Une
+barrette tombe par tranche réellement coupée, donc le gabarit **se voit**. La
+lame se pose aussi à la largeur du geste complet, gabarit compris.
+
+Ce qui fait qu'on ne le reverra pas : `tools/desync-loupe.mjs` joue la scène en
+vrai navigateur (vraie 3D swiftshader, vrais appuis longs) sur un pain de 250 g
+— au-dessus du plafond visuel de 170 g, donc une recharge de planche est
+*obligatoire*. Vérifié dans les deux sens : **0 recharge avant le correctif,
+1 après**. C'est la seule façon honnête de prouver un correctif visuel.
+
+### Correction d'un point d'audit : l'échelle d'appro n'est pas inversée
+
+Sylvain : « l'échelle d'appro rend l'unité plus rentable à très petite échelle,
+mais la valeur se fait dans la quantité ». Il a raison, et le jeu l'encode déjà.
+Marge **absolue** au prix `cornerFair(reput)` : à réput 20 le Pain 100 gagne
+(600 € vs 300 €), à réput 48 c'est l'égalité, au-delà le volume écrase tout
+(à réput 100 : 1 200 € vs 1 800 € vs 3 800 € pour le Lot 500). Trois verrous
+cohérents gardent le gros lot : 3 200 € de liquide, `reputGate 30`, et surtout
+`planqueCap` (250 g de base, +120/palier → **3 agrandissements** pour tenir
+500 g). Ma comparaison « à capital égal » ignorait ces plafonds, qui sont la
+vraie contrainte. Point retiré.
+
+### Ce que la vérification a fait apparaître à la place : la qualité ne paie pas
+
+On paie la qualité **×3,4 le gramme** (2,00 €/g en q52 → 6,80 €/g en q78, soit
++240 % pour +50 % de qualité). Ce qu'elle rapporte :
+
+| canal | prix de vente | apport qualité |
+| --- | --- | --- |
+| Corner (négo) | `cornerFair(reput)` | **+0 %** — fonction de la réput seule |
+| Snap (DM) | `ppuG = f(reput)` | **+0 %** — même formule |
+| PDV auto | `pdvFair(q) = 5 + 0,10q` (+25 %) | n'entre que dans le terme de *satisfaction*, jamais dans le prix ; et `pdvServe` ne tourne que pour le charbonneur, encore en debug |
+| `qualCheck` | ×1,12 tolérance, +12 % pourboire | **2 personas sur 12**, et les personas font 15 % du volume |
+
+Symptôme qui le prouve sans discussion : **dès réput 30, le Lot 500 domine
+strictement le Pain 250** — 6,40 €/g contre 6,80 €/g, et deux fois plus gros.
+Le seul avantage du Pain 250 est ses +8 de qualité, qui ne valent rien à la
+caisse : c'est un SKU mort dès qu'on a la planque.
+
+Ça percute **R10** de plein fouet (« la coupe est le levier qualité/pureté ») :
+le levier a un coût, il n'a pas de surface de gain. `[DÉCISION REQUISE]` —
+brancher la qualité sur le prix (et où : menu du corner, budget client, ou
+tolérance), ou assumer que la qualité n'achète que de la *tolérance* et
+rééquilibrer le prix des pains en conséquence.
+
+---
+
+## 2026-07-25 — La Loupe : le corner passe aux GRAMMES (et le calibre devient un levier)
+
+Arbitrage de Sylvain : **le corner vend À LA TÊTE** — « il n'y a pas de demande
+sans client ». Ça tranche le `[DÉCISION REQUISE]` ouvert par l'audit, et ça a une
+conséquence immédiate : la thèse de `le-spot/` (visibilité ∝ nombre de
+transactions, le calibre pilotant ce nombre) **ne s'applique pas à La Loupe**. En
+vente à la tête, servir 8 g en 4 barrettes ou en 1 seule, c'est une transaction
+dans les deux cas.
+
+Mais le calibre reprend aussitôt un sens, meilleur et déjà à moitié codé :
+**en quoi tu coupes décide QUI tu peux servir.** Riton veut 2 g, Momo 5, Bilal 8,
+Diego 16-24. Un tampon de 8 g ne sert pas Riton. Couper petit = servir tout le
+monde et travailler plus à la planche ; couper gros = expédier la coupe et fermer
+la porte à une partie de la clientèle. C'est social au lieu d'être statistique,
+et ça colle aux personas au lieu de leur passer à côté.
+
+**Le bug n°2 de l'audit ÉTAIT cette mécanique, mal implémentée.** Le corner
+facturait des grammes et débitait des barrettes via `clamp(round(g/2),1,6)`.
+Mesuré avant correctif :
+
+| tampon | le client veut | livré (avant) | facturé |
+|---|---|---|---|
+| 8 g | 5 g | **24 g** | 5 g |
+| 5 g | 8 g | **20 g** | 8 g |
+| 2 g | 5 g | 6 g | 5 g |
+| 2 g | 24 g (Diego) | 12 g | **24 g** |
+
+Le corner branche désormais sur `snap.qtyToSachets` — la composition exacte qui
+existait déjà à quinze mètres, testée, avec son commentaire « Exact match only
+(jamais sur-livrer) ». Facturation **au prorata des grammes réellement livrés**.
+La réparation et la feature étaient le même travail.
+
+**Nouveau cas à rendre lisible** : une commande peut devenir *incomposable*
+(5 g avec un tampon de 8 g). La carte le dit maintenant AVANT d'accepter —
+« ton tampon ne compose que N g » ou « aucune barrette ne compose 5 g, coupe plus
+fin ». Sans ça c'était un échec caché (R4).
+
+**Deux autres réparations du même passage**
+- **L'offre du client passe enfin son propre test.** `BUDGET` étant indexé sur le
+  `kind` et non sur le persona, Nassim (accro, budget 50, demande 8 g) partait
+  **fâché dans 100 % de ses visites** après qu'on ait accepté le montant qu'il
+  venait d'annoncer ; Bilal dans 42 %. Vérifié en rejouant 400 couples jour/seq.
+  Les offres sont maintenant bornées par `offerCap` — la poche ET la tolérance —
+  et re-bornées au spawn une fois le `qFac` du connaisseur connu.
+- **R1 : l'expiration de patience ne ponctionne plus le réservoir.** Elle punissait
+  la LENTEUR DE LA MAIN, et `res` pilote la demande : une amende durable pour un
+  défaut d'attention. Le walk après une contre-offre trop haute, lui, reste
+  sanctionné — il est annoncé par `negoFace` avant le bouton, donc c'est une
+  décision (R8). Trois chemins de « vente perdue », trois traitements.
+
+**Outillage** — `tools/invariants-loupe.mjs` : 7 invariants sans navigateur, dont
+les deux que l'audit réclamait (grammes facturés == livrés ; l'offre d'un client
+passe son propre test, balayée sur 21 520 offres × menus × relations × qFac).
+Le dépôt ne vérifiait jusqu'ici que la syntaxe.
+
+`SAVE_VERSION` 27 → 28 (le tampon change de sémantique de facturation).
+Le smoke attendait 282 de recette : c'est 272, et les 10 de moins sont de la
+marchandise qu'on ne donne plus. Commenté sur place pour la prochaine session.
+
+**Reste ouvert** : `[DÉCISION REQUISE]` l'échelle d'appro est inversée — à
+capital égal le petit pain rapporte **16 fois plus** (1 700 € → +4 800 en
+8× Pain 100 contre +300 en 1× Pain 250). Elle punit littéralement « grossir et
+s'étendre ». C'est de l'équilibrage structurant. Et le désync 3D du Gabarit
+(« Plus de pain » devant une savonnette à 80 %) attend son tour.
+
+---
+
 ## 2026-07-25 — Le Spot : la coupe devient une décision, payée en grammes
 
 Retour de playtest sur `le-spot/` : *« ça marche vraiment bien, le sentiment est
