@@ -70,7 +70,9 @@ export const CORNER_PERSONAS = [
     tell:"Toujours 8 g, et « tu me fais un prix si je reviens ? » — futur gros.",
     bank:{ arrive:["Huit grammes. Tu me fais un prix si je reviens chaque semaine ?","Je refourgue à ma bande, faut que je m'y retrouve. {t} ?","Si tu m'accroches maintenant, je te ramène du monde. {q} g, {t}."],
       react:{ deal:["Là on se comprend. Je te ramène la clientèle."], nego:["Bon, ça passe pour cette fois. On verra la prochaine."] } } },
-  { id:"diego", nm:"Diego", av:"🏗️", kind:"grossiste", usual:16, exig:45, unlockedBy:"momo", traits:{heat:6, hours:[9,19]},
+  // rueGate : Diego vient aussi tout seul si la rue te connaît pour du gros calibre —
+  // un grossiste ne débarque pas par amitié, il débarque parce qu'on lui a parlé de toi.
+  { id:"diego", nm:"Diego", av:"🏗️", kind:"grossiste", usual:16, exig:45, unlockedBy:"momo", rueGate:5, traits:{heat:6, hours:[9,19]},
     tell:"Passe en journée, prend gros, paie clean — mais le servir chauffe le coin.",
     bank:{ arrive:["Seize grammes d'un coup. Chaque semaine si t'assures. {t} ?","Je prends gros, je paie clean, mais je traîne pas. {q} g, {t}.","Vingt grammes. Emballe vite, on nous regarde."],
       react:{ deal:["Carré. Même heure la semaine prochaine."], nego:["Ça monte, mais le volume est là. Vendu."] } } },
@@ -190,6 +192,42 @@ export function cornerTol(kind, rel, base){ return base*(CORNER.TOL[kind] + (rel
    [PLACEHOLDERS — les deux valeurs attendent le tuning humain] */
 export const QUAL_REF = 40;       // plancher : en dessous, facteur 1 (jamais de malus)
 export const QUAL_TOL_MAX = 1.35; // tolérance à q100
+
+/* ---- Le rabais au volume : la portion généreuse coûte moins cher au gramme ----
+   Arbitrage Sylvain (2026-07-25) : « le prix au gramme d'un 8 g doit être plus
+   attractif que celui pour un 2 g ».
+
+   La FORME compte autant que la courbe. Un rabais exprimé comme un facteur sur la
+   tolérance (`qFac < 1`) rognerait le plafond que le client s'impose APRÈS avoir
+   annoncé son offre — c'est le bug Nassim/Bilal, et nos propres invariants
+   l'interdisent explicitement. Ici c'est un MENU PAR FORMAT : on baisse la
+   référence de prix elle-même. Comme `cornerTol(kind, rel, base)` prend cette
+   référence en entrée, le plafond et l'offre bougent ENSEMBLE — la classe de bugs
+   entière est évitée par construction, pas par tuning.
+
+   Contrepartie systémique (R9) : le gros panier rapporte moins au gramme, mais la
+   soirée est plafonnée par la CHALEUR, qui est un impôt sur les secondes
+   d'ouverture — pas sur les grammes ni sur le nombre de ventes. Écouler 200 g en
+   paniers de 2 g accumule 422 de chaleur (descente garantie, seuil 95) ; en paniers
+   de 12 g, 70. Le rabais est le prix de la discrétion.
+   [PLACEHOLDER — la courbe attend le tuning humain] */
+export const RABAIS_FORMAT = [[2, 1.00], [5, 0.92], [8, 0.85], [12, 0.80], [20, 0.75]];
+/** Référence de prix pour une portion donnée : décroissante, bornée aux deux bouts. */
+export function rabaisVolume(qty){
+  const q = Math.max(0, qty || 0);
+  const F = RABAIS_FORMAT;
+  if(q <= F[0][0]) return F[0][1];
+  if(q >= F[F.length-1][0]) return F[F.length-1][1];
+  for(let i = 1; i < F.length; i++){
+    if(q <= F[i][0]){
+      const [g0, f0] = F[i-1], [g1, f1] = F[i];
+      return f0 + (f1 - f0) * (q - g0) / (g1 - g0);   // interpolation linéaire entre paliers
+    }
+  }
+  return F[F.length-1][1];
+}
+/** LE point d'entrée du prix : toute formule €/g passe par ici quand la quantité est connue. */
+export function menuAt(menu, qty){ return (menu || 0) * rabaisVolume(qty); }
 export function qualFac(q){
   const x = (Math.max(QUAL_REF, Math.min(100, q || 0)) - QUAL_REF) / (100 - QUAL_REF);
   return 1 + x * (QUAL_TOL_MAX - 1);
@@ -257,22 +295,35 @@ const ARDOISE_TX=[
   "T'inquiète, j'ai jamais planté personne. {q} g, et {d} t'as {t} cash.",
 ];
 export function makeArdoise(p, rel, reput, day, seq, prix){
-  const menu=prix||cornerFair(reput), qty=p.usual;
+  const menu=prix||cornerFair(reput), qty=p.usual, ref=menuAt(menu, qty); // même barème que le comptant
   // plafonné par sa poche (comme toute vente : budget = borne absolue) — sinon monter le menu
   // juste avant d'accepter gonflait le crédit sans limite ; l'intérêt s'applique aussi au plafond
   const cap=R(cornerBudget(p.kind, rel)*(1+CORNER.ARDOISE_RATE));
-  const due=Math.max(1, Math.min(R(qty*menu*(1+CORNER.ARDOISE_RATE)), cap)), payday=day+CORNER.ARDOISE_DAYS;
+  const due=Math.max(1, Math.min(R(qty*ref*(1+CORNER.ARDOISE_RATE)), cap)), payday=day+CORNER.ARDOISE_DAYS;
   const tx=pick(ARDOISE_TX, day+seq).replace("{q}", qty).replace("{d}", "J"+payday).replace("{t}", due);
   return { mode:"ardoise", qty, due, payday, tx, tell:p.tell||"" };
 }
-// graphe social : la relation avec le parrain (unlockedBy) débloque le filleul — renvoie les nouveaux contacts
-export function checkUnlocks(clients){
+/* Graphe social : la relation avec le parrain (unlockedBy) débloque le filleul.
+   DEUXIÈME PORTE (2026-07-25) : le bouche-à-oreille de calibre. Un grossiste ne se
+   présente pas parce que tu t'entends bien avec quelqu'un — il vient parce qu'on lui
+   a dit que tu sers du volume. `rueGate` est donc une porte parallèle, jamais une
+   condition supplémentaire : les deux chemins ouvrent, aucun ne ferme (R1).
+
+   `rueMax` = le plus gros calibre que tu aies jamais sorti. C'est bien lui et pas la
+   moyenne : un grossiste entend « il sort du 8 », pas « sa moyenne pondérée est à
+   6,3 ». Le premier geste suffit à faire courir le bruit. */
+export function checkUnlocks(clients, rueMax){
   const news=[];
   for(const p of CORNER_PERSONAS){
-    if(!p.unlockedBy) continue;
+    if(!p.unlockedBy && !p.rueGate) continue;
     const c=clients[p.id]; if(!c||c.unlocked||c.quit) continue;
-    const by=clients[p.unlockedBy];
-    if(by&&by.rel>=CORNER.UNLOCK_REL){ c.unlocked=true; news.push({ p, by:personaById(p.unlockedBy) }); }
+    const by=p.unlockedBy?clients[p.unlockedBy]:null;
+    const parRelation = by && by.rel>=CORNER.UNLOCK_REL;
+    const parRumeur = p.rueGate && (rueMax||RUE_MIN) >= p.rueGate;
+    if(parRelation || parRumeur){
+      c.unlocked=true;
+      news.push({ p, by:parRelation?personaById(p.unlockedBy):null, rue:!parRelation });
+    }
   }
   return news;
 }
@@ -292,19 +343,87 @@ export function makeOffer(persona, rel, reput, day, seq, prix){
   const qty = kind==="grossiste" ? (16 + (hh(day, seq)>0.6 ? 8 : 0)) : persona.usual;
   const off = CORNER.OFFER[kind] || [0.9, 1.0];
   const m = off[0] + (off.length>1 ? hh(day*5, seq)*(off[1]-off[0]) : 0);
-  // le client ouvre relatif à TON prix affiché (il négocie à partir de ton menu),
-  // borné par ce qu'il peut réellement payer et accepter (offerCap)
-  const offer = Math.min(Math.max(1, R(qty*menu*m)), offerCap(kind, rel, menu, qty));
+  // le client ouvre relatif à TON prix affiché POUR SA PORTION (rabais volume),
+  // borné par ce qu'il peut réellement payer et accepter (offerCap, même référence)
+  const ref = menuAt(menu, qty);
+  const offer = Math.min(Math.max(1, R(qty*ref*m)), offerCap(kind, rel, ref, qty));
   const tx = (pickBank(persona, day+seq) || pick(TXT[kind]||TXT.regulier, day+seq)).replace("{q}", qty).replace("{t}", offer);
   return { mode:"offer", qty, offer, tell, tx };
 }
 
+/* ---- Le bouche-à-oreille : la rue t'envoie les clients que tu mérites ----
+   Arbitrage Sylvain (2026-07-25) : « ça serait légitime de penser que le bouche à
+   oreille puisse faire changer le type de clientèle ». Le signal est CE QUE TU
+   COUPES (`S.rue`, moyenne du calibre débité) — pas ce que tu vends, et c'est
+   délibéré : sur « ce que tu vends », le système se bloquerait en rond (pas de gros
+   clients tant que tu n'as pas vendu gros, pas de vente gros tant qu'il n'y a pas de
+   gros clients), et chaque barrette coupée trop gros serait du stock mort. Mesuré :
+   à 25 % du tampon coupé en 8 g, 10 barrettes sur 40 dorment et ne repartent jamais.
+
+   Sur « ce que tu coupes », la demande arrive AVEC la marchandise. Et le quartier ne
+   disparaît jamais : la part de gros paniers plafonne, les petites doses restent le
+   fond du trafic (R1 — on n'enlève rien, on ajoute). */
+export const RUE_MIN = 2;         // le calibre de départ : personne ne te connaît encore
+export const RUE_PART_MAX = 0.55; // [PLACEHOLDER] part maximale de gros paniers chez les anonymes
+export const RUE_PENTE = 12;      // [PLACEHOLDER] à quelle vitesse la rumeur convertit le trafic
+export const RUE_INERTIE = 0.08;  // [PLACEHOLDER] vitesse à laquelle la rue apprend ton calibre
+
+/* La formule d'apprentissage vit ICI et nulle part ailleurs.
+   Elle était recopiée dans `applyCut` ET dans les invariants (« même valeur que
+   index.html ») : changer la règle d'un côté laissait les tests vérifier l'ancienne
+   et passer au vert. Un test qui recopie ce qu'il teste ne teste rien. */
+export function rueApres(rue, take){
+  const r = Math.max(RUE_MIN, rue || RUE_MIN);
+  return Math.max(RUE_MIN, r + (take - r) * RUE_INERTIE * Math.min(1, take / 8));
+}
+
+/** Part d'anonymes qui viennent pour du volume, vu ta réputation de calibre. */
+export function ruePartGros(rue){
+  return Math.max(0, Math.min(RUE_PART_MAX, ((rue || RUE_MIN) - RUE_MIN) / RUE_PENTE));
+}
+/* La rumeur porte un calibre NOMMÉ, pas une moyenne flottante : on ne dit pas « il
+   vend du 6,8 », on dit « il vend du 8 ». Ce n'est pas cosmétique, c'est ce qui
+   rend le système jouable — `qtyToSachets` ne casse pas une barrette, donc une
+   demande de 7 g face à un tampon de 8 g ne se sert PAS. Mesuré sans l'accrochage :
+   couper à 8 g amenait des paniers de 7 g, soit 0 % de servable. La demande tombait
+   systématiquement un cran sous l'offre — le pire cas possible. */
+export const RUE_PALIERS = [2, 5, 8, 12, 20]; // mêmes crans que CUT_CAPS : ce que la rue sait nommer
+/** Le palier nommé le plus proche d'une taille de coupe. */
+export function rueCalibre(rue){
+  const r = Math.max(RUE_MIN, rue || RUE_MIN);
+  return RUE_PALIERS.reduce((a, b) => Math.abs(b - r) < Math.abs(a - r) ? b : a);
+}
+
+/* Le calibre s'annonce à la PREMIÈRE coupe, la part se gagne à la longue.
+   (Arbitrage Sylvain : « la demande de morceaux plus gros pourrait se déclencher au
+   moment où le joueur coupe le morceau de taille la première fois. »)
+
+   Ce n'est pas qu'une question de lisibilité, ça règle le décalage offre/demande.
+   Avec la seule moyenne à inertie, il fallait débiter une trentaine de barrettes de
+   8 g AVANT que la rue s'en aperçoive — donc trente barrettes invendables en
+   attendant que la demande rattrape. En ouvrant la porte au premier geste, l'offre
+   et la demande partent ENSEMBLE.
+
+   Deux signaux distincts, et c'est délibéré :
+   - `rueMax` (le plus gros calibre jamais coupé) dit CE QU'ON DEMANDE — immédiat ;
+   - `rue` (moyenne à inertie) dit COMBIEN en demandent — progressif.
+   Sinon une seule barrette de 8 g convertirait 46 % du trafic du jour au lendemain
+   et assècherait la clientèle de petites doses (R1 : on n'enlève rien). */
+export function anonQty(day, seq, rue, rueMax){
+  const base = [2,2,3,5,2][((day+seq)%5+5)%5];           // le quartier, immuable
+  const r = Math.max(RUE_MIN, rue || RUE_MIN);
+  const gros = rueCalibre(Math.max(RUE_MIN, rueMax || r));
+  if(gros <= RUE_MIN) return base;
+  return hh(day*13, seq) < ruePartGros(r) ? Math.max(base, gros) : base;
+}
+
 // PNJ anonyme (le volume) : petite dose, ouvre proche du menu, accepte vite. Ni relation ni tell.
-export function makeAnon(day, seq, reput, prix){
+export function makeAnon(day, seq, reput, prix, rue, rueMax){
   const menu = prix || cornerFair(reput);
-  const qty = [2,2,3,5,2][((day+seq)%5+5)%5];            // petites doses déterministes
+  const qty = anonQty(day, seq, rue, rueMax);
+  const ref = menuAt(menu, qty);   // rabais volume : la grosse portion s'ouvre moins cher au gramme
   const off = CORNER.OFFER.anon, m = off[0] + hh(day*5, seq)*(off[1]-off[0]);
-  const offer = Math.min(Math.max(1, R(qty*menu*m)), offerCap("anon", 0, menu, qty));
+  const offer = Math.min(Math.max(1, R(qty*ref*m)), offerCap("anon", 0, ref, qty));
   const tx = pick(ANON, day+seq).replace("{q}", qty).replace("{t}", offer);
   return { kind:"anon", mode:"offer", qty, offer, tx, tell:"" };
 }
@@ -312,7 +431,7 @@ export function makeAnon(day, seq, reput, prix){
 // profil louche — surpaie ×1.3 (un indice). cop:true = infiltré (vendre → chaleur) ; cop:false = pigeon (vente grasse).
 export function makeLouche(day, seq, reput, prix){
   const L = pick(LOUCHE, day+seq), menu = prix || cornerFair(reput);
-  return { kind:"louche", mode:"louche", nm:L.nm, av:L.av, tx:L.tx, tell:L.tell, cop:L.cop, qty:L.g, offer:R(L.g*menu*1.3) };
+  return { kind:"louche", mode:"louche", nm:L.nm, av:L.av, tx:L.tx, tell:L.tell, cop:L.cop, qty:L.g, offer:R(L.g*menuAt(menu, L.g)*1.3) };
 }
 
 // grimace à mi-négo (Recettear) : lecture DÉTERMINISTE de la tête du client pendant qu'on règle le prix.
@@ -322,12 +441,14 @@ export function negoFace(client, total, reput, prix){
   if(client.kind==="louche") return { emo:"😐", tx:"Aucune réaction… bizarre." };
   if(!g || !total) return { emo:"🤨", tx:"Il attend de voir…" };
   // connaisseur (traits.qual) : sa tolérance suit la qualité reniflée au spawn (qFac)
-  const ppu = total/g, tol = cornerTol(client.kind, client.rel, menu)*(client.qFac||1), bud = cornerBudget(client.kind, client.rel);
+  // même référence que resolveOffer : la tête qu'il fait doit prédire son verdict
+  const ref = menuAt(menu, g);
+  const ppu = total/g, tol = cornerTol(client.kind, client.rel, ref)*(client.qFac||1), bud = cornerBudget(client.kind, client.rel);
   if(total>bud) return { emo:"😤", tx:"Au-dessus de sa poche." };
   if(ppu>tol) return { emo:"😤", tx:"À ce prix, c'est mort pour lui." };
   if(ppu>tol*0.9) return { emo:"😬", tx:"Il grimace — t'es à la limite." };
-  if(ppu<=menu*0.9) return { emo:"😍", tx:"Belle affaire… pour lui." };
-  if(ppu<=menu*1.1) return { emo:"😊", tx:"Prix menu, ça lui va." };
+  if(ppu<=ref*0.9) return { emo:"😍", tx:"Belle affaire… pour lui." };
+  if(ppu<=ref*1.1) return { emo:"😊", tx:"Prix menu, ça lui va." };
   return { emo:"😏", tx:"Il suit… y a de la marge." };
 }
 
@@ -342,7 +463,10 @@ export function reactLine(outcome, i, persona){
    remplit le bac. `firstTry` = 1re résolution (pour le bonus JUSTE) ; `isClientOffer` = on
    accepte l'offre du client (vs on a réglé un prix). */
 export function resolveOffer(client, g, total, firstTry, isClientOffer, reput, prix){
-  const fair = prix || cornerFair(reput), ppu = total/g; // bande/marge/tolérance = TON menu affiché
+  // `fair` = ton menu affiché POUR CETTE PORTION : le rabais volume entre ici, donc il
+  // déplace la bande, la tolérance ET la frontière d'abus d'un seul mouvement. C'est ce
+  // qui empêche la classe de bugs « le client refuse le montant qu'il vient d'annoncer ».
+  const fair = menuAt(prix || cornerFair(reput), g), ppu = total/g;
   // connaisseur (traits.qual) : qFac (lu au spawn) élargit ou rogne la tolérance — le budget reste sa poche absolue
   const tol = cornerTol(client.kind, client.rel, fair)*(client.qFac||1), bud = cornerBudget(client.kind, client.rel);
   const accepted = ppu <= tol && total <= bud;
