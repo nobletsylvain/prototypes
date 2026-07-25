@@ -76,6 +76,43 @@ pendant qu'on gagne davantage.
 C'est le critère qu'on s'impose : *l'option A gagne dans un contexte, B dans un
 autre*. Un dilemme dont la réponse ne change jamais n'est pas un dilemme.
 
+## 3 bis. La coupe : « la lame s'émousse »
+
+Retour de playtest : *« la coupe est vraiment facile »*. Elle était un minuteur —
+on maintenait, les sachets tombaient, relâcher ne coûtait rien. Aucune décision.
+
+**Chaque COUPE émousse la lame** (`NETTETE_PAR_COUPE`), pas chaque seconde. Une
+lame qui force n'ouvre plus, elle **écrase** : le geste consomme le sachet *plus*
+ce qu'il broie à côté, et ces grammes partent aux **miettes** — ils reviennent
+avec le pain suivant. Rien n'est détruit (R1), mais ce n'est pas disponible
+*aujourd'hui*. Lâcher au moins `RELACHE_MIN` laisse la lame reprendre.
+
+Mesuré sur un pain de 100 g en 5 g : **maintien continu → 10 g écrasés**,
+**rythme alterné → 5 g**. Le prix de la précipitation est de l'ordre de 5 % du pain.
+
+**Pourquoi les grammes et pas les secondes.** La première version facturait la
+propreté en temps. C'était faux : la journée est bornée par le **stock**, pas par
+le temps (§3) — donc couper lentement ne perd aucune vente, on vend les mêmes
+100 g plus tard. Pire, le temps passé à la planque est le seul état où la chaleur
+retombe vite : couper proprement **refroidissait le point**. Le coût n'était pas
+nul, il était négatif. Les grammes, eux, sont le vrai goulot.
+
+**Et ça alimente le dilemme central** au lieu de flotter à côté : l'usure se paie
+par coupe, donc écouler 100 g en 2 g use la lame **4× plus** qu'en 8 g
+(50 coupes contre 12,5). Le petit calibre paie désormais un **troisième** prix,
+après le €/g et la visibilité.
+
+| Calibre | Coupes pour 100 g | Usure de lame |
+|---|---|---|
+| 2 g | 50 | 1,75 |
+| 5 g | 20 | 0,70 |
+| 8 g | 12,5 | 0,44 |
+
+**Écarté après pré-vol adverse** : une prime de +15 % au gramme sur les lots nets.
+Elle ne changeait aucun rapport entre calibres (inflation uniforme), érodait
+`LOYER_FIXE` — le second bras de la bascule —, et son optimum était un
+martèlement du pouce à ~5 Hz : un cookie clicker, l'inverse de R3.
+
 ## 4. Les trois autres décisions qui vivent autour
 
 - **Le tampon** — ce qu'on pose dehors se vend sans rupture… et c'est

@@ -188,6 +188,91 @@ await shot("05-coupe-en-8g.png");
   ok("R1 · rien n'est perdu à la coupe (miettes < calibre)", s.pain === null || s.pain.g < 8);
 }
 
+// ── 2b. LA LAME : la coupe porte une décision, payée en GRAMMES ───────────
+// Version 2. La v1 facturait la propreté en SECONDES — or la journée est bornée
+// par le stock, pas par le temps : le coût était nul, voire négatif (le temps à
+// la planque refroidit le point). Ici la lame émoussée écrase du produit, et les
+// grammes sont le vrai goulot.
+{
+  const k = await page.evaluate(() => window.__spot.K);
+
+  // R1 — rien n'est DÉTRUIT : ce qui est écrasé part aux miettes et revient
+  const conserv = await page.evaluate(async () => {
+    const w = window.__spot, st = w.S();
+    st.sachets = {}; st.sacQ = 0; st.miettes = 0; st.format = 5;
+    st.pain = { id: "t", g: 100, q: 60, col: "#5c4632", g0: 100 };
+    w.setLame(1);
+    const el = document.getElementById("planche");
+    el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 3200));        // maintien continu : la lame force
+    window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 200));
+    const stock = Object.entries(st.sachets).reduce((a2, [g2, n]) => a2 + +g2 * n, 0);
+    const reste = st.pain ? st.pain.g : 0;
+    return { stock, miettes: st.miettes, reste, total: stock + st.miettes + reste };
+  });
+  ok("R1 · la lame n'ANÉANTIT rien : sachets + miettes + reste = le pain entier",
+     Math.abs(conserv.total - 100) < 0.01,
+     `${conserv.stock} g en sachets + ${conserv.miettes.toFixed(1)} g de miettes + ${conserv.reste.toFixed(1)} g = ${conserv.total.toFixed(1)} g`);
+  ok("Une lame qui force COÛTE du rendement (des grammes, pas des secondes)",
+     conserv.miettes > 1,
+     `${conserv.miettes.toFixed(1)} g écrasés en maintien continu`);
+
+  // Le rythme paie : mêmes 100 g, coupés en alternant → beaucoup moins d'écrasement
+  const propre = await page.evaluate(async () => {
+    const w = window.__spot, st = w.S();
+    st.sachets = {}; st.sacQ = 0; st.miettes = 0; st.format = 5;
+    st.pain = { id: "t", g: 100, q: 60, col: "#5c4632", g0: 100 };
+    w.setLame(1);
+    const el = document.getElementById("planche");
+    for (let i = 0; i < 8; i++) {
+      el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+      await new Promise((r) => setTimeout(r, 330));       // ~3 sachets
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 900));       // > RELACHE_MIN, la lame reprend
+      if (!st.pain) break;
+    }
+    return { miettes: st.miettes };
+  });
+  ok("Le rythme (couper / laisser reprendre) réduit vraiment l'écrasement",
+     propre.miettes < conserv.miettes * 0.7,
+     `continu ${conserv.miettes.toFixed(1)} g écrasés · alterné ${propre.miettes.toFixed(1)} g`);
+
+  // ANTI-DÉGÉNÉRESCENCE : le micro-tap à 5 Hz ne doit plus garder la lame nette
+  const spam = await page.evaluate(async () => {
+    const w = window.__spot, st = w.S();
+    st.pain = { id: "t", g: 400, q: 60, col: "#5c4632", g0: 400 };
+    st.format = 5; st.miettes = 0;
+    w.setLame(1);
+    const el = document.getElementById("planche");
+    const t0 = performance.now();
+    while (performance.now() - t0 < 2500) {               // 0,10 s pressé / 0,11 s lâché
+      el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+      await new Promise((r) => setTimeout(r, 100));
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 110));
+    }
+    return { lame: w.lame() };
+  });
+  ok("Le martèlement du pouce ne garde plus la lame nette (RELACHE_MIN)",
+     spam.lame < 0.6,
+     `netteté après 2,5 s de tap à ~5 Hz : ${spam.lame.toFixed(2)} (repos requis : ${k.RELACHE_MIN} s)`);
+
+  // R8 — le calibre porte la propreté : 50 coupes émoussent 4× plus que 12
+  const parCalibre = await page.evaluate(() => {
+    const w = window.__spot, k2 = w.K;
+    return w.FORMATS.map((f) => {
+      const coupes = 100 / f.g;
+      return { g: f.g, coupes, usure: +(coupes * k2.NETTETE_PAR_COUPE).toFixed(2) };
+    });
+  });
+  console.log("\n  Usure de lame pour 100 g de pain, par calibre :");
+  parCalibre.forEach((r) => console.log(`    ${r.g} g : ${r.coupes} coupes → ${r.usure} d'usure`));
+  ok("R8 · le petit calibre est structurellement plus dur à garder net",
+     parCalibre[0].usure > parCalibre[1].usure && parCalibre[1].usure > parCalibre[2].usure,
+     parCalibre.map((r) => `${r.g}g:${r.usure}`).join(" > "));
+}
+
 await tap("#bFill");
 await sleep(200);
 {

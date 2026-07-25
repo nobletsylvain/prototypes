@@ -9,6 +9,56 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-25 — Le Spot : la coupe devient une décision, payée en grammes
+
+Retour de playtest sur `le-spot/` : *« ça marche vraiment bien, le sentiment est
+là, mais la coupe est sans doute vraiment facile »*. Juste : c'était un minuteur.
+On maintenait, les sachets tombaient, relâcher ne coûtait rien — R8 non servi.
+
+**Ce qui est livré : « la lame s'émousse ».** Chaque COUPE émousse (pas chaque
+seconde). Une lame qui force n'ouvre plus, elle écrase : le geste prend le sachet
+*plus* ce qu'il broie, et ces grammes partent aux miettes — ils reviennent avec le
+pain suivant. Rien n'est détruit (R1), mais rien n'est disponible aujourd'hui.
+Lâcher `RELACHE_MIN` (0,35 s) laisse la lame reprendre. Mesuré sur 100 g en 5 g :
+**continu 10 g écrasés, alterné 5 g**.
+
+Le geste se lit **dans la matière** et pas dans un cadran (étalon *Viridi* du
+corpus plantation) : les barrettes sortent droites, puis penchées et rabougries.
+
+**Et surtout ça alimente le dilemme du calibre au lieu de flotter à côté** :
+l'usure se paie par coupe, donc 100 g en 2 g usent la lame 4× plus qu'en 8 g
+(50 coupes contre 12,5). Le petit calibre paie un troisième prix, après le €/g et
+la visibilité.
+
+**Le pré-vol adverse a bloqué ma première version, et c'est la vraie leçon.**
+J'avais conçu une prime de +15 % au gramme sur les lots nets, facturée en TEMPS
+(couper propre demande d'alterner, donc prend 2× plus longtemps, donc le spot ne
+vend pas pendant ce temps). Verdict : **BLOQUÉ**, sur trois motifs imparables.
+- *Le temps ne coûte rien.* La journée est bornée par le STOCK, pas par le temps —
+  je l'avais moi-même établi la veille en corrigeant `simJour()`. Couper lentement
+  ne perd aucune vente : on vend les mêmes 100 g plus tard. Coût réel : zéro.
+- *Pire, il est négatif.* Le temps à la planque est le seul état où la chaleur
+  retombe vite : couper proprement REFROIDIT le point. La mécanique payait le
+  joueur pour la respecter.
+- *L'optimum était un cookie clicker.* Presser 0,10 s, lâcher 0,11 s, recommencer
+  à ~4,76 Hz : à temps rigoureusement identique, le micro-tap dominait strictement
+  le geste long. Le proto aurait enseigné « spamme », jamais « pose la main » —
+  l'inverse exact de R3, sur un pouce de téléphone.
+
+*Leçon transposable, et c'est la deuxième fois en deux jours que je me la prends :
+une mécanique ne vaut que ce que vaut la MONNAIE de son coût. Facturer en secondes
+un jeu borné par les grammes, c'est facturer en monnaie de singe.* Le garde-fou
+`RELACHE_MIN` est là uniquement pour tuer le martèlement, et un invariant le
+vérifie (tap à 5 Hz → netteté 0,58, plus 1,00).
+
+**Vérifs** : 34 invariants (dont conservation stricte — 90 g de sachets + 10 g de
+miettes + 0 reste = les 100 g du pain), 6/6 tailles d'écran, `node check.mjs` vert.
+
+**Tuning ouvert** : `NETTETE_PAR_COUPE` 0,035 · `RELACHE_MIN` 0,35 s ·
+`NETTETE_RECOVER` 0,55 · `PERTE_LAME_MAX` 0,22. Premier jet, à sentir au pouce.
+
+---
+
 ## 2026-07-25 — Le Spot (Shelter P1) : le calibre devient le levier discrétion ↔ dominance
 
 Nouveau proto `le-spot/`, un seul `index.html`, zéro dépendance (ni Three.js ni
