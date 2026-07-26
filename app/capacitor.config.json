@@ -1,0 +1,10 @@
+{
+  "appId": "com.nobletsylvain.prototypes",
+  "appName": "Prototypes",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#160d22",
+    "preferredContentMode": "mobile"
+  }
+}
