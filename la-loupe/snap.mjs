@@ -1,6 +1,6 @@
 /* SnapShit — moteur de demande (story → DM → commandes).
    Conséquences déterministes. Math.random = présentation uniquement. */
-import { menuAt } from "./corner.mjs";   // une seule échelle de prix pour tout le jeu
+import { menuAt, personaById, rueCalibre, RUE_MIN } from "./corner.mjs";   // une seule échelle de prix pour tout le jeu
 export const SC = {
   EXPO_INIT: 10, EXPO_PAR_DROP: 30, EXPO_PAR_VITRINE: 12, EXPO_DECAY: 0.72, EXPO_CAP: 100,
   EXPO_SEUIL_MAUVAIS_PUBLIC: 60, EXPO_DELAI_MAUVAIS_PUBLIC: 2,
@@ -129,12 +129,27 @@ export function buildDMs(S, good, bad, peakExpo) {
     pushDM(list, "dm" + (seq++), "lowball", pick(SC.QTY_LOWBALL, S.day + i), ppuL,
       pick(VIBES.lowball, S.day + i), "LOWBALL", nm);
   }
-  if (peakExpo >= SC.GROSSISTE_SEUIL_EXPO) {
-    const vol = Math.min(SC.GROSSISTE_QTY_CAP,
-      SC.GROSSISTE_QTY_BASE + Math.floor(peakExpo / 20) * SC.GROSSISTE_QTY_STEP);
-    const ppuV = Math.max(4, Math.round(ppuG * SC.GROSSISTE_FACTOR));
-    pushDM(list, "dm" + (seq++), "grossiste", vol, ppuV,
-      pick(VIBES.grossiste, S.day), "GROSSISTE", "Le Grossiste");
+  /* Le gros passe par ICI et nulle part ailleurs (arbitrage Sylvain, 2026-07-26) :
+     il n'entre plus dans la file du corner, il écrit. Deux verrous distincts, deux
+     gestes différents — le CALIBRE que tu coupes puis annonces ouvre la porte
+     (checkUnlocks / rueGate), le BUZZ que tu postes fait sonner le téléphone. */
+  const diego = personaById("diego");
+  const ouvert = S.clients && S.clients.diego && S.clients.diego.unlocked;
+  if (ouvert && peakExpo >= SC.GROSSISTE_SEUIL_EXPO) {
+    // La quantité suit le calibre annoncé : composable PAR CONSTRUCTION depuis tes
+    // sachets (c'est ce que tu coupes), et le volume du gros devient la conséquence
+    // du geste qui a ouvert la porte. L'ancienne échelle saturait à 72 g dès
+    // l'apparition — QTY_BASE/STEP ne produisaient aucune variation — et 72 g était
+    // parfois inservable (un stock tout en 5 g ne compose pas 72).
+    const cal = rueCalibre(S.rueMax || RUE_MIN);
+    const n = Math.max(2, Math.min(SC.GROSSISTE_QTY_CAP / cal, 2 + Math.floor(peakExpo / 25)));
+    const vol = Math.max(cal, Math.round(n) * cal);
+    // une seule échelle de prix dans tout le jeu : menuAt, comme accro et genuine
+    const ppuV = Math.max(4, Math.round(menuAt(ppuG, vol)));
+    const tx = (diego && diego.bank && diego.bank.arrive)
+      ? pick(diego.bank.arrive, S.day) : pick(VIBES.grossiste, S.day);
+    pushDM(list, "dm" + (seq++), "grossiste", vol, ppuV, tx, "GROSSISTE",
+      diego ? diego.nm : "Le Grossiste");
   }
   // Comtesse si standing haut
   if (S.reput >= 70 || S.comtesseState === "fan") {

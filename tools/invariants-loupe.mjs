@@ -513,6 +513,36 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
      `rumeur ${nRue.length} · relation ${nRel.length} · ni l'un ni l'autre ${nNi.length}`);
 }
 
+// ── 7. Le grossiste ne fait plus la rue ────────────────────────────────────
+// Arbitrage Sylvain (2026-07-26) : « le grossiste ne devrait pas passer par la rue,
+// mais seulement par SnapShit en DM, puis avec une livraison via BeuherShit ».
+// Il reste dans CORNER_PERSONAS (son visage, ses répliques, ses deux portes de
+// déblocage servent au DM) — c'est `canal:"dm"` qui le sort du tirage de la rue.
+{
+  const dm = CORNER_PERSONAS.filter((p) => p.canal === "dm");
+  ok("Le grossiste est marqué canal DM (il ne fait plus la queue au corner)",
+     dm.length === 1 && dm[0].id === "diego" && dm[0].kind === "grossiste",
+     dm.map((p) => `${p.nm} (${p.kind})`).join(", ") || "aucun");
+
+  // il n'a plus d'heures de passage ni de chaleur de coin : un deal livré n'a pas de coin
+  const d = CORNER_PERSONAS.find((p) => p.id === "diego");
+  ok("Le grossiste n'a plus ni heures de passage ni chaleur de coin",
+     d && !(d.traits && d.traits.hours) && !(d.traits && d.traits.heat),
+     d ? JSON.stringify(d.traits || {}) : "absent");
+
+  // les constantes de son kind restent définies : elles bornent le prix du DM et
+  // sont balayées par les invariants §2 ter et §5 ter (les retirer donnerait NaN)
+  const ok2 = ["TOL", "BUDGET", "PATIENCE"].every((k) => CORNER[k].grossiste != null);
+  ok("Les bornes du kind grossiste restent définies (elles bornent le DM)",
+     ok2, `TOL ${CORNER.TOL.grossiste} · BUDGET ${CORNER.BUDGET.grossiste} · PATIENCE ${CORNER.PATIENCE.grossiste}`);
+
+  // sa porte de rumeur survit au déménagement : c'est ce que « annoncer son format » achète
+  const cl = cornerClientsDefault();
+  const n = checkUnlocks(cl, 8).filter((u) => u.p.id === "diego");
+  ok("Sa porte de rumeur survit au déménagement (annoncer son calibre le fait écrire)",
+     n.length === 1 && n[0].rue === true, `${n.length} ouverture(s) par la rumeur`);
+}
+
 console.log("\n─── invariants La Loupe ───");
 let bad = 0;
 for (const r of results) {

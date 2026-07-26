@@ -191,7 +191,11 @@ const uArd = cornerM.makeArdoise(pN, 30, 0, 1, 1, 10); // menu 10 · plafond poc
 const unitOK = uArd.due === 81 && uArd.payday === 1 + cornerM.CORNER.ARDOISE_DAYS
   && cornerM.makeArdoise(pN, 30, 0, 1, 1, 30).due === 81            // menu ×3 → même due (plafond poche)
   && cornerM.wantsArdoise(pN, 10, 3, 1) === false                   // rel < ARDOISE_REL_MIN
-  && cornerM.inHours(cornerM.personaById("diego"), 23) === false && cornerM.inHours(pN, 23) === true
+  // Diego n'a plus d'heures depuis qu'il est passé en canal DM (un DM n'a pas d'heure
+  // de passage) : sans `hours`, inHours vaut toujours true. Kenza porte le cas « heures
+  // de jour » à sa place ; Lina garde le cas « fenêtre de nuit » juste en dessous.
+  && cornerM.inHours(cornerM.personaById("diego"), 23) === true
+  && cornerM.personaById("diego").canal === "dm" && cornerM.inHours(pN, 23) === true
   && cornerM.inHours(cornerM.personaById("lina"), 5) === false && cornerM.inHours(cornerM.personaById("lina"), 22) === true
   && cornerM.qualCheck(pI, 78).fac === cornerM.CORNER.QUAL_TOL_UP && cornerM.qualCheck(pI, 50).fac === cornerM.CORNER.QUAL_TOL_DOWN;
 const cl0 = { rel: 10, unlocked: true, missed: 0, gougeStreak: 0, quit: false };

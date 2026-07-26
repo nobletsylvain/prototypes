@@ -160,6 +160,9 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .cbtn{border:0;border-radius:9px;background:rgba(0,0,0,.55);color:#e8ecf4;font:inherit;font-weight:700;font-size:12px;padding:8px 11px;cursor:pointer}
 .cchip{background:rgba(0,0,0,.55);border-radius:20px;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap}
 .cchip.gold{color:#ffd66b}
+/* moins de 20 s avant la descente : la chip se met à respirer — la pression se VOIT venir */
+.cchip.hot{color:#ff8a6a;box-shadow:0 0 0 1px rgba(255,138,106,.45) inset;animation:chipPulse 1.1s ease-in-out infinite}
+@keyframes chipPulse{0%,100%{opacity:1}50%{opacity:.55}}
 #cManage{margin-left:auto}
 #cActive{position:absolute;left:8px;right:8px;bottom:8px;z-index:8}
 #cActive .card{margin:0;animation:cslide .26s cubic-bezier(.2,.9,.3,1.15)}
@@ -821,8 +824,8 @@ const PDV_MAX_WAIT=5, PDV_MAX_QUEUE=14, PDV_RES_PER_SALE=0.05, PDV_RUPTURE_HIT=1
 const PDV_HEAT_RATE=2.0, PDV_HEAT_DECAY=0.7, PDV_SEUIL=95, PDV_AFTER=45;
 const PDV_CHOUFFE_DAMP=0.7, PDV_CHOUFFE_PAY=60, PDV_TAMPON_MAX=60; // barrettes
 const PDV_WANT=[1,1,2,1,3,2,1,2]; // paniers clients (barrettes)
-const PDV_NAMES=["Momo","Inès","Yaz","Riton","Sofia","Sami","Lou","Nassim","Aya","Diego","Zoé","Paul"];
-const PDV_AV=["🧢","🎧","🛵","🥀","💅","🎒","👟","🎲","🌙","🏗️","🎀","👤"]; // avatars des silhouettes (débit auto : charbonneur embauché)
+const PDV_NAMES=["Momo","Inès","Yaz","Riton","Sofia","Sami","Lou","Nassim","Aya","Karim","Zoé","Paul"]; // plus de "Diego" : il ne fait plus la rue
+const PDV_AV=["🧢","🎧","🛵","🥀","💅","🎒","👟","🎲","🌙","🧥","🎀","👤"]; // plus de 🏗️ : Diego ne vient plus au corner // avatars des silhouettes (débit auto : charbonneur embauché)
 const PDV_ADV=[{q:25,l:"Merdique"},{q:45,l:"Correct"},{q:62,l:"Bonne"},{q:78,l:"Top"}];
 const pdvFair=q=>5+q*0.10;
 const tampN=t=>Object.values(t||{}).reduce((a,n)=>a+n,0);      // barrettes au tampon
@@ -899,8 +902,8 @@ function cornerSpawn(P){ // client (persona ou louche) + sa demande (déterminis
   // heures de passage (traits.hours) : le cycle 24h filtre QUI passe ; une ardoise ouverte = il se fait discret
   const hourNow=cornerHourN(cornerDayT());
   const avail=corner.CORNER_PERSONAS.filter(p=>{ const c=S.clients[p.id];
-    return c&&c.unlocked&&!c.quit&&!c.ardoise&&corner.inHours(p, hourNow)
-      && !P.queue.some(q=>q.cid===p.id); }); // jamais deux fois la même tête en file (et une seule ardoise possible)
+    return c&&c.unlocked&&!c.quit&&!c.ardoise&&p.canal!=="dm"&&corner.inHours(p, hourNow)
+      && !P.queue.some(q=>q.cid===p.id); }); // canal "dm" = il écrit, il ne fait pas la queue (grossiste)
   // PNJ anonyme (le volume : vient chercher sa dose, sans plus) vs persona nommé (le sel) — tirage déterministe
   if(!avail.length || cornerHash(S.day*11, P.seq) < corner.CORNER.ANON_SHARE){
     const a=corner.makeAnon(S.day, P.seq, S.reput, P.prix, S.rue, S.rueMax), i=P.seq, pat=corner.patienceOf("anon");
@@ -1012,7 +1015,7 @@ function cornerLeave(P, cl, why, v, tip){
     cause("Nouveau contact", (par?par+" — ":"")+u.p.nm);
     const hl=corner.hoursLabel(u.p);
     toastQ.push("🤝 "+(u.rue?"On parle de toi pour du gros — ":(u.by?u.by.nm+" a parlé de toi — ":""))
-      +u.p.nm+" passera te voir"+(hl?" ("+hl+")":"")+"."); }
+      +u.p.nm+(u.p.canal==="dm"?" va t'écrire sur SnapShit.":" passera te voir"+(hl?" ("+hl+")":"")+".")); }
   save(); hud(); renderCornerActive(P);
 }
 // vente commune : débite targetG GRAMMES du tampon → liquide direct + ledger. false si rupture.
@@ -1302,6 +1305,41 @@ function pdvTick(dt){
 }
 // badge « bac de rue » sur le pin corner (la recette passive, visible depuis la carte)
 function pdvBadge(P){ const b=document.getElementById("pinBac"); if(b){ b.textContent="€"+money(P.bac); b.classList.toggle("off",!(P.bac>0)); } }
+/* Le temps qu'il te reste avant la descente, à la vitesse de CET instant.
+   C'était le grand absent : la chaleur n'était affichée que comme un entier brut, et
+   toute la couche de mise à jour live (pRes, pDem, pQ, pCombo, pHeat…) patchait des
+   identifiants disparus du markup — sept sur huit écrivaient dans le vide. D'où le
+   ressenti « parfois trop rapide » : ce n'est pas la vitesse qui est mauvaise, c'est
+   qu'elle est invisible ET qu'elle varie ×3,5 avec le rush. Une pression qu'on voit
+   venir est tendue ; une pression qu'on subit est injuste (R8 : un système qui décide
+   dans le dos du joueur n'est pas une décision). */
+function pdvVitesseHeat(P){
+  const activity=clamp(pdvDemande()/PDV_BASE_DEMAND + (P.queue?P.queue.length:0)*0.04, 0, 1.6);
+  return activity*PDV_HEAT_RATE/(1+(P.chouffes||0)*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY;
+}
+function heatChipTxt(P){
+  const v=pdvVitesseHeat(P), h=Math.round(S.heat);
+  if(v<=0.001) return `🔥 ${h} · stable`;                    // les chouffes absorbent tout
+  const s=Math.max(0,(PDV_SEUIL-S.heat)/v);
+  return `🔥 ${h} · ${s<1?"<1":Math.round(s)} s${pdvRushHot()?" ⚡RUSH":""}`;
+}
+/* Le réservoir, c'est-à-dire ta clientèle : il monte à chaque bonne vente et c'est LUI
+   qui raccourcit ton créneau. Sans l'afficher, le joueur voit son temps fondre au fil
+   des jours sans comprendre que c'est son propre succès qui le lui prend (R9). */
+function resChipTxt(P){ return `👥 ${Math.round(P.res)}`; }
+/* Ce qu'un chouffe de plus t'achète, dit en SECONDES d'ouverture — pas en « −Heat ».
+   C'est le barreau R2 de l'escalier au corner, et il était illisible : personne ne peut
+   deviner que passer de 0 à 1 chouffe fait passer de 49 s à 119 s. */
+function chouffeGain(P){
+  const sec=(c)=>{
+    const activity=clamp(pdvDemande()/PDV_BASE_DEMAND + (P.queue?P.queue.length:0)*0.04, 0, 1.6);
+    const v=activity*PDV_HEAT_RATE/(1+c*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY;
+    return v<=0.001 ? Infinity : (PDV_SEUIL-S.heat)/v;
+  };
+  const a=sec(P.chouffes||0), b=sec((P.chouffes||0)+1);
+  const fmt=(x)=>x===Infinity?"illimité":Math.round(x)+" s";
+  return b===Infinity && a===Infinity ? "le coin ne chauffe plus" : `ouverture ${fmt(a)} → ${fmt(b)} avec un de plus`;
+}
 function pdvPatch(){
   const P=S.shelter.pdv, Qd=Math.round(tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55));
   const set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
@@ -1315,7 +1353,11 @@ function pdvPatch(){
   set("pBac",money(P.bac));
   set("pQ",P.queue.length);
   set("pCombo",(P.combo||1).toFixed(1).replace(".0",""));
-  const hc=document.getElementById("cHeatChip"); if(hc) hc.textContent="🔥 "+Math.round(S.heat);
+  // la chip vivante : chaleur, secondes restantes à la vitesse du moment, pic de rush
+  const hc=document.getElementById("cHeatChip");
+  if(hc){ hc.textContent=heatChipTxt(P); const s=(PDV_SEUIL-S.heat)/Math.max(0.001,pdvVitesseHeat(P));
+    hc.className="cchip"+(pdvVitesseHeat(P)>0.001&&s<20?" hot":""); }
+  const rc=document.getElementById("cResChip"); if(rc) rc.textContent=resChipTxt(P);
   const mc=document.getElementById("cMarChip"); if(mc) mc.textContent="⚖ "+marcheDuJour();
   const cc=document.getElementById("cComboChip"); if(cc) cc.textContent="⚡×"+(P.combo||1).toFixed(1).replace(".0","");
   cornerSkyPatch(); // le ciel avance avec la soirée (reflète l'heure)
@@ -1416,7 +1458,7 @@ function renderCorner(P){
       <button class="btn ghost" style="margin:4px 0 6px" id="enc">Encaisser le bac ▸ liquide</button>`:`<div class="muted" style="font-size:10px;margin:2px 0 6px">💸 Tes ventes tombent direct en <b class="pill dirty" style="font-size:10px;padding:1px 6px">liquide</b> — rien à encaisser.</div>`}
       <div class="muted" style="font-size:10px;margin:2px 0 6px">Livrer des barrettes (réserve : ${stockSach} sachets) :</div>
       <div class="grid3"><button class="btn ok" style="margin:0" data-rav="10">+10</button><button class="btn ok" style="margin:0" data-rav="25">+25</button><button class="btn ok" style="margin:0" data-rav="0">Max</button></div>
-      <div class="stat" style="margin-top:10px"><span>Chouffes (${PDV_CHOUFFE_PAY}/soir · −Heat)</span><b id="pCh">${P.chouffes}</b></div>
+      <div class="stat" style="margin-top:10px"><span>Chouffes (${PDV_CHOUFFE_PAY}/soir)<br><span class="muted" style="font-size:10px">${chouffeGain(P)}</span></span><b id="pCh">${P.chouffes}</b></div>
       <div class="grid2"><button class="btn ghost" style="margin:0" id="chM">− chouffe</button><button class="btn ok" style="margin:0" id="chP">+ chouffe</button></div>
       <h3 style="margin:10px 0 4px;font-size:12px">Ledger</h3>
       <div id="pArds">${ardsRow()}</div>
@@ -1435,7 +1477,8 @@ function renderCorner(P){
       <button class="cbtn" id="back">↩</button>
       <span class="cchip" id="cMenuChip">📋 ${prix}/g</span>
       <span class="cchip" id="cMarChip" title="marché du jour">⚖ ${fair}${mTrend.trim()?" "+mTrend.trim():""}</span>
-      <span class="cchip" id="cHeatChip">🔥 ${Math.round(S.heat)}</span>
+      <span class="cchip" id="cHeatChip">${heatChipTxt(P)}</span>
+      <span class="cchip" id="cResChip">${resChipTxt(P)}</span>
       <span class="cchip gold" id="cComboChip">⚡×${(P.combo||1).toFixed(1).replace(".0","")}</span>
       <button class="cbtn" id="cManage">▤ Gérer</button>
     </div>
@@ -2219,6 +2262,16 @@ function advanceDay(manual){
       else if(S.cash>=due){ S.cash-=due; cause("Paie chouffes","−"+due+" propre"); }
       else { P.chouffes=Math.max(0,P.chouffes-1); cause("Chouffe parti","paie manquée"); } } }
   if(S.shelter&&S.shelter.pdv) S.shelter.pdv.combo=1; // combo négo : remis à zéro à chaque clôture de soirée
+  /* Les contacts s'ouvrent aussi à la CLÔTURE, plus seulement quand un client quitte
+     le corner. Sans ça, un grossiste qui ne vient plus au corner ne pourrait plus
+     jamais être débloqué par la rumeur de calibre : `rueGate` deviendrait du code
+     mort et « annoncer son format » perdrait la moitié de ce qu'il achète. */
+  { const news=corner.checkUnlocks(S.clients, S.rueMax);
+    for(const u of news){
+      const par=u.rue?`la rue parle de ton calibre (${corner.rueCalibre(S.rueMax||corner.RUE_MIN)} g)`:(u.by?u.by.nm+" t'envoie":"");
+      cause("Nouveau contact", (par?par+" — ":"")+u.p.nm);
+      toastQ.push("🤝 "+(u.rue?"On parle de toi pour du gros — ":"")
+        +u.p.nm+(u.p.canal==="dm"?" va t'écrire sur SnapShit.":" passera te voir.")); } }
   const sh=shelter.nightTick(S, planqueCap());
   sh.cons.forEach(c=>cause(c.t,c.c));
   S.dayAcc=0;

@@ -9,6 +9,89 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-26 — La Loupe : le grossiste passe en DM, et la pression devient visible
+
+Deux demandes de Sylvain, dans la même session de test.
+
+### 1. « Le temps d'ouverture peut être parfois trop rapide. Mais ça force à agir. »
+
+Il nomme la tension sans trancher. En mesurant, le problème n'est **pas la vitesse** :
+
+| chouffes | secondes ouvertes | clients servis |
+| --- | --- | --- |
+| 0 | 47 s | ~5 |
+| 1 | 149 s | ~15 |
+| 2 | 1 500 s | ~150 |
+| 3 | ∞ | illimité |
+
+Deux découvertes derrière ce ressenti :
+
+**a) La pression était littéralement invisible.** `pdvPatch` patche huit
+identifiants — `pHeat`, `pHeatB`, `pRes`, `pResT`, `pDem`, `pQ`, `pCombo`,
+`cHeatChip`. Vérifié : **sept sur huit n'existent plus dans le markup**. Toute la
+couche de mise à jour live du corner écrivait dans le vide. Ce n'était pas « jamais
+conçu », c'était branché puis débranché lors d'une réécriture. Le joueur ne voyait
+qu'un entier brut : `🔥 62`.
+
+**b) La courbe des chouffes est une falaise, pas une progression.** À 3 chouffes,
+la génération de chaleur passe sous le terme de refroidissement et le corner ne
+chauffe plus **du tout**. Et `P.chouffes++` n'a **aucun coût d'entrée ni plafond** :
+trois taps le premier jour suppriment la contrainte pour toujours (les 60 €/soir ne
+sont prélevés qu'à la clôture). R9 en défaut — l'outil qui efface la friction est
+gratuit.
+
+**Fait** : la chip dit maintenant `🔥 62 · 24 s` — le temps restant à la vitesse de
+*cet instant*, rush compris — et clignote sous 20 s. Le réservoir client est affiché
+(`👥 72`), parce que c'est **lui** qui raccourcit le créneau : le joueur voyait son
+temps fondre au fil des jours sans comprendre que c'était son propre succès. Et les
+chouffes annoncent ce qu'ils **achètent** : « ouverture 49 s → 119 s avec un de plus »,
+au lieu de « −Heat ».
+
+**Pas fait, délibérément** : aucune constante de chaleur touchée. Les chiffres ne le
+justifient pas — 307 s en début de partie, 43 s à réservoir 85, c'est une courbe de
+tension saine. Le problème était en aval, à l'affichage.
+
+### 2. « Le grossiste ne devrait pas passer par la rue, mais par SnapShit en DM, puis livraison via BeuherShit »
+
+Le canal existait **déjà à 80 %** : le DM grossiste est écrit dans `buildDMs`, il
+produit un ordre livrable, et cet ordre est la **seule** alimentation de BeuherShit.
+Il manquait la porte et la cohérence.
+
+- `canal:"dm"` sur Diego le retire du tirage de la rue **sans le sortir de
+  `CORNER_PERSONAS`** : il garde son visage, ses trois répliques et ses deux portes de
+  déblocage, qui servent maintenant à faire sonner le téléphone.
+- Ses `hours` et son `traits.heat:6` disparaissent : un deal livré n'a pas d'heure de
+  passage, et la cause rendue était « le **coin** chauffe » — ce qui n'a plus de sens.
+- `checkUnlocks` est appelée **aussi à la clôture**, plus seulement quand un client
+  quitte le corner. Sans ça, `rueGate` devenait du code mort et « annoncer son
+  format » perdait la moitié de ce qu'il achète.
+- Le DM prend le **prix `menuAt`** comme tous les autres canaux — `GROSSISTE_FACTOR`
+  (0,70) était un second barème pour 5 points d'écart.
+- Sa quantité suit le **calibre annoncé** (`rueCalibre(rueMax) × n`) : composable par
+  construction, et le volume du gros devient la conséquence du geste qui a ouvert la
+  porte. L'ancienne échelle saturait à 72 g dès l'apparition — `QTY_BASE`/`QTY_STEP`
+  ne produisaient aucune variation — et 72 g était parfois **inservable** (un stock
+  tout en 5 g ne compose pas 72).
+- Diego sort de `PDV_NAMES`/`PDV_AV` : une silhouette anonyme portait son nom et son
+  avatar exacts au corner. Clin d'œil hier, mensonge à l'écran maintenant.
+
+Les bornes `TOL`/`BUDGET`/`PATIENCE.grossiste` **restent définies** : elles bornent le
+prix du DM et sont balayées par deux invariants. Les retirer donnerait `NaN`.
+
+### `[DÉCISION REQUISE]`
+
+- **Le double barème du grossiste**, toujours ouvert : Diego paie 432 € en DM contre
+  un plafond de poche de 260 € au corner. Le même homme, deux prix. Le passage à
+  `menuAt` referme la moitié du problème ; le plafond de poche en DM reste à trancher.
+- **`PDV_CHOUFFE_PAY = 60` et l'embauche gratuite.** 3 chouffes = 180 €/soir ≈ 18
+  secondes de recette, et multiplient l'ouverture par 16. C'est le point d'équilibrage
+  le plus saillant du jeu aujourd'hui.
+- **Le liquide qui dort** : au-dessus de 180 €, `+1 chaleur toutes les 3 s`, soit +60
+  par jour — plus que le corner lui-même, et ni nommé ni affiché.
+- **`busted` dans BeuherShit** : codé deux fois, joué zéro (`launchRuns` refuse de
+  lancer ET écrit `busted:false` en dur). Porte ou conséquence ? Le garder en porte est
+  le plus conforme à R1/R4, mais alors il faut supprimer la branche morte.
+
 ## 2026-07-26 — Playtest Sylvain : les trois chantiers tiennent
 
 Validé manette en main, sur téléphone, après merge de #197/#198/#199 :
