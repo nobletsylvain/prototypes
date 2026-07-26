@@ -19,7 +19,7 @@ import {
   anonQty, ruePartGros, rueCalibre, checkUnlocks, cornerClientsDefault, rueApres,
   RUE_MIN, RUE_PALIERS, RUE_PART_MAX, RUE_INERTIE, menuAt, rabaisVolume, RABAIS_FORMAT,
 } from "../la-loupe/corner.mjs";
-import { qtyToSachets, applySachetPlan } from "../la-loupe/snap.mjs";
+import { qtyToSachets, applySachetPlan, composables } from "../la-loupe/snap.mjs";
 import { FRONT_ENABLED, grantOpeningFront, nightTick, shelterDefaults } from "../la-loupe/shelter.mjs";
 
 const results = [];
@@ -301,6 +301,89 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
   }
   ok("R1 · avec le rabais, l'offre d'un gros panier passe toujours son propre test",
      bad === 0, `${bad}/${tot} (paniers jusqu'à ${rueCalibre(20)} g)`);
+}
+
+// ── 5 ter. Proposer une AUTRE quantité que celle demandée ──────────────────
+// Arbitrage Sylvain : « dans la négociation, on devrait pouvoir proposer plus ou
+// moins ». C'est le seul moyen de servir quelqu'un quand le tampon ne compose pas
+// sa demande — une barrette ne se casse pas, 8 g en stock ne font pas 5 g.
+//
+// Aucune pénalité n'a été ajoutée, et c'est délibéré : `cornerBudget` ne dépend PAS
+// de la quantité. Vendre plus que sa poche ne peut pas encaisser plus — ça encaisse
+// la même somme sur plus de grammes, et le €/g s'effondre tout seul. L'arbitrage
+// « écouler du stock bâtard vs tenir son prix » est donc porté par l'économie
+// existante, pas par un malus (R1, R8).
+{
+  const menu = 10;
+  // 1. la contrepartie existe : proposer plus fait BAISSER le €/g encaissable
+  const maxPPU = (kind, rel, g) => {
+    const fair = menuAt(menu, g);
+    return Math.min(cornerTol(kind, rel, fair), cornerBudget(kind, rel) / g);
+  };
+  const serie = [2, 3, 5, 8, 12, 20].map((g) => ({ g, ppu: maxPPU("anon", 0, g) }));
+  let monotone = true;
+  for (let i = 1; i < serie.length; i++) if (serie[i].ppu > serie[i - 1].ppu + 1e-9) monotone = false;
+  ok("R8 · proposer plus fait baisser le €/g encaissable (l'arbitrage est dans l'économie)",
+     monotone, serie.map((s) => `${s.g}g ${s.ppu.toFixed(2)}`).join(" · ") + " €/g");
+
+  // 2. R1 : proposer une autre quantité ne doit jamais être un PIÈGE — il doit
+  //    toujours exister un prix acceptable pour la quantité proposée, sinon le
+  //    joueur ouvrirait un écran dont aucune sortie n'est vendable.
+  let sansIssue = 0, cas = 0, exemple = null;
+  for (const kind of ["anon", "regulier", "accro", "lowball", "grossiste"]) {
+    for (const rel of [0, 20, 60]) for (const g of [1, 2, 3, 5, 8, 12, 20, 24]) {
+      cas++;
+      // le prix que l'UI propose par défaut quand on change la quantité
+      const propose = Math.max(1, Math.round(g * menuAt(menu, g)));
+      const v = resolveOffer({ kind, rel, g, qFac: 1 }, g, propose, false, false, 20, menu);
+      // il peut refuser ce prix-là (c'est une négo), mais un prix acceptable doit exister
+      const plancher = resolveOffer({ kind, rel, g, qFac: 1 }, g, 1, false, false, 20, menu);
+      if (!plancher.accepted) {
+        sansIssue++;
+        if (!exemple) exemple = `${kind} rel${rel} ${g} g : aucun prix acceptable`;
+      }
+      void v;
+    }
+  }
+  ok("R1 · quelle que soit la quantité proposée, un prix acceptable existe (jamais d'impasse)",
+     sansIssue === 0, exemple || `${cas} combinaisons (kind × rel × quantité 1..24 g)`);
+
+  // 3. LE point dur : toute quantité atteignable par le stepper est EXACTEMENT
+  //    composable depuis le tampon. C'est la contrainte qui tue la classe de bug
+  //    « 0 % de servable » par construction — pas un avertissement à l'écran.
+  {
+    const tampons = [
+      { 2: 10 }, { 5: 6 }, { 8: 5 }, { 2: 1, 8: 3 }, { 5: 4 },
+      { 2: 3, 5: 2, 8: 2 }, { 12: 3 }, { 20: 2, 2: 1 },
+    ];
+    let inservable = 0, tot = 0, exemple = null;
+    for (const t of tampons) {
+      for (const cap of [6, 12, 34]) {
+        for (const g of composables(t, cap)) {
+          tot++;
+          const { exact } = qtyToSachets(g, { ...t });
+          if (!exact) { inservable++; if (!exemple) exemple = `tampon ${JSON.stringify(t)} propose ${g} g, non composable`; }
+        }
+      }
+    }
+    ok("R1 · toute quantité proposable est exactement composable depuis le tampon",
+       inservable === 0, exemple || `${tot} quantités sur ${tampons.length} tampons`);
+
+    // et la contre-épreuve : le pas naïf (plus petite barrette) en produit, lui
+    let naifs = 0;
+    for (const t of tampons) {
+      const petite = Math.min(...Object.keys(t).map(Number));
+      for (let g = petite; g <= 24; g += petite) if (!qtyToSachets(g, { ...t }).exact) naifs++;
+    }
+    ok("Contre-épreuve · le pas naïf (plus petite barrette) produirait des quantités inservables",
+       naifs > 0, `${naifs} quantités inservables évitées par l'énumération des composables`);
+  }
+
+  // 4. R4 : le prix par défaut suit bien le barème volume, pas celui de la demande
+  const paires = [[2, 8], [5, 12], [8, 20]];
+  const suit = paires.every(([a, b]) => menuAt(menu, b) < menuAt(menu, a));
+  ok("R4 · le prix par défaut d'une quantité proposée suit SON format, pas celui demandé",
+     suit, paires.map(([a, b]) => `${a}→${b} g : ${menuAt(menu, a).toFixed(2)}→${menuAt(menu, b).toFixed(2)} €/g`).join(" · "));
 }
 
 // ── 6. Bouche-à-oreille : la rue envoie une clientèle SERVABLE ─────────────

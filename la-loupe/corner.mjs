@@ -246,8 +246,13 @@ export function offerCap(kind, rel, base, qty, qFac){
 export function cornerBudget(kind, rel){ return CORNER.BUDGET[kind]*(1 + (rel||0)*CORNER.BUDGET_PER_REL); }
 
 // qualité d'une offre vs TON menu (l'info centrale : l'écart % au menu que TU affiches)
-export function offerQual(ppu, reput, prix){
-  const menu = prix || cornerFair(reput);
+/* L'écart au menu DE SA PORTION, pas au menu brut. Depuis le rabais au volume,
+   comparer à la référence pleine faisait afficher « −15 % menu » à quelqu'un qui
+   vend 8 g au tarif exact du 8 g. Sans réglage de quantité c'était cosmétique ;
+   avec, c'est le message principal de la carte, et il mentirait au joueur sur le
+   sens même de son geste. */
+export function offerQual(ppu, reput, prix, qty){
+  const menu = menuAt(prix || cornerFair(reput), qty==null ? 0 : qty);
   const r=ppu/menu, pct=R((r-1)*100);
   if(r>=1+CORNER.FAIR_BAND) return { cls:"q-good", lbl:"+"+pct+" % menu" };
   if(r>=1-CORNER.FAIR_BAND) return { cls:"q-fair", lbl:"prix menu" };
