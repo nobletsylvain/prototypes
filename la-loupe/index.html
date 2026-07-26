@@ -1028,14 +1028,39 @@ function cornerSell(P, cl, targetG, total, tip){
   P.ledger.unshift({nm:cl.nm, n:sold.n, g:sold.g, eur:gain}); if(P.ledger.length>6) P.ledger.length=6;
   return true;
 }
+/* La quantité RÉELLEMENT proposée. Par défaut celle qu'il demande, mais le joueur
+   peut en proposer plus ou moins — c'est le seul moyen de servir quelqu'un quand le
+   tampon ne compose pas sa demande (une barrette ne se casse pas : 8 g en stock ne
+   font pas 5 g). Aucune pénalité n'est nécessaire : le budget du client est
+   indépendant de la quantité, donc lui vendre plus que sa poche ne peut pas encaisse
+   plus — ça encaisse la MÊME somme sur plus de grammes, et le €/g s'effondre.
+   Un anonyme à 55 € de budget : 2 g → 11,00 €/g, 8 g → 6,88 €/g, 20 g → 2,75 €/g.
+   L'arbitrage est là, entier : écouler du stock bâtard, ou tenir son prix (R8). */
+function propG(cl){ return Math.max(0, cl.propG!=null ? cl.propG : cl.g); }
+/* Les quantités proposables : celles que le tampon compose EXACTEMENT, bornées par
+   la poche du client. Le plafond est sa poche et non un prix, parce que c'est le
+   seul mur réel — `cornerBudget` ne dépend pas de la quantité. On garde toujours sa
+   demande dans la liste : ce que le jeu proposait hier ne doit jamais devenir
+   impossible aujourd'hui (R1). */
+function cornerQuantites(P, cl){
+  const menu=P.prix||marcheDuJour();
+  const bud=corner.cornerBudget(cl.kind, cl.rel||0);
+  let poche=1;
+  for(let g=1; g<=60; g++) if(g*corner.menuAt(menu,g)<=bud) poche=g;
+  const cap=Math.max(cl.g, poche);
+  const liste=snap.composables(P.tampon||{}, cap);
+  if(!liste.includes(cl.g) && cl.g>0) liste.push(cl.g);
+  return liste.sort((a,b)=>a-b);
+}
 function cornerResolve(P, cl, total, firstTry, isClientOffer){
-  const v=corner.resolveOffer(cl, cl.g, total, firstTry, isClientOffer, S.reput, P.prix);
+  const g=propG(cl);
+  const v=corner.resolveOffer(cl, g, total, firstTry, isClientOffer, S.reput, P.prix);
   if(v.outcome==="counter"){ cl.countered=true; cl.dernier=v.counterTotal; cl.mode="dernier"; renderCornerActive(P); toast("Il contre — dernier prix "+v.counterTotal); return; }
   if(v.outcome==="walk"){ applyDeltas(cl, v); P.combo=1; cornerLeave(P, cl, "walk", v); return; }
   let tip=0;
   if(v.tipRate){ tip=Math.round(total*v.tipRate*(P.combo||1)); }
   if(cl.qc&&cl.qc.ok&&v.outcome!=="gouge") tip+=Math.round(total*corner.CORNER.TIP_QUAL); // le connaisseur paie le propre
-  if(!cornerSell(P, cl, cl.g, total, tip)) return;
+  if(!cornerSell(P, cl, g, total, tip)) return;
   if(v.tipRate) P.combo=Math.min(corner.CORNER.COMBO_MAX,(P.combo||1)+corner.CORNER.COMBO_STEP);
   applyDeltas(cl, v);
   if(cl.qc&&cl.qc.ok&&v.outcome!=="gouge"){ const c=S.clients[cl.cid]; if(c) c.rel=clamp(c.rel+1,0,100); }
@@ -1098,7 +1123,22 @@ function cornerAct(P, a){
   const cl=cornerActive(P); if(!cl) return;
   if(a==="refuse"||a==="refuse2") return cornerLeave(P, cl, "refus");
   if(a==="cancel"){ cl.mode="offer"; return renderCornerActive(P); }
-  if(a==="counter"){ cl.mode="nego"; cl.negoP=cl.offer; return renderCornerActive(P); }
+  if(a==="counter"){
+    cl.mode="nego";
+    // point de départ utile : sa demande si on peut la composer, sinon ce qu'on PEUT
+    // réellement servir — c'est justement le cas où le joueur ouvre cet écran.
+    if(cl.propG==null){
+      // on ouvre sur le composable le plus proche de sa demande : quand le tampon
+      // ne fait que du 8 g et qu'il en veut 5, la carte s'ouvre DÉJÀ sur 8 g.
+      const liste=cornerQuantites(P, cl);
+      cl.propG = liste.length
+        ? liste.reduce((a,b)=>Math.abs(b-cl.g)<Math.abs(a-cl.g)?b:a)
+        : cl.g;
+    }
+    const gp=propG(cl);
+    cl.negoP = gp===cl.g ? cl.offer : Math.max(1, Math.round(gp*corner.menuAt(P.prix||marcheDuJour(), gp)));
+    return renderCornerActive(P);
+  }
   if(a==="accept") return cornerResolve(P, cl, cl.offer, true, true);
   if(a==="send"){ const first=!cl.countered; cl.mode="offer"; return cornerResolve(P, cl, cl.negoP, first, false); }
   if(a==="accept2") return cornerResolve(P, cl, cl.dernier, false, true);
@@ -1124,7 +1164,7 @@ function renderCornerActive(P){
   const patW=clamp(cl.pat/cl.pat0,0,1)*100, patBar=`<div class="nego-pat"><i id="pNegoPat" style="width:${patW}%"></i></div>`;
   let body;
   if(cl.kind==="louche"){
-    const q=corner.offerQual(cl.offer/cl.g, S.reput, P.prix);
+    const q=corner.offerQual(cl.offer/cl.g, S.reput, P.prix, cl.g);
     body=`<div class="nego-tx">${cl.tx} <span class="offer ${q.cls}">[${cl.g} g → ${cl.offer} · ${q.lbl}]</span></div>
       <div class="muted" style="font-size:10px;color:var(--heat)">🕶️ ${cl.tell||"Surpaie sans discuter… profil cramé ?"} <i style="opacity:.7">— flic, ou juste un client qui a l'air chelou ?</i></div>
       ${patBar}
@@ -1150,29 +1190,40 @@ function renderCornerActive(P){
       <div class="grid2"><button class="btn ok" style="margin:0" data-neg="ardoiseOk">🧾 Sur l'ardoise</button>
         <button class="btn bad" style="margin:0" data-neg="refuse">❌ Pas de crédit</button></div>`;
   } else if(cl.mode==="nego"){
-    const qp=corner.offerQual(cl.negoP/cl.g, S.reput, P.prix), face=corner.negoFace(cl, cl.negoP, S.reput, P.prix);
-    body=`<div class="nego-tx">Tu proposes <span class="offer ${qp.cls}">${cl.negoP} · ${qp.lbl}</span> pour ${cl.g} g — menu ${cl.g*fair}</div>
+    const gp=propG(cl), ecart=gp-cl.g;
+    const clg={ ...cl, g:gp };   // la grimace se lit sur ce qu'on PROPOSE, pas sur ce qu'il a demandé
+    const qp=corner.offerQual(cl.negoP/Math.max(1,gp), S.reput, P.prix, gp), face=corner.negoFace(clg, cl.negoP, S.reput, P.prix);
+    const liste=cornerQuantites(P, cl), iq=liste.indexOf(gp);
+    const tamp=sizesOf(P.tampon).sort((a,b)=>a-b).map(f=>`${P.tampon[f]}×${f}g`).join(" · ")||"vide";
+    body=`<div class="nego-tx">Tu proposes <span class="offer ${qp.cls}">${cl.negoP} · ${qp.lbl}</span> pour ${gp} g${
+        ecart?` <span style="color:${ecart>0?"#ffd06a":"#9aa4b8"}">(il en demandait ${cl.g})</span>`:""}</div>
       <div class="nego-face"><span class="nfEmo">${face.emo}</span><span class="nfTx">${face.tx}</span></div>
+      <div class="nego-face"><span class="nfEmo">💶</span><span class="nfTx">${(cl.negoP/Math.max(1,gp)).toFixed(2)} €/g encaissé · tarif du ${gp} g : ${corner.menuAt(P.prix||marcheDuJour(),gp).toFixed(2)}</span></div>
+      <div class="nego-price"><button class="pb" data-negq="-1" ${iq<=0?"disabled":""}>−</button>
+        <div id="negoQ" style="flex:1;text-align:center;font-size:14px;font-weight:800">${gp} g</div>
+        <button class="pb" data-negq="1" ${iq>=liste.length-1?"disabled":""}>+</button></div>
+      <div class="muted" style="font-size:10px;margin:-2px 0 4px">Tampon : ${tamp} — servable : ${liste.slice(0,10).join(" · ")}${liste.length>10?" …":""} g</div>
       <div class="nego-price"><button class="pb" data-negp="-5">−5</button><button class="pb" data-negp="-1">−1</button>
         <div id="negoP">${cl.negoP}</div>
         <button class="pb" data-negp="1">+1</button><button class="pb" data-negp="5">+5</button></div>
-      <div class="grid2"><button class="btn ok" style="margin:0" data-neg="send">Vendre à ${cl.negoP}</button>
+      <div class="grid2"><button class="btn ok" style="margin:0" data-neg="send" ${gp>0?"":"disabled"}>Vendre ${gp} g à ${cl.negoP}</button>
         <button class="btn ghost" style="margin:0" data-neg="cancel">Annuler</button></div>`;
   } else if(cl.mode==="dernier"){
-    const qd=corner.offerQual(cl.dernier/cl.g, S.reput, P.prix);
-    body=`<div class="nego-tx">« Trop cher. Mon dernier prix : <span class="offer ${qd.cls}">${cl.dernier} · ${qd.lbl}</span> » À prendre ou à laisser.</div>
+    // le contre porte sur la quantité PROPOSÉE, pas sur celle qu'il avait demandée
+    const gd=propG(cl), qd=corner.offerQual(cl.dernier/Math.max(1,gd), S.reput, P.prix, gd);
+    body=`<div class="nego-tx">« Trop cher. Mon dernier prix : <span class="offer ${qd.cls}">${cl.dernier} · ${qd.lbl}</span> » pour ${gd} g. À prendre ou à laisser.</div>
       <div class="grid2"><button class="btn ok" style="margin:0" data-neg="accept2">✅ Vendu ${cl.dernier}</button>
         <button class="btn bad" style="margin:0" data-neg="refuse2">❌ Laisse</button></div>`;
   } else {
-    const q=corner.offerQual(cl.offer/cl.g, S.reput, P.prix);
+    const q=corner.offerQual(cl.offer/cl.g, S.reput, P.prix, cl.g);
     // Le calibre décide QUI on peut servir : une commande de 5 g ne se compose
     // pas avec un tampon de 8 g. Ça doit se lire AVANT d'accepter (R4), sinon
     // c'est un échec caché — l'ancien code sur-livrait en silence (24 g pour 5).
     const comp=cornerComposable(P, cl.g);
     body=`<div class="nego-tx">${cl.tx} <span class="offer ${q.cls}">[${cl.g} g → ${cl.offer} · ${q.lbl}]</span></div>
-      ${comp.exact?"":`<div class="nego-face"><span class="nfEmo">${comp.covered?"✂":"🚫"}</span><span class="nfTx">${comp.covered?`Ton tampon ne compose que ${comp.covered} g — il manque ${comp.short} g (facturé au prorata).`:`Aucune barrette ne compose ${cl.g} g. Coupe plus fin.`}</span></div>`}${patBar}
+      ${comp.exact?"":`<div class="nego-face"><span class="nfEmo">${comp.covered?"✂":"🚫"}</span><span class="nfTx">${comp.covered?`Ton tampon ne compose que ${comp.covered} g — propose-lui une autre quantité.`:`Aucune barrette ne compose ${cl.g} g — propose-lui autre chose.`}</span></div>`}${patBar}
       <div class="grid3"><button class="btn ok" style="margin:0" data-neg="accept">✅ OK ${cl.offer}</button>
-        <button class="btn ghost" style="margin:0" data-neg="counter">↔️ Contrer</button>
+        <button class="btn ${comp.exact?"ghost":"ok"}" style="margin:0" data-neg="counter">${comp.exact?"↔️ Contrer":"↔️ Autre quantité"}</button>
         <button class="btn bad" style="margin:0" data-neg="refuse">❌</button></div>`;
   }
   const relTxt = cl.kind==="louche" ? "contact<br><b>inconnu</b>" : cl.kind==="anon" ? "<b>de passage</b>" : "relation<br><b>"+cl.rel+"</b>";
@@ -1189,6 +1240,26 @@ function renderCornerActive(P){
       <div class="nego-rel">${relTxt}</div></div>${tellLine}${traitLine}${body}</div>`;
   host.querySelectorAll("[data-neg]").forEach(b=>b.onclick=()=>cornerAct(P, b.dataset.neg));
   host.querySelectorAll("[data-negp]").forEach(b=>b.onclick=()=>{ cl.negoP=Math.max(1,cl.negoP+ +b.dataset.negp); renderCornerActive(P); });
+  /* Quantité proposée : on se déplace par pas de la plus petite barrette EN STOCK,
+     comme le composeur du mode ambigu — proposer une quantité qu'on ne peut pas
+     composer n'aurait aucun sens. Le prix suit automatiquement le nouveau volume
+     (rabais compris) : sinon il faudrait le refaire à la main à chaque cran, et le
+     joueur vendrait 8 g au prix de 2 sans s'en rendre compte. */
+  host.querySelectorAll("[data-negq]").forEach(b=>b.onclick=()=>{
+    // On saute au composable SUIVANT ou PRÉCÉDENT — pas d'un pas fixe. Avancer par
+    // pas de la plus petite barrette laissait atteindre des quantités que le tampon
+    // ne compose pas (2 g + 8 g en stock : 6 g est atteignable et inservable), donc
+    // une rupture partielle silencieuse. Ici c'est la contrainte qui règle le
+    // problème, pas un avertissement : le joueur voit le bord de son stock.
+    const liste=cornerQuantites(P, cl);
+    if(!liste.length) return;
+    const i=liste.indexOf(propG(cl));
+    const j=Math.max(0, Math.min(liste.length-1, (i<0?0:i) + (+b.dataset.negq)));
+    const g=liste[j];
+    cl.propG=g;
+    cl.negoP=Math.max(1, Math.round(g*corner.menuAt(P.prix||marcheDuJour(), g)));
+    renderCornerActive(P);
+  });
   host.querySelectorAll("[data-comp]").forEach(b=>b.onclick=()=>{
     const tail=Object.keys(P.tampon).map(Number).filter(f=>P.tampon[f]>0).sort((a,b2)=>a-b2);
     const pas=tail[0]||2;   // on compose par pas de la plus petite barrette en stock

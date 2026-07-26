@@ -170,6 +170,30 @@ export function qtyToSachets(qty, sachets) {
   return { plan, covered, short: qty - covered, exact: covered === qty };
 }
 
+/* Toutes les quantités EXACTEMENT composables depuis un tampon, jusqu'à `max`.
+   La DP de `qtyToSachets` calcule déjà cet ensemble (`dp[a] !== null`) et le jette.
+   L'exposer permet au stepper de négo de ne proposer que du servable : le joueur
+   voit physiquement le bord de son stock, et la « rupture partielle » devient
+   inatteignable sur la route négociée au lieu d'être un échec silencieux. */
+export function composables(sachets, max) {
+  const cap = Math.max(0, Math.floor(max || 0));
+  const sizes = Object.keys(sachets).map(Number)
+    .filter((f) => f > 0 && (sachets[f] || 0) > 0).sort((a, b) => b - a);
+  const dp = new Array(cap + 1).fill(null);
+  dp[0] = Object.fromEntries(sizes.map((f) => [f, 0]));
+  const out = [];
+  for (let a = 1; a <= cap; a++) {
+    for (const f of sizes) {
+      if (a < f || !dp[a - f]) continue;
+      if ((dp[a - f][f] || 0) >= sachets[f]) continue;
+      dp[a] = { ...dp[a - f], [f]: (dp[a - f][f] || 0) + 1 };
+      break;
+    }
+    if (dp[a]) out.push(a);
+  }
+  return out;
+}
+
 export function applySachetPlan(sachets, plan) {
   for (const f of Object.keys(plan)) {
     sachets[f] -= plan[f] || 0;

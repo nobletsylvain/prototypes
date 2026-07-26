@@ -9,6 +9,76 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-26 — La Loupe : proposer plus ou moins dans la négociation
+
+Demande de Sylvain : *« dans la négociation, on devrait pouvoir proposer plus ou
+moins. Ça permettrait de gérer les demandes lorsqu'on n'a pas ou trop la quantité
+demandée. »* C'est l'attaque frontale du problème que trois chantiers successifs
+avaient seulement contourné : `qtyToSachets` ne casse jamais une barrette, donc un
+tampon en 8 g ne sert pas une demande de 5 g.
+
+### La mécanique était déjà là, il manquait le geste
+
+`resolveOffer(client, g, total, …)` **ne lit jamais `client.g`** : la quantité est
+déjà un paramètre libre. `offerCap`, `menuAt`, `cornerComposable` sont tous
+paramétrés en quantité. Et le jeu **disait déjà le problème** sans permettre d'agir :
+« Ton tampon ne compose que 6 g — il manque 2 g ».
+
+### Aucune pénalité à inventer : l'économie était déjà juste
+
+`cornerBudget` ne dépend pas de la quantité. Vendre plus que la poche du client ne
+peut donc pas encaisser plus — ça encaisse **la même somme sur plus de grammes**, et
+le €/g s'effondre tout seul :
+
+| proposé à un anonyme (poche 55 €) | €/g encaissé |
+| --- | --- |
+| 2 g (sa demande) | **11,00** |
+| 5 g | 10,20 |
+| 8 g | **6,88** |
+| 20 g | 2,75 |
+
+L'arbitrage « écouler du stock bâtard vs tenir son prix » est donc porté par
+l'économie existante (R8), et le contre-poids R9 aussi : la chaleur est un impôt sur
+les secondes d'ouverture, pas sur les grammes.
+
+### Deux défauts trouvés dans ce que je venais d'écrire
+
+1. **`offerQual` comparait au menu BRUT.** Vendre 8 g au tarif exact du 8 g affichait
+   « −15 % menu ». Sans réglage de quantité c'était cosmétique ; avec, ça devenait le
+   message principal de la carte, et il aurait menti au joueur sur le sens même de son
+   geste. `offerQual` prend maintenant la quantité et compare à `menuAt`.
+2. **Mon stepper avançait par pas de la plus petite barrette**, ce qui laisse
+   atteindre des quantités inservables (tampon 2 g + 8 g : 6 g est atteignable et ne
+   se compose pas) — donc une rupture partielle silencieuse. Il saute désormais de
+   **composable en composable** : `snap.composables()` expose l'ensemble que la DP de
+   `qtyToSachets` calculait déjà et jetait. C'est la contrainte qui règle le problème,
+   pas un avertissement — le joueur voit le bord de son stock, boutons grisés compris.
+   Contre-épreuve inscrite en invariant : le pas naïf produirait **17 quantités
+   inservables** sur les 8 tampons testés.
+
+### Ce que la carte montre maintenant
+
+La ventilation du tampon par calibre (`3×8g · 2×2g`) et la liste des quantités
+servables — l'information manquait **partout** dans le jeu, le seul code qui la
+lisait n'en affichait rien. Plus une ligne côté joueur : « 6,88 €/g encaissé · tarif
+du 8 g : 8,50 ». La grimace dit ce que le CLIENT ressent ; le joueur a besoin de son
+propre chiffre.
+
+Le mode « dernier prix » n'a délibérément **pas** de stepper : quand il annonce son
+dernier prix, la quantité fait partie du deal — sinon l'invariant « son dernier prix
+reste acceptable par lui » tombe.
+
+### `[DÉCISION REQUISE]`
+
+- **La braderie au-delà de sa poche.** Aujourd'hui autorisée : le €/g s'effondre
+  (−43 % à 12 g pour un anonyme) mais c'est le seul moyen d'écouler un tampon coupé
+  trop gros. À assumer, à étiqueter explicitement « braderie », ou à plafonner.
+- **Le mode « ambigu » reste à part** : il vend hors de `resolveOffer` (aucun test de
+  budget ni de tolérance) et facture linéairement, un second barème contradictoire.
+  À absorber dans le chemin commun.
+- **Le manque revient-il ?** Un client servi 3 g sur 5 repasse-t-il plus tôt ? Aucun
+  code n'existe dans un sens ou dans l'autre.
+
 ## 2026-07-25 — La Loupe : l'annonce du format, et le rabais au volume
 
 Deux demandes de Sylvain : *« la demande de morceaux plus gros pourrait se déclencher
