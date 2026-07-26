@@ -16,7 +16,23 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-u
 .row{display:flex;gap:8px;align-items:center;justify-content:space-between}
 .pill{font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);white-space:nowrap}
 .pill.cash{color:var(--cash)}.pill.dirty{color:var(--dirty)}.pill.heat{color:var(--heat)}.pill.rep{color:#9ec9ff}.pill.expo{color:#ff8ab8}
-#toast{position:fixed;left:50%;top:20%;transform:translate(-50%,8px);opacity:0;transition:.2s;z-index:80;
+/* ARA — l'évacuation. Plein écran, au-dessus de tout : quand ils arrivent, il n'y a
+   plus qu'une chose à faire, et le jeu doit le dire sans ambiguïté. */
+#ara{position:fixed;inset:0;z-index:120;background:rgba(14,6,6,.94);display:flex;align-items:center;justify-content:center;padding:18px}
+#ara.hide{display:none}
+.ara-box{max-width:420px;width:100%;text-align:center}
+.ara-t{font-size:26px;font-weight:900;color:#ff6a6a;letter-spacing:.04em;animation:araPulse .7s ease-in-out infinite}
+@keyframes araPulse{0%,100%{opacity:1}50%{opacity:.5}}
+.ara-s{color:#e8ecf4;font-size:13px;margin:6px 0 12px}
+.ara-bar{height:8px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden;margin-bottom:14px}
+.ara-bar i{display:block;height:100%;background:linear-gradient(90deg,#ffd06a,#ff6a6a);transition:width .1s linear}
+.ara-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ara-c{border:1px solid rgba(255,255,255,.18);border-radius:14px;background:rgba(255,255,255,.07);color:#e8ecf4;
+  font:inherit;font-weight:800;font-size:12px;padding:16px 8px;cursor:pointer}
+.ara-c.cool{opacity:.35;pointer-events:none}
+.ara-i{font-size:26px;margin-bottom:4px}
+.ara-f{margin-top:14px;font-size:12px;color:#c9d2e0}
+#toast{position:fixed;left:50%;top:20%;transform:translate(-50%,8px);opacity:0;transition:.2s;z-index:180;
   background:rgba(0,0,0,.82);border:1px solid var(--line);padding:11px 14px;border-radius:14px;font-weight:800;text-align:center;max-width:88%;pointer-events:none}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 #main{flex:1;position:relative;min-height:0}
@@ -338,6 +354,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
   </div>
   <div id="dock"></div>
 </div>
+<div id="ara" class="hide"></div>
 <div id="toast"></div>
 <script type="module">
 /* snap/beuher d'abord — Three.js (scene3d) en lazy load.
@@ -822,7 +839,19 @@ const PDV_EXPO_SCALE=140;         // buzz (vitrine SnapShit) → demande
 const PDV_SERVE_RATE=4;           // clients servis/s (débit du corner)
 const PDV_MAX_WAIT=5, PDV_MAX_QUEUE=14, PDV_RES_PER_SALE=0.05, PDV_RUPTURE_HIT=1.2;
 const PDV_HEAT_RATE=2.0, PDV_HEAT_DECAY=0.7, PDV_SEUIL=95, PDV_AFTER=45;
-const PDV_CHOUFFE_DAMP=0.7, PDV_CHOUFFE_PAY=60, PDV_TAMPON_MAX=60; // barrettes
+/* Le chouffe achète du PRÉAVIS, plus de l'immunité (arbitrage Sylvain, 2026-07-26).
+   Avant : il divisait la génération de chaleur, et à 3 chouffes la génération passait
+   SOUS le refroidissement — la jauge redescendait toute seule et la descente ne
+   pouvait plus arriver. « Le heat retombe vraiment bas » : la soupape supprimait la
+   tension au lieu de la rendre gérable, et l'embauche était gratuite par-dessus.
+   Maintenant, comme dans le-spot : la descente arrive quand même, le chouffe te
+   donne les secondes pour rentrer le tampon et la caisse. R6 — ça ne supprime pas
+   la décision, ça te donne le temps de la prendre. R8 — partir maintenant ou servir
+   un client de plus reste ton arbitrage, et il est enfin lisible. */
+const PDV_CHOUFFE_DAMP=0.18, PDV_CHOUFFE_PAY=60, PDV_TAMPON_MAX=60; // barrettes
+const PDV_PREAVIS_S=[0, 6, 12, 18];   // [PLACEHOLDER] secondes de préavis selon le nombre de chouffes
+const ARA_COOL_MS=520;                // le temps de rentrer un bloc : on ne sauve jamais tout, et ça se voit
+const ARA_LOT=8;                      // barrettes rentrées par tap (petites d'abord)
 const PDV_WANT=[1,1,2,1,3,2,1,2]; // paniers clients (barrettes)
 const PDV_NAMES=["Momo","Inès","Yaz","Riton","Sofia","Sami","Lou","Nassim","Aya","Karim","Zoé","Paul"]; // plus de "Diego" : il ne fait plus la rue
 const PDV_AV=["🧢","🎧","🛵","🥀","💅","🎒","👟","🎲","🌙","🧥","🎀","👤"]; // plus de 🏗️ : Diego ne vient plus au corner // avatars des silhouettes (débit auto : charbonneur embauché)
@@ -1299,7 +1328,12 @@ function pdvTick(dt){
   // Heat : le corner ne chauffe que quand il tourne (à sec → il refroidit), amortie par les chouffes
   const activity=open ? clamp(demande/PDV_BASE_DEMAND + P.queue.length*0.04, 0, 1.6) : 0;
   S.heat=clamp(S.heat+(activity*PDV_HEAT_RATE/(1+(P.chouffes||0)*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY)*dt,0,100);
-  if(S.heat>=PDV_SEUIL){ pdvDescente(); return; }
+  if(S.heat>=PDV_SEUIL && !araState){
+    // le chouffe achète des SECONDES, pas l'immunité : sans lui, la descente tombe sec
+    const pre=PDV_PREAVIS_S[Math.min(P.chouffes||0, PDV_PREAVIS_S.length-1)];
+    if(pre>0) araOuvrir(pre); else pdvDescente();
+    return;
+  }
   if(tab==="shelter"&&shelterSub==="pdv") pdvPatch();        // écran corner : maj live des compteurs
   else if(tab==="shelter"&&shelterSub==="map") pdvBadge(P);  // carte : le bac qui monte sur le pin
 }
@@ -1365,6 +1399,66 @@ function pdvPatch(){
   if(led) led.innerHTML=ledRows(P);
   const ar=document.getElementById("pArds");
   if(ar) ar.innerHTML=ardsRow();
+}
+/* ---------- ARA : l'évacuation, portée de le-spot ----------
+   Le chouffe ne t'immunise pas, il te prévient. Pendant le préavis le monde
+   s'arrête et tu rentres ce que tu peux : les barrettes retournent à la planque
+   (« la planque est sauve », c'est déjà la règle de pdvDescente), la caisse passe
+   en liquide. Ce qui reste dehors est saisi.
+
+   CONSERVATION STRICTE (la leçon de le-spot, où j'avais introduit exactement ce
+   bug) : on ne sort du tampon que des barrettes ENTIÈRES, et on les remet une par
+   une dans les sachets. Retirer des grammes puis n'en réinjecter qu'une partie
+   ferait de l'évacuation un geste qui CRÉE la perte qu'il prétend éviter — R1 à
+   l'envers. */
+let araState=null;
+function araOuvrir(preavis){
+  const P=S.shelter.pdv;
+  araState={ left:preavis, total:preavis, cool:0, sauveG:0, cash:0 };
+  cause("ARA","Chouffe : "+preavis+" s de préavis");
+  araRender();
+}
+function araRentrer(){
+  const P=S.shelter.pdv;
+  if(!araState || araState.cool>0) return;
+  // la boucle vit dans snap.mjs : le jeu l'appelle, les invariants l'importent
+  const { n, g }=snap.evacuerLot(P.tampon, S.sachets, ARA_LOT);
+  if(!n) return;
+  araState.sauveG+=g; araState.cool=ARA_COOL_MS/1000;
+  araRender();
+}
+function araCaisse(){
+  const P=S.shelter.pdv;
+  if(!araState || araState.cool>0 || !(P.bac>0)) return;
+  araState.cash+=P.bac; S.dirty+=P.bac; P.bac=0;
+  araState.cool=ARA_COOL_MS/1000;
+  araRender();
+}
+function araRender(){
+  const el=document.getElementById("ara"); if(!el) return;
+  if(!araState){ el.classList.add("hide"); return; }
+  const P=S.shelter.pdv;
+  el.classList.remove("hide");
+  el.innerHTML=`<div class="ara-box">
+    <div class="ara-t">🚨 ARA ! ARA !</div>
+    <div class="ara-s">Ils arrivent. Rentre ce que tu peux — la planque est sûre.</div>
+    <div class="ara-bar"><i style="width:${Math.max(0,araState.left/araState.total*100)}%"></i></div>
+    <div class="ara-grid">
+      <button class="ara-c${araState.cool>0?" cool":""}" id="araT"><div class="ara-i">📦</div><div>Rentrer les barrettes</div></button>
+      <button class="ara-c${araState.cool>0||!(P.bac>0)?" cool":""}" id="araC"><div class="ara-i">💶</div><div>La caisse</div></button>
+    </div>
+    <div class="ara-f">Encore dehors : <b>${tampN(P.tampon)} barrettes · ${Math.round(tampG(P.tampon))} g</b> · <b>${money(P.bac)}</b>
+      ${araState.sauveG||araState.cash?`<br><span style="color:#9be37d">rentré : ${Math.round(araState.sauveG)} g · ${money(araState.cash)}</span>`:""}</div>
+  </div>`;
+  const t=document.getElementById("araT"); if(t) t.onclick=araRentrer;
+  const c=document.getElementById("araC"); if(c) c.onclick=araCaisse;
+}
+function araTick(dt){
+  if(!araState) return;
+  araState.left-=dt;
+  if(araState.cool>0) araState.cool-=dt;
+  araRender();
+  if(araState.left<=0){ araState=null; const el=document.getElementById("ara"); if(el) el.classList.add("hide"); pdvDescente(); }
 }
 function pdvDescente(){
   const P=S.shelter.pdv, lost=Math.round(P.bac+tampG(P.tampon)*P.prix);
@@ -2308,6 +2402,9 @@ function frame(now){
       if(frame._acc>0.35){ frame._acc=0; renderBeuher(); }
     }
   }
+  // pendant l'ARA le monde s'arrête : le préavis est un temps de DÉCISION, pas une
+  // course contre le reste des systèmes (R1 — on ne perd rien pendant qu'on réfléchit)
+  if(araState){ araTick(dt); requestAnimationFrame(frame); return; }
   sorterTick(dt);
   pdvTick(dt);
   if(scene3d) scene3d.tick(dt);

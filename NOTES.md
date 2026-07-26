@@ -9,6 +9,63 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-26 — La Loupe : l'ARA — le chouffe achète du préavis, pas de l'immunité
+
+Sylvain, après avoir vu les secondes s'afficher : *« le mécanisme du chouffe n'est
+pas parfait car le heat retombe vraiment bas. Je pense qu'il s'agit d'une opportunité
+pour placer le rameur ARA, qui permettrait au joueur de partir à temps. »*
+
+Son diagnostic colle exactement à la mesure : `PDV_CHOUFFE_DAMP = 0,7` divisait la
+génération de chaleur, et à 3 chouffes elle passait **sous** le terme de
+refroidissement — la jauge redescendait toute seule, la descente ne pouvait plus
+arriver. La soupape ne rendait pas la tension gérable, elle la **supprimait**. Et
+l'embauche était gratuite par-dessus (`P.chouffes++`, aucun coût, aucun plafond).
+
+### Le modèle repris de `le-spot`
+
+Là-bas, le chouf n'immunise pas : il achète du **préavis** (`PREAVIS_S = [0, 7, 13]`),
+et pendant ces secondes le monde s'arrête pendant qu'on planque le tampon et la
+caisse. Ce qui reste dehors est saisi.
+
+Le calage sur La Loupe est parfait : `pdvDescente` saisit exactement `P.bac` et
+`P.tampon` — les deux seules choses qu'on peut sauver, et « la planque est sauve »
+était déjà écrit dans son toast.
+
+- `PDV_CHOUFFE_DAMP` 0,7 → **0,18** : le chouffe ralentit un peu, il n'immunise plus.
+- `PDV_PREAVIS_S = [0, 6, 12, 18]` : sans chouffe, la descente tombe sec.
+- Au seuil, l'ARA s'ouvre en plein écran. Deux gestes : **rentrer les barrettes**
+  (tampon → planque, 8 par tap, les petites d'abord) et **la caisse** (bac → liquide).
+  Un cooldown de 520 ms entre deux taps : on ne sauve jamais tout, et ça se voit.
+- Le monde s'arrête pendant l'ARA — le préavis est un temps de **décision**, pas une
+  course contre les autres systèmes.
+
+R6 en plein : ça ne supprime pas la décision, ça donne le temps de la prendre. R8 :
+partir maintenant ou servir un client de plus reste l'arbitrage, et il est enfin
+lisible grâce aux secondes affichées du même jour.
+
+### Le test recopiait la fonction qu'il testait — troisième fois
+
+Ma première version de l'invariant de conservation ARA **recopiait** la boucle de
+`araRentrer` au lieu de l'appeler. Un test qui duplique ce qu'il teste passe quoi
+qu'il arrive — et l'évacuation est le pire endroit pour se le permettre : c'est
+très exactement le geste où j'avais introduit un bug de conservation dans `le-spot`
+(retirer des grammes puis n'en réinjecter qu'une partie, soit une évacuation qui
+CRÉE la perte qu'elle prétend éviter).
+
+La boucle vit maintenant dans `snap.evacuerLot()` : le jeu l'appelle, l'invariant
+l'importe. Même correctif que `rueApres` la veille. C'est la troisième occurrence du
+même piège en deux jours — le motif est clair : **dès qu'une règle est recopiée
+quelque part, elle doit être extraite dans un module.**
+
+### `[DÉCISION REQUISE]`
+
+- **`PDV_PREAVIS_S` et `PDV_CHOUFFE_DAMP`** sont des placeholders. 6 s au premier
+  chouffe est un pari : assez pour deux taps (16 barrettes), pas assez pour tout.
+- **L'embauche reste gratuite.** Le préavis change la nature de la soupape mais pas
+  son prix : `P.chouffes++` sans coût d'entrée ni plafond. À trancher.
+- **La descente reste-t-elle à `PDV_AFTER = 45` ?** Si on évacue bien, la sanction
+  devient légère ; c'est cohérent avec R1, mais ça mérite un regard en jeu.
+
 ## 2026-07-26 — La Loupe : le grossiste passe en DM, et la pression devient visible
 
 Deux demandes de Sylvain, dans la même session de test.

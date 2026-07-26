@@ -209,6 +209,30 @@ export function composables(sachets, max) {
   return out;
 }
 
+/* Rentrer un lot de barrettes du tampon exposé vers la planque (évacuation ARA).
+   Vit ICI, dans un module, et pas dans index.html : c'est le geste où une erreur de
+   conservation coûterait le plus cher, et un test qui recopierait la boucle ne
+   prouverait rien. Le jeu l'appelle, les invariants l'importent — une seule source.
+
+   Barrettes ENTIÈRES, les petites d'abord (on en sauve davantage). Retirer des
+   grammes puis n'en réinjecter qu'une partie ferait de l'évacuation un geste qui
+   CRÉE la perte qu'il prétend éviter — R1 à l'envers. */
+export function evacuerLot(tampon, sachets, lot) {
+  const tailles = Object.keys(tampon).map(Number)
+    .filter((f) => f > 0 && tampon[f] > 0).sort((a, b) => a - b);
+  let n = 0, g = 0;
+  for (const f of tailles) {
+    while (tampon[f] > 0 && n < lot) {
+      tampon[f]--;
+      if (tampon[f] <= 0) delete tampon[f];
+      sachets[f] = (sachets[f] || 0) + 1;
+      n++; g += f;
+    }
+    if (n >= lot) break;
+  }
+  return { n, g };
+}
+
 export function applySachetPlan(sachets, plan) {
   for (const f of Object.keys(plan)) {
     sachets[f] -= plan[f] || 0;
