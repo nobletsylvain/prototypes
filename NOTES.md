@@ -9,6 +9,58 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-26 — Playtest Sylvain : les trois chantiers tiennent
+
+Validé manette en main, sur téléphone, après merge de #197/#198/#199 :
+
+- **La coupe** — « coupe est bien ». Le barreau 1 de l'escalier tient : lame
+  émoussée au départ, qualité qui monte avec le couteau (R10), et le gabarit qui
+  se voit enfin (le pain maigrit de ce qu'il donne vraiment).
+- **SnapShit** — « ça marche aussi ». Le lien *je coupe du 8 → je l'annonce → les
+  gros arrivent* se sent en jeu. L'app a enfin un rôle.
+- **La négo à quantité variable** — « ça marche bien ».
+
+Aucun rééquilibrage demandé à ce stade. Les placeholders (`LAME_NETTETE`,
+`RABAIS_FORMAT`, `RUE_INERTIE`, `RUE_PART_MAX`, `RUE_PENTE`, `QUAL_REF`,
+`QUAL_TOL_MAX`) restent donc en l'état — ils tiennent le ressenti.
+
+### Correction de cadrage, importante : le volume n'est pas un rabais
+
+Sylvain : *« l'erreur serait de considérer la négociation en volume seulement
+comme un rabais, le but étant aussi de vendre plus que prévu. »*
+
+Il a raison et ça invalide mon vocabulaire. J'analysais le €/g — la métrique du
+**client**. Celle du **joueur**, c'est ce que rapporte un créneau d'ouverture,
+puisque la chaleur est un impôt sur les secondes ouvertes et non sur les grammes.
+
+Un anonyme (poche 55 €) qui demande 2 g :
+
+| servi | €/g | € encaissés | vs sa demande |
+| --- | --- | --- | --- |
+| 2 g | 11,00 | 22 € | référence |
+| 3 g | 10,67 | 32 € | **+43 %** |
+| 5 g | 10,20 | 51 € | **+128 %** |
+| 6 g | 9,17 | 55 € | **+146 %** |
+| 8 g et + | ≤ 6,88 | 55 € | +146 % (plafond) |
+
+Pousser le volume n'est donc pas une concession : c'est **une vente qu'on
+n'aurait pas faite**, dans le même créneau, pour la même chaleur.
+
+Conséquence UI, à faire : au-delà de la saturation de sa poche (6 g ici), les
+grammes supplémentaires ne rapportent **rien** — ce n'est pas une braderie à
+signaler en rouge, c'est une **information à donner** : « il paie 55 € au
+maximum ; au-delà de 6 g tu donnes du produit sans encaisser un euro de plus ».
+Une info, jamais une punition (R1).
+
+### `[DÉCISION REQUISE]` toujours ouverte
+
+- **Le grossiste doublement remisé** (−45 % : son profil `OFFER`/`TOL` portait
+  déjà un rabais volume, `menuAt` s'ajoute par-dessus). Réponse de Sylvain
+  interrompue en cours de frappe — à reprendre.
+- **Les secondes d'ouverture restantes**, toujours non affichées. C'est ce qui
+  explique pourquoi le gros panier est bon : sans ce chiffre, le joueur ne voit
+  pas ce que son créneau lui coûte.
+
 ## 2026-07-26 — La Loupe : proposer plus ou moins dans la négociation
 
 Demande de Sylvain : *« dans la négociation, on devrait pouvoir proposer plus ou
