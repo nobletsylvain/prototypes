@@ -383,10 +383,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=34";
-import * as beuher from "./beuher.mjs?v=34";
-import * as shelter from "./shelter.mjs?v=34";
-import * as corner from "./corner.mjs?v=34";
+import * as snap from "./snap.mjs?v=35";
+import * as beuher from "./beuher.mjs?v=35";
+import * as shelter from "./shelter.mjs?v=35";
+import * as corner from "./corner.mjs?v=35";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -2355,8 +2355,8 @@ function renderBeuher(){
     </div>
     <button class="btn beuher" id="launch" ${ready.every(o=>S.assign[o.id])&&ready.length?"":"disabled"}>Lancer les tournées</button>
     <div class="card"><h3>En route</h3>
-      ${active.map(r=>`<div class="stat"><span>${r.courierNm} · ${r.g} g ${r.busted?"🚨":""}</span><b>${Math.ceil(r.left)}s</b></div>
-        <div class="bar"><i style="width:${(1-r.left/r.total)*100}%;background:${r.col}"></i></div>`).join("")||`<div class="muted">Personne dehors.</div>`}
+      ${active.map(r=>`<div class="stat"><span>${r.courierNm} · ${r.g} g ${r.busted?"🚨":""}</span><b id="bEta_${r.id}">${Math.ceil(r.left)}s</b></div>
+        <div class="bar"><i id="bBar_${r.id}" style="width:${(1-r.left/r.total)*100}%;background:${r.col}"></i></div>`).join("")||`<div class="muted">Personne dehors.</div>`}
     </div>
     <div class="card"><h3>Retours</h3>
       ${done.map(r=>`<div class="stat"><span>${r.courierNm} · ${money(r.net)} ${r.busted?"SAISI":""}</span>
@@ -2367,6 +2367,21 @@ function renderBeuher(){
   });
   document.getElementById("launch").onclick=()=>launchRuns();
   stage.querySelectorAll("[data-col]").forEach(b=>b.onclick=()=>collectRun(b.dataset.col));
+}
+/* Ce qui bouge pendant une tournée : le compte à rebours et sa barre. RIEN d'autre.
+   `renderBeuher` réécrit `stage.innerHTML` et rebinde ses boutons ; l'appeler en
+   cadence détruisait donc « Compter le liquide » et l'affectation des courriers SOUS
+   le doigt du joueur. Un `click` n'est émis que si le pointeur se relève sur le même
+   nœud que celui où il s'est posé : un appui dure ~100 ms, la reconstruction tombait
+   toutes les 350 ms, donc environ un tap sur trois disparaissait — au hasard, ce qui
+   est le pire des cas (le joueur croit avoir mal visé). Même famille que l'écran
+   d'évacuation, trouvée en balayant le dépôt après le bug de l'ARAH. */
+function beuherPatch(){
+  for(const r of S.runs){
+    if(r.left<=0) continue;
+    const t=document.getElementById("bEta_"+r.id); if(t) t.textContent=Math.ceil(r.left)+"s";
+    const b=document.getElementById("bBar_"+r.id); if(b) b.style.width=((1-r.left/r.total)*100)+"%";
+  }
 }
 
 function launchRuns(){
@@ -2622,11 +2637,10 @@ function frame(now){
   if(tab==="beuher"){
     // arrivée d'une tournée → refresh immédiat : le retour de liquide
     // apparaît sans quitter l'onglet (avant, le dernier render pouvait sauter)
-    if(runDone){ frame._acc=0; renderBeuher(); }
-    else if(dirtyRun){
-      if(!frame._acc) frame._acc=0; frame._acc+=dt;
-      if(frame._acc>0.35){ frame._acc=0; renderBeuher(); }
-    }
+    // une tournée qui RENTRE change la structure (une ligne apparaît dans « Retours ») :
+    // là, un rendu complet est justifié, c'est un événement, pas une cadence.
+    if(runDone) renderBeuher();
+    else if(dirtyRun) beuherPatch();   // sinon on ne touche QUE le compteur et sa barre
   }
   // pendant l'ARAH le monde s'arrête : le préavis est un temps de DÉCISION, pas une
   // course contre le reste des systèmes (R1 — on ne perd rien pendant qu'on réfléchit)

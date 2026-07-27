@@ -65,12 +65,39 @@ re-rendu par frame rétabli, Puppeteer lui-même refuse le clic (`Node is detach
 document`) ; avec le correctif, 4 runs sur 4 donnent `40 g → 24 g`, exactement les 8
 barrettes du lot.
 
+### 3. Le même bug ailleurs : BeuherShit
+
+Un balayage du dépôt lancé après coup a trouvé la **même faute, à une autre cadence**.
+`renderBeuher()` réécrit `stage.innerHTML` et rebinde ses boutons, et la boucle de
+frame le rappelait **toutes les 350 ms** tant qu'un coursier était dehors. Les deux
+boutons concernés ne sont pas décoratifs : **affecter un coursier** à une commande, et
+**« Compter le liquide »** — encaisser une tournée rentrée.
+
+À 350 ms contre un appui de ~100 ms, le tap ne meurt pas à tous les coups : il meurt
+quand l'appui chevauche une reconstruction, soit **environ une fois sur trois**. Et
+c'est pire qu'un échec systématique — un bouton qui marche deux fois sur trois, le
+joueur croit qu'il a mal visé.
+
+Mesuré, et c'est joli : en rétablissant l'ancienne cadence, le contrôle *structurel*
+(« le nœud est-il remplacé ? ») échoue **3 fois sur 3**, tandis que le *tap* lui-même
+n'échoue que **1 fois sur 3** — exactement la proportion attendue. D'où la forme du
+test : on garde les deux, le structurel comme garde fiable, le tap comme preuve que la
+conséquence est réelle.
+
+Correctif identique à l'ARAH : `beuherPatch()` ne touche qu'au compte à rebours et à sa
+barre. Le rendu complet ne survit que pour l'**événement** « une tournée rentre » —
+là, une ligne apparaît vraiment, et un événement n'est pas une cadence.
+
 ### La leçon, qui n'est pas sur l'ARAH
 
 **Un test qui n'exécute pas le geste ne teste pas le geste.** Vérifier qu'un bouton
 *existe* ne dit rien sur le fait qu'on puisse *appuyer dessus*, et la différence entre
 les deux est invisible au clic synthétique. Partout où un écran se rafraîchit en
 cadence, le test doit presser, pas cliquer.
+
+D'où `tools/tap-loupe.mjs`, qui ne regarde jamais si un bouton existe : il presse
+120 ms et vérifie que **l'état a bougé**. Deux écrans y passent aujourd'hui ; tout
+nouvel écran qui se rafraîchit sous une boucle doit y entrer.
 
 ---
 
