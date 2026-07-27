@@ -9,6 +9,54 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-27 — La Loupe : les modules étaient servis depuis le cache (bug de déploiement)
+
+Sylvain, en jouant : *« je viens d'avoir une descente mais aucun message ni aucune
+alerte n'a été déclenchée »*.
+
+Testé les deux chemins en navigateur : ils marchent tous les deux. Sans chouffe, le
+toast « 🚨 Descente — barrettes + bac saisis » s'affiche. Avec chouffe, l'ARA s'ouvre
+et le cri part. Le bug n'était donc pas dans la mécanique.
+
+### La cause : des versions d'import figées
+
+```js
+import * as snap    from "./snap.mjs?v=18";
+import * as beuher  from "./beuher.mjs?v=18";
+import * as shelter from "./shelter.mjs?v=18";
+import * as corner  from "./corner.mjs?v=3";
+```
+
+Ces numéros n'ont **pas bougé de toute la session**, pendant que `corner.mjs`,
+`snap.mjs` et `shelter.mjs` étaient réécrits de fond en comble (qualFac, menuAt,
+rueApres, evacuerLot, canal DM, FRONT_ENABLED…). Le navigateur revalide le document
+de navigation (`index.html`) mais **sert les modules depuis son cache** tant que
+l'URL ne change pas. Sylvain jouait donc un `index.html` à jour avec des modules
+vieux de plusieurs jours — un mélange de deux versions.
+
+Et un second défaut du même ordre : `snap.mjs` importait `"./corner.mjs"` **sans
+version**, donc à une URL différente de celle du HTML. Deux URL = **deux instances**
+du module chargées en parallèle.
+
+### Le correctif, et surtout le garde-fou
+
+Version unifiée à `?v=32` partout, imports croisés compris. Mais un numéro qu'il faut
+penser à bumper à la main se re-figera : `tools/cache-loupe.mjs` le vérifie
+mécaniquement, en trois règles —
+
+1. aucun import de `.mjs` sans suffixe de version ;
+2. **une seule** version dans tout le dossier (sinon : modules en double) ;
+3. le suffixe est au moins aussi récent que chaque module, mesuré sur git.
+
+Vérifié dans les deux sens : **1/3 sur l'état d'avant, 3/3 après**.
+
+### Ce que ça dit sur mes vérifications
+
+Tous mes tests tournent sur les fichiers du dépôt, jamais sur ce que le navigateur
+d'un joueur reçoit réellement. C'est un angle mort entier : trois merges de suite ont
+été validés « tout vert » alors qu'une partie du code n'atteignait pas le joueur. Le
+`node --check` et les invariants ne disent rien du **déploiement**.
+
 ## 2026-07-27 — La Loupe : des bulles dans la rue, et « ARAH !! »
 
 Sylvain, image à l'appui (des gamins qui courent dans une ruelle avec une bulle de BD

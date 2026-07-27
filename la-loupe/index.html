@@ -376,10 +376,17 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 <script type="module">
 /* snap/beuher d'abord — Three.js (scene3d) en lazy load.
    Sur mobile, unpkg bloqué cassait TOUT le proto (écran fantôme « enrouler »). */
-import * as snap from "./snap.mjs?v=18";
-import * as beuher from "./beuher.mjs?v=18";
-import * as shelter from "./shelter.mjs?v=18";
-import * as corner from "./corner.mjs?v=3";
+/* CACHE-BUSTING — à bumper À CHAQUE modification d'un .mjs, sans exception.
+   Ces numéros étaient figés (?v=18 / ?v=3) pendant que corner/snap/shelter étaient
+   réécrits de fond en comble : le navigateur servait donc `index.html` à jour avec
+   des modules vieux de plusieurs jours, et le jeu se comportait comme un mélange
+   des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
+   Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
+   modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
+import * as snap from "./snap.mjs?v=32";
+import * as beuher from "./beuher.mjs?v=32";
+import * as shelter from "./shelter.mjs?v=32";
+import * as corner from "./corner.mjs?v=32";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
