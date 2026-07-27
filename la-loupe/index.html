@@ -386,10 +386,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=39";
-import * as beuher from "./beuher.mjs?v=39";
-import * as shelter from "./shelter.mjs?v=39";
-import * as corner from "./corner.mjs?v=39";
+import * as snap from "./snap.mjs?v=40";
+import * as beuher from "./beuher.mjs?v=40";
+import * as shelter from "./shelter.mjs?v=40";
+import * as corner from "./corner.mjs?v=40";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -424,7 +424,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=39"),
+      import("./scene3d.mjs?v=40"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -2687,7 +2687,15 @@ function advanceDay(manual){
   const last=sh.cons[sh.cons.length-1] || cons[cons.length-1];
   toast(manual ? (last?.c || "Nouvelle nuit.") : ("J"+S.day+" — marché "+mNow+"/g"+(mD>0?" ▲":mD<0?" ▼":"")+", paie faite."));
   save(); hud();
-  if(tab==="shelter"&&shelterSub==="pdv") renderCorner(S.shelter.pdv); // rafraîchit la scène après clôture
+  /* La clôture rebat TOUT : liquide (paie des chouffes), stock, marché, standing, hit de
+     planque, prix des upgrades. Seul le corner était rafraîchi — sur n'importe quel autre
+     écran, le corps gardait les chiffres de la veille jusqu'à ce qu'on navigue. Le bloc
+     « Réinvest » du Quartier annonçait notamment une abordabilité périmée (l'achat est
+     gardé, donc pas de perte sèche — juste un écran qui ment).
+     La bascule est un événement RARE (toutes les 180 s) et discret : re-rendre ici ne
+     risque pas le tap mort, contrairement à un rendu par frame. */
+  if(tab==="shelter"&&shelterSub==="pdv") renderCorner(S.shelter.pdv);
+  else render();
 }
 
 let last=performance.now();

@@ -57,6 +57,36 @@ on ne rouvre pas cette porte.
 
 Après : `HUD 31 · chip 31`, et la barre passe de 3 % à 9 % en suivant la journée.
 
+### Et la clôture de journée ne rafraîchissait que le corner
+
+Dernière trouvaille de l'audit : `advanceDay` rebat tout — liquide (paie des chouffes),
+stock, marché, standing, hit de planque, prix des upgrades — mais ne re-rendait **que** le
+corner. Sur n'importe quel autre écran, le corps gardait les chiffres de la veille jusqu'à
+ce qu'on navigue. Le bloc « Réinvest » du Quartier annonçait notamment une abordabilité
+périmée.
+
+Gravité réelle : faible, parce que l'achat **est gardé** (`if(S.dirty<cost)` → toast). Ce
+n'est pas une perte sèche, c'est un écran qui ment. Corrigé quand même : la bascule est
+rare (toutes les 180 s) et discrète, donc re-rendre l'écran courant n'y risque pas le tap
+mort — contrairement à un rendu par frame.
+
+### Bilan de la nuit : six correctifs, une seule famille
+
+Cinq des six sortent du même motif — **une couche de mise à jour incrémentale qui ne
+couvre pas tout ce que le rendu initial a écrit**. C'est la quatrième fois de la semaine.
+La règle qui se dégage, et qui vaut mieux que « relire les patchs » :
+
+> Tout ce que le joueur LIT et qui peut changer **sans qu'il agisse** doit être produit
+> par une fonction rafraîchie depuis la boucle — jamais écrit en dur dans un template.
+
+Trois catégories de choses bougent sans geste : le **temps** (la journée), les **jauges
+continues** (la chaleur), et les **conséquences différées** (la clôture). Elles étaient
+toutes les trois affichées comme des photos.
+
+---
+
+
+
 ### Ce que ça dit sur la méthode
 
 Le panel de sceptiques est là pour **tuer les fausses pistes**, et il le fait bien — sept
