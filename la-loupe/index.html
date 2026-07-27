@@ -1028,7 +1028,26 @@ function cornerLayoutPersos(P){
   P.queue.forEach((cl,i)=>{ const el=cornerEls.get(cl); if(!el) return; const s=CORNER_SLOTS[Math.min(i,CORNER_SLOTS.length-1)];
     el.style.left=s.l+"%"; el.style.bottom=s.b+"%"; el.style.setProperty("--s",s.s); el.classList.toggle("active",i===0);
     const pi=el.querySelector(".cpat2 i"); if(pi){ const r=clamp(cl.pat/cl.pat0,0,1); pi.style.width=(r*100)+"%"; pi.style.background=r>0.5?"#3ddc84":r>0.22?"#ffd06a":"#ff6a6a"; } });
-  const empty=document.getElementById("cEmpty"); if(empty) empty.style.display=P.queue.length?"none":"block";
+  const empty=document.getElementById("cEmpty");
+  if(empty){
+    empty.style.display=P.queue.length?"none":"block";
+    // Le TEXTE aussi, pas seulement l'affichage. Il était écrit une seule fois au rendu
+    // de la scène : on chargeait la sacoche, on refermait le tiroir, et la rue continuait
+    // d'annoncer « Sacoche vide — charge des barrettes » avec 25 barrettes dehors. Et
+    // symétriquement, sacoche vidée, elle disait « un client va passer » alors que le
+    // corner était fermé faute de stock — elle invitait à attendre pour rien.
+    const tx=cornerEmptyTx(P);
+    if(empty.textContent!==tx) empty.textContent=tx;
+  }
+}
+/* Ce que la rue raconte quand personne n'est devant toi. Une seule source, appelée au
+   rendu ET à chaque tick : tout ce qui change le tampon (charger, vendre, évacuer,
+   descente) se reflète sans que l'appelant ait à y penser. */
+function cornerEmptyTx(P){
+  if(tampN(P.tampon)>0) return "La rue est calme… un client va passer.";
+  const stock=sizesOf(S.sachets).reduce((a,f)=>a+(S.sachets[f]||0),0);
+  return stock>0 ? "Sacoche vide — charge des barrettes (Gérer) et attends."
+                 : "Rien à écouler — coupe un pain à l'Atelier, puis charge ta sacoche.";
 }
 function cornerPrioritize(P, cl){ // tap une silhouette de la file → la servir en premier (Overcooked)
   const i=P.queue.indexOf(cl); if(i<=0) return;
@@ -1756,10 +1775,7 @@ function renderCorner(P){
   if(!(P.prix>0)) P.prix=fair;               // ton prix affiché (réglable à la main), défaut = marché
   const prix=P.prix;
   const prixHint=(p,f)=>{ const d=Math.round((p/f-1)*100); return d>0?`+${d} % marché · moins de clients, + de marge`:d<0?`${d} % marché · plus de clients, − de marge`:`au prix du marché`; };
-  const stockSach=sizesOf(S.sachets).reduce((a,f)=>a+(S.sachets[f]||0),0);
-  const emptyTx = tampN(P.tampon)>0
-    ? "La rue est calme… un client va passer."
-        : (stockSach>0 ? "Sacoche vide — charge des barrettes (Gérer) et attends." : "Rien à écouler — coupe un pain à l'Atelier, puis charge ta sacoche.");
+  const emptyTx = cornerEmptyTx(P);   // même source que le rafraîchissement par tick
   const mPrev=corner.marketPrice(S.reput, S.day-1), mTrend=fair>mPrev?" ▲":fair<mPrev?" ▼":"";
   const mNews=corner.marketNews(S.day);
   const drawerBody=`<div class="stat"><span>📋 Ton menu <span class="muted" style="font-size:10px">· marché ${fair}/g${mTrend}</span></span><b id="pPrixG">${prix}/g</b></div>

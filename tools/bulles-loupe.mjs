@@ -145,6 +145,37 @@ ok("La sacoche propose un réglage par FORMAT (plus de +10/+25/Max aveugle)",
      `engagé ${geleAvant?.qFac} → ${gele?.qFac} (figé) · attentiste ${libreAvant?.qFac?.toFixed?.(3)} → ${libre?.qFac?.toFixed?.(3)} (suit)`);
 }
 
+// ── 2b-bis. Ce que la rue raconte suit l'état de la sacoche ───────────────────
+// Retour de playtest (capture) : « le message disant que la sacoche est libre est
+// erroné » — la scène affichait « Sacoche vide — charge des barrettes (Gérer) » avec
+// 25 barrettes · 50 g dans le tiroir. Le texte était écrit UNE FOIS au rendu de la
+// scène ; seul son `display` était retouché ensuite, jamais son contenu.
+// On rejoue la séquence exacte : sacoche vide → charger → refermer le tiroir → lire.
+{
+  await page.evaluate(() => { const b = document.getElementById("cFerme") || document.getElementById("cClose"); if (b) b.click(); });
+  await sleep(200);
+  // 1) tout rentrer : la rue doit dire « vide »
+  await page.evaluate(() => { const b = document.getElementById("cManage"); if (b) b.click(); });
+  await sleep(350);
+  await page.evaluate(() => { const b = document.querySelector('#pSac [data-sac="allout"]'); if (b) b.click(); });
+  await sleep(500);
+  const vide = await page.evaluate(() => (document.getElementById("cEmpty") || {}).textContent || "");
+  // 2) charger, puis relire SANS re-rendre la scène
+  await page.evaluate(() => { const b = document.querySelector('#pSac [data-sac="allin"]'); if (b) b.click(); });
+  await sleep(600);
+  const apres = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    const t = s.shelter?.pdv?.tampon || {};
+    return { tx: (document.getElementById("cEmpty") || {}).textContent || "",
+             n: Object.values(t).reduce((a, v) => a + v, 0) };
+  });
+  await page.screenshot({ path: path.join(OUT, "07-rue-raconte.png") });
+  const coherent = apres.n > 0 && !/[Ss]acoche vide/.test(apres.tx) && /vide/i.test(vide);
+  ok("La rue ne dit pas « sacoche vide » quand la sacoche est pleine",
+     coherent,
+     `vide → « ${vide.slice(0, 42)} » · ${apres.n} barrette(s) → « ${apres.tx.slice(0, 42)} »`);
+}
+
 // charger au max, puis vérifier que plusieurs formats sont sortis
 await page.evaluate(() => { const b = [...document.querySelectorAll('#pSac [data-sac="allin"]')][0]; if (b) b.click(); });
 await sleep(500);
