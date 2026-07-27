@@ -125,14 +125,14 @@ ok("La sacoche propose un réglage par FORMAT (plus de +10/+25/Max aveugle)",
 {
   const avant = await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-    return (s.shelter?.pdv?.queue || []).map((c) => ({ nm: c.nm, mode: c.mode, qFac: c.qFac }));
+    return (s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.queue || []).map((c) => ({ nm: c.nm, mode: c.mode, qFac: c.qFac }));
   });
   // on charge du 8 g : la qualité exposée bouge, donc qFac aussi
   await page.evaluate(() => { const b = document.querySelector('#pSac [data-sac="max"][data-f="8"]'); if (b) b.click(); });
   await sleep(400);
   const apres = await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-    return (s.shelter?.pdv?.queue || []).map((c) => ({ nm: c.nm, mode: c.mode, qFac: c.qFac }));
+    return (s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.queue || []).map((c) => ({ nm: c.nm, mode: c.mode, qFac: c.qFac }));
   });
   const gele = apres.find((c) => c.mode === "dernier");
   const geleAvant = avant.find((c) => c.mode === "dernier");
@@ -165,7 +165,7 @@ ok("La sacoche propose un réglage par FORMAT (plus de +10/+25/Max aveugle)",
   await sleep(600);
   const apres = await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-    const t = s.shelter?.pdv?.tampon || {};
+    const t = s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.tampon || {};
     return { tx: (document.getElementById("cEmpty") || {}).textContent || "",
              n: Object.values(t).reduce((a, v) => a + v, 0) };
   });
@@ -181,7 +181,7 @@ await page.evaluate(() => { const b = [...document.querySelectorAll('#pSac [data
 await sleep(500);
 const apresIn = await page.evaluate(() => {
   const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-  return { tampon: s.shelter?.pdv?.tampon || {}, sachets: s.sachets || {} };
+  return { tampon: s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.tampon || {}, sachets: s.sachets || {} };
 });
 const formats = Object.keys(apresIn.tampon).filter((f) => apresIn.tampon[f] > 0);
 ok("« Charger au max » sort PLUSIEURS formats (le 5 g ne meurt plus)",
@@ -194,7 +194,7 @@ await page.evaluate(() => { const b = [...document.querySelectorAll('#pSac [data
 await sleep(500);
 const apresOut = await page.evaluate(() => {
   const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-  return { tampon: s.shelter?.pdv?.tampon || {}, sachets: s.sachets || {} };
+  return { tampon: s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.tampon || {}, sachets: s.sachets || {} };
 });
 const apresG = Object.entries(apresOut.tampon).reduce((a, [f, n]) => a + +f * n, 0)
              + Object.entries(apresOut.sachets).reduce((a, [f, n]) => a + +f * n, 0);
@@ -284,7 +284,7 @@ ok("L'écran d'évacuation s'ouvre après le cri, avec ses deux gestes",
 {
   const avant = await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-    const t = s.shelter?.pdv?.tampon || {};
+    const t = s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.tampon || {};
     return Object.entries(t).reduce((a, [f, n]) => a + +f * n, 0);
   });
   const etatAvant = await page.evaluate(() => {
@@ -302,7 +302,7 @@ ok("L'écran d'évacuation s'ouvre après le cri, avec ses deux gestes",
   await sleep(350);
   const apres = await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-    const t = s.shelter?.pdv?.tampon || {};
+    const t = s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.tampon || {};
     const arah = document.getElementById("arah");
     return { g: Object.entries(t).reduce((a, [f, n]) => a + +f * n, 0),
              ouvert: !!(arah && !arah.classList.contains("hide")) };
@@ -327,7 +327,7 @@ ok("L'écran d'évacuation s'ouvre après le cri, avec ses deux gestes",
   await sleep(300);
   const avant = await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-    return String((s.shelter?.pdv?.tampon || {})["2"] || 0);
+    return String((s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.tampon || {})["2"] || 0);
   });
   // servir le client au premier plan : ça débite le tampon par le vrai chemin du jeu
   let vendu = false;
@@ -341,7 +341,7 @@ ok("L'écran d'évacuation s'ouvre après le cri, avec ses deux gestes",
   await sleep(500);
   const milieu = await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-    return String((s.shelter?.pdv?.tampon || {})["2"] || 0);
+    return String((s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.tampon || {})["2"] || 0);
   });
   await page.evaluate(() => { const b = document.getElementById("cManage"); if (b) b.click(); });
   await sleep(500);

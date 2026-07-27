@@ -20,7 +20,7 @@ import {
   RUE_MIN, RUE_PALIERS, RUE_PART_MAX, RUE_INERTIE, menuAt, rabaisVolume, RABAIS_FORMAT,
 } from "../la-loupe/corner.mjs";
 import { qtyToSachets, applySachetPlan, composables, evacuerLot, deplacerBarrettes } from "../la-loupe/snap.mjs";
-import { FRONT_ENABLED, grantOpeningFront, nightTick, shelterDefaults } from "../la-loupe/shelter.mjs";
+import { FRONT_ENABLED, grantOpeningFront, nightTick, shelterDefaults, cornerDefaults } from "../la-loupe/shelter.mjs";
 
 const results = [];
 const ok = (nom, pass, detail = "") => results.push({ nom, pass, detail });
@@ -735,6 +735,38 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
        sauveG > petitesDabord && (planque[8] || 0) === 6,
        `${sauveG} g sauvés en 8 barrettes (les petites d'abord n'en sauvaient que ${petitesDabord} g)`);
   }
+}
+
+/* ── La migration du corner unique vers les corners pluriels ──────────────────
+   Elle a failli manger une partie en cours : `shelterDefaults()` fournit TOUJOURS un
+   `corners.pdv` neuf, donc la première condition (« corners.pdv manque ») n'était jamais
+   vraie et l'ancien corner partait en silence. Le contrôle rejoue la fusion telle que le
+   jeu la fait, avec une sauvegarde à l'ancienne forme. */
+{
+  const ancien = { res: 77, bac: 340, prix: 13, chouffes: 2,
+    tampon: { 2: 11, 5: 3 }, tamponQ: 71, queue: [], ledger: [{ x: 1 }], seq: 9, combo: 2.5 };
+  // la fusion du jeu, à l'identique
+  const shelter = { ...shelterDefaults(), pdv: ancien };
+  let corners = { ...(shelter.corners || {}) };
+  if (shelter.pdv) {
+    corners = { ...corners, pdv: { ...cornerDefaults(), ...(corners && corners.pdv), ...shelter.pdv } };
+  }
+  const c = corners.pdv;
+  const garde = ["res", "bac", "prix", "chouffes", "tamponQ", "seq", "combo"]
+    .filter((k) => c[k] !== ancien[k]);
+  const stock = JSON.stringify(c.tampon) === JSON.stringify(ancien.tampon);
+  ok("R1 · migrer vers les corners pluriels ne perd RIEN de la partie en cours",
+     garde.length === 0 && stock && c.ledger.length === 1,
+     garde.length ? `perdus : ${garde.join(", ")}`
+                  : `res ${c.res} · bac ${c.bac} · prix ${c.prix} · chouffes ${c.chouffes} · sacoche ${JSON.stringify(c.tampon)} · ledger ${c.ledger.length}`);
+
+  // contre-épreuve : la condition d'origine ne se déclenchait jamais
+  const naif = { ...shelterDefaults(), pdv: ancien };
+  let cN = { ...(naif.corners || {}) };
+  if (naif.pdv && (!cN || !cN.pdv)) cN = { ...cN, pdv: { ...cornerDefaults(), ...naif.pdv } };
+  ok("Contre-épreuve · l'ancienne condition de migration jetait le corner en silence",
+     cN.pdv.bac === 0 && cN.pdv.prix !== ancien.prix,
+     `elle rendait un corner NEUF (bac ${cN.pdv.bac}, prix ${cN.pdv.prix}) au lieu de bac ${ancien.bac}, prix ${ancien.prix}`);
 }
 
 console.log("\n─── invariants La Loupe ───");

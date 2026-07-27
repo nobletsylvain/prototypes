@@ -76,11 +76,11 @@ const view = await page.evaluate(() => ({
 const sceneShown = view.scene && view.persos >= 2, cardShown = view.card;
 
 // accepter l'offre de Momo (48 = prix menu → deal) : liquide ↑ (auto), tampon ↓, relation ↑, file vidée
-const before = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
+const before = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.corners[s.shelter.cornerId||'pdv'];
   return { dirty: s.dirty || 0, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), rel: s.clients.momo.rel, q: p.queue.length }; });
 await page.click('[data-neg="accept"]');
 await sleep(300);
-const afterDeal = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
+const afterDeal = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.corners[s.shelter.cornerId||'pdv'];
   return { dirty: s.dirty || 0, bac: p.bac, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), rel: s.clients.momo.rel, q: p.queue.length }; });
 // vente présentielle → liquide direct (le bac reste à 0, plus d'« encaisser »)
 const negoSold = afterDeal.dirty > before.dirty && afterDeal.bac === 0 && afterDeal.tampon < before.tampon && afterDeal.rel > before.rel && afterDeal.q < before.q;
@@ -90,7 +90,7 @@ await page.screenshot({ path: path.join(OUT, "03-nego-deal.png") });
 await page.click('[data-neg="counter"]'); await sleep(200);
 const negoUI = await page.evaluate(() => !!document.getElementById("negoP")); // les steppers s'affichent
 await page.click('[data-neg="send"]'); await sleep(300);
-const afterCounter = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
+const afterCounter = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.corners[s.shelter.cornerId||'pdv'];
   return { dirty: s.dirty || 0, combo: p.combo, q: p.queue.length }; });
 const counterSold = negoUI && afterCounter.dirty > afterDeal.dirty && afterCounter.combo > 1; // vente en liquide + combo JUSTE armé
 
@@ -176,7 +176,7 @@ const hAfter = await pageM.evaluate(() => { const s = JSON.parse(localStorage.ge
 await pageM.click('[data-comp="1"]'); await sleep(120);
 await pageM.click('[data-comp="1"]'); await sleep(120);
 await pageM.click('[data-neg="compSell"]'); await sleep(250);
-const mAmbig = await pageM.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv; return { dirty: s.dirty || 0, combo: p.combo, q: p.queue.length }; });
+const mAmbig = await pageM.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.corners[s.shelter.cornerId||'pdv']; return { dirty: s.dirty || 0, combo: p.combo, q: p.queue.length }; });
 await pageM.screenshot({ path: path.join(OUT, "07-modes.png") });
 await pageM.close();
 const loucheOK = mFlair >= 25;                                              // discrétion versée
@@ -231,7 +231,7 @@ await pageT.click('[data-pin-go="pdv"]'); await sleep(400);
 await pageT.screenshot({ path: path.join(OUT, "08-ardoise.png") }); // carte ardoise de Nassim
 // ardoise : stock débité, AUCUN liquide maintenant, dette posée sur le client
 await pageT.click('[data-neg="ardoiseOk"]'); await sleep(250);
-const tArd = await pageT.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
+const tArd = await pageT.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.corners[s.shelter.cornerId||'pdv'];
   return { dirty: s.dirty || 0, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), ard: s.clients.nassim.ardoise || null }; });
 // qualité : chip affichée + deal à 20 → pourboire 12 % (dirty +22, pas +20) + rel 10+2+1
 const qualChip = await pageT.evaluate(() => /exige Q70/.test(document.getElementById("cActive")?.textContent || ""));

@@ -386,10 +386,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=40";
-import * as beuher from "./beuher.mjs?v=40";
-import * as shelter from "./shelter.mjs?v=40";
-import * as corner from "./corner.mjs?v=40";
+import * as snap from "./snap.mjs?v=41";
+import * as beuher from "./beuher.mjs?v=41";
+import * as shelter from "./shelter.mjs?v=41";
+import * as corner from "./corner.mjs?v=41";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -424,7 +424,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=40"),
+      import("./scene3d.mjs?v=41"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -547,6 +547,21 @@ S.painG=0; S.painQ=0; // évite une double migration au prochain chargement
 if(!(S.painSel>=0) || S.painSel>=S.pains.length) S.painSel=0;
 if(!S.shelter) S.shelter=shelter.shelterDefaults();
 else S.shelter={...shelter.shelterDefaults(), ...S.shelter};
+/* Migration douce v31 : le corner unique `shelter.pdv` devient la carte `shelter.corners`.
+   Migration plutôt que bump de SAVE_VERSION : une partie est en cours, on ne la jette pas.
+
+   La condition porte sur « un ancien `pdv` existe », PAS sur « `corners.pdv` manque » :
+   `shelterDefaults()` fournit TOUJOURS un `corners.pdv` neuf, donc tester son absence ne
+   déclencherait jamais la migration — et l'ancien corner (sacoche, bac, ledger, prix,
+   chouffes) partirait à la poubelle en silence. Attrapé par les tests, pas par relecture. */
+if(S.shelter.pdv){
+  S.shelter.corners={ ...(S.shelter.corners||{}),
+    pdv:{ ...shelter.cornerDefaults(), ...(S.shelter.corners&&S.shelter.corners.pdv), ...S.shelter.pdv } };
+  delete S.shelter.pdv;                      // évite une double migration au prochain chargement
+}
+if(!S.shelter.corners || !Object.keys(S.shelter.corners).length) S.shelter.corners={ pdv: shelter.cornerDefaults() };
+for(const id of Object.keys(S.shelter.corners)) S.shelter.corners[id]={ ...shelter.cornerDefaults(), ...S.shelter.corners[id] };
+if(!S.shelter.corners[S.shelter.cornerId]) S.shelter.cornerId=Object.keys(S.shelter.corners)[0];
 // clientèle du corner : seed + migration douce (nouveaux personas ajoutés en cours de route)
 if(!S.clients || typeof S.clients!=="object") S.clients=corner.cornerClientsDefault();
 else for(const p of corner.CORNER_PERSONAS) if(!S.clients[p.id]) S.clients[p.id]={ rel:10, unlocked:!!p.start, missed:0, gougeStreak:0, quit:false };
@@ -576,6 +591,16 @@ let toastQ=[];
 function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show"); clearTimeout(toastT);
   toastT=setTimeout(()=>{ toastEl.classList.remove("show"); if(toastQ.length) toastT=setTimeout(()=>toast(toastQ.shift()),250); },1800); }
 function cause(txt, why){ S.journal.unshift({t:Date.now(),txt,cause:why}); if(S.journal.length>50) S.journal.length=50; }
+/* LE corner qu'on regarde. Null-safe par construction : il remplace les trois formes
+   qui traînaient (`activeCorner()`, `activeCorner()`, `activeCorner()||{}`), et
+   surtout il rend le pluriel possible sans toucher aux 21 appelants. */
+function activeCorner(){
+  const sh=S.shelter; if(!sh) return null;
+  const c=sh.corners && sh.corners[sh.cornerId||"pdv"];
+  return c || (sh.corners && sh.corners.pdv) || null;
+}
+/** Tous les corners ouverts, dans l'ordre de la carte. */
+function allCorners(){ const sh=S.shelter; return sh&&sh.corners ? Object.keys(sh.corners) : []; }
 function planqueCap(){ return PLANQUE_CAP_BASE + S.upgrades.planque*120; }
 function sizesOf(map){ return Object.keys(map).map(Number).filter(f=>map[f]>0).sort((a,b)=>b-a); }
 function barsG(){ return Object.entries(S.bars).reduce((a,[f,n])=>a+n*+f,0); }
@@ -839,7 +864,7 @@ function renderShelter(){
 function pinMapBtn(p){
   const on=S.shelter.selectedPin===p.id?"on":"";
   const locked=p.locked?"locked":"";
-  const bac=p.id==="pdv"?((S.shelter.pdv&&S.shelter.pdv.bac)||0):0;
+  const bac=p.id==="pdv"?(((activeCorner()||{}).bac)||0):0;
   const badge=p.id==="pdv"?`<span class="pin-bac${bac>0?"":" off"}" id="pinBac">€${money(bac)}</span>`:"";
   return `<button class="map-pin ${p.kind} ${on} ${locked}" style="left:${p.x}%;top:${p.y}%" data-pin="${p.id}" type="button">
     ${badge}<span class="dot"></span><span class="lbl">${p.title}</span></button>`;
@@ -861,7 +886,7 @@ function pinSheet(p, hit, hitLb){
   }
   if(p.kind==="pdv"){
     const pending=(S.dms||[]).filter(d=>d.status==="pending").length;
-    const P=S.shelter.pdv||{};
+    const P=activeCorner()||{};
     return `<div class="card">
       <h3>${p.title}</h3>
       <div class="muted">${p.blurb}</div>
@@ -920,7 +945,7 @@ const pdvRushHot=()=>pdvRush()>1+PDV_RUSH_AMP*0.7;
 // marché du jour (concurrence) — bouge chaque matin, annoncé à la clôture (déterministe, R4)
 function marcheDuJour(){ return corner.marketPrice(S.reput, S.day); }
 function pdvDemande(){
-  const P=S.shelter.pdv; const Qd=tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55); const Qa=P.advQ||Qd;
+  const P=activeCorner(); const Qd=tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55); const Qa=P.advQ||Qd;
   // le PRIX pilote la demande, RELATIVE au marché du jour : pente raide autour de prix=marché —
   // suivre (ou pas) la concurrence doit se sentir. Baseline inchangée à prix=marché (attract 0.8).
   const pr=P.prix/marcheDuJour(); const attract=clamp(0.8-(pr-1)*0.9,0.12,1.35);
@@ -1043,7 +1068,7 @@ function cornerSilhouette(cl){
   const pe=document.createElement("div"); pe.className="cperso"; pe.dataset.k=cl.kind;
   pe.style.left="108%"; pe.style.bottom="26%"; pe.style.setProperty("--s",0.7);
   pe.innerHTML=`<div class="chead">${cl.av||"👤"}</div><div class="cbody"></div><div class="clbl">${cl.nm}</div><div class="cpat2"><i></i></div>`;
-  pe.onclick=()=>{ const P=S.shelter.pdv; cornerPrioritize(P, cl); };
+  pe.onclick=()=>{ const P=activeCorner(); cornerPrioritize(P, cl); };
   return pe;
 }
 function cornerLayoutPersos(P){
@@ -1105,7 +1130,7 @@ function applyDeltas(cl, v){
   const c=S.clients[cl.cid]; if(!c) return;
   if(v.rel) c.rel=clamp(c.rel+v.rel,0,100);
   if(v.reput) S.reput=clamp(S.reput+v.reput,0,100);
-  if(v.res){ const P=S.shelter.pdv; P.res=clamp(P.res+v.res,0,100); }
+  if(v.res){ const P=activeCorner(); P.res=clamp(P.res+v.res,0,100); }
   if(v.resetGouge) c.gougeStreak=0;
   if(v.gouge){ c.gougeStreak=(c.gougeStreak||0)+1; if(c.gougeStreak>=corner.CORNER.GOUGE_STREAK_QUIT){ c.quit=true; toast("💔 "+cl.nm+" ne reviendra plus (trop d'abus)."); } }
 }
@@ -1384,7 +1409,7 @@ function renderCornerActive(P){
     cl.composeG=Math.max(0,(cl.composeG||0)+ (+b.dataset.comp)*pas); renderCornerActive(P); });
 }
 function pdvTick(dt){
-  const P=S.shelter&&S.shelter.pdv; if(!P) return;
+  const P=activeCorner(); if(!P) return;
   // PRÉSENCE REQUISE : au début, le charbonneur c'est TOI — tu ne vends au corner
   // que quand tu le tiens (écran corner). Vendre au corner ⇄ vendre/livrer sur
   // SnapShit = un arbitrage de ta présence. L'embauche d'un charbonneur (plus tard)
@@ -1462,7 +1487,7 @@ function chouffeGain(P){
   return b===Infinity && a===Infinity ? "le coin ne chauffe plus" : `ouverture ${fmt(a)} → ${fmt(b)} avec un de plus`;
 }
 function pdvPatch(){
-  const P=S.shelter.pdv, Qd=Math.round(tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55));
+  const P=activeCorner(), Qd=Math.round(tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55));
   const set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
   set("pDem",Math.round(pdvDemande())+" clients/h"+(pdvRushHot()?" · RUSH":""));
   const r=document.getElementById("pRes"); if(r) r.style.width=clamp(P.res,0,100)+"%";
@@ -1540,7 +1565,7 @@ function arahCri(P){
   setTimeout(()=>{ b.classList.add("out"); setTimeout(()=>b.remove(),200); }, 1500);
 }
 function arahOuvrir(preavis){
-  const P=S.shelter.pdv;
+  const P=activeCorner();
   arahState={ left:preavis, total:preavis, cool:0, sauveG:0, cash:0, cri:0.9 };
   cause("ARAH","Chouffe : "+preavis+" s de préavis");
   arahCri(P);
@@ -1549,7 +1574,7 @@ function arahOuvrir(preavis){
   // commence quand tu as compris, pas quand il ouvre la bouche.
 }
 function arahRentrer(){
-  const P=S.shelter.pdv;
+  const P=activeCorner();
   if(!arahState || arahState.cool>0) return;
   // la boucle vit dans snap.mjs : le jeu l'appelle, les invariants l'importent
   const { n, g }=snap.evacuerLot(P.tampon, S.sachets, ARAH_LOT);
@@ -1564,7 +1589,7 @@ function arahRentrer(){
   save(); arahRender();
 }
 function arahCaisse(){
-  const P=S.shelter.pdv;
+  const P=activeCorner();
   if(!arahState || arahState.cool>0 || !(P.bac>0)) return;
   arahState.cash+=P.bac; S.dirty+=P.bac; P.bac=0;
   arahState.cool=ARAH_COOL_MS/1000;
@@ -1604,7 +1629,7 @@ function arahRender(){
    encore dehors, et l'état des deux gestes. Aucun `innerHTML` sur les boutons. */
 function arahPatch(){
   if(!arahState) return;
-  const P=S.shelter.pdv;
+  const P=activeCorner();
   const bar=document.getElementById("arahBar");
   if(bar) bar.style.width=Math.max(0,arahState.left/arahState.total*100)+"%";
   const t=document.getElementById("arahT"), c=document.getElementById("arahC");
@@ -1623,7 +1648,7 @@ function arahTick(dt){
   if(arahState.left<=0){ arahState=null; const el=document.getElementById("arah"); if(el) el.classList.add("hide"); pdvDescente(); }
 }
 function pdvDescente(){
-  const P=S.shelter.pdv, lost=Math.round(P.bac+tampG(P.tampon)*P.prix);
+  const P=activeCorner(), lost=Math.round(P.bac+tampG(P.tampon)*P.prix);
   P.bac=0; P.tampon={}; P.tamponQ=0; P.queue=[]; S.heat=PDV_AFTER; S.reput=clamp(S.reput-6,0,100);
   cause("Descente au corner","−"+lost+" exposé"); hud();
   toast("🚨 Descente — barrettes + bac saisis (−"+lost+"). La planque est sauve.");
@@ -1695,7 +1720,7 @@ function rentrerQ(P, g){
 }
 /* Un mouvement de barrettes, dans un sens ou dans l'autre. */
 function sacoche(f, delta){
-  const P=S.shelter.pdv; if(!P.tampon) P.tampon={};
+  const P=activeCorner(); if(!P.tampon) P.tampon={};
   if(delta>0){
     const place=PDV_TAMPON_MAX-tampN(P.tampon);
     if(place<=0){ toast("Sacoche pleine ("+PDV_TAMPON_MAX+" barrettes)."); return; }
@@ -1711,7 +1736,7 @@ function sacoche(f, delta){
   save(); pdvSacPatch(P);
 }
 function sacocheTout(sens){
-  const P=S.shelter.pdv;
+  const P=activeCorner();
   if(sens==="out"){
     let g=0; for(const f of sizesOf(P.tampon)) g+=snap.deplacerBarrettes(P.tampon, S.sachets, f, P.tampon[f]).g;
     rentrerQ(P, g); toast("Sacoche vidée — plus rien d'exposé.");
@@ -1777,7 +1802,7 @@ function pdvSacPatch(P){
 }
 function renderPDV(){
   tab="shelter"; shelterSub="pdv"; if(typeof set3d==="function") set3d("hidden"); hud(); renderDock();
-  const P=S.shelter.pdv; if(!P.tampon) P.tampon={}; if(!P.queue) P.queue=[]; if(!P.ledger) P.ledger=[];
+  const P=activeCorner(); if(!P.tampon) P.tampon={}; if(!P.queue) P.queue=[]; if(!P.ledger) P.ledger=[];
   renderCorner(P); // la scène rue plein écran
 }
 // La rue, plein écran (Option B) : négo au client (carte slide-up) + tiroir « Gérer »
@@ -1980,7 +2005,7 @@ function renderKarnet(){
 
 /* ---------- SnapShit ---------- */
 // prix affiché (menu du corner) que la story met en avant — réglé à la main au corner
-function snapMenuPrix(){ const p=S.shelter&&S.shelter.pdv&&S.shelter.pdv.prix; return p>0?p:marcheDuJour(); }
+function snapMenuPrix(){ const p=(activeCorner()||{}).prix; return p>0?p:marcheDuJour(); }
 /* L'ANNONCE — c'est ici que SnapShit sert enfin à quelque chose : communiquer le
    format. Couper du 8 g ne suffit pas à ce que la rue en demande ; il faut le dire.
    Et parce que c'est un geste explicite, il est SYMÉTRIQUE : on ré-annonce le petit
@@ -2654,7 +2679,7 @@ function advanceDay(manual){
   S.day++; S.heat=clamp(S.heat-6,0,100); S.soldDay=0;
   cons.forEach(c=>cause(c.t,c.c));
   // ardoises : le crédit se règle tout seul au jour dit (déterministe, R4) — l'argent revient en liquide
-  { const P=S.shelter&&S.shelter.pdv;
+  { const P=activeCorner();
     for(const p of corner.CORNER_PERSONAS){ const c=S.clients&&S.clients[p.id];
       if(c&&c.ardoise&&S.day>=c.ardoise.day){ const v=Math.round(c.ardoise.due); S.dirty+=v; pushBills(v);
         c.rel=clamp(c.rel+2,0,100); cause("Ardoise réglée", p.nm+" +"+v+" liquide"); delete c.ardoise;
@@ -2666,11 +2691,11 @@ function advanceDay(manual){
   cause("Marché", mNow+"/g"+(mD?" ("+(mD>0?"+":"")+mD+")":""));
   if(mNews) toastQ.push(mNews.tx+" Marché "+mNow+"/g.");
   // paie des chouffes du corner (liquide d'abord, puis propre) — sinon un chouffe part
-  { const P=S.shelter&&S.shelter.pdv; const due=(P&&P.chouffes||0)*PDV_CHOUFFE_PAY;
+  { const P=activeCorner(); const due=(P&&P.chouffes||0)*PDV_CHOUFFE_PAY;
     if(due>0){ if(S.dirty>=due){ S.dirty-=due; cause("Paie chouffes","−"+due+" liquide"); }
       else if(S.cash>=due){ S.cash-=due; cause("Paie chouffes","−"+due+" propre"); }
       else { P.chouffes=Math.max(0,P.chouffes-1); cause("Chouffe parti","paie manquée"); } } }
-  if(S.shelter&&S.shelter.pdv) S.shelter.pdv.combo=1; // combo négo : remis à zéro à chaque clôture de soirée
+  if(activeCorner()) activeCorner().combo=1; // combo négo : remis à zéro à chaque clôture de soirée
   /* Les contacts s'ouvrent aussi à la CLÔTURE, plus seulement quand un client quitte
      le corner. Sans ça, un grossiste qui ne vient plus au corner ne pourrait plus
      jamais être débloqué par la rumeur de calibre : `rueGate` deviendrait du code
@@ -2694,7 +2719,7 @@ function advanceDay(manual){
      gardé, donc pas de perte sèche — juste un écran qui ment).
      La bascule est un événement RARE (toutes les 180 s) et discret : re-rendre ici ne
      risque pas le tap mort, contrairement à un rendu par frame. */
-  if(tab==="shelter"&&shelterSub==="pdv") renderCorner(S.shelter.pdv);
+  if(tab==="shelter"&&shelterSub==="pdv") renderCorner(activeCorner());
   else render();
 }
 
@@ -2776,7 +2801,7 @@ function setupDebug(){
   h+=add("+1000 liquide", ()=>S.dirty+=1000);
   h+=add("+200 propre", ()=>S.cash+=200);
   h+=H("Boucle");
-  h+=add("🚀 Kit test (stock + liquide)", ()=>{ S.pains.push({g:100,q:52},{g:100,q:52}); S.painSel=0; S.sachets["2"]=(S.sachets["2"]||0)+60; S.sachetQ=S.sachetQ||62; S.dirty+=1000; S.reput=Math.max(S.reput,30); const P=S.shelter.pdv; P.bac=0; P.tampon={}; P.tamponQ=0; P.queue=[]; });
+  h+=add("🚀 Kit test (stock + liquide)", ()=>{ S.pains.push({g:100,q:52},{g:100,q:52}); S.painSel=0; S.sachets["2"]=(S.sachets["2"]||0)+60; S.sachetQ=S.sachetQ||62; S.dirty+=1000; S.reput=Math.max(S.reput,30); const P=activeCorner(); P.bac=0; P.tampon={}; P.tamponQ=0; P.queue=[]; });
   h+=add("Embauche charbonneur (on/off)", ()=>{ S.upgrades.charbonneur=S.upgrades.charbonneur?0:1; });
   h+=H("Stock");
   h+=add("+Pain 100 g", ()=>{ S.pains.push({g:100,q:52}); });

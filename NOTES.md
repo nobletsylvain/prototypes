@@ -213,6 +213,70 @@ fasse prendre — ce n'est pas un bug, c'est une porte fermée.
 
 ---
 
+## 2026-07-28 — Les corners deviennent pluriels (fondation)
+
+Programme donné par Sylvain avant d'aller dormir : un **deuxième corner**, l'embauche
+d'un **charbonneur** puis d'un second, la **sacoche comme espace de stratégie**
+(grammage, combinaisons, négociation), la **weed** plus tard, l'app **Appro** à verrouiller
+derrière un temps de jeu (avant : on s'approvisionne chez **Karim**), et une **refonte du
+Karnet**, aujourd'hui simple ledger.
+
+J'ai commencé par la clé de voûte : **`S.shelter.pdv` (singulier) → `S.shelter.corners`
+(carte)**. Sans ça, rien du reste n'est possible — c'est ce que je lui avais déjà dit à
+propos de sa rotation : avec un point de vente unique, une sacoche qui tourne n'est pas
+une rotation, c'est une navette.
+
+### Un refactor qui ne change rien, et c'est le but
+
+21 sites d'appel, tous ramenés à un accesseur `activeCorner()` null-safe — il absorbe au
+passage les trois formes gardées qui traînaient (`S.shelter.pdv`,
+`S.shelter&&S.shelter.pdv`, `S.shelter.pdv||{}`). Toute la suite reste verte : le joueur
+ne voit aucune différence, ce qui est exactement ce qu'on demande à une fondation.
+
+### La migration a failli manger la partie en cours
+
+Premier jet de la condition :
+
+```js
+if(S.shelter.pdv && (!S.shelter.corners || !S.shelter.corners.pdv)){ … }
+```
+
+`shelterDefaults()` fournit **toujours** un `corners.pdv` neuf, et la fusion
+`{...shelterDefaults(), ...S.shelter}` tourne avant. Donc `corners.pdv` existe toujours,
+la condition est **toujours fausse**, la migration ne se déclenche **jamais** — et
+l'ancien corner (sacoche, bac, ledger, prix, chouffes) part à la poubelle en silence.
+
+Sur la sauvegarde de Sylvain, ça lui remettait son corner à zéro sans un mot.
+
+**Attrapé par les tests, pas par relecture** : 4 contrôles sur 13 sont tombés d'un coup.
+La condition porte maintenant sur « un ancien `pdv` existe », point. Et l'invariant qui
+protège ça rejoue la fusion telle que le jeu la fait, avec sa contre-épreuve — laquelle
+montre que l'ancienne condition rendait un corner NEUF (bac 0, prix 10) là où la partie
+avait bac 340, prix 13.
+
+### Une leçon de méthode, encore une
+
+J'ai remplacé les 21 sites par substitution en masse… ce qui a **réécrit le bloc de
+migration lui-même**, jusqu'à produire un `delete activeCorner();` absurde. Une
+substitution globale ne distingue pas le code du commentaire qui parle du code. Réécrit à
+la main.
+
+### Migration plutôt que bump
+
+La convention du dépôt autorise « bump + reset propre **ou** migration explicite ». Une
+partie est en cours : on ne la jette pas. `SAVE_VERSION` reste à 30, la migration fait le
+travail, et elle est rejouée à chaque exécution des tests puisque les seeds utilisent
+encore l'ancienne forme — un bon effet de bord.
+
+### Ce qui reste du programme
+
+Fondation posée. Restent : le second corner comme contenu, le charbonneur, le verrou de
+l'Appro avec Karim, et le Karnet. Le Karnet est le seul dont **je ne connais pas la
+cible** — « revoir la valeur ajoutée » ne dit pas ce qu'il doit devenir. Je proposerai
+plutôt que de construire à l'aveugle.
+
+---
+
 ## 2026-07-28 — Le liquide qui dort chauffait le quartier, et personne ne le disait
 
 Trouvé en reprenant un défaut que j'avais signalé il y a des jours sans jamais le
