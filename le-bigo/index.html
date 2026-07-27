@@ -577,21 +577,44 @@ function badgeOf(id) {
 function preHint() {
   return ["réponds à Youss 🐺", "atelier : conditionne le lot 🧰", "vends sur SnapShit 👻", "rembourse Youss 🐺"][Math.min(st.step, 3)] || "";
 }
+let appsSig = null;   // signature de la FORME de la grille (pas de ses pastilles)
 function renderHome() {
   $("home-clock").textContent = `${pad(Math.floor((st.clock % 1440) / 60))}:${pad(st.clock % 1440 % 60)}`;
   $("home-date").textContent = `jour ${st.day} · le block`;
-  const grid = $("apps"); grid.innerHTML = "";
+  const grid = $("apps");
+  /* La grille ne se reconstruit que si sa FORME change (une app se déverrouille).
+     Elle était rebâtie à CHAQUE tick, c'est-à-dire une fois par seconde : chaque tuile
+     — et donc son listener — était détruite puis recréée sous le doigt du joueur. Or un
+     `click` n'est émis que si le pointeur se relève sur le MÊME nœud que celui où il
+     s'est posé, et un appui dure ~100 à 200 ms : 10 à 20 % des taps sur la navigation
+     du téléphone étaient avalés en silence, y compris ceux sur les apps verrouillées
+     (le joueur n'avait même pas le toast qui lui dit pourquoi).
+     C'est l'idiome `dockSig` de le-spot, que ce proto avait perdu. */
+  const sig = APPS.map((a) => (st.unlocked[a.id] ? "1" : "0")).join("");
+  if (sig !== appsSig) {
+    appsSig = sig;
+    grid.innerHTML = "";
+    for (const a of APPS) {
+      const locked = !st.unlocked[a.id];
+      const d = document.createElement("div");
+      d.className = "appic" + (locked ? " locked" : "");
+      d.dataset.app = a.id;
+      const bg = a.tint ? `style="background:linear-gradient(160deg,${a.tint[0]},${a.tint[1]})"` : "";
+      d.innerHTML = `<div class="bx" ${bg}>${locked ? "🔒" : a.ic}</div><div class="lb">${a.lb}</div>`;
+      if (!locked) d.addEventListener("click", () => show(a.id));
+      else d.addEventListener("click", () => toast("Pas encore. Suis le fil 🐺"));
+      grid.appendChild(d);
+    }
+  }
+  // ce qui change à chaque tick : les pastilles, et elles seules
   for (const a of APPS) {
-    const locked = !st.unlocked[a.id];
-    const d = document.createElement("div");
-    d.className = "appic" + (locked ? " locked" : "");
-    const n = locked ? 0 : badgeOf(a.id);
-    const bg = a.tint ? `style="background:linear-gradient(160deg,${a.tint[0]},${a.tint[1]})"` : "";
-    d.innerHTML = `<div class="bx" ${bg}>${locked ? "🔒" : a.ic}</div><div class="lb">${a.lb}</div>` +
-      (n ? `<span class="badge">${n}</span>` : "");
-    if (!locked) d.addEventListener("click", () => show(a.id));
-    else d.addEventListener("click", () => toast("Pas encore. Suis le fil 🐺"));
-    grid.appendChild(d);
+    const d = grid.querySelector(`[data-app="${a.id}"]`); if (!d) continue;
+    const n = st.unlocked[a.id] ? badgeOf(a.id) : 0;
+    let b = d.querySelector(".badge");
+    if (n) {
+      if (!b) { b = document.createElement("span"); b.className = "badge"; d.appendChild(b); }
+      if (b.textContent !== String(n)) b.textContent = n;
+    } else if (b) b.remove();
   }
   $("homefoot").innerHTML = st.phase === "pre"
     ? `préambule — <b>${preHint()}</b>`

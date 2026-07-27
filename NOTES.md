@@ -9,6 +9,159 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-27 — L'écran d'évacuation était mort au doigt (et ne se sauvegardait pas)
+
+Sylvain, capture à l'appui : *« Je ne sais pas trop ce qui s'est passé. Je cliquais sur
+récupérer les barrettes mais rien ne se passait. »* Puis, au Karnet, une minute plus
+tard : `Descente au corner · −440 exposé`.
+
+Deux bugs distincts, le second masqué par le premier.
+
+### 1. Le bouton mourait sous le doigt
+
+`arahTick` rappelait `arahRender()` à **chaque frame**, et `arahRender` écrivait
+`el.innerHTML = …`. Les deux boutons étaient donc **détruits et recréés ~60 fois par
+seconde**.
+
+Un événement `click` n'est émis que si le pointeur se **relève** sur le **même nœud
+DOM** que celui où il s'est **posé**. Au doigt il s'écoule ~100 ms entre les deux : le
+bouton pressé n'existait déjà plus au relâchement. Le geste ne partait **jamais** sur
+téléphone. Sylvain tapait dans le vide en regardant la descente tout prendre.
+
+Correctif : la structure est construite **une fois** (`el.dataset.built`), et
+`arahPatch()` ne met à jour que ce qui bouge — la barre de préavis, le compte, la
+classe `cool`. Jamais d'`innerHTML` sur les boutons. C'est la forme que `le-spot` avait
+déjà (`majArah` ne touche que le timer et le pied) : **le portage vers La Loupe l'a
+perdue en route**.
+
+### 2. Le sauvetage ne se sauvegardait pas
+
+En écrivant le test, il est passé une fois puis a échoué deux fois de suite. J'ai
+d'abord voulu conclure « flaky » — le réflexe exact que je venais de me faire prendre
+sur `RELACHE_MIN`. Cette fois j'ai instrumenté avant d'expliquer : au moment du tap,
+le bouton était présent, `pointer-events: auto`, l'écran ouvert, la classe propre.
+Donc le clic partait bien, et pourtant rien ne bougeait.
+
+`arahRentrer` et `arahCaisse` étaient les **seules** actions mutantes du jeu à ne pas
+appeler `save()` — 39 autres endroits le font. L'évacuation vivait en mémoire et
+n'atteignait jamais le `localStorage`. Conséquence pour le joueur : un onglet mis en
+arrière-plan pendant l'alerte — sur téléphone, précisément le moment où ça arrive —
+et le sauvetage était perdu. `arahCaisse` touche au **liquide** et ne le persistait pas
+non plus.
+
+Le test lisait le `localStorage` ; il mesurait donc un état que le code n'écrivait pas.
+**La seule fois où il est passé, il est passé par chance** — un autre `save()` était
+tombé dans la fenêtre.
+
+### Ce que le test d'avant prouvait vraiment
+
+Il vérifiait « l'écran d'évacuation s'ouvre avec ses deux gestes ». Il ne **tapait
+pas** dessus. Un écran mort passait donc au vert, et il est passé au vert à chaque
+merge depuis que l'ARAH existe.
+
+Le nouveau check tape pour de vrai, avec un appui de **120 ms** — parce qu'un clic
+synthétique instantané ne reproduit rien. Vérifié dans les deux sens : avec le
+re-rendu par frame rétabli, Puppeteer lui-même refuse le clic (`Node is detached from
+document`) ; avec le correctif, 4 runs sur 4 donnent `40 g → 24 g`, exactement les 8
+barrettes du lot.
+
+### 3. Le même bug ailleurs : BeuherShit
+
+Un balayage du dépôt lancé après coup a trouvé la **même faute, à une autre cadence**.
+`renderBeuher()` réécrit `stage.innerHTML` et rebinde ses boutons, et la boucle de
+frame le rappelait **toutes les 350 ms** tant qu'un coursier était dehors. Les deux
+boutons concernés ne sont pas décoratifs : **affecter un coursier** à une commande, et
+**« Compter le liquide »** — encaisser une tournée rentrée.
+
+À 350 ms contre un appui de ~100 ms, le tap ne meurt pas à tous les coups : il meurt
+quand l'appui chevauche une reconstruction, soit **environ une fois sur trois**. Et
+c'est pire qu'un échec systématique — un bouton qui marche deux fois sur trois, le
+joueur croit qu'il a mal visé.
+
+Mesuré, et c'est joli : en rétablissant l'ancienne cadence, le contrôle *structurel*
+(« le nœud est-il remplacé ? ») échoue **3 fois sur 3**, tandis que le *tap* lui-même
+n'échoue que **1 fois sur 3** — exactement la proportion attendue. D'où la forme du
+test : on garde les deux, le structurel comme garde fiable, le tap comme preuve que la
+conséquence est réelle.
+
+Correctif identique à l'ARAH : `beuherPatch()` ne touche qu'au compte à rebours et à sa
+barre. Le rendu complet ne survit que pour l'**événement** « une tournée rentre » —
+là, une ligne apparaît vraiment, et un événement n'est pas une cadence.
+
+### 4. Et un troisième, dans Le Bigo : toute la navigation
+
+Le balayage a aussi trouvé la même faute dans un **autre proto**. `renderHome()` vidait
+`#apps` et recréait **chaque tuile d'application** — avec son `addEventListener` — à
+chaque `tick`, soit **une fois par seconde**, sur l'écran par défaut du téléphone.
+
+Ce qui meurt là, ce n'est pas un bouton : c'est **la navigation entière de l'OS**. Les
+huit apps, plus les tuiles verrouillées (dont le tap déclenche le toast « Pas encore.
+Suis le fil 🐺 » — le joueur n'avait même pas l'explication).
+
+Correctif : l'idiome **`dockSig`**, que `le-spot` avait déjà (`// signature de la FORME
+du dock (pas de ses chiffres)`). La grille ne se reconstruit que si sa forme change —
+une app qui se déverrouille — et les pastilles sont patchées à part. Trois protos, la
+même faute : `le-spot` avait la bonne réponse, `la-loupe` et `le-bigo` l'ont perdue en
+la portant.
+
+### Deux contrôles, parce qu'un seul mentirait
+
+En rétablissant l'ancien comportement pour vérifier que le test mord :
+
+| | structurel (« le nœud est-il remplacé ? ») | le tap lui-même |
+| --- | --- | --- |
+| BeuherShit (350 ms) | échoue 3/3 | échoue **1/3** |
+| Le Bigo (1 000 ms) | échoue 3/3 | **passe 3/3** |
+
+Le tap seul est un **détecteur trop faible** : à 1 Hz, un appui de 150 ms ne chevauche
+une reconstruction que ~15 % du temps, donc trois essais ne le voient jamais. Le
+contrôle structurel est le **garde** ; le tap prouve que la **conséquence** est réelle.
+Garder l'un sans l'autre, c'est se raconter une histoire — et j'ai failli publier le
+seul tap en croyant qu'il suffisait.
+
+### 5. Le garde-fou anti-cache avait lui-même un angle mort
+
+Trouvé en relisant mes propres affirmations avant de les publier : le corps de la PR
+annonçait « modules bumpés à `?v=35` », et je suis allé vérifier. Il y avait un
+`?v=19`.
+
+`scene3d.mjs` — la scène 3D de la coupe, donc **le geste central du jeu** — n'est pas
+importée statiquement mais **dynamiquement** :
+
+```js
+scene3dPromise = Promise.race([ import("./scene3d.mjs?v=19"), … ])
+```
+
+Or `cache-loupe.mjs`, écrit exprès contre ce bug après le playtest du 27, ne cherchait
+que la forme `from "./x.mjs?v=N"`. Un `import(...)` dynamique n'a pas de `from` : le
+garde ne l'a **jamais vu**, et affichait 3/3 depuis le début.
+
+Le coût réel, daté : `?v=19` a été posé le **20 juillet**, et `scene3d.mjs` a été
+corrigé le **25** (la désync du gabarit — un bug qu'on avait trouvé et réparé). Pendant
+**cinq jours**, tout navigateur au cache chaud a joué l'**ancienne** scène de coupe. Le
+correctif existait dans le dépôt et n'atteignait pas le joueur — exactement le
+symptôme que ce garde-fou devait rendre impossible.
+
+Corrigé : la règle couvre maintenant les **deux formes** d'import, et le contrôle est
+vérifié dans les deux sens (en refigeant la scène à `?v=19`, il tombe à 2/3).
+
+**Un garde qui ne couvre pas toutes les formes du danger ne garde que celles auxquelles
+on avait déjà pensé.** Et le seul moyen de s'en apercevoir a été d'aller vérifier une
+phrase que j'avais écrite avec assurance.
+
+### La leçon, qui n'est pas sur l'ARAH
+
+**Un test qui n'exécute pas le geste ne teste pas le geste.** Vérifier qu'un bouton
+*existe* ne dit rien sur le fait qu'on puisse *appuyer dessus*, et la différence entre
+les deux est invisible au clic synthétique. Partout où un écran se rafraîchit en
+cadence, le test doit presser, pas cliquer.
+
+D'où `tools/tap-loupe.mjs`, qui ne regarde jamais si un bouton existe : il presse
+120 ms et vérifie que **l'état a bougé**. Deux écrans y passent aujourd'hui ; tout
+nouvel écran qui se rafraîchit sous une boucle doit y entrer.
+
+---
+
 <!-- lexique-exempt-bloc : cette entrée PORTE sur l'orthographe, elle cite forcément l'ancienne forme -->
 ## 2026-07-27 — ARAH, pas ARA : le lexique devient vérifiable
 

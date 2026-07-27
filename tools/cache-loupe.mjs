@@ -26,12 +26,25 @@ const ok = (nom, pass, detail = "") => results.push({ nom, pass, detail });
 
 // tous les fichiers qui importent un .mjs local : index.html + les modules eux-mêmes
 const fichiers = ["index.html", ...readdirSync(DIR).filter((f) => f.endsWith(".mjs"))];
-const RE = /from\s+["']\.\/([\w-]+\.mjs)(\?v=(\d+))?["']/g;
+// DEUX formes d'import, et il a fallu se faire avoir pour s'en souvenir :
+//   statique  : import … from "./x.mjs?v=N"
+//   dynamique : import("./x.mjs?v=N")        ← pas de `from`
+// La règle ne regardait que la première. `scene3d.mjs` — la scène 3D de la coupe, donc
+// le geste central — est chargée dynamiquement : elle est restée figée à ?v=19 du
+// 20 juillet pendant que le module était corrigé le 25 (désync du gabarit). Cinq jours
+// durant, tout navigateur au cache chaud a joué l'ANCIENNE scène, et le garde-fou écrit
+// exprès pour ça affichait 3/3. Un garde qui ne couvre pas toutes les formes du danger
+// ne garde que celles auxquelles on avait déjà pensé.
+const RE_STATIQUE = /from\s+["']\.\/([\w-]+\.mjs)(\?v=(\d+))?["']/g;
+const RE_DYNAMIQUE = /\bimport\s*\(\s*["']\.\/([\w-]+\.mjs)(\?v=(\d+))?["']\s*\)/g;
 
 const imports = [];
 for (const f of fichiers) {
   const src = readFileSync(path.join(DIR, f), "utf8");
-  for (const m of src.matchAll(RE)) imports.push({ dans: f, module: m[1], v: m[3] || null });
+  for (const re of [RE_STATIQUE, RE_DYNAMIQUE]) {
+    re.lastIndex = 0;
+    for (const m of src.matchAll(re)) imports.push({ dans: f, module: m[1], v: m[3] || null });
+  }
 }
 
 // ── 1. aucun import sans version ───────────────────────────────────────────

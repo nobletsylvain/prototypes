@@ -383,10 +383,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=33";
-import * as beuher from "./beuher.mjs?v=33";
-import * as shelter from "./shelter.mjs?v=33";
-import * as corner from "./corner.mjs?v=33";
+import * as snap from "./snap.mjs?v=35";
+import * as beuher from "./beuher.mjs?v=35";
+import * as shelter from "./shelter.mjs?v=35";
+import * as corner from "./corner.mjs?v=35";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -421,7 +421,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=19"),
+      import("./scene3d.mjs?v=35"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -1489,33 +1489,63 @@ function arahRentrer(){
   if(!n) return;
   rentrerQ(P, g);                       // même symétrie de qualité que la sacoche
   arahState.sauveG+=g; arahState.cool=ARAH_COOL_MS/1000;
-  arahRender();
+  // `save()` : les deux gestes de l'évacuation étaient les SEULES actions du jeu à
+  // muter l'état sans le persister (39 autres appels le font). Le sauvetage ne
+  // survivait donc pas à un onglet mis en arrière-plan pendant l'alerte — sur
+  // téléphone, exactement le moment où ça arrive. Et c'est ce trou qui rendait le
+  // test de ce geste instable : il lisait le localStorage que le code n'écrivait pas.
+  save(); arahRender();
 }
 function arahCaisse(){
   const P=S.shelter.pdv;
   if(!arahState || arahState.cool>0 || !(P.bac>0)) return;
   arahState.cash+=P.bac; S.dirty+=P.bac; P.bac=0;
   arahState.cool=ARAH_COOL_MS/1000;
-  arahRender();
+  save(); arahRender();                 // idem : ça touche au liquide, ça se persiste
 }
+/* La STRUCTURE est construite une seule fois ; seul ce qui bouge est patché ensuite.
+   Avant, `arahTick` rappelait ce rendu à CHAQUE frame et il réécrivait `innerHTML` :
+   les deux boutons étaient donc détruits et recréés ~60 fois par seconde. Un `click`
+   n'est émis que si le pointeur se relève sur le MÊME nœud que celui où il s'est posé
+   — au doigt, il s'écoule ~100 ms entre les deux, donc le bouton pressé n'existait
+   déjà plus. Le geste ne partait JAMAIS sur téléphone (un clic synthétique de test,
+   lui, est instantané et passait : d'où un test au vert sur un écran mort).
+   Retour de playtest : « je cliquais sur récupérer les barrettes mais rien ne se
+   passait » — puis la descente a pris les 440 exposés. */
 function arahRender(){
   const el=document.getElementById("arah"); if(!el) return;
   if(!arahState || arahState.cri>0){ el.classList.add("hide"); return; }
-  const P=S.shelter.pdv;
   el.classList.remove("hide");
-  el.innerHTML=`<div class="arah-box">
-    <div class="arah-t">🚨 ARAH !! ARAH !!</div>
-    <div class="arah-s">Ils arrivent. Rentre ce que tu peux — la planque est sûre.</div>
-    <div class="arah-bar"><i style="width:${Math.max(0,arahState.left/arahState.total*100)}%"></i></div>
-    <div class="arah-grid">
-      <button class="arah-c${arahState.cool>0?" cool":""}" id="arahT"><div class="arah-i">📦</div><div>Rentrer les barrettes</div></button>
-      <button class="arah-c${arahState.cool>0||!(P.bac>0)?" cool":""}" id="arahC"><div class="arah-i">💶</div><div>La caisse</div></button>
-    </div>
-    <div class="arah-f">Encore dehors : <b>${tampN(P.tampon)} barrettes · ${Math.round(tampG(P.tampon))} g</b> · <b>${money(P.bac)}</b>
-      ${arahState.sauveG||arahState.cash?`<br><span style="color:#9be37d">rentré : ${Math.round(arahState.sauveG)} g · ${money(arahState.cash)}</span>`:""}</div>
-  </div>`;
-  const t=document.getElementById("arahT"); if(t) t.onclick=arahRentrer;
-  const c=document.getElementById("arahC"); if(c) c.onclick=arahCaisse;
+  if(el.dataset.built!=="1"){
+    el.innerHTML=`<div class="arah-box">
+      <div class="arah-t">🚨 ARAH !! ARAH !!</div>
+      <div class="arah-s">Ils arrivent. Rentre ce que tu peux — la planque est sûre.</div>
+      <div class="arah-bar"><i id="arahBar"></i></div>
+      <div class="arah-grid">
+        <button class="arah-c" id="arahT"><div class="arah-i">📦</div><div>Rentrer les barrettes</div></button>
+        <button class="arah-c" id="arahC"><div class="arah-i">💶</div><div>La caisse</div></button>
+      </div>
+      <div class="arah-f" id="arahF"></div>
+    </div>`;
+    el.dataset.built="1";
+    document.getElementById("arahT").onclick=arahRentrer;
+    document.getElementById("arahC").onclick=arahCaisse;
+  }
+  arahPatch();
+}
+/* Ce qui change d'une frame à l'autre : la barre de préavis, le compte de ce qui est
+   encore dehors, et l'état des deux gestes. Aucun `innerHTML` sur les boutons. */
+function arahPatch(){
+  if(!arahState) return;
+  const P=S.shelter.pdv;
+  const bar=document.getElementById("arahBar");
+  if(bar) bar.style.width=Math.max(0,arahState.left/arahState.total*100)+"%";
+  const t=document.getElementById("arahT"), c=document.getElementById("arahC");
+  if(t) t.classList.toggle("cool", arahState.cool>0 || tampN(P.tampon)<=0);
+  if(c) c.classList.toggle("cool", arahState.cool>0 || !(P.bac>0));
+  const f=document.getElementById("arahF");
+  if(f) f.innerHTML=`Encore dehors : <b>${tampN(P.tampon)} barrettes · ${Math.round(tampG(P.tampon))} g</b> · <b>${money(P.bac)}</b>`
+    +(arahState.sauveG||arahState.cash?`<br><span style="color:#9be37d">rentré : ${Math.round(arahState.sauveG)} g · ${money(arahState.cash)}</span>`:"");
 }
 function arahTick(dt){
   if(!arahState) return;
@@ -2325,8 +2355,8 @@ function renderBeuher(){
     </div>
     <button class="btn beuher" id="launch" ${ready.every(o=>S.assign[o.id])&&ready.length?"":"disabled"}>Lancer les tournées</button>
     <div class="card"><h3>En route</h3>
-      ${active.map(r=>`<div class="stat"><span>${r.courierNm} · ${r.g} g ${r.busted?"🚨":""}</span><b>${Math.ceil(r.left)}s</b></div>
-        <div class="bar"><i style="width:${(1-r.left/r.total)*100}%;background:${r.col}"></i></div>`).join("")||`<div class="muted">Personne dehors.</div>`}
+      ${active.map(r=>`<div class="stat"><span>${r.courierNm} · ${r.g} g ${r.busted?"🚨":""}</span><b id="bEta_${r.id}">${Math.ceil(r.left)}s</b></div>
+        <div class="bar"><i id="bBar_${r.id}" style="width:${(1-r.left/r.total)*100}%;background:${r.col}"></i></div>`).join("")||`<div class="muted">Personne dehors.</div>`}
     </div>
     <div class="card"><h3>Retours</h3>
       ${done.map(r=>`<div class="stat"><span>${r.courierNm} · ${money(r.net)} ${r.busted?"SAISI":""}</span>
@@ -2337,6 +2367,21 @@ function renderBeuher(){
   });
   document.getElementById("launch").onclick=()=>launchRuns();
   stage.querySelectorAll("[data-col]").forEach(b=>b.onclick=()=>collectRun(b.dataset.col));
+}
+/* Ce qui bouge pendant une tournée : le compte à rebours et sa barre. RIEN d'autre.
+   `renderBeuher` réécrit `stage.innerHTML` et rebinde ses boutons ; l'appeler en
+   cadence détruisait donc « Compter le liquide » et l'affectation des courriers SOUS
+   le doigt du joueur. Un `click` n'est émis que si le pointeur se relève sur le même
+   nœud que celui où il s'est posé : un appui dure ~100 ms, la reconstruction tombait
+   toutes les 350 ms, donc environ un tap sur trois disparaissait — au hasard, ce qui
+   est le pire des cas (le joueur croit avoir mal visé). Même famille que l'écran
+   d'évacuation, trouvée en balayant le dépôt après le bug de l'ARAH. */
+function beuherPatch(){
+  for(const r of S.runs){
+    if(r.left<=0) continue;
+    const t=document.getElementById("bEta_"+r.id); if(t) t.textContent=Math.ceil(r.left)+"s";
+    const b=document.getElementById("bBar_"+r.id); if(b) b.style.width=((1-r.left/r.total)*100)+"%";
+  }
 }
 
 function launchRuns(){
@@ -2592,11 +2637,10 @@ function frame(now){
   if(tab==="beuher"){
     // arrivée d'une tournée → refresh immédiat : le retour de liquide
     // apparaît sans quitter l'onglet (avant, le dernier render pouvait sauter)
-    if(runDone){ frame._acc=0; renderBeuher(); }
-    else if(dirtyRun){
-      if(!frame._acc) frame._acc=0; frame._acc+=dt;
-      if(frame._acc>0.35){ frame._acc=0; renderBeuher(); }
-    }
+    // une tournée qui RENTRE change la structure (une ligne apparaît dans « Retours ») :
+    // là, un rendu complet est justifié, c'est un événement, pas une cadence.
+    if(runDone) renderBeuher();
+    else if(dirtyRun) beuherPatch();   // sinon on ne touche QUE le compteur et sa barre
   }
   // pendant l'ARAH le monde s'arrête : le préavis est un temps de DÉCISION, pas une
   // course contre le reste des systèmes (R1 — on ne perd rien pendant qu'on réfléchit)

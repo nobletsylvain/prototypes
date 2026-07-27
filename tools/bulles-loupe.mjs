@@ -239,6 +239,49 @@ await page.screenshot({ path: path.join(OUT, "03-arah.png") });
 ok("L'écran d'évacuation s'ouvre après le cri, avec ses deux gestes",
    arahApres.visible && arahApres.boutons === 2, `visible ${arahApres.visible} · ${arahApres.boutons} bouton(s)`);
 
+// ── 3b. Le geste d'évacuation marche VRAIMENT au doigt ────────────────────
+// Retour de playtest (2026-07-27) : « je cliquais sur récupérer les barrettes mais
+// rien ne se passait » — puis la descente a tout pris (−440).
+//
+// Le check précédent ne prouvait QUE la présence des deux boutons. Il ne les tapait
+// pas. Or un `click` n'est émis que si le pointeur se lève sur le MÊME nœud DOM que
+// celui où il s'est posé ; l'écran d'évacuation se re-rendait en `innerHTML` à chaque
+// frame, donc le bouton pressé n'existait déjà plus au relâchement. Un clic
+// synthétique instantané passe ; un doigt, jamais.
+//
+// D'où le `delay` : on presse ~120 ms, comme une vraie main.
+{
+  const avant = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    const t = s.shelter?.pdv?.tampon || {};
+    return Object.entries(t).reduce((a, [f, n]) => a + +f * n, 0);
+  });
+  const etatAvant = await page.evaluate(() => {
+    const t = document.getElementById("arahT"), arah = document.getElementById("arah");
+    const r = t && t.getBoundingClientRect();
+    return { bouton: !!t, classes: t ? t.className : "-",
+      pe: t ? getComputedStyle(t).pointerEvents : "-",
+      rect: r ? { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) } : null,
+      ouvert: !!(arah && !arah.classList.contains("hide")),
+      dessus: r ? (document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) || {}).id || "(sans id)" : "-" };
+  });
+  console.log("  diag tap:", JSON.stringify(etatAvant));
+  let tapErr = "";
+  try { await page.click("#arahT", { delay: 120 }); } catch (e) { tapErr = e.message; }
+  await sleep(350);
+  const apres = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    const t = s.shelter?.pdv?.tampon || {};
+    const arah = document.getElementById("arah");
+    return { g: Object.entries(t).reduce((a, [f, n]) => a + +f * n, 0),
+             ouvert: !!(arah && !arah.classList.contains("hide")) };
+  });
+  await page.screenshot({ path: path.join(OUT, "06-tap-evacuation.png") });
+  ok("R1 · taper « Rentrer les barrettes » rentre vraiment des barrettes (appui de 120 ms)",
+     apres.g < avant && !tapErr,
+     tapErr ? `le tap a échoué : ${tapErr}` : `exposé ${avant} g → ${apres.g} g${apres.g === avant ? " (RIEN n'a bougé)" : ""}`);
+}
+
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
 
 console.log("\n─── bulles & ARAH · La Loupe ───");
