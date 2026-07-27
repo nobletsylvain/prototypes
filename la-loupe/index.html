@@ -16,6 +16,9 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-u
 .row{display:flex;gap:8px;align-items:center;justify-content:space-between}
 .pill{font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);white-space:nowrap}
 .pill.cash{color:var(--cash)}.pill.dirty{color:var(--dirty)}.pill.heat{color:var(--heat)}.pill.rep{color:#9ec9ff}.pill.expo{color:#ff8ab8}
+.pill.dirty.warm{border-color:rgba(255,180,84,.55);background:rgba(255,180,84,.14)}
+.pill.dirty.hot{border-color:rgba(255,106,106,.65);background:rgba(255,106,106,.18);animation:dirtyPulse 1.6s ease-in-out infinite}
+@keyframes dirtyPulse{0%,100%{opacity:1}50%{opacity:.62}}
 /* ARAH — l'évacuation. Plein écran, au-dessus de tout : quand ils arrivent, il n'y a
    plus qu'une chose à faire, et le jeu doit le dire sans ambiguïté. */
 #arah{position:fixed;inset:0;z-index:120;background:rgba(14,6,6,.94);display:flex;align-items:center;justify-content:center;padding:18px}
@@ -637,7 +640,12 @@ function qualAvg(){ return Math.round(S.sachetQ || S.barQ || 60); }
 
 function hud(){
   const hudCash=document.getElementById("hudCash"); hudCash.style.display=SORTER_ENABLED?"":"none"; hudCash.textContent=`propre ${money(S.cash)}`;
-  document.getElementById("hudDirty").textContent=`liquide ${money(S.dirty)}`;
+  { const hd=document.getElementById("hudDirty");
+    const z = S.dirty>DIRTY_HOLD_HARD ? 2 : S.dirty>DIRTY_HOLD_SOFT ? 1 : 0;
+    // le chiffre seul ne disait rien : la marque dit que CE chiffre est en train de coûter
+    hd.textContent = z ? `liquide ${money(S.dirty)} 🔥` : `liquide ${money(S.dirty)}`;
+    hd.classList.toggle("warm", z===1); hd.classList.toggle("hot", z===2);
+    hd.title = z ? `Au-dessus de ${z>1?DIRTY_HOLD_HARD:DIRTY_HOLD_SOFT}, le liquide qui dort chauffe le quartier` : ""; }
   document.getElementById("hudHeat").textContent=`chaleur ${Math.round(S.heat)}`;
   document.getElementById("hudExpo").textContent=`buzz ${Math.round(S.expo)}`;
   { const dp=document.getElementById("daypill"); const f=Math.min(100,Math.round((S.dayAcc||0)/DAY_SEC_REAL*100)); dp.textContent=`J${S.day}`; dp.style.background=`linear-gradient(90deg, rgba(110,200,255,.30) ${f}%, transparent ${f}%)`; }
@@ -2639,9 +2647,29 @@ function frame(now){
   // horloge unique : la journée avance toute seule
   S.dayAcc=(S.dayAcc||0)+dt;
   if(S.dayAcc>=DAY_SEC_REAL){ advanceDay(false); if(tab==="snap") renderSnap(); }
-  if(S.dirty>DIRTY_HOLD_SOFT){
-    S._dirtyAcc=(S._dirtyAcc||0)+dt;
-    if(S._dirtyAcc>=3){ S._dirtyAcc=0; S.heat=clamp(S.heat+(S.dirty>DIRTY_HOLD_HARD?2:1),0,100); }
+  /* Le liquide qui dort chauffe le quartier. La mécanique existait depuis toujours mais
+     n'était NOMMÉE NULLE PART : ni cause au Karnet, ni marque au HUD, ni seuil affiché.
+     Le joueur voyait sa chaleur grimper de +20/min au-dessus de 180, +40/min au-dessus
+     de 450, et n'avait aucun moyen de relier l'effet à sa cause — alors que le Karnet
+     promet noir sur blanc « chaque ligne a une cause ».
+     On ne change AUCUN nombre ici : on rend seulement lisible ce qui existait déjà.
+     La cause est émise au FRANCHISSEMENT de palier, jamais à chaque tick — une ligne
+     toutes les 3 secondes noierait le journal et ne dirait plus rien. */
+  {
+    const zone = S.dirty>DIRTY_HOLD_HARD ? 2 : S.dirty>DIRTY_HOLD_SOFT ? 1 : 0;
+    if(zone>0){
+      S._dirtyAcc=(S._dirtyAcc||0)+dt;
+      if(S._dirtyAcc>=3){ S._dirtyAcc=0; S.heat=clamp(S.heat+(zone>1?2:1),0,100); }
+    } else S._dirtyAcc=0;
+    if(zone!==(S._dirtyZone||0)){
+      if(zone>(S._dirtyZone||0)){
+        const par = zone>1 ? 40 : 20;
+        cause("Le liquide dort", `${money(S.dirty)} en poche · +${par} chaleur/min — réinvestis (pain, upgrades)`);
+        toast(zone>1 ? `💵 ${money(S.dirty)} qui dorment — le quartier jase fort (+${par} chaleur/min).`
+                     : `💵 ${money(S.dirty)} qui dorment — ça commence à se voir (+${par} chaleur/min).`);
+      } else if(zone===0) cause("Liquide écoulé", "Plus de pression sur le quartier");
+      S._dirtyZone=zone; hud(); save();   // la cause doit SURVIVRE au rechargement, pas seulement exister en mémoire
+    }
   }
   if(SORTER_ENABLED && S.upgrades.counter>0 && S.dirty>0 && S.bills.length===0){
     const take=Math.min(S.dirty, COUNTER_RATE*dt); S.dirty-=take; S.cash+=take;

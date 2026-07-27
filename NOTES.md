@@ -9,6 +9,67 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Le liquide qui dort chauffait le quartier, et personne ne le disait
+
+Trouvé en reprenant un défaut que j'avais signalé il y a des jours sans jamais le
+traiter : « la dérive de chaleur sur `S.dirty > 180`, non nommée et non affichée ».
+
+### Ce que ça faisait vraiment
+
+```js
+if(S.dirty>DIRTY_HOLD_SOFT){            // 180
+  S._dirtyAcc=(S._dirtyAcc||0)+dt;
+  if(S._dirtyAcc>=3){ S._dirtyAcc=0; S.heat=clamp(S.heat+(S.dirty>DIRTY_HOLD_HARD?2:1),0,100); }
+}
+```
+
++1 de chaleur toutes les **3 secondes réelles** au-dessus de 180 de liquide, +2 au-dessus
+de 450. Soit **+20 par minute**, et **+40 par minute** au palier haut — pour un seuil de
+descente à 95. C'est la plus grosse source de chaleur du jeu.
+
+Et **rien** ne le disait : aucune `cause()` au Karnet, aucune marque au HUD, les seuils
+180 et 450 n'apparaissaient nulle part à l'écran. La pastille affichait « liquide 567 »
+comme un chiffre neutre — c'est-à-dire, sur la capture de Sylvain, un joueur assis au
+palier HAUT en train de prendre +40 chaleur/minute sans le moindre indice.
+
+Le Karnet promet pourtant, en toutes lettres sous son titre : *« Chaque ligne a une
+cause. L'UI n'invente rien. »* Ici la conséquence la plus lourde du jeu n'avait aucune
+ligne du tout.
+
+### Ce que j'ai changé — et ce que je n'ai PAS changé
+
+**Aucun nombre.** Ni les seuils, ni les taux. La mécanique est saine : garder du liquide
+est risqué, le contre-jeu est de réinvestir (pain, upgrades), et ça existe déjà. Ce qui
+manquait, c'était uniquement la **lisibilité** :
+
+- une `cause()` au **franchissement de palier** — jamais à chaque tick, une ligne toutes
+  les 3 secondes noierait le journal et ne dirait plus rien ;
+- la cause dit **quoi faire** (« réinvestis — pain, upgrades »), pas seulement ce qui
+  arrive ;
+- la pastille du HUD porte la marque (`liquide 570 🔥`, contour rouge, pulsation au
+  palier haut) et explique le seuil au survol.
+
+### Le même défaut de persistance, encore
+
+Premier jet : la cause était émise mais **pas sauvegardée** — elle vivait en mémoire et
+ne survivait pas à un rechargement. Exactement ce que je venais de corriger sur
+`arahRentrer` et `arahCaisse`. C'est le test qui l'a attrapé, en lisant le journal
+depuis le `localStorage` plutôt que depuis le DOM.
+
+### Et le même piège de test, encore
+
+`evaluateOnNewDocument` **rejoue à chaque navigation** : écrire le save puis recharger le
+fait écraser par le seed d'origine. Je l'avais documenté dans `bulles-loupe.mjs` après
+m'y être fait prendre — et je viens de m'y refaire prendre. C'est noté dans le nouveau
+fichier de test aussi, à l'endroit exact où ça mord.
+
+### Vérification
+
+`tools/cause-loupe.mjs`, 6/6, vérifié dans les deux sens : sur le code d'avant, 3 des 6
+contrôles échouent.
+
+---
+
 ## 2026-07-27 — La rue racontait un état périmé (« Sacoche vide » avec 25 barrettes dehors)
 
 Sylvain, deux captures : la scène affiche *« Sacoche vide — charge des barrettes (Gérer)
