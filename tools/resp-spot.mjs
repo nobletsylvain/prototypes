@@ -68,7 +68,7 @@ for (const e of ECRANS) {
         out.push(`scroll horizontal (${document.documentElement.scrollWidth} > ${vw})`);
       // Quand une modale est ouverte, elle DOIT masquer ce qu'il y a dessous :
       // on ne contrôle alors que les cibles de la modale elle-même.
-      const modale = [...document.querySelectorAll("#ara, .ov")]
+      const modale = [...document.querySelectorAll("#arah, .ov")]
         .find((m) => !m.classList.contains("hide"));
       const racine = modale || document;
       // tout élément cliquable doit être ENTIÈREMENT dans le viewport
@@ -127,13 +127,13 @@ for (const e of ECRANS) {
   });
   if (!scrollOk.atteignable) probs.push(`planque — bas de page masqué par le dock (${scrollOk.reste} px)`);
 
-  // l'ARA : l'écran le plus contraint (4 caches côte à côte)
+  // l'ARAH : l'écran le plus contraint (4 caches côte à côte)
   await page.evaluate(() => {
     const s = window.__spot.S(); s.chouf = 2; s.tampon = 80; s.caisse = 300; s.vis = 95;
   });
   await tap("#bGo");
   await sleep(1100);
-  await check("ara");
+  await check("arah");
 
   if (errs.length) probs.push("erreur JS : " + errs[0]);
   const tag = probs.length ? "FAIL" : "ok  ";

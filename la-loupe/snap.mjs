@@ -1,8 +1,8 @@
 /* SnapShit — moteur de demande (story → DM → commandes).
    Conséquences déterministes. Math.random = présentation uniquement. */
 // MÊME suffixe de version que index.html : sans lui, `./corner.mjs` et
-// `./corner.mjs?v=32` sont deux URL distinctes, donc DEUX instances du module.
-import { menuAt, personaById, rueCalibre, RUE_MIN } from "./corner.mjs?v=32";
+// `./corner.mjs?v=33` sont deux URL distinctes, donc DEUX instances du module.
+import { menuAt, personaById, rueCalibre, RUE_MIN } from "./corner.mjs?v=33";
 export const SC = {
   EXPO_INIT: 10, EXPO_PAR_DROP: 30, EXPO_PAR_VITRINE: 12, EXPO_DECAY: 0.72, EXPO_CAP: 100,
   EXPO_SEUIL_MAUVAIS_PUBLIC: 60, EXPO_DELAI_MAUVAIS_PUBLIC: 2,
@@ -163,28 +163,54 @@ export function buildDMs(S, good, bad, peakExpo) {
   return list;
 }
 
-/** Map qty grammes → sachets en stock (tailles libres, fixées à la coupe).
-    Exact match only (jamais sur-livrer). DP bornée : trouve une combinaison
-    exacte quand elle existe (le glouton ratait 10 = 5+5 avec un 8 en stock). */
-export function qtyToSachets(qty, sachets) {
+/* LA table d'accessibilité : quels montants (0..cap) se composent EXACTEMENT
+   depuis un stock de barrettes, et par quelle taille les atteindre.
+
+   L'ancienne version mémorisait UNE seule représentation par montant (un `break`
+   après la première taille faisable) : c'était un glouton déguisé en DP. Contre-
+   exemple exécuté — depuis {3,4,5,7,7,8}, elle déclarait 21 g impossible alors que
+   3+4+7+7 = 21. Un faux négatif coûte une vente que le stock pouvait servir, donc
+   une perte sèche (R1), et la sacoche composée à la main rend les stocks hétérogènes
+   la norme : le défaut passe de théorique à quotidien.
+
+   Ici : knapsack borné EXACT, une passe par taille, en retenant pour chaque montant
+   le NOMBRE MINIMAL d'unités de la taille courante nécessaires pour l'atteindre.
+   C'est la formulation classique, et elle est complète — plus de faux négatif. */
+function atteignables(sachets, cap) {
   const sizes = Object.keys(sachets).map(Number)
     .filter((f) => f > 0 && (sachets[f] || 0) > 0).sort((a, b) => b - a);
-  const empty = () => Object.fromEntries(sizes.map((f) => [f, 0]));
-  const dp = new Array(qty + 1).fill(null);
-  dp[0] = empty();
-  for (let a = 1; a <= qty; a++) {
-    for (const f of sizes) {
-      if (a < f || !dp[a - f]) continue;
-      if ((dp[a - f][f] || 0) >= sachets[f]) continue;
-      dp[a] = { ...dp[a - f], [f]: (dp[a - f][f] || 0) + 1 };
-      break;
+  const reach = new Array(cap + 1).fill(false);
+  const from = new Array(cap + 1).fill(0);   // taille par laquelle on atteint ce montant
+  reach[0] = true;
+  for (const f of sizes) {
+    const dispo = sachets[f];
+    const used = new Array(cap + 1).fill(-1);
+    for (let a = 0; a <= cap; a++) {
+      if (reach[a]) { used[a] = 0; continue; }              // déjà atteint sans cette taille
+      if (a >= f && used[a - f] >= 0 && used[a - f] < dispo) { used[a] = used[a - f] + 1; from[a] = f; }
     }
+    for (let a = 0; a <= cap; a++) if (used[a] >= 0) reach[a] = true;
   }
-  let best = qty;
-  while (best > 0 && !dp[best]) best--;
-  const plan = dp[qty] || dp[best] || empty();
-  const covered = dp[qty] ? qty : best;
-  return { plan, covered, short: qty - covered, exact: covered === qty };
+  return { sizes, reach, from };
+}
+
+/* Remonte le chemin d'un montant atteignable vers son plan {taille: nombre}. */
+function planDe(montant, sizes, from) {
+  const plan = Object.fromEntries(sizes.map((f) => [f, 0]));
+  let a = montant;
+  while (a > 0 && from[a] > 0) { plan[from[a]] = (plan[from[a]] || 0) + 1; a -= from[a]; }
+  return plan;
+}
+
+/** Map qty grammes → sachets en stock (tailles libres, fixées à la coupe).
+    Exact match only (jamais sur-livrer). Repose sur `atteignables` : une
+    combinaison exacte est trouvée dès qu'elle existe. */
+export function qtyToSachets(qty, sachets) {
+  const cap = Math.max(0, Math.floor(qty || 0));
+  const { sizes, reach, from } = atteignables(sachets, cap);
+  let best = cap;
+  while (best > 0 && !reach[best]) best--;
+  return { plan: planDe(best, sizes, from), covered: best, short: cap - best, exact: best === cap };
 }
 
 /* Toutes les quantités EXACTEMENT composables depuis un tampon, jusqu'à `max`.
@@ -194,43 +220,54 @@ export function qtyToSachets(qty, sachets) {
    inatteignable sur la route négociée au lieu d'être un échec silencieux. */
 export function composables(sachets, max) {
   const cap = Math.max(0, Math.floor(max || 0));
-  const sizes = Object.keys(sachets).map(Number)
-    .filter((f) => f > 0 && (sachets[f] || 0) > 0).sort((a, b) => b - a);
-  const dp = new Array(cap + 1).fill(null);
-  dp[0] = Object.fromEntries(sizes.map((f) => [f, 0]));
+  const { reach } = atteignables(sachets, cap);
   const out = [];
-  for (let a = 1; a <= cap; a++) {
-    for (const f of sizes) {
-      if (a < f || !dp[a - f]) continue;
-      if ((dp[a - f][f] || 0) >= sachets[f]) continue;
-      dp[a] = { ...dp[a - f], [f]: (dp[a - f][f] || 0) + 1 };
-      break;
-    }
-    if (dp[a]) out.push(a);
-  }
+  for (let a = 1; a <= cap; a++) if (reach[a]) out.push(a);
   return out;
 }
 
-/* Rentrer un lot de barrettes du tampon exposé vers la planque (évacuation ARA).
+/* LE mouvement de barrettes, dans les deux sens : planque ⇄ sacoche exposée.
+   Une seule fonction pour exposer et pour rentrer, parce que c'est la même opération
+   et que la dupliquer, c'est dupliquer le risque de perdre un gramme. Conservation
+   garantie par construction : on décrémente la source et on incrémente la
+   destination du MÊME compteur, jamais de conversion en grammes au milieu.
+   Retourne ce qui a réellement bougé — la source peut être plus courte que demandé. */
+export function deplacerBarrettes(src, dst, format, n) {
+  const f = Math.round(format);
+  const veut = Math.max(0, Math.round(n || 0));
+  let k = 0;
+  while (k < veut && (src[f] || 0) > 0) {
+    src[f]--;
+    if (src[f] <= 0) delete src[f];
+    dst[f] = (dst[f] || 0) + 1;
+    k++;
+  }
+  return { n: k, g: k * f };
+}
+
+/* Rentrer un lot de barrettes du tampon exposé vers la planque (évacuation ARAH).
    Vit ICI, dans un module, et pas dans index.html : c'est le geste où une erreur de
    conservation coûterait le plus cher, et un test qui recopierait la boucle ne
    prouverait rien. Le jeu l'appelle, les invariants l'importent — une seule source.
 
-   Barrettes ENTIÈRES, les petites d'abord (on en sauve davantage). Retirer des
-   grammes puis n'en réinjecter qu'une partie ferait de l'évacuation un geste qui
-   CRÉE la perte qu'il prétend éviter — R1 à l'envers. */
+   Barrettes ENTIÈRES. Retirer des grammes puis n'en réinjecter qu'une partie ferait
+   de l'évacuation un geste qui CRÉE la perte qu'il prétend éviter — R1 à l'envers.
+
+   Les GROSSES d'abord : le lot est borné (8 barrettes/tap), donc l'ordre décide de ce
+   qu'on abandonne aux stups. « Les petites d'abord » sauvait le plus grand NOMBRE de
+   barrettes et laissait dehors les plus chères — un joueur qui tape sans réfléchir
+   perdait exactement ce qu'il avait de plus précieux. On sauve la VALEUR.
+
+   Une seule boucle de mouvement dans tout le jeu : `deplacerBarrettes`. Deux boucles
+   qui font le même geste, c'est deux fois le risque de perdre un gramme. */
 export function evacuerLot(tampon, sachets, lot) {
   const tailles = Object.keys(tampon).map(Number)
-    .filter((f) => f > 0 && tampon[f] > 0).sort((a, b) => a - b);
+    .filter((f) => f > 0 && tampon[f] > 0).sort((a, b) => b - a);
   let n = 0, g = 0;
   for (const f of tailles) {
-    while (tampon[f] > 0 && n < lot) {
-      tampon[f]--;
-      if (tampon[f] <= 0) delete tampon[f];
-      sachets[f] = (sachets[f] || 0) + 1;
-      n++; g += f;
-    }
     if (n >= lot) break;
+    const r = deplacerBarrettes(tampon, sachets, f, lot - n);
+    n += r.n; g += r.g;
   }
   return { n, g };
 }

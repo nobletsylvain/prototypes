@@ -227,7 +227,7 @@ bascule » CrimWorld : on encaisse, on encaisse… et le sol se dérobe.*
 
 ### Le chouf en jeu (le mini-jeu du raid, R1-compliant)
 Quand un palier 1–3 se déclenche : **préavis de ALERT_S secondes** (0 s sans
-chouf ; 6 s avec un ; 12 s avec deux + couverture nuit). Cri « **ARA ! ARA !** »,
+chouf ; 6 s avec un ; 12 s avec deux + couverture nuit). Cri « **ARAH !! ARAH !!** »,
 clients qui se dispersent, et un mini-jeu d'évacuation : **tap sur les caches**
 (compteur EDF, faux plafond, cage d'escalier) pour rentrer les blocs de
 grammes du tampon, un par un, avant l'arrivée.

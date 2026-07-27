@@ -16,22 +16,22 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-u
 .row{display:flex;gap:8px;align-items:center;justify-content:space-between}
 .pill{font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);white-space:nowrap}
 .pill.cash{color:var(--cash)}.pill.dirty{color:var(--dirty)}.pill.heat{color:var(--heat)}.pill.rep{color:#9ec9ff}.pill.expo{color:#ff8ab8}
-/* ARA — l'évacuation. Plein écran, au-dessus de tout : quand ils arrivent, il n'y a
+/* ARAH — l'évacuation. Plein écran, au-dessus de tout : quand ils arrivent, il n'y a
    plus qu'une chose à faire, et le jeu doit le dire sans ambiguïté. */
-#ara{position:fixed;inset:0;z-index:120;background:rgba(14,6,6,.94);display:flex;align-items:center;justify-content:center;padding:18px}
-#ara.hide{display:none}
-.ara-box{max-width:420px;width:100%;text-align:center}
-.ara-t{font-size:26px;font-weight:900;color:#ff6a6a;letter-spacing:.04em;animation:araPulse .7s ease-in-out infinite}
-@keyframes araPulse{0%,100%{opacity:1}50%{opacity:.5}}
-.ara-s{color:#e8ecf4;font-size:13px;margin:6px 0 12px}
-.ara-bar{height:8px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden;margin-bottom:14px}
-.ara-bar i{display:block;height:100%;background:linear-gradient(90deg,#ffd06a,#ff6a6a);transition:width .1s linear}
-.ara-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.ara-c{border:1px solid rgba(255,255,255,.18);border-radius:14px;background:rgba(255,255,255,.07);color:#e8ecf4;
+#arah{position:fixed;inset:0;z-index:120;background:rgba(14,6,6,.94);display:flex;align-items:center;justify-content:center;padding:18px}
+#arah.hide{display:none}
+.arah-box{max-width:420px;width:100%;text-align:center}
+.arah-t{font-size:26px;font-weight:900;color:#ff6a6a;letter-spacing:.04em;animation:arahPulse .7s ease-in-out infinite}
+@keyframes arahPulse{0%,100%{opacity:1}50%{opacity:.5}}
+.arah-s{color:#e8ecf4;font-size:13px;margin:6px 0 12px}
+.arah-bar{height:8px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden;margin-bottom:14px}
+.arah-bar i{display:block;height:100%;background:linear-gradient(90deg,#ffd06a,#ff6a6a);transition:width .1s linear}
+.arah-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.arah-c{border:1px solid rgba(255,255,255,.18);border-radius:14px;background:rgba(255,255,255,.07);color:#e8ecf4;
   font:inherit;font-weight:800;font-size:12px;padding:16px 8px;cursor:pointer}
-.ara-c.cool{opacity:.35;pointer-events:none}
-.ara-i{font-size:26px;margin-bottom:4px}
-.ara-f{margin-top:14px;font-size:12px;color:#c9d2e0}
+.arah-c.cool{opacity:.35;pointer-events:none}
+.arah-i{font-size:26px;margin-bottom:4px}
+.arah-f{margin-top:14px;font-size:12px;color:#c9d2e0}
 #toast{position:fixed;left:50%;top:20%;transform:translate(-50%,8px);opacity:0;transition:.2s;z-index:180;
   background:rgba(0,0,0,.82);border:1px solid var(--line);padding:11px 14px;border-radius:14px;font-weight:800;text-align:center;max-width:88%;pointer-events:none}
 #toast.show{opacity:1;transform:translate(-50%,0)}
@@ -371,7 +371,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
   </div>
   <div id="dock"></div>
 </div>
-<div id="ara" class="hide"></div>
+<div id="arah" class="hide"></div>
 <div id="toast"></div>
 <script type="module">
 /* snap/beuher d'abord — Three.js (scene3d) en lazy load.
@@ -383,10 +383,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=32";
-import * as beuher from "./beuher.mjs?v=32";
-import * as shelter from "./shelter.mjs?v=32";
-import * as corner from "./corner.mjs?v=32";
+import * as snap from "./snap.mjs?v=33";
+import * as beuher from "./beuher.mjs?v=33";
+import * as shelter from "./shelter.mjs?v=33";
+import * as corner from "./corner.mjs?v=33";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -873,9 +873,13 @@ const PDV_HEAT_RATE=2.0, PDV_HEAT_DECAY=0.7, PDV_SEUIL=95, PDV_AFTER=45;
    la décision, ça te donne le temps de la prendre. R8 — partir maintenant ou servir
    un client de plus reste ton arbitrage, et il est enfin lisible. */
 const PDV_CHOUFFE_DAMP=0.18, PDV_CHOUFFE_PAY=60, PDV_TAMPON_MAX=60; // barrettes
+// Le lot « une soirée » du chargement auto. Mesuré : au-delà, la servabilité plafonne
+// (85 % à 25 barrettes, 89 % à 40) mais l'exposition saisissable, elle, continue de
+// grimper (88 g → 145 g). Placeholder — en attente de tuning humain.
+const SAC_LOT=25;
 const PDV_PREAVIS_S=[0, 6, 12, 18];   // [PLACEHOLDER] secondes de préavis selon le nombre de chouffes
-const ARA_COOL_MS=520;                // le temps de rentrer un bloc : on ne sauve jamais tout, et ça se voit
-const ARA_LOT=8;                      // barrettes rentrées par tap (petites d'abord)
+const ARAH_COOL_MS=520;                // le temps de rentrer un bloc : on ne sauve jamais tout, et ça se voit
+const ARAH_LOT=8;                      // barrettes rentrées par tap (les grosses d'abord : on sauve la valeur)
 const PDV_WANT=[1,1,2,1,3,2,1,2]; // paniers clients (barrettes)
 const PDV_NAMES=["Momo","Inès","Yaz","Riton","Sofia","Sami","Lou","Nassim","Aya","Karim","Zoé","Paul"]; // plus de "Diego" : il ne fait plus la rue
 const PDV_AV=["🧢","🎧","🛵","🥀","💅","🎒","👟","🎲","🌙","🧥","🎀","👤"]; // plus de 🏗️ : Diego ne vient plus au corner // avatars des silhouettes (débit auto : charbonneur embauché)
@@ -1003,7 +1007,7 @@ function cornerLitWindows(){ // fenêtres allumées déterministes par soirée
 /* Retour haptique. R3 : le tactile EST le plaisir — une conséquence qu'on sent dans
    la main se lit avant d'être lue. Les motifs disent QUOI s'est passé sans regarder :
    un tic pour « quelqu'un parle », un coup franc pour un deal, deux secs pour un
-   départ fâché, une alarme pour l'ARA. `navigator.vibrate` est absent sur iOS Safari :
+   départ fâché, une alarme pour l'ARAH. `navigator.vibrate` est absent sur iOS Safari :
    tout est enveloppé, rien ne dépend de sa présence. */
 function haptic(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(_){} }
 const HAPTIC={ bulle:8, deal:22, juste:[18,50,18], walk:[30,60,30], cri:[70,50,70,50,120] };
@@ -1070,7 +1074,7 @@ function cornerLeave(P, cl, why, v, tip){
   else if(why==="pigeonRefus") toast("🙄 C'était un vrai client… vente perdue (aucun malus).");
   else if(why==="walk"){ haptic(HAPTIC.walk); toast("🤬 "+cl.nm+" — vente perdue"); }
   else if(why==="refus") toast("Ok, une autre fois. (aucun malus)");
-  else if(why==="rupture") toast("Rupture — ravitaille le tampon.");
+  else if(why==="rupture") toast("Rupture — charge ta sacoche (Gérer).");
   else if(why==="ardoise") toast("🧾 "+cl.nm+" note "+cl.due+" au carnet — il règle J"+cl.payday+".");
   // graphe social : une relation qui vient de grimper peut débloquer un filleul (« X t'envoie Y »)
   const news=corner.checkUnlocks(S.clients, S.rueMax);
@@ -1364,10 +1368,10 @@ function pdvTick(dt){
   // Heat : le corner ne chauffe que quand il tourne (à sec → il refroidit), amortie par les chouffes
   const activity=open ? clamp(demande/PDV_BASE_DEMAND + P.queue.length*0.04, 0, 1.6) : 0;
   S.heat=clamp(S.heat+(activity*PDV_HEAT_RATE/(1+(P.chouffes||0)*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY)*dt,0,100);
-  if(S.heat>=PDV_SEUIL && !araState){
+  if(S.heat>=PDV_SEUIL && !arahState){
     // le chouffe achète des SECONDES, pas l'immunité : sans lui, la descente tombe sec
     const pre=PDV_PREAVIS_S[Math.min(P.chouffes||0, PDV_PREAVIS_S.length-1)];
-    if(pre>0) araOuvrir(pre); else pdvDescente();
+    if(pre>0) arahOuvrir(pre); else pdvDescente();
     return;
   }
   if(tab==="shelter"&&shelterSub==="pdv") pdvPatch();        // écran corner : maj live des compteurs
@@ -1404,7 +1408,8 @@ function chouffeGain(P){
   const sec=(c)=>{
     const activity=clamp(pdvDemande()/PDV_BASE_DEMAND + (P.queue?P.queue.length:0)*0.04, 0, 1.6);
     const v=activity*PDV_HEAT_RATE/(1+c*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY;
-    return v<=0.001 ? Infinity : (PDV_SEUIL-S.heat)/v;
+    // borné à 0 : au-delà du seuil la marge est nulle, pas négative
+    return v<=0.001 ? Infinity : Math.max(0,(PDV_SEUIL-S.heat)/v);
   };
   const a=sec(P.chouffes||0), b=sec((P.chouffes||0)+1);
   const fmt=(x)=>x===Infinity?"illimité":Math.round(x)+" s";
@@ -1436,7 +1441,7 @@ function pdvPatch(){
   const ar=document.getElementById("pArds");
   if(ar) ar.innerHTML=ardsRow();
 }
-/* ---------- ARA : l'évacuation, portée de le-spot ----------
+/* ---------- ARAH : l'évacuation, portée de le-spot ----------
    Le chouffe ne t'immunise pas, il te prévient. Pendant le préavis le monde
    s'arrête et tu rentres ce que tu peux : les barrettes retournent à la planque
    (« la planque est sauve », c'est déjà la règle de pdvDescente), la caisse passe
@@ -1447,12 +1452,12 @@ function pdvPatch(){
    une dans les sachets. Retirer des grammes puis n'en réinjecter qu'une partie
    ferait de l'évacuation un geste qui CRÉE la perte qu'il prétend éviter — R1 à
    l'envers. */
-let araState=null;
+let arahState=null;
 /* « ARAH !! » — le cri du guetteur, pas un sigle. C'est LUI qui prévient, et ça doit
    se voir dans la rue avant que l'écran d'évacuation prenne la main : sinon le joueur
    subit une modale sans jamais voir d'où vient l'alerte. La bulle part de la première
    silhouette présente (celle qu'on regarde), avec la vibration d'alarme. */
-function araCri(P){
+function arahCri(P){
   haptic(HAPTIC.cri);
   // Le cri appartient à la SCÈNE, pas à un client : c'est ton chouffe qui hurle, et
   // la descente tombe souvent quand la rue est vide. L'accrocher à `P.queue[0]`
@@ -1467,84 +1472,211 @@ function araCri(P){
   host.appendChild(b);
   setTimeout(()=>{ b.classList.add("out"); setTimeout(()=>b.remove(),200); }, 1500);
 }
-function araOuvrir(preavis){
+function arahOuvrir(preavis){
   const P=S.shelter.pdv;
-  araState={ left:preavis, total:preavis, cool:0, sauveG:0, cash:0, cri:0.9 };
-  cause("ARA","Chouffe : "+preavis+" s de préavis");
-  araCri(P);
+  arahState={ left:preavis, total:preavis, cool:0, sauveG:0, cash:0, cri:0.9 };
+  cause("ARAH","Chouffe : "+preavis+" s de préavis");
+  arahCri(P);
   // le cri d'abord, l'écran ensuite. `cri` est un sas : tant qu'il tourne, la modale
   // reste fermée ET le préavis ne s'écoule pas — le temps que le chouffe t'achète
   // commence quand tu as compris, pas quand il ouvre la bouche.
 }
-function araRentrer(){
+function arahRentrer(){
   const P=S.shelter.pdv;
-  if(!araState || araState.cool>0) return;
+  if(!arahState || arahState.cool>0) return;
   // la boucle vit dans snap.mjs : le jeu l'appelle, les invariants l'importent
-  const { n, g }=snap.evacuerLot(P.tampon, S.sachets, ARA_LOT);
+  const { n, g }=snap.evacuerLot(P.tampon, S.sachets, ARAH_LOT);
   if(!n) return;
-  araState.sauveG+=g; araState.cool=ARA_COOL_MS/1000;
-  araRender();
+  rentrerQ(P, g);                       // même symétrie de qualité que la sacoche
+  arahState.sauveG+=g; arahState.cool=ARAH_COOL_MS/1000;
+  arahRender();
 }
-function araCaisse(){
+function arahCaisse(){
   const P=S.shelter.pdv;
-  if(!araState || araState.cool>0 || !(P.bac>0)) return;
-  araState.cash+=P.bac; S.dirty+=P.bac; P.bac=0;
-  araState.cool=ARA_COOL_MS/1000;
-  araRender();
+  if(!arahState || arahState.cool>0 || !(P.bac>0)) return;
+  arahState.cash+=P.bac; S.dirty+=P.bac; P.bac=0;
+  arahState.cool=ARAH_COOL_MS/1000;
+  arahRender();
 }
-function araRender(){
-  const el=document.getElementById("ara"); if(!el) return;
-  if(!araState || araState.cri>0){ el.classList.add("hide"); return; }
+function arahRender(){
+  const el=document.getElementById("arah"); if(!el) return;
+  if(!arahState || arahState.cri>0){ el.classList.add("hide"); return; }
   const P=S.shelter.pdv;
   el.classList.remove("hide");
-  el.innerHTML=`<div class="ara-box">
-    <div class="ara-t">🚨 ARA ! ARA !</div>
-    <div class="ara-s">Ils arrivent. Rentre ce que tu peux — la planque est sûre.</div>
-    <div class="ara-bar"><i style="width:${Math.max(0,araState.left/araState.total*100)}%"></i></div>
-    <div class="ara-grid">
-      <button class="ara-c${araState.cool>0?" cool":""}" id="araT"><div class="ara-i">📦</div><div>Rentrer les barrettes</div></button>
-      <button class="ara-c${araState.cool>0||!(P.bac>0)?" cool":""}" id="araC"><div class="ara-i">💶</div><div>La caisse</div></button>
+  el.innerHTML=`<div class="arah-box">
+    <div class="arah-t">🚨 ARAH !! ARAH !!</div>
+    <div class="arah-s">Ils arrivent. Rentre ce que tu peux — la planque est sûre.</div>
+    <div class="arah-bar"><i style="width:${Math.max(0,arahState.left/arahState.total*100)}%"></i></div>
+    <div class="arah-grid">
+      <button class="arah-c${arahState.cool>0?" cool":""}" id="arahT"><div class="arah-i">📦</div><div>Rentrer les barrettes</div></button>
+      <button class="arah-c${arahState.cool>0||!(P.bac>0)?" cool":""}" id="arahC"><div class="arah-i">💶</div><div>La caisse</div></button>
     </div>
-    <div class="ara-f">Encore dehors : <b>${tampN(P.tampon)} barrettes · ${Math.round(tampG(P.tampon))} g</b> · <b>${money(P.bac)}</b>
-      ${araState.sauveG||araState.cash?`<br><span style="color:#9be37d">rentré : ${Math.round(araState.sauveG)} g · ${money(araState.cash)}</span>`:""}</div>
+    <div class="arah-f">Encore dehors : <b>${tampN(P.tampon)} barrettes · ${Math.round(tampG(P.tampon))} g</b> · <b>${money(P.bac)}</b>
+      ${arahState.sauveG||arahState.cash?`<br><span style="color:#9be37d">rentré : ${Math.round(arahState.sauveG)} g · ${money(arahState.cash)}</span>`:""}</div>
   </div>`;
-  const t=document.getElementById("araT"); if(t) t.onclick=araRentrer;
-  const c=document.getElementById("araC"); if(c) c.onclick=araCaisse;
+  const t=document.getElementById("arahT"); if(t) t.onclick=arahRentrer;
+  const c=document.getElementById("arahC"); if(c) c.onclick=arahCaisse;
 }
-function araTick(dt){
-  if(!araState) return;
-  if(araState.cri>0){ araState.cri-=dt; if(araState.cri<=0){ araState.cri=0; araRender(); } return; }
-  araState.left-=dt;
-  if(araState.cool>0) araState.cool-=dt;
-  araRender();
-  if(araState.left<=0){ araState=null; const el=document.getElementById("ara"); if(el) el.classList.add("hide"); pdvDescente(); }
+function arahTick(dt){
+  if(!arahState) return;
+  if(arahState.cri>0){ arahState.cri-=dt; if(arahState.cri<=0){ arahState.cri=0; arahRender(); } return; }
+  arahState.left-=dt;
+  if(arahState.cool>0) arahState.cool-=dt;
+  arahRender();
+  if(arahState.left<=0){ arahState=null; const el=document.getElementById("arah"); if(el) el.classList.add("hide"); pdvDescente(); }
 }
 function pdvDescente(){
   const P=S.shelter.pdv, lost=Math.round(P.bac+tampG(P.tampon)*P.prix);
-  P.bac=0; P.tampon={}; P.queue=[]; S.heat=PDV_AFTER; S.reput=clamp(S.reput-6,0,100);
+  P.bac=0; P.tampon={}; P.tamponQ=0; P.queue=[]; S.heat=PDV_AFTER; S.reput=clamp(S.reput-6,0,100);
   cause("Descente au corner","−"+lost+" exposé"); hud();
   toast("🚨 Descente — barrettes + bac saisis (−"+lost+"). La planque est sauve.");
   save(); if(tab==="shelter"&&shelterSub==="pdv") renderPDV();
 }
 // livre nWant barrettes (sachets) de la planque vers le tampon exposé (petites d'abord)
-function pdvRavito(nWant){
+/* ---------- La sacoche : tu composes ce que tu exposes ----------
+   Le ravitaillement prenait « les plus petites d'abord » et vidait chaque taille
+   avant la suivante : avec {2:30, 5:12} en planque, demander +25 donnait 25 barrettes
+   de 2 g et AUCUNE de 5 g — et 5 g ne se compose pas avec des 2 g (2+2=4, 2+2+2=6),
+   donc la demande de 5 g mourait. Mesuré à tampon et clientèle égaux :
+
+     rue 2 g   → petites d'abord 25 clients / 50 g · au prorata 25 clients / 68 g
+     rue 7,5 g → petites d'abord 10 clients / 50 g · mélangé   22 clients / 113 g
+
+   Le défaut empire donc le long de l'axe de progression. Et surtout : AUCUNE
+   stratégie automatique n'est bonne, parce que le bon mélange dépend de la demande —
+   que le joueur pilote lui-même depuis qu'il annonce son calibre. La sacoche n'est
+   pas un confort, c'est la seule réponse juste (R8). */
+function sacocheRows(P){
+  const fmts=[...new Set([...sizesOf(S.sachets), ...sizesOf(P.tampon)])].sort((a,b)=>a-b);
+  const n=tampN(P.tampon), plein=n>=PDV_TAMPON_MAX;
+  if(!fmts.length) return `<div class="muted" style="font-size:11px">Rien en planque — coupe et conditionne d'abord (Atelier).</div>`;
+  // Ce que la sacoche SERT vraiment, et ce que la rue DEMANDE. Sans ces deux lignes,
+  // « combien de 5 g » n'est pas une décision mais une devinette : c'est très
+  // exactement le trou où Sylvain est tombé — découvrir qu'on ne peut pas servir 5 g
+  // au moment où le client est devant soi. L'information existait déjà (`composables`),
+  // elle n'était affichée que dans la carte de négo, trop tard.
+  const sert=snap.composables(P.tampon, 20);
+  const dem={}; for(let d=1;d<=20;d++) for(let s=0;s<10;s++){ const q=corner.anonQty(d,s,S.rue,S.rueMax); dem[q]=(dem[q]||0)+1; }
+  const top=Object.keys(dem).map(Number).sort((a,b)=>dem[b]-dem[a]).slice(0,3);
+  const manque=top.filter(q=>!sert.includes(q));
+  return fmts.map(f=>{
+    const dans=P.tampon[f]||0, reste=S.sachets[f]||0;
+    return `<div class="stat"><span><b>${f} g</b> <span class="muted" style="font-size:10px">· planque ${reste}</span></span>
+      <span style="display:flex;align-items:center;gap:6px">
+        <button class="pb" data-sac="-1" data-f="${f}" ${dans<=0?"disabled":""}>−</button>
+        <b style="min-width:22px;text-align:center">${dans}</b>
+        <button class="pb" data-sac="1" data-f="${f}" ${reste<=0||plein?"disabled":""}>+</button>
+        <button class="pb" data-sac="max" data-f="${f}" ${reste<=0||plein?"disabled":""} style="font-size:10px">tout</button>
+      </span></div>`;
+  }).join("")
+  +`<div class="stat" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px">
+      <span>Exposé <span class="muted" style="font-size:10px">· max ${PDV_TAMPON_MAX}</span></span>
+      <b id="pTamp">${n} barrettes · ${Math.round(tampG(P.tampon))} g · Q${Math.round(n>0?P.tamponQ:(S.sachetQ||55))}</b></div>
+    <div class="muted" style="font-size:10px;margin:2px 0 0">Sert : ${sert.length?sert.slice(0,10).map(q=>q+"").join(" · ")+(sert.length>10?" …":""):"<b style='color:var(--bad)'>rien</b>"}</div>
+    <div class="muted" style="font-size:10px;margin:0 0 6px">La rue demande du <b>${corner.rueCalibre(S.rueMax)} g</b> — surtout ${top.map(q=>q+" g").join(" · ")}${manque.length?` · <b style="color:var(--bad)">tu ne sers pas ${manque.map(q=>q+" g").join(", ")}</b>`:""}</div>
+    <div class="grid2"><button class="btn ghost" style="margin:0" data-sac="allin" ${n>=PDV_TAMPON_MAX?"disabled":""}>⤒ Charger la soirée</button>
+      <button class="btn bad" style="margin:0" data-sac="allout" ${n<=0||arahState?"disabled":""}>⤓ Tout rentrer</button></div>
+    ${arahState?`<div class="muted" style="font-size:10px;margin:4px 0 0;color:var(--bad)">Trop tard pour tout rentrer — c'est à la main, barrette par barrette.</div>`:""}`;
+}
+/* Les grammes en planque, avant mouvement — la qualité s'y moyenne comme partout
+   ailleurs (même formule qu'au conditionnement, `commitSachet`). */
+function planqueG(){ return Object.entries(S.sachets).reduce((a,[f,n])=>a+n*+f,0); }
+/* SORTIR de la planque : la sacoche se moyenne avec ce qui arrive. */
+function sortirQ(P, g){
+  const qS=S.sachetQ||55, newG=tampG(P.tampon), oldG=newG-g;
+  P.tamponQ = newG>0 ? avgMerge(oldG, P.tamponQ||qS, g, qS) : qS;
+}
+/* RENTRER en planque : la planque se moyenne avec ce qui revient. Sans cette ligne,
+   un aller-retour CRÉAIT de la qualité — 260 g à q65,4 + 40 g à q50 rendaient q65,4
+   au lieu de q63,3, cumulable à volonté. Les grammes étaient conservés, la qualité
+   non : la symétrie de `deplacerBarrettes` doit valoir aussi pour ce qu'on y trimballe. */
+function rentrerQ(P, g){
+  if(g<=0) return;
+  const avant=planqueG()-g;               // planqueG() inclut déjà ce qui vient de rentrer
+  S.sachetQ=avgMerge(avant, S.sachetQ||55, g, P.tamponQ||S.sachetQ||55);
+  if(tampN(P.tampon)<=0) P.tamponQ=0;     // sacoche vide : plus de qualité fantôme
+}
+/* Un mouvement de barrettes, dans un sens ou dans l'autre. */
+function sacoche(f, delta){
   const P=S.shelter.pdv; if(!P.tampon) P.tampon={};
-  const room=PDV_TAMPON_MAX-tampN(P.tampon);
-  if(room<=0){ toast("Tampon plein ("+PDV_TAMPON_MAX+" barrettes)."); return; }
-  const sizes=sizesOf(S.sachets); if(!sizes.length){ toast("Pas de sachets — coupe et conditionne d'abord (Atelier)."); return; }
-  const target=Math.min(nWant||room, room); let moved=0, movedG=0;
-  for(const f of sizes.slice().sort((a,b)=>a-b)){ while(S.sachets[f]>0 && moved<target){ S.sachets[f]--; if(S.sachets[f]<=0) delete S.sachets[f]; P.tampon[f]=(P.tampon[f]||0)+1; moved++; movedG+=f; } if(moved>=target) break; }
-  if(moved>0){ const newG=tampG(P.tampon), oldG=newG-movedG; P.tamponQ=newG>0?(oldG*(P.tamponQ||S.sachetQ||55)+movedG*(S.sachetQ||55))/newG:(S.sachetQ||55);
-    // TOUTE la file re-renifle le tampon du moment (R4 : la chip et le prix acceptable suivent
-    // la vraie qualité). Avant, la garde `cl.cid` réservait ça aux personas — un anonyme gardait
-    // la tolérance d'un produit qui n'était plus sur la table.
-    { const qN=Math.round(P.tamponQ), gf=corner.qualFac(qN);
-      for(const cl of P.queue){
-        if(cl.qc&&cl.cid){ const q=corner.qualCheck(corner.personaById(cl.cid), qN); if(q) cl.qc=q; }
-        cl.qFac=gf*(cl.qc?cl.qc.fac:1);
-      } }
-    toast("+"+moved+" barrettes stagées au corner (exposées)."); save(); renderPDV(); }
-  else toast("Plus de sachets à charger.");
+  if(delta>0){
+    const place=PDV_TAMPON_MAX-tampN(P.tampon);
+    if(place<=0){ toast("Sacoche pleine ("+PDV_TAMPON_MAX+" barrettes)."); return; }
+    const r=snap.deplacerBarrettes(S.sachets, P.tampon, f, Math.min(delta, place));
+    if(!r.n) return;
+    sortirQ(P, r.g);
+  } else {
+    const r=snap.deplacerBarrettes(P.tampon, S.sachets, f, -delta);
+    if(!r.n) return;
+    rentrerQ(P, r.g);
+  }
+  cornerReniffle(P);
+  save(); pdvSacPatch(P);
+}
+function sacocheTout(sens){
+  const P=S.shelter.pdv;
+  if(sens==="out"){
+    let g=0; for(const f of sizesOf(P.tampon)) g+=snap.deplacerBarrettes(P.tampon, S.sachets, f, P.tampon[f]).g;
+    rentrerQ(P, g); toast("Sacoche vidée — plus rien d'exposé.");
+  }
+  else {
+    // « la soirée » remplit au PRORATA DE LA DEMANDE plutôt que par les petites d'abord :
+    // un défaut par défaut sain, que le joueur peut ensuite corriger format par format.
+    // Borné à SAC_LOT et non au plafond : mesuré, exposer 40 barrettes plutôt que 25
+    // n'achète que ~4 points de servabilité et multiplie par 1,6 ce que la police peut
+    // saisir. Le bouton ne doit pas pousser vers le mauvais côté de cet arbitrage —
+    // le joueur monte plus haut au `+` s'il le veut, mais il le fait exprès.
+    let place=Math.min(SAC_LOT, PDV_TAMPON_MAX-tampN(P.tampon));
+    const fmts=sizesOf(S.sachets).sort((a,b)=>a-b);
+    if(place<=0){ toast("Sacoche déjà chargée."); return; }
+    if(!fmts.length){ toast("Rien en planque — coupe et conditionne d'abord."); return; }
+    const dem={}; for(let d=1;d<=20;d++) for(let s=0;s<10;s++){ const q=corner.anonQty(d,s,S.rue,S.rueMax); dem[q]=(dem[q]||0)+1; }
+    const tot=fmts.reduce((a,f)=>a+((dem[f]||0)+0.15),0);
+    let g=0;
+    for(const f of fmts){ if(place<=0) break;
+      const veut=Math.min(S.sachets[f]||0, Math.round(place*((dem[f]||0)+0.15)/tot));
+      const r=snap.deplacerBarrettes(S.sachets, P.tampon, f, veut); place-=r.n; g+=r.g; }
+    // reliquat : on complète avec ce qui reste, en tournant. Cette boucle est
+    // load-bearing — c'est elle qui sert les formats absents de `anonQty` (4, 6, 7, 9 g).
+    while(place>0 && fmts.some(f=>(S.sachets[f]||0)>0)){
+      let bouge=false;
+      for(const f of fmts){ if(place<=0) break; const r=snap.deplacerBarrettes(S.sachets, P.tampon, f, 1); if(r.n){ place-=r.n; g+=r.g; bouge=true; } }
+      if(!bouge) break;
+    }
+    // La sacoche pouvait déjà contenir un produit d'une AUTRE qualité : on moyenne, on
+    // ne téléporte pas. Écrire `P.tamponQ = S.sachetQ` faisait passer 40 g de q30 à q90
+    // en chargeant 10 g de q90 — +29 % de tolérance client en un tap.
+    sortirQ(P, g);
+    toast(tampN(P.tampon)+" barrettes en sacoche.");
+  }
+  cornerReniffle(P); save(); pdvSacPatch(P);
+}
+/* La file re-renifle : la qualité exposée vient de changer (R4).
+   SAUF les clients déjà engagés. Un client en `nego`/`dernier` a annoncé un prix
+   calculé avec l'ancien `qFac` ; le recalculer sous ses pieds fait que `resolveOffer`
+   réévalue son propre dernier prix et renvoie `walk` — testé, 4 refus sur 4. Composer
+   sa sacoche pendant qu'un client parle lui faisait refuser le prix qu'il venait de
+   demander : une perte sèche déclenchée par une action neutre, R1 à l'envers. Le
+   prédicat existe déjà pour la patience (`waiting`, plus haut) — même frontière. */
+function cornerReniffle(P){
+  const qN=Math.round(P.tamponQ||S.sachetQ||55), gf=corner.qualFac(qN);
+  for(const cl of (P.queue||[])){
+    if(cl.mode==="nego"||cl.mode==="dernier") continue;
+    if(cl.qc&&cl.cid){ const q=corner.qualCheck(corner.personaById(cl.cid), qN); if(q) cl.qc=q; }
+    cl.qFac=gf*(cl.qc?cl.qc.fac:1);
+  }
+}
+/* Patch en place : le tiroir reste ouvert et à la même position de défilement. */
+function pdvSacPatch(P){
+  const host=document.getElementById("pSac"); if(host) host.innerHTML=sacocheRows(P);
+  if(host) host.querySelectorAll("[data-sac]").forEach(b=>b.onclick=()=>{
+    const v=b.dataset.sac;
+    if(v==="allin"||v==="allout") sacocheTout(v==="allin"?"in":"out");
+    else if(v==="max") sacoche(+b.dataset.f, PDV_TAMPON_MAX);   // borné par la place et par la planque
+    else sacoche(+b.dataset.f, +v);
+  });
+  // le total « Exposé » vit DANS #pSac : le re-render ci-dessus l'a déjà rafraîchi.
+  if(tab==="shelter"&&shelterSub==="pdv") renderCornerActive(P);   // la composabilité affichée suit
 }
 function renderPDV(){
   tab="shelter"; shelterSub="pdv"; if(typeof set3d==="function") set3d("hidden"); hud(); renderDock();
@@ -1597,7 +1729,7 @@ function renderCorner(P){
   const stockSach=sizesOf(S.sachets).reduce((a,f)=>a+(S.sachets[f]||0),0);
   const emptyTx = tampN(P.tampon)>0
     ? "La rue est calme… un client va passer."
-    : (stockSach>0 ? "Ravitaille le corner (Gérer) et attends." : "Rien à écouler — coupe un pain à l'Atelier, puis ravitaille.");
+        : (stockSach>0 ? "Sacoche vide — charge des barrettes (Gérer) et attends." : "Rien à écouler — coupe un pain à l'Atelier, puis charge ta sacoche.");
   const mPrev=corner.marketPrice(S.reput, S.day-1), mTrend=fair>mPrev?" ▲":fair<mPrev?" ▼":"";
   const mNews=corner.marketNews(S.day);
   const drawerBody=`<div class="stat"><span>📋 Ton menu <span class="muted" style="font-size:10px">· marché ${fair}/g${mTrend}</span></span><b id="pPrixG">${prix}/g</b></div>
@@ -1606,11 +1738,11 @@ function renderCorner(P){
         <button class="pb" data-prix="1">+1</button></div>
       <div class="muted" id="pPrixHint" style="font-size:10px;margin:0 0 ${mNews?"2px":"8px"}">${prixHint(prix,fair)}</div>
       ${mNews?`<div class="muted" style="font-size:10px;margin:0 0 8px;color:${mNews.dir>0?"#ffb454":"#8fd0ff"}">${mNews.tx}</div>`:""}
-      <div class="stat"><span>Tampon exposé</span><b id="pTamp">${tampN(P.tampon)} barrettes · ${Math.round(tampG(P.tampon))} g</b></div>
       ${P.bac>0?`<div class="stat"><span>Bac du corner <span class="muted" style="font-size:10px">· charbonneur</span></span><b class="pill dirty" id="pBac">${money(P.bac)}</b></div>
       <button class="btn ghost" style="margin:4px 0 6px" id="enc">Encaisser le bac ▸ liquide</button>`:`<div class="muted" style="font-size:10px;margin:2px 0 6px">💸 Tes ventes tombent direct en <b class="pill dirty" style="font-size:10px;padding:1px 6px">liquide</b> — rien à encaisser.</div>`}
-      <div class="muted" style="font-size:10px;margin:2px 0 6px">Livrer des barrettes (réserve : ${stockSach} sachets) :</div>
-      <div class="grid3"><button class="btn ok" style="margin:0" data-rav="10">+10</button><button class="btn ok" style="margin:0" data-rav="25">+25</button><button class="btn ok" style="margin:0" data-rav="0">Max</button></div>
+      <h3 style="margin:10px 0 2px;font-size:12px">Ta sacoche</h3>
+      <div class="muted" style="font-size:10px;margin:0 0 6px">Ce que tu sors de la planque. C'est tout ce que la police peut saisir — et tout ce que tu peux vendre.</div>
+      <div id="pSac">${sacocheRows(P)}</div>
       <div class="stat" style="margin-top:10px"><span>Chouffes (${PDV_CHOUFFE_PAY}/soir)<br><span class="muted" style="font-size:10px">${chouffeGain(P)}</span></span><b id="pCh">${P.chouffes}</b></div>
       <div class="grid2"><button class="btn ghost" style="margin:0" id="chM">− chouffe</button><button class="btn ok" style="margin:0" id="chP">+ chouffe</button></div>
       <h3 style="margin:10px 0 4px;font-size:12px">Ledger</h3>
@@ -1682,7 +1814,12 @@ function renderCorner(P){
   const patchPrix=()=>{ const p=P.prix, f=marcheDuJour(), set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
     set("pPrixG",p+"/g"); set("pMenuF",`2g ${2*p} · 5g ${5*p} · 8g ${8*p}`); set("pPrixHint",prixHint(p,f)); set("cMenuChip","📋 "+p+"/g"); set("cMarChip","⚖ "+f); };
   stage.querySelectorAll("[data-prix]").forEach(b=>b.onclick=()=>{ const f=marcheDuJour(); P.prix=clamp((P.prix||f)+ +b.dataset.prix,1,Math.round(f*3)); save(); patchPrix(); });
-  stage.querySelectorAll("[data-rav]").forEach(b=>b.onclick=()=>pdvRavito(+b.dataset.rav));
+  stage.querySelectorAll("[data-sac]").forEach(b=>b.onclick=()=>{
+    const v=b.dataset.sac;
+    if(v==="allin"||v==="allout") sacocheTout(v==="allin"?"in":"out");
+    else if(v==="max") sacoche(+b.dataset.f, PDV_TAMPON_MAX);   // borné par la place et par la planque
+    else sacoche(+b.dataset.f, +v);
+  });
   { const encEl=document.getElementById("enc"); if(encEl) encEl.onclick=()=>{ if(P.bac<=0){toast("Bac vide.");return;} const v=Math.round(P.bac); S.dirty+=v; pushBills(v); toast("Encaissé "+money(v)+" en liquide."); P.bac=0; hud(); save(); renderCorner(P); }; }
   renderCornerActive(P); // carte client dynamique (négo)
   cornerLitWindows();
@@ -2461,9 +2598,9 @@ function frame(now){
       if(frame._acc>0.35){ frame._acc=0; renderBeuher(); }
     }
   }
-  // pendant l'ARA le monde s'arrête : le préavis est un temps de DÉCISION, pas une
+  // pendant l'ARAH le monde s'arrête : le préavis est un temps de DÉCISION, pas une
   // course contre le reste des systèmes (R1 — on ne perd rien pendant qu'on réfléchit)
-  if(araState){ araTick(dt); requestAnimationFrame(frame); return; }
+  if(arahState){ arahTick(dt); requestAnimationFrame(frame); return; }
   sorterTick(dt);
   pdvTick(dt);
   if(scene3d) scene3d.tick(dt);

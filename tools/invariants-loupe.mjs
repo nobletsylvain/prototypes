@@ -19,7 +19,7 @@ import {
   anonQty, ruePartGros, rueCalibre, checkUnlocks, cornerClientsDefault, rueApres,
   RUE_MIN, RUE_PALIERS, RUE_PART_MAX, RUE_INERTIE, menuAt, rabaisVolume, RABAIS_FORMAT,
 } from "../la-loupe/corner.mjs";
-import { qtyToSachets, applySachetPlan, composables, evacuerLot } from "../la-loupe/snap.mjs";
+import { qtyToSachets, applySachetPlan, composables, evacuerLot, deplacerBarrettes } from "../la-loupe/snap.mjs";
 import { FRONT_ENABLED, grantOpeningFront, nightTick, shelterDefaults } from "../la-loupe/shelter.mjs";
 
 const results = [];
@@ -543,19 +543,19 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
      n.length === 1 && n[0].rue === true, `${n.length} ouverture(s) par la rumeur`);
 }
 
-// ── 8. L'ARA : évacuer ne détruit jamais un gramme ─────────────────────────
+// ── 8. L'ARAH : évacuer ne détruit jamais un gramme ─────────────────────────
 // Le chouffe achète du PRÉAVIS, plus de l'immunité. Pendant ces secondes on rentre
 // des barrettes du tampon vers la planque. C'est très exactement le geste où j'avais
 // introduit un bug de conservation dans le-spot : retirer des grammes du tampon puis
 // n'en réinjecter qu'une partie fait de l'évacuation un geste qui CRÉE la perte
-// qu'il prétend éviter. On rejoue ici la boucle de `araRentrer` — barrettes entières,
+// qu'il prétend éviter. On rejoue ici la boucle de `arahRentrer` — barrettes entières,
 // les petites d'abord — et on vérifie la conservation à chaque tap.
 {
-  const ARA_LOT = 8;
+  const ARAH_LOT = 8;
   // la VRAIE fonction du jeu, importée — pas une copie. Un test qui recopie la boucle
   // qu'il teste passe quoi qu'il arrive : c'est le piège rencontré trois fois cette
   // session, et le geste d'évacuation est le pire endroit pour se le permettre.
-  const rentrer = (tampon, sachets) => evacuerLot(tampon, sachets, ARA_LOT);
+  const rentrer = (tampon, sachets) => evacuerLot(tampon, sachets, ARAH_LOT);
   const somme = (o) => Object.entries(o).reduce((a, [f, n]) => a + +f * (n > 0 ? n : 0), 0);
   const cas = [
     { 2: 20 }, { 8: 5 }, { 2: 3, 5: 4, 8: 2 }, { 12: 3, 2: 1 }, { 5: 1 }, { 20: 2, 8: 1, 2: 5 },
@@ -579,7 +579,7 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
       fuite++; if (!exemple) exemple = `tampon ${JSON.stringify(base)} : total ${total} → ${somme(tampon) + somme(sachets)}`;
     }
   }
-  ok("R1 · l'évacuation ARA ne détruit jamais un gramme (barrettes entières)",
+  ok("R1 · l'évacuation ARAH ne détruit jamais un gramme (barrettes entières)",
      fuite === 0, exemple || `${taps} taps sur ${cas.length} tampons, conservation stricte`);
 
   // et le chouffe doit vraiment acheter des secondes, de façon monotone
@@ -588,6 +588,149 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
   for (let i = 1; i < P.length; i++) if (P[i] <= P[i - 1]) mono = false;
   ok("R6 · le chouffe achète du préavis, croissant et jamais nul au-delà de 0",
      mono && P[0] === 0 && P[1] > 0, `préavis ${P.join(" / ")} s selon 0..3 chouffes`);
+}
+
+// ── 9. La sacoche : planque ⇄ exposé, sans jamais perdre une barrette ──────
+// Retour de playtest (2026-07-27) : « je ne pouvais pas vendre 5 g alors que j'avais
+// coupé du 2 et du 5 juste avant ». Cause réelle — `pdvRavito` prenait les plus
+// PETITES d'abord et vidait chaque taille avant la suivante : avec {2:30, 5:12},
+// demander +25 donnait 25 barrettes de 2 g et aucune de 5. Et 5 g ne se compose pas
+// avec des 2 g. Le joueur compose maintenant sa sacoche lui-même.
+{
+  const somme = (o) => Object.entries(o).reduce((a, [f, n]) => a + +f * (n > 0 ? n : 0), 0);
+  const compte = (o) => Object.values(o).reduce((a, n) => a + (n > 0 ? n : 0), 0);
+  let fuite = 0, mouv = 0, exemple = null;
+  const cas = [{ 2: 30, 5: 12, 8: 6 }, { 5: 4 }, { 2: 1, 20: 2 }, { 8: 9 }, { 2: 5, 3: 5 }];
+  for (const base of cas) {
+    const planque = { ...base }, sacoche = {};
+    const totalG = somme(planque), totalN = compte(planque);
+    // on sort et on rentre dans tous les sens, y compris au-delà du stock
+    for (let tour = 0; tour < 40; tour++) {
+      const fmts = [...new Set([...Object.keys(planque), ...Object.keys(sacoche)])].map(Number);
+      if (!fmts.length) break;
+      const f = fmts[tour % fmts.length];
+      const sortie = tour % 3 !== 2;
+      const src = sortie ? planque : sacoche, dst = sortie ? sacoche : planque;
+      const avant = somme(src) + somme(dst);
+      const r = deplacerBarrettes(src, dst, f, (tour % 4) + 1);
+      const apres = somme(src) + somme(dst);
+      mouv++;
+      // rien ne se crée, rien ne se perd — et le mouvement annoncé est le mouvement réel
+      if (avant !== apres || r.g !== r.n * f) {
+        fuite++; if (!exemple) exemple = `${JSON.stringify(base)} tour ${tour} : ${avant} g → ${apres} g, annoncé ${r.g} g`;
+      }
+    }
+    if (somme(planque) + somme(sacoche) !== totalG || compte(planque) + compte(sacoche) !== totalN) {
+      fuite++; if (!exemple) exemple = `${JSON.stringify(base)} : total ${totalG} g/${totalN} b → ${somme(planque) + somme(sacoche)} g/${compte(planque) + compte(sacoche)} b`;
+    }
+  }
+  ok("R1 · composer la sacoche ne perd ni ne crée jamais une barrette",
+     fuite === 0, exemple || `${mouv} mouvements sur ${cas.length} planques, conservation stricte`);
+
+  // et on ne peut jamais sortir plus que ce qu'on a
+  let surSortie = 0;
+  for (const base of cas) {
+    const src = { ...base }, dst = {};
+    for (const f of Object.keys(base).map(Number)) {
+      const r = deplacerBarrettes(src, dst, f, 999);
+      if (r.n > base[f]) surSortie++;
+    }
+  }
+  ok("R1 · on ne sort jamais plus de barrettes qu'il n'y en a en planque",
+     surSortie === 0, `${cas.length} planques vidées jusqu'au bout`);
+
+  // le défaut d'origine, inscrit : un ravitaillement « petites d'abord » tue le 5 g
+  {
+    const petitesDabord = (st, n) => {
+      const t = {}; let m = 0;
+      for (const f of Object.keys(st).map(Number).sort((a, b) => a - b)) {
+        while (st[f] > 0 && m < n) { st[f]--; t[f] = (t[f] || 0) + 1; m++; }
+        if (m >= n) break;
+      }
+      return t;
+    };
+    const auto = petitesDabord({ 2: 30, 5: 12 }, 25);
+    const tueLe5 = !qtyToSachets(5, { ...auto }).exact;
+    ok("Contre-épreuve · l'ancien ravitaillement automatique rendait le 5 g inservable",
+       tueLe5, `il montait ${Object.entries(auto).map(([f, c]) => `${c}×${f}g`).join(" ")} depuis une planque qui contenait 12 barrettes de 5 g`);
+  }
+}
+
+/* ── La composition exacte, et la qualité qui ne se crée pas ───────────────────
+   Trois défauts trouvés en revue de la sacoche, tous vérifiés en exécution. */
+{
+  // Référence indépendante : parcours en largeur de TOUS les multi-ensembles
+  // atteignables. Aucune formule recopiée de snap.mjs — c'est le point : si les deux
+  // implémentations partagent l'astuce, le test ne teste que lui-même.
+  const vraiExact = (q, st) => {
+    const f = Object.keys(st).map(Number).filter((x) => st[x] > 0);
+    const vus = new Set(); let cur = [[0, f.map(() => 0)]];
+    while (cur.length) {
+      const nx = [];
+      for (const [a, u] of cur) {
+        if (a === q) return true;
+        f.forEach((sz, i) => {
+          if (u[i] < st[sz] && a + sz <= q) {
+            const v = u.slice(); v[i]++; const k = (a + sz) + "|" + v.join(",");
+            if (!vus.has(k)) { vus.add(k); nx.push([a + sz, v]); }
+          }
+        });
+      }
+      cur = nx;
+    }
+    return false;
+  };
+  const pools = [{ 2: 3, 5: 2, 8: 1 }, { 3: 1, 4: 1, 5: 1, 7: 2, 8: 1 }, { 2: 2, 3: 2, 5: 1, 8: 2 },
+                 { 3: 2, 4: 2, 5: 2 }, { 2: 1, 3: 1, 4: 1, 5: 1, 8: 1 }, { 5: 2, 7: 1, 8: 1, 12: 1 }];
+  let faux = 0, tot = 0, exFaux = "";
+  for (const pool of pools) for (let q = 1; q <= 40; q++) {
+    tot++;
+    if (qtyToSachets(q, { ...pool }).exact !== vraiExact(q, pool)) {
+      faux++; if (!exFaux) exFaux = `${q} g depuis ${JSON.stringify(pool)}`;
+    }
+  }
+  ok("R1 · une quantité composable est TOUJOURS déclarée servable (aucun faux négatif)",
+     faux === 0, faux ? `${faux} divergence(s), ex. ${exFaux}` : `${tot} cas confrontés à une référence exhaustive`);
+
+  // contre-épreuve : l'ancienne DP (une seule représentation retenue par montant)
+  {
+    const dpGloutonne = (qty, sachets) => {
+      const sizes = Object.keys(sachets).map(Number).filter((f) => f > 0 && sachets[f] > 0).sort((a, b) => b - a);
+      const dp = new Array(qty + 1).fill(null);
+      dp[0] = Object.fromEntries(sizes.map((f) => [f, 0]));
+      for (let a = 1; a <= qty; a++) for (const f of sizes) {
+        if (a < f || !dp[a - f]) continue;
+        if ((dp[a - f][f] || 0) >= sachets[f]) continue;
+        dp[a] = { ...dp[a - f], [f]: (dp[a - f][f] || 0) + 1 }; break;
+      }
+      return !!dp[qty];
+    };
+    const pool = { 3: 1, 4: 1, 5: 1, 7: 2, 8: 1 };   // 21 = 3+4+7+7
+    ok("Contre-épreuve · l'ancienne DP déclarait impossible une quantité composable",
+       dpGloutonne(21, pool) === false && qtyToSachets(21, { ...pool }).exact === true,
+       "21 g depuis {3,4,5,7,7,8} : ancienne « impossible » · nouvelle 3+4+7+7");
+  }
+
+  // composables() sert la même table : elle ne doit rien omettre non plus
+  {
+    const pool = { 3: 1, 4: 1, 5: 1, 7: 2, 8: 1 };
+    const liste = composables(pool, 30);
+    const manquants = [];
+    for (let q = 1; q <= 30; q++) if (vraiExact(q, pool) && !liste.includes(q)) manquants.push(q);
+    ok("Le stepper de négo ne sous-déclare aucune quantité servable",
+       manquants.length === 0, manquants.length ? `omis : ${manquants.join(", ")}` : `${liste.length} quantité(s) exactes listées`);
+  }
+
+  // L'évacuation ARAH sauve la VALEUR : lot borné, donc l'ordre décide de la perte
+  {
+    const tampon = { 2: 20, 8: 6 }, planque = {};
+    const r = evacuerLot(tampon, planque, 8);
+    const sauveG = r.g;
+    const petitesDabord = 8 * 2;    // ce que l'ancien ordre aurait sauvé
+    ok("R1 · un tap d'évacuation sauve la valeur, pas le nombre",
+       sauveG > petitesDabord && (planque[8] || 0) === 6,
+       `${sauveG} g sauvés en 8 barrettes (les petites d'abord n'en sauvaient que ${petitesDabord} g)`);
+  }
 }
 
 console.log("\n─── invariants La Loupe ───");

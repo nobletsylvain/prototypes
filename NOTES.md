@@ -9,13 +9,258 @@ Les entrées les plus récentes en haut.
 
 ---
 
+<!-- lexique-exempt-bloc : cette entrée PORTE sur l'orthographe, elle cite forcément l'ancienne forme -->
+## 2026-07-27 — ARAH, pas ARA : le lexique devient vérifiable
+
+Sylvain, deux fois dans la même journée : d'abord l'écran d'évacuation qui titrait
+`ARA ! ARA !` quand le cri dans la rue disait déjà `ARAH !!`, puis — après correction —
+*« l'expression exacte est ARAH pas Ara »*.
+
+La deuxième correction dit quelque chose que la première ne disait pas : le problème
+n'était pas **un** titre, c'était que le mot vivait sous deux formes dans le dépôt. Le
+texte affiché avait été corrigé ; tout le reste — constantes, identifiants, classes CSS,
+commentaires, docs, libellés de tests — continuait de dire `ARA`. Tant que la forme
+courte reste disponible quelque part, elle remonte : on relit, on « normalise » sans y
+penser, et le mot juste redevient le mot plausible.
+
+**ARAH est un cri, pas un sigle.** Il n'y a donc pas de forme abrégée légitime, et le
+`H` final n'est pas décoratif : c'est le son. C'est déjà écrit dans le code depuis le
+26 (« le cri du guetteur, pas un sigle ») — ce qui n'a pas empêché la dérive, parce
+qu'un commentaire n'est pas un garde-fou.
+
+### Ce qui a changé
+
+- **La Loupe** (proto actif) : renommage complet, 90 occurrences — `ARA_LOT` →
+  `ARAH_LOT`, `araState` → `arahState`, `.ara-*` → `.arah-*`, `#ara` → `#arah`, et la
+  cause de journal `cause("ARA", …)` que le joueur lisait vraiment.
+- **le-spot** : d'abord le seul texte affiché (`ARAH !! ARAH !!`), en laissant les
+  identifiants tranquilles — c'est un proto gelé et ses tests sélectionnent `#ara`.
+  Puis j'ai fait demi-tour et renommé aussi ses identifiants (`#arah`, `arahState`,
+  `arahTitle`…, et les trois sélecteurs côté tests). *Raison du demi-tour* : épargner un
+  dossier, c'est précisément recréer la condition qui a produit la dérive — une forme
+  courte encore disponible quelque part. Un garde-fou avec une exception géographique ne
+  garde rien.
+  Piège au passage : `arahead` contient déjà « arah », donc une substitution naïve
+  `ara` → `arah` donnait `arahhead`. Liste de jetons explicite, du plus long au plus
+  court, plutôt qu'un `sed` global.
+- **Docs et hub** : `README.md`, `la-loupe/SHELTER.md`, l'`index.html` racine.
+
+### Le garde-fou : `tools/lexique.mjs`
+
+Se faire corriger deux fois sur le même mot, c'est le signe qu'il faut une machine, pas
+une bonne résolution. Une règle = un terme fautif, son remplacement, et **sa raison
+d'être** — la même forme que les règles R1..R10, parce que c'est la même nature de
+décision : un arbitrage de Sylvain qu'on ne redevine pas.
+
+Avec une échappatoire explicite, `lexique-exempt`, parce que trois lignes du journal
+**doivent** porter la forme fautive : celle qui cite le titre buggé (c'est le sujet de
+la note), celle qui explique que le mot n'est pas un sigle, et la citation mot pour mot
+du message de Sylvain. Réécrire ces trois-là aurait effacé ce que les notes racontent.
+Une exemption marquée reste visible en relecture ; un contournement silencieux, non.
+
+Vérifié dans les deux sens : la règle passe sur les 74 fichiers du dépôt, et **échoue**
+dès qu'on remet `ARA !!` dans le cri. La portée du bloc a été vérifiée pareillement — un
+`ARA` glissé APRÈS le `---` de clôture est bien rattrapé. Un garde-fou qu'on n'a pas vu
+échouer ne garde rien.
+
+Deux fausses pistes en route, notées parce qu'elles reviendront.
+
+La première : le garde-fou a semblé « rater » des lignes, alors que c'était mon
+`tail -3` qui tronquait sa sortie. Le test n'avait rien.
+
+La seconde mérite d'être racontée en entier, parce que je m'y suis pris à trois fois.
+Le smoke-test de le-spot tombe à 33/34 sur `RELACHE_MIN` — un contrôle de *timing*
+(fenêtre de 30 ms « trop courte pour couper »). J'ai d'abord conclu « ça dérape quand la
+machine est chargée, 34/34 au calme avant comme après » : deux runs qui passaient, deux
+qui échouaient, et une explication qui collait. **C'était une conclusion tirée d'une
+comparaison non contrôlée** — les runs « avant » avaient tourné pendant une période
+calme, les runs « après » pendant que je travaillais. Trois runs isolés du nouveau code
+ont ensuite échoué 3/3, ce qui a tué l'explication par la charge.
+
+Deux vérifications ont tranché :
+
+1. **Une preuve statique.** En re-normalisant le fichier renommé vers les anciens noms,
+   on obtient un fichier **identique octet pour octet** à celui d'avant. Un renommage pur
+   ne peut pas changer un comportement — quel que soit le compte des runs.
+2. **Un A/B entrelacé**, les deux versions dans la même commande, même état machine :
+
+   | | run 1 | run 2 | run 3 |
+   |---|---|---|---|
+   | avant | 33/34 | 33/34 | 33/34 |
+   | après | 33/34 | 33/34 | **34/34** |
+
+   La version **d'avant échoue 3/3**. La mienne passe même une fois.
+
+Donc : `RELACHE_MIN` est un test **instable préexistant**, il échoue la plupart du temps
+sur les deux versions, et il n'a rien à voir avec le renommage. La leçon n'est pas sur
+ARAH, elle est sur la méthode : comparer deux mesures prises à des moments différents et
+appeler ça une explication. Le réflexe juste, c'est l'entrelacement — et quand une preuve
+statique existe, elle vaut mieux que n'importe quel comptage de runs.
+
+`[DÉCISION REQUISE]` — un test qui échoue ~80 % du temps n'est plus un signal, c'est du
+bruit qui égare la session suivante (il m'a égaré). Soit on stabilise `RELACHE_MIN` (la
+fenêtre de 30 ms est le point fragile), soit on le marque explicitement instable. Je ne
+tranche pas : c'est la mécanique de coupe de le-spot, un proto gelé.
+
+---
+
+## 2026-07-27 — La Loupe : la sacoche (tu composes ce que tu exposes)
+
+Sylvain, en jouant : *« lorsque on ajoute des barrettes à un corner, on ajoute
+automatiquement les dernières barrettes produites. Ce qui m'a donné situations où je
+ne pouvais pas vendre 5 g alors que j'avais coupé du 2 et du 5 juste avant. »*
+
+### Ce que faisait vraiment le code
+
+Pas « les dernières produites » — **les plus petites d'abord**, et chaque taille
+vidée entièrement avant de passer à la suivante :
+
+```js
+for(const f of sizes.sort((a,b)=>a-b)){ while(S.sachets[f]>0 && moved<target){ … } }
+```
+
+Avec `{2:30, 5:12}` en planque, `+25` donnait **25 barrettes de 2 g et zéro de 5 g**.
+Et 5 g ne se compose pas avec des 2 g (2+2=4, 2+2+2=6) : la demande de 5 g mourait
+sur place, avec le produit en planque à deux mètres.
+
+### Mesuré à dénominateur fixe (tampon 25 barrettes, 200 clients)
+
+| rue | petites d'abord | mélangé |
+| --- | --- | --- |
+| 2 g   | 25 clients / 50 g | 25 clients / 68 g |
+| 7,5 g | **10 clients / 50 g** | **22 clients / 113 g** |
+
+Le défaut **empire le long de l'axe de progression** : plus la rue monte en calibre
+(ce que le joueur pilote lui-même depuis qu'il annonce son format sur SnapShit), plus
+le ravitaillement automatique sabote sa propre demande.
+
+### Pourquoi une sacoche, et pas un meilleur tri automatique
+
+J'ai commencé par chercher la bonne heuristique. Il n'y en a pas : **le bon mélange
+dépend de la demande**, et la demande est désormais un levier du joueur. Un tri
+« intelligent » aurait été une décision vivante prise à sa place — exactement ce que
+R7 interdit. La sacoche n'est donc pas un confort d'UI, c'est la **seule réponse
+juste** (R8) : un `−`/`+` par format, le stock en planque affiché en face, et le total
+exposé avec sa qualité.
+
+Les deux gestes de masse restent, mais bornés : `⤒ Charger au max` remplit **au
+prorata de la demande** (un défaut par défaut sain, corrigeable format par format) et
+`⤓ Tout rentrer` vide la sacoche d'un geste — la réponse directe à *« pouvoir les
+enlever si le heat monte trop »*. Ce que tu exposes est exactement ce que la police
+peut saisir : la sacoche devient le curseur de risque du corner.
+
+### Un seul mouvement de barrettes, dans un module
+
+`snap.deplacerBarrettes(src, dst, format, n)` sert les **deux sens**. Même raison que
+pour `evacuerLot` : dupliquer la boucle, c'est dupliquer le risque de perdre un
+gramme, et un test qui recopie la boucle ne teste que lui-même. La conservation est
+garantie par construction (on décrémente la source et on incrémente la destination du
+même compteur, jamais de conversion en grammes au milieu).
+
+### Vérification
+
+Trois invariants ajoutés (35/35), dont une **contre-épreuve** qui rejoue l'ancien
+ravitaillement et prouve qu'il montait 25×2 g depuis une planque contenant 12
+barrettes de 5 g. Sept checks navigateur (7/7) : `Charger au max` sort bien
+`53×2g · 5×5g · 2×8g`, `Tout rentrer` préserve 254 g exactement.
+
+### La revue a trouvé cinq défauts de plus, tous vérifiés en exécution
+
+Une reconnaissance en parallèle (deux lecteurs + une synthèse de game design) a été
+lancée sur la sacoche pendant l'implémentation. Elle a rapporté des mesures, pas des
+impressions — j'ai re-vérifié chaque point avant d'y toucher, et les cinq tenaient.
+
+1. **Le client refusait le prix qu'il venait d'annoncer.** `cornerReniffle` recalculait
+   `qFac` pour **toute** la file, y compris un client en « dernier prix ». Son prix avait
+   été calculé avec l'ancien `qFac` ; le changer sous ses pieds faisait que
+   `resolveOffer` réévaluait sa propre offre et renvoyait `walk`. Composer sa sacoche
+   pendant qu'un client parle lui faisait donc **refuser son propre prix** — une perte
+   sèche déclenchée par une action neutre, R1 exactement à l'envers. Le prédicat
+   existait déjà pour la patience (`waiting`) ; c'est la même frontière.
+2. **L'aller-retour fabriquait de la qualité.** Rentrer en planque ne diluait jamais
+   `S.sachetQ` : 214 g à q62 + 40 g à q40 rendaient **q62** au lieu de q58,5. Les grammes
+   étaient conservés, la qualité non — donc un aller-retour suffisait à laver un mauvais
+   produit, en boucle. `deplacerBarrettes` est symétrique ; ce qu'on y trimballe doit
+   l'être aussi.
+3. **`Charger au max` téléportait la qualité.** Il écrivait `P.tamponQ = S.sachetQ` sans
+   condition alors qu'il ne remplit que la place libre : charger 10 g de q90 sur 40 g de
+   q30 faisait passer **tout** le lot à q90, +29 % de tolérance client en un tap.
+4. **La DP de composition était un glouton déguisé.** Elle ne mémorisait **qu'une**
+   représentation par montant (un `break` après la première taille faisable). Depuis
+   `{3,4,5,7,7,8}`, elle déclarait **21 g impossible** alors que 3+4+7+7 = 21. Un faux
+   négatif coûte une vente que le stock pouvait servir. Invisible tant qu'on coupait en
+   séries homogènes — **une sacoche composée à la main est hétérogène par construction**.
+   Remplacée par un knapsack borné exact, partagé par `qtyToSachets` et `composables`
+   (elles portaient le même défaut, deux fois).
+5. **L'évacuation ARAH sauvait le nombre, pas la valeur.** `evacuerLot` prenait les
+   petites d'abord : avec un lot borné à 8 barrettes/tap, le joueur sauvait 16 g de 2 g
+   et **abandonnait ses 8 g** aux stups. Inversé, et réécrite par-dessus
+   `deplacerBarrettes` — quatrième occurrence en trois jours du piège « une règle
+   recopiée quelque part ».
+
+### Ce que la revue a changé au design (et pas seulement au code)
+
+- **La sacoche dit maintenant ce qu'elle SERT** (`Sert : 2 · 4 · 6 · 8 …`) et **ce que la
+  rue demande** (`surtout 2 g · 3 g · 5 g · tu ne sers pas 3 g, 5 g`). L'information
+  existait déjà, calculée, mais n'apparaissait que dans la carte de négo — c'est-à-dire
+  une fois le client devant soi, trop tard pour composer. C'est le correctif qui répond
+  le plus littéralement à la phrase de Sylvain : il découvrait le trou au pire moment.
+- **`⤒ Charger au max` devient `⤒ Charger la soirée`**, borné à `SAC_LOT = 25`. Mesuré :
+  passer de 25 à 40 barrettes exposées achète ~4 points de servabilité et multiplie par
+  1,6 ce que la police peut saisir. Un bouton ne doit pas pousser vers le mauvais côté
+  d'un arbitrage qu'il présente comme neutre.
+- **`⤓ Tout rentrer` est désactivé pendant un ARAH.** En l'état il cannibalisait le
+  guetteur : 60 barrettes en un tap rendait obsolète le préavis de 8 barrettes/tap qu'on
+  venait d'écrire. C'est un outil de **planification** (« le heat monte, je réduis »), pas
+  un bouton de panique. Le geste à la main reste, lui, disponible.
+- Et un **`tout` par format**, parce que 25 taps pour remplir une ligne, c'est de la
+  corvée sans décision (R8).
+
+### Deux défauts trouvés à la relecture des captures
+
+<!-- lexique-exempt : cite le titre fautif, c'est le sujet de la note -->
+- L'écran d'évacuation titrait `ARA ! ARA !` alors que le cri dans la rue dit
+  `ARAH !!` — l'orthographe de Sylvain est la bonne, les deux sont alignés.
+- `chouffeGain` affichait des **secondes négatives** quand la chaleur avait déjà
+  dépassé le seuil. Borné à 0 : au-delà du seuil la marge est nulle, pas négative.
+- Deux lignes affichaient le même total (`Tampon exposé` et `Exposé`), avec des
+  textes divergents — une seule ligne désormais, dans la sacoche, où on compose.
+
+### `[DÉCISION REQUISE]` — ce que je ne tranche pas
+
+- **Le prix de l'exposition.** Mesuré : passer de 6 à 40 barrettes exposées achète +8
+  points de servabilité et multiplie le risque par 6,6. Sans contre-poids, « expose le
+  minimum, recharge souvent » domine, et la sacoche devient une corvée optimale au lieu
+  d'un arbitrage (R9). Options : (a) assumer — le prix, ce sont les taps (R3) ; (b)
+  brancher l'attractivité de la rue sur les grammes exposés (une devanture vide n'attire
+  pas) ; (c) plafonner les ravitos par soirée.
+- **`Tout rentrer` : bouton, ou outil qu'on achète ?** Je l'ai désactivé pendant l'ARAH
+  pour ne pas tuer le guetteur. L'autre lecture, plus dans l'esprit de R2, serait d'en
+  faire un **déblocage de boutique** (« besace à cordon ») : au départ on retire barrette
+  par barrette, la friction devient un moteur d'achat.
+- **Le plafond exposé est en barrettes, pas en grammes.** `PDV_TAMPON_MAX = 60` autorise
+  de 120 g (tout en 2 g) à 1 200 g (tout en 20 g), contre 250 g de capacité de planque.
+  La rue peut donc tenir 4,8× la planque. Cap en grammes, cap mixte, ou assumé ?
+- **Le trou du 3 g.** 8 à 13 % de la demande porte sur 3 g, et 3 g n'est **jamais**
+  composable avec 2/5/8/12. La sacoche l'affiche désormais (« tu ne sers pas 3 g »), ce
+  qui donne une raison de couper à 3 g — mais faut-il retirer 3 g du cycle d'`anonQty`,
+  ou laisser le joueur découvrir la coupe à 3 g ?
+- **`stockG` ignore le tampon** (`shelter.mjs`) : charger la sacoche fait *baisser*
+  `stashHit` — le HUD annonce une planque calme pendant que la marchandise est dehors.
+  Aujourd'hui `stashHit` n'alimente aucune mécanique, donc c'est un mensonge d'écran et
+  pas un exploit. Le jour où il en alimentera une, ce sera un exploit à un tap.
+- **Placeholders touchés** : `SAC_LOT` (25) et `PDV_TAMPON_MAX` (60). Aucun n'est réglé
+  par la mesure — ils attendent la main.
+
+---
+
 ## 2026-07-27 — La Loupe : les modules étaient servis depuis le cache (bug de déploiement)
 
 Sylvain, en jouant : *« je viens d'avoir une descente mais aucun message ni aucune
 alerte n'a été déclenchée »*.
 
 Testé les deux chemins en navigateur : ils marchent tous les deux. Sans chouffe, le
-toast « 🚨 Descente — barrettes + bac saisis » s'affiche. Avec chouffe, l'ARA s'ouvre
+toast « 🚨 Descente — barrettes + bac saisis » s'affiche. Avec chouffe, l'ARAH s'ouvre
 et le cri part. Le bug n'était donc pas dans la mécanique.
 
 ### La cause : des versions d'import figées
@@ -63,6 +308,7 @@ Sylvain, image à l'appui (des gamins qui courent dans une ruelle avec une bulle
 « Arah !! ») : *« on pourrait voir des bulles apparaître dans la scène corner, avec des
 retours haptiques »*.
 
+<!-- lexique-exempt : la note porte sur le mot lui-même -->
 Au passage, ça corrige ma lecture : **ARA n'est pas un sigle, c'est le cri**. Le nom du
 système vient du hurlement du guetteur.
 
@@ -90,7 +336,7 @@ ils disent dans la main ce qui vient de se passer.
 
 `HAPTIC = { bulle:8, deal:22, juste:[18,50,18], walk:[30,60,30], cri:[70,50,70,50,120] }`.
 Le motif dit **quoi** s'est passé sans regarder l'écran : un tic pour « quelqu'un
-parle », un coup franc pour un deal, deux secs pour un départ, une alarme pour l'ARA.
+parle », un coup franc pour un deal, deux secs pour un départ, une alarme pour l'ARAH.
 Tout est enveloppé — `navigator.vibrate` est absent sur iOS Safari, rien n'en dépend.
 
 ### Trois défauts trouvés par le test navigateur, pas par relecture
@@ -100,8 +346,8 @@ Tout est enveloppé — `navigator.vibrate` est absent sur iOS Safari, rien n'en
    appartient de toute façon au *chouffe*, pas à un client. Il est désormais au niveau
    de la scène.
 2. **L'écran d'évacuation s'ouvrait par-dessus le cri.** Mon `setTimeout` ne retardait
-   rien : `araTick` appelle `araRender` à chaque frame. Il fallait un vrai sas
-   (`araState.cri`) qui garde la modale fermée **et** gèle le préavis — le temps que le
+   rien : `arahTick` appelle `arahRender` à chaque frame. Il fallait un vrai sas
+   (`arahState.cri`) qui garde la modale fermée **et** gèle le préavis — le temps que le
    chouffe achète commence quand le joueur a compris, pas quand le guetteur ouvre la
    bouche.
 3. **Les bulles se chevauchaient, et celle du client de devant répétait la carte de
@@ -115,17 +361,18 @@ les a montrés.
 ### Un piège de test, noté pour la suite
 
 `page.evaluateOnNewDocument` rejoue à **chaque** navigation : écrire la chaleur dans
-`localStorage` puis recharger la faisait écraser par le seed d'origine, et l'ARA ne se
+`localStorage` puis recharger la faisait écraser par le seed d'origine, et l'ARAH ne se
 déclenchait jamais. Diagnostiqué en sondant l'état réel (`heat: 0`) au lieu d'ajuster
 les temporisations à l'aveugle. Correctif : empiler un second seed, qui s'exécute après
 le premier.
 
 `tools/bulles-loupe.mjs` — 6 vérifications en vrai navigateur.
 
-## 2026-07-26 — La Loupe : l'ARA — le chouffe achète du préavis, pas de l'immunité
+## 2026-07-26 — La Loupe : l'ARAH — le chouffe achète du préavis, pas de l'immunité
 
 Sylvain, après avoir vu les secondes s'afficher : *« le mécanisme du chouffe n'est
 pas parfait car le heat retombe vraiment bas. Je pense qu'il s'agit d'une opportunité
+<!-- lexique-exempt : citation mot pour mot de Sylvain -->
 pour placer le rameur ARA, qui permettrait au joueur de partir à temps. »*
 
 Son diagnostic colle exactement à la mesure : `PDV_CHOUFFE_DAMP = 0,7` divisait la
@@ -146,10 +393,10 @@ Le calage sur La Loupe est parfait : `pdvDescente` saisit exactement `P.bac` et
 
 - `PDV_CHOUFFE_DAMP` 0,7 → **0,18** : le chouffe ralentit un peu, il n'immunise plus.
 - `PDV_PREAVIS_S = [0, 6, 12, 18]` : sans chouffe, la descente tombe sec.
-- Au seuil, l'ARA s'ouvre en plein écran. Deux gestes : **rentrer les barrettes**
+- Au seuil, l'ARAH s'ouvre en plein écran. Deux gestes : **rentrer les barrettes**
   (tampon → planque, 8 par tap, les petites d'abord) et **la caisse** (bac → liquide).
   Un cooldown de 520 ms entre deux taps : on ne sauve jamais tout, et ça se voit.
-- Le monde s'arrête pendant l'ARA — le préavis est un temps de **décision**, pas une
+- Le monde s'arrête pendant l'ARAH — le préavis est un temps de **décision**, pas une
   course contre les autres systèmes.
 
 R6 en plein : ça ne supprime pas la décision, ça donne le temps de la prendre. R8 :
@@ -158,8 +405,8 @@ lisible grâce aux secondes affichées du même jour.
 
 ### Le test recopiait la fonction qu'il testait — troisième fois
 
-Ma première version de l'invariant de conservation ARA **recopiait** la boucle de
-`araRentrer` au lieu de l'appeler. Un test qui duplique ce qu'il teste passe quoi
+Ma première version de l'invariant de conservation ARAH **recopiait** la boucle de
+`arahRentrer` au lieu de l'appeler. Un test qui duplique ce qu'il teste passe quoi
 qu'il arrive — et l'évacuation est le pire endroit pour se le permettre : c'est
 très exactement le geste où j'avais introduit un bug de conservation dans `le-spot`
 (retirer des grammes puis n'en réinjecter qu'une partie, soit une évacuation qui
@@ -921,7 +1168,7 @@ Deux bloquants que ni la relecture ni la première batterie de tests n'ont vus :
   se déclenchait à 45 et clampait la jauge à 22 : elle oscillait 45 → 22 → 45, et
   le pilonnage — la SEULE conséquence qui saisit quoi que ce soit — n'arrivait
   jamais en partie réelle. Le tampon n'était donc jamais en jeu, le chouf et
-  l'ARA étaient du décor. *Et le test le masquait en écrivant `s.vis = 95` à la
+  l'ARAH étaient du décor. *Et le test le masquait en écrivant `s.vis = 95` à la
   main.* Corrigé : la patrouille disperse, elle ne blanchit pas ; anti-récidive
   de 6 h ; et un invariant qui laisse la jauge monter TOUTE SEULE (elle atteint
   77, le raid tombe).

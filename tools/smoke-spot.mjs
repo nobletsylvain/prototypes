@@ -341,8 +341,8 @@ await shot("09-apres-ventes.png");
     s.lieu = "spot"; s.fermeUntil = -99; s.rideau = true;  // rideau : personne ne vient fausser le compte
     s.format = 8; s.tampon = 60; s.tamponQ = 60; s.caisse = 0; s.chouf = 1; s.vis = 95;
     const avant = s.tampon + stock();
-    await new Promise((res) => setTimeout(res, 700));       // laisser l'ARA s'ouvrir
-    const ouvert = !document.getElementById("ara").classList.contains("hide");
+    await new Promise((res) => setTimeout(res, 700));       // laisser l'ARAH s'ouvrir
+    const ouvert = !document.getElementById("arah").classList.contains("hide");
     for (const sel of ['[data-i="0"]', '[data-i="1"]', '[data-i="2"]']) {
       const b = document.querySelector(sel);
       if (b) b.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
@@ -377,10 +377,10 @@ await sleep(200);
 const avantRaid = await st();
 await page.evaluate(() => { const s = window.__spot.S(); s.vis = 95; });
 await sleep(700);
-await shot("10-ara.png");
+await shot("10-arah.png");
 {
-  const visible = await page.$eval("#ara", (e) => !e.classList.contains("hide"));
-  ok("Police · le chouf déclenche un préavis (ARA), pas une surprise", visible);
+  const visible = await page.$eval("#arah", (e) => !e.classList.contains("hide"));
+  ok("Police · le chouf déclenche un préavis (ARAH), pas une surprise", visible);
   if (visible) {
     await tap('[data-i="cash"]');
     await tap('[data-i="0"]');
@@ -390,7 +390,7 @@ await shot("10-ara.png");
     ok("R1 · l'évacuation ne fait que RÉDUIRE une perte annoncée",
        s.cash >= avantRaid.cash && s.tampon <= avantRaid.tampon,
        `cash ${Math.round(avantRaid.cash)} → ${Math.round(s.cash)}, tampon ${Math.round(avantRaid.tampon)} → ${Math.round(s.tampon)} g`);
-    await shot("11-ara-evacuation.png");
+    await shot("11-arah-evacuation.png");
   }
 }
 await sleep(14000);                                   // laisser le préavis expirer
@@ -435,7 +435,7 @@ await shot("12-apres-pilonnage.png");
   // laisser retomber ce que les sections précédentes ont pu ouvrir
   await page.evaluate(() => new Promise((r) => {
     const t = setInterval(() => {
-      if (document.getElementById("ara").classList.contains("hide")) { clearInterval(t); r(); }
+      if (document.getElementById("arah").classList.contains("hide")) { clearInterval(t); r(); }
     }, 200);
   }));
   const r = await page.evaluate(async () => {

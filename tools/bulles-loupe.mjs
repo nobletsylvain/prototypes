@@ -54,12 +54,18 @@ const mk = (cid, nm, av, g, offer) => ({ cid, nm, av, kind: "regulier", rel: 10,
 await page.evaluateOnNewDocument((ver, q) => {
   localStorage.setItem("loupe_ver", ver);
   localStorage.setItem("loupe_save", JSON.stringify({
-    sachets: { "2": 40 }, sachetQ: 62, dirty: 200, reput: 20,
+    // planque MIXTE : c'est tout l'enjeu de la sacoche. Avec un seul format,
+    // n'importe quelle stratégie de ravitaillement donne le même résultat.
+    sachets: { "2": 40, "5": 14, "8": 8 }, sachetQ: 62, dirty: 200, reput: 20,
     shelter: { phase: "B", introSeen: true, frontActive: false, paidOff: true,
-      pdv: { res: 70, bac: 120, prix: 10, chouffes: 1, tampon: { "2": 20 }, tamponQ: 62,
+      // tamponQ VOLONTAIREMENT différent de sachetQ : avec deux qualités égales,
+      // n'importe quelle formule de moyenne passe le test, y compris pas de formule.
+      pdv: { res: 70, bac: 120, prix: 10, chouffes: 1, tampon: { "2": 20 }, tamponQ: 40,
         queue: q, ledger: [], qacc: 0, serveAcc: 0, seq: 0, combo: 1 } },
   }));
-}, SAVE_VER, [mk("momo", "Momo", "🧢", 5, 48), mk("bilal", "Bilal", "🎒", 8, 76)]);
+}, SAVE_VER, [{ ...mk("momo", "Momo", "🧢", 5, 48), qFac: 1.0 },   // qFac SEEDÉ : sans valeur de départ,
+                                                                   // « undefined → 1.08 » passerait le test sans rien prouver
+              { ...mk("bilal", "Bilal", "🎒", 8, 76), mode: "dernier", dernier: 76, qFac: 1.11 }]);
 
 await page.goto(`http://127.0.0.1:${PORT}/la-loupe/index.html`, { waitUntil: "load" });
 await sleep(700);
@@ -92,14 +98,113 @@ await page.screenshot({ path: path.join(OUT, "01-rue.png") });
 ok("La rue est peuplée, et aucune silhouette ne porte de bulle",
    persos.n > 0 && persos.bulles === 0, `${persos.n} silhouette(s), ${persos.bulles} bulle(s)`);
 
-// ── 4. « ARAH !! » précède l'écran d'évacuation ────────────────────────────
+// ── 2. La sacoche : composer format par format, et pouvoir tout rentrer ────
+// Retour de playtest : le ravitaillement automatique prenait « les plus petites
+// d'abord » et vidait chaque taille avant la suivante — 25 barrettes de 2 g depuis
+// une planque qui contenait aussi du 5 g, donc les demandes de 5 g mouraient.
+// on reste sur la scène déjà ouverte ; l'ARAH vient APRÈS, sinon la modale
+// recouvre la sacoche sur la capture (et le joueur ne verrait rien non plus).
+// ouvrir le tiroir « Gérer »
+await page.evaluate(() => { const b = document.getElementById("cManage"); if (b) b.click(); });
+await sleep(500);
+
+const sac0 = await page.evaluate(() => ({
+  lignes: document.querySelectorAll("#pSac [data-sac][data-f]").length,
+  boutons: [...document.querySelectorAll("#pSac [data-sac]")].map((b) => b.dataset.sac + (b.dataset.f ? ":" + b.dataset.f : "")),
+}));
+await page.screenshot({ path: path.join(OUT, "04-sacoche.png") });
+ok("La sacoche propose un réglage par FORMAT (plus de +10/+25/Max aveugle)",
+   sac0.lignes >= 2, `${sac0.lignes} bouton(s) de format · ${sac0.boutons.join(" ")}`);
+
+// ── 2c. Composer sa sacoche ne fait pas fuir un client engagé ──────────────
+// `cornerReniffle` recalculait `qFac` pour TOUTE la file. Un client en « dernier
+// prix » avait annoncé son prix avec l'ancien `qFac` ; le changer sous ses pieds
+// faisait que `resolveOffer` réévaluait sa propre offre et renvoyait `walk` —
+// perte sèche déclenchée par une action neutre (R1). Deux clients, deux verdicts
+// attendus : l'attentiste renifle, l'engagé non.
+{
+  const avant = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    return (s.shelter?.pdv?.queue || []).map((c) => ({ nm: c.nm, mode: c.mode, qFac: c.qFac }));
+  });
+  // on charge du 8 g : la qualité exposée bouge, donc qFac aussi
+  await page.evaluate(() => { const b = document.querySelector('#pSac [data-sac="max"][data-f="8"]'); if (b) b.click(); });
+  await sleep(400);
+  const apres = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    return (s.shelter?.pdv?.queue || []).map((c) => ({ nm: c.nm, mode: c.mode, qFac: c.qFac }));
+  });
+  const gele = apres.find((c) => c.mode === "dernier");
+  const geleAvant = avant.find((c) => c.mode === "dernier");
+  const libre = apres.find((c) => c.mode !== "dernier");
+  const libreAvant = avant.find((c) => c.mode !== "dernier");
+  const engageIntact = gele && geleAvant && gele.qFac === geleAvant.qFac;
+  const libreSuit = libre && libreAvant && libre.qFac !== libreAvant.qFac;
+  ok("R1 · composer sa sacoche ne change pas les règles sous un client déjà engagé",
+     engageIntact && libreSuit && apres.length === avant.length,
+     `engagé ${geleAvant?.qFac} → ${gele?.qFac} (figé) · attentiste ${libreAvant?.qFac?.toFixed?.(3)} → ${libre?.qFac?.toFixed?.(3)} (suit)`);
+}
+
+// charger au max, puis vérifier que plusieurs formats sont sortis
+await page.evaluate(() => { const b = [...document.querySelectorAll('#pSac [data-sac="allin"]')][0]; if (b) b.click(); });
+await sleep(500);
+const apresIn = await page.evaluate(() => {
+  const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+  return { tampon: s.shelter?.pdv?.tampon || {}, sachets: s.sachets || {} };
+});
+const formats = Object.keys(apresIn.tampon).filter((f) => apresIn.tampon[f] > 0);
+ok("« Charger au max » sort PLUSIEURS formats (le 5 g ne meurt plus)",
+   formats.length >= 2, `sacoche : ${formats.map((f) => apresIn.tampon[f] + "×" + f + "g").join(" · ") || "vide"}`);
+
+// tout rentrer : la marchandise revient en planque, rien ne se perd
+const avantG = Object.entries(apresIn.tampon).reduce((a, [f, n]) => a + +f * n, 0)
+             + Object.entries(apresIn.sachets).reduce((a, [f, n]) => a + +f * n, 0);
+await page.evaluate(() => { const b = [...document.querySelectorAll('#pSac [data-sac="allout"]')][0]; if (b) b.click(); });
+await sleep(500);
+const apresOut = await page.evaluate(() => {
+  const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+  return { tampon: s.shelter?.pdv?.tampon || {}, sachets: s.sachets || {} };
+});
+const apresG = Object.entries(apresOut.tampon).reduce((a, [f, n]) => a + +f * n, 0)
+             + Object.entries(apresOut.sachets).reduce((a, [f, n]) => a + +f * n, 0);
+await page.screenshot({ path: path.join(OUT, "05-rentre.png") });
+ok("« Tout rentrer » vide la sacoche sans perdre un gramme (quand la chaleur monte)",
+   Object.values(apresOut.tampon).every((n) => !n) && apresG === avantG,
+   `exposé ${Object.values(apresOut.tampon).reduce((a, n) => a + n, 0)} barrette(s) · total ${avantG} g → ${apresG} g`);
+
+
+// ── 2b. La qualité ne se crée pas dans l'aller-retour ─────────────────────
+// Les grammes étaient conservés, la qualité non : rentrer en planque ne diluait
+// jamais `S.sachetQ`. 214 g à q62 + 40 g à q40 rendaient q62 au lieu de q58,5 —
+// +3,5 points fabriqués par aller-retour, cumulables à volonté (R4).
+{
+  const attendu = (214 * 62 + 40 * 40) / 254;   // tout le produit, moyenné une fois
+  const q = apresOut.sachets && (await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("loupe_save") || "{}").sachetQ));
+  ok("R4 · un aller-retour planque ⇄ sacoche ne fabrique pas de qualité",
+     Math.abs(q - attendu) < 0.5,
+     `planque à q${(+q).toFixed(1)} · moyenne réelle de tout le produit q${attendu.toFixed(1)} (sans dilution : q62)`);
+}
+
+// ── 2d. La sacoche dit ce qu'elle SERT, et ce que la rue demande ───────────
+// C'est le correctif qui répond littéralement à « je ne pouvais pas vendre 5 g » :
+// l'information existait (composables) mais n'apparaissait que dans la carte de
+// négo, c'est-à-dire une fois le client devant soi, trop tard pour composer.
+{
+  const txt = await page.evaluate(() => document.getElementById("pSac")?.innerText || "");
+  ok("La sacoche affiche ce qu'elle sert et ce que la rue demande",
+     /Sert\s*:/.test(txt) && /La rue demande/.test(txt),
+     txt.split("\n").filter((l) => /Sert|La rue demande/.test(l)).join(" ⋅ ").slice(0, 150));
+}
+
+// ── 3. « ARAH !! » précède l'écran d'évacuation ────────────────────────────
 // on pousse la chaleur au seuil : avec 1 chouffe il y a du préavis, donc un cri
 // `evaluateOnNewDocument` rejoue à CHAQUE navigation : écrire la chaleur puis
 // recharger la faisait écraser par le seed d'origine. On empile un second seed,
 // qui s'exécute après le premier et le complète.
 await page.evaluateOnNewDocument(() => {
   const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-  s.heat = 96;                       // au-delà du seuil : l'ARA part au premier tick
+  s.heat = 96;                       // au-delà du seuil : l'ARAH part au premier tick
   localStorage.setItem("loupe_save", JSON.stringify(s));
 });
 await page.reload({ waitUntil: "load" }); await sleep(600);
@@ -110,10 +215,10 @@ await sleep(700);   // le cri dure ~1,4 s et le sas ~0,9 s : on regarde pendant
 
 const cri = await page.evaluate(() => {
   const b = document.querySelector(".cbulle.cri");  // désormais au niveau de la SCÈNE, pas d'un client
-  const ara = document.getElementById("ara");
+  const arah = document.getElementById("arah");
   const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-  return { cri: !!b, txt: b ? b.textContent : "", araVisible: !!(ara && !ara.classList.contains("hide")),
-    _diag: { heat: s.heat, scene: !!document.getElementById("cPersos"), araExiste: !!ara,
+  return { cri: !!b, txt: b ? b.textContent : "", arahVisible: !!(arah && !arah.classList.contains("hide")),
+    _diag: { heat: s.heat, scene: !!document.getElementById("cPersos"), arahExiste: !!arah,
       persos: document.querySelectorAll(".cperso").length } };
 });
 console.log("  diag:", JSON.stringify(cri._diag));
@@ -123,20 +228,20 @@ await page.screenshot({ path: path.join(OUT, "02-cri.png") });
 // chouffe qui hurle, pas un client). L'accrocher à P.queue[0] le rendait muet dans le
 // cas le plus fréquent — défaut trouvé par ce test, pas par relecture.
 ok("« ARAH !! » est crié dans la rue, au niveau de la scène",
-   cri.cri && /ARAH/.test(cri.txt), `cri « ${cri.txt} » · écran ARA ${cri.araVisible ? "ouvert" : "fermé"}`);
+   cri.cri && /ARAH/.test(cri.txt), `cri « ${cri.txt} » · écran ARAH ${cri.arahVisible ? "ouvert" : "fermé"}`);
 
 await sleep(1200);
-const araApres = await page.evaluate(() => {
-  const ara = document.getElementById("ara");
-  return { visible: !!(ara && !ara.classList.contains("hide")), boutons: document.querySelectorAll("#ara .ara-c").length };
+const arahApres = await page.evaluate(() => {
+  const arah = document.getElementById("arah");
+  return { visible: !!(arah && !arah.classList.contains("hide")), boutons: document.querySelectorAll("#arah .arah-c").length };
 });
-await page.screenshot({ path: path.join(OUT, "03-ara.png") });
+await page.screenshot({ path: path.join(OUT, "03-arah.png") });
 ok("L'écran d'évacuation s'ouvre après le cri, avec ses deux gestes",
-   araApres.visible && araApres.boutons === 2, `visible ${araApres.visible} · ${araApres.boutons} bouton(s)`);
+   arahApres.visible && arahApres.boutons === 2, `visible ${arahApres.visible} · ${arahApres.boutons} bouton(s)`);
 
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
 
-console.log("\n─── bulles & ARA · La Loupe ───");
+console.log("\n─── bulles & ARAH · La Loupe ───");
 let bad = 0;
 for (const r of results) {
   console.log(`  ${r.pass ? "PASS" : "FAIL"}  ${r.nom}${r.detail ? "  (" + r.detail + ")" : ""}`);
