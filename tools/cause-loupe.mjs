@@ -58,7 +58,7 @@ await page.evaluateOnNewDocument((ver, sous) => {
   localStorage.setItem("loupe_save", JSON.stringify({
     dirty: sous, reput: 20, heat: 0, sachets: { "2": 20 }, sachetQ: 60,
     shelter: { phase: "B", introSeen: true, paidOff: true,
-      pdv: { res: 40, bac: 0, prix: 10, chouffes: 0, tampon: {}, tamponQ: 0, queue: [], ledger: [], seq: 0, combo: 1 } },
+      pdv: { res: 90, bac: 0, prix: 10, chouffes: 0, tampon: { "2": 40 }, tamponQ: 60, queue: [], ledger: [], seq: 0, combo: 1 } },
   }));
 }, SAVE_VER, SOFT - 40);
 
@@ -105,6 +105,37 @@ ok("Le Karnet NOMME la cause (promesse : « chaque ligne a une cause »)",
 
 ok("La cause dit quoi FAIRE, pas seulement ce qui se passe",
    !!ligne && /réinvestis/i.test(ligne), ligne ? "elle oriente vers le réinvestissement" : "—");
+
+// ── Le HUD ne ment pas sur la chaleur pendant qu'on tient le corner ───────
+// `hud()` n'est appelée que sur événement discret (navigation, vente, fin de journée).
+// Au corner, la chaleur monte en CONTINU, sans événement : mesuré, le HUD affichait
+// « chaleur 0 » pendant que la chip du corner disait « 🔥 31 ». Deux nombres
+// contradictoires à l'écran, sur la jauge qui décide de la descente — et celui du haut
+// est le seul visible depuis les autres écrans.
+//
+// Note de méthode : deux sceptiques de l'audit avaient RÉFUTÉ cette trouvaille en
+// raisonnant sur les appelants de hud(). La mesure leur a donné tort. D'où ce test :
+// on compare ce que le joueur LIT, pas ce que le code a l'air de faire.
+{
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin]")].find((x) => x.dataset.pin === "pdv"); if (b) b.click(); });
+  await sleep(300);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin-go]")].find((x) => x.dataset.pinGo === "pdv"); if (b) b.click(); });
+  await sleep(900);
+  const t0 = await page.evaluate(() => Math.round(JSON.parse(localStorage.getItem("loupe_save") || "{}").heat || 0));
+  await sleep(4000);   // la chaleur grimpe pendant qu'on ne touche à rien
+  const lu = await page.evaluate(() => {
+    const g = (id) => ((document.getElementById(id) || {}).textContent || "");
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    const n = (t) => { const m = t.match(/(\d+)/); return m ? +m[1] : NaN; };
+    return { hud: n(g("hudHeat")), chip: n(g("cHeatChip")), reel: Math.round(s.heat || 0), brut: g("hudHeat") };
+  });
+  await page.screenshot({ path: path.join(OUT, "02-hud-chaleur.png") });
+  const aMonte = lu.reel > t0 + 1;
+  ok("Le HUD suit la chaleur pendant qu'on tient le corner (deux nombres, une vérité)",
+     aMonte && Math.abs(lu.hud - lu.chip) <= 2,
+     aMonte ? `HUD ${lu.hud} · chip ${lu.chip} · réel ${lu.reel} (partie de ${t0})`
+            : `la chaleur n'a pas monté (${t0} → ${lu.reel}) — le contrôle ne prouverait rien`);
+}
 
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
 

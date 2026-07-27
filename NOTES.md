@@ -9,6 +9,52 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Le HUD mentait sur la chaleur, et deux sceptiques m'avaient dit que non
+
+Suite de l'audit. Onze trouvailles confirmées au total ; deux d'entre elles étaient
+**contredites entre lentilles** — une lentille les confirmait, un sceptique les réfutait
+en raisonnant sur les appelants de `hud()`.
+
+J'ai mesuré au lieu de trancher sur le raisonnement. Sonde en navigateur, corner ouvert,
+on ne touche à rien pendant 12 secondes :
+
+```
+  t+2.5s   HUD « chaleur 0 » · chip « 🔥 7 »  · état réel 6
+  t+5s     HUD « chaleur 0 » · chip « 🔥 13 » · état réel 10
+  t+12.5s  HUD « chaleur 0 » · chip « 🔥 31 » · état réel 30
+```
+
+**Le sceptique avait tort.** `hud()` n'est appelée que sur événement discret — navigation,
+vente, fin de journée. Or au corner la chaleur monte **en continu**, sans événement.
+Résultat : deux nombres contradictoires à l'écran en même temps, sur la jauge qui décide
+de la descente — et celui du haut est le seul qu'on voit depuis les autres écrans.
+
+Sur les captures de Sylvain les deux coïncidaient, ce qui m'aurait rassuré à tort : elles
+étaient prises juste après une navigation ou une vente, donc juste après un `hud()`.
+
+Correctif : `pdvPatch` rafraîchit la pastille (texte seul). Après : `HUD 31 · chip 31`.
+
+### Ce que ça dit sur la méthode
+
+Le panel de sceptiques est là pour **tuer les fausses pistes**, et il le fait bien — sept
+trouvailles écartées à raison. Mais il peut aussi tuer une vraie, parce qu'un sceptique
+lit le code et conclut, là où le bug ne se voit qu'à l'exécution. La règle qui se dégage :
+**quand une trouvaille porte sur ce que le joueur LIT, on la mesure ; on ne la
+raisonne pas.** Un `getElementById` et douze secondes d'observation tranchent ce que trois
+lectures de code n'arrivent pas à trancher.
+
+C'est la même leçon que le `RELACHE_MIN` de ce matin, dans l'autre sens : là j'avais
+conclu « instable » sans mesurer, ici j'ai failli conclure « faux positif » sans mesurer.
+
+### Vérification
+
+`cause-loupe` passe à 7/7. Contre-épreuve : sans le correctif, `HUD 0 · chip 12`.
+Le contrôle porte un garde `aMonte` — si la chaleur ne monte pas (sacoche vide → corner
+fermé → activité nulle), il échoue bruyamment au lieu de passer à vide. Il a d'ailleurs
+attrapé exactement ça à son premier jet.
+
+---
+
 ## 2026-07-28 — Le tiroir « Gérer » décidait sur des chiffres périmés
 
 Audit systématique de la classe de bug qui a mordu trois fois cette semaine (un

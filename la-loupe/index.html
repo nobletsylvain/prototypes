@@ -386,10 +386,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=37";
-import * as beuher from "./beuher.mjs?v=37";
-import * as shelter from "./shelter.mjs?v=37";
-import * as corner from "./corner.mjs?v=37";
+import * as snap from "./snap.mjs?v=38";
+import * as beuher from "./beuher.mjs?v=38";
+import * as shelter from "./shelter.mjs?v=38";
+import * as corner from "./corner.mjs?v=38";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -424,7 +424,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=37"),
+      import("./scene3d.mjs?v=38"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -1474,6 +1474,14 @@ function pdvPatch(){
      donc des chiffres périmés au moment précis où on décide de lâcher 60/soir ou de
      bouger son tarif. On patche le TEXTE seul — surtout pas l'innerHTML d'un conteneur
      de boutons, ce serait rouvrir le tap mort. */
+  /* La pastille de chaleur du HUD est écrite par `hud()`, qui n'est appelée QUE sur
+     événement discret (navigation, vente, fin de journée). Or au corner la chaleur monte
+     en continu, sans événement : mesuré, le HUD affichait « chaleur 0 » pendant que la
+     chip du corner disait « 🔥 31 » et que l'état réel était à 30. Deux nombres
+     contradictoires à l'écran en même temps, sur la jauge qui décide de la descente —
+     et celui du haut est le seul visible depuis les autres écrans. */
+  const hh=document.getElementById("hudHeat");
+  if(hh){ const t=`chaleur ${Math.round(S.heat)}`; if(hh.textContent!==t) hh.textContent=t; }
   const cg=document.getElementById("pChGain");
   if(cg){ const t=chouffeGain(P); if(cg.textContent!==t) cg.textContent=t; }
   const ph=document.getElementById("pPrixHint");
