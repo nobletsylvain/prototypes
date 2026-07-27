@@ -210,17 +210,17 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
 .ledv{font-weight:800;font-variant-numeric:tabular-nums;flex:none;}
 .pos{color:#bdf0a3;} .negv{color:#ff8f8f;} .neu{color:rgba(255,255,255,.5);}
 
-/* ── ARA (évacuation) ────────────────────────────────────────── */
-#ara{position:absolute;inset:0;z-index:70;display:flex;flex-direction:column;
+/* ── ARAH (évacuation) ────────────────────────────────────────── */
+#arah{position:absolute;inset:0;z-index:70;display:flex;flex-direction:column;
   background:rgba(40,4,8,.62);backdrop-filter:blur(2px);animation:redpulse 1s infinite;}
 @keyframes redpulse{0%,100%{background:rgba(40,4,8,.55)}50%{background:rgba(70,6,12,.72)}}
-#arahead{padding:16px 14px 8px;text-align:center;}
-#aratitle{font-weight:900;font-size:31px;letter-spacing:3px;color:#ff8f8f;
+#arahHead{padding:16px 14px 8px;text-align:center;}
+#arahTitle{font-weight:900;font-size:31px;letter-spacing:3px;color:#ff8f8f;
   text-shadow:0 0 22px rgba(255,60,60,.6);animation:shake .32s infinite;}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
-#arasub{font-size:13px;color:rgba(255,255,255,.8);margin-top:4px;}
-#aratimer{height:8px;margin:10px 14px 0;border-radius:4px;background:rgba(0,0,0,.45);overflow:hidden;}
-#aratimerF{height:100%;background:#ff6b6b;transition:width .08s linear;}
+#arahSub{font-size:13px;color:rgba(255,255,255,.8);margin-top:4px;}
+#arahTimer{height:8px;margin:10px 14px 0;border-radius:4px;background:rgba(0,0,0,.45);overflow:hidden;}
+#arahTimerF{height:100%;background:#ff6b6b;transition:width .08s linear;}
 #caches{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;}
 .cache{flex:1;max-width:110px;aspect-ratio:3/4;border-radius:14px;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:5px;background:rgba(12,10,20,.88);
@@ -229,7 +229,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
 .cache.cool{opacity:.4;}
 .cacheI{font-size:31px;}
 .cacheN{font-size:11px;font-weight:800;text-align:center;line-height:1.2;padding:0 3px;}
-#arafoot{padding:0 14px 18px;text-align:center;font-size:12.5px;color:rgba(255,255,255,.65);}
+#arahFoot{padding:0 14px 18px;text-align:center;font-size:12.5px;color:rgba(255,255,255,.65);}
 
 /* ── toasts ──────────────────────────────────────────────────── */
 #toasts{position:absolute;left:0;right:0;top:8px;z-index:80;display:flex;flex-direction:column;
@@ -331,14 +331,14 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
 <div class="ov hide" id="ovChute"></div>
 <div class="ov hide" id="ovIntro"></div>
 <div class="ov hide" id="ovDebug"></div>
-<div id="ara" class="hide">
-  <div id="arahead">
-    <div id="aratitle">ARA ! ARA !</div>
-    <div id="arasub">Rentre ce que tu peux.</div>
+<div id="arah" class="hide">
+  <div id="arahHead">
+    <div id="arahTitle">ARAH !! ARAH !!</div>
+    <div id="arahSub">Rentre ce que tu peux.</div>
   </div>
-  <div id="aratimer"><div id="aratimerF"></div></div>
+  <div id="arahTimer"><div id="arahTimerF"></div></div>
   <div id="caches"></div>
-  <div id="arafoot"></div>
+  <div id="arahFoot"></div>
 </div>
 
 <script type="module">
@@ -810,17 +810,17 @@ function viderQueue(){ for (const c of [...queue]) retirer(c, false); clientAcc 
    — ou expiraient en ruptures — sur une partie neuve. */
 function resetRuntime(){
   viderQueue();
-  cutHold = null; cutCarry = 0; lame = 1; lot = null; araState = null; lastCielH = -1; dockSig = null;
-  $("ara").classList.add("hide");
+  cutHold = null; cutCarry = 0; lame = 1; lot = null; arahState = null; lastCielH = -1; dockSig = null;
+  $("arah").classList.add("hide");
   elQueue.innerHTML = "";
   setPause(false);
 }
 
 /* ─── 7. POLICE — annoncée, jamais tirée au sort ────────────────────────── */
-let araState = null;
+let arahState = null;
 
 function checkPolice(){
-  if (araState || !spotOuvert()) return;
+  if (arahState || !spotOuvert()) return;
   if (S.vis >= SEUIL_PILONNAGE) lancerRaid(2);
   else if (S.vis >= SEUIL_PATROUILLE && S.clock >= S.patrouilleUntil) lancerRaid(1);
 }
@@ -833,7 +833,7 @@ function lancerRaid(palier){
   if (palier === 1){ appliquerRaid(1, false); return; }
   const preavis = PREAVIS_S[Math.min(S.chouf, 2)];
   if (preavis <= 0){ appliquerRaid(palier, false); return; }
-  ouvrirAra(palier, preavis);
+  ouvrirArah(palier, preavis);
 }
 
 const CACHES = [
@@ -841,10 +841,10 @@ const CACHES = [
   { ic:"🪜", nm:"Faux plafond" },
   { ic:"🚪", nm:"Cage d'escalier" },
 ];
-function ouvrirAra(palier, preavis){
-  araState = { palier, left: preavis, total: preavis, cool: 0, sauve: 0, cash: 0 };
-  $("aratitle").textContent = "ARA ! ARA !";
-  $("arasub").textContent = palier === 2
+function ouvrirArah(palier, preavis){
+  arahState = { palier, left: preavis, total: preavis, cool: 0, sauve: 0, cash: 0 };
+  $("arahTitle").textContent = "ARAH !! ARAH !!";
+  $("arahSub").textContent = palier === 2
     ? "Pilonnage. Ils rentrent dans le tas."
     : "Patrouille BAC. Rentre le tampon.";
   $("caches").innerHTML = CACHES.map((c, i) =>
@@ -855,14 +855,14 @@ function ouvrirAra(palier, preavis){
   $("caches").querySelectorAll(".cache").forEach(b => {
     b.addEventListener("pointerdown", e => { e.preventDefault(); tapCache(b); });
   });
-  $("ara").classList.remove("hide");
-  majAra();
+  $("arah").classList.remove("hide");
+  majArah();
 }
 function tapCache(btn){
-  if (!araState || araState.cool > 0) return;
+  if (!arahState || arahState.cool > 0) return;
   if (btn.dataset.i === "cash"){
     if (S.caisse <= 0) return;
-    araState.cash += S.caisse; S.cash += S.caisse; S.caisse = 0;
+    arahState.cash += S.caisse; S.cash += S.caisse; S.caisse = 0;
   } else {
     // CONSERVATION STRICTE : on ne retire du tampon que ce qu'on peut réellement
     // remettre au stock, en sachets entiers. Retirer `g` puis n'en réinjecter que
@@ -875,33 +875,33 @@ function tapCache(btn){
     const g = n * f;
     S.tampon -= g;
     addSachets(f, n, S.tamponQ);
-    araState.sauve += g;
+    arahState.sauve += g;
   }
   // le temps de rentrer un bloc, toutes les caches sont indisponibles :
   // on ne sauve jamais tout, et ça se voit
-  araState.cool = CACHE_COOL_MS / 1000;
+  arahState.cool = CACHE_COOL_MS / 1000;
   $("caches").querySelectorAll(".cache").forEach(b => b.classList.add("cool"));
-  majAra();
+  majArah();
 }
-function majAra(){
-  if (!araState) return;
-  $("aratimerF").style.width = (araState.left / araState.total * 100) + "%";
-  $("arafoot").innerHTML = `Encore dehors : <b>${R(S.tampon)} g</b> · <b>${eur(S.caisse)}</b>`
-    + (araState.sauve || araState.cash
-       ? `<br><span style="color:#9be37d">rentré : ${R(araState.sauve)} g · ${eur(araState.cash)}</span>` : "");
+function majArah(){
+  if (!arahState) return;
+  $("arahTimerF").style.width = (arahState.left / arahState.total * 100) + "%";
+  $("arahFoot").innerHTML = `Encore dehors : <b>${R(S.tampon)} g</b> · <b>${eur(S.caisse)}</b>`
+    + (arahState.sauve || arahState.cash
+       ? `<br><span style="color:#9be37d">rentré : ${R(arahState.sauve)} g · ${eur(arahState.cash)}</span>` : "");
 }
-function tickAra(dt){
-  if (!araState) return;
-  araState.left -= dt;
-  if (araState.cool > 0){
-    araState.cool -= dt;
-    if (araState.cool <= 0) $("caches").querySelectorAll(".cache").forEach(b => b.classList.remove("cool"));
+function tickArah(dt){
+  if (!arahState) return;
+  arahState.left -= dt;
+  if (arahState.cool > 0){
+    arahState.cool -= dt;
+    if (arahState.cool <= 0) $("caches").querySelectorAll(".cache").forEach(b => b.classList.remove("cool"));
   }
-  majAra();
-  if (araState.left <= 0){
-    const p = araState.palier;
-    araState = null;
-    $("ara").classList.add("hide");
+  majArah();
+  if (arahState.left <= 0){
+    const p = arahState.palier;
+    arahState = null;
+    $("arah").classList.add("hide");
     appliquerRaid(p, true);
   }
 }
@@ -1009,7 +1009,7 @@ function ouvrirRapport(lignes){
 
 function chute(){
   S.over = true;
-  viderQueue(); araState = null; $("ara").classList.add("hide");
+  viderQueue(); arahState = null; $("arah").classList.add("hide");
   const o = $("ovChute");
   o.innerHTML = `<div class="ovt" style="color:#ff8f8f">La Chute</div>
     <div class="ovs">Descente stups. Planque, nourrices, toi — tout en même temps.
@@ -1417,7 +1417,7 @@ function loop(now){
   if (dt > 0.25) dt = 0.25;                       // onglet masqué : pas de saut
   if (S.over || !S.seen || paused) return;
 
-  if (araState){ tickAra(dt); return; }           // le monde s'arrête pendant l'ARA
+  if (arahState){ tickArah(dt); return; }           // le monde s'arrête pendant l'ARAH
 
   tickLame(dt);
   tickCut(dt);

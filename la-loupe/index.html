@@ -16,22 +16,22 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-u
 .row{display:flex;gap:8px;align-items:center;justify-content:space-between}
 .pill{font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);white-space:nowrap}
 .pill.cash{color:var(--cash)}.pill.dirty{color:var(--dirty)}.pill.heat{color:var(--heat)}.pill.rep{color:#9ec9ff}.pill.expo{color:#ff8ab8}
-/* ARA — l'évacuation. Plein écran, au-dessus de tout : quand ils arrivent, il n'y a
+/* ARAH — l'évacuation. Plein écran, au-dessus de tout : quand ils arrivent, il n'y a
    plus qu'une chose à faire, et le jeu doit le dire sans ambiguïté. */
-#ara{position:fixed;inset:0;z-index:120;background:rgba(14,6,6,.94);display:flex;align-items:center;justify-content:center;padding:18px}
-#ara.hide{display:none}
-.ara-box{max-width:420px;width:100%;text-align:center}
-.ara-t{font-size:26px;font-weight:900;color:#ff6a6a;letter-spacing:.04em;animation:araPulse .7s ease-in-out infinite}
-@keyframes araPulse{0%,100%{opacity:1}50%{opacity:.5}}
-.ara-s{color:#e8ecf4;font-size:13px;margin:6px 0 12px}
-.ara-bar{height:8px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden;margin-bottom:14px}
-.ara-bar i{display:block;height:100%;background:linear-gradient(90deg,#ffd06a,#ff6a6a);transition:width .1s linear}
-.ara-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.ara-c{border:1px solid rgba(255,255,255,.18);border-radius:14px;background:rgba(255,255,255,.07);color:#e8ecf4;
+#arah{position:fixed;inset:0;z-index:120;background:rgba(14,6,6,.94);display:flex;align-items:center;justify-content:center;padding:18px}
+#arah.hide{display:none}
+.arah-box{max-width:420px;width:100%;text-align:center}
+.arah-t{font-size:26px;font-weight:900;color:#ff6a6a;letter-spacing:.04em;animation:arahPulse .7s ease-in-out infinite}
+@keyframes arahPulse{0%,100%{opacity:1}50%{opacity:.5}}
+.arah-s{color:#e8ecf4;font-size:13px;margin:6px 0 12px}
+.arah-bar{height:8px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden;margin-bottom:14px}
+.arah-bar i{display:block;height:100%;background:linear-gradient(90deg,#ffd06a,#ff6a6a);transition:width .1s linear}
+.arah-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.arah-c{border:1px solid rgba(255,255,255,.18);border-radius:14px;background:rgba(255,255,255,.07);color:#e8ecf4;
   font:inherit;font-weight:800;font-size:12px;padding:16px 8px;cursor:pointer}
-.ara-c.cool{opacity:.35;pointer-events:none}
-.ara-i{font-size:26px;margin-bottom:4px}
-.ara-f{margin-top:14px;font-size:12px;color:#c9d2e0}
+.arah-c.cool{opacity:.35;pointer-events:none}
+.arah-i{font-size:26px;margin-bottom:4px}
+.arah-f{margin-top:14px;font-size:12px;color:#c9d2e0}
 #toast{position:fixed;left:50%;top:20%;transform:translate(-50%,8px);opacity:0;transition:.2s;z-index:180;
   background:rgba(0,0,0,.82);border:1px solid var(--line);padding:11px 14px;border-radius:14px;font-weight:800;text-align:center;max-width:88%;pointer-events:none}
 #toast.show{opacity:1;transform:translate(-50%,0)}
@@ -371,7 +371,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
   </div>
   <div id="dock"></div>
 </div>
-<div id="ara" class="hide"></div>
+<div id="arah" class="hide"></div>
 <div id="toast"></div>
 <script type="module">
 /* snap/beuher d'abord — Three.js (scene3d) en lazy load.
@@ -878,8 +878,8 @@ const PDV_CHOUFFE_DAMP=0.18, PDV_CHOUFFE_PAY=60, PDV_TAMPON_MAX=60; // barrettes
 // grimper (88 g → 145 g). Placeholder — en attente de tuning humain.
 const SAC_LOT=25;
 const PDV_PREAVIS_S=[0, 6, 12, 18];   // [PLACEHOLDER] secondes de préavis selon le nombre de chouffes
-const ARA_COOL_MS=520;                // le temps de rentrer un bloc : on ne sauve jamais tout, et ça se voit
-const ARA_LOT=8;                      // barrettes rentrées par tap (les grosses d'abord : on sauve la valeur)
+const ARAH_COOL_MS=520;                // le temps de rentrer un bloc : on ne sauve jamais tout, et ça se voit
+const ARAH_LOT=8;                      // barrettes rentrées par tap (les grosses d'abord : on sauve la valeur)
 const PDV_WANT=[1,1,2,1,3,2,1,2]; // paniers clients (barrettes)
 const PDV_NAMES=["Momo","Inès","Yaz","Riton","Sofia","Sami","Lou","Nassim","Aya","Karim","Zoé","Paul"]; // plus de "Diego" : il ne fait plus la rue
 const PDV_AV=["🧢","🎧","🛵","🥀","💅","🎒","👟","🎲","🌙","🧥","🎀","👤"]; // plus de 🏗️ : Diego ne vient plus au corner // avatars des silhouettes (débit auto : charbonneur embauché)
@@ -1007,7 +1007,7 @@ function cornerLitWindows(){ // fenêtres allumées déterministes par soirée
 /* Retour haptique. R3 : le tactile EST le plaisir — une conséquence qu'on sent dans
    la main se lit avant d'être lue. Les motifs disent QUOI s'est passé sans regarder :
    un tic pour « quelqu'un parle », un coup franc pour un deal, deux secs pour un
-   départ fâché, une alarme pour l'ARA. `navigator.vibrate` est absent sur iOS Safari :
+   départ fâché, une alarme pour l'ARAH. `navigator.vibrate` est absent sur iOS Safari :
    tout est enveloppé, rien ne dépend de sa présence. */
 function haptic(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(_){} }
 const HAPTIC={ bulle:8, deal:22, juste:[18,50,18], walk:[30,60,30], cri:[70,50,70,50,120] };
@@ -1368,10 +1368,10 @@ function pdvTick(dt){
   // Heat : le corner ne chauffe que quand il tourne (à sec → il refroidit), amortie par les chouffes
   const activity=open ? clamp(demande/PDV_BASE_DEMAND + P.queue.length*0.04, 0, 1.6) : 0;
   S.heat=clamp(S.heat+(activity*PDV_HEAT_RATE/(1+(P.chouffes||0)*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY)*dt,0,100);
-  if(S.heat>=PDV_SEUIL && !araState){
+  if(S.heat>=PDV_SEUIL && !arahState){
     // le chouffe achète des SECONDES, pas l'immunité : sans lui, la descente tombe sec
     const pre=PDV_PREAVIS_S[Math.min(P.chouffes||0, PDV_PREAVIS_S.length-1)];
-    if(pre>0) araOuvrir(pre); else pdvDescente();
+    if(pre>0) arahOuvrir(pre); else pdvDescente();
     return;
   }
   if(tab==="shelter"&&shelterSub==="pdv") pdvPatch();        // écran corner : maj live des compteurs
@@ -1441,7 +1441,7 @@ function pdvPatch(){
   const ar=document.getElementById("pArds");
   if(ar) ar.innerHTML=ardsRow();
 }
-/* ---------- ARA : l'évacuation, portée de le-spot ----------
+/* ---------- ARAH : l'évacuation, portée de le-spot ----------
    Le chouffe ne t'immunise pas, il te prévient. Pendant le préavis le monde
    s'arrête et tu rentres ce que tu peux : les barrettes retournent à la planque
    (« la planque est sauve », c'est déjà la règle de pdvDescente), la caisse passe
@@ -1452,12 +1452,12 @@ function pdvPatch(){
    une dans les sachets. Retirer des grammes puis n'en réinjecter qu'une partie
    ferait de l'évacuation un geste qui CRÉE la perte qu'il prétend éviter — R1 à
    l'envers. */
-let araState=null;
+let arahState=null;
 /* « ARAH !! » — le cri du guetteur, pas un sigle. C'est LUI qui prévient, et ça doit
    se voir dans la rue avant que l'écran d'évacuation prenne la main : sinon le joueur
    subit une modale sans jamais voir d'où vient l'alerte. La bulle part de la première
    silhouette présente (celle qu'on regarde), avec la vibration d'alarme. */
-function araCri(P){
+function arahCri(P){
   haptic(HAPTIC.cri);
   // Le cri appartient à la SCÈNE, pas à un client : c'est ton chouffe qui hurle, et
   // la descente tombe souvent quand la rue est vide. L'accrocher à `P.queue[0]`
@@ -1472,58 +1472,58 @@ function araCri(P){
   host.appendChild(b);
   setTimeout(()=>{ b.classList.add("out"); setTimeout(()=>b.remove(),200); }, 1500);
 }
-function araOuvrir(preavis){
+function arahOuvrir(preavis){
   const P=S.shelter.pdv;
-  araState={ left:preavis, total:preavis, cool:0, sauveG:0, cash:0, cri:0.9 };
-  cause("ARA","Chouffe : "+preavis+" s de préavis");
-  araCri(P);
+  arahState={ left:preavis, total:preavis, cool:0, sauveG:0, cash:0, cri:0.9 };
+  cause("ARAH","Chouffe : "+preavis+" s de préavis");
+  arahCri(P);
   // le cri d'abord, l'écran ensuite. `cri` est un sas : tant qu'il tourne, la modale
   // reste fermée ET le préavis ne s'écoule pas — le temps que le chouffe t'achète
   // commence quand tu as compris, pas quand il ouvre la bouche.
 }
-function araRentrer(){
+function arahRentrer(){
   const P=S.shelter.pdv;
-  if(!araState || araState.cool>0) return;
+  if(!arahState || arahState.cool>0) return;
   // la boucle vit dans snap.mjs : le jeu l'appelle, les invariants l'importent
-  const { n, g }=snap.evacuerLot(P.tampon, S.sachets, ARA_LOT);
+  const { n, g }=snap.evacuerLot(P.tampon, S.sachets, ARAH_LOT);
   if(!n) return;
   rentrerQ(P, g);                       // même symétrie de qualité que la sacoche
-  araState.sauveG+=g; araState.cool=ARA_COOL_MS/1000;
-  araRender();
+  arahState.sauveG+=g; arahState.cool=ARAH_COOL_MS/1000;
+  arahRender();
 }
-function araCaisse(){
+function arahCaisse(){
   const P=S.shelter.pdv;
-  if(!araState || araState.cool>0 || !(P.bac>0)) return;
-  araState.cash+=P.bac; S.dirty+=P.bac; P.bac=0;
-  araState.cool=ARA_COOL_MS/1000;
-  araRender();
+  if(!arahState || arahState.cool>0 || !(P.bac>0)) return;
+  arahState.cash+=P.bac; S.dirty+=P.bac; P.bac=0;
+  arahState.cool=ARAH_COOL_MS/1000;
+  arahRender();
 }
-function araRender(){
-  const el=document.getElementById("ara"); if(!el) return;
-  if(!araState || araState.cri>0){ el.classList.add("hide"); return; }
+function arahRender(){
+  const el=document.getElementById("arah"); if(!el) return;
+  if(!arahState || arahState.cri>0){ el.classList.add("hide"); return; }
   const P=S.shelter.pdv;
   el.classList.remove("hide");
-  el.innerHTML=`<div class="ara-box">
-    <div class="ara-t">🚨 ARAH !! ARAH !!</div>
-    <div class="ara-s">Ils arrivent. Rentre ce que tu peux — la planque est sûre.</div>
-    <div class="ara-bar"><i style="width:${Math.max(0,araState.left/araState.total*100)}%"></i></div>
-    <div class="ara-grid">
-      <button class="ara-c${araState.cool>0?" cool":""}" id="araT"><div class="ara-i">📦</div><div>Rentrer les barrettes</div></button>
-      <button class="ara-c${araState.cool>0||!(P.bac>0)?" cool":""}" id="araC"><div class="ara-i">💶</div><div>La caisse</div></button>
+  el.innerHTML=`<div class="arah-box">
+    <div class="arah-t">🚨 ARAH !! ARAH !!</div>
+    <div class="arah-s">Ils arrivent. Rentre ce que tu peux — la planque est sûre.</div>
+    <div class="arah-bar"><i style="width:${Math.max(0,arahState.left/arahState.total*100)}%"></i></div>
+    <div class="arah-grid">
+      <button class="arah-c${arahState.cool>0?" cool":""}" id="arahT"><div class="arah-i">📦</div><div>Rentrer les barrettes</div></button>
+      <button class="arah-c${arahState.cool>0||!(P.bac>0)?" cool":""}" id="arahC"><div class="arah-i">💶</div><div>La caisse</div></button>
     </div>
-    <div class="ara-f">Encore dehors : <b>${tampN(P.tampon)} barrettes · ${Math.round(tampG(P.tampon))} g</b> · <b>${money(P.bac)}</b>
-      ${araState.sauveG||araState.cash?`<br><span style="color:#9be37d">rentré : ${Math.round(araState.sauveG)} g · ${money(araState.cash)}</span>`:""}</div>
+    <div class="arah-f">Encore dehors : <b>${tampN(P.tampon)} barrettes · ${Math.round(tampG(P.tampon))} g</b> · <b>${money(P.bac)}</b>
+      ${arahState.sauveG||arahState.cash?`<br><span style="color:#9be37d">rentré : ${Math.round(arahState.sauveG)} g · ${money(arahState.cash)}</span>`:""}</div>
   </div>`;
-  const t=document.getElementById("araT"); if(t) t.onclick=araRentrer;
-  const c=document.getElementById("araC"); if(c) c.onclick=araCaisse;
+  const t=document.getElementById("arahT"); if(t) t.onclick=arahRentrer;
+  const c=document.getElementById("arahC"); if(c) c.onclick=arahCaisse;
 }
-function araTick(dt){
-  if(!araState) return;
-  if(araState.cri>0){ araState.cri-=dt; if(araState.cri<=0){ araState.cri=0; araRender(); } return; }
-  araState.left-=dt;
-  if(araState.cool>0) araState.cool-=dt;
-  araRender();
-  if(araState.left<=0){ araState=null; const el=document.getElementById("ara"); if(el) el.classList.add("hide"); pdvDescente(); }
+function arahTick(dt){
+  if(!arahState) return;
+  if(arahState.cri>0){ arahState.cri-=dt; if(arahState.cri<=0){ arahState.cri=0; arahRender(); } return; }
+  arahState.left-=dt;
+  if(arahState.cool>0) arahState.cool-=dt;
+  arahRender();
+  if(arahState.left<=0){ arahState=null; const el=document.getElementById("arah"); if(el) el.classList.add("hide"); pdvDescente(); }
 }
 function pdvDescente(){
   const P=S.shelter.pdv, lost=Math.round(P.bac+tampG(P.tampon)*P.prix);
@@ -1575,8 +1575,8 @@ function sacocheRows(P){
     <div class="muted" style="font-size:10px;margin:2px 0 0">Sert : ${sert.length?sert.slice(0,10).map(q=>q+"").join(" · ")+(sert.length>10?" …":""):"<b style='color:var(--bad)'>rien</b>"}</div>
     <div class="muted" style="font-size:10px;margin:0 0 6px">La rue demande du <b>${corner.rueCalibre(S.rueMax)} g</b> — surtout ${top.map(q=>q+" g").join(" · ")}${manque.length?` · <b style="color:var(--bad)">tu ne sers pas ${manque.map(q=>q+" g").join(", ")}</b>`:""}</div>
     <div class="grid2"><button class="btn ghost" style="margin:0" data-sac="allin" ${n>=PDV_TAMPON_MAX?"disabled":""}>⤒ Charger la soirée</button>
-      <button class="btn bad" style="margin:0" data-sac="allout" ${n<=0||araState?"disabled":""}>⤓ Tout rentrer</button></div>
-    ${araState?`<div class="muted" style="font-size:10px;margin:4px 0 0;color:var(--bad)">Trop tard pour tout rentrer — c'est à la main, barrette par barrette.</div>`:""}`;
+      <button class="btn bad" style="margin:0" data-sac="allout" ${n<=0||arahState?"disabled":""}>⤓ Tout rentrer</button></div>
+    ${arahState?`<div class="muted" style="font-size:10px;margin:4px 0 0;color:var(--bad)">Trop tard pour tout rentrer — c'est à la main, barrette par barrette.</div>`:""}`;
 }
 /* Les grammes en planque, avant mouvement — la qualité s'y moyenne comme partout
    ailleurs (même formule qu'au conditionnement, `commitSachet`). */
@@ -2598,9 +2598,9 @@ function frame(now){
       if(frame._acc>0.35){ frame._acc=0; renderBeuher(); }
     }
   }
-  // pendant l'ARA le monde s'arrête : le préavis est un temps de DÉCISION, pas une
+  // pendant l'ARAH le monde s'arrête : le préavis est un temps de DÉCISION, pas une
   // course contre le reste des systèmes (R1 — on ne perd rien pendant qu'on réfléchit)
-  if(araState){ araTick(dt); requestAnimationFrame(frame); return; }
+  if(arahState){ arahTick(dt); requestAnimationFrame(frame); return; }
   sorterTick(dt);
   pdvTick(dt);
   if(scene3d) scene3d.tick(dt);

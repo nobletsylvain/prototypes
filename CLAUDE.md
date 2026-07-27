@@ -113,6 +113,28 @@ Trois critères : l'**enjeu est explicite**, l'**interaction simple**, et la
   décision** du joueur : c'est le **levier qualité/pureté** (manipulation manuelle
   *possible* mais **pas obligatoire**). *Raison* : le levier unique de qualité
   doit exister comme **choix**, qu'on l'incarne ou non dans un geste manuel.
+- **R11 — Le vocabulaire arbitré se vérifie, il ne se retient pas** _(2026-07-27)_.
+  Quand Sylvain tranche l'orthographe d'un terme de jeu, l'arbitrage entre dans
+  `tools/lexique.mjs` et **tout** le dépôt s'y aligne : texte affiché, mais aussi
+  constantes, identifiants, classes CSS, commentaires, docs et libellés de tests.
+  *Raison* : `ARAH` a dû être corrigé **deux fois le même jour** — le texte affiché
+  avait été réparé, mais le mot survivait sous sa forme courte partout ailleurs, et il
+  est remonté de là. Tant qu'une forme fautive reste disponible quelque part, on la
+  relit, on « normalise » sans y penser, et le mot juste redevient le mot plausible.
+  Une note de journal ne garde rien ; un test, si.
+
+<!-- lexique-exempt-bloc : le lexique cite les formes qu'il interdit -->
+### Lexique (formes arbitrées)
+
+| Terme | Forme fautive | Raison |
+| --- | --- | --- |
+| **ARAH** | ARA, Ara | C'est le **cri** du guetteur, pas un sigle : il n'y a donc pas de forme abrégée, et le `H` final est le son. |
+
+Vérifié par `cd tools && node lexique.mjs`. Une ligne qui doit citer la forme fautive
+(le journal cite les bugs et les messages de Sylvain mot pour mot) se marque
+`lexique-exempt` ; une entrée entière qui porte sur l'orthographe, `lexique-exempt-bloc`.
+
+---
 
 ## Ajouter un nouveau core loop (checklist)
 

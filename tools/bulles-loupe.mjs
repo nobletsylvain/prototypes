@@ -102,7 +102,7 @@ ok("La rue est peuplée, et aucune silhouette ne porte de bulle",
 // Retour de playtest : le ravitaillement automatique prenait « les plus petites
 // d'abord » et vidait chaque taille avant la suivante — 25 barrettes de 2 g depuis
 // une planque qui contenait aussi du 5 g, donc les demandes de 5 g mouraient.
-// on reste sur la scène déjà ouverte ; l'ARA vient APRÈS, sinon la modale
+// on reste sur la scène déjà ouverte ; l'ARAH vient APRÈS, sinon la modale
 // recouvre la sacoche sur la capture (et le joueur ne verrait rien non plus).
 // ouvrir le tiroir « Gérer »
 await page.evaluate(() => { const b = document.getElementById("cManage"); if (b) b.click(); });
@@ -204,7 +204,7 @@ ok("« Tout rentrer » vide la sacoche sans perdre un gramme (quand la chaleur m
 // qui s'exécute après le premier et le complète.
 await page.evaluateOnNewDocument(() => {
   const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-  s.heat = 96;                       // au-delà du seuil : l'ARA part au premier tick
+  s.heat = 96;                       // au-delà du seuil : l'ARAH part au premier tick
   localStorage.setItem("loupe_save", JSON.stringify(s));
 });
 await page.reload({ waitUntil: "load" }); await sleep(600);
@@ -215,10 +215,10 @@ await sleep(700);   // le cri dure ~1,4 s et le sas ~0,9 s : on regarde pendant
 
 const cri = await page.evaluate(() => {
   const b = document.querySelector(".cbulle.cri");  // désormais au niveau de la SCÈNE, pas d'un client
-  const ara = document.getElementById("ara");
+  const arah = document.getElementById("arah");
   const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-  return { cri: !!b, txt: b ? b.textContent : "", araVisible: !!(ara && !ara.classList.contains("hide")),
-    _diag: { heat: s.heat, scene: !!document.getElementById("cPersos"), araExiste: !!ara,
+  return { cri: !!b, txt: b ? b.textContent : "", arahVisible: !!(arah && !arah.classList.contains("hide")),
+    _diag: { heat: s.heat, scene: !!document.getElementById("cPersos"), arahExiste: !!arah,
       persos: document.querySelectorAll(".cperso").length } };
 });
 console.log("  diag:", JSON.stringify(cri._diag));
@@ -228,20 +228,20 @@ await page.screenshot({ path: path.join(OUT, "02-cri.png") });
 // chouffe qui hurle, pas un client). L'accrocher à P.queue[0] le rendait muet dans le
 // cas le plus fréquent — défaut trouvé par ce test, pas par relecture.
 ok("« ARAH !! » est crié dans la rue, au niveau de la scène",
-   cri.cri && /ARAH/.test(cri.txt), `cri « ${cri.txt} » · écran ARA ${cri.araVisible ? "ouvert" : "fermé"}`);
+   cri.cri && /ARAH/.test(cri.txt), `cri « ${cri.txt} » · écran ARAH ${cri.arahVisible ? "ouvert" : "fermé"}`);
 
 await sleep(1200);
-const araApres = await page.evaluate(() => {
-  const ara = document.getElementById("ara");
-  return { visible: !!(ara && !ara.classList.contains("hide")), boutons: document.querySelectorAll("#ara .ara-c").length };
+const arahApres = await page.evaluate(() => {
+  const arah = document.getElementById("arah");
+  return { visible: !!(arah && !arah.classList.contains("hide")), boutons: document.querySelectorAll("#arah .arah-c").length };
 });
-await page.screenshot({ path: path.join(OUT, "03-ara.png") });
+await page.screenshot({ path: path.join(OUT, "03-arah.png") });
 ok("L'écran d'évacuation s'ouvre après le cri, avec ses deux gestes",
-   araApres.visible && araApres.boutons === 2, `visible ${araApres.visible} · ${araApres.boutons} bouton(s)`);
+   arahApres.visible && arahApres.boutons === 2, `visible ${arahApres.visible} · ${arahApres.boutons} bouton(s)`);
 
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
 
-console.log("\n─── bulles & ARA · La Loupe ───");
+console.log("\n─── bulles & ARAH · La Loupe ───");
 let bad = 0;
 for (const r of results) {
   console.log(`  ${r.pass ? "PASS" : "FAIL"}  ${r.nom}${r.detail ? "  (" + r.detail + ")" : ""}`);

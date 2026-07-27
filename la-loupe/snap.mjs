@@ -245,7 +245,7 @@ export function deplacerBarrettes(src, dst, format, n) {
   return { n: k, g: k * f };
 }
 
-/* Rentrer un lot de barrettes du tampon exposé vers la planque (évacuation ARA).
+/* Rentrer un lot de barrettes du tampon exposé vers la planque (évacuation ARAH).
    Vit ICI, dans un module, et pas dans index.html : c'est le geste où une erreur de
    conservation coûterait le plus cher, et un test qui recopierait la boucle ne
    prouverait rien. Le jeu l'appelle, les invariants l'importent — une seule source.

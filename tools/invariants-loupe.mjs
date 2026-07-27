@@ -543,19 +543,19 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
      n.length === 1 && n[0].rue === true, `${n.length} ouverture(s) par la rumeur`);
 }
 
-// ── 8. L'ARA : évacuer ne détruit jamais un gramme ─────────────────────────
+// ── 8. L'ARAH : évacuer ne détruit jamais un gramme ─────────────────────────
 // Le chouffe achète du PRÉAVIS, plus de l'immunité. Pendant ces secondes on rentre
 // des barrettes du tampon vers la planque. C'est très exactement le geste où j'avais
 // introduit un bug de conservation dans le-spot : retirer des grammes du tampon puis
 // n'en réinjecter qu'une partie fait de l'évacuation un geste qui CRÉE la perte
-// qu'il prétend éviter. On rejoue ici la boucle de `araRentrer` — barrettes entières,
+// qu'il prétend éviter. On rejoue ici la boucle de `arahRentrer` — barrettes entières,
 // les petites d'abord — et on vérifie la conservation à chaque tap.
 {
-  const ARA_LOT = 8;
+  const ARAH_LOT = 8;
   // la VRAIE fonction du jeu, importée — pas une copie. Un test qui recopie la boucle
   // qu'il teste passe quoi qu'il arrive : c'est le piège rencontré trois fois cette
   // session, et le geste d'évacuation est le pire endroit pour se le permettre.
-  const rentrer = (tampon, sachets) => evacuerLot(tampon, sachets, ARA_LOT);
+  const rentrer = (tampon, sachets) => evacuerLot(tampon, sachets, ARAH_LOT);
   const somme = (o) => Object.entries(o).reduce((a, [f, n]) => a + +f * (n > 0 ? n : 0), 0);
   const cas = [
     { 2: 20 }, { 8: 5 }, { 2: 3, 5: 4, 8: 2 }, { 12: 3, 2: 1 }, { 5: 1 }, { 20: 2, 8: 1, 2: 5 },
@@ -579,7 +579,7 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
       fuite++; if (!exemple) exemple = `tampon ${JSON.stringify(base)} : total ${total} → ${somme(tampon) + somme(sachets)}`;
     }
   }
-  ok("R1 · l'évacuation ARA ne détruit jamais un gramme (barrettes entières)",
+  ok("R1 · l'évacuation ARAH ne détruit jamais un gramme (barrettes entières)",
      fuite === 0, exemple || `${taps} taps sur ${cas.length} tampons, conservation stricte`);
 
   // et le chouffe doit vraiment acheter des secondes, de façon monotone
@@ -721,7 +721,7 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
        manquants.length === 0, manquants.length ? `omis : ${manquants.join(", ")}` : `${liste.length} quantité(s) exactes listées`);
   }
 
-  // L'évacuation ARA sauve la VALEUR : lot borné, donc l'ordre décide de la perte
+  // L'évacuation ARAH sauve la VALEUR : lot borné, donc l'ordre décide de la perte
   {
     const tampon = { 2: 20, 8: 6 }, planque = {};
     const r = evacuerLot(tampon, planque, 8);

@@ -39,7 +39,7 @@ quand le calibre descend, la **visibilité** monte avec le nombre de passages.
    client le sert tout de suite avec un pourboire ; sinon il est servi quand même.
 4. **La chaleur** — la police n'improvise jamais : la jauge a ses **seuils
    dessinés**. Patrouille à 45, **pilonnage** à 78. Le **chouf** achète 7 s de
-   préavis (13 s à deux) : c'est le mini-jeu **ARA ! ARA !** — taper les caches
+   préavis (13 s à deux) : c'est le mini-jeu **ARAH !! ARAH !!** — taper les caches
    (compteur EDF, faux plafond, cage d'escalier) pour rentrer ce qu'on peut.
 5. **Le rideau** — l'accalmie volontaire : fermer fait retomber la chaleur, mais
    le loyer court quand même.
