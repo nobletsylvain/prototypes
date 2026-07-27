@@ -9,6 +9,79 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-27 — Piste : la sacoche qui TOURNE (rotation produit ⇄ cash)
+
+Sylvain, à chaud, avant même d'avoir testé la sacoche : *« le renouvellement de sacoche
+est la bonne piste. Mécanique manuelle qui très vite va pouvoir être automatisée. Le
+produit est conditionné, puis distribué par sacoche, la sacoche est donnée au corner,
+puis un autre récupère le cash du corner dans la sacoche précédente. »*
+
+### Pourquoi c'est la bonne piste : ça bouche le trou que je n'arrivais pas à boucher
+
+Le `[DÉCISION REQUISE]` laissé ouvert avec la sacoche était : **rien ne coûte de
+recharger**. Mesuré, exposer 40 barrettes plutôt que 6 achète +8 points de servabilité
+et multiplie le risque par 6,6 — donc « expose le minimum, recharge souvent » domine, et
+la sacoche devient une corvée à réponse unique au lieu d'un arbitrage (R9).
+
+La rotation met un **prix** sur le rechargement : un **trajet**. Et le prix ne vient pas
+d'un facteur d'équilibrage posé à la main, il vient de la **fiction** — une sacoche est
+un objet physique, elle est quelque part, elle met du temps à revenir. C'est le bon type
+de contrepoids : systémique, lisible, non arbitraire.
+
+### Ce que ça débloque en plus : le cash devient un vrai enjeu
+
+Aujourd'hui `P.bac` s'accumule au corner et se récupère par **un tap gratuit et
+instantané** (`Encaisser le bac ▸ liquide`). Le bac est pourtant saisi par la descente
+(`pdvDescente`) — donc le laisser traîner est risqué, mais le rentrer ne coûte rien :
+il n'y a aucune raison de ne pas taper le bouton en permanence. Zéro décision.
+
+Avec la rotation, récupérer le cash est **aussi** un trajet. Et comme c'est **le même
+objet** qui porte le produit à l'aller et le cash au retour, il ne peut pas faire les
+deux à la fois. Voilà l'arbitrage : **ravitailler ou encaisser**, jamais les deux.
+C'est une contrainte qui produit de la décision sans rien ajouter d'artificiel.
+
+### L'échelle de délégation tombe pile sur R7
+
+- **Manuel** : tu portes la sacoche. Le geste existe, il régale (R3).
+- **Délégué** : un porteur. La satisfaction de porter s'épuise vite (R5), donc on la
+  délègue (R6).
+- **Ce qui ne se délègue JAMAIS** : ce qu'on met dedans. Composer la sacoche reste la
+  décision (R8), et c'est déjà ce que la sacoche actuelle porte.
+
+C'est littéralement R7 : *automatise la satisfaction épuisée, jamais la décision
+vivante*. Sylvain le formule d'ailleurs tout seul — « mécanique manuelle qui très vite
+va pouvoir être automatisée ».
+
+### Le manque structurel : il n'y a qu'UN corner
+
+`S.shelter.pdv` est au singulier. Avec un seul corner, une rotation n'est pas une
+rotation, c'est une **navette** — une file d'attente de longueur 1, donc aucun choix.
+
+Le mécanisme ne devient un puzzle qu'avec **plusieurs corners** : N sacoches, M points
+de vente, et il faut décider *lequel* on ravitaille et *lequel* on encaisse ce soir.
+C'est là que la décision (R8) apparaît. **La rotation implique donc les corners
+multiples, ou elle reste mince.** C'est la vraie question à trancher avant d'écrire une
+ligne.
+
+### Deux pièges à ne pas se tendre
+
+1. **Un porteur qui se fait prendre doit être DÉTERMINISTE** (R4). Le risque doit être
+   une fonction lisible de ce qu'on a chargé et de la chaleur — pas un jet de dés.
+   L'anti-exemple fondateur du projet (*The Boss Gangster*) est exactement ça.
+2. **La perte doit être choisie, pas subie** (R1). Perdre une sacoche pleine est une
+   conséquence systémique acceptable — la descente en fait déjà autant — à condition
+   que le joueur ait **vu le risque avant d'envoyer**. Ce qui est interdit, c'est la
+   surprise.
+
+### Statut
+
+`[DÉCISION REQUISE]` — direction validée par Sylvain sur le principe, **pas encore
+jouée**. Il n'a pas testé la sacoche actuelle. On ne construit rien par-dessus tant que
+la fondation n'a pas été touchée du doigt : c'est précisément l'erreur qui a produit
+l'écran d'évacuation mort, testé au vert et jamais essayé à la main.
+
+---
+
 ## 2026-07-27 — L'écran d'évacuation était mort au doigt (et ne se sauvegardait pas)
 
 Sylvain, capture à l'appui : *« Je ne sais pas trop ce qui s'est passé. Je cliquais sur
