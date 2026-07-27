@@ -386,10 +386,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=36";
-import * as beuher from "./beuher.mjs?v=36";
-import * as shelter from "./shelter.mjs?v=36";
-import * as corner from "./corner.mjs?v=36";
+import * as snap from "./snap.mjs?v=37";
+import * as beuher from "./beuher.mjs?v=37";
+import * as shelter from "./shelter.mjs?v=37";
+import * as corner from "./corner.mjs?v=37";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -424,7 +424,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=36"),
+      import("./scene3d.mjs?v=37"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -1467,6 +1467,27 @@ function pdvPatch(){
   if(led) led.innerHTML=ledRows(P);
   const ar=document.getElementById("pArds");
   if(ar) ar.innerHTML=ardsRow();
+  /* Le tiroir « Gérer » s'ouvre en pur CSS : son contenu date de la dernière construction
+     complète de l'écran. Deux textes y bougent pourtant SANS geste du joueur —
+     l'argumentaire des chouffes (il dépend de la chaleur, qui monte à chaque frame) et
+     le conseil de prix (il dépend du marché, qui suit la réputation). Ils promettaient
+     donc des chiffres périmés au moment précis où on décide de lâcher 60/soir ou de
+     bouger son tarif. On patche le TEXTE seul — surtout pas l'innerHTML d'un conteneur
+     de boutons, ce serait rouvrir le tap mort. */
+  const cg=document.getElementById("pChGain");
+  if(cg){ const t=chouffeGain(P); if(cg.textContent!==t) cg.textContent=t; }
+  const ph=document.getElementById("pPrixHint");
+  if(ph){ const t=prixHintTx(P.prix||marcheDuJour(), marcheDuJour()); if(ph.textContent!==t) ph.textContent=t; }
+  const pg=document.getElementById("pPrixG");
+  if(pg){ const t=(P.prix||marcheDuJour())+"/g"; if(pg.textContent!==t) pg.textContent=t; }
+}
+/* Le conseil de prix, extrait pour avoir UNE source : il était défini en fermeture dans
+   renderCorner (capturant le marché du moment), donc impossible à rafraîchir. */
+function prixHintTx(p, f){
+  const d=Math.round((p/f-1)*100);
+  return d>0?`+${d} % marché · moins de clients, + de marge`
+       : d<0?`${d} % marché · plus de clients, − de marge`
+       : `au prix du marché`;
 }
 /* ---------- ARAH : l'évacuation, portée de le-spot ----------
    Le chouffe ne t'immunise pas, il te prévient. Pendant le préavis le monde
@@ -1782,7 +1803,7 @@ function renderCorner(P){
   const fair=marcheDuJour();                 // prix du marché DU JOUR (concurrence — bouge chaque matin)
   if(!(P.prix>0)) P.prix=fair;               // ton prix affiché (réglable à la main), défaut = marché
   const prix=P.prix;
-  const prixHint=(p,f)=>{ const d=Math.round((p/f-1)*100); return d>0?`+${d} % marché · moins de clients, + de marge`:d<0?`${d} % marché · plus de clients, − de marge`:`au prix du marché`; };
+  const prixHint=prixHintTx;   // une seule source (voir prixHintTx, patchée à chaque tick)
   const emptyTx = cornerEmptyTx(P);   // même source que le rafraîchissement par tick
   const mPrev=corner.marketPrice(S.reput, S.day-1), mTrend=fair>mPrev?" ▲":fair<mPrev?" ▼":"";
   const mNews=corner.marketNews(S.day);
@@ -1797,7 +1818,7 @@ function renderCorner(P){
       <h3 style="margin:10px 0 2px;font-size:12px">Ta sacoche</h3>
       <div class="muted" style="font-size:10px;margin:0 0 6px">Ce que tu sors de la planque. C'est tout ce que la police peut saisir — et tout ce que tu peux vendre.</div>
       <div id="pSac">${sacocheRows(P)}</div>
-      <div class="stat" style="margin-top:10px"><span>Chouffes (${PDV_CHOUFFE_PAY}/soir)<br><span class="muted" style="font-size:10px">${chouffeGain(P)}</span></span><b id="pCh">${P.chouffes}</b></div>
+      <div class="stat" style="margin-top:10px"><span>Chouffes (${PDV_CHOUFFE_PAY}/soir)<br><span class="muted" id="pChGain" style="font-size:10px">${chouffeGain(P)}</span></span><b id="pCh">${P.chouffes}</b></div>
       <div class="grid2"><button class="btn ghost" style="margin:0" id="chM">− chouffe</button><button class="btn ok" style="margin:0" id="chP">+ chouffe</button></div>
       <h3 style="margin:10px 0 4px;font-size:12px">Ledger</h3>
       <div id="pArds">${ardsRow()}</div>
@@ -1840,6 +1861,12 @@ function renderCorner(P){
       drawer.style.display="block";
       if(wasHidden){ drawer.style.transform="translateY(115%)"; void drawer.offsetHeight; } // reflow → l'anim part d'en bas
       drawer.classList.add("on"); drawer.style.transform="translateY(0px)";
+      /* Le corps du tiroir a été construit une fois. Entre-temps le joueur a vendu : les
+         compteurs par format et la ligne « Sert : » dataient d'avant les ventes, et
+         contredisaient le total « Exposé » affiché juste en dessous — deux vérités dans
+         le même panneau. L'ouverture est un événement DISCRET (le doigt n'est pas en
+         train d'appuyer sur un bouton du tiroir), donc reconstruire ici est sans risque. */
+      pdvSacPatch(P); pdvPatch();
     } else {
       drawer.classList.remove("on"); drawer.style.transform="translateY(115%)";
       clearTimeout(drawer._hideT); drawer._hideT=setTimeout(()=>{ if(!drawer.classList.contains("on")) drawer.style.display="none"; }, 300);
@@ -1866,7 +1893,11 @@ function renderCorner(P){
   document.getElementById("chM").onclick=()=>{ P.chouffes=Math.max(0,P.chouffes-1); save(); renderCorner(P); };
   // menu réglable à la main : patch en place (le tiroir reste ouvert) — le prix pilote la demande + la négo
   const patchPrix=()=>{ const p=P.prix, f=marcheDuJour(), set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
-    set("pPrixG",p+"/g"); set("pMenuF",`2g ${2*p} · 5g ${5*p} · 8g ${8*p}`); set("pPrixHint",prixHint(p,f)); set("cMenuChip","📋 "+p+"/g"); set("cMarChip","⚖ "+f); };
+    set("pPrixG",p+"/g"); set("pMenuF",`2g ${2*p} · 5g ${5*p} · 8g ${8*p}`); set("pPrixHint",prixHint(p,f)); set("cMenuChip","📋 "+p+"/g"); set("cMarChip","⚖ "+f);
+    // La carte du client annonce « prix menu » et une tête (😊 / grimace) calculées AVEC
+    // l'ancien tarif. Sans ce rappel, on montait son prix, la carte gardait son 😊, et le
+    // « ✅ OK » promis se soldait en contre-offre ou en départ. La promesse doit suivre.
+    renderCornerActive(P); };
   stage.querySelectorAll("[data-prix]").forEach(b=>b.onclick=()=>{ const f=marcheDuJour(); P.prix=clamp((P.prix||f)+ +b.dataset.prix,1,Math.round(f*3)); save(); patchPrix(); });
   stage.querySelectorAll("[data-sac]").forEach(b=>b.onclick=()=>{
     const v=b.dataset.sac;

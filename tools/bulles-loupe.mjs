@@ -313,6 +313,51 @@ ok("L'écran d'évacuation s'ouvre après le cri, avec ses deux gestes",
      tapErr ? `le tap a échoué : ${tapErr}` : `exposé ${avant} g → ${apres.g} g${apres.g === avant ? " (RIEN n'a bougé)" : ""}`);
 }
 
+// ── 2d. Le tiroir « Gérer » ne garde pas des compteurs d'avant les ventes ─
+// L'audit a trouvé quatre affichages du tiroir figés à la derniere construction de
+// l'écran, parce que `openDr` l'ouvre en PUR CSS. Le pire : les compteurs par format
+// contredisaient le total « Exposé » affiché trois lignes plus bas — deux vérités dans
+// le même panneau, au moment précis où on décide quoi recharger.
+//
+// On VEND POUR DE VRAI plutôt que de bricoler le localStorage : écrire le save puis
+// recharger le fait écraser par `evaluateOnNewDocument`, qui rejoue à chaque navigation.
+// (Piège documenté deux fois déjà dans ce dépôt — et retombé dedans une troisième.)
+{
+  await page.evaluate(() => { const b = document.getElementById("cClose"); if (b) b.click(); });
+  await sleep(300);
+  const avant = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    return String((s.shelter?.pdv?.tampon || {})["2"] || 0);
+  });
+  // servir le client au premier plan : ça débite le tampon par le vrai chemin du jeu
+  let vendu = false;
+  for (let i = 0; i < 6 && !vendu; i++) {
+    vendu = await page.evaluate(() => {
+      const b = document.querySelector('#cActive [data-neg="accept"], #cActive [data-neg="hesitGen"], #cActive [data-neg="compSell"]');
+      if (!b || b.disabled) return false; b.click(); return true;
+    });
+    if (!vendu) await sleep(700);
+  }
+  await sleep(500);
+  const milieu = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    return String((s.shelter?.pdv?.tampon || {})["2"] || 0);
+  });
+  await page.evaluate(() => { const b = document.getElementById("cManage"); if (b) b.click(); });
+  await sleep(500);
+  const apres = await page.evaluate(() => {
+    const row = document.querySelector('#pSac [data-sac="-1"][data-f="2"]');
+    return { compteur: row ? row.parentElement.querySelector("b").textContent : "?",
+             tot: (document.getElementById("pTamp") || {}).textContent || "" };
+  });
+  await page.screenshot({ path: path.join(OUT, "08-tiroir-frais.png") });
+  const aBouge = milieu !== avant;
+  ok("Le tiroir rouvert affiche l'état RÉEL, pas celui d'avant les ventes",
+     aBouge && apres.compteur === milieu,
+     aBouge ? `2 g : ${avant} → ${milieu} après vente · le tiroir rouvert dit « ${apres.compteur} » · ${apres.tot.slice(0, 30)}`
+            : `AUCUNE VENTE n'a eu lieu (${avant} → ${milieu}) — le contrôle ne prouverait rien`);
+}
+
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
 
 console.log("\n─── bulles & ARAH · La Loupe ───");

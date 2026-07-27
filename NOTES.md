@@ -9,6 +9,69 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Le tiroir « Gérer » décidait sur des chiffres périmés
+
+Audit systématique de la classe de bug qui a mordu trois fois cette semaine (un
+affichage qui ne suit pas l'état). **Quatre trouvailles, toutes classées « trompe une
+décision », toutes dans le tiroir du corner, et toutes la même racine.**
+
+### La racine unique
+
+`openDr` ouvre le tiroir en **pur CSS** (`display:block` + `transform`). Le corps a été
+construit une fois, dans `renderCorner`. Tout ce que `pdvPatch` ne vise pas explicitement
+reste donc figé à la dernière construction complète de l'écran.
+
+### Les quatre mensonges
+
+1. **Les compteurs de la sacoche.** Tu charges 20×2 g + 6×5 g, tu fermes, tu sers quatre
+   clients, tu rouvres : les lignes disent toujours 20 et 6, pendant que le total
+   « Exposé » affiché **trois lignes plus bas** dit 17 barrettes. *Deux vérités
+   contradictoires dans le même panneau*, au moment précis où on décide quoi recharger.
+   Et la ligne « Sert : » listait des quantités que le tampon ne composait plus — celle-là
+   même qu'on avait ajoutée pour supprimer la devinette.
+2. **La tête du client.** Tu montes ton prix dans le tiroir, tu refermes : la carte
+   affiche toujours « prix menu » et 😊. Tu tapes « ✅ OK », et `resolveOffer` évalue avec
+   le NOUVEAU tarif → contre-offre ou départ. La grimace promise avant le bouton avait
+   menti.
+3. **L'argumentaire des chouffes.** « ouverture 49 s → 119 s avec un de plus » est daté de
+   l'ouverture du tiroir, alors que la chip du haut affiche déjà « 🔥 88 · 4 s ». C'est le
+   seul chiffre qui justifie de lâcher 60/soir.
+4. **Le conseil de prix.** « au prix du marché » reste affiché pendant que le marché
+   monte avec la réputation. Tu te retrouves sous le marché sans le savoir — donc plus de
+   clients, donc plus de chaleur — sans pouvoir relier l'un à l'autre.
+
+### Le correctif : un seul, à la racine
+
+- **À l'ouverture** du tiroir, on repart de l'état réel. C'est un événement **discret** —
+  le doigt n'est pas en train d'appuyer sur un bouton du tiroir — donc reconstruire ici
+  ne peut pas rouvrir le tap mort.
+- **Pendant** qu'il est ouvert, les deux textes qui bougent tout seuls (chouffes, conseil
+  de prix) sont patchés en `textContent` par `pdvPatch`. Jamais d'`innerHTML` sur un
+  conteneur de boutons.
+- **Changer son prix** rappelle `renderCornerActive` : la promesse faite au joueur doit
+  suivre le tarif qu'il vient de fixer.
+- `prixHint` était une **fermeture** dans `renderCorner`, capturant le marché du moment —
+  donc structurellement impossible à rafraîchir. Extrait en `prixHintTx`, une seule
+  source.
+
+### Le piège de test, une troisième fois
+
+Premier jet du contrôle : j'écrivais le tampon dans le `localStorage` puis je
+rechargeais. `evaluateOnNewDocument` **rejoue à chaque navigation** et écrasait mon
+écriture — le test passait en affichant `avant 20 · vrai 20`, c'est-à-dire **en ne
+prouvant rien**. Réécrit pour **vendre pour de vrai** (cliquer le bouton du client), avec
+un garde `aBouge` qui fait échouer bruyamment si aucune vente n'a eu lieu.
+
+C'est la troisième fois cette nuit que ce piège me prend. Il est désormais commenté à
+l'endroit exact où il mord, dans les deux fichiers de test concernés.
+
+### Vérification
+
+13/13 sur `bulles-loupe`. Contre-épreuve : sans le rafraîchissement à l'ouverture, le
+tiroir annonce **20** quand l'état réel est **10**.
+
+---
+
 ## 2026-07-28 — Un libellé de test qui mentait (le grossiste et ses bornes fantômes)
 
 En vérifiant un écart que j'avais chiffré il y a des jours sans jamais le contrôler
