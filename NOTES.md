@@ -9,6 +9,71 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-27 — L'écran d'évacuation était mort au doigt (et ne se sauvegardait pas)
+
+Sylvain, capture à l'appui : *« Je ne sais pas trop ce qui s'est passé. Je cliquais sur
+récupérer les barrettes mais rien ne se passait. »* Puis, au Karnet, une minute plus
+tard : `Descente au corner · −440 exposé`.
+
+Deux bugs distincts, le second masqué par le premier.
+
+### 1. Le bouton mourait sous le doigt
+
+`arahTick` rappelait `arahRender()` à **chaque frame**, et `arahRender` écrivait
+`el.innerHTML = …`. Les deux boutons étaient donc **détruits et recréés ~60 fois par
+seconde**.
+
+Un événement `click` n'est émis que si le pointeur se **relève** sur le **même nœud
+DOM** que celui où il s'est **posé**. Au doigt il s'écoule ~100 ms entre les deux : le
+bouton pressé n'existait déjà plus au relâchement. Le geste ne partait **jamais** sur
+téléphone. Sylvain tapait dans le vide en regardant la descente tout prendre.
+
+Correctif : la structure est construite **une fois** (`el.dataset.built`), et
+`arahPatch()` ne met à jour que ce qui bouge — la barre de préavis, le compte, la
+classe `cool`. Jamais d'`innerHTML` sur les boutons. C'est la forme que `le-spot` avait
+déjà (`majArah` ne touche que le timer et le pied) : **le portage vers La Loupe l'a
+perdue en route**.
+
+### 2. Le sauvetage ne se sauvegardait pas
+
+En écrivant le test, il est passé une fois puis a échoué deux fois de suite. J'ai
+d'abord voulu conclure « flaky » — le réflexe exact que je venais de me faire prendre
+sur `RELACHE_MIN`. Cette fois j'ai instrumenté avant d'expliquer : au moment du tap,
+le bouton était présent, `pointer-events: auto`, l'écran ouvert, la classe propre.
+Donc le clic partait bien, et pourtant rien ne bougeait.
+
+`arahRentrer` et `arahCaisse` étaient les **seules** actions mutantes du jeu à ne pas
+appeler `save()` — 39 autres endroits le font. L'évacuation vivait en mémoire et
+n'atteignait jamais le `localStorage`. Conséquence pour le joueur : un onglet mis en
+arrière-plan pendant l'alerte — sur téléphone, précisément le moment où ça arrive —
+et le sauvetage était perdu. `arahCaisse` touche au **liquide** et ne le persistait pas
+non plus.
+
+Le test lisait le `localStorage` ; il mesurait donc un état que le code n'écrivait pas.
+**La seule fois où il est passé, il est passé par chance** — un autre `save()` était
+tombé dans la fenêtre.
+
+### Ce que le test d'avant prouvait vraiment
+
+Il vérifiait « l'écran d'évacuation s'ouvre avec ses deux gestes ». Il ne **tapait
+pas** dessus. Un écran mort passait donc au vert, et il est passé au vert à chaque
+merge depuis que l'ARAH existe.
+
+Le nouveau check tape pour de vrai, avec un appui de **120 ms** — parce qu'un clic
+synthétique instantané ne reproduit rien. Vérifié dans les deux sens : avec le
+re-rendu par frame rétabli, Puppeteer lui-même refuse le clic (`Node is detached from
+document`) ; avec le correctif, 4 runs sur 4 donnent `40 g → 24 g`, exactement les 8
+barrettes du lot.
+
+### La leçon, qui n'est pas sur l'ARAH
+
+**Un test qui n'exécute pas le geste ne teste pas le geste.** Vérifier qu'un bouton
+*existe* ne dit rien sur le fait qu'on puisse *appuyer dessus*, et la différence entre
+les deux est invisible au clic synthétique. Partout où un écran se rafraîchit en
+cadence, le test doit presser, pas cliquer.
+
+---
+
 <!-- lexique-exempt-bloc : cette entrée PORTE sur l'orthographe, elle cite forcément l'ancienne forme -->
 ## 2026-07-27 — ARAH, pas ARA : le lexique devient vérifiable
 
