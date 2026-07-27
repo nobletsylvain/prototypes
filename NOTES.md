@@ -119,6 +119,36 @@ contrôle structurel est le **garde** ; le tap prouve que la **conséquence** es
 Garder l'un sans l'autre, c'est se raconter une histoire — et j'ai failli publier le
 seul tap en croyant qu'il suffisait.
 
+### 5. Le garde-fou anti-cache avait lui-même un angle mort
+
+Trouvé en relisant mes propres affirmations avant de les publier : le corps de la PR
+annonçait « modules bumpés à `?v=35` », et je suis allé vérifier. Il y avait un
+`?v=19`.
+
+`scene3d.mjs` — la scène 3D de la coupe, donc **le geste central du jeu** — n'est pas
+importée statiquement mais **dynamiquement** :
+
+```js
+scene3dPromise = Promise.race([ import("./scene3d.mjs?v=19"), … ])
+```
+
+Or `cache-loupe.mjs`, écrit exprès contre ce bug après le playtest du 27, ne cherchait
+que la forme `from "./x.mjs?v=N"`. Un `import(...)` dynamique n'a pas de `from` : le
+garde ne l'a **jamais vu**, et affichait 3/3 depuis le début.
+
+Le coût réel, daté : `?v=19` a été posé le **20 juillet**, et `scene3d.mjs` a été
+corrigé le **25** (la désync du gabarit — un bug qu'on avait trouvé et réparé). Pendant
+**cinq jours**, tout navigateur au cache chaud a joué l'**ancienne** scène de coupe. Le
+correctif existait dans le dépôt et n'atteignait pas le joueur — exactement le
+symptôme que ce garde-fou devait rendre impossible.
+
+Corrigé : la règle couvre maintenant les **deux formes** d'import, et le contrôle est
+vérifié dans les deux sens (en refigeant la scène à `?v=19`, il tombe à 2/3).
+
+**Un garde qui ne couvre pas toutes les formes du danger ne garde que celles auxquelles
+on avait déjà pensé.** Et le seul moyen de s'en apercevoir a été d'aller vérifier une
+phrase que j'avais écrite avec assurance.
+
 ### La leçon, qui n'est pas sur l'ARAH
 
 **Un test qui n'exécute pas le geste ne teste pas le geste.** Vérifier qu'un bouton
