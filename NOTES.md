@@ -63,12 +63,44 @@ dès qu'on remet `ARA !!` dans le cri. La portée du bloc a été vérifiée par
 `ARA` glissé APRÈS le `---` de clôture est bien rattrapé. Un garde-fou qu'on n'a pas vu
 échouer ne garde rien.
 
-Deux fausses pistes en route, notées parce qu'elles reviendront : le garde-fou a semblé
-« rater » des lignes alors que c'était mon `tail -3` qui tronquait sa sortie ; et le
-smoke-test de le-spot est tombé à 33/34 sur `RELACHE_MIN`, un contrôle de *timing*
-(fenêtre de 30 ms « trop courte pour couper ») qui dérape quand la machine est chargée —
-34/34 au calme, avant comme après le renommage. Défaut préexistant de ce test, pas une
-régression.
+Deux fausses pistes en route, notées parce qu'elles reviendront.
+
+La première : le garde-fou a semblé « rater » des lignes, alors que c'était mon
+`tail -3` qui tronquait sa sortie. Le test n'avait rien.
+
+La seconde mérite d'être racontée en entier, parce que je m'y suis pris à trois fois.
+Le smoke-test de le-spot tombe à 33/34 sur `RELACHE_MIN` — un contrôle de *timing*
+(fenêtre de 30 ms « trop courte pour couper »). J'ai d'abord conclu « ça dérape quand la
+machine est chargée, 34/34 au calme avant comme après » : deux runs qui passaient, deux
+qui échouaient, et une explication qui collait. **C'était une conclusion tirée d'une
+comparaison non contrôlée** — les runs « avant » avaient tourné pendant une période
+calme, les runs « après » pendant que je travaillais. Trois runs isolés du nouveau code
+ont ensuite échoué 3/3, ce qui a tué l'explication par la charge.
+
+Deux vérifications ont tranché :
+
+1. **Une preuve statique.** En re-normalisant le fichier renommé vers les anciens noms,
+   on obtient un fichier **identique octet pour octet** à celui d'avant. Un renommage pur
+   ne peut pas changer un comportement — quel que soit le compte des runs.
+2. **Un A/B entrelacé**, les deux versions dans la même commande, même état machine :
+
+   | | run 1 | run 2 | run 3 |
+   |---|---|---|---|
+   | avant | 33/34 | 33/34 | 33/34 |
+   | après | 33/34 | 33/34 | **34/34** |
+
+   La version **d'avant échoue 3/3**. La mienne passe même une fois.
+
+Donc : `RELACHE_MIN` est un test **instable préexistant**, il échoue la plupart du temps
+sur les deux versions, et il n'a rien à voir avec le renommage. La leçon n'est pas sur
+ARAH, elle est sur la méthode : comparer deux mesures prises à des moments différents et
+appeler ça une explication. Le réflexe juste, c'est l'entrelacement — et quand une preuve
+statique existe, elle vaut mieux que n'importe quel comptage de runs.
+
+`[DÉCISION REQUISE]` — un test qui échoue ~80 % du temps n'est plus un signal, c'est du
+bruit qui égare la session suivante (il m'a égaré). Soit on stabilise `RELACHE_MIN` (la
+fenêtre de 30 ms est le point fragile), soit on le marque explicitement instable. Je ne
+tranche pas : c'est la mécanique de coupe de le-spot, un proto gelé.
 
 ---
 
