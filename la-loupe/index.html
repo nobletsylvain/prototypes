@@ -166,24 +166,20 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .cperso{position:absolute;display:flex;flex-direction:column;align-items:center;z-index:3;cursor:pointer;transform:translate(-50%,0) scale(var(--s,1));transform-origin:50% 100%;transition:left .6s cubic-bezier(.3,.8,.4,1),bottom .6s ease,transform .6s ease,opacity .4s}
 .cperso.active{z-index:4;filter:drop-shadow(0 0 14px #4cc2ff55)}
 .cperso.leave{opacity:0}
-/* Bulles de BD au-dessus des têtes. La voix des clients existait déjà — elle partait
-   dans un toast en haut de l'écran, loin de la personne qui parle. Ici elle sort de
-   la bouche, dans la scène, là où le joueur regarde. */
-/* Décalées vers le haut : les silhouettes vivent en bas de la scène (bottom 20-31 %)
-   et la carte de négo couvre ce bas — une bulle collée à la tête est illisible.
-   `--lift` est réglé par silhouette pour éviter que deux bulles se recouvrent. */
-.cbulle{position:absolute;bottom:calc(100% + var(--lift,10px));left:50%;transform:translate(-50%,-6px) scale(.6);
-  background:#fff;color:#12121a;border-radius:14px;padding:7px 11px;font-size:11px;font-weight:800;
-  line-height:1.25;white-space:normal;width:max-content;max-width:150px;text-align:center;
+/* Le CRI du guetteur — « ARAH !! ». La seule bulle qui reste : les clients, on voit
+   bien qu'ils sont là, une bulle par-dessus ne disait rien de plus que leur silhouette
+   (retour de playtest, 2026-07-27). Le cri, lui, est un ÉVÉNEMENT : il annonce ce qui
+   arrive, et il part de la rue avant que l'écran d'évacuation prenne la main. */
+.cbulle{position:absolute;left:50%;transform:translate(-50%,-6px) scale(.6);
+  border-radius:14px;padding:7px 11px;font-weight:800;line-height:1.25;
+  white-space:normal;width:max-content;text-align:center;
   box-shadow:0 3px 0 rgba(0,0,0,.35),0 0 0 2px #12121a;opacity:0;pointer-events:none;z-index:6;
   animation:bullePop .22s cubic-bezier(.2,1.5,.5,1) forwards}
 .cbulle::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);
-  border:7px solid transparent;border-top-color:#fff;filter:drop-shadow(0 2px 0 #12121a)}
+  border:7px solid transparent;filter:drop-shadow(0 2px 0 #12121a)}
 .cbulle.out{animation:bulleOut .18s ease forwards}
-.cbulle.cri{background:#ff4d4d;color:#fff;font-size:15px;letter-spacing:.06em;max-width:none}
+.cbulle.cri{background:#ff4d4d;color:#fff;font-size:15px;letter-spacing:.06em}
 .cbulle.cri::after{border-top-color:#ff4d4d}
-.cbulle.bad{background:#ffd9d9}
-.cbulle.bad::after{border-top-color:#ffd9d9}
 @keyframes bullePop{0%{opacity:0;transform:translate(-50%,2px) scale(.6)}
   100%{opacity:1;transform:translate(-50%,-6px) scale(1)}}
 @keyframes bulleOut{to{opacity:0;transform:translate(-50%,-14px) scale(.9)}}
@@ -1005,21 +1001,6 @@ function cornerLitWindows(){ // fenêtres allumées déterministes par soirée
 function haptic(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(_){} }
 const HAPTIC={ bulle:8, deal:22, juste:[18,50,18], walk:[30,60,30], cri:[70,50,70,50,120] };
 
-/* Fait parler une silhouette. `ttl` en ms ; la bulle se retire toute seule.
-   Une seule bulle par personne : la nouvelle remplace l'ancienne, sinon elles
-   s'empilent et la scène devient illisible dès que la file se remplit. */
-function cornerBulle(cl, txt, cls, ttl){
-  const el=cornerEls.get(cl); if(!el||!txt) return;
-  const vieille=el.querySelector(".cbulle"); if(vieille) vieille.remove();
-  const b=document.createElement("div");
-  b.className="cbulle"+(cls?" "+cls:"");
-  // on coupe court : une bulle de BD, pas un paragraphe. La réplique entière reste
-  // lisible sur la carte de négo, qui est faite pour ça.
-  b.textContent=txt.length>64 ? txt.slice(0,61).replace(/[\s,;:]+\S*$/,"")+"…" : txt;
-  el.appendChild(b);
-  haptic(cls==="cri"?HAPTIC.cri:HAPTIC.bulle);
-  setTimeout(()=>{ b.classList.add("out"); setTimeout(()=>b.remove(),200); }, ttl||2600);
-}
 function cornerSilhouette(cl){
   const pe=document.createElement("div"); pe.className="cperso"; pe.dataset.k=cl.kind;
   pe.style.left="108%"; pe.style.bottom="26%"; pe.style.setProperty("--s",0.7);
@@ -1031,14 +1012,10 @@ function cornerLayoutPersos(P){
   const host=document.getElementById("cPersos"); if(!host) return;
   for(const cl of P.queue){ if(!cornerEls.has(cl)){ const el=cornerSilhouette(cl); cornerEls.set(cl,el); host.appendChild(el);
     // il arrive en parlant : sa demande sort de sa bouche, pas d'un toast en haut d'écran
-    // pas de bulle pour le client de DEVANT : sa réplique est déjà sur la carte de négo,
-    // mot pour mot, juste en dessous. Les bulles font parler ceux qui ATTENDENT — c'est
-    // là qu'elles ajoutent quelque chose (la rue vit pendant que tu sers).
-    if(cl.tx) setTimeout(()=>{ const i=P.queue.indexOf(cl); if(i>0) cornerBulle(cl, cl.tx, cl.kind==="louche"?"bad":"", 3200); }, 340); } }
+    } }
   for(const [cl,el] of [...cornerEls]){ if(!P.queue.includes(cl)){ el.classList.add("leave"); el.style.left="112%"; setTimeout(()=>el.remove(),500); cornerEls.delete(cl); } }
   P.queue.forEach((cl,i)=>{ const el=cornerEls.get(cl); if(!el) return; const s=CORNER_SLOTS[Math.min(i,CORNER_SLOTS.length-1)];
     el.style.left=s.l+"%"; el.style.bottom=s.b+"%"; el.style.setProperty("--s",s.s); el.classList.toggle("active",i===0);
-    el.style.setProperty("--lift",(10+(i%3)*38)+"px");   // décalage par rang : les bulles ne se recouvrent plus
     const pi=el.querySelector(".cpat2 i"); if(pi){ const r=clamp(cl.pat/cl.pat0,0,1); pi.style.width=(r*100)+"%"; pi.style.background=r>0.5?"#3ddc84":r>0.22?"#ffd06a":"#ff6a6a"; } });
   const empty=document.getElementById("cEmpty"); if(empty) empty.style.display=P.queue.length?"none":"block";
 }
@@ -1078,15 +1055,13 @@ function applyDeltas(cl, v){
 function cornerLeave(P, cl, why, v, tip){
   P.queue=P.queue.filter(c=>c!==cl);
   if(why==="done"){ const rc=v?corner.reactLine(v.outcome, S.day+(P.seq||0), corner.personaById(cl.cid)):"";
-    cornerBulle(cl, rc, v&&(v.outcome==="gouge")?"bad":"", 1900);
     haptic(v&&v.outcome==="juste"?HAPTIC.juste:HAPTIC.deal);
     toast((v?v.emo:"")+" "+cl.nm+(tip?" +"+tip+" 💝":"")+(rc?" — "+rc:"")); }
   else if(why==="louche") toast("🚨 "+cl.nm+" servi — chaleur +"+corner.CORNER.HEAT_LOUCHE+" (c'était un flic…)");
   else if(why==="pigeon") toast("🤝 "+cl.nm+" — client réglo, grosse vente propre.");
   else if(why==="flair") toast("🕶️ Bien vu, un flic. +"+corner.CORNER.FLAIR_BONUS+" discrétion.");
   else if(why==="pigeonRefus") toast("🙄 C'était un vrai client… vente perdue (aucun malus).");
-  else if(why==="walk"){ cornerBulle(cl, corner.reactLine("walk", S.day+(P.seq||0), corner.personaById(cl.cid)), "bad", 1600);
-    haptic(HAPTIC.walk); toast("🤬 "+cl.nm+" — vente perdue"); }
+  else if(why==="walk"){ haptic(HAPTIC.walk); toast("🤬 "+cl.nm+" — vente perdue"); }
   else if(why==="refus") toast("Ok, une autre fois. (aucun malus)");
   else if(why==="rupture") toast("Rupture — ravitaille le tampon.");
   else if(why==="ardoise") toast("🧾 "+cl.nm+" note "+cl.due+" au carnet — il règle J"+cl.payday+".");

@@ -24,7 +24,19 @@ Les répliques des clients (`bank.arrive`, `reactLine`) partaient dans un **toas
 de l'écran** — à l'opposé de la personne qui parle. Les bulles ne créent rien, elles
 remettent le texte là où le joueur regarde.
 
-Trois moments : l'arrivée, la réaction (deal / gouge), le départ fâché. Plus le cri.
+Première version : bulle à l'arrivée, à la réaction, au départ fâché, plus le cri.
+**Retour de playtest immédiat de Sylvain** : *« pas besoin de la bulle pour indiquer
+que le client parle, on le voit bien qu'il est là. En revanche le ARAH fonctionne
+bien. »*
+
+Il a raison, et c'est une distinction qui vaut d'être notée : la bulle d'arrivée
+signalait une **présence** — que la silhouette signale déjà. Elle ajoutait du bruit,
+pas de l'information. Le cri, lui, annonce un **événement qu'on ne peut pas voir
+venir autrement**. Toutes les bulles clients sont retirées ; seul « ARAH !! » reste,
+et `cornerBulle` avec elles (pas de machinerie sans appelant).
+
+Les retours haptiques restent sur les trois moments : eux ne sont pas du bruit visuel,
+ils disent dans la main ce qui vient de se passer.
 
 ### Haptique par motif, pas par intensité
 

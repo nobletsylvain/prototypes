@@ -5,11 +5,10 @@
 // elle partait dans un toast en haut de l'écran, loin de la personne qui parle.
 //
 // Ce que ce test prouve :
-//   1. un client qui arrive parle : une bulle sort de SA silhouette ;
-//   2. une seule bulle par personne (sinon la scène devient illisible en file pleine) ;
-//   3. la bulle se retire toute seule ;
-//   4. « ARAH !! » part de la rue AVANT que l'écran d'évacuation prenne la main —
-//      sinon le joueur subit une modale sans voir d'où vient l'alerte.
+//   1. les clients ne portent AUCUNE bulle — on voit bien qu'ils sont là ;
+//   2. « ARAH !! » part de la rue AVANT que l'écran d'évacuation prenne la main —
+//      sinon le joueur subit une modale sans voir d'où vient l'alerte ;
+//   3. l'évacuation s'ouvre ensuite, avec ses deux gestes.
 //
 //   cd tools && node bulles-loupe.mjs
 import { readFileSync, mkdirSync, existsSync } from "fs";
@@ -79,31 +78,19 @@ if (!(await page.$("#cPersos"))) {
   await sleep(600);
 }
 
-// ── 1. le client qui arrive parle, depuis SA silhouette ────────────────────
-await sleep(900);   // la bulle d'arrivée est différée de ~340 ms
-const arrivee = await page.evaluate(() => {
-  const persos = [...document.querySelectorAll(".cperso")];
-  return persos.map((p) => ({
-    nm: (p.querySelector(".clbl") || {}).textContent || "?",
-    bulle: !!p.querySelector(".cbulle"),
-    txt: (p.querySelector(".cbulle") || {}).textContent || "",
-  }));
+// ── 1. les clients ne portent PAS de bulle ────────────────────────────────
+// Retour de playtest (2026-07-27) : « pas besoin de la bulle pour indiquer que le
+// client parle, on voit bien qu'il est là ». La bulle d'arrivée disait la présence,
+// que la silhouette dit déjà — c'était du bruit. Seul le CRI reste, parce que lui
+// annonce un événement qu'on ne peut pas voir venir autrement.
+await sleep(1200);
+const persos = await page.evaluate(() => {
+  const p = [...document.querySelectorAll(".cperso")];
+  return { n: p.length, bulles: p.reduce((a, e) => a + e.querySelectorAll(".cbulle").length, 0) };
 });
-await page.screenshot({ path: path.join(OUT, "01-arrivee.png") });
-ok("Un client qui arrive parle depuis sa propre silhouette",
-   arrivee.length > 0 && arrivee.some((a) => a.bulle),
-   arrivee.map((a) => `${a.nm}${a.bulle ? " 💬" : " —"}`).join(" · ") || "aucune silhouette");
-
-// ── 2. une seule bulle par personne ────────────────────────────────────────
-const multi = await page.evaluate(() =>
-  [...document.querySelectorAll(".cperso")].map((p) => p.querySelectorAll(".cbulle").length));
-ok("Une seule bulle par personne (la scène reste lisible en file pleine)",
-   multi.every((n) => n <= 1), `bulles par silhouette : ${multi.join(", ") || "—"}`);
-
-// ── 3. la bulle se retire toute seule ─────────────────────────────────────
-await sleep(3600);
-const apres = await page.evaluate(() => document.querySelectorAll(".cperso .cbulle").length);
-ok("La bulle se retire toute seule", apres === 0, `${apres} bulle(s) encore là après 4,5 s`);
+await page.screenshot({ path: path.join(OUT, "01-rue.png") });
+ok("La rue est peuplée, et aucune silhouette ne porte de bulle",
+   persos.n > 0 && persos.bulles === 0, `${persos.n} silhouette(s), ${persos.bulles} bulle(s)`);
 
 // ── 4. « ARAH !! » précède l'écran d'évacuation ────────────────────────────
 // on pousse la chaleur au seuil : avec 1 chouffe il y a du préavis, donc un cri
