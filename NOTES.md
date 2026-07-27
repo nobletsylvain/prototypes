@@ -9,6 +9,48 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Un libellé de test qui mentait (le grossiste et ses bornes fantômes)
+
+En vérifiant un écart que j'avais chiffré il y a des jours sans jamais le contrôler
+(« le grossiste paie 432 en DM alors que sa poche au corner est de 260 »), j'ai trouvé
+autre chose : **l'écart n'existe pas, mais trois textes affirment qu'il devrait**.
+
+Un commentaire de `corner.mjs` déclare : *« `TOL`/`BUDGET`/`OFFER.grossiste` restent
+définis : ils bornent le prix du DM. »* C'est faux. `snap.mjs` n'importe de `corner.mjs`
+que `menuAt`, `personaById`, `rueCalibre` et `RUE_MIN` — jamais `BUDGET`, jamais `TOL`.
+Le prix du gros sort du barème volume commun, ce qui est **le bon comportement** (une
+seule échelle de prix dans tout le jeu, c'était un correctif délibéré). Sa poche de 260
+est un vestige de l'époque où il faisait la queue au corner.
+
+Le plus gênant : **le libellé d'un invariant répétait la même affirmation** — « Les
+bornes du kind grossiste restent définies (elles bornent le DM) ». Un libellé de test est
+l'endroit le plus crédible du dépôt : il passe au vert à chaque exécution, donc il se lit
+comme une vérité vérifiée. Il ne vérifiait pourtant qu'une chose, que les constantes sont
+`!= null`. La prochaine session aurait raisonné à partir de là.
+
+Corrigé aux trois endroits, en disant ce qui est vrai : ces constantes ne bornent rien
+aujourd'hui, on les garde pour que la persona reste bien formée et parce qu'un grossiste
+qui repasserait un jour par la file du corner en aurait besoin.
+
+C'est la même leçon que R11, appliquée au code plutôt qu'au vocabulaire : **une
+affirmation qui survit finit par être crue**. Un test qui décrit mal ce qu'il vérifie est
+pire qu'un test absent.
+
+### Fausse piste, notée pour ne pas la refaire
+
+J'ai aussi soupçonné un trou de lisibilité côté BeuherShit : le lancement refuse de
+partir si un coursier serait saisi (« CHAUD — allège la charge »), et je pensais que rien
+n'indiquait **lequel**. Vérification faite, le bandeau « Flotte » affiche déjà une puce de
+risque par coursier, avec la charge et le cap. Pas de trou. Vérifier avant d'affirmer a
+économisé un correctif inutile.
+
+Reste, pour mémoire, que le `busted` post-mortem (`SAISI`, `Constater`, 🚨) est du contenu
+**inatteignable** : `runBusted` sert à refuser le départ, puis les tournées sont créées
+avec `busted:false` en dur. La plomberie est prête si on veut un jour qu'un coursier se
+fasse prendre — ce n'est pas un bug, c'est une porte fermée.
+
+---
+
 ## 2026-07-28 — Le liquide qui dort chauffait le quartier, et personne ne le disait
 
 Trouvé en reprenant un défaut que j'avais signalé il y a des jours sans jamais le

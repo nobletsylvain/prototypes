@@ -530,10 +530,14 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
      d && !(d.traits && d.traits.hours) && !(d.traits && d.traits.heat),
      d ? JSON.stringify(d.traits || {}) : "absent");
 
-  // les constantes de son kind restent définies : elles bornent le prix du DM et
-  // sont balayées par les invariants §2 ter et §5 ter (les retirer donnerait NaN)
+  // Les constantes de son kind restent DÉFINIES — c'est tout ce que ce contrôle dit.
+  // Il affirmait « elles bornent le DM » : c'était faux, snap.mjs n'importe de corner.mjs
+  // que menuAt/personaById/rueCalibre/RUE_MIN. Un libellé de test est l'endroit le plus
+  // crédible du dépôt ; s'il ment, la prochaine session raisonnera à partir du mensonge.
+  // Les garder reste utile : cornerBudget/qualCheck les liraient si un grossiste
+  // repassait un jour par la file du corner, et un kind sans borne y donnerait NaN.
   const ok2 = ["TOL", "BUDGET", "PATIENCE"].every((k) => CORNER[k].grossiste != null);
-  ok("Les bornes du kind grossiste restent définies (elles bornent le DM)",
+  ok("Les constantes du kind grossiste restent définies (elles ne bornent rien : vestige)",
      ok2, `TOL ${CORNER.TOL.grossiste} · BUDGET ${CORNER.BUDGET.grossiste} · PATIENCE ${CORNER.PATIENCE.grossiste}`);
 
   // sa porte de rumeur survit au déménagement : c'est ce que « annoncer son format » achète
