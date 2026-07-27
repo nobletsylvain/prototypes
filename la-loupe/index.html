@@ -386,10 +386,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=38";
-import * as beuher from "./beuher.mjs?v=38";
-import * as shelter from "./shelter.mjs?v=38";
-import * as corner from "./corner.mjs?v=38";
+import * as snap from "./snap.mjs?v=39";
+import * as beuher from "./beuher.mjs?v=39";
+import * as shelter from "./shelter.mjs?v=39";
+import * as corner from "./corner.mjs?v=39";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -424,7 +424,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=38"),
+      import("./scene3d.mjs?v=39"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -638,6 +638,25 @@ function rueLabel(){
 function fmtSachets(){ const ks=sizesOf(S.sachets); return ks.length?ks.map(f=>`${S.sachets[f]}×${f}g`).join(" · "):"—"; }
 function qualAvg(){ return Math.round(S.sachetQ || S.barQ || 60); }
 
+/* Les deux pastilles du HUD qui changent SANS geste du joueur.
+   `hud()` n'est appelée que sur événement discret — navigation, vente, fin de journée.
+   Or la chaleur monte en continu dès qu'on tient le corner, et la journée avance toujours.
+   Mesuré : le HUD affichait « chaleur 0 » quand la chip du corner disait « 🔥 31 », et la
+   barre du jour restait à 0 % alors que la journée était à 9 %. Une barre de progression
+   qui ne progresse pas, et deux nombres contradictoires sur la jauge qui décide de la
+   descente — celle du haut étant la seule visible depuis les autres écrans.
+   Appelée depuis `frame()`, bridée : ce sont deux écritures de texte et un dégradé, aucun
+   nœud interactif n'est reconstruit (le tap mort est venu de là, on ne le rouvre pas). */
+function hudLive(){
+  const hh=document.getElementById("hudHeat");
+  if(hh){ const t=`chaleur ${Math.round(S.heat)}`; if(hh.textContent!==t) hh.textContent=t; }
+  const dp=document.getElementById("daypill");
+  if(dp){
+    const t=`J${S.day}`; if(dp.textContent!==t) dp.textContent=t;
+    const f=Math.min(100,Math.round((S.dayAcc||0)/DAY_SEC_REAL*100));
+    if(dp._f!==f){ dp._f=f; dp.style.background=`linear-gradient(90deg, rgba(110,200,255,.30) ${f}%, transparent ${f}%)`; }
+  }
+}
 function hud(){
   const hudCash=document.getElementById("hudCash"); hudCash.style.display=SORTER_ENABLED?"":"none"; hudCash.textContent=`propre ${money(S.cash)}`;
   { const hd=document.getElementById("hudDirty");
@@ -1474,14 +1493,6 @@ function pdvPatch(){
      donc des chiffres périmés au moment précis où on décide de lâcher 60/soir ou de
      bouger son tarif. On patche le TEXTE seul — surtout pas l'innerHTML d'un conteneur
      de boutons, ce serait rouvrir le tap mort. */
-  /* La pastille de chaleur du HUD est écrite par `hud()`, qui n'est appelée QUE sur
-     événement discret (navigation, vente, fin de journée). Or au corner la chaleur monte
-     en continu, sans événement : mesuré, le HUD affichait « chaleur 0 » pendant que la
-     chip du corner disait « 🔥 31 » et que l'état réel était à 30. Deux nombres
-     contradictoires à l'écran en même temps, sur la jauge qui décide de la descente —
-     et celui du haut est le seul visible depuis les autres écrans. */
-  const hh=document.getElementById("hudHeat");
-  if(hh){ const t=`chaleur ${Math.round(S.heat)}`; if(hh.textContent!==t) hh.textContent=t; }
   const cg=document.getElementById("pChGain");
   if(cg){ const t=chouffeGain(P); if(cg.textContent!==t) cg.textContent=t; }
   const ph=document.getElementById("pPrixHint");
@@ -2685,6 +2696,7 @@ function frame(now){
   S.clock+=dt;
   // horloge unique : la journée avance toute seule
   S.dayAcc=(S.dayAcc||0)+dt;
+  frame._hud=(frame._hud||0)+dt; if(frame._hud>=0.25){ frame._hud=0; hudLive(); }
   if(S.dayAcc>=DAY_SEC_REAL){ advanceDay(false); if(tab==="snap") renderSnap(); }
   /* Le liquide qui dort chauffe le quartier. La mécanique existait depuis toujours mais
      n'était NOMMÉE NULLE PART : ni cause au Karnet, ni marque au HUD, ni seuil affiché.

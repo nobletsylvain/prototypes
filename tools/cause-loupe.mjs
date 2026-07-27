@@ -137,6 +137,31 @@ ok("La cause dit quoi FAIRE, pas seulement ce qui se passe",
             : `la chaleur n'a pas monté (${t0} → ${lu.reel}) — le contrôle ne prouverait rien`);
 }
 
+// ── La barre du jour progresse, sur n'importe quel écran ──────────────────
+// Même racine que la chaleur : `hud()` n'est appelée que sur événement discret, alors
+// que la journée avance toujours. Mesuré : la barre restait à 0 % pendant que la
+// journée était à 9 %. Une barre de progression qui ne progresse pas.
+// Ce contrôle tourne sur le QUARTIER, pas au corner : la correction doit être globale,
+// pas propre à l'écran de vente.
+{
+  await page.evaluate(() => { const b = document.querySelector('.tab[data-t="shelter"]'); if (b) b.click(); });
+  await sleep(400);
+  const t0 = await page.evaluate(() => {
+    const dp = document.getElementById("daypill");
+    return +(((dp || {}).style || {}).background || "").match(/(\d+)%/)?.[1] || 0;
+  });
+  await sleep(6000);
+  const fin = await page.evaluate(() => {
+    const dp = document.getElementById("daypill");
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    return { barre: +((((dp || {}).style || {}).background || "").match(/(\d+)%/)?.[1] || 0),
+             reel: Math.round((s.dayAcc || 0) / 180 * 100) };
+  });
+  ok("La barre du jour avance sans qu'on navigue (elle est une horloge, pas une photo)",
+     fin.barre > t0 && Math.abs(fin.barre - fin.reel) <= 3,
+     `barre ${t0}% → ${fin.barre}% · avancement réel ${fin.reel}%`);
+}
+
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
 
 console.log("\n─── causes nommées · La Loupe ───");

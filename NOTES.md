@@ -32,7 +32,30 @@ de la descente — et celui du haut est le seul qu'on voit depuis les autres éc
 Sur les captures de Sylvain les deux coïncidaient, ce qui m'aurait rassuré à tort : elles
 étaient prises juste après une navigation ou une vente, donc juste après un `hud()`.
 
-Correctif : `pdvPatch` rafraîchit la pastille (texte seul). Après : `HUD 31 · chip 31`.
+### Et la barre du jour ne progressait pas non plus
+
+La seconde trouvaille contredite portait sur la pastille de jour. Même mesure, sur le
+Quartier cette fois, sans rien toucher :
+
+```
+  t+4s   barre « 0 % » · avancement réel 2 %
+  t+16s  barre « 0 % » · avancement réel 9 %
+```
+
+**Une barre de progression qui ne progresse pas.** Deux sceptiques contredits par la
+mesure, deux fois sur deux.
+
+### Le correctif : global, pas propre au corner
+
+Mon premier jet patchait la chaleur dans `pdvPatch` — donc uniquement au corner. Or ces
+deux pastilles bougent sur **tous** les écrans : la journée avance partout, et la chaleur
+monte aussi hors du corner (la dérive du liquide qui dort tourne dans `frame()`).
+
+Une source unique, `hudLive()`, appelée depuis la boucle et bridée à 4 Hz. Deux écritures
+de texte et un dégradé : aucun nœud interactif reconstruit — le tap mort est venu de là,
+on ne rouvre pas cette porte.
+
+Après : `HUD 31 · chip 31`, et la barre passe de 3 % à 9 % en suivant la journée.
 
 ### Ce que ça dit sur la méthode
 
