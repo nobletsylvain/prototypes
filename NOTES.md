@@ -9,6 +9,53 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-27 — La rue racontait un état périmé (« Sacoche vide » avec 25 barrettes dehors)
+
+Sylvain, deux captures : la scène affiche *« Sacoche vide — charge des barrettes (Gérer)
+et attends. »* pendant que le tiroir montre **25 barrettes · 50 g · Q43**.
+
+### La cause
+
+Le texte d'attente est écrit **une seule fois**, dans le `stage.innerHTML` de
+`renderCorner`. La seule chose qui le retouche ensuite (`cornerLayoutPersos`) ne fait
+que basculer son `display` selon qu'il y a un client ou non — **jamais son contenu**.
+
+Donc : on charge la sacoche, `pdvSacPatch` rafraîchit le tiroir et la carte de négo,
+mais la phrase de la rue garde ce qu'elle disait au dernier rendu complet. On referme
+le tiroir, et la rue continue d'annoncer une sacoche vide avec 50 g dehors.
+
+Et **symétriquement, c'est pire dans l'autre sens** : sacoche vidée (tout vendu, « Tout
+rentrer », ou une descente), la rue continue de dire « un client va passer » alors que
+le corner est fermé faute de stock. Elle invite à attendre quelque chose qui n'arrivera
+jamais.
+
+### Le correctif
+
+Une seule source, `cornerEmptyTx(P)`, appelée au rendu **et** à chaque tick depuis
+l'endroit qui touchait déjà `#cEmpty`. Tout ce qui change le tampon — charger, vendre,
+évacuer, se faire descendre — s'y reflète sans que l'appelant ait à y penser. Le texte
+n'est réécrit que s'il a changé.
+
+### La famille
+
+C'est la **troisième** fois cette semaine qu'un morceau d'affichage vivant ne suit pas
+l'état : `pdvPatch` qui écrivait dans sept identifiants inexistants, les deux lignes qui
+affichaient le même total avec des textes divergents, et maintenant celle-ci. Le motif
+est toujours le même — **une couche de mise à jour incrémentale qui ne couvre pas tout
+ce que le rendu initial avait écrit**.
+
+Le garde n'est pas « relire le patch » : c'est que **tout texte d'état soit produit par
+une fonction, jamais inline dans un template**. Une phrase écrite en dur dans un
+`innerHTML` n'a aucun moyen de se rafraîchir ; une fonction, si.
+
+### Vérification
+
+Un contrôle navigateur rejoue la séquence exacte : vider → lire (« Sacoche vide ») →
+charger → relire **sans re-rendre la scène**. Vérifié dans les deux sens : en
+neutralisant le rafraîchissement, la suite tombe à 11/12.
+
+---
+
 ## 2026-07-27 — Piste : la sacoche qui TOURNE (rotation produit ⇄ cash)
 
 Sylvain, à chaud, avant même d'avoir testé la sacoche : *« le renouvellement de sacoche
