@@ -9,6 +9,59 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-27 — La Loupe : des bulles dans la rue, et « ARAH !! »
+
+Sylvain, image à l'appui (des gamins qui courent dans une ruelle avec une bulle de BD
+« Arah !! ») : *« on pourrait voir des bulles apparaître dans la scène corner, avec des
+retours haptiques »*.
+
+Au passage, ça corrige ma lecture : **ARA n'est pas un sigle, c'est le cri**. Le nom du
+système vient du hurlement du guetteur.
+
+### La voix existait déjà, elle était au mauvais endroit
+
+Les répliques des clients (`bank.arrive`, `reactLine`) partaient dans un **toast en haut
+de l'écran** — à l'opposé de la personne qui parle. Les bulles ne créent rien, elles
+remettent le texte là où le joueur regarde.
+
+Trois moments : l'arrivée, la réaction (deal / gouge), le départ fâché. Plus le cri.
+
+### Haptique par motif, pas par intensité
+
+`HAPTIC = { bulle:8, deal:22, juste:[18,50,18], walk:[30,60,30], cri:[70,50,70,50,120] }`.
+Le motif dit **quoi** s'est passé sans regarder l'écran : un tic pour « quelqu'un
+parle », un coup franc pour un deal, deux secs pour un départ, une alarme pour l'ARA.
+Tout est enveloppé — `navigator.vibrate` est absent sur iOS Safari, rien n'en dépend.
+
+### Trois défauts trouvés par le test navigateur, pas par relecture
+
+1. **Le cri était muet dans le cas le plus fréquent.** Je l'avais accroché à
+   `P.queue[0]` — or la descente tombe souvent quand **la rue est vide**, et le cri
+   appartient de toute façon au *chouffe*, pas à un client. Il est désormais au niveau
+   de la scène.
+2. **L'écran d'évacuation s'ouvrait par-dessus le cri.** Mon `setTimeout` ne retardait
+   rien : `araTick` appelle `araRender` à chaque frame. Il fallait un vrai sas
+   (`araState.cri`) qui garde la modale fermée **et** gèle le préavis — le temps que le
+   chouffe achète commence quand le joueur a compris, pas quand le guetteur ouvre la
+   bouche.
+3. **Les bulles se chevauchaient, et celle du client de devant répétait la carte de
+   négo mot pour mot.** Corrigé par un décalage vertical par rang, et en ne faisant
+   parler que ceux qui **attendent** — c'est là que la bulle ajoute quelque chose (la
+   rue vit pendant que tu sers).
+
+Aucun de ces trois-là n'était visible en lisant le code. C'est la capture d'écran qui
+les a montrés.
+
+### Un piège de test, noté pour la suite
+
+`page.evaluateOnNewDocument` rejoue à **chaque** navigation : écrire la chaleur dans
+`localStorage` puis recharger la faisait écraser par le seed d'origine, et l'ARA ne se
+déclenchait jamais. Diagnostiqué en sondant l'état réel (`heat: 0`) au lieu d'ajuster
+les temporisations à l'aveugle. Correctif : empiler un second seed, qui s'exécute après
+le premier.
+
+`tools/bulles-loupe.mjs` — 6 vérifications en vrai navigateur.
+
 ## 2026-07-26 — La Loupe : l'ARA — le chouffe achète du préavis, pas de l'immunité
 
 Sylvain, après avoir vu les secondes s'afficher : *« le mécanisme du chouffe n'est
