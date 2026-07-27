@@ -70,10 +70,18 @@ export const CORNER_PERSONAS = [
     tell:"Toujours 8 g, et « tu me fais un prix si je reviens ? » — futur gros.",
     bank:{ arrive:["Huit grammes. Tu me fais un prix si je reviens chaque semaine ?","Je refourgue à ma bande, faut que je m'y retrouve. {t} ?","Si tu m'accroches maintenant, je te ramène du monde. {q} g, {t}."],
       react:{ deal:["Là on se comprend. Je te ramène la clientèle."], nego:["Bon, ça passe pour cette fois. On verra la prochaine."] } } },
-  // rueGate : Diego vient aussi tout seul si la rue te connaît pour du gros calibre —
-  // un grossiste ne débarque pas par amitié, il débarque parce qu'on lui a parlé de toi.
-  { id:"diego", nm:"Diego", av:"🏗️", kind:"grossiste", usual:16, exig:45, unlockedBy:"momo", rueGate:5, traits:{heat:6, hours:[9,19]},
-    tell:"Passe en journée, prend gros, paie clean — mais le servir chauffe le coin.",
+  /* Diego ne vient PLUS au corner (arbitrage Sylvain, 2026-07-26) : un grossiste ne fait
+     pas la queue au pied de la barre — il écrit, et il se fait livrer. `canal:"dm"` le
+     retire du tirage de la rue tout en le gardant dans CORNER_PERSONAS : il garde son
+     visage, ses répliques et ses deux portes de déblocage (relation avec Momo OU rumeur
+     de calibre), qui servent maintenant à faire sonner le téléphone.
+     Ses `hours` disparaissent — un DM n'a pas d'heure de passage — et son `traits.heat`
+     aussi : la cause rendue était « le COIN chauffe », ce qui n'a plus de sens pour un
+     deal livré. Le coût du gros passe désormais par la livraison et par le liquide
+     qui dort. `TOL`/`BUDGET`/`OFFER.grossiste` restent définis : ils bornent le prix
+     du DM et sont balayés par les invariants. */
+  { id:"diego", nm:"Diego", av:"🏗️", kind:"grossiste", usual:16, exig:45, unlockedBy:"momo", rueGate:5, canal:"dm",
+    tell:"Ne traîne pas dans la rue : il écrit, il paie clean, il se fait livrer.",
     bank:{ arrive:["Seize grammes d'un coup. Chaque semaine si t'assures. {t} ?","Je prends gros, je paie clean, mais je traîne pas. {q} g, {t}.","Vingt grammes. Emballe vite, on nous regarde."],
       react:{ deal:["Carré. Même heure la semaine prochaine."], nego:["Ça monte, mais le volume est là. Vendu."] } } },
   { id:"lina", nm:"Lina", av:"🌙", kind:"regulier", usual:5, exig:80, unlockedBy:"ines", traits:{qual:true, hours:[21,28]},

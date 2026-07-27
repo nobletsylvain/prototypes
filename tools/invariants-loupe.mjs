@@ -19,7 +19,7 @@ import {
   anonQty, ruePartGros, rueCalibre, checkUnlocks, cornerClientsDefault, rueApres,
   RUE_MIN, RUE_PALIERS, RUE_PART_MAX, RUE_INERTIE, menuAt, rabaisVolume, RABAIS_FORMAT,
 } from "../la-loupe/corner.mjs";
-import { qtyToSachets, applySachetPlan, composables } from "../la-loupe/snap.mjs";
+import { qtyToSachets, applySachetPlan, composables, evacuerLot } from "../la-loupe/snap.mjs";
 import { FRONT_ENABLED, grantOpeningFront, nightTick, shelterDefaults } from "../la-loupe/shelter.mjs";
 
 const results = [];
@@ -511,6 +511,83 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
   ok("R1 · le grossiste s'ouvre par la rumeur OU par la relation, jamais par les deux exigées",
      nRue.length === 1 && nRue[0].rue === true && nRel.length === 1 && nNi.length === 0,
      `rumeur ${nRue.length} · relation ${nRel.length} · ni l'un ni l'autre ${nNi.length}`);
+}
+
+// ── 7. Le grossiste ne fait plus la rue ────────────────────────────────────
+// Arbitrage Sylvain (2026-07-26) : « le grossiste ne devrait pas passer par la rue,
+// mais seulement par SnapShit en DM, puis avec une livraison via BeuherShit ».
+// Il reste dans CORNER_PERSONAS (son visage, ses répliques, ses deux portes de
+// déblocage servent au DM) — c'est `canal:"dm"` qui le sort du tirage de la rue.
+{
+  const dm = CORNER_PERSONAS.filter((p) => p.canal === "dm");
+  ok("Le grossiste est marqué canal DM (il ne fait plus la queue au corner)",
+     dm.length === 1 && dm[0].id === "diego" && dm[0].kind === "grossiste",
+     dm.map((p) => `${p.nm} (${p.kind})`).join(", ") || "aucun");
+
+  // il n'a plus d'heures de passage ni de chaleur de coin : un deal livré n'a pas de coin
+  const d = CORNER_PERSONAS.find((p) => p.id === "diego");
+  ok("Le grossiste n'a plus ni heures de passage ni chaleur de coin",
+     d && !(d.traits && d.traits.hours) && !(d.traits && d.traits.heat),
+     d ? JSON.stringify(d.traits || {}) : "absent");
+
+  // les constantes de son kind restent définies : elles bornent le prix du DM et
+  // sont balayées par les invariants §2 ter et §5 ter (les retirer donnerait NaN)
+  const ok2 = ["TOL", "BUDGET", "PATIENCE"].every((k) => CORNER[k].grossiste != null);
+  ok("Les bornes du kind grossiste restent définies (elles bornent le DM)",
+     ok2, `TOL ${CORNER.TOL.grossiste} · BUDGET ${CORNER.BUDGET.grossiste} · PATIENCE ${CORNER.PATIENCE.grossiste}`);
+
+  // sa porte de rumeur survit au déménagement : c'est ce que « annoncer son format » achète
+  const cl = cornerClientsDefault();
+  const n = checkUnlocks(cl, 8).filter((u) => u.p.id === "diego");
+  ok("Sa porte de rumeur survit au déménagement (annoncer son calibre le fait écrire)",
+     n.length === 1 && n[0].rue === true, `${n.length} ouverture(s) par la rumeur`);
+}
+
+// ── 8. L'ARA : évacuer ne détruit jamais un gramme ─────────────────────────
+// Le chouffe achète du PRÉAVIS, plus de l'immunité. Pendant ces secondes on rentre
+// des barrettes du tampon vers la planque. C'est très exactement le geste où j'avais
+// introduit un bug de conservation dans le-spot : retirer des grammes du tampon puis
+// n'en réinjecter qu'une partie fait de l'évacuation un geste qui CRÉE la perte
+// qu'il prétend éviter. On rejoue ici la boucle de `araRentrer` — barrettes entières,
+// les petites d'abord — et on vérifie la conservation à chaque tap.
+{
+  const ARA_LOT = 8;
+  // la VRAIE fonction du jeu, importée — pas une copie. Un test qui recopie la boucle
+  // qu'il teste passe quoi qu'il arrive : c'est le piège rencontré trois fois cette
+  // session, et le geste d'évacuation est le pire endroit pour se le permettre.
+  const rentrer = (tampon, sachets) => evacuerLot(tampon, sachets, ARA_LOT);
+  const somme = (o) => Object.entries(o).reduce((a, [f, n]) => a + +f * (n > 0 ? n : 0), 0);
+  const cas = [
+    { 2: 20 }, { 8: 5 }, { 2: 3, 5: 4, 8: 2 }, { 12: 3, 2: 1 }, { 5: 1 }, { 20: 2, 8: 1, 2: 5 },
+  ];
+  let fuite = 0, taps = 0, exemple = null;
+  for (const base of cas) {
+    const tampon = { ...base }, sachets = {};
+    const total = somme(tampon);
+    for (let i = 0; i < 12; i++) {
+      const avantT = somme(tampon), avantS = somme(sachets);
+      const { n, g } = rentrer(tampon, sachets);
+      if (!n) break;
+      taps++;
+      const apresT = somme(tampon), apresS = somme(sachets);
+      // ce qui sort du tampon entre EXACTEMENT dans les sachets, et vaut g
+      if (avantT - apresT !== g || apresS - avantS !== g) {
+        fuite++; if (!exemple) exemple = `tampon ${JSON.stringify(base)} : −${avantT - apresT} g sortis, +${apresS - avantS} g rentrés`;
+      }
+    }
+    if (somme(tampon) + somme(sachets) !== total) {
+      fuite++; if (!exemple) exemple = `tampon ${JSON.stringify(base)} : total ${total} → ${somme(tampon) + somme(sachets)}`;
+    }
+  }
+  ok("R1 · l'évacuation ARA ne détruit jamais un gramme (barrettes entières)",
+     fuite === 0, exemple || `${taps} taps sur ${cas.length} tampons, conservation stricte`);
+
+  // et le chouffe doit vraiment acheter des secondes, de façon monotone
+  const P = [0, 6, 12, 18];
+  let mono = true;
+  for (let i = 1; i < P.length; i++) if (P[i] <= P[i - 1]) mono = false;
+  ok("R6 · le chouffe achète du préavis, croissant et jamais nul au-delà de 0",
+     mono && P[0] === 0 && P[1] > 0, `préavis ${P.join(" / ")} s selon 0..3 chouffes`);
 }
 
 console.log("\n─── invariants La Loupe ───");

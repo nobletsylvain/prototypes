@@ -9,6 +9,198 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-26 — La Loupe : l'ARA — le chouffe achète du préavis, pas de l'immunité
+
+Sylvain, après avoir vu les secondes s'afficher : *« le mécanisme du chouffe n'est
+pas parfait car le heat retombe vraiment bas. Je pense qu'il s'agit d'une opportunité
+pour placer le rameur ARA, qui permettrait au joueur de partir à temps. »*
+
+Son diagnostic colle exactement à la mesure : `PDV_CHOUFFE_DAMP = 0,7` divisait la
+génération de chaleur, et à 3 chouffes elle passait **sous** le terme de
+refroidissement — la jauge redescendait toute seule, la descente ne pouvait plus
+arriver. La soupape ne rendait pas la tension gérable, elle la **supprimait**. Et
+l'embauche était gratuite par-dessus (`P.chouffes++`, aucun coût, aucun plafond).
+
+### Le modèle repris de `le-spot`
+
+Là-bas, le chouf n'immunise pas : il achète du **préavis** (`PREAVIS_S = [0, 7, 13]`),
+et pendant ces secondes le monde s'arrête pendant qu'on planque le tampon et la
+caisse. Ce qui reste dehors est saisi.
+
+Le calage sur La Loupe est parfait : `pdvDescente` saisit exactement `P.bac` et
+`P.tampon` — les deux seules choses qu'on peut sauver, et « la planque est sauve »
+était déjà écrit dans son toast.
+
+- `PDV_CHOUFFE_DAMP` 0,7 → **0,18** : le chouffe ralentit un peu, il n'immunise plus.
+- `PDV_PREAVIS_S = [0, 6, 12, 18]` : sans chouffe, la descente tombe sec.
+- Au seuil, l'ARA s'ouvre en plein écran. Deux gestes : **rentrer les barrettes**
+  (tampon → planque, 8 par tap, les petites d'abord) et **la caisse** (bac → liquide).
+  Un cooldown de 520 ms entre deux taps : on ne sauve jamais tout, et ça se voit.
+- Le monde s'arrête pendant l'ARA — le préavis est un temps de **décision**, pas une
+  course contre les autres systèmes.
+
+R6 en plein : ça ne supprime pas la décision, ça donne le temps de la prendre. R8 :
+partir maintenant ou servir un client de plus reste l'arbitrage, et il est enfin
+lisible grâce aux secondes affichées du même jour.
+
+### Le test recopiait la fonction qu'il testait — troisième fois
+
+Ma première version de l'invariant de conservation ARA **recopiait** la boucle de
+`araRentrer` au lieu de l'appeler. Un test qui duplique ce qu'il teste passe quoi
+qu'il arrive — et l'évacuation est le pire endroit pour se le permettre : c'est
+très exactement le geste où j'avais introduit un bug de conservation dans `le-spot`
+(retirer des grammes puis n'en réinjecter qu'une partie, soit une évacuation qui
+CRÉE la perte qu'elle prétend éviter).
+
+La boucle vit maintenant dans `snap.evacuerLot()` : le jeu l'appelle, l'invariant
+l'importe. Même correctif que `rueApres` la veille. C'est la troisième occurrence du
+même piège en deux jours — le motif est clair : **dès qu'une règle est recopiée
+quelque part, elle doit être extraite dans un module.**
+
+### `[DÉCISION REQUISE]`
+
+- **`PDV_PREAVIS_S` et `PDV_CHOUFFE_DAMP`** sont des placeholders. 6 s au premier
+  chouffe est un pari : assez pour deux taps (16 barrettes), pas assez pour tout.
+- **L'embauche reste gratuite.** Le préavis change la nature de la soupape mais pas
+  son prix : `P.chouffes++` sans coût d'entrée ni plafond. À trancher.
+- **La descente reste-t-elle à `PDV_AFTER = 45` ?** Si on évacue bien, la sanction
+  devient légère ; c'est cohérent avec R1, mais ça mérite un regard en jeu.
+
+## 2026-07-26 — La Loupe : le grossiste passe en DM, et la pression devient visible
+
+Deux demandes de Sylvain, dans la même session de test.
+
+### 1. « Le temps d'ouverture peut être parfois trop rapide. Mais ça force à agir. »
+
+Il nomme la tension sans trancher. En mesurant, le problème n'est **pas la vitesse** :
+
+| chouffes | secondes ouvertes | clients servis |
+| --- | --- | --- |
+| 0 | 47 s | ~5 |
+| 1 | 149 s | ~15 |
+| 2 | 1 500 s | ~150 |
+| 3 | ∞ | illimité |
+
+Deux découvertes derrière ce ressenti :
+
+**a) La pression était littéralement invisible.** `pdvPatch` patche huit
+identifiants — `pHeat`, `pHeatB`, `pRes`, `pResT`, `pDem`, `pQ`, `pCombo`,
+`cHeatChip`. Vérifié : **sept sur huit n'existent plus dans le markup**. Toute la
+couche de mise à jour live du corner écrivait dans le vide. Ce n'était pas « jamais
+conçu », c'était branché puis débranché lors d'une réécriture. Le joueur ne voyait
+qu'un entier brut : `🔥 62`.
+
+**b) La courbe des chouffes est une falaise, pas une progression.** À 3 chouffes,
+la génération de chaleur passe sous le terme de refroidissement et le corner ne
+chauffe plus **du tout**. Et `P.chouffes++` n'a **aucun coût d'entrée ni plafond** :
+trois taps le premier jour suppriment la contrainte pour toujours (les 60 €/soir ne
+sont prélevés qu'à la clôture). R9 en défaut — l'outil qui efface la friction est
+gratuit.
+
+**Fait** : la chip dit maintenant `🔥 62 · 24 s` — le temps restant à la vitesse de
+*cet instant*, rush compris — et clignote sous 20 s. Le réservoir client est affiché
+(`👥 72`), parce que c'est **lui** qui raccourcit le créneau : le joueur voyait son
+temps fondre au fil des jours sans comprendre que c'était son propre succès. Et les
+chouffes annoncent ce qu'ils **achètent** : « ouverture 49 s → 119 s avec un de plus »,
+au lieu de « −Heat ».
+
+**Pas fait, délibérément** : aucune constante de chaleur touchée. Les chiffres ne le
+justifient pas — 307 s en début de partie, 43 s à réservoir 85, c'est une courbe de
+tension saine. Le problème était en aval, à l'affichage.
+
+### 2. « Le grossiste ne devrait pas passer par la rue, mais par SnapShit en DM, puis livraison via BeuherShit »
+
+Le canal existait **déjà à 80 %** : le DM grossiste est écrit dans `buildDMs`, il
+produit un ordre livrable, et cet ordre est la **seule** alimentation de BeuherShit.
+Il manquait la porte et la cohérence.
+
+- `canal:"dm"` sur Diego le retire du tirage de la rue **sans le sortir de
+  `CORNER_PERSONAS`** : il garde son visage, ses trois répliques et ses deux portes de
+  déblocage, qui servent maintenant à faire sonner le téléphone.
+- Ses `hours` et son `traits.heat:6` disparaissent : un deal livré n'a pas d'heure de
+  passage, et la cause rendue était « le **coin** chauffe » — ce qui n'a plus de sens.
+- `checkUnlocks` est appelée **aussi à la clôture**, plus seulement quand un client
+  quitte le corner. Sans ça, `rueGate` devenait du code mort et « annoncer son
+  format » perdait la moitié de ce qu'il achète.
+- Le DM prend le **prix `menuAt`** comme tous les autres canaux — `GROSSISTE_FACTOR`
+  (0,70) était un second barème pour 5 points d'écart.
+- Sa quantité suit le **calibre annoncé** (`rueCalibre(rueMax) × n`) : composable par
+  construction, et le volume du gros devient la conséquence du geste qui a ouvert la
+  porte. L'ancienne échelle saturait à 72 g dès l'apparition — `QTY_BASE`/`QTY_STEP`
+  ne produisaient aucune variation — et 72 g était parfois **inservable** (un stock
+  tout en 5 g ne compose pas 72).
+- Diego sort de `PDV_NAMES`/`PDV_AV` : une silhouette anonyme portait son nom et son
+  avatar exacts au corner. Clin d'œil hier, mensonge à l'écran maintenant.
+
+Les bornes `TOL`/`BUDGET`/`PATIENCE.grossiste` **restent définies** : elles bornent le
+prix du DM et sont balayées par deux invariants. Les retirer donnerait `NaN`.
+
+### `[DÉCISION REQUISE]`
+
+- **Le double barème du grossiste**, toujours ouvert : Diego paie 432 € en DM contre
+  un plafond de poche de 260 € au corner. Le même homme, deux prix. Le passage à
+  `menuAt` referme la moitié du problème ; le plafond de poche en DM reste à trancher.
+- **`PDV_CHOUFFE_PAY = 60` et l'embauche gratuite.** 3 chouffes = 180 €/soir ≈ 18
+  secondes de recette, et multiplient l'ouverture par 16. C'est le point d'équilibrage
+  le plus saillant du jeu aujourd'hui.
+- **Le liquide qui dort** : au-dessus de 180 €, `+1 chaleur toutes les 3 s`, soit +60
+  par jour — plus que le corner lui-même, et ni nommé ni affiché.
+- **`busted` dans BeuherShit** : codé deux fois, joué zéro (`launchRuns` refuse de
+  lancer ET écrit `busted:false` en dur). Porte ou conséquence ? Le garder en porte est
+  le plus conforme à R1/R4, mais alors il faut supprimer la branche morte.
+
+## 2026-07-26 — Playtest Sylvain : les trois chantiers tiennent
+
+Validé manette en main, sur téléphone, après merge de #197/#198/#199 :
+
+- **La coupe** — « coupe est bien ». Le barreau 1 de l'escalier tient : lame
+  émoussée au départ, qualité qui monte avec le couteau (R10), et le gabarit qui
+  se voit enfin (le pain maigrit de ce qu'il donne vraiment).
+- **SnapShit** — « ça marche aussi ». Le lien *je coupe du 8 → je l'annonce → les
+  gros arrivent* se sent en jeu. L'app a enfin un rôle.
+- **La négo à quantité variable** — « ça marche bien ».
+
+Aucun rééquilibrage demandé à ce stade. Les placeholders (`LAME_NETTETE`,
+`RABAIS_FORMAT`, `RUE_INERTIE`, `RUE_PART_MAX`, `RUE_PENTE`, `QUAL_REF`,
+`QUAL_TOL_MAX`) restent donc en l'état — ils tiennent le ressenti.
+
+### Correction de cadrage, importante : le volume n'est pas un rabais
+
+Sylvain : *« l'erreur serait de considérer la négociation en volume seulement
+comme un rabais, le but étant aussi de vendre plus que prévu. »*
+
+Il a raison et ça invalide mon vocabulaire. J'analysais le €/g — la métrique du
+**client**. Celle du **joueur**, c'est ce que rapporte un créneau d'ouverture,
+puisque la chaleur est un impôt sur les secondes ouvertes et non sur les grammes.
+
+Un anonyme (poche 55 €) qui demande 2 g :
+
+| servi | €/g | € encaissés | vs sa demande |
+| --- | --- | --- | --- |
+| 2 g | 11,00 | 22 € | référence |
+| 3 g | 10,67 | 32 € | **+43 %** |
+| 5 g | 10,20 | 51 € | **+128 %** |
+| 6 g | 9,17 | 55 € | **+146 %** |
+| 8 g et + | ≤ 6,88 | 55 € | +146 % (plafond) |
+
+Pousser le volume n'est donc pas une concession : c'est **une vente qu'on
+n'aurait pas faite**, dans le même créneau, pour la même chaleur.
+
+Conséquence UI, à faire : au-delà de la saturation de sa poche (6 g ici), les
+grammes supplémentaires ne rapportent **rien** — ce n'est pas une braderie à
+signaler en rouge, c'est une **information à donner** : « il paie 55 € au
+maximum ; au-delà de 6 g tu donnes du produit sans encaisser un euro de plus ».
+Une info, jamais une punition (R1).
+
+### `[DÉCISION REQUISE]` toujours ouverte
+
+- **Le grossiste doublement remisé** (−45 % : son profil `OFFER`/`TOL` portait
+  déjà un rabais volume, `menuAt` s'ajoute par-dessus). Réponse de Sylvain
+  interrompue en cours de frappe — à reprendre.
+- **Les secondes d'ouverture restantes**, toujours non affichées. C'est ce qui
+  explique pourquoi le gros panier est bon : sans ce chiffre, le joueur ne voit
+  pas ce que son créneau lui coûte.
+
 ## 2026-07-26 — La Loupe : proposer plus ou moins dans la négociation
 
 Demande de Sylvain : *« dans la négociation, on devrait pouvoir proposer plus ou
