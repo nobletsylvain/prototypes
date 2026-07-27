@@ -88,6 +88,37 @@ Correctif identique à l'ARAH : `beuherPatch()` ne touche qu'au compte à rebour
 barre. Le rendu complet ne survit que pour l'**événement** « une tournée rentre » —
 là, une ligne apparaît vraiment, et un événement n'est pas une cadence.
 
+### 4. Et un troisième, dans Le Bigo : toute la navigation
+
+Le balayage a aussi trouvé la même faute dans un **autre proto**. `renderHome()` vidait
+`#apps` et recréait **chaque tuile d'application** — avec son `addEventListener` — à
+chaque `tick`, soit **une fois par seconde**, sur l'écran par défaut du téléphone.
+
+Ce qui meurt là, ce n'est pas un bouton : c'est **la navigation entière de l'OS**. Les
+huit apps, plus les tuiles verrouillées (dont le tap déclenche le toast « Pas encore.
+Suis le fil 🐺 » — le joueur n'avait même pas l'explication).
+
+Correctif : l'idiome **`dockSig`**, que `le-spot` avait déjà (`// signature de la FORME
+du dock (pas de ses chiffres)`). La grille ne se reconstruit que si sa forme change —
+une app qui se déverrouille — et les pastilles sont patchées à part. Trois protos, la
+même faute : `le-spot` avait la bonne réponse, `la-loupe` et `le-bigo` l'ont perdue en
+la portant.
+
+### Deux contrôles, parce qu'un seul mentirait
+
+En rétablissant l'ancien comportement pour vérifier que le test mord :
+
+| | structurel (« le nœud est-il remplacé ? ») | le tap lui-même |
+| --- | --- | --- |
+| BeuherShit (350 ms) | échoue 3/3 | échoue **1/3** |
+| Le Bigo (1 000 ms) | échoue 3/3 | **passe 3/3** |
+
+Le tap seul est un **détecteur trop faible** : à 1 Hz, un appui de 150 ms ne chevauche
+une reconstruction que ~15 % du temps, donc trois essais ne le voient jamais. Le
+contrôle structurel est le **garde** ; le tap prouve que la **conséquence** est réelle.
+Garder l'un sans l'autre, c'est se raconter une histoire — et j'ai failli publier le
+seul tap en croyant qu'il suffisait.
+
 ### La leçon, qui n'est pas sur l'ARAH
 
 **Un test qui n'exécute pas le geste ne teste pas le geste.** Vérifier qu'un bouton
