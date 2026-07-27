@@ -308,6 +308,14 @@ let EMBED_LEDGER = [];   // ventes du jour {g, cash, undo} — plafonnées au st
 // la qualité VENDUE dérive du stock réel (via l'Atelier), pas d'un choix local
 const embedQual = () => { const q=(BIGO&&BIGO.fini)?BIGO.fini.q:65;
   return q>=80?'propre':q>=55?'standard':'arrache'; };
+// prix embed — référentiel BUS.md (« Économie partagée ») : street(q) = 4 + 0.09×q
+// (€/g), q = qualité RÉELLE du stock partagé AU MOMENT du deal (BIGO.fini.q).
+// Multiplicateurs de canaux : deal sérieux ×1.0, brade/lowball ×0.55 (remplace
+// LOWBALL_FACTOR en embed), grossiste ×0.7. Déterministe : le prix découle de q,
+// jamais d'un tirage. En standalone, C.PRIX_FAIR reste la seule vérité.
+const EMB_CHAN = { genuine:1, lowball:0.55, grossiste:0.7 };
+const embStreet = () => { const q=(BIGO&&BIGO.fini)?BIGO.fini.q:65; return 4+0.09*q; };
+const embTotal  = (g,kind) => Math.round(g*embStreet()*(EMB_CHAN[kind]!=null?EMB_CHAN[kind]:1)*100)/100;
 
 // ---- Constantes nommées (PLACEHOLDERS — réglage humain plus tard) ----------
 const C = {
@@ -779,14 +787,14 @@ function doDMAction(id, action){
   const d=S.dms.find(x=>x.id===id); if(!d||d.status!=='pending') return {reply:'',sys:''};
   const t=S.dayTally; let reply='',sys='';
   if(d.kind==='genuine'){
-    if(action==='sell'){ const tot=d.qty*d.ppu; const ps=EMBED?poolSnap(d):null;
+    if(action==='sell'){ const tot=EMBED?embTotal(d.qty,d.kind):d.qty*d.ppu; const ps=EMBED?poolSnap(d):null;   // embed : prix rue = street(q) (BUS.md)
       S.cash+=tot; t.cash+=tot; t.sold++; d.status='sold';
       addToPool(d);                                  // il entre dans ton carnet (relançable plus tard)
       if(EMBED) EMBED_LEDGER.push({g:d.qty,cash:tot,undo:()=>{S.cash-=tot;t.cash-=tot;t.sold--;d.status='nostock';poolRestore(ps);}});
       reply=replyFor(d,'sell',"reçu, t'es le boss 🙏"); sys=`💶 +${tot}€ encaissés.`; }
     else { t.refused++; d.status='refused'; reply=replyFor(d,'refuse',"ah… ok tant pis 😞"); sys="vente laissée filer."; }
   } else if(d.kind==='lowball'){
-    if(action==='brade'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.brade++; d.status='brade';
+    if(action==='brade'){ const tot=EMBED?embTotal(d.qty,d.kind):d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.brade++; d.status='brade';   // embed : ×0.55 street(q)
       t.bradeProtags[d.protag]=(t.bradeProtags[d.protag]||0)+1;        // tracé par TYPE de protagoniste
       S.protagBrade[d.protag]=(S.protagBrade[d.protag]||0)+1;          // mémoire longue (la voix se souvient)
       if(EMBED) EMBED_LEDGER.push({g:d.qty,cash:tot,undo:()=>{S.cash-=tot;t.cash-=tot;t.brade--;d.status='nostock';
@@ -797,7 +805,7 @@ function doDMAction(id, action){
       sys=`💸 +${tot}€ — mais brader devant ${FACE(d.protag).nm}, ça se sait…`; }
     else { t.refused++; d.status='refused'; reply=replyFor(d,'refuse',"pff radin va. 🙄"); sys="prix tenu — ton bassin reste sain."; }
   } else if(d.kind==='grossiste'){
-    if(action==='volume'){ const tot=d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.sold++; d.status='volume';
+    if(action==='volume'){ const tot=EMBED?embTotal(d.qty,d.kind):d.qty*d.ppu; S.cash+=tot; t.cash+=tot; t.sold++; d.status='volume';   // embed : ×0.7 street(q)
       t.volume+=d.qty; t.volumeCash+=tot; S.grossisteVolume=(S.grossisteVolume||0)+d.qty;   // mémoire : volume cumulé
       S.expo=clamp(S.expo+C.GROSSISTE_EXPO_COST,0,C.EXPO_CAP);          // heat de rue : co-effet PARALLÈLE du volume (immédiat)
       if(EMBED) EMBED_LEDGER.push({g:d.qty,cash:tot,undo:()=>{S.cash-=tot;t.cash-=tot;t.sold--;d.status='nostock';
@@ -851,7 +859,7 @@ function reup(c){
   }
   const base = C.REUP_BASE[c.archetype] ?? 0.6;
   if(base*(c.goodwill/100) >= C.REUP_THRESHOLD){
-    const ppu=Math.max(4,Math.round(C.PRIX_FAIR*(0.6+S.reput/120))), tot=C.REUP_QTY*ppu;
+    const ppu=Math.max(4,Math.round(C.PRIX_FAIR*(0.6+S.reput/120))), tot=EMBED?embTotal(C.REUP_QTY,'genuine'):C.REUP_QTY*ppu;   // embed : relance = deal sérieux ×1.0 street(q)
     const prev=EMBED?{goodwill:c.goodwill,buys:c.buys,lastBuy:c.lastBuy}:null;
     S.cash+=tot; t.cash+=tot; t.sold++; t.reup++;
     c.goodwill=clamp(c.goodwill+C.GOODWILL_REUP_OK,0,100); c.buys++; c.lastBuy=S.jour;
@@ -870,7 +878,7 @@ function renderHeader(){
   $('day').textContent=S.jour;
   $('cash').textContent=(EMBED&&BIGO)?BIGO.cash:S.cash;   // en embed, le cash du PARENT fait foi
   if(EMBED){ const el=$('embedStock'); if(el){ const f=(BIGO&&BIGO.fini)||{g:0,q:0};
-    el.textContent=`stock : ${Math.round(f.g)} g · qualité ${Math.round(f.q)} → ${embedQual()} (via l'Atelier) · 💶 ${BIGO?BIGO.cash:'…'}€`; } }
+    el.textContent=`stock : ${Math.round(f.g)} g · qualité ${Math.round(f.q)} → ${embedQual()} (via l'Atelier) · rue ${Math.round(embStreet()*100)/100}€/g — la qualité fait le prix · 💶 ${BIGO?BIGO.cash:'…'}€`; } }
   const tone=toneFromReput(S.reput);
   const blocks={hostile:'◦ ◦ ◦','mefi':'● ◦ ◦',neutre:'● ● ◦',chaleureux:'● ● ●'}[tone];
   const col={hostile:'var(--rust)','mefi':'var(--sodium)',neutre:'var(--muted)',chaleureux:'var(--green)'}[tone];
@@ -918,7 +926,7 @@ function statusPill(d){
 function toneWord(t){ return {chaleureux:'chaleureuse 🟢',neutre:'neutre',mefi:'méfiante 🟠',hostile:'froide 🔴'}[t]||'?'; }
 function dmActsHTML(d){
   if(d.status!=='pending') return '<div class="dmdone">conversation terminée</div>';
-  const tot=d.qty*d.ppu;
+  const tot=EMBED?embTotal(d.qty,d.kind):d.qty*d.ppu;   // embed : montant affiché = montant encaissé, au street(q) courant (BUS.md)
   if(d.kind==='genuine') return `<button class="dmbtn ok" data-act="sell">✅ Vendre ${d.qty} · ${tot}€</button><button class="dmbtn" data-act="refuse">✋ Refuser</button>`;
   if(d.kind==='lowball') return `<button class="dmbtn bad" data-act="brade">💸 Brader ${d.qty} · ${tot}€</button><button class="dmbtn" data-act="refuse">🧱 Tenir le prix</button>`;
   if(d.kind==='grossiste') return `<button class="dmbtn bad" data-act="volume">📦 Écouler ${d.qty} · ${tot}€</button><button class="dmbtn" data-act="refuse">🧱 Refuser</button>`;
