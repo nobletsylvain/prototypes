@@ -9,6 +9,39 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — La photo de soirée, en deux temps parce qu'un seul ne suffit pas
+
+Sylvain a tranché : le Karnet ne montre **que les soirées closes**. Il faut donc figer
+chaque soirée au moment où elle se ferme. Étape 2 du plan, faite.
+
+**Une capture unique ne peut pas marcher, où qu'on la place** — les chiffres d'une soirée
+ne sont pas disponibles au même instant :
+
+- la **recette SnapShit** meurt dès la **première** instruction de la clôture
+  (`passerSoiree` remet `dayTally` à zéro) ;
+- la **paie des chouffes** tombe vers la **fin**, après le règlement des ardoises.
+
+D'où `karnetOuvrir()` avant, `karnetSceller()` après. Une seule fonction au milieu perdrait
+forcément l'un des deux bouts — et en silence, puisqu'un bilan amputé reste plausible.
+
+`seq` et `res` sont figés à l'ouverture pour que « passages » soit un **delta** : les
+clients de cette soirée-là, pas le compteur cumulé depuis le début de la partie.
+
+### Deux contrôles qui passaient sans rien prouver
+
+Écrits d'abord comme ça : la photo gardait `dm 0` et `passages 0` — les deux vérifications
+passaient au vert **sur des zéros**. Un contrôle qui ne peut pas échouer ne garde rien,
+c'est la troisième fois cette semaine que je m'y reprends.
+
+Refaits pour être vrais :
+
+- la soirée est seedée avec **275 € de recette DM**, et le test vérifie à la fois que la
+  photo les garde **et** que le jeu les a bien effacés (`dayTally.cash → 0`). Sans la
+  seconde moitié, on ne saurait pas si la photo a sauvé quoi que ce soit ;
+- le compteur cumulé part à **5** : si la photo rendait le cumul au lieu du delta, elle
+  afficherait « 5 passages » pour une soirée qui n'a vu arriver personne. Le test compare
+  explicitement les deux lectures.
+
 ## 2026-07-28 — Karnet : les quatre derniers arbitrages
 
 | Question | Décision de Sylvain |

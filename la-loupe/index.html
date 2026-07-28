@@ -399,10 +399,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=49";
-import * as beuher from "./beuher.mjs?v=49";
-import * as shelter from "./shelter.mjs?v=49";
-import * as corner from "./corner.mjs?v=49";
+import * as snap from "./snap.mjs?v=50";
+import * as beuher from "./beuher.mjs?v=50";
+import * as shelter from "./shelter.mjs?v=50";
+import * as corner from "./corner.mjs?v=50";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -437,7 +437,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=49"),
+      import("./scene3d.mjs?v=50"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -2965,8 +2965,57 @@ function ensureDemand(){
 // Temps UNIQUE : une soirée s'écoule en temps réel et se clôture toute seule.
 // « Passer la nuit » (bouton) = juste avancer plus vite. (retour de test : corner temps réel
 // vs SnapShit à la soirée coïncidaient mal → une seule horloge.)
+/* ── La photo d'une soirée ────────────────────────────────────────────────
+   Arbitrage de Sylvain : le Karnet ne montre QUE les soirées closes. Une ligne qui bouge
+   ne peut pas être une leçon — on ne compare pas une soirée finie à une soirée à moitié
+   jouée. Il faut donc figer la soirée au moment où elle se ferme.
+
+   En DEUX temps, et pas un seul, parce que les chiffres d'une soirée ne sont pas tous
+   disponibles au même instant :
+   — `karnetOuvrir()` s'exécute AVANT `snap.passerSoiree`, qui remet `dayTally` à zéro dès
+     sa première instruction. La recette SnapShit de la soirée disparaîtrait sinon.
+   — `karnetSceller()` s'exécute APRÈS la paie des chouffes et le règlement des ardoises.
+     Ces deux lignes appartiennent à la soirée qui se clôt ; les lire trop tôt donnerait un
+     bilan amputé de la dépense la plus régulière du jeu.
+   Une seule fonction au milieu manquerait forcément l'un des deux bouts.
+
+   `seq` et `res` sont figés à l'ouverture pour que « passages » soit un DELTA : le nombre
+   de clients qui se sont présentés cette soirée-là, pas le compteur cumulé depuis toujours. */
+const KARNET_MAX_SOIREES = 14;   // ~2 Ko dans le save ; deux semaines de recul suffisent à comparer
+let karnetPhoto = null;
+function karnetOuvrir(){
+  const t = S.dayTally || {};
+  karnetPhoto = {
+    jour: S.day,
+    dm: Math.round(t.cash || 0),               // recette SnapShit, effacée par passerSoiree
+    dmVentes: t.sold || 0,
+    spend: { ...(t.spend || { pain:0, upg:0, chouffes:0 }) },
+    corners: Object.fromEntries(allCorners().map(id => {
+      const C = S.shelter.corners[id], so = soirDe(C);
+      return [id, { seq0: C.seq || 0, res0: Math.round(C.res || 0), prix: C.prix || 0,
+                    chouffes: C.chouffes || 0, soir: JSON.parse(JSON.stringify(so)) }];
+    })),
+    heat: Math.round(S.heat), reput: Math.round(S.reput), dirty: Math.round(S.dirty),
+  };
+}
+function karnetSceller(){
+  if(!karnetPhoto) return;                     // clôture sans ouverture : on ne fabrique rien
+  const p = karnetPhoto; karnetPhoto = null;
+  // la paie et les ardoises sont tombées ENTRE les deux temps : on relit `spend` maintenant
+  p.spend = { ...p.spend, ...(S.dayTally && S.dayTally.spend ? S.dayTally.spend : {}) };
+  p.corners = Object.fromEntries(Object.entries(p.corners).map(([id, c]) => {
+    const C = S.shelter.corners[id];
+    return [id, { ...c, passages: Math.max(0, (C ? C.seq || 0 : c.seq0) - c.seq0),
+                        resFin: C ? Math.round(C.res || 0) : c.res0 }];
+  }));
+  p.heatFin = Math.round(S.heat);
+  if(!Array.isArray(S.soirees)) S.soirees = [];
+  S.soirees.unshift(p);
+  if(S.soirees.length > KARNET_MAX_SOIREES) S.soirees.length = KARNET_MAX_SOIREES;
+}
 function advanceDay(manual){
   const qLivree=snap.deliveredQuality(S, qualAvg());
+  karnetOuvrir();                    // AVANT passerSoiree : elle efface dayTally
   const cons=snap.passerSoiree(S, qLivree);
   /* `S.day++` tombe ICI, donc tout ce qui suit serait daté de la soirée SUIVANTE — alors
      que la paie des chouffes, les ardoises qui se règlent et les conséquences de la nuit
@@ -3000,6 +3049,7 @@ function advanceDay(manual){
      `advanceDay` appelle `snap.passerSoiree` en PREMIÈRE instruction, et celle-ci remet
      `dayTally` à zéro — d'où la scission à venir en deux temps (photo puis scellement)
      quand `S.soirees[]` arrivera. Ici on ne remet que ce qui vit sur le corner. */
+  karnetSceller();                   // APRÈS la paie et les ardoises, AVANT la remise à zéro
   for(const id of allCorners()){ const C=S.shelter.corners[id]; C.soir=shelter.soirDefaults(); }
   if(activeCorner()) activeCorner().combo=1; // combo négo : remis à zéro à chaque clôture de soirée
   /* Les contacts s'ouvrent aussi à la CLÔTURE, plus seulement quand un client quitte

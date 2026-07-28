@@ -112,6 +112,10 @@ await page.evaluateOnNewDocument((ver, q) => {
   localStorage.setItem("loupe_ver", ver);
   localStorage.setItem("loupe_save", JSON.stringify({
     day: 4, cash: 0, dirty: 400, reput: 40, heat: 0, sachets: { 2: 40 }, sachetQ: 70,
+    /* Une recette SnapShit NON NULLE, sinon « la photo garde le DM » passerait en gardant
+       zéro — un contrôle qui ne peut pas échouer ne garde rien. C'est ce chiffre-là que
+       `passerSoiree` efface dès sa première instruction. */
+    dayTally: { sold: 3, brade: 0, volume: 0, cash: 275, soldG: 12, soldQSum: 840, spend: { pain: 0, upg: 0, chouffes: 0 } },
     shelter: { phase: "B", introSeen: true, paidOff: true, cornerId: "pdv",
       corners: { pdv: { res: 90, bac: 0, prix: 10, chouffes: 2, tampon: { 2: 40 }, tamponQ: 70,
         queue: q, ledger: [], qacc: 0, serveAcc: 0, seq: 5, combo: 1, charbonneur: null } } },
@@ -209,6 +213,55 @@ ok("Le pont boucle : le liquide encaissé == ce que les compteurs disent (euros 
   ok("…mais la paie du soir reste attribuée à la soirée qui vient de se clore",
      ap.journal.some((j) => j.poste === "chouffes" && j.day === 4),
      (ap.journal.find((j) => j.poste === "chouffes") || {}).cause || "aucune ligne chouffes");
+}
+
+/* ── 5. La photo de soirée capture les DEUX bouts ─────────────────────────
+   Le Karnet ne montrera que les soirées closes (arbitrage Sylvain) : il faut donc figer
+   chaque soirée au moment où elle se ferme. Les chiffres ne sont pas tous disponibles au
+   même instant — la recette SnapShit meurt dès la PREMIÈRE instruction de la clôture
+   (`passerSoiree` remet `dayTally` à zéro), tandis que la paie des chouffes tombe vers la
+   FIN. Une capture unique, où qu'on la place, en perdrait forcément un.
+   D'où deux temps, et ce contrôle : la photo doit porter les deux. */
+{
+  const av = await lire();
+  const photo = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    return (s.soirees || [])[0] || null;
+  });
+  ok("Une soirée close laisse une photo",
+     !!photo, photo ? `jour ${photo.jour}` : "aucune photo dans S.soirees");
+
+  ok("La photo garde la recette SnapShit (effacée dès la 1re instruction de la clôture)",
+     photo && photo.dm === 275 && photo.dmVentes === 3,
+     photo ? `dm ${photo.dm} (seedé 275) · ${photo.dmVentes} vente(s) DM (seedé 3)` : "—");
+  const efface = await page.evaluate(() => ((JSON.parse(localStorage.getItem("loupe_save") || "{}").dayTally) || {}).cash);
+  ok("Contre-épreuve · le jeu a bien EFFACÉ cette recette à la clôture (donc la photo l'a sauvée)",
+     efface === 0, `dayTally.cash après clôture : ${efface} · dans la photo : ${photo && photo.dm}`);
+
+  ok("…ET la paie des chouffes (prélevée vers la FIN de la clôture)",
+     photo && photo.spend && photo.spend.chouffes === 2 * PAY,
+     photo && photo.spend ? `spend.chouffes ${photo.spend.chouffes} · attendu ${2 * PAY}` : "—");
+
+  ok("La photo fige les compteurs du corner AVANT leur remise à zéro",
+     photo && photo.corners && photo.corners.pdv && photo.corners.pdv.soir
+       && photo.corners.pdv.soir.perdu.walk === 1 && photo.corners.pdv.soir.eur > 0,
+     photo && photo.corners && photo.corners.pdv
+       ? `eur ${photo.corners.pdv.soir.eur} · walks ${photo.corners.pdv.soir.perdu.walk}`
+       : "—");
+
+  ok("Elle est datée du jour qui S'EST CLOS, pas du lendemain",
+     photo && photo.jour === 4, `photo jour ${photo && photo.jour} · jour courant ${av.journal.length ? 5 : "?"}`);
+
+  /* « passages » est un DELTA. Le seed part d'un compteur cumulé de 5 : si la photo
+     rendait le cumul au lieu du delta, elle afficherait 5 passages pour une soirée qui
+     n'en a vu aucun arriver. C'est exactement l'erreur qu'on veut interdire. */
+  const seqFin = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    return ((s.shelter && s.shelter.corners && s.shelter.corners.pdv) || {}).seq;
+  });
+  ok("« passages » est un DELTA, pas le compteur cumulé de la partie",
+     photo && photo.corners.pdv.seq0 === 5 && photo.corners.pdv.passages === seqFin - 5,
+     photo ? `seq ${photo.corners.pdv.seq0} → ${seqFin} · passages ${photo.corners.pdv.passages} (le cumul dirait ${seqFin})` : "—");
 }
 
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
