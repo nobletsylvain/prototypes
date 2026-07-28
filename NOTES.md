@@ -9,6 +9,70 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Quatre arbitrages de Sylvain, et deux de mes chiffres qui étaient faux
+
+Sylvain a tranché quatre questions en attente. **Deux des chiffres sur lesquels je l'ai
+fait décider étaient erronés** — les voici corrigés avant les décisions elles-mêmes.
+
+### Ce que j'avais dit de travers
+
+1. **« Les chouffes s'embauchent gratuitement. »** Faux. `PDV_CHOUFFE_PAY = 60` existe,
+   est prélevé à la clôture de soirée (liquide d'abord, puis propre, et un chouffe part si
+   la paie manque), et l'écran l'affiche : « Chouffes (60/soir) ». Ma phrase se contredisait
+   d'ailleurs elle-même, puisqu'elle chiffrait « 1 200/soir » deux lignes plus bas.
+2. **« La chaleur ne monte plus dès n = 20. »** Le seuil réel est **n = 11** (660/soir), à
+   activité pleine. J'avais vérifié qu'à 20 c'était négatif sans chercher où ça basculait.
+
+Le fond tenait — la jauge se fige bel et bien — mais je l'ai fait décider sur un prix
+d'entrée deux fois trop élevé et sur un système que je croyais absent.
+
+### Les arbitrages
+
+| Question | Décision |
+| --- | --- |
+| Chouffes | **Plancher de chaleur + salaire par soirée** |
+| App Appro | **Après N pains achetés chez Karim** (déblocage narratif, mérité) |
+| Karnet | **Les quatre sections** : bilan de soirée, échéances, carnet de clientèle, tableau de bord des corners |
+| Combo | **On garde tel quel** — à tester en jeu avant de toucher aux nombres |
+
+### Chouffes : le plancher, fait
+
+Le salaire existait déjà ; il ne restait que le plancher. Il est calé **là où le préavis
+cesse de s'améliorer** : `PDV_PREAVIS_S` s'arrête à 3 chouffes, donc l'amortissement sature
+à 3 chouffes. Au-delà, un chouffe de plus n'achète plus rien — ni secondes d'ouverture, ni
+préavis — mais son salaire continue de courir.
+
+Mesuré sur la vraie page, corner tenu, 5 s sans rien toucher :
+
+```
+                 avant            après
+  0 chouffe    +12,8            +12,7
+  3 chouffes    +7,0             +7,1     ← la plage voulue : rien ne change
+ 24 chouffes     0,0  « le coin  +7,1     ← la jauge repart
+                       ne chauffe plus »
+```
+
+**Pas de plafond dur** — Sylvain l'a écarté, et il avait raison : un mur se subit sans se
+comprendre. L'autolimitation passe par l'information. `chouffeGain` dit maintenant
+« un de plus n'achète rien · préavis déjà au max (18 s) — et 60/soir en plus », **avant**
+le bouton. On peut toujours embaucher ; on sait juste que c'est de l'argent jeté.
+
+Trois sites recalculaient la formule à l'identique. Ils passent par un `chouffeAmorti()`
+unique : un plancher oublié dans l'un des trois aurait été exactement la moitié-corrigée
+que ce dépôt s'est déjà infligée trois fois cette semaine.
+
+Nouveau fichier `tools/chaleur-loupe.mjs` (8/8). Contre-épreuve : sur l'`index.html` d'avant,
+**5 contrôles sur 8 tombent**, dont « LA JAUGE EST GELÉE ». Les deux contrôles de contexte
+— ça chauffe à sec, le chouffe ralentit — passent dans les deux cas : ils sont là pour
+qu'un échec des autres veuille dire quelque chose.
+
+### Resté ouvert
+
+Ma question sur le combo mêlait deux choses : l'équilibrage (×3 plus facile à tenir) et le
+cas du **pigeon**, dont la vente remet le combo à 1 en silence. Sylvain a répondu « on garde
+tel quel » — ce qui tranche l'équilibrage. Le message manquant sur le pigeon reste donc
+**non arbitré** : ma question était mal découpée, pas sa réponse.
+
 ## 2026-07-28 — Le garde du cache ne regardait pas dans `tools/`
 
 Repéré en travaillant sur le verrou de carte : `smoke-loupe-pdv.mjs` importait

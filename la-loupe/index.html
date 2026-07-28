@@ -946,6 +946,29 @@ const PDV_CHOUFFE_DAMP=0.18, PDV_CHOUFFE_PAY=60, PDV_TAMPON_MAX=60; // barrettes
 // grimper (88 g → 145 g). Placeholder — en attente de tuning humain.
 const SAC_LOT=25;
 const PDV_PREAVIS_S=[0, 6, 12, 18];   // [PLACEHOLDER] secondes de préavis selon le nombre de chouffes
+/* L'amortissement SATURE là où le préavis cesse de s'améliorer (arbitrage Sylvain,
+   2026-07-28). `PDV_PREAVIS_S` s'arrête à 3 chouffes — au-delà, un chouffe de plus
+   n'achetait plus une seconde de préavis mais continuait d'écraser la génération de
+   chaleur, indéfiniment. Mesuré sur les constantes de la source, à activité 1 :
+
+     n=0 → 1,300/s, descente en  73 s      n=6  → 0,262/s, descente en 363 s
+     n=3 → 0,599/s, descente en 159 s      n=10 → 0,014/s, descente en 6650 s
+                                           n=11 → NÉGATIF : la chaleur ne monte PLUS JAMAIS
+
+   Dès ONZE chouffes — 660/soir — l'ARAH, la descente et l'écran d'évacuation devenaient
+   inatteignables. Ce n'était pas un plafond de sécurité, c'était un interrupteur.
+
+   Le plancher est calé sur l'amortissement du DERNIER palier de préavis : au-delà, le
+   chouffe supplémentaire n'achète plus rien, ni secondes ni chaleur. Pas de mur — on peut
+   toujours en embaucher — mais `chouffeGain` le dit, et le salaire continue de courir.
+   R9 : la friction supprimée reste compensée, la tension se règle au niveau système. */
+const PDV_CHOUFFE_PLANCHER=1/(1+(PDV_PREAVIS_S.length-1)*PDV_CHOUFFE_DAMP);
+/** Génération de chaleur amortie par les chouffes, plancher compris. Un seul endroit :
+    trois sites la recalculaient à l'identique, et un plancher oublié quelque part serait
+    exactement le genre de moitié-corrigée que ce dépôt s'est déjà infligé trois fois. */
+function chouffeAmorti(activity, n){
+  return activity*PDV_HEAT_RATE*Math.max(PDV_CHOUFFE_PLANCHER, 1/(1+(n||0)*PDV_CHOUFFE_DAMP));
+}
 const ARAH_COOL_MS=520;                // le temps de rentrer un bloc : on ne sauve jamais tout, et ça se voit
 const ARAH_LOT=8;                      // barrettes rentrées par tap (les grosses d'abord : on sauve la valeur)
 const PDV_WANT=[1,1,2,1,3,2,1,2]; // paniers clients (barrettes)
@@ -1546,7 +1569,7 @@ function pdvTick(dt){
   }
   // Heat : le corner ne chauffe que quand il tourne (à sec → il refroidit), amortie par les chouffes
   const activity=open ? clamp(demande/PDV_BASE_DEMAND + P.queue.length*0.04, 0, 1.6) : 0;
-  S.heat=clamp(S.heat+(activity*PDV_HEAT_RATE/(1+(P.chouffes||0)*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY)*dt,0,100);
+  S.heat=clamp(S.heat+(chouffeAmorti(activity, P.chouffes)-PDV_HEAT_DECAY)*dt,0,100);
   if(S.heat>=PDV_SEUIL && !arahState){
     // le chouffe achète des SECONDES, pas l'immunité : sans lui, la descente tombe sec
     const pre=PDV_PREAVIS_S[Math.min(P.chouffes||0, PDV_PREAVIS_S.length-1)];
@@ -1568,7 +1591,7 @@ function pdvBadge(P){ const b=document.getElementById("pinBac"); if(b){ b.textCo
    dans le dos du joueur n'est pas une décision). */
 function pdvVitesseHeat(P){
   const activity=clamp(pdvDemande()/PDV_BASE_DEMAND + (P.queue?P.queue.length:0)*0.04, 0, 1.6);
-  return activity*PDV_HEAT_RATE/(1+(P.chouffes||0)*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY;
+  return chouffeAmorti(activity, P.chouffes)-PDV_HEAT_DECAY;
 }
 function heatChipTxt(P){
   const v=pdvVitesseHeat(P), h=Math.round(S.heat);
@@ -1582,17 +1605,29 @@ function heatChipTxt(P){
 function resChipTxt(P){ return `👥 ${Math.round(P.res)}`; }
 /* Ce qu'un chouffe de plus t'achète, dit en SECONDES d'ouverture — pas en « −Heat ».
    C'est le barreau R2 de l'escalier au corner, et il était illisible : personne ne peut
-   deviner que passer de 0 à 1 chouffe fait passer de 49 s à 119 s. */
+   deviner que passer de 0 à 1 chouffe fait passer de 49 s à 119 s.
+
+   Depuis que l'amortissement sature (PDV_CHOUFFE_PLANCHER), un chouffe au-delà du dernier
+   palier de préavis n'achète RIEN — ni secondes d'ouverture, ni préavis — mais coûte son
+   salaire chaque soir. Sylvain a écarté le plafond dur : on peut toujours en embaucher.
+   Alors on le DIT, ici, avant le bouton — c'est de l'information, pas un mur, et c'est ce
+   qui rend le choix autolimitant sans jamais refuser le geste (R2/R8). */
 function chouffeGain(P){
+  const n=P.chouffes||0;
+  const activity=clamp(pdvDemande()/PDV_BASE_DEMAND + (P.queue?P.queue.length:0)*0.04, 0, 1.6);
   const sec=(c)=>{
-    const activity=clamp(pdvDemande()/PDV_BASE_DEMAND + (P.queue?P.queue.length:0)*0.04, 0, 1.6);
-    const v=activity*PDV_HEAT_RATE/(1+c*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY;
+    const v=chouffeAmorti(activity, c)-PDV_HEAT_DECAY;
     // borné à 0 : au-delà du seuil la marge est nulle, pas négative
     return v<=0.001 ? Infinity : Math.max(0,(PDV_SEUIL-S.heat)/v);
   };
-  const a=sec(P.chouffes||0), b=sec((P.chouffes||0)+1);
+  const pre=(c)=>PDV_PREAVIS_S[Math.min(c, PDV_PREAVIS_S.length-1)];
+  const a=sec(n), b=sec(n+1);
+  if(a===Infinity && b===Infinity) return "le coin ne chauffe plus";
+  // rien de plus à acheter : ni ouverture, ni préavis
+  if(Math.round(a)===Math.round(b) && pre(n)===pre(n+1))
+    return `un de plus n'achète rien · préavis déjà au max (${pre(n)} s) — et ${PDV_CHOUFFE_PAY}/soir en plus`;
   const fmt=(x)=>x===Infinity?"illimité":Math.round(x)+" s";
-  return b===Infinity && a===Infinity ? "le coin ne chauffe plus" : `ouverture ${fmt(a)} → ${fmt(b)} avec un de plus`;
+  return `ouverture ${fmt(a)} → ${fmt(b)} · préavis ${pre(n)} s → ${pre(n+1)} s`;
 }
 function pdvPatch(){
   const P=activeCorner(), Qd=Math.round(tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55));
