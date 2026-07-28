@@ -213,6 +213,47 @@ fasse prendre — ce n'est pas un bug, c'est une porte fermée.
 
 ---
 
+## 2026-07-28 — La liste « servable » contenait de l'inservable
+
+Sixième bug de la chasse. `cornerQuantites` calcule les quantités que le tampon compose
+vraiment (`snap.composables`), puis **réinjecte la demande du client** même quand elle
+n'en fait pas partie :
+
+```js
+const liste = snap.composables(P.tampon||{}, cap);
+if(!liste.includes(cl.g) && cl.g>0) liste.push(cl.g);   // ← la ligne fautive
+```
+
+Cette liste est le **rail du stepper** de négociation. Y glisser une quantité inservable
+ouvre la négo sur un **cul-de-sac** : un seul bouton, qui ne peut pas aboutir.
+
+### Le pire : ça défaisait l'intention écrite juste en dessous
+
+Trois lignes plus bas, le code promet :
+
+> « on ouvre sur le composable le plus proche de sa demande : quand le tampon ne fait que
+> du 8 g et qu'il en veut 5, la carte s'ouvre **déjà sur 8 g** »
+
+Sauf que le `reduce` du « plus proche de `cl.g` » tombe **mécaniquement sur `cl.g`**
+puisqu'on vient de l'ajouter. La carte n'ouvrait donc **jamais** sur le 8 g qu'on avait
+réellement. Un commentaire qui décrit une intention que la ligne d'à côté annule.
+
+C'est le troisième cas cette nuit où **le code dit une chose et fait l'autre** — après le
+libellé de test sur les bornes du grossiste, et le commentaire sur la sur-livraison que
+`cancel` rouvrait.
+
+### Le correctif
+
+On ne réinjecte plus. Dernier recours seulement : si **rien** n'est composable, on garde
+sa demande comme ancre pour que le stepper ait un index — la carte dit déjà « aucune
+barrette ne compose N g », et la vente part en rupture **annoncée**.
+
+Mesuré avec le vrai `composables` : tampon `{8×3}`, demande 5 g → propositions `[8, 16]`,
+et la négo ouvre bien sur **8**. Contre-épreuve : avec la réinjection, la liste devient
+`[5, 8, 16]` et la négo ouvre sur **5**, incomposable.
+
+---
+
 ## 2026-07-28 — Le client refusait le prix qu'il venait lui-même d'annoncer
 
 Cinquième bug de la chasse. Le client contre avec un « dernier prix », calculé contre le

@@ -842,6 +842,34 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
      refusApres ? `${refusApres}/${cas} cas finissaient en départ fâché — ex. ${exemple}` : "aucun cas reproduit");
 }
 
+/* ── La liste « servable » ne contient que du servable ────────────────────────
+   `cornerQuantites` réinjectait la demande du client même quand le tampon ne la compose
+   pas. Cette liste est le RAIL du stepper de négo : y glisser une quantité inservable
+   ouvrait sur un cul-de-sac, et défaisait l'intention écrite juste en dessous — « on
+   ouvre sur le composable le plus proche », qui retombait mécaniquement sur la demande.
+   On rejoue ici les deux versions avec le VRAI `composables`. */
+{
+  const tampon = { 8: 3 };            // que du 8 g
+  const demande = 5;                  // il en veut 5 : incomposable
+  const cap = 20;
+  const brut = composables(tampon, cap);
+  const avecPush = brut.includes(demande) ? brut.slice() : [...brut, demande].sort((a, b) => a - b);
+  const corrige = brut.length ? brut.slice() : [demande];
+  const plusProche = (l) => l.reduce((a, b) => Math.abs(b - demande) < Math.abs(a - demande) ? b : a);
+
+  ok("La liste des quantités proposées ne contient que du composable",
+     corrige.every((g) => brut.includes(g)) && !corrige.includes(demande),
+     `tampon {8×3}, il veut ${demande} g → propositions [${corrige.join(", ")}]`);
+
+  ok("R8 · la négo s'ouvre sur le composable le plus proche, comme le code le promet",
+     plusProche(corrige) === 8,
+     `avec le correctif : ouvre sur ${plusProche(corrige)} g`);
+
+  ok("Contre-épreuve · réinjecter la demande faisait ouvrir sur l'inservable",
+     avecPush.includes(demande) && plusProche(avecPush) === demande,
+     `sans le correctif : liste [${avecPush.join(", ")}] → ouvre sur ${plusProche(avecPush)} g (incomposable)`);
+}
+
 console.log("\n─── invariants La Loupe ───");
 let bad = 0;
 for (const r of results) {

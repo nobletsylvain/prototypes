@@ -386,10 +386,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=45";
-import * as beuher from "./beuher.mjs?v=45";
-import * as shelter from "./shelter.mjs?v=45";
-import * as corner from "./corner.mjs?v=45";
+import * as snap from "./snap.mjs?v=46";
+import * as beuher from "./beuher.mjs?v=46";
+import * as shelter from "./shelter.mjs?v=46";
+import * as corner from "./corner.mjs?v=46";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -424,7 +424,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=45"),
+      import("./scene3d.mjs?v=46"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -1204,7 +1204,16 @@ function cornerQuantites(P, cl){
   for(let g=1; g<=60; g++) if(g*corner.menuAt(menu,g)<=bud) poche=g;
   const cap=Math.max(cl.g, poche);
   const liste=snap.composables(P.tampon||{}, cap);
-  if(!liste.includes(cl.g) && cl.g>0) liste.push(cl.g);
+  /* On NE réinjecte PAS sa demande quand le tampon ne la compose pas. Cette liste
+     s'appelle « servable » et sert de rail au stepper : y glisser une quantité
+     inservable ouvrait la négo sur un cul-de-sac — un seul bouton, qui ne peut pas
+     aboutir. Pire, ça défaisait l'intention écrite juste en dessous (« on ouvre sur le
+     composable le plus proche ») : le reduce du plus proche retombait mécaniquement sur
+     sa demande, donc la carte n'ouvrait jamais sur le 8 g qu'on avait vraiment.
+     Dernier recours seulement : si RIEN n'est composable, on garde sa demande comme
+     ancre pour que le stepper ait un index — la carte dit déjà « aucune barrette ne
+     compose N g », et la vente partira en rupture annoncée. */
+  if(!liste.length && cl.g>0) liste.push(cl.g);
   return liste.sort((a,b)=>a-b);
 }
 function cornerResolve(P, cl, total, firstTry, isClientOffer){
