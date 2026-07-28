@@ -121,6 +121,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .map-pin.rival .dot{background:#ff8a6a}
 .map-pin.info .dot{background:#e8c96a}
 .map-pin.karim .dot{background:#c9a227}   /* le fournisseur : ni ton spot, ni un rival */
+.map-pin.nourrice .dot{background:#b98cff}  /* la vanne du liquide : ni un lieu de vente, ni un lieu de stock */
 .map-pin.on .dot{box-shadow:0 0 0 3px rgba(255,180,84,.55),0 0 12px rgba(255,180,84,.35)}
 .map-pin.locked{opacity:.55}
 .map-pin.locked .dot{filter:grayscale(.4)}
@@ -399,11 +400,11 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=51";
-import * as beuher from "./beuher.mjs?v=51";
-import * as shelter from "./shelter.mjs?v=51";
-import * as karnet from "./karnet.mjs?v=51";
-import * as corner from "./corner.mjs?v=51";
+import * as snap from "./snap.mjs?v=52";
+import * as beuher from "./beuher.mjs?v=52";
+import * as shelter from "./shelter.mjs?v=52";
+import * as karnet from "./karnet.mjs?v=52";
+import * as corner from "./corner.mjs?v=52";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -438,7 +439,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=51"),
+      import("./scene3d.mjs?v=52"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -506,6 +507,7 @@ const PAIN_500 = { g:500, price:3200, q:70, label:"Lot 500 (2×250)", reputGate:
 // Boucle : couper (Atelier) → écouler au corner (négo) → encaisser → racheter un pain.
 const CHARB_WAGE = 80; // (réservé) tarif jour d'un charbonneur — ce qu'on paiera pour EN embaucher un plus tard
 const PLANQUE_CAP_BASE = 250;
+const NOURRICE_NM = "Tata Yamina";
 const DIRTY_HOLD_SOFT = 180, DIRTY_HOLD_HARD = 450, BUNDLE_SIZE = 5, COUNTER_RATE = 40;
 const DAY_SEC_REAL = 180; // une journée s'écoule en temps réel (horloge unique) puis se clôture — assez longue pour souffler entre les clients
 const UPG = {
@@ -890,6 +892,8 @@ function renderShelter(){
   const repayBtn=document.getElementById("repay");
   if(repayBtn) repayBtn.onclick=()=>openRepay();
   stage.querySelectorAll("[data-karim]").forEach(b=>b.onclick=()=>karimAchat());
+  stage.querySelectorAll("[data-nour-dep]").forEach(b=>b.onclick=()=>nourriceMouv(b.dataset.nourDep, +1));
+  stage.querySelectorAll("[data-nour-ret]").forEach(b=>b.onclick=()=>nourriceMouv(b.dataset.nourRet, -1));
   stage.querySelectorAll("[data-pin-go]").forEach(b=>b.onclick=()=>{
     const g=b.dataset.pinGo;
     if(g==="karim"){ S.shelter.selectedPin="karim"; save(); renderShelter(); return; }
@@ -941,6 +945,25 @@ function pinSheet(p, hit, hitLb){
       <button class="btn snap" style="margin-top:6px" data-pin-go="snap">⚡ Ouvrir SnapShit (DM)</button>
     </div>`;
   }
+  if(p.kind==="nourrice"){
+    /* La vanne. Elle GARDE — elle ne blanchit pas, elle ne rend pas une autre monnaie, elle
+       ne fait pas attendre. Déposer et reprendre sont immédiats et gratuits : le coût est
+       AILLEURS, dans la pension qui tombe chaque soir tant qu'elle garde.
+       Le rappel « ce soir » est affiché AVANT le geste (R8) : la décision se prend sur un
+       nombre lisible, jamais sur une surprise à la clôture. */
+    const N=S.shelter.nourrice||{garde:0}, due=shelter.pensionDue(S);
+    const pas=[100,500,"tout"];
+    return `<div class="card">
+      <h3>${p.title}</h3>
+      <div class="muted">${p.blurb}</div>
+      <div class="stat"><span>Chez elle</span><b>${money(N.garde||0)}</b></div>
+      <div class="stat"><span>Sa pension ce soir<br><span class="muted" style="font-size:10px">${Math.round(shelter.NOURRICE_PENSION*100)} % de ce qu'elle garde, à chaque clôture</span></span><b class="${due?"q-bad":""}">${due?"−"+money(due):"—"}</b></div>
+      <div class="stat"><span>Sur toi</span><b class="${S.dirty>DIRTY_HOLD_HARD?"q-bad":""}">${money(S.dirty)}${S.dirty>DIRTY_HOLD_SOFT?" 🔥":""}</b></div>
+      <div class="muted" style="font-size:10px;margin:2px 0 6px">Ce qu'elle garde ne chauffe plus le quartier. Mais elle se paie tous les soirs, et si ta poche est courte elle se sert dans le magot — jamais de dette.</div>
+      <div class="grid3">${pas.map(m=>`<button class="btn ghost" style="margin:0" data-nour-dep="${m}" ${S.dirty<=0?"disabled":""}>🧶 ${m==="tout"?"Tout":"+"+m}</button>`).join("")}</div>
+      <div class="grid3">${pas.map(m=>`<button class="btn bad" style="margin:0" data-nour-ret="${m}" ${(N.garde||0)<=0?"disabled":""}>↩ ${m==="tout"?"Tout":m}</button>`).join("")}</div>
+    </div>`;
+  }
   if(p.kind==="karim"){
     /* Karim est un TYPE, pas un distributeur : on lit son offre, ce qu'elle coûte de plus
        que le marché, et où on en est du contact. Le compteur est affiché parce que sans
@@ -978,6 +1001,23 @@ function allerAppro(){
     return;
   }
   tab="atelier"; atelierSub="buy"; render();
+}
+/* Déposer / reprendre. Immédiat et gratuit dans les deux sens — le coût de la vanne est
+   ailleurs, dans la pension. Reprendre n'a pas de pénalité parce que la pénalité est
+   structurelle : l'argent redevient CHAUD dès qu'il est sur toi. */
+function nourriceMouv(montant, sens){
+  const N=S.shelter.nourrice||(S.shelter.nourrice={garde:0, vue:false});
+  const dispo = sens>0 ? S.dirty : (N.garde||0);
+  const m = montant==="tout" ? Math.floor(dispo) : Math.min(+montant, Math.floor(dispo));
+  if(!(m>0)) return;
+  if(sens>0){ S.dirty-=m; N.garde=(N.garde||0)+m;
+    cause("Confié à "+NOURRICE_NM, "+"+money(m)+" chez elle · pension "+money(shelter.pensionDue(S))+"/soir",
+          {eur:0, poste:"nourrice"});
+    toast("🧶 "+money(m)+" chez elle. Ça ne chauffe plus — mais ça se paie."); }
+  else { N.garde=Math.max(0,(N.garde||0)-m); S.dirty+=m; pushBills(m);
+    cause("Repris chez "+NOURRICE_NM, "−"+money(m)+" chez elle · c'est chaud de nouveau", {eur:0, poste:"nourrice"});
+    toast("↩ "+money(m)+" sur toi. Ça recommence à chauffer."); }
+  save(); hud(); renderShelter();
 }
 function karimAchat(){
   const K=shelter.SUPPLIER;
@@ -1109,9 +1149,16 @@ function cornerActive(P){ return P.queue&&P.queue.length?P.queue[0]:null; }
    NaN — qui se propage en silence jusqu'au bilan. On complète donc à la lecture. */
 /** Le poste de dépense de la soirée, toujours présent (même raison défensive que soirDe). */
 function spendDe(){
-  const d={ pain:0, upg:0, chouffes:0 };
-  if(!S.dayTally) S.dayTally={ sold:0, brade:0, volume:0, cash:0, soldG:0, soldQSum:0, spend:d };
-  S.dayTally.spend={...d, ...(S.dayTally.spend||{})};
+  /* MUTE SUR PLACE, ne réassigne pas. La version précédente faisait
+     `S.dayTally.spend = {...defauts, ...ancien}` — donc chaque appel rendait un objet NEUF.
+     Deux appels dans la même expression (`spendDe().x = (spendDe().x||0)+n`) écrivaient
+     alors sur un objet ORPHELIN : le premier appel rend A, le second remplace A par B, et
+     l'affectation atterrit sur A que plus personne ne lit. La dépense disparaissait en
+     silence — attrapé par le test de la pension, pas par relecture. */
+  const d={ pain:0, upg:0, chouffes:0, nourrice:0 };
+  if(!S.dayTally) S.dayTally={ sold:0, brade:0, volume:0, cash:0, soldG:0, soldQSum:0, spend:{...d} };
+  if(!S.dayTally.spend || typeof S.dayTally.spend!=="object") S.dayTally.spend={...d};
+  for(const k of Object.keys(d)) if(typeof S.dayTally.spend[k]!=="number") S.dayTally.spend[k]=0;
   return S.dayTally.spend;
 }
 /* La fiche d'un visage anonyme. Créée à la volée : rien à migrer, une partie en cours
@@ -3161,6 +3208,20 @@ function advanceDay(manual){
     if(due>0){ if(S.dirty>=due){ S.dirty-=due; spendDe().chouffes+=due; cause("Paie chouffes","−"+due+" liquide", {eur:-due, poste:"chouffes", day:jourClos}); }
       else if(S.cash>=due){ S.cash-=due; spendDe().chouffes+=due; cause("Paie chouffes","−"+due+" propre", {eur:-due, poste:"chouffes", day:jourClos}); }
       else { P.chouffes=Math.max(0,P.chouffes-1); cause("Chouffe parti","paie manquée · "+money(due)+" dus", {poste:"chouffes", day:jourClos}); } } }
+  /* La pension de la nourrice. Elle se sert d'abord sur ta poche ; si la poche est courte,
+     elle se sert DANS LE MAGOT. Le magot fond, il ne devient jamais une dette — c'est le
+     gabarit de la paie des chouffes juste au-dessus, le seul mécanisme de charge que ce
+     dépôt ait écrit sans violer R1. Une soirée, une conséquence, ardoise à zéro. */
+  { const N=S.shelter.nourrice; const p=shelter.pensionDue(S);
+    if(N && p>0){
+      const dePoche=Math.min(S.dirty, p), duMagot=p-dePoche;
+      S.dirty-=dePoche; if(duMagot>0) N.garde=Math.max(0, N.garde-duMagot);
+      const sp=spendDe(); sp.nourrice+=p;
+      cause("Pension "+NOURRICE_NM, duMagot>0
+        ? "−"+money(dePoche)+" de ta poche, −"+money(duMagot)+" pris dans le magot"
+        : "−"+money(p)+" liquide · elle garde "+money(N.garde),
+        {eur:-p, poste:"nourrice", day:jourClos});
+    } }
   /* Compteurs de soirée remis à zéro APRÈS la paie des chouffes et le règlement des
      ardoises, jamais avant : ces deux lignes appartiennent à la soirée qui se clôt.
      `advanceDay` appelle `snap.passerSoiree` en PREMIÈRE instruction, et celle-ci remet

@@ -9,6 +9,97 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — La vanne du liquide : Tata Yamina garde, et se paie
+
+Sylvain, en jouant : « aucune option de retirer l'argent du corner, ou bien de cacher
+l'argent chez une nourrice ». Le code lui donnait raison, et **plus largement qu'il ne le
+disait**.
+
+### Le diagnostic : tous les puits étaient des STOCKS
+
+| puits | ce qu'il vaut vraiment |
+| --- | --- |
+| Upgrades | **7 900** au total, une seule fois dans la partie. (Et pas 9 150 comme je l'avais dit : `scooter` et `counter` ne sont dans aucune ligne de boutique.) |
+| Acheter du pain | Ne supprime pas la pression, il la **déplace** vers le hit planque. |
+| Paie des chouffes | 180/soir à 3 chouffes, face à des soirées de 400 à 1 100. |
+| Trieuse liquide→propre | **Coupée**. C'était *la* vanne prévue. |
+
+Une fois les upgrades au max, le liquide **ne pouvait plus que monter**. Et au-dessus de
+450 il chauffe à +40/min pour un seuil de descente à 95 : 2,4 minutes.
+
+**Et la conséquence en cascade que je n'avais pas reliée** : c'est cette même trieuse coupée
+qui a forcé l'extinction de la dette Karim. Elle était payable en propre, le propre n'a
+aucune source in-game, donc impayable. La vanne manquante n'a pas seulement bouché le
+liquide, elle a tué la seule échéance datée du jeu.
+
+### Sa piste, telle qu'énoncée, effaçait la tension
+
+Trois angles ont été conçus indépendamment et jugés contre R1..R11. **La nourrice a été
+classée dernière** (5,5/10) et fut la seule des trois marquée « efface la tension ». Motif :
+une cachette qui coûte une commission *une fois* transforme la pression du liquide en
+formalité. Tu déposes, c'est fini, la tension disparaît.
+
+Ce qui la sauve tient en un seul changement, greffé des angles perdants : **une pension par
+soirée au lieu d'une commission unique**. Elle garde ; tant qu'elle garde, le compteur tourne.
+
+### Pourquoi un pourcentage et pas une somme fixe
+
+Sylvain a demandé. Simulé sur 30 soirées, plutôt qu'argumenté :
+
+```
+                pension fixe 100/soir      pension 10 %
+  net 400/soir  tu caches  9 000  (25 %)   tu caches  3 400
+  net 3000/soir tu caches 87 000  ( 3 %)   tu caches 25 900
+```
+
+Le fixe a **exactement le défaut des upgrades** : c'est un stock, et le jeu le dépasse. Il
+pique quand on n'a pas les moyens (25 % de la soirée) et devient du bruit quand le liquide
+devient un vrai problème (3 %). Le pourcentage, lui, coûte **toujours une soirée de travail
+à l'équilibre** — la garde se stabilise à 10× le net. *« Tu ne peux cacher que dix fois ce
+que tu gagnes en une soirée. Pour cacher plus, produis plus. »*
+
+J'avais proposé un intermédiaire — une somme fixe par tranche de 1 000, qui se **compte** au
+lieu de se calculer. Sylvain a tranché pour le pourcentage franc.
+
+### Pourquoi ça n'efface pas la tension (R9)
+
+L'argument principal ne coûte aucun nombre nouveau, il était déjà dans le code : **un pain
+coûte 200, le premier palier de chaleur est à 180**. Un joueur qui garde de quoi ravitailler
+demain est donc en zone 1 **par construction** — la nourrice ne peut pas le descendre en
+zone froide sans lui retirer sa soirée suivante. Le palier doux devient le régime de
+croisière ; seul le palier dur devient évitable, et lui n'était pas une tension mais un
+verrou sans issue.
+
+Et la pension **compose** : un magot oublié perd la moitié en 6,6 soirées. Ce n'est pas une
+épargne, c'est une cellule avec un compteur.
+
+**Ce que je ne peux pas défendre, et je le dis** : le report de chaleur d'un soir sur l'autre
+est en grande partie supprimé. C'est délibéré — c'était la partie « impasse » — mais c'est
+bien un cran de tension retiré. Si Sylvain veut le récupérer, le levier est `wasteG`, à la
+source, et il l'a mis en réserve plutôt que de l'activer maintenant.
+
+### R1 : elle mange le magot, elle ne crée jamais de dette
+
+Si la poche est courte, elle se sert **dans la garde**. Le magot fond, il ne devient jamais
+une dette — c'est le gabarit de la paie des chouffes, le seul mécanisme de charge que ce
+dépôt ait écrit sans rouvrir la boucle sans sortie de `FRONT_ENABLED`.
+
+### Un vrai bug, attrapé par le test
+
+`spendDe().nourrice = (spendDe().nourrice||0) + p` — deux appels dans la même expression.
+L'accesseur **réassignait** `S.dayTally.spend` à chaque appel : le premier rend A, le second
+remplace A par B, et l'affectation atterrit sur **A que plus personne ne lit**. La dépense
+disparaissait en silence.
+
+`spendDe()` **mute désormais sur place**, ce qui supprime la classe entière — la même
+expression à deux appels ne peut plus se tromper de cible. Attrapé par le contrôle de la
+pension, pas par relecture.
+
+### Le pont a bien mordu
+
+Ajouter un puits au jeu sans l'ajouter à `POSTES` aurait fait apparaître « Non expliqué » au
+Karnet. C'est exactement à ça que sert cette ligne, et le test vérifie qu'elle dort.
+
 ## 2026-07-28 — Les visages du quartier, et une fausse alerte sur mon propre poste
 
 Arbitrage de Sylvain : les anonymes doivent avoir des **têtes récurrentes**. Il a pris

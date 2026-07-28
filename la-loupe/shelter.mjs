@@ -39,6 +39,27 @@ export const PINS = {
     title: "Chez Karim",
     blurb: "Arrière-boutique, rideau à moitié tiré. C'est lui qui t'a lancé — et pour l'instant, c'est lui qui te fournit.",
   },
+  /* Chez Tata Yamina. La VANNE du liquide (arbitrage Sylvain, 2026-07-28, après un
+     playtest : « aucune option de retirer l'argent du corner, ou de le cacher chez une
+     nourrice »).
+
+     Le diagnostic mesuré : tous les puits du jeu étaient des STOCKS. Les upgrades sont
+     plafonnés (7 900 réellement achetables — `scooter` et `counter` ne sont dans aucune
+     ligne de boutique), le pain déplace la pression vers la planque au lieu de la
+     supprimer, la paie des chouffes plafonne à 180/soir, et la trieuse est coupée. Une
+     fois les upgrades au max, plus rien ne consommait un revenu net de 400 à 1 100 par
+     soirée : le liquide ne pouvait plus que monter, et au-dessus de 450 il chauffe à
+     +40/min pour un seuil de descente à 95.
+
+     Elle GARDE, elle ne blanchit pas : pas de seconde monnaie, rien de nouveau à
+     apprendre. Et tant qu'elle garde, le compteur tourne. */
+  nourrice: {
+    id: "nourrice",
+    x: 36, y: 52,
+    kind: "nourrice",
+    title: "Chez Tata Yamina",
+    blurb: "R+2, l'étage sous le tien. Elle garde. Elle ne demande rien, elle ne rend pas de comptes — mais elle se paie.",
+  },
   rival: {
     id: "rival",
     x: 64, y: 38,
@@ -76,6 +97,32 @@ export const SUPPLIER = {
   /** Achats chez lui avant qu'il te passe le contact et que l'Appro s'ouvre. [PLACEHOLDER] */
   unlockAfter: 3,
 };
+
+/* La pension de la nourrice : ce qu'elle prélève CHAQUE SOIRÉE, proportionnellement à ce
+   qu'elle garde. Arbitrage Sylvain : un pourcentage franc, pas une somme fixe.
+
+   Pourquoi un pourcentage — mesuré, pas supposé. Une somme fixe ne borne rien : à 100 par
+   soirée, un joueur qui fait 400/soirée finit par cacher 9 000 (et la pension lui coûte
+   25 % de sa soirée), tandis qu'un joueur à 3 000/soirée cache 87 000 pour 3 %. Le fixe
+   fait donc mal quand on n'a pas les moyens et ne fait plus rien quand le liquide devient
+   un vrai problème — c'est exactement le défaut des upgrades plafonnés : un stock que le
+   jeu dépasse.
+
+   Le pourcentage, lui, a un point d'équilibre : la garde se stabilise à `1/taux` fois le
+   net d'une soirée, soit 10× à 10 %. « Tu ne peux cacher que dix fois ce que tu gagnes en
+   une soirée — pour cacher plus, produis plus. » Le puits n'est plus un stock à vider une
+   fois, c'est un débit indexé sur la performance du joueur, sans aucun rubber-band : rien
+   n'est calculé sur ses soirées passées, c'est juste un taux.
+
+   Et il ne baisse JAMAIS avec la progression : aucun palier, aucune capacité à acheter.
+   Un puits qui se rend moins cher en avançant redevient un stock. */
+export const NOURRICE_PENSION = 0.10;   // [PLACEHOLDER équilibrage — arbitré à 10 % le 2026-07-28]
+
+/** Ce que la nourrice prélève ce soir, arrondi. */
+export function pensionDue(S) {
+  const g = (S.shelter && S.shelter.nourrice && S.shelter.nourrice.garde) || 0;
+  return g > 0 ? Math.max(1, Math.round(g * NOURRICE_PENSION)) : 0;
+}
 
 /** L'Appro est-elle ouverte ? Avant, tout passe par Karim. */
 export function approOuverte(S) {
@@ -127,6 +174,7 @@ export function shelterDefaults() {
        rotation, c'est une navette. */
     corners: { pdv: cornerDefaults() },
     cornerId: "pdv",          // celui qu'on regarde
+    nourrice: { garde: 0, vue: false },   // ce qu'elle garde ; `vue` = elle s'est présentée
   };
 }
 

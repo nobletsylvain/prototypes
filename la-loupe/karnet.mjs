@@ -31,6 +31,7 @@ export const POSTES = [
   { id: "pain", nm: "Pain", signe: -1, aide: "matière achetée dans la soirée" },
   { id: "chouffes", nm: "Chouffes", signe: -1, aide: "leur paie, prélevée à la clôture" },
   { id: "upg", nm: "Réinvest", signe: -1, aide: "outils et agrandissements" },
+  { id: "nourrice", nm: "Pension", signe: -1, aide: "ce que la nourrice prélève pour garder ton magot" },
 ];
 
 const R = Math.round;
@@ -48,6 +49,7 @@ export function postesDe(soiree) {
     pain: R(sp.pain || 0),
     chouffes: R(sp.chouffes || 0),
     upg: R(sp.upg || 0),
+    nourrice: R(sp.nourrice || 0),
   };
 }
 
