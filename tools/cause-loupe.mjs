@@ -15,6 +15,7 @@ import { fileURLToPath } from "url";
 import http from "http";
 import path from "path";
 import puppeteer from "puppeteer";
+import { CORNER_PERSONAS } from "../la-loupe/corner.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -371,6 +372,63 @@ ok("La cause dit quoi FAIRE, pas seulement ce qui se passe",
   ok("…et la réplique « C'est EXACTEMENT ça » reste méritée",
      /EXACTEMENT/i.test(pile.ap.toast),
      `réplique : « ${pile.ap.toast} »`);
+}
+
+// ── Le quartier reconnaît les têtes qu'il a déjà vues ────────────────────
+// Arbitrage de Sylvain : les anonymes ont des têtes récurrentes. Les invariants
+// (`invariants-loupe.mjs`) prouvent que la réserve tourne, reste déterministe et ne
+// reconnaît personne avant la 2e rencontre. Ici on vérifie l'autre moitié : ce que le
+// joueur LIT sur la carte — parce que dans ce dépôt, une trouvaille sur l'affichage se
+// MESURE, elle ne se raisonne pas.
+//
+// On pose le client en file au lieu d'attendre qu'il arrive : le tirage du spawn n'est pas
+// le sujet, et l'attendre rendait le contrôle dépendant de qui passe (il est tombé deux
+// fois pour cette raison). Ce qu'on veut savoir tient en une question — la carte affiche-
+// t-elle ce que la fiche du visage contient, et rien de plus ?
+{
+  const passant = (vid) => ({ cid: null, vid, nm: "Naïma", av: "🕶️", kind: "anon", rel: 0,
+    g: 2, offer: 20, tx: "Elle te fait signe.", tell: "", pat: 600, pat0: 600,
+    mode: "offer", negoP: 20, dernier: null, qFac: 1 });
+
+  const carte = async (fiches, cl) => {
+    await page.evaluateOnNewDocument((f, c) => {
+      const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+      delete s.shelter.pdv;
+      s.visages = f; s.day = 6; s.reput = 40; s.sachets = { 2: 60 }; s.sachetQ = 70;
+      s.shelter.corners = { pdv: { res: 100, bac: 0, prix: 10, chouffes: 0, tampon: { 2: 60 },
+        tamponQ: 70, queue: [c], ledger: [], qacc: 0, serveAcc: 0, seq: 0, combo: 1, charbonneur: null } };
+      s.shelter.cornerId = "pdv";
+      localStorage.setItem("loupe_save", JSON.stringify(s));
+    }, fiches, cl);
+    await page.reload({ waitUntil: "load" });
+    await sleep(700);
+    await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin]")].find((x) => x.dataset.pin === "pdv"); if (b) b.click(); });
+    await sleep(300);
+    await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin-go]")].find((x) => x.dataset.pinGo === "pdv"); if (b) b.click(); });
+    await sleep(700);
+    return page.evaluate(() => {
+      const h = document.getElementById("cActive");
+      return { nm: ((document.querySelector(".nego-nm") || {}).textContent || ""),
+               txt: ((h && h.textContent) || "").replace(/\s+/g, " ") };
+    });
+  };
+
+  // (a) une tête inconnue : le jeu ne doit PAS feindre de s'en souvenir
+  const inconnu = await carte({}, passant(13));
+  ok("Une tête jamais croisée n'affiche AUCUNE reconnaissance",
+     inconnu.nm === "Naïma" && !/Déjà vu/.test(inconnu.txt),
+     `« ${inconnu.nm} » · ligne « Déjà vu » absente ${!/Déjà vu/.test(inconnu.txt)}`);
+
+  // (b) la MÊME tête, avec un passé : reconnue, avec son habitude et ses mains vides
+  const connu = await carte({ 13: { vu: 4, dernier: 5, g: { 8: 3, 2: 1 }, bredouille: 2 } }, passant(13));
+  await page.screenshot({ path: path.join(OUT, "06-visage-connu.png") });
+  ok("La même tête, déjà croisée, est RECONNUE sur sa carte",
+     /Déjà vu 4/.test(connu.txt),
+     /Déjà vu/.test(connu.txt) ? (connu.txt.match(/Déjà vu[^A-Z]{0,60}/) || [""])[0] : "aucune reconnaissance");
+
+  ok("…et elle dit son habitude et ses retours bredouilles, pas juste un compteur",
+     /8 g d'habitude/.test(connu.txt) && /bredouille 2/.test(connu.txt),
+     `habitude ${/8 g d'habitude/.test(connu.txt)} · bredouille ${/bredouille 2/.test(connu.txt)}`);
 }
 
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
