@@ -9,6 +9,93 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — L'impayé : R4 interdit le hasard, pas la perte
+
+### Une coquille lue comme un arbitrage
+
+Sylvain avait écrit « J'aime l'idée du retard possible et **le nom paiement** ». J'ai lu ça
+comme le nom d'un écran et j'ai passé une session à demander confirmation de l'orthographe.
+Sa réponse : « je voulais dire le **NON** paiement — c'est une faute de frappe. Que celui à
+qui on prête ne revient jamais rembourser. »
+
+Ce qui a sauvé le coup, c'est R11 : j'avais gardé le mot **hors du code** en attendant.
+S'il était parti dans les identifiants, les classes CSS et les libellés de tests, il aurait
+fallu le déraciner de partout — et il serait remonté, comme `ARAH`. **La règle a payé sur
+un cas qu'elle n'avait pas prévu** : elle protège du contresens, pas seulement de la faute
+d'orthographe.
+
+Leçon à garder : une citation qui ne veut **presque** rien dire est le signal d'une
+coquille, pas d'un arbitrage à interpréter. À relancer, pas à lire.
+
+### La règle avait été mal lue, et ça avait coûté la mécanique
+
+Le code disait, noir sur blanc :
+
+```js
+// ardoise (crédit) : … — jamais d'impayé (R4)
+```
+
+C'est une confusion, et elle est instructive : **R4 interdit le HASARD, pas la perte.** Un
+impayé qu'on voit venir est parfaitement déterministe. Le design s'était privé du crédit
+risqué en croyant respecter le déterminisme — une règle appliquée de travers coûte plus
+qu'une règle absente, parce qu'on ne la rediscute jamais.
+
+### Ce qui a été arbitré, et construit
+
+| question | arbitrage |
+| --- | --- |
+| Qu'est-ce qui rend l'impayé prévisible ? | **Le type du client, dit dans son tell** |
+| Qu'est-ce qu'on perd ? | **L'argent ET le client** — il disparaît |
+| Combien de prêteurs ? | **Plusieurs** |
+
+Quatre prêteurs, deux et deux : **Yaz** et **Nassim** règlent, **Riton** et **Kenza**
+disparaissent. Chaque tell le dit, et un test le vérifie mot pour mot — sans ça, l'impayé
+serait un dé déguisé en personnage.
+
+Deux choses valent d'être notées sur la construction :
+
+- **Une seule source.** `corner.paieArdoise()` est lue par la carte (qui annonce) ET par la
+  clôture (qui applique). Deux décisions parallèles finiraient par diverger, et le joueur
+  se ferait planter par un client annoncé sûr. C'est le contrôle central du fichier de
+  test : quand on débranche le lien, **six vérifications tombent**.
+- **Le défaut est « sûr ».** Un persona à qui on ajoute `credit` sans y penser paie. La
+  valeur qui fait mal ne s'obtient jamais par omission.
+
+Le chip d'avertissement s'affiche **au-dessus des boutons**, en rouge, comme 🔥 chaleur et
+👃 exigence. Le tell le dit déjà en prose, mais c'est le chip qui tient R4 : une phrase
+d'ambiance se lit en diagonale.
+
+Réutilisations plutôt que nouveaux chemins : `c.quit` existait déjà (le client qu'on a trop
+pressé), le tirage l'excluait déjà, le Karnet l'affichait déjà. On a ajouté `quitCause`,
+sans quoi l'écran écrivait « parti » pour deux histoires opposées — celui qu'on a fait
+fuir, et celui qui s'est tiré avec la came.
+
+### Un bug de comptabilité trouvé au passage
+
+`karnetOuvrir()` photographiait `soir` **à l'ouverture** de la clôture. Or l'ardoise
+envolée s'écrit *après*. Résultat mesuré : une perte de 240 n'apparaissait **nulle part**
+dans le bilan. `soir` n'est remis à zéro qu'après le scellement — il est donc relu au
+scellement maintenant, ce qui est de toute façon la seule lecture qui contient la soirée
+entière.
+
+La perte est rangée en **manque à gagner**, pas en dépense : la marchandise est partie, le
+liquide n'est jamais entré. La compter comme un débit ferait mentir la marge, et « Non
+expliqué » s'allumerait.
+
+### Ce qui reste mince, et que je signale plutôt que de le corriger tout seul
+
+Tel qu'arbitré, la décision se réduit à **lire l'avertissement**. Refuser un crédit est
+gratuit aujourd'hui (`cornerLeave(…, "refus")` ne touche pas la relation), donc face à un
+fuyard il n'y a aucun arbitrage : on refuse, point. Le levier qui l'épaissirait — **refuser
+coûte la relation** — n'est pas posé : c'est un arbitrage de Sylvain, pas une correction.
+
+Suite : ardoise **16/16** (nouveau) · invariants 58/58 · karnet 44/44 · nourrice 19/19 ·
+arah 8/8 · raccourcis 10/10 · karim 14/14 · cause 21/21 · chaleur 8/8 · tap 7/7 ·
+bulles 15/15 · tap-bigo 4/4 · escalier 6/6 · desync 5/5 · cache 3/3 · lexique 1/1 ·
+check 30 fichiers · smoke sans erreur. Modules en `?v=55`.
+
+---
+
 ## 2026-07-28 — Playtest : la tension du remballage, les raccourcis, la pension muette
 
 Trois retours de Sylvain après une session. Chacun s'est révélé pire — ou plus large —
@@ -549,12 +636,23 @@ Ce que ça engage côté implémentation, et qui n'est pas négociable :
 Autrement dit : ce n'est pas le retard qui violait R1 dans l'ancien système, c'est
 l'**escalade sans issue**. On garde le premier, on ne réintroduit pas la seconde.
 
-### « Paiements » plutôt que « Échéances »
+### ~~« Paiements » plutôt que « Échéances »~~ — LECTURE FAUSSE, corrigée le 2026-07-28
 
-Sa formulation exacte : « J'aime l'idée du retard possible et le nom paiement ». Je le lis
-comme le nom de l'écran. **Interprétation de ma part** — s'il voulait dire autre chose,
-c'est à corriger avant que le mot se répande dans les identifiants et les tests (R11 : une
-fois qu'une forme existe quelque part, elle remonte).
+Sa formulation exacte : « J'aime l'idée du retard possible et le nom paiement ». Je l'ai lu
+comme le nom de l'écran, en marquant que c'était une interprétation.
+
+**Ce n'en était pas une de bonne.** Sylvain : « je voulais dire le **NON** paiement — c'est
+une faute de frappe. Que celui à qui on prête ne revient jamais rembourser. » Il n'y avait
+aucun nom d'écran à trancher : il arbitrait une **mécanique**.
+
+Ce qui a marché, et qui vaut d'être noté : j'ai gardé le mot **hors du code** en attendant
+sa confirmation, précisément au nom de R11. S'il était parti dans les identifiants, les
+classes CSS et les libellés de tests, il aurait fallu le déraciner de partout — et il
+serait remonté, comme `ARAH`. La règle a payé sur un cas qu'elle n'avait pas prévu :
+elle protège aussi du contresens, pas seulement de la faute d'orthographe.
+
+Leçon de fond : une citation qui ne veut **presque** rien dire (« le nom paiement ») est le
+signal d'une coquille, pas d'un arbitrage à interpréter. À relancer, pas à lire.
 
 ## 2026-07-28 — Le socle du Karnet, et une erreur d'un jour qui ne se voyait pas
 

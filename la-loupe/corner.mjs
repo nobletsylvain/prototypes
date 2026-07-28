@@ -27,7 +27,18 @@ export const CORNER = {
   // traits (étape 3-4) — connaisseur : au-dessus de son exigence il paie plus cher (+ pourboire),
   // loin en dessous il rogne ; l'écart QUAL_MISS = la bande neutre entre les deux
   TIP_QUAL:0.12, QUAL_TOL_UP:1.12, QUAL_TOL_DOWN:0.85, QUAL_MISS:12,
-  // ardoise (crédit) : le stock part maintenant, l'argent revient à J+N avec intérêt — jamais d'impayé (R4)
+  /* Ardoise (crédit) : le stock part maintenant, l'argent revient à J+N avec intérêt.
+
+     L'IMPAYÉ EXISTE (arbitrage Sylvain, 2026-07-28 : « que celui à qui on prête ne revient
+     jamais rembourser »). Le commentaire d'origine disait « jamais d'impayé (R4) » — et
+     c'était une confusion : **R4 interdit le HASARD, pas la perte**. Un impayé qu'on voit
+     venir est parfaitement déterministe. Le design s'était privé de la mécanique en
+     croyant respecter la règle.
+
+     Ce qui le rend prévisible : le TYPE du client, dit dans son tell ET affiché comme
+     trait mécanique sur la carte avant qu'on accepte (même discipline que 🔥 chaleur et
+     👃 exigence de qualité). Personne n'est jamais surpris ; on se fait planter parce
+     qu'on a tapé sans lire, jamais parce qu'un dé est tombé. */
   ARDOISE_RATE:0.25, ARDOISE_DAYS:2, ARDOISE_REL_MIN:25, ARDOISE_CHANCE:0.45,
   // marché du jour (concurrence) : facteur déterministe par jour — une météo ANNONCÉE (R4), pas un bruit.
   // Neutre avant J3 (démarrage propre) ; au-delà des seuils HI/LO, une « news » explique le mouvement.
@@ -55,12 +66,12 @@ export const CORNER_PERSONAS = [
     tell:"Petite quantité, renifle la came — le propre, elle le paie plus cher.",
     bank:{ arrive:["Deux grammes, mais du propre. Je sens la paraffine à dix mètres.","Fais voir avant. Si c'est chargé je prends pas. {t} ?","Petite quantité, grosse exigence. Tu me connais. {q} g."],
       react:{ deal:["Là c'est du travail. Je reviens."], nego:["Ça passe. Reste propre, hein."] } } },
-  { id:"riton", nm:"Riton", av:"🥀", kind:"accro", usual:2, exig:20, start:true,
-    tell:"Paie sans regarder le prix, mais file si tu traînes.",
+  { id:"riton", nm:"Riton", av:"🥀", kind:"accro", usual:2, exig:20, start:true, traits:{credit:true, paie:"jamais"},
+    tell:"Paie cash sans regarder le prix — mais ce qu'il emporte à crédit, personne ne l'a jamais revu.",
     bank:{ arrive:["Deux grammes, vite. J'ai l'oseille, discute pas. {t}.","Là tout de suite si tu peux. {t}, compte pas.","Je reste pas. Je prends et je disparais. {q} g."],
       react:{ deal:["Merci. Vraiment."], walk:["Laisse tomber, y'en a d'autres."] } } },
-  { id:"yaz", nm:"Yaz", av:"🛵", kind:"lowball", usual:8, exig:40, start:true,
-    tell:"Ouvre toujours très bas — du théâtre. Tiens ton prix, il plie.",
+  { id:"yaz", nm:"Yaz", av:"🛵", kind:"lowball", usual:8, exig:40, start:true, traits:{credit:true, paie:"sur"},
+    tell:"Ouvre toujours très bas — du théâtre. Radin sur le prix, mais il rend ce qu'il doit.",
     bank:{ arrive:["{q} g à {t}. Je sais que c'est bas, commence pas à pleurer.","Partout c'est moins cher. {t}, sinon je bouge.","Allez, fais un effort. {t} et on n'en parle plus."],
       react:{ deal:["Radin toi aussi. Ça me va, à demain."], nego:["Ouais bon. T'as gagné cette fois."], walk:["Trop cher. …Garde-moi ça pour demain quand même."] } } },
   { id:"sofia", nm:"Sofia", av:"💅", kind:"hesitant", usual:5, exig:65, start:true,
@@ -93,12 +104,12 @@ export const CORNER_PERSONAS = [
     tell:"Ne passe que la nuit — exigeante, mais le travail propre, elle le paie très bien.",
     bank:{ arrive:["Tard, discret, comme j'aime. Tu me sers sans bruit ? {q} g, {t}.","Cinq grammes. Je paie bien ceux qui la ramènent pas.","Quelque chose de propre pour finir la nuit. {t}."],
       react:{ deal:["Merci d'avoir fait vite. Le quartier dort, gardons ça."], nego:["Ça me va. Discrètement."] } } },
-  { id:"nassim", nm:"Nassim", av:"🎲", kind:"accro", usual:8, exig:25, unlockedBy:"riton", traits:{credit:true, hours:[19,26]},
+  { id:"nassim", nm:"Nassim", av:"🎲", kind:"accro", usual:8, exig:25, unlockedBy:"riton", traits:{credit:true, paie:"sur", hours:[19,26]},
     tell:"Rôde le soir. Les bons jours il claque plein pot ; à sec, il tape l'ardoise — il règle toujours.",
     bank:{ arrive:["Ce soir je claque ! Mets-m'en {q}, je paie rubis sur l'ongle. {t}.","Frérot, j'ai la niaque ce soir. {q} g, {t} cash.","Allez, {q} g, je régale. {t}."],
       react:{ deal:["Voilà voilà ! Ça c'est une soirée."], nego:["Ok ok, t'es dur mais j'aime ça."] } } },
-  { id:"kenza", nm:"Kenza", av:"👟", kind:"lowball", usual:5, exig:35, unlockedBy:"yaz", traits:{heat:4},
-    tell:"Jamais seule — sa bande fait du bruit (ça chauffe), mais le panier grimpe.",
+  { id:"kenza", nm:"Kenza", av:"👟", kind:"lowball", usual:5, exig:35, unlockedBy:"yaz", traits:{heat:4, credit:true, paie:"jamais"},
+    tell:"Jamais seule — sa bande fait du bruit (ça chauffe). Ce qu'elle prend à crédit se dilue dans la troupe.",
     bank:{ arrive:["On est cinq, calcule pour tout le monde. Mais fais un prix. {t} ?","Jamais seule moi. La bande attend au coin, magne. {q} g.","Gros panier, petit prix, c'est ma came. {q} g pour {t} ?"],
       react:{ deal:["Vu le monde, t'es gagnant. À demain."], nego:["Ok va pour ça. Je te ramène la troupe."] } } },
   { id:"lea", nm:"Léa", av:"🎀", kind:"hesitant", usual:2, exig:60, unlockedBy:"sofia",
@@ -306,6 +317,14 @@ export function qualCheck(p, q){
 // ardoise (étape 4) : certains soirs le client à crédit est à sec — déterministe (jour/seq), gated par la relation
 export function wantsArdoise(p, rel, day, seq){
   return !!(p.traits&&p.traits.credit) && (rel||0)>=CORNER.ARDOISE_REL_MIN && hh(day*17, seq)<CORNER.ARDOISE_CHANCE;
+}
+/** Est-ce qu'il revient payer ? UNE seule source, lue par la carte (qui l'annonce) ET par
+    la clôture (qui l'applique). Deux endroits qui décideraient chacun de leur côté, c'est
+    la garantie qu'un jour la carte promette ce que la nuit ne tient pas.
+    Défaut `"sur"` : un persona à qui on ajoute `credit` sans y penser paie — la valeur
+    dangereuse ne s'obtient jamais par omission. */
+export function paieArdoise(p){
+  return (p && p.traits && p.traits.paie === "jamais") ? "jamais" : "sur";
 }
 const ARDOISE_TX=[
   "Frérot… ce soir je suis à sec. Mets-m'en {q} g, je te règle {t} à {d}, parole.",

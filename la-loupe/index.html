@@ -415,11 +415,11 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=54";
-import * as beuher from "./beuher.mjs?v=54";
-import * as shelter from "./shelter.mjs?v=54";
-import * as karnet from "./karnet.mjs?v=54";
-import * as corner from "./corner.mjs?v=54";
+import * as snap from "./snap.mjs?v=55";
+import * as beuher from "./beuher.mjs?v=55";
+import * as shelter from "./shelter.mjs?v=55";
+import * as karnet from "./karnet.mjs?v=55";
+import * as corner from "./corner.mjs?v=55";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -454,7 +454,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=54"),
+      import("./scene3d.mjs?v=55"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -1252,7 +1252,9 @@ function visageDe(vid){
 function soirDe(P){
   const d=shelter.soirDefaults();
   if(!P.soir) P.soir=d;
-  else { P.soir={...d, ...P.soir, perdu:{...d.perdu, ...(P.soir.perdu||{})}, descente:{...d.descente, ...(P.soir.descente||{})}}; }
+  else { P.soir={...d, ...P.soir, perdu:{...d.perdu, ...(P.soir.perdu||{})},
+                 descente:{...d.descente, ...(P.soir.descente||{})},
+                 impaye:{...d.impaye, ...(P.soir.impaye||{})}}; }
   return P.soir;
 }
 /* Débite EXACTEMENT `targetG` grammes du tampon, en composant avec les barrettes
@@ -1813,6 +1815,15 @@ function renderCornerActive(P){
   // traits mécaniques AFFICHÉS avant de décider (R4) : le coût/bénéfice se lit, jamais ne se devine
   const chips=[];
   if(cl.heatAdd) chips.push(`<span style="color:var(--heat)">🔥 +${cl.heatAdd} chaleur s'il achète</span>`);
+  /* Le risque d'impayé, AFFICHÉ avant d'accepter. Le tell le dit déjà en prose, mais c'est
+     ce trait-ci qui tient R4 : une phrase d'ambiance se lit en diagonale, un chip coloré
+     à côté du bouton, non. Il ne s'affiche que sur la carte d'ardoise — ailleurs il n'y a
+     rien à décider, et un avertissement permanent devient un décor qu'on ne lit plus. */
+  if(cl.mode==="ardoise" && cl.cid){
+    const sur = corner.paieArdoise(corner.personaById(cl.cid))==="sur";
+    chips.push(sur ? `<span style="color:#3ddc84">✔ il revient toujours payer</span>`
+                   : `<span style="color:#ff6a6a">✖ ce qu'il prend à crédit ne revient pas — ni lui</span>`);
+  }
   if(cl.qc){ const qb=`exige Q${cl.qc.exig} · tampon Q${cl.qc.q}`;
     if(cl.mode==="ambig") chips.push(cl.qc.ok?`<span style="color:#3ddc84">✔ ${qb} — pourboire si bien lu</span>`:`<span style="color:#9aa4b8">👃 ${qb}</span>`); // pas de « il rogne » ici : sans effet en mode ambigu
     else chips.push(`<span style="color:${cl.qc.ok?"#3ddc84":cl.qc.miss?"#ff6a6a":"#ffd06a"}">${cl.qc.ok?"✔":cl.qc.miss?"✖":"≈"} ${qb}${cl.qc.ok?" — paie mieux":cl.qc.miss?" — il rogne":" — sans effet"}</span>`); }
@@ -2317,7 +2328,11 @@ function cornerSkyPatch(){ const sc=document.getElementById("cScene"); if(!sc) r
   sc.style.background=cornerSky(h); sc.style.setProperty("--night", n.toFixed(2));
   const hr=document.getElementById("cHour"); if(hr) hr.textContent=(n>0.5?"🌙 ":"🌤️ ")+cornerHourLabel(h); }
 // lignes du ledger — vente cash (+liquide), ardoise ouverte (🧾 règle J+N) ou ardoise réglée (🧾✓)
-function ledRows(P){ return P.ledger.length ? P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr. (${e.g} g)</span>${e.ard?(e.ok?`<b class="pill dirty">🧾✓ +${money(e.eur)}</b>`:`<b class="pill" style="color:#ffd06a">🧾 ${e.ard}</b>`):`<b class="pill dirty">+${money(e.eur)}</b>`}</div>`).join("") : `<div class="muted" style="font-size:11px">Aucune vente encore.</div>`; }
+function ledRows(P){ return P.ledger.length ? P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr. (${e.g} g)</span>${
+  e.ard?(e.perdu?`<b class="pill" style="color:#ff6a6a">🧾✗ jamais rendu</b>`
+        :e.ok?`<b class="pill dirty">🧾✓ +${money(e.eur)}</b>`
+        :`<b class="pill" style="color:#ffd06a">🧾 ${e.ard}</b>`)
+       :`<b class="pill dirty">+${money(e.eur)}</b>`}</div>`).join("") : `<div class="muted" style="font-size:11px">Aucune vente encore.</div>`; }
 // ligne « Au carnet » du tiroir (crédits ouverts) — dans un conteneur fixe #pArds, patchée en live par pdvPatch
 function ardsRow(){ const ards=corner.CORNER_PERSONAS.filter(p=>S.clients[p.id]&&S.clients[p.id].ardoise);
   return ards.length?`<div class="stat"><span>🧾 Au carnet</span><b style="color:#ffd06a">${ards.map(p=>p.nm+" "+money(S.clients[p.id].ardoise.due)+" · J"+S.clients[p.id].ardoise.day).join(" · ")}</b></div>`:""; }
@@ -2546,11 +2561,17 @@ function karnetTetes(){
   ${cons.length?`<div class="card">
     <h3>Tes connaissances</h3>
     <div class="muted" style="font-size:10px;margin:-4px 0 6px">Ceux qu'on cultive : une relation, une ardoise, une exigence.</div>
+    ${/* « Parti » ne suffit plus : depuis l'impayé, deux histoires opposées finissent sur
+          le même mot — celui qu'on a fait fuir à force de le presser, et celui qui s'est
+          tiré avec la marchandise. Le second garde son montant, seule trace de ce qu'il
+          a coûté. */""}
     ${cons.map(c=>`<div class="stat">
-      <span>${c.av} ${c.nm}${c.quit?` <span style="color:var(--heat)">· parti</span>`:""}
+      <span>${c.av} ${c.nm}${c.quit?` <span style="color:var(--heat)">· ${
+          c.quitCause==="impaye"?"parti avec ta came":"parti (trop pressé)"}</span>`:""}
         <br><span class="muted" style="font-size:10px">${c.usual} g d'habitude${
           c.missed?` · reparti sans être servi ${c.missed}×`:""}${
           c.ardoise?` · te doit ${money(c.ardoise.due)} à J${c.ardoise.day}`:""}${
+          c.impaye?` · ne t'a jamais rendu ${money(c.impaye)}`:""}${
           !c.quit&&c.avantRupture<=1?` · encore ${c.avantRupture} abus et il ne revient plus`:""}</span></span>
       <b class="${c.quit?"q-bad":c.rel>=60?"q-good":""}">${c.quit?"—":"rel "+c.rel}</b></div>`).join("")}
   </div>`:""}
@@ -2610,6 +2631,7 @@ function renderKarnet(){
         [`Partis d'impatience`, m.impat, `la file a fondu pendant que tu négociais`],
         [`Départs fâchés`, m.walk, `ton prix a dépassé leur plafond`],
         [`Descente`, m.descente, `saisi au corner`],
+        [`Ardoises envolées`, m.impaye, `partis avec la marchandise — et partis tout court`],
       ].filter(([,v])=>v.n>0).map(([nm,v,aide])=>`<div class="stat">
         <span>${nm}<br><span class="muted" style="font-size:10px">${v.n} · ${aide}</span></span>
         <b class="q-bad">${v.eur?"−"+money(v.eur):"—"}</b></div>`).join("")
@@ -3342,9 +3364,16 @@ function karnetSceller(){
   const p = karnetPhoto; karnetPhoto = null;
   // la paie et les ardoises sont tombées ENTRE les deux temps : on relit `spend` maintenant
   p.spend = { ...p.spend, ...(S.dayTally && S.dayTally.spend ? S.dayTally.spend : {}) };
+  /* `soir` est RELU maintenant, pas gardé depuis l'ouverture. Des conséquences de la
+     soirée tombent ENTRE les deux temps — l'ardoise qu'un client n'est jamais revenu
+     régler s'écrit après `karnetOuvrir` — et la photo prise à l'ouverture les manquait
+     toutes. Mesuré : une ardoise envolée de 240 n'apparaissait nulle part dans le bilan.
+     `soir` n'est remis à zéro qu'APRÈS le scellement, donc le relire ici est sûr, et
+     c'est la seule lecture qui contient la soirée entière. */
   p.corners = Object.fromEntries(Object.entries(p.corners).map(([id, c]) => {
     const C = S.shelter.corners[id];
-    return [id, { ...c, passages: Math.max(0, (C ? C.seq || 0 : c.seq0) - c.seq0),
+    return [id, { ...c, soir: C ? JSON.parse(JSON.stringify(soirDe(C))) : c.soir,
+                        passages: Math.max(0, (C ? C.seq || 0 : c.seq0) - c.seq0),
                         resFin: C ? Math.round(C.res || 0) : c.res0 }];
   }));
   p.heatFin = Math.round(S.heat);
@@ -3369,7 +3398,30 @@ function advanceDay(manual){
   // ardoises : le crédit se règle tout seul au jour dit (déterministe, R4) — l'argent revient en liquide
   { const P=activeCorner();
     for(const p of corner.CORNER_PERSONAS){ const c=S.clients&&S.clients[p.id];
-      if(c&&c.ardoise&&S.day>=c.ardoise.day){ const v=Math.round(c.ardoise.due); S.dirty+=v; pushBills(v);
+      if(c&&c.ardoise&&S.day>=c.ardoise.day){ const v=Math.round(c.ardoise.due);
+        /* L'IMPAYÉ (arbitrage Sylvain, 2026-07-28). Le profil de payeur vient de
+           `corner.paieArdoise` — la MÊME source que le chip affiché sur la carte avant
+           d'accepter. C'est ce qui garantit que la nuit tient ce que la carte a promis :
+           deux décisions parallèles finiraient par diverger, et le joueur se ferait planter
+           par un client annoncé sûr.
+
+           Il emporte la marchandise ET il disparaît : `quit` existe déjà pour le client
+           qu'on a trop pressé, et le tirage l'exclut déjà (`!c.quit`), le Karnet l'affiche
+           déjà « parti ». On réutilise ce chemin plutôt que d'en ouvrir un second.
+           `quitCause` distingue les deux départs — sans elle le Karnet dirait « parti »
+           pour deux histoires opposées : celui qu'on a fait fuir, et celui qui nous a volé. */
+        if(corner.paieArdoise(p)==="jamais"){
+          c.quit=true; c.quitCause="impaye"; c.impaye=(c.impaye||0)+v; delete c.ardoise;
+          /* Manque à gagner, pas dépense : le liquide n'est JAMAIS entré. Le passer en
+             débit ferait mentir la marge de la soirée — le pont du Karnet ne boucle que
+             parce que chaque poste compte de l'argent réellement déplacé. */
+          { const so=soirDe(P); so.impaye.n++; so.impaye.eur+=v; }
+          cause("Ardoise jamais réglée", p.nm+" a disparu avec "+v, {eur:0, poste:"ardoise", day:jourClos});
+          toastQ.push("🧾 "+p.nm+" n'est jamais revenu. "+v+" partis avec lui — et lui aussi.");
+          if(P&&P.ledger){ const e=P.ledger.find(x=>x.ard&&!x.ok&&x.nm===p.nm); if(e){ e.perdu=true; } }
+          continue;
+        }
+        S.dirty+=v; pushBills(v);
         c.rel=clamp(c.rel+2,0,100);
         // le crédit qui rentre appartient à la soirée qui se clôt : il entre dans SA photo
         if(karnetPhoto) karnetPhoto.ardoise+=v;
