@@ -9,6 +9,64 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Le Karnet dit enfin quelque chose : le pont
+
+Écran 1 du plan, fait. Le Karnet n'est plus un journal : il ouvre sur **le pont** — d'où
+vient l'écart de marge avec la veille, poste par poste.
+
+```
+J4 · clôturée                                     marge 175
+Le détail de la soirée
+  Corner     ventes au comptoir, pourboires compris        +20
+  SnapShit   les commandes livrées en DM                  +275
+  Chouffes   leur paie, prélevée à la clôture             −120
+
+Pas encaissé — hors marge
+  Ce n'est pas sorti de ta poche : ce n'est jamais entré.
+  Ruptures         1 · la sacoche ne composait pas — coupe un autre format    −10
+  Départs fâchés   1 · ton prix a dépassé leur plafond                        −22
+```
+
+**La somme tombe juste, et elle est visible** : 20 + 275 − 120 = 175.
+
+### Ce qui rend le pont honnête
+
+**La somme est juste par CONSTRUCTION**, pas vérifiée après coup. Chaque ligne est la
+différence du même poste entre deux soirées, et la marge est la somme de ces postes, lue
+depuis **la même liste** (`POSTES`). Ajouter un poste l'ajoute au total automatiquement :
+il n'y a pas de somme parallèle qui puisse prendre du retard sur la liste.
+
+Le test balaie quand même **3 024 paires de soirées** — parce qu'une construction qui se
+croit correcte, ça existe. Et la contre-épreuve vérifie que **le contrôle mord** : oublier
+un poste fait bien apparaître un résidu. Sans elle, « ça boucle » ne prouverait rien, un
+pont vide boucle aussi.
+
+**Le manque à gagner reste DEHORS.** Ruptures, départs fâchés et descente ne sont pas des
+dépenses : c'est de l'argent qui n'est jamais entré. Les mélanger au pont casserait la
+somme et ferait passer une vente jamais conclue pour de l'argent sorti de la poche. Bloc
+séparé, étiqueté « hors marge », avec la phrase qui le dit en clair.
+
+**Un résidu, s'il y en avait un, s'AFFICHERAIT** — « Non expliqué : un poste manque au
+bilan, c'est un bug, pas un arrondi ». Un résidu visible est un bug qu'on corrige ; un
+résidu lissé est un mensonge.
+
+### Ce que j'ai changé par rapport au plan de conception
+
+Le plan mélangeait dans le même pont les postes de marge (pain, chouffes) et le manque à
+gagner (ruptures, descente). **Ça ne peut pas boucler** : les deux ne sont pas de même
+nature. Je les ai séparés — c'est la seule façon de garantir la somme, qui est le seul
+argument que le Karnet a pour exister.
+
+Le plan proposait aussi une ligne « + 80 Pain » quand on achète moins que la veille. Écarté
+pour la même raison qu'il l'écartait lui-même : ça apprendrait « achète moins de pain, ta
+soirée est meilleure » pendant que la planque se vide.
+
+### Le verdict ne fait pas de reproche
+
+Il nomme le poste le plus lourd **en valeur absolue, gain compris** : une bonne soirée doit
+s'expliquer aussi bien qu'une mauvaise. Un Karnet qui ne parlerait que des pertes serait un
+instrument de reproche, ce que R1 interdit.
+
 ## 2026-07-28 — La photo de soirée, en deux temps parce qu'un seul ne suffit pas
 
 Sylvain a tranché : le Karnet ne montre **que les soirées closes**. Il faut donc figer

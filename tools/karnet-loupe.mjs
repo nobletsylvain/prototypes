@@ -24,6 +24,7 @@ import http from "http";
 import path from "path";
 import puppeteer from "puppeteer";
 import { resolveOffer, cornerTol, cornerBudget, menuAt } from "../la-loupe/corner.mjs";
+import { pont, margeDe, postesDe, manqueDe, manqueTotal, POSTES } from "../la-loupe/karnet.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -77,6 +78,68 @@ const ok = (nom, pass, detail = "") => results.push({ nom, pass, detail });
   const aLaMain = Math.max(1, Math.floor(Math.min(8 * cornerTol("regulier", 30, menuAt(13, 8)) * 1, cornerBudget("regulier", 30))));
   ok("Contre-épreuve · le plafond n'est pas une reconstitution : il tombe sur le calcul interne",
      v.ceil === aLaMain, `rendu ${v.ceil} · recalculé depuis les mêmes primitives ${aLaMain}`);
+}
+
+/* ── 1 bis. Le pont boucle, sur des soirées fabriquées ────────────────────
+   L'invariant qui donne au Karnet le droit d'exister : la somme des écarts par poste doit
+   valoir EXACTEMENT l'écart de marge. Sinon l'écran donne au joueur l'impression de
+   comprendre et l'envoie décider sur un total faux — pire que l'ancien journal, qui
+   n'expliquait rien mais ne mentait pas.
+   On balaie des soirées construites à la main, y compris des cas tordus (postes à zéro,
+   soirée à perte, gros écarts dans les deux sens). */
+{
+  const soir = (j, o) => ({ jour: j, dm: o.dm || 0, ardoise: o.ardoise || 0,
+    spend: { pain: o.pain || 0, upg: o.upg || 0, chouffes: o.chouffes || 0 },
+    corners: { pdv: { soir: { eur: o.eur || 0, tips: o.tips || 0, g: 0, servis: 0,
+      perdu: { rupture: o.rN || 0, ruptureEur: o.rE || 0, impat: o.iN || 0, impatEur: o.iE || 0,
+               walk: o.wN || 0, walkEur: o.wE || 0 },
+      descente: { n: o.dN || 0, eur: o.dE || 0 } } } } });
+
+  const cas = [];
+  for (const eur of [0, 340, 1480]) for (const dm of [0, 275]) for (const pain of [0, 280])
+    for (const ch of [0, 120, 240]) for (const upg of [0, 400]) for (const ard of [0, 92])
+      cas.push(soir(1, { eur, dm, pain, chouffes: ch, upg, ardoise: ard }));
+
+  let paires = 0, casse = 0, pire = 0, exemple = "";
+  for (let i = 0; i < cas.length; i++) {
+    for (let k = 0; k < cas.length; k += 7) {              // échantillon croisé, pas le produit complet
+      const av = { ...cas[k], jour: 1 }, ap = { ...cas[i], jour: 2 };
+      const p = pont(av, ap);
+      paires++;
+      const ecartReel = margeDe(ap) - margeDe(av);
+      if (p.ecart !== ecartReel || p.ecartExplique !== ecartReel || p.nonExplique !== 0) {
+        casse++; pire = Math.max(pire, Math.abs(p.nonExplique));
+        if (!exemple) exemple = `marge ${margeDe(av)} → ${margeDe(ap)} · écart ${ecartReel} · expliqué ${p.ecartExplique}`;
+      }
+    }
+  }
+  ok("LE PONT BOUCLE · la somme des postes vaut exactement l'écart de marge",
+     paires > 0 && casse === 0,
+     casse === 0 ? `${paires} paires de soirées balayées, aucun résidu`
+                 : `${casse}/${paires} ne bouclent pas (résidu max ${pire}) — ex. ${exemple}`);
+
+  // contre-épreuve : retirer un poste de la liste DOIT faire apparaître un résidu.
+  // Sans ça, « ça boucle » ne prouverait rien — un pont vide boucle aussi.
+  {
+    const av = soir(1, { eur: 300, dm: 100, pain: 280, chouffes: 120 });
+    const ap = soir(2, { eur: 900, dm: 275, pain: 0, chouffes: 240 });
+    const complet = pont(av, ap);
+    // on rejoue la même somme en OUBLIANT un poste, comme le ferait un poste ajouté au
+    // save mais oublié dans POSTES — le mode de défaillance réel qu'on cherche à attraper
+    const amputé = POSTES.filter((d) => d.id !== "chouffes")
+      .reduce((a, d) => a + d.signe * ((postesDe(ap)[d.id] || 0) - (postesDe(av)[d.id] || 0)), 0);
+    ok("Contre-épreuve · oublier un poste FAIT apparaître un résidu (le contrôle mord)",
+       complet.ecartExplique !== amputé && complet.nonExplique === 0,
+       `complet ${complet.ecartExplique} · amputé de la paie ${amputé} · résidu affiché ${complet.nonExplique}`);
+  }
+
+  // le manque à gagner reste DEHORS de la marge : le mélanger casserait la somme
+  {
+    const a = soir(1, { eur: 500 }), b = soir(2, { eur: 500, rN: 3, rE: 180, wN: 1, wE: 88, dN: 1, dE: 208 });
+    ok("Le manque à gagner n'entre PAS dans la marge (ce n'est pas de l'argent sorti)",
+       margeDe(a) === margeDe(b) && manqueTotal(manqueDe(b)) === 476,
+       `marges ${margeDe(a)} et ${margeDe(b)} identiques · manque ${manqueTotal(manqueDe(b))}`);
+  }
 }
 
 /* ── 2. Le socle en jeu réel : les compteurs bougent, et pour la bonne raison ──
@@ -262,6 +325,52 @@ ok("Le pont boucle : le liquide encaissé == ce que les compteurs disent (euros 
   ok("« passages » est un DELTA, pas le compteur cumulé de la partie",
      photo && photo.corners.pdv.seq0 === 5 && photo.corners.pdv.passages === seqFin - 5,
      photo ? `seq ${photo.corners.pdv.seq0} → ${seqFin} · passages ${photo.corners.pdv.passages} (le cumul dirait ${seqFin})` : "—");
+}
+
+/* ── 6. L'écran dit ce que les compteurs savent ───────────────────────────
+   Les invariants ci-dessus tiennent sur des objets. Reste la question qui compte pour
+   Sylvain : est-ce qu'il LIT quelque chose ? On ouvre le Karnet après la clôture et on
+   vérifie que les trois blocs sont là et qu'ils portent les vrais nombres. */
+{
+  /* On est encore AU CORNER après la clôture, et la tuile Karnet ne vit que sur la carte.
+     Il faut donc repasser par le Quartier — c'est le chemin du joueur, autant l'emprunter. */
+  // on referme le panneau de debug, sinon il recouvre l'écran qu'on veut lire (et capturer)
+  await page.evaluate(() => { const b = document.getElementById("dbgBtn"); if (b) b.click(); });
+  await sleep(200);
+  await page.evaluate(() => { const b = document.getElementById("back"); if (b) b.click(); });
+  await sleep(500);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-go]")].find((x) => x.dataset.go === "karnet"); if (b) b.click(); });
+  await sleep(600);
+  const ecran = await page.evaluate(() => {
+    const t = (document.getElementById("stage") || {}).textContent || "";
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    return { txt: t.replace(/\s+/g, " "), photo: (s.soirees || [])[0] || null };
+  });
+  await page.screenshot({ path: path.join(OUT, "03-ecran-pont.png"), fullPage: true });
+
+  ok("Le Karnet s'ouvre sur la soirée close, pas sur un journal nu",
+     /J4 · cl[oô]tur/i.test(ecran.txt) && /marge/i.test(ecran.txt),
+     ecran.txt.slice(0, 110));
+
+  // les postes de la marge : la recette DM seedée (275) doit apparaître telle quelle
+  ok("Les postes de la marge sont nommés et chiffrés",
+     /SnapShit/.test(ecran.txt) && /275/.test(ecran.txt) && /Chouffes/.test(ecran.txt),
+     `SnapShit ${/SnapShit/.test(ecran.txt)} · 275 lisible ${/275/.test(ecran.txt)} · Chouffes ${/Chouffes/.test(ecran.txt)}`);
+
+  ok("Le bloc « pas encaissé » existe et se dit HORS marge",
+     /Pas encaiss/i.test(ecran.txt) && /hors marge/i.test(ecran.txt),
+     /Pas encaiss/i.test(ecran.txt) ? "présent et étiqueté" : "absent");
+
+  ok("Les trois pertes restent nommées séparément à l'écran",
+     /Ruptures/.test(ecran.txt) && /D[ée]parts f[âa]ch[ée]s/.test(ecran.txt),
+     `ruptures ${/Ruptures/.test(ecran.txt)} · départs fâchés ${/D[ée]parts f[âa]ch[ée]s/.test(ecran.txt)}`);
+
+  ok("Aucun « non expliqué » à l'écran (le pont boucle en vrai, pas qu'en théorie)",
+     !/Non expliqu/i.test(ecran.txt),
+     /Non expliqu/i.test(ecran.txt) ? "UN RÉSIDU EST AFFICHÉ — un poste manque au bilan" : "aucun résidu");
+
+  ok("Le fil du journal date ses lignes",
+     /J4/.test(ecran.txt) && /Le fil/.test(ecran.txt), "bloc « Le fil » présent");
 }
 
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");

@@ -402,6 +402,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 import * as snap from "./snap.mjs?v=50";
 import * as beuher from "./beuher.mjs?v=50";
 import * as shelter from "./shelter.mjs?v=50";
+import * as karnet from "./karnet.mjs?v=50";
 import * as corner from "./corner.mjs?v=50";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
@@ -2286,11 +2287,77 @@ function buyUp(key){
   cause(`Upgrade ${conf.title}`,`−${money(cost)}`, {eur:-cost, poste:"upgrade"}); toast("Ça scale."); save(); render();
 }
 
+/* Le Karnet. Il ne montre QUE les soirées closes (arbitrage Sylvain) : une ligne qui bouge
+   ne peut pas être une leçon, et on ne compare pas une soirée finie à une soirée à moitié
+   jouée. Le prix est assumé — à J1 il dit « reviens demain » au lieu de faire semblant.
+
+   Trois blocs, dans cet ordre, et l'ordre est le propos :
+   1. LE PONT — d'où vient l'écart de marge avec la veille, poste par poste. La somme tombe
+      juste par construction (cf. karnet.mjs) ; si un résidu apparaît, il est AFFICHÉ, parce
+      qu'un résidu visible est un bug qu'on corrige et un résidu caché est un mensonge.
+   2. CE QUE TU N'AS PAS ENCAISSÉ — ruptures, départs, descente. Hors marge, dit comme tel :
+      ce n'est pas de l'argent sorti de la poche, c'est de l'argent jamais entré. Les trois
+      restent séparés parce que chacun appelle une correction différente.
+   3. LE FIL — le journal, inchangé, pour retrouver une ligne précise. */
+let karnetJour=0;                       // index dans S.soirees : 0 = la dernière close
 function renderKarnet(){
   tab="shelter"; set3d("hidden"); hud(); renderDock();
+  const soirees=Array.isArray(S.soirees)?S.soirees:[];
+  karnetJour=clamp(karnetJour,0,Math.max(0,soirees.length-1));
+  const ap=soirees[karnetJour], av=soirees[karnetJour+1];
+  const p=karnet.pont(av, ap), m=karnet.manqueDe(ap);
+  const sg=(n)=>(n>0?"+":"")+money(Math.abs(n)).replace(/^/, n<0?"−":"");
+
+  let corps;
+  if(!ap){
+    corps=`<div class="card muted">Aucune soirée close. Le Karnet compare des soirées finies :
+      joue-en une jusqu'au bout, il aura quelque chose à te dire.</div>`;
+  } else {
+    const fleche=!p.pont?"":p.ecart>0?"▲":p.ecart<0?"▼":"=";
+    const cls=!p.pont?"":p.ecart>0?"q-good":p.ecart<0?"q-bad":"";
+    corps=`<div class="card">
+      <div class="stat"><span>J${p.jour} · clôturée</span><b>marge ${money(p.marge)}</b></div>
+      ${p.pont?`<div class="stat"><span>contre J${p.jourAv} (${money(p.margeAv)})</span>
+        <b class="${cls}">${fleche} ${sg(p.ecart)}</b></div>`:""}
+      <div class="muted" style="font-size:11px;margin-top:4px">${karnet.verdict(p, m)}</div>
+    </div>
+    <div class="card">
+      <h3>${p.pont?"D'où vient l'écart":"Le détail de la soirée"}</h3>
+      ${p.lignes.length?p.lignes.map(l=>`<div class="stat">
+        <span>${l.nm}<br><span class="muted" style="font-size:10px">${
+          l.brut?`${money(l.brut.av)} → ${money(l.brut.ap)}`:l.aide}</span></span>
+        <b class="${l.montant>0?"q-good":"q-bad"}">${sg(l.montant)}</b></div>`).join("")
+        :`<div class="muted">Rien n'a bougé d'un poste à l'autre.</div>`}
+      ${p.pont&&p.nonExplique?`<div class="stat"><span style="color:var(--heat)">Non expliqué
+        <br><span class="muted" style="font-size:10px">un poste manque au bilan — c'est un bug, pas un arrondi</span></span>
+        <b style="color:var(--heat)">${sg(p.nonExplique)}</b></div>`:""}
+    </div>
+    <div class="card">
+      <h3>Pas encaissé <span class="muted" style="font-size:11px">— hors marge</span></h3>
+      <div class="muted" style="font-size:10px;margin:-4px 0 6px">Ce n'est pas sorti de ta poche : ce n'est jamais entré.</div>
+      ${karnet.manqueTotal(m)||m.impat.n?[
+        [`Ruptures`, m.rupture, `la sacoche ne composait pas — coupe un autre format`],
+        [`Partis d'impatience`, m.impat, `la file a fondu pendant que tu négociais`],
+        [`Départs fâchés`, m.walk, `ton prix a dépassé leur plafond`],
+        [`Descente`, m.descente, `saisi au corner`],
+      ].filter(([,v])=>v.n>0).map(([nm,v,aide])=>`<div class="stat">
+        <span>${nm}<br><span class="muted" style="font-size:10px">${v.n} · ${aide}</span></span>
+        <b class="q-bad">${v.eur?"−"+money(v.eur):"—"}</b></div>`).join("")
+        :`<div class="muted">Personne n'est reparti les mains vides. Soirée pleine.</div>`}
+    </div>`;
+  }
+
   stage.innerHTML=`<h2>Karnet</h2><div class="sub">Chaque ligne a une cause. L'UI n'invente rien.</div>
-    <div class="card journal">${S.journal.slice(0,20).map(j=>`<div class="item">${j.txt}<div class="c">↩ ${j.cause}</div></div>`).join("")||`<div class="muted">Vide.</div>`}</div>
+    ${soirees.length>1?`<div class="grid2" style="margin-bottom:8px">
+      <button class="btn ghost" style="margin:0" id="kPrev" ${karnetJour>=soirees.length-1?"disabled":""}>← soirée d'avant</button>
+      <button class="btn ghost" style="margin:0" id="kNext" ${karnetJour<=0?"disabled":""}>soirée d'après →</button>
+    </div>`:""}
+    ${corps}
+    <div class="card journal"><h3>Le fil</h3>${S.journal.slice(0,20).map(j=>`<div class="item">${
+      j.day?`<span class="muted" style="font-size:10px">J${j.day}</span> `:""}${j.txt}<div class="c">↩ ${j.cause}</div></div>`).join("")||`<div class="muted">Vide.</div>`}</div>
     <button class="btn ghost" id="back">↩ Quartier</button>`;
+  const pv=document.getElementById("kPrev"); if(pv) pv.onclick=()=>{ karnetJour++; renderKarnet(); };
+  const nx=document.getElementById("kNext"); if(nx) nx.onclick=()=>{ karnetJour--; renderKarnet(); };
   document.getElementById("back").onclick=()=>{ tab="shelter"; shelterSub="map"; render(); };
 }
 
@@ -2995,6 +3062,7 @@ function karnetOuvrir(){
       return [id, { seq0: C.seq || 0, res0: Math.round(C.res || 0), prix: C.prix || 0,
                     chouffes: C.chouffes || 0, soir: JSON.parse(JSON.stringify(so)) }];
     })),
+    ardoise: 0,                                // rempli entre les deux temps (cf. plus bas)
     heat: Math.round(S.heat), reput: Math.round(S.reput), dirty: Math.round(S.dirty),
   };
 }
@@ -3031,7 +3099,10 @@ function advanceDay(manual){
   { const P=activeCorner();
     for(const p of corner.CORNER_PERSONAS){ const c=S.clients&&S.clients[p.id];
       if(c&&c.ardoise&&S.day>=c.ardoise.day){ const v=Math.round(c.ardoise.due); S.dirty+=v; pushBills(v);
-        c.rel=clamp(c.rel+2,0,100); cause("Ardoise réglée", p.nm+" +"+v+" liquide", {eur:v, poste:"ardoise", day:jourClos}); delete c.ardoise;
+        c.rel=clamp(c.rel+2,0,100);
+        // le crédit qui rentre appartient à la soirée qui se clôt : il entre dans SA photo
+        if(karnetPhoto) karnetPhoto.ardoise+=v;
+        cause("Ardoise réglée", p.nm+" +"+v+" liquide", {eur:v, poste:"ardoise", day:jourClos}); delete c.ardoise;
         if(P&&P.ledger){ const e=P.ledger.find(x=>x.ard&&!x.ok&&x.nm===p.nm); if(e){ e.ok=true; e.eur=v; } } } } // le ledger passe 🧾 → 🧾✓
     // l'offre « ce soir je suis à sec » ne survit pas à la nuit : une carte ardoise non acceptée s'en va (vente perdue, R1)
     if(P&&P.queue&&P.queue.length) P.queue=P.queue.filter(c=>c.mode!=="ardoise"); }
