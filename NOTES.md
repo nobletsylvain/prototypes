@@ -9,6 +9,135 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Playtest : la tension du remballage, les raccourcis, la pension muette
+
+Trois retours de Sylvain après une session. Chacun s'est révélé pire — ou plus large —
+que ce qu'il avait ressenti.
+
+### 1. L'ARAH ne coûtait aucun choix
+
+> « J'avais 2 chouffes qui ont bien sonné le ARAH et le feeling était vraiment bon de
+> pouvoir remballer le matos et éviter de se faire capturer. En revanche, le temps donné
+> pour remballer les barrettes était trop long. Pas assez de tension. »
+
+Mesuré sur les constantes d'avant — préavis `[0,6,12,18]`, lot de 8, cadence 520 ms.
+Vider un tampon plein (60 barrettes) demande 8 gestes, plus 1 pour la caisse :
+
+```
+n=1 →  6 s = 12 gestes possibles pour 9 nécessaires →  3 de MARGE
+n=2 → 12 s = 24 gestes possibles pour 9 nécessaires → 15 de marge   ← son cas
+n=3 → 18 s = 35 gestes possibles pour 9 nécessaires → 26 de marge
+```
+
+Il n'y avait donc **aucun arbitrage à aucun niveau de chouffe** : on sauvait tout, deux
+fois plutôt qu'une. Son ressenti était même optimiste — il attribuait le problème à ses
+2 chouffes, alors qu'**un seul suffisait déjà** à tout rentrer avec 3 gestes de rab.
+
+Et le commentaire d'`ARAH_COOL_MS` annonçait depuis le début « on ne sauve jamais tout,
+et ça se voit ». Les nombres ne l'ont jamais tenu. Une intention écrite en commentaire
+n'est pas une garantie — c'est un souvenir.
+
+**Correctif** : `ARAH_LOT` 8 → 5 et `PDV_PREAVIS_S` `[0,6,12,18]` → `[0,3,5,7]`. C'est le
+PRODUIT lot × cadence qui décide de la tension, pas le préavis seul : à 8 par geste, un
+tampon plein tenait en 8 gestes et n'importe quel préavis lisible suffisait.
+
+```
+n=1 → 3 s =  6 gestes → 25 barrettes sur 60 + la caisse
+n=2 → 5 s = 10 gestes → 45 sur 60 : le dernier bloc OU la caisse, pas les deux
+n=3 → 7 s = 14 gestes → tout, si tu ne traînes pas — ce que 180/soir achète
+```
+
+**Ce qui vaut mieux que le réglage lui-même** : avec une sacoche légère (`SAC_LOT` = 25),
+même un seul chouffe sauve tout. La tension devient donc **fonction de ce qu'on a choisi
+d'exposer**. Ce n'est pas le geste qui se durcit (ce serait R5 à l'envers), c'est la
+décision d'amont qui prend enfin un poids — R9 au pied de la lettre.
+
+Le préavis **annonce** maintenant ce qu'il permet (R8) : *« Ils arrivent. 3 s — de quoi
+rentrer ~30 barrettes sur 60. La caisse te coûte un geste. »* Le brief est figé à
+l'ouverture : une consigne qui change pendant qu'on l'exécute n'est plus une consigne.
+
+⚠️ `PDV_PREAVIS_S` et `ARAH_LOT` restent des **placeholders** — la courbe est mesurée,
+le ressenti reste à valider à la main.
+
+### 2. La navigation était de la corvée pure, pas un arbitrage
+
+> « La navigation entre le corner et la nourrice puis revenir sur le corner est assez
+> laborieuse, et donc faudrait penser à mettre plus en évidence les menus clés. Peut-être
+> même les mettre en favoris dans la barre du bas ? »
+
+Mesuré : l'aller-retour coûtait **5 appuis** (↩, pin nourrice, dépôt, pin corner, « Tenir
+le corner »), dont **un seul portait une décision**. Et le point qui tranche : `pdvTick`
+sort immédiatement quand le corner n'est pas tenu — partir chez elle ne coûte **ni client,
+ni vente, ni chaleur**. Ce n'était donc pas un arbitrage déguisé en trajet ; c'était de la
+répétition sans plaisir, exactement ce que R6 dit de ne pas laisser sur la main du joueur.
+
+**Correctif — deux raccourcis, chacun portant sa propre justification :**
+
+- le **favori du dock** (`▶ Corner`, avec le bac) ramène au corner depuis n'importe où.
+  Il occupe la colonne qu'une app masquée laissait vide, et se distingue des onglets
+  (liseré froid) : la barre ne ment pas sur ce qu'elle contient ;
+- la **puce liquide du corner** affiche ce qu'on a sur soi avec la marque 🔥, et mène chez
+  la nourrice, fiche ouverte. Le liquide se fabrique au corner : c'est de là que la
+  décision de le planquer peut naître, et la scène plein écran masquait le HUD.
+
+Trajet : **5 appuis → 3**, dont celui du milieu est le dépôt. Le **lieu reste** — c'est
+chez elle que la pension est annoncée avant d'être prélevée, et supprimer la visite
+supprimerait l'annonce. C'est le chemin qui raccourcit, pas la décision qui disparaît.
+
+**Deux défauts trouvés en écrivant le test, pas en réfléchissant :**
+
+- les boutons de dépôt tombaient à y=855 dans un `#stage` qui s'arrête à 812 : **sous le
+  dock**. Le raccourci déposait le joueur sur une fiche dont les boutons étaient hors du
+  pli. D'où `voirFiche()` — toute sélection de pin faite PAR LE CODE amène la fiche sous
+  les yeux (quand c'est le doigt qui tape un pin, on ne vole pas son défilement) ;
+- la barre du corner **débordait déjà avant** : le bouton `▤ Gérer` sortait de l'écran sur
+  412 px. Le `flex-wrap` ajouté pour la 6ᵉ puce le remet à portée.
+
+Et mon helper de test mentait : il vérifiait « dans le viewport » et répondait *tapable*
+d'un bouton couvert par le dock. Il consulte maintenant `elementFromPoint`. Un contrôle de
+tapabilité qui ne regarde pas le recouvrement ne teste rien.
+
+### 3. La pension était juste, mais muette
+
+> « En checkant le karnet, je vois pension. Du coup il y a eu des frais de nourrice ?
+> Sans doute besoin de le rendre plus explicite. »
+
+Trois trous, dont **un structurel qui valait pour les sept postes** :
+
+- le poste s'appelait « Pension » tout court — il ne disait pas chez qui l'argent part ;
+- **le pont affichait `av → ap` À LA PLACE de l'aide.** Un joueur qui découvrait un poste
+  voyait deux nombres et aucun mot pour dire ce qu'ils comptaient. La question portait sur
+  le poste le plus récent, mais le défaut touchait tout le bilan ;
+- la pension ne s'écrivait qu'au journal : elle ne se voyait qu'en allant la chercher. Un
+  prélèvement automatique doit s'annoncer **quand il tombe** (R4), comme la paie des
+  chouffes le fait déjà.
+
+Plus un quatrième, non signalé mais du même ordre : le magot n'apparaissait nulle part sur
+la carte. **Un puits invisible se lit comme un puits gratuit** — il porte maintenant un
+badge sur son pin, comme le bac sur le corner.
+
+### Ce que les tests ont attrapé, et ce qu'ils ont laissé passer
+
+`bulles-loupe` est tombé à 14/15 : son contrôle du tiroir tournait juste après le bloc
+ARAH, chaleur à 96 — et avec un préavis de 3 s au lieu de 12, la descente vidait le tampon
+**au milieu du contrôle**. Le contrôle accusait alors le tiroir de mentir alors qu'il
+disait la vérité. Il ne tenait pas sur un état, il tenait sur un **délai** : et un délai
+qui dépend d'une constante d'équilibrage d'un autre système n'est pas une garantie, c'est
+un sursis.
+
+Et un contrôle que j'avais écrit ne pouvait pas échouer : « le poste dit à quoi il sert »
+passait aussi sur le code d'avant, parce qu'avec **une seule soirée close** il n'y a pas de
+pont — donc pas de chiffres à la place de l'aide. Il lui fallait deux soirées. Troisième
+fois que ce dépôt écrit un contrôle vide ; le réflexe à garder est de **toujours le
+rejouer sur le code d'avant**, jamais de se fier à ce qu'il prétend vérifier.
+
+Suite : invariants 58/58 · karnet 44/44 · nourrice 19/19 (+5) · **arah 8/8** (nouveau) ·
+**raccourcis 10/10** (nouveau) · karim 14/14 · cause 21/21 · chaleur 8/8 · tap 7/7 ·
+bulles 15/15 · tap-bigo 4/4 · escalier 6/6 · desync 5/5 · cache 3/3 · lexique 1/1 ·
+check 30 fichiers · smoke sans erreur. Modules en `?v=54`.
+
+---
+
 ## 2026-07-28 — Les têtes : le Karnet dit enfin quel format couper
 
 Section 3 des quatre demandées par Sylvain. Trois blocs, et l'**ordre est le propos**.

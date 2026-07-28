@@ -31,7 +31,10 @@ export const POSTES = [
   { id: "pain", nm: "Pain", signe: -1, aide: "matière achetée dans la soirée" },
   { id: "chouffes", nm: "Chouffes", signe: -1, aide: "leur paie, prélevée à la clôture" },
   { id: "upg", nm: "Réinvest", signe: -1, aide: "outils et agrandissements" },
-  { id: "nourrice", nm: "Pension", signe: -1, aide: "ce que la nourrice prélève pour garder ton magot" },
+  /* « Pension » tout court a fait poser la question à Sylvain en playtest (2026-07-28) :
+     « je vois pension. Du coup il y a eu des frais de nourrice ? » Un poste du bilan doit
+     se lire sans être deviné — il porte donc CHEZ QUI l'argent part. */
+  { id: "nourrice", nm: "Pension nourrice", signe: -1, aide: "ce qu'elle prélève chaque soir pour garder ton magot" },
 ];
 
 const R = Math.round;

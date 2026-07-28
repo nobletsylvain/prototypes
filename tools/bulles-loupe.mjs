@@ -323,6 +323,32 @@ ok("L'écran d'évacuation s'ouvre après le cri, avec ses deux gestes",
 // recharger le fait écraser par `evaluateOnNewDocument`, qui rejoue à chaque navigation.
 // (Piège documenté deux fois déjà dans ce dépôt — et retombé dedans une troisième.)
 {
+  /* État PROPRE avant de commencer. La section ARAH juste au-dessus laisse la chaleur à
+     96 et une alerte en cours : la descente tombait au milieu de ce contrôle et vidait le
+     tampon, si bien que le tiroir rouvert disait « 0 » — et le contrôle accusait le
+     tiroir de mentir alors qu'il disait la vérité.
+
+     Ça ne s'est vu que le jour où le préavis est passé de 12 s à 3 s (playtest du
+     2026-07-28) : avant, la descente arrivait juste après la fin du bloc. Le contrôle ne
+     tenait donc pas sur un état, il tenait sur un DÉLAI — et un délai qui dépend d'une
+     constante d'équilibrage d'un autre système n'est pas une garantie, c'est un sursis. */
+  await page.evaluateOnNewDocument(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    s.heat = 0;
+    if (!s.shelter) s.shelter = {};
+    if (!s.shelter.corners) { s.shelter.corners = {}; s.shelter.cornerId = "pdv"; }
+    const c = (s.shelter.corners[s.shelter.cornerId || "pdv"] ||= {});
+    c.tampon = { "2": 15 }; c.tamponQ = 61;
+    c.queue = [{ cid: "momo", nm: "Momo", av: "🧢", kind: "regulier", rel: 30,
+                 want: 2, g: 2, offer: 20, tx: "Momo arrive et parle.",
+                 pat: 400, pat0: 400, mode: "offer", negoP: 20, dernier: null }];
+    localStorage.setItem("loupe_save", JSON.stringify(s));
+  });
+  await page.reload({ waitUntil: "load" }); await sleep(700);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin]")].find((x) => x.dataset.pin === "pdv"); if (b) b.click(); });
+  await sleep(250);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin-go]")].find((x) => x.dataset.pinGo === "pdv"); if (b) b.click(); });
+  await sleep(600);
   await page.evaluate(() => { const b = document.getElementById("cClose"); if (b) b.click(); });
   await sleep(300);
   const avant = await page.evaluate(() => {

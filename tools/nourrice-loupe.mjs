@@ -202,6 +202,84 @@ ok("Reprendre rend l'intégralité — le coût est la pension, pas une retenue 
   ok("Le pont boucle toujours — aucun « non expliqué » malgré le nouveau puits",
      !/Non expliqu/i.test(txt),
      /Non expliqu/i.test(txt) ? "UN RÉSIDU EST AFFICHÉ — le poste manque à POSTES" : "aucun résidu");
+
+  /* Playtest (Sylvain, 2026-07-28) : « en checkant le Karnet, je vois pension. Du coup
+     il y a eu des frais de nourrice ? » Le poste était juste, il était juste MUET : le
+     mot « Pension » seul ne dit ni chez qui l'argent part, ni pourquoi. Un bilan qui
+     oblige à deviner de quoi il parle ne vaut pas mieux que pas de bilan. */
+  ok("Le poste dit CHEZ QUI l'argent part, sans qu'on ait à le deviner",
+     /Pension\s*nourrice/i.test(txt),
+     /Pension\s*nourrice/i.test(txt) ? "« Pension nourrice »" : "« Pension » tout court — il faut deviner");
+
+  /* Il faut DEUX soirées closes pour que ce contrôle prouve quoi que ce soit : avec une
+     seule, le Karnet n'a pas de pont, donc pas de « av → ap » — et l'aide s'affichait
+     déjà. Première version : elle passait aussi bien sur le code d'avant que sur le
+     correctif. Un contrôle qui ne peut pas échouer ne garde rien. */
+  await page.evaluate(() => { const b = document.getElementById("dbgBtn"); if (b) b.click(); });
+  await sleep(250);
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll("[data-dbg]")].find((x) => /Passer la nuit/.test(x.dataset.dbg));
+    if (b) b.click();
+  });
+  await sleep(900);
+  await page.evaluate(() => { const b = document.getElementById("dbgBtn"); if (b) b.click(); });
+  await sleep(200);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-go]")].find((x) => x.dataset.go === "karnet"); if (b) b.click(); });
+  await sleep(600);
+  const pont = await page.evaluate(() =>
+    ((document.getElementById("stage") || {}).textContent || "").replace(/\s+/g, " "));
+  await page.screenshot({ path: path.join(OUT, "04-karnet-pont.png"), fullPage: true });
+
+  ok("Le Karnet compare bien DEUX soirées (sinon le contrôle suivant ne prouve rien)",
+     /→/.test(pont) && /D'où vient l'écart/.test(pont),
+     /D'où vient l'écart/.test(pont) ? "pont affiché" : "toujours une seule soirée close");
+
+  ok("Sur un pont, les chiffres ne REMPLACENT pas l'explication du poste",
+     /→/.test(pont) && /(garder ton magot|prélevée à la clôture|matière achetée)/i.test(pont),
+     /(garder ton magot|prélevée à la clôture|matière achetée)/i.test(pont)
+       ? "montants ET aide sur la même ligne"
+       : "le pont affiche « av → ap » À LA PLACE de l'aide — le poste devient muet");
+}
+
+/* ── la pension s'ANNONCE au moment où elle tombe ─────────────────────────
+   Elle ne s'écrivait qu'au journal : elle ne se voyait donc qu'en allant la chercher.
+   Un prélèvement automatique doit se dire quand il a lieu (R4 — le joueur relie la
+   conséquence au geste), comme la paie des chouffes le fait déjà. */
+{
+  await page.evaluateOnNewDocument(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    s.dirty = 900; s.cash = 0;
+    s.shelter.nourrice = { garde: 2000, vue: true };
+    localStorage.setItem("loupe_save", JSON.stringify(s));
+  });
+  await page.reload({ waitUntil: "load" });
+  await sleep(700);
+
+  /* On collecte les toasts en observant le DOM : lire un seul instantané raterait le
+     message, plusieurs se succédant dans la même clôture. */
+  await page.evaluate(() => {
+    window.__toasts = [];
+    const t = document.getElementById("toast");
+    if (!t) return;
+    new MutationObserver(() => { const v = (t.textContent || "").trim(); if (v) window.__toasts.push(v); })
+      .observe(t, { childList: true, characterData: true, subtree: true });
+  });
+
+  await page.evaluate(() => { const b = document.getElementById("dbgBtn"); if (b) b.click(); });
+  await sleep(250);
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll("[data-dbg]")].find((x) => /Passer la nuit/.test(x.dataset.dbg));
+    if (b) b.click();
+  });
+  await sleep(4200);   // la file de toasts s'écoule un message à la fois
+
+  const dits = await page.evaluate(() => window.__toasts || []);
+  ok("La pension s'annonce à la clôture, au lieu d'être prélevée en silence",
+     dits.some((t) => /[Pp]ension/.test(t)),
+     dits.find((t) => /[Pp]ension/.test(t)) || `aucun message parmi : ${dits.join(" | ") || "(rien)"}`);
+  ok("…et le message chiffre ce qu'elle prend ET ce qui reste chez elle",
+     dits.some((t) => /[Pp]ension/.test(t) && /−\s*\d/.test(t) && /garde\s*\d/.test(t)),
+     dits.find((t) => /[Pp]ension/.test(t)) || "(rien)");
 }
 
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
