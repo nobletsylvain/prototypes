@@ -213,6 +213,68 @@ fasse prendre — ce n'est pas un bug, c'est une porte fermée.
 
 ---
 
+## 2026-07-28 — « Annuler » offrait des grammes en silence
+
+La chasse de nuit sur la logique a rendu. Sa première trouvaille est une violation de R1
+franche, et **trois sceptiques indépendants l'ont reproduite en exécutant les vrais
+modules — 0 sur 3 la réfutent**.
+
+### Le défaut
+
+`cancel` remettait `cl.mode="offer"` et **laissait `cl.propG` posé** :
+
+```js
+if(a==="cancel"){ cl.mode="offer"; return renderCornerActive(P); }
+```
+
+La carte « offre » réaffiche alors `cl.g` et `cl.offer` — l'offre d'origine — pendant que
+`cornerResolve` exécute sur `propG(cl)`, resté à la valeur du brouillon. **Le montant vient
+de la carte, les grammes viennent d'un état invisible.**
+
+Séquence : un client demande 5 g → « ↔️ Autre quantité » → un tap sur `+` (le brouillon
+passe à 6) → on se ravise, « Annuler » → la carte réaffiche « [5 g → 48] » → « ✅ OK 48 ».
+Résultat mesuré : **6 g sortent pour le prix de 5**.
+
+Le bouton le plus neutre de l'écran produisait une perte sèche non annoncée.
+
+### L'ironie
+
+Le commentaire situé trois lignes plus haut déclare : *« l'ancien code sur-livrait en
+silence (24 g pour 5) »*. Le garde `cornerComposable` protège bien le chemin direct — et
+`cancel` rouvrait exactement la même sur-livraison par la porte de derrière.
+
+### Deux fois où j'ai failli écrire un test qui ne prouve rien
+
+**1. Comparer au ledger.** Premier jet : « les grammes débités == ceux du ledger ». Les
+deux sortent du **même chemin de code** : si le jeu débitait 6 et écrivait 6 au ledger, le
+contrôle passait au vert pendant que la carte affichait 5. Il faut comparer à ce que la
+**carte** annonce — c'est la promesse faite au joueur, et c'est la seule référence externe.
+
+**2. Comparer à l'égalité.** Deuxième jet : « débité == annoncé ». Il a échoué… sur un
+comportement **légitime** : quand le tampon ne compose pas la quantité demandée, la vente
+est partielle et facturée au prorata (4 g pour 38 au lieu de 5 g pour 48). La carte le dit
+(« ton tampon ne compose que 4 g »), et le joueur n'y perd rien.
+
+L'invariante juste est asymétrique : **on ne débite jamais PLUS que ce que la carte
+annonce.** Moins, c'est une rupture partielle annoncée ; plus, c'est un cadeau silencieux.
+
+J'ai bien failli « corriger » un comportement sain parce que mon assertion était trop
+raide. Mesurer l'état réel avant de conclure m'a évité ça — le tampon n'était même pas
+celui que je croyais avoir semé.
+
+### Et une erreur de page causée par mon propre test
+
+Le seed du contrôle supposait `shelter.corners` présent au moment où il s'exécute, avant
+le chargement de la page. Il jetait `Cannot read properties of undefined (reading 'pdv')`.
+Attrapé par le contrôle « aucune erreur page », qui existe précisément pour ça.
+
+### Vérification
+
+14/14 sur `bulles-loupe`. Contre-épreuve : sans le correctif, la carte annonce 5 g et le
+jeu en débite **6** pour le même prix.
+
+---
+
 ## 2026-07-28 — Les corners deviennent pluriels (fondation)
 
 Programme donné par Sylvain avant d'aller dormir : un **deuxième corner**, l'embauche

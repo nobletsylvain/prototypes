@@ -358,6 +358,85 @@ ok("L'écran d'évacuation s'ouvre après le cri, avec ses deux gestes",
             : `AUCUNE VENTE n'a eu lieu (${avant} → ${milieu}) — le contrôle ne prouverait rien`);
 }
 
+// ── 4. « Annuler » annule vraiment la contre-proposition ──────────────────
+// Trouvé par la chasse de nuit, reproduit par trois sceptiques indépendants (0/3 la
+// réfutent). `cancel` remettait `cl.mode="offer"` en laissant `cl.propG` posé : la carte
+// réaffichait l'offre d'origine pendant que la résolution exécutait sur propG. Taper
+// « OK 46 » sortait 8 g pour le prix de 5.
+//
+// On TAPE la séquence dans le navigateur — on ne recopie pas la logique dans le test,
+// sinon on ne teste que sa propre copie. On compare ce qui est ÉCRIT sur le bouton
+// d'acceptation aux grammes réellement débités.
+{
+  // état propre : la section ARAH a poussé la chaleur à 96 et la descente a vidé la file.
+  // On empile un 3e seed (il s'exécute après les deux autres) et on recharge.
+  await page.evaluateOnNewDocument(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    s.heat = 0;
+    /* Le seed tourne AVANT le chargement de la page : il lit ce que la session
+       précédente a écrit, et rien ne garantit la forme. Sans ces gardes il jetait
+       « Cannot read properties of undefined (reading 'pdv') » — une erreur de page
+       causée par le TEST, qu'un contrôle « aucune erreur page » a fini par attraper. */
+    if (!s.shelter) s.shelter = {};
+    if (!s.shelter.corners) { s.shelter.corners = {}; s.shelter.cornerId = "pdv"; }
+    const id = s.shelter.cornerId || "pdv";
+    const c = (s.shelter.corners[id] = s.shelter.corners[id] || {});
+    c.queue = [{ cid: "momo", nm: "Momo", av: "🧢", kind: "regulier", rel: 30,
+                 want: 5, g: 5, offer: 46, tx: "Momo arrive et parle.",
+                 pat: 400, pat0: 400, mode: "offer", negoP: 46, dernier: null }];
+    localStorage.setItem("loupe_save", JSON.stringify(s));
+  });
+  await page.reload({ waitUntil: "load" }); await sleep(800);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin]")].find((x) => x.dataset.pin === "pdv"); if (b) b.click(); });
+  await sleep(250);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin-go]")].find((x) => x.dataset.pinGo === "pdv"); if (b) b.click(); });
+  await sleep(700);
+  const av = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    const t = s.shelter.corners[s.shelter.cornerId || "pdv"].tampon || {};
+    return Object.entries(t).reduce((a, [f, n]) => a + +f * n, 0);
+  });
+  // contrer → bouger la quantité → annuler → accepter
+  const seq = await page.evaluate(async () => {
+    const tap = (sel) => { const b = document.querySelector(sel); if (!b || b.disabled) return false; b.click(); return true; };
+    const w = (ms) => new Promise((r) => setTimeout(r, ms));
+    if (!tap('#cActive [data-neg="counter"]')) return { ko: "pas de bouton contrer" };
+    await w(250);
+    if (!tap('#cActive [data-negq="1"]') && !tap('#cActive [data-negq="-1"]')) return { ko: "pas de stepper" };
+    await w(250);
+    if (!tap('#cActive [data-neg="cancel"]')) return { ko: "pas de bouton annuler" };
+    await w(250);
+    const btn = document.querySelector('#cActive [data-neg="accept"]');
+    if (!btn) return { ko: "pas de bouton accepter après annulation" };
+    // ce que la CARTE annonce : « [5 g → 46 · … ] ». C'est la promesse faite au joueur,
+    // et c'est à ELLE qu'on compare le débit — pas au ledger, qui sort du même chemin de
+    // code que le débit et passerait donc même si les deux étaient faux ensemble.
+    const carte = (document.querySelector("#cActive .offer") || {}).textContent || "";
+    const mg = carte.match(/(\d+)\s*g/);
+    btn.click();
+    return { label: btn.textContent, annonceCarte: mg ? +mg[1] : null, carte };
+  });
+  await sleep(500);
+  const ap = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    const c = s.shelter.corners[s.shelter.cornerId || "pdv"];
+    const t = c.tampon || {};
+    return { g: Object.entries(t).reduce((a, [f, n]) => a + +f * n, 0), tampon: t,
+             dernier: (c.ledger || [])[0] || null };
+  });
+  await page.screenshot({ path: path.join(OUT, "09-annuler.png") });
+  const debite = av - ap.g;
+  /* L'invariante juste est « jamais PLUS que ce que la carte annonce », pas « exactement ».
+     Une vente partielle au prorata (tampon qui ne compose pas la quantité demandée) débite
+     MOINS et facture moins — c'est prévu, la carte le dit (« ton tampon ne compose que
+     N g »), et le joueur n'y perd rien. Le bug, lui, débitait PLUS : 8 g annoncés 5.
+     Ma première version comparait à l'égalité et échouait sur le cas partiel légitime. */
+  ok("R1 · après « Annuler », on ne débite jamais PLUS que ce que la carte annonce",
+     !seq.ko && seq.annonceCarte != null && debite <= seq.annonceCarte,
+     seq.ko ? seq.ko
+            : `carte « ${seq.carte.trim()} » → annonce ${seq.annonceCarte} g · bouton « ${String(seq.label).trim()} » · RÉELLEMENT débité ${debite} g`);
+}
+
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
 
 console.log("\n─── bulles & ARAH · La Loupe ───");

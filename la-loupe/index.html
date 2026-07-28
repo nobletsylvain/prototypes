@@ -386,10 +386,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=41";
-import * as beuher from "./beuher.mjs?v=41";
-import * as shelter from "./shelter.mjs?v=41";
-import * as corner from "./corner.mjs?v=41";
+import * as snap from "./snap.mjs?v=42";
+import * as beuher from "./beuher.mjs?v=42";
+import * as shelter from "./shelter.mjs?v=42";
+import * as corner from "./corner.mjs?v=42";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -424,7 +424,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=41"),
+      import("./scene3d.mjs?v=42"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -1265,7 +1265,16 @@ function cornerResolveAmbig(P, cl){
 function cornerAct(P, a){
   const cl=cornerActive(P); if(!cl) return;
   if(a==="refuse"||a==="refuse2") return cornerLeave(P, cl, "refus");
-  if(a==="cancel"){ cl.mode="offer"; return renderCornerActive(P); }
+  /* « Annuler » doit ANNULER la contre-proposition, pas seulement fermer l'écran.
+     Le mode revenait à "offer" en laissant `cl.propG` posé : la carte réaffichait alors
+     l'offre d'origine (`cl.g` / `cl.offer`, ex. « 5 g → 46 ») pendant que `cornerResolve`
+     exécutait sur `propG(cl)`, resté à 8. Taper « ✅ OK 46 » sortait donc 8 g du tampon
+     pour le prix de 5 — le montant venait de la carte, les grammes d'un état invisible.
+     Reproduit depuis une partie neuve en six taps, avec un anonyme à 2 g.
+     C'est une perte sèche déclenchée par le bouton le plus neutre de l'écran (R1), et
+     c'est très exactement la sur-livraison silencieuse que le commentaire d'à côté
+     déclare avoir fermée — elle revenait par la porte de derrière. */
+  if(a==="cancel"){ cl.mode="offer"; cl.propG=null; return renderCornerActive(P); }
   if(a==="counter"){
     cl.mode="nego";
     // point de départ utile : sa demande si on peut la composer, sinon ce qu'on PEUT
