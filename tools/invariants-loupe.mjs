@@ -990,7 +990,25 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
      maxDansUneSoiree <= 4,
      `au pire ${maxDansUneSoiree} passages de la même tête dans une soirée de ${PAR_SOIR}`);
 
-  // 4. on ne reconnaît personne qu'on n'a pas encore vu deux fois — sinon l'écran ment
+  /* 4. AUCUNE collision de nom avec les personas. Sans ça, le Karnet affiche la même
+     personne dans « Tes connaissances » ET dans « Les têtes du quartier » — c'est-à-dire
+     qu'il détruit la frontière que ces deux blocs existent pour poser. Constaté sur une
+     capture : Riton et Nassim apparaissaient des deux côtés. */
+  {
+    const persos = new Set(CORNER_PERSONAS.map((p) => p.nm.toLowerCase()));
+    const reserves = new Set(["karim", "tata yamina", "yamina"]);   // le fournisseur et la nourrice
+    const collisions = VISAGES.map((v) => v.nm).filter((n) =>
+      persos.has(n.toLowerCase()) || reserves.has(n.toLowerCase()));
+    ok("Aucune tête du quartier ne porte le nom d'un persona (ni de Karim, ni de la nourrice)",
+       collisions.length === 0,
+       collisions.length ? `collisions : ${collisions.join(", ")}` : `${VISAGES.length} têtes, aucune collision`);
+
+    const doublons = VISAGES.map((v) => v.nm).filter((n, i, a) => a.indexOf(n) !== i);
+    ok("…et aucun doublon dans la réserve elle-même",
+       doublons.length === 0, doublons.length ? doublons.join(", ") : "toutes distinctes");
+  }
+
+  // 5. on ne reconnaît personne qu'on n'a pas encore vu deux fois — sinon l'écran ment
   ok("R4 · aucune reconnaissance avant la 2e rencontre (le jeu ne feint pas de se souvenir)",
      visageTell({ vu: 0 }) === "" && visageTell({ vu: 1, g: { 5: 1 } }) === ""
        && /Déjà vu 2/.test(visageTell({ vu: 2, g: { 5: 2 } })),

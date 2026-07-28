@@ -400,11 +400,11 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=52";
-import * as beuher from "./beuher.mjs?v=52";
-import * as shelter from "./shelter.mjs?v=52";
-import * as karnet from "./karnet.mjs?v=52";
-import * as corner from "./corner.mjs?v=52";
+import * as snap from "./snap.mjs?v=53";
+import * as beuher from "./beuher.mjs?v=53";
+import * as shelter from "./shelter.mjs?v=53";
+import * as karnet from "./karnet.mjs?v=53";
+import * as corner from "./corner.mjs?v=53";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -439,7 +439,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=52"),
+      import("./scene3d.mjs?v=53"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -2393,6 +2393,56 @@ function buyUp(key){
       restent séparés parce que chacun appelle une correction différente.
    3. LE FIL — le journal, inchangé, pour retrouver une ligne précise. */
 let karnetJour=0;                       // index dans S.soirees : 0 = la dernière close
+/* LES TÊTES — le carnet de clientèle (arbitrage Sylvain : les quatre sections).
+
+   L'ordre des trois blocs est le propos :
+   1. LES CALIBRES d'abord, parce que c'est la seule DÉCISION que cet écran porte (R8) :
+      quel format couper ce soir. Jusqu'ici le jeu comptait `missed` depuis des semaines
+      et ne le lisait NULLE PART — la donnée existait, le joueur ne l'a jamais vue.
+   2. LES CONNAISSANCES ensuite : les personas nommés, ceux qu'on cultive. On y montre
+      enfin combien de fois on les a laissés repartir, et à combien d'abus ils partent.
+   3. LES VISAGES en dernier : le quartier. On les reconnaît, on ne les cultive pas.
+   Mélanger 2 et 3 rendrait le déblocage d'un persona sans intérêt. */
+function karnetTetes(){
+  const cal=karnet.calibres(S.visages||{});
+  const conseil=karnet.calibreARattraper(S.visages||{});
+  const cons=karnet.connaissances(S.clients, corner.CORNER_PERSONAS, corner.CORNER.GOUGE_STREAK_QUIT);
+  const tet=karnet.tetes(S.visages||{}, corner.VISAGES, S.day);
+  if(!cal.length && !cons.length) return "";
+  const pct=(x)=>Math.round(x*100);
+  return `<div class="card">
+    <h3>Ce qu'on te demande</h3>
+    ${conseil?`<div class="muted" style="font-size:11px;margin:-4px 0 8px">
+      Le format qui te manque le plus : <b style="color:var(--accent)">${conseil.g} g</b> —
+      demandé ${conseil.demande}×, raté ${conseil.rate}×.</div>`
+      :`<div class="muted" style="font-size:11px;margin:-4px 0 8px">Tu sers tout ce qu'on te demande. Rien à rattraper.</div>`}
+    ${cal.length?cal.slice(0,6).map(c=>`<div class="stat">
+      <span>${c.g} g<br><span class="muted" style="font-size:10px">demandé ${c.demande}× · servi ${c.servi}×</span></span>
+      <b class="${c.rate?"q-bad":"q-good"}">${c.rate?"raté "+c.rate+" ("+pct(c.manque)+" %)":"tout servi"}</b></div>`).join("")
+      :`<div class="muted">Personne n'est encore passé.</div>`}
+  </div>
+  ${cons.length?`<div class="card">
+    <h3>Tes connaissances</h3>
+    <div class="muted" style="font-size:10px;margin:-4px 0 6px">Ceux qu'on cultive : une relation, une ardoise, une exigence.</div>
+    ${cons.map(c=>`<div class="stat">
+      <span>${c.av} ${c.nm}${c.quit?` <span style="color:var(--heat)">· parti</span>`:""}
+        <br><span class="muted" style="font-size:10px">${c.usual} g d'habitude${
+          c.missed?` · reparti sans être servi ${c.missed}×`:""}${
+          c.ardoise?` · te doit ${money(c.ardoise.due)} à J${c.ardoise.day}`:""}${
+          !c.quit&&c.avantRupture<=1?` · encore ${c.avantRupture} abus et il ne revient plus`:""}</span></span>
+      <b class="${c.quit?"q-bad":c.rel>=60?"q-good":""}">${c.quit?"—":"rel "+c.rel}</b></div>`).join("")}
+  </div>`:""}
+  ${tet.length?`<div class="card">
+    <h3>Les têtes du quartier</h3>
+    <div class="muted" style="font-size:10px;margin:-4px 0 6px">On les reconnaît. On ne les cultive pas — ils passent, c'est tout.</div>
+    ${tet.slice(0,8).map(t=>`<div class="stat">
+      <span>${t.av} ${t.nm}<br><span class="muted" style="font-size:10px">vu ${t.vu}×${
+        t.habitue?` · ${t.habitue} g d'habitude`:""}${
+        t.absent>1?` · plus vu depuis J${t.dernier}`:""}</span></span>
+      <b class="${t.bredouille?"q-bad":""}">${t.bredouille?"bredouille "+t.bredouille+"×":"servi"}</b></div>`).join("")}
+    ${tet.length>8?`<div class="muted" style="font-size:10px">…et ${tet.length-8} autres.</div>`:""}
+  </div>`:""}`;
+}
 function renderKarnet(){
   tab="shelter"; set3d("hidden"); hud(); renderDock();
   const soirees=Array.isArray(S.soirees)?S.soirees:[];
@@ -2446,6 +2496,7 @@ function renderKarnet(){
       <button class="btn ghost" style="margin:0" id="kNext" ${karnetJour<=0?"disabled":""}>soirée d'après →</button>
     </div>`:""}
     ${corps}
+    ${karnetTetes()}
     <div class="card journal"><h3>Le fil</h3>${S.journal.slice(0,20).map(j=>`<div class="item">${
       j.day?`<span class="muted" style="font-size:10px">J${j.day}</span> `:""}${j.txt}<div class="c">↩ ${j.cause}</div></div>`).join("")||`<div class="muted">Vide.</div>`}</div>
     <button class="btn ghost" id="back">↩ Quartier</button>`;

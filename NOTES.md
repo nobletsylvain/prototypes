@@ -9,6 +9,55 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Les têtes : le Karnet dit enfin quel format couper
+
+Section 3 des quatre demandées par Sylvain. Trois blocs, et l'**ordre est le propos**.
+
+### 1. Ce qu'on te demande — la seule décision de l'écran
+
+```
+Le format qui te manque le plus : 5 g — demandé 8×, raté 5×.
+
+  5 g   demandé 8× · servi 3×          raté 5 (63 %)
+  8 g   demandé 2× · servi 1×          raté 1 (50 %)
+  2 g   demandé 7× · servi 7×          tout servi
+```
+
+C'est la seule chose que cet écran porte (R8), et c'est le **premier éclairage qu'ait jamais
+eu la coupe** — le levier de qualité du jeu (R10). Jusqu'ici `missed` était incrémenté
+depuis des semaines et **lu nulle part**.
+
+Le conseil désigne le format le plus **raté**, pas le plus demandé : le 2 g est plus
+demandé, mais il est servi. Et il ne sort **que** s'il y a de quoi le fonder — carnet vide,
+tout servi, ou une seule demande : le jeu se tait plutôt que de dire quelque chose de
+plausible. Quatre contrôles tiennent ça.
+
+### 2. Tes connaissances, 3. Les têtes du quartier
+
+La séparation est la raison d'être des deux blocs : on **cultive** les personas (relation,
+ardoise, exigence), on **reconnaît** les visages. Mélanger rendrait le déblocage d'un
+persona sans intérêt.
+
+### La capture a trouvé ce que les tests n'attrapaient pas
+
+Sur l'écran fini, **Riton et Nassim apparaissaient des deux côtés** — une fois dans
+« Tes connaissances », une fois dans « Les têtes du quartier ». La réserve de têtes
+reprenait `PDV_NAMES`, écrit avant que les personas existent.
+
+Ça ne cassait rien mécaniquement, et **aucun test ne pouvait le voir** : les deux listes
+étaient correctes séparément. Il a fallu regarder l'écran. C'est la troisième fois cette
+semaine qu'une capture trouve ce qu'un assert ne cherchait pas.
+
+Réserve assainie (24 noms, aucun ne recoupe un persona, ni Karim, ni la nourrice) et
+**invariant posé** : la prochaine tête ajoutée retomberait dans le piège autrement.
+
+### Deux fois le même piège de seed, dans la même journée
+
+`s.clients` n'existe pas encore quand `evaluateOnNewDocument` s'exécute — il est créé au
+chargement. Un `if (s.clients && …)` ne fait donc jamais rien. Rencontré ce matin dans
+`cause-loupe`, re-rencontré ce soir dans `karnet-loupe`. Les deux fois, le contrôle passait
+au vert en ne prouvant rien jusqu'à ce que je regarde le détail.
+
 ## 2026-07-28 — Blanchiment : la forme est arrêtée (temps + capacité, la taxe par-dessus)
 
 Sylvain, après la démonstration stock/flux : « On est alignés concernant la mécanique de

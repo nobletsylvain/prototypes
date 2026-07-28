@@ -456,13 +456,20 @@ export function anonQty(day, seq, rue, rueMax){
    chaque tête 1,6 fois par SOIRÉE — ce n'est pas un habitué, c'est un figurant en boucle.
    À 24, on croise la même tête une soirée sur deux environ : assez pour la reconnaître,
    assez rare pour que ça compte. */
+/* AUCUN nom ne doit coïncider avec un persona ni avec Karim ou Tata Yamina — la première
+   version reprenait `PDV_NAMES`, écrit avant que les personas comptent, et le Karnet
+   affichait « Riton » à la fois dans « Tes connaissances » et dans « Les têtes du
+   quartier ». Vu sur une capture, pas déduit : deux fois la même personne à l'écran, dans
+   les deux blocs qu'on venait justement de séparer.
+   Un invariant tient cette contrainte, parce que la prochaine tête ajoutée retombera dans
+   le piège autrement. */
 export const VISAGES = [
-  { nm:"Momo",   av:"🧢" }, { nm:"Inès",   av:"🎧" }, { nm:"Yaz",    av:"🛵" }, { nm:"Riton",  av:"🥀" },
-  { nm:"Sofia",  av:"💅" }, { nm:"Sami",   av:"🎒" }, { nm:"Lou",    av:"👟" }, { nm:"Nassim", av:"🎲" },
-  { nm:"Aya",    av:"🌙" }, { nm:"Karim",  av:"🧥" }, { nm:"Zoé",    av:"🎀" }, { nm:"Paul",   av:"👤" },
-  { nm:"Djibril",av:"🧣" }, { nm:"Naïma",  av:"🕶️" }, { nm:"Ryan",   av:"🎸" }, { nm:"Fatou",  av:"🧶" },
-  { nm:"Théo",   av:"🛹" }, { nm:"Mila",   av:"📻" }, { nm:"Ousmane",av:"🥊" }, { nm:"Jade",   av:"🪩" },
-  { nm:"Kevin",  av:"🚬" }, { nm:"Assia",  av:"🧵" }, { nm:"Bruno",  av:"⚙️" }, { nm:"Lena",   av:"🎤" },
+  { nm:"Sami",   av:"🎒" }, { nm:"Lou",    av:"👟" }, { nm:"Aya",    av:"🌙" }, { nm:"Zoé",    av:"🎀" },
+  { nm:"Paul",   av:"👤" }, { nm:"Djibril",av:"🧣" }, { nm:"Naïma",  av:"🕶️" }, { nm:"Ryan",   av:"🎸" },
+  { nm:"Fatou",  av:"🧶" }, { nm:"Théo",   av:"🛹" }, { nm:"Mila",   av:"📻" }, { nm:"Ousmane",av:"🥊" },
+  { nm:"Jade",   av:"🪩" }, { nm:"Kevin",  av:"🚬" }, { nm:"Assia",  av:"🧵" }, { nm:"Bruno",  av:"⚙️" },
+  { nm:"Manon",  av:"🎤" }, { nm:"Farid",  av:"🧤" }, { nm:"Soraya", av:"📿" }, { nm:"Enzo",   av:"🕹️" },
+  { nm:"Awa",    av:"🪶" }, { nm:"Rachid", av:"🔧" }, { nm:"Chloé",  av:"🧃" }, { nm:"Malik",  av:"🎩" },
 ];
 /** Le visage croisé à (jour, rang). Déterministe : même seed, même tête au même moment. */
 export function visageDe(day, seq){
