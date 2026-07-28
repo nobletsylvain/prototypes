@@ -9,6 +9,39 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — L'hésitant partait en « rupture » avec 24 g dans la sacoche
+
+Neuvième trouvaille. Les deux boutons de l'hésitant servaient des grammages **fixes** —
+son habituel, ou 2 g — jamais confrontés à la sacoche. Une barrette ne se casse pas : une
+sacoche de 24 g en barrettes de 8 ne compose pas 5 g. Mesuré :
+
+```
+  sacoche {8:3} — 24 g bien réels · Sofia veut son 5 g habituel
+  bouton offert : « 💬 Son 5 g habituel »
+  tap           → « Rupture — charge ta sacoche (Gérer). » · réservoir 90 → 88,8
+```
+
+Perte sèche sur un bouton **offert par le jeu**, stock plein en main — et un message faux
+par-dessus : la sacoche *est* chargée, c'est le **format** qui ne convient pas.
+
+C'est exactement la classe de bug déjà fermée pour le rail du stepper de négo (« la liste
+servable ne contenait que de l'inservable »). Elle était restée ouverte ici : le correctif
+avait été appliqué à l'endroit où on l'avait vu, pas à la classe. **Troisième fois en deux
+jours** qu'une faute survit à côté de sa jumelle réparée.
+
+Correctif : on sert le composable le plus proche, et le bouton l'**annonce** — « Son 5 g
+habituel » quand on peut le lui donner, « Au plus près · 8 g » quand le format oblige à
+s'en écarter. Le joueur voit que c'est sa **sacoche** qui décide, ce qui en fait une
+information de jeu au lieu d'un mur (R2 : la composition de la sacoche devient un levier
+lisible). Quand les deux boutons retombent sur la même quantité, le second n'offre plus de
+choix : il disparaît.
+
+La récompense de l'attention reste acquise même quand le format oblige à s'écarter — sinon
+la contrainte de sacoche redeviendrait une amende. En revanche la réplique ne peut plus
+dire « C'est EXACTEMENT ça » sur 8 g quand il en voulait 5 : `lu` n'est mérité que si on
+lui a servi **son** grammage. Le test vérifie les deux sens — que la sacoche qui compose
+pile son habituel le lui serve, et garde sa réplique.
+
 ## 2026-07-28 — Négocier tranquillement coûtait le multiplicateur, en silence
 
 Huitième trouvaille — et c'est **l'autre moitié de la précédente**, laissée sur place par

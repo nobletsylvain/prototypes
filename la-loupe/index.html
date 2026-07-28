@@ -1288,14 +1288,32 @@ function cornerResolveArdoise(P, cl){
   cause("Ardoise ouverte", cl.nm+" · "+cl.due+" à J"+cl.payday);
   cornerLeave(P, cl, "ardoise");
 }
+/* L'hésitant : ses deux boutons servaient des grammages FIXES — son habituel, ou 2 g —
+   jamais confrontés à la sacoche. Mesuré : sacoche de 24 g en barrettes de 8, Sofia
+   demande son 5 g habituel ; le bouton « 💬 Son 5 g habituel » est proposé, et le tap
+   répond « Rupture — charge ta sacoche (Gérer). » en ponctionnant le réservoir. Perte
+   sèche sur un bouton offert par le jeu, stock plein en main — et un message faux : la
+   sacoche est chargée, c'est le FORMAT qui ne compose pas 5 g (une barrette ne se casse
+   pas). Exactement la classe de bug déjà fermée pour le rail du stepper de négo, restée
+   ouverte ici. On sert donc le composable le plus proche, et le bouton l'ANNONCE. */
+function hesitG(P, cl, perso){
+  const liste=cornerQuantites(P, cl);           // déjà borné par sa poche, déjà composable
+  const cible=perso?(cl.usual||cl.g||2):2;
+  return liste.reduce((a,b)=>Math.abs(b-cible)<Math.abs(a-cible)?b:a, liste[0]);
+}
 // hésitant : toute attention convertit ; son habituel (perso) paie un pourboire
 function cornerResolveHesit(P, cl, perso){
-  const fair=P.prix||marcheDuJour(), g=perso?cl.usual:2, total=Math.round(g*fair);
+  const fair=P.prix||marcheDuJour(), g=hesitG(P, cl, perso), total=Math.round(g*fair);
   const tip=perso?Math.round(total*corner.CORNER.TIP_LU):0;
   if(!cornerSell(P, cl, g, total, tip)) return;
   const c=S.clients[cl.cid]; if(c) c.rel=clamp(c.rel+(perso?corner.CORNER.REL_PERSO:corner.CORNER.REL_DEAL),0,100);
   S.reput=clamp(S.reput+corner.CORNER.REP_DEAL,0,100);
-  cornerLeave(P, cl, "done", {emo:perso?"🥰":"🙂", outcome:perso?"lu":"deal"}, tip);
+  /* La récompense de l'attention reste acquise même quand le format oblige à s'écarter de
+     son habituel — sinon la contrainte de sacoche redeviendrait une amende (R1). Mais la
+     réplique, elle, ne peut pas dire « C'est EXACTEMENT ça » sur 8 g quand il en voulait 5 :
+     `lu` n'est mérité que si on lui a servi son grammage. */
+  const juste=g===(cl.usual||cl.g);
+  cornerLeave(P, cl, "done", {emo:perso?"🥰":"🙂", outcome:(perso&&juste)?"lu":"deal"}, tip);
 }
 // ambigu : le joueur compose ; bien lu (grammes == attendu) → pourboire, sinon vendu quand même (R1)
 function cornerResolveAmbig(P, cl){
@@ -1372,10 +1390,17 @@ function renderCornerActive(P){
       <div class="grid2"><button class="btn bad" style="margin:0" data-neg="loucheOk">🤝 Vendre ${cl.offer}</button>
         <button class="btn ok" style="margin:0" data-neg="loucheNo">🕶️ Refuser</button></div>`;
   } else if(cl.mode==="hesit"){
+    /* Les boutons annoncent le grammage RÉELLEMENT servi (cf. hesitG) : sinon ils
+       promettent un format que la sacoche ne compose pas. « Son habituel » quand on peut
+       le lui donner, « au plus près » quand le format oblige à s'en écarter — le joueur
+       doit voir que sa sacoche décide. Quand les deux boutons retombent sur la même
+       quantité, le second n'offre plus de choix : on ne l'affiche pas. */
+    const gP=hesitG(P, cl, true), gG=hesitG(P, cl, false);
+    const juste=gP===(cl.usual||cl.g);
+    const petit = gG<gP ? `<button class="btn ghost" style="margin:0" data-neg="hesitGen">Un petit · ${gG} g</button>` : "";
     body=`<div class="nego-tx">${cl.tx}</div>${patBar}
-      <div class="grid3"><button class="btn ok" style="margin:0" data-neg="hesitPerso">💬 Son ${cl.usual} g habituel</button>
-        <button class="btn ghost" style="margin:0" data-neg="hesitGen">Un petit</button>
-        <button class="btn bad" style="margin:0" data-neg="refuse">❌</button></div>`;
+      <div class="${petit?"grid3":"grid2"}"><button class="btn ok" style="margin:0" data-neg="hesitPerso">💬 ${juste?`Son ${gP} g habituel`:`Au plus près · ${gP} g`}</button>
+        ${petit}<button class="btn bad" style="margin:0" data-neg="refuse">❌</button></div>`;
   } else if(cl.mode==="ambig"){
     const g=cl.composeG||0, tot=Math.round(g*fair);
     body=`<div class="nego-tx">« ${cl.tx} » — à toi de voir combien.</div>

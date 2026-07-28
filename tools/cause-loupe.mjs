@@ -294,6 +294,85 @@ ok("La cause dit quoi FAIRE, pas seulement ce qui se passe",
                            : `chip ${t0.chip} → ${t1.chip} — la lenteur de la main est amendée`);
 }
 
+// ── Un bouton ne promet jamais un grammage que la sacoche ne compose pas ──
+// Les deux boutons de l'hésitant servaient des grammages FIXES (son habituel, ou 2 g),
+// jamais confrontés à la sacoche. Mesuré avant correctif — sacoche de 24 g en barrettes
+// de 8, Sofia demande son 5 g habituel :
+//
+//   bouton offert : « 💬 Son 5 g habituel »
+//   tap           → « Rupture — charge ta sacoche (Gérer). » · réservoir 90 → 88,8
+//
+// Perte sèche sur un bouton offert par le jeu, stock plein en main — et un message faux :
+// la sacoche EST chargée, c'est le format qui ne compose pas 5 g. Contre-épreuve faite en
+// repassant ces contrôles sur l'index.html d'avant correctif : les deux premiers échouent
+// (0 g servi, réservoir ponctionné, libellé « Son 5 g habituel »). Le troisième passait
+// déjà — mais seulement parce que RIEN n'était vendu : il ne prouve rien tout seul, c'est
+// le premier qui le rend significatif.
+//
+// Le second cas (sacoche qui compose PILE son habituel) est là pour que le correctif ne
+// se contente pas d'arrondir tout le monde : quand on peut lui donner son grammage, le
+// bouton doit le dire et la réplique « C'est EXACTEMENT ça » doit rester méritée.
+{
+  const sofia = (usual) => ({ cid: "sofia", nm: "Sofia", av: "💅", kind: "hesitant", rel: 20,
+    tx: "Elle hésite sur le pas de la porte.", g: usual, usual, offer: 0, negoP: 0,
+    pat: 400, pat0: 400, mode: "hesit", dernier: null, qFac: 1 });
+
+  const scene = async (tampon, cl) => {
+    await page.evaluateOnNewDocument((t, c) => {
+      const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+      delete s.shelter.pdv;
+      s.shelter.corners = { pdv: { res: 90, bac: 0, prix: 10, chouffes: 0, tampon: t, tamponQ: 70,
+        queue: [c], ledger: [], qacc: 0, serveAcc: 0, seq: 5, combo: 2, charbonneur: null } };
+      s.shelter.cornerId = "pdv";
+      localStorage.setItem("loupe_save", JSON.stringify(s));
+    }, tampon, cl);
+    await page.reload({ waitUntil: "load" });
+    await sleep(700);
+    await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin]")].find((x) => x.dataset.pin === "pdv"); if (b) b.click(); });
+    await sleep(300);
+    await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin-go]")].find((x) => x.dataset.pinGo === "pdv"); if (b) b.click(); });
+    await sleep(700);
+    const av = await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+      const P = (s.shelter && s.shelter.corners && s.shelter.corners.pdv) || {};
+      const b = document.querySelector('[data-neg="hesitPerso"]');
+      return { res: P.res, dirty: s.dirty, gTampon: Object.entries(P.tampon || {}).reduce((a, [f, n]) => a + +f * n, 0),
+               libelle: b ? b.textContent.trim() : "(bouton absent)" };
+    });
+    await page.evaluate(() => { const b = document.querySelector('[data-neg="hesitPerso"]'); if (b) b.click(); });
+    await sleep(500);
+    const ap = await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+      const P = (s.shelter && s.shelter.corners && s.shelter.corners.pdv) || {};
+      return { res: P.res, dirty: s.dirty, gTampon: Object.entries(P.tampon || {}).reduce((a, [f, n]) => a + +f * n, 0),
+               toast: [...document.querySelectorAll(".toast, #toast, .tw")].map((t) => t.textContent).join(" ").trim() };
+    });
+    return { av, ap, servis: av.gTampon - ap.gTampon };
+  };
+
+  // (a) le format ne compose PAS son habituel — 24 g en barrettes de 8, elle veut 5
+  const biais = await scene({ 8: 3 }, sofia(5));
+  await page.screenshot({ path: path.join(OUT, "05-hesit-format.png") });
+  ok("R1 · avec du stock en main, le bouton de l'hésitant ne part jamais en rupture",
+     biais.servis > 0 && biais.ap.res >= biais.av.res && biais.ap.dirty > biais.av.dirty,
+     `« ${biais.av.libelle} » → ${biais.servis} g servis · réservoir ${biais.av.res} → ${biais.ap.res} · « ${biais.ap.toast} »`);
+  ok("Le bouton ANNONCE le grammage que la sacoche compose vraiment",
+     new RegExp(`\\b${biais.servis} g\\b`).test(biais.av.libelle) && !/\b5 g\b/.test(biais.av.libelle),
+     `libellé « ${biais.av.libelle} » pour ${biais.servis} g réellement servis`);
+  ok("Servir à côté de son habituel ne se fait pas passer pour une lecture parfaite",
+     !/EXACTEMENT/i.test(biais.ap.toast),
+     `réplique : « ${biais.ap.toast} »`);
+
+  // (b) le format compose PILE son habituel — le correctif ne doit rien arrondir ici
+  const pile = await scene({ 5: 4 }, sofia(5));
+  ok("Quand la sacoche compose son habituel, c'est son habituel qu'on lui sert",
+     pile.servis === 5 && /Son 5 g habituel/.test(pile.av.libelle),
+     `« ${pile.av.libelle} » → ${pile.servis} g servis`);
+  ok("…et la réplique « C'est EXACTEMENT ça » reste méritée",
+     /EXACTEMENT/i.test(pile.ap.toast),
+     `réplique : « ${pile.ap.toast} »`);
+}
+
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
 
 console.log("\n─── causes nommées · La Loupe ───");
