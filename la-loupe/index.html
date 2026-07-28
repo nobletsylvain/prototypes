@@ -62,9 +62,19 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-u
 #fmtBar.on{display:flex}
 #buyOverlay{position:absolute;left:10px;right:10px;bottom:max(70px, env(safe-area-inset-bottom) + 56px);z-index:5;pointer-events:auto;display:none;max-height:42%;overflow:auto;background:rgba(20,16,14,.92);border:1px solid var(--line);border-radius:16px;padding:12px}
 #buyOverlay.on{display:block}
-#dock{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:8px 8px max(10px,env(safe-area-inset-bottom));background:rgba(0,0,0,.6);border-top:1px solid var(--line);z-index:30}
+/* Le nombre de colonnes suit le nombre réel de boutons (`--dockn`, posé par renderDock).
+   En dur à 5, une app masquée laissait une colonne vide et un favori de plus faisait
+   passer la barre sur deux lignes. */
+#dock{display:grid;grid-template-columns:repeat(var(--dockn,5),1fr);gap:4px;padding:8px 8px max(10px,env(safe-area-inset-bottom));background:rgba(0,0,0,.6);border-top:1px solid var(--line);z-index:30}
 .tab{appearance:none;border:0;background:transparent;color:var(--muted);font-size:10px;font-weight:700;padding:8px 2px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:3px}
 .tab .ic{font-size:20px;line-height:1}.tab.on{color:#fff;background:rgba(255,180,84,.16)}
+/* Le FAVORI. Ce n'est pas une app du téléphone, c'est un raccourci vers un lieu : il se
+   distingue des onglets (liseré, teinte froide) pour que la barre ne mente pas sur ce
+   qu'elle contient. */
+.tab.fav{color:#9fe0ff;box-shadow:0 0 0 1px rgba(110,200,255,.28) inset}
+.tab.fav.on{color:#fff;background:rgba(110,200,255,.18)}
+.tab .badge{font-size:9px;font-weight:900;color:#ffd66b;line-height:1;margin-top:-1px}
+.tab .badge.off{visibility:hidden}
 h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .sub{color:var(--muted);font-size:12.5px;line-height:1.35;margin-bottom:12px}
 .card{background:rgba(38,30,22,.92);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:10px}
@@ -199,10 +209,15 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .clbl{font-size:10px;font-weight:700;margin-top:3px;color:#e8ecf4;text-shadow:0 1px 3px #000}
 .cpat2{width:36px;height:3.5px;background:#232a3add;border-radius:3px;overflow:hidden;margin-top:3px}
 .cpat2 i{display:block;height:100%;width:100%;background:#3ddc84}
-.ctop{position:absolute;top:8px;left:8px;right:8px;z-index:22;display:flex;align-items:center;gap:6px} /* au-dessus du tiroir → le retour ↩ reste toujours cliquable */
+/* `flex-wrap` : la barre porte maintenant 6 puces + 2 boutons. Sans retour à la ligne,
+   les dernières sortaient de l'écran sur un téléphone étroit — et la puce liquide, qui
+   est un RACCOURCI, serait devenue intapable. Elle déborde sur le ciel, jamais sur la
+   scène : `#cActive` et les silhouettes vivent plus bas. */
+.ctop{position:absolute;top:8px;left:8px;right:8px;z-index:22;display:flex;flex-wrap:wrap;align-items:center;gap:6px} /* au-dessus du tiroir → le retour ↩ reste toujours cliquable */
 .cbtn{border:0;border-radius:9px;background:rgba(0,0,0,.55);color:#e8ecf4;font:inherit;font-weight:700;font-size:12px;padding:8px 11px;cursor:pointer}
 .cchip{background:rgba(0,0,0,.55);border-radius:20px;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap}
 .cchip.gold{color:#ffd66b}
+.cchip.liq{cursor:pointer;box-shadow:0 0 0 1px rgba(110,200,255,.3) inset} /* tapable : elle mène chez la nourrice */
 /* moins de 20 s avant la descente : la chip se met à respirer — la pression se VOIT venir */
 .cchip.hot{color:#ff8a6a;box-shadow:0 0 0 1px rgba(255,138,106,.45) inset;animation:chipPulse 1.1s ease-in-out infinite}
 @keyframes chipPulse{0%,100%{opacity:1}50%{opacity:.55}}
@@ -400,11 +415,11 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=52";
-import * as beuher from "./beuher.mjs?v=52";
-import * as shelter from "./shelter.mjs?v=52";
-import * as karnet from "./karnet.mjs?v=52";
-import * as corner from "./corner.mjs?v=52";
+import * as snap from "./snap.mjs?v=54";
+import * as beuher from "./beuher.mjs?v=54";
+import * as shelter from "./shelter.mjs?v=54";
+import * as karnet from "./karnet.mjs?v=54";
+import * as corner from "./corner.mjs?v=54";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -439,7 +454,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=52"),
+      import("./scene3d.mjs?v=54"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -743,15 +758,39 @@ function hud(){
   }
 }
 
+/* Le dock : les apps du téléphone, plus UN favori.
+
+   Retour de playtest (Sylvain, 2026-07-28) : « la navigation entre le corner et la
+   nourrice puis revenir sur le corner est assez laborieuse ». Mesuré — l'aller-retour
+   coûtait 5 appuis (↩, pin nourrice, dépôt, pin corner, « Tenir le corner »), dont UN
+   SEUL portait une décision. Et `pdvTick` sort immédiatement quand le corner n'est pas
+   tenu : partir chez elle ne coûte ni client ni vente. C'était donc de la corvée pure,
+   pas un arbitrage — exactement ce que R6 dit de ne jamais laisser sur la main du joueur.
+
+   Le favori ramène au corner en un appui depuis n'importe où, et il porte le bac : la
+   raison d'y retourner est lisible depuis la barre. Le trajet tombe à 3 appuis, dont
+   celui du milieu est le dépôt lui-même. Le LIEU reste (c'est chez elle que la pension
+   est annoncée avant d'être prélevée) ; c'est le chemin qui raccourcit. */
 function renderDock(){
-  dock.innerHTML=APPS.filter(t=>t.id!=="cash"||SORTER_ENABLED).map(t=>`<button class="tab ${tab===t.id?"on":""}" data-t="${t.id}"><span class="ic">${t.ic}</span>${t.lb}</button>`).join("");
-  dock.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
+  const apps=APPS.filter(t=>t.id!=="cash"||SORTER_ENABLED);
+  const P=activeCorner();
+  const auCorner = tab==="shelter" && shelterSub==="pdv";
+  const bac=(P&&P.bac)||0;
+  const fav=`<button class="tab fav ${auCorner?"on":""}" data-fav="pdv" type="button">
+    <span class="ic">▶</span>Corner<span class="badge${bac>0?"":" off"}" id="dockBac">€${money(bac)}</span></button>`;
+  dock.style.setProperty("--dockn", apps.length+1);
+  dock.innerHTML=apps.map(t=>`<button class="tab ${tab===t.id&&!auCorner?"on":""}" data-t="${t.id}"><span class="ic">${t.ic}</span>${t.lb}</button>`).join("")+fav;
+  dock.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
     tab=b.dataset.t;
     atelierSub = tab==="atelier" ? "cut" : "menu"; // découpe = scène par défaut
     if(tab==="cash") cashSub="sorter";
     if(tab==="shelter") shelterSub="map"; // le dock Quartier ramène à la carte
     render();
   });
+  dock.querySelector("[data-fav]").onclick=()=>{
+    // `render()` route shelterSub==="pdv" vers renderPDV : une seule porte vers le corner
+    tab="shelter"; shelterSub="pdv"; render();
+  };
 }
 
 function set3d(mode){
@@ -856,7 +895,7 @@ function renderShelter(){
       <div class="stat"><span>Stock (pains+bar+sachets)</span><b>${money(shelter.stockG(S))} / ${planqueCap()} g</b></div>
       <div class="stat"><span>Standing · Buzz</span><b>${Math.round(S.reput)} · ${Math.round(S.expo)}</b></div>
     </div>
-    ${sel?pinSheet(sel, hit, hitLb):`<div class="card muted">Tape un pin sur la carte. Planque = stock & hit. Corner = vitrine / DM.</div>`}
+    ${sel?`<div id="pinSheet">${pinSheet(sel, hit, hitLb)}</div>`:`<div class="card muted">Tape un pin sur la carte. Planque = stock & hit. Corner = vitrine / DM.</div>`}
     <div class="apps">
       <button class="app snap" data-go="snap"><div class="icon">⚡</div><div class="nm">SnapShit</div></button>
       <button class="app atelier" data-go="atelier"><div class="icon">✂</div><div class="nm">Atelier</div></button>
@@ -912,7 +951,12 @@ function pinMapBtn(p){
   const on=S.shelter.selectedPin===p.id?"on":"";
   const locked=p.locked?"locked":"";
   const bac=p.id==="pdv"?(((activeCorner()||{}).bac)||0):0;
-  const badge=p.id==="pdv"?`<span class="pin-bac${bac>0?"":" off"}" id="pinBac">€${money(bac)}</span>`:"";
+  /* Le magot sur le pin, comme le bac sur le corner. Sans ça, l'argent confié disparaît
+     de l'écran : plus rien ne rappelle qu'il existe ni qu'il se paie une pension chaque
+     soir. Un puits invisible se lit comme un puits gratuit. */
+  const garde=p.id==="nourrice"?(((S.shelter.nourrice||{}).garde)||0):0;
+  const badge=p.id==="pdv"?`<span class="pin-bac${bac>0?"":" off"}" id="pinBac">€${money(bac)}</span>`
+            :p.id==="nourrice"?`<span class="pin-bac${garde>0?"":" off"}" id="pinGarde">🧶${money(garde)}</span>`:"";
   return `<button class="map-pin ${p.kind} ${on} ${locked}" style="left:${p.x}%;top:${p.y}%" data-pin="${p.id}" type="button">
     ${badge}<span class="dot"></span><span class="lbl">${p.title}</span></button>`;
 }
@@ -996,7 +1040,7 @@ function pinSheet(p, hit, hitLb){
    contact, toutes ces portes mènent CHEZ LUI — jamais vers un refus muet. */
 function allerAppro(){
   if(!shelter.approOuverte(S)){
-    tab="shelter"; shelterSub="map"; S.shelter.selectedPin="karim"; save(); render();
+    tab="shelter"; shelterSub="map"; S.shelter.selectedPin="karim"; save(); render(); voirFiche();
     toast(`Pas encore de contact au marché. ${shelter.SUPPLIER.name} te fournit — ${shelter.approReste(S)} achat${shelter.approReste(S)>1?"s":""} avant qu'il te présente.`);
     return;
   }
@@ -1078,7 +1122,33 @@ const PDV_CHOUFFE_DAMP=0.18, PDV_CHOUFFE_PAY=60, PDV_TAMPON_MAX=60; // barrettes
 // (85 % à 25 barrettes, 89 % à 40) mais l'exposition saisissable, elle, continue de
 // grimper (88 g → 145 g). Placeholder — en attente de tuning humain.
 const SAC_LOT=25;
-const PDV_PREAVIS_S=[0, 6, 12, 18];   // [PLACEHOLDER] secondes de préavis selon le nombre de chouffes
+/* Secondes de préavis selon le nombre de chouffes. [PLACEHOLDER]
+
+   Retour de playtest (Sylvain, 2026-07-28) : « le feeling était vraiment bon de pouvoir
+   remballer le matos. En revanche le temps donné était trop long. Pas assez de tension. »
+   Mesuré sur les ANCIENNES constantes (préavis [0,6,12,18], lot de 8) — un tampon plein
+   (60 barrettes) plus la caisse demande 9 gestes, et la cadence est de 520 ms :
+
+     n=1 →  6 s = 12 gestes possibles → 3 de MARGE
+     n=2 → 12 s = 24 gestes possibles → 15 de marge  ← le cas qu'il a joué
+     n=3 → 18 s = 35 gestes possibles → 26 de marge
+
+   Il n'y avait donc aucun arbitrage à AUCUN niveau de chouffe : on sauvait tout, deux
+   fois plutôt qu'une. Le commentaire d'`ARAH_COOL_MS` annonçait « on ne sauve jamais
+   tout, et ça se voit » — les nombres ne l'ont jamais tenu.
+
+   Le nouveau calage (avec ARAH_LOT ramené de 8 à 5) rend le geste décisif sans jamais
+   le rendre punitif (R1 — on ne perd pas plus qu'avant, on choisit ce qu'on sauve) :
+
+     n=1 → 3 s =  6 gestes → 25 barrettes sur 60 + la caisse
+     n=2 → 5 s = 10 gestes → 45 sur 60 : le dernier bloc OU la caisse, pas les deux
+     n=3 → 7 s = 14 gestes → tout, si tu ne traînes pas — ce que 180/soir achète
+
+   R9, et c'est le vrai intérêt du réglage : la tension devient fonction de la SACOCHE.
+   Sortir 25 barrettes (SAC_LOT) au lieu de 60, c'est tout sauver dès un seul chouffe.
+   Ce n'est pas le geste qui se durcit (ce serait contre R5), c'est la décision d'amont
+   qui prend enfin un poids — vendre plus, c'est exposer plus. */
+const PDV_PREAVIS_S=[0, 3, 5, 7];
 /* L'amortissement SATURE là où le préavis cesse de s'améliorer (arbitrage Sylvain,
    2026-07-28). `PDV_PREAVIS_S` s'arrête à 3 chouffes — au-delà, un chouffe de plus
    n'achetait plus une seconde de préavis mais continuait d'écraser la génération de
@@ -1103,7 +1173,15 @@ function chouffeAmorti(activity, n){
   return activity*PDV_HEAT_RATE*Math.max(PDV_CHOUFFE_PLANCHER, 1/(1+(n||0)*PDV_CHOUFFE_DAMP));
 }
 const ARAH_COOL_MS=520;                // le temps de rentrer un bloc : on ne sauve jamais tout, et ça se voit
-const ARAH_LOT=8;                      // barrettes rentrées par tap (les grosses d'abord : on sauve la valeur)
+/* Barrettes rentrées par tap (les grosses d'abord : on sauve la valeur). Ramené de 8 à 5
+   avec le préavis : c'est le PRODUIT lot × cadence qui décide de la tension, pas le
+   préavis seul. À 8 par geste, un tampon plein tenait en 8 gestes — n'importe quel
+   préavis lisible suffisait à tout rentrer. À 5, il en faut 12, et le préavis mord. */
+const ARAH_LOT=5;
+/** Ce que le préavis permet de rentrer, en barrettes. Le premier geste est gratuit (le
+    cooldown ne démarre qu'après), d'où le +1. Sert à ANNONCER l'arbitrage avant de le
+    demander (R8) : la décision se prend sur un nombre, jamais sur une surprise. */
+function arahCapacite(preavis){ return (Math.floor(preavis/(ARAH_COOL_MS/1000))+1)*ARAH_LOT; }
 const PDV_WANT=[1,1,2,1,3,2,1,2]; // paniers clients (barrettes)
 const PDV_NAMES=["Momo","Inès","Yaz","Riton","Sofia","Sami","Lou","Nassim","Aya","Karim","Zoé","Paul"]; // plus de "Diego" : il ne fait plus la rue
 const PDV_AV=["🧢","🎧","🛵","🥀","💅","🎒","👟","🎲","🌙","🧥","🎀","👤"]; // plus de 🏗️ : Diego ne vient plus au corner // avatars des silhouettes (débit auto : charbonneur embauché)
@@ -1810,7 +1888,12 @@ function pdvTick(dt){
   else if(tab==="shelter"&&shelterSub==="map") pdvBadge(P);  // carte : le bac qui monte sur le pin
 }
 // badge « bac de rue » sur le pin corner (la recette passive, visible depuis la carte)
-function pdvBadge(P){ const b=document.getElementById("pinBac"); if(b){ b.textContent="€"+money(P.bac); b.classList.toggle("off",!(P.bac>0)); } }
+function pdvBadge(P){ const b=document.getElementById("pinBac"); if(b){ b.textContent="€"+money(P.bac); b.classList.toggle("off",!(P.bac>0)); } dockBadge(P); }
+/* Le bac sur le favori du dock. Il est patché plutôt que re-rendu : le dock survit à tous
+   les écrans, et le reconstruire à chaque frame détruirait le bouton sous le pouce —
+   c'est exactement le bug qui rendait l'ARAH incliquable au doigt. */
+function dockBadge(P){ const d=document.getElementById("dockBac"); if(!d) return;
+  const bac=(P&&P.bac)||0; d.textContent="€"+money(bac); d.classList.toggle("off",!(bac>0)); }
 /* Le temps qu'il te reste avant la descente, à la vitesse de CET instant.
    C'était le grand absent : la chaleur n'était affichée que comme un entier brut, et
    toute la couche de mise à jour live (pRes, pDem, pQ, pCombo, pHeat…) patchait des
@@ -1879,6 +1962,8 @@ function pdvPatch(){
   const rc=document.getElementById("cResChip"); if(rc) rc.textContent=resChipTxt(P);
   const mc=document.getElementById("cMarChip"); if(mc) mc.textContent="⚖ "+marcheDuJour();
   const cc=document.getElementById("cComboChip"); if(cc) cc.textContent="⚡×"+(P.combo||1).toFixed(1).replace(".0","");
+  const lq=document.getElementById("cLiqChip"); if(lq){ lq.textContent=liqChipTxt(); lq.className="cchip liq"+(S.dirty>DIRTY_HOLD_HARD?" hot":""); }
+  dockBadge(P);
   cornerSkyPatch(); // le ciel avance avec la soirée (reflète l'heure)
   const led=document.getElementById("pLed");
   if(led) led.innerHTML=ledRows(P);
@@ -1949,8 +2034,15 @@ function arahCri(P){
 }
 function arahOuvrir(preavis){
   const P=activeCorner();
-  arahState={ left:preavis, total:preavis, cool:0, sauveG:0, cash:0, cri:0.9 };
-  cause("ARAH","Chouffe : "+preavis+" s de préavis");
+  const cap=arahCapacite(preavis), dehors=tampN(P.tampon);
+  /* Le brief est FIGÉ à l'ouverture. Recalculé à chaque geste, il basculerait de
+     « choisis » à « tu peux tout rentrer » au milieu de l'alerte — une consigne qui
+     change pendant qu'on l'exécute n'est plus une consigne. */
+  const brief = cap>=dehors+ARAH_LOT
+    ? `${preavis} s — assez pour tout rentrer si tu ne traînes pas.`
+    : `${preavis} s — de quoi rentrer ~${cap} barrettes sur ${dehors}. La caisse te coûte un geste.`;
+  arahState={ left:preavis, total:preavis, cool:0, sauveG:0, cash:0, cri:0.9, brief };
+  cause("ARAH","Chouffe : "+preavis+" s de préavis · ~"+cap+" barrettes rentrables");
   arahCri(P);
   // le cri d'abord, l'écran ensuite. `cri` est un sas : tant qu'il tourne, la modale
   // reste fermée ET le préavis ne s'écoule pas — le temps que le chouffe t'achète
@@ -1994,7 +2086,7 @@ function arahRender(){
   if(el.dataset.built!=="1"){
     el.innerHTML=`<div class="arah-box">
       <div class="arah-t">🚨 ARAH !! ARAH !!</div>
-      <div class="arah-s">Ils arrivent. Rentre ce que tu peux — la planque est sûre.</div>
+      <div class="arah-s" id="arahS"></div>
       <div class="arah-bar"><i id="arahBar"></i></div>
       <div class="arah-grid">
         <button class="arah-c" id="arahT"><div class="arah-i">📦</div><div>Rentrer les barrettes</div></button>
@@ -2006,6 +2098,11 @@ function arahRender(){
     document.getElementById("arahT").onclick=arahRentrer;
     document.getElementById("arahC").onclick=arahCaisse;
   }
+  /* La structure n'est bâtie qu'UNE fois pour toute la partie (`dataset.built`), donc le
+     brief — qui change d'une alerte à l'autre avec le nombre de chouffes et ce qui est
+     dehors — doit être écrit à chaque ouverture, pas dans le gabarit. */
+  { const s=document.getElementById("arahS");
+    if(s) s.textContent="Ils arrivent. "+(arahState.brief||"Rentre ce que tu peux.")+" La planque est sûre."; }
   arahPatch();
 }
 /* Ce qui change d'une frame à l'autre : la barre de préavis, le compte de ce qui est
@@ -2224,6 +2321,29 @@ function ledRows(P){ return P.ledger.length ? P.ledger.map(e=>`<div class="stat"
 // ligne « Au carnet » du tiroir (crédits ouverts) — dans un conteneur fixe #pArds, patchée en live par pdvPatch
 function ardsRow(){ const ards=corner.CORNER_PERSONAS.filter(p=>S.clients[p.id]&&S.clients[p.id].ardoise);
   return ards.length?`<div class="stat"><span>🧾 Au carnet</span><b style="color:#ffd06a">${ards.map(p=>p.nm+" "+money(S.clients[p.id].ardoise.due)+" · J"+S.clients[p.id].ardoise.day).join(" · ")}</b></div>`:""; }
+/* La puce liquide du corner. Le liquide qui dort chauffe le quartier, mais ça ne se lisait
+   que dans le HUD des écrans 2D — la scène du corner est plein écran et le masque. Or le
+   corner est précisément l'endroit où le liquide se fabrique, donc le seul endroit d'où
+   la décision « aller le planquer » peut naître. Elle est TAPABLE : elle mène chez la
+   nourrice, fiche ouverte. Le raccourci porte sa propre justification. */
+function liqChipTxt(){ return "💶 "+money(S.dirty)+(S.dirty>DIRTY_HOLD_SOFT?" 🔥":""); }
+function allerNourrice(){
+  stage.classList.remove("corner-mode");
+  tab="shelter"; shelterSub="map"; S.shelter.selectedPin="nourrice"; save(); render(); voirFiche();
+}
+/* Amener la fiche du pin SOUS LES YEUX. Mesuré : la carte, le bloc planque et les apps
+   poussent la fiche à y≈855 dans un `#stage` qui s'arrête à 812 — sous le dock. Le
+   raccourci déposait donc le joueur sur un écran dont les boutons étaient hors du pli,
+   et il fallait scroller : un geste de plus, exactement ce qu'on venait de supprimer.
+   Ça vaut pour toute sélection de pin FAITE PAR LE CODE (nourrice, Karim) — quand c'est
+   le doigt qui tape un pin, le joueur sait déjà où il va et on ne lui vole pas son
+   défilement. */
+function voirFiche(){
+  requestAnimationFrame(()=>{
+    const f=document.getElementById("pinSheet");
+    if(f) f.scrollIntoView({block:"center", behavior:"auto"});
+  });
+}
 function renderCorner(P){
   stage.classList.add("corner-mode");
   cornerEls=new Map(); // silhouettes reconstruites
@@ -2268,6 +2388,7 @@ function renderCorner(P){
       <span class="cchip" id="cHeatChip">${heatChipTxt(P)}</span>
       <span class="cchip" id="cResChip">${resChipTxt(P)}</span>
       <span class="cchip gold" id="cComboChip">⚡×${(P.combo||1).toFixed(1).replace(".0","")}</span>
+      <span class="cchip liq${S.dirty>DIRTY_HOLD_HARD?" hot":""}" id="cLiqChip">${liqChipTxt()}</span>
       <button class="cbtn" id="cManage">▤ Gérer</button>
     </div>
     <div id="cActive"></div>
@@ -2275,6 +2396,7 @@ function renderCorner(P){
     <div class="cdrawer" id="cDrawer"><div class="cdrawer-head" id="cGrab"><span class="cdrawer-bar"></span><h3>Le corner</h3></div>${drawerBody}</div>
     <div class="cpeek" id="cPeek"><span class="cdrawer-bar"></span><span class="cpeek-lb">⌃ Le corner · gérer</span></div>`;
   document.getElementById("back").onclick=()=>{ stage.classList.remove("corner-mode"); shelterSub="map"; render(); };
+  document.getElementById("cLiqChip").onclick=allerNourrice;
   const drawer=document.getElementById("cDrawer"), bk=document.getElementById("cDrawerBk"), grab=document.getElementById("cGrab"), peekEl=document.getElementById("cPeek");
   // #stage se termine PILE au-dessus de la barre du bas (dock) → panneau et poignée à bottom:0 (CSS)
   // reposent déjà sur le dock, collés, sans mesure. La carte client passe juste au-dessus de la poignée.
@@ -2393,6 +2515,56 @@ function buyUp(key){
       restent séparés parce que chacun appelle une correction différente.
    3. LE FIL — le journal, inchangé, pour retrouver une ligne précise. */
 let karnetJour=0;                       // index dans S.soirees : 0 = la dernière close
+/* LES TÊTES — le carnet de clientèle (arbitrage Sylvain : les quatre sections).
+
+   L'ordre des trois blocs est le propos :
+   1. LES CALIBRES d'abord, parce que c'est la seule DÉCISION que cet écran porte (R8) :
+      quel format couper ce soir. Jusqu'ici le jeu comptait `missed` depuis des semaines
+      et ne le lisait NULLE PART — la donnée existait, le joueur ne l'a jamais vue.
+   2. LES CONNAISSANCES ensuite : les personas nommés, ceux qu'on cultive. On y montre
+      enfin combien de fois on les a laissés repartir, et à combien d'abus ils partent.
+   3. LES VISAGES en dernier : le quartier. On les reconnaît, on ne les cultive pas.
+   Mélanger 2 et 3 rendrait le déblocage d'un persona sans intérêt. */
+function karnetTetes(){
+  const cal=karnet.calibres(S.visages||{});
+  const conseil=karnet.calibreARattraper(S.visages||{});
+  const cons=karnet.connaissances(S.clients, corner.CORNER_PERSONAS, corner.CORNER.GOUGE_STREAK_QUIT);
+  const tet=karnet.tetes(S.visages||{}, corner.VISAGES, S.day);
+  if(!cal.length && !cons.length) return "";
+  const pct=(x)=>Math.round(x*100);
+  return `<div class="card">
+    <h3>Ce qu'on te demande</h3>
+    ${conseil?`<div class="muted" style="font-size:11px;margin:-4px 0 8px">
+      Le format qui te manque le plus : <b style="color:var(--accent)">${conseil.g} g</b> —
+      demandé ${conseil.demande}×, raté ${conseil.rate}×.</div>`
+      :`<div class="muted" style="font-size:11px;margin:-4px 0 8px">Tu sers tout ce qu'on te demande. Rien à rattraper.</div>`}
+    ${cal.length?cal.slice(0,6).map(c=>`<div class="stat">
+      <span>${c.g} g<br><span class="muted" style="font-size:10px">demandé ${c.demande}× · servi ${c.servi}×</span></span>
+      <b class="${c.rate?"q-bad":"q-good"}">${c.rate?"raté "+c.rate+" ("+pct(c.manque)+" %)":"tout servi"}</b></div>`).join("")
+      :`<div class="muted">Personne n'est encore passé.</div>`}
+  </div>
+  ${cons.length?`<div class="card">
+    <h3>Tes connaissances</h3>
+    <div class="muted" style="font-size:10px;margin:-4px 0 6px">Ceux qu'on cultive : une relation, une ardoise, une exigence.</div>
+    ${cons.map(c=>`<div class="stat">
+      <span>${c.av} ${c.nm}${c.quit?` <span style="color:var(--heat)">· parti</span>`:""}
+        <br><span class="muted" style="font-size:10px">${c.usual} g d'habitude${
+          c.missed?` · reparti sans être servi ${c.missed}×`:""}${
+          c.ardoise?` · te doit ${money(c.ardoise.due)} à J${c.ardoise.day}`:""}${
+          !c.quit&&c.avantRupture<=1?` · encore ${c.avantRupture} abus et il ne revient plus`:""}</span></span>
+      <b class="${c.quit?"q-bad":c.rel>=60?"q-good":""}">${c.quit?"—":"rel "+c.rel}</b></div>`).join("")}
+  </div>`:""}
+  ${tet.length?`<div class="card">
+    <h3>Les têtes du quartier</h3>
+    <div class="muted" style="font-size:10px;margin:-4px 0 6px">On les reconnaît. On ne les cultive pas — ils passent, c'est tout.</div>
+    ${tet.slice(0,8).map(t=>`<div class="stat">
+      <span>${t.av} ${t.nm}<br><span class="muted" style="font-size:10px">vu ${t.vu}×${
+        t.habitue?` · ${t.habitue} g d'habitude`:""}${
+        t.absent>1?` · plus vu depuis J${t.dernier}`:""}</span></span>
+      <b class="${t.bredouille?"q-bad":""}">${t.bredouille?"bredouille "+t.bredouille+"×":"servi"}</b></div>`).join("")}
+    ${tet.length>8?`<div class="muted" style="font-size:10px">…et ${tet.length-8} autres.</div>`:""}
+  </div>`:""}`;
+}
 function renderKarnet(){
   tab="shelter"; set3d("hidden"); hud(); renderDock();
   const soirees=Array.isArray(S.soirees)?S.soirees:[];
@@ -2416,9 +2588,14 @@ function renderKarnet(){
     </div>
     <div class="card">
       <h3>${p.pont?"D'où vient l'écart":"Le détail de la soirée"}</h3>
+      ${/* Les chiffres ET l'explication. Le pont AFFICHAIT « av → ap » à la place de
+            l'aide : un joueur qui découvrait un poste voyait deux nombres et aucun mot
+            pour dire ce qu'ils comptaient. Playtest : « je vois pension, du coup il y a
+            eu des frais de nourrice ? » — la question porte sur le poste le plus récent,
+            mais le défaut était structurel et valait pour les sept. */""}
       ${p.lignes.length?p.lignes.map(l=>`<div class="stat">
         <span>${l.nm}<br><span class="muted" style="font-size:10px">${
-          l.brut?`${money(l.brut.av)} → ${money(l.brut.ap)}`:l.aide}</span></span>
+          l.brut?`${money(l.brut.av)} → ${money(l.brut.ap)} · ${l.aide}`:l.aide}</span></span>
         <b class="${l.montant>0?"q-good":"q-bad"}">${sg(l.montant)}</b></div>`).join("")
         :`<div class="muted">Rien n'a bougé d'un poste à l'autre.</div>`}
       ${p.pont&&p.nonExplique?`<div class="stat"><span style="color:var(--heat)">Non expliqué
@@ -2446,6 +2623,7 @@ function renderKarnet(){
       <button class="btn ghost" style="margin:0" id="kNext" ${karnetJour<=0?"disabled":""}>soirée d'après →</button>
     </div>`:""}
     ${corps}
+    ${karnetTetes()}
     <div class="card journal"><h3>Le fil</h3>${S.journal.slice(0,20).map(j=>`<div class="item">${
       j.day?`<span class="muted" style="font-size:10px">J${j.day}</span> `:""}${j.txt}<div class="c">↩ ${j.cause}</div></div>`).join("")||`<div class="muted">Vide.</div>`}</div>
     <button class="btn ghost" id="back">↩ Quartier</button>`;
@@ -3221,6 +3399,12 @@ function advanceDay(manual){
         ? "−"+money(dePoche)+" de ta poche, −"+money(duMagot)+" pris dans le magot"
         : "−"+money(p)+" liquide · elle garde "+money(N.garde),
         {eur:-p, poste:"nourrice", day:jourClos});
+      /* La pension ne s'écrivait qu'au journal — donc elle ne se voyait qu'en allant la
+         chercher. Playtest : « en checkant le Karnet, je vois pension. Du coup il y a eu
+         des frais de nourrice ? » Un prélèvement automatique doit s'ANNONCER au moment
+         où il tombe (R4 : le joueur relie la conséquence au geste), comme la paie des
+         chouffes s'annonce dans le toast de clôture. */
+      toastQ.push("🧶 Pension "+NOURRICE_NM+" −"+money(p)+" · elle garde "+money(N.garde)+".");
     } }
   /* Compteurs de soirée remis à zéro APRÈS la paie des chouffes et le règlement des
      ardoises, jamais avant : ces deux lignes appartiennent à la soirée qui se clôt.

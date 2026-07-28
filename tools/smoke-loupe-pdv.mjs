@@ -112,7 +112,7 @@ const drawerUI = await page.evaluate(async () => {
   // test chargeait une seconde instance de corner.mjs, périmée, à côté de celle du jeu.
   // On la garde littérale exprès : `cache-loupe.mjs` balaie ce dossier et refuse toute
   // divergence, donc l'oubli est impossible. Un calcul dynamique passerait sous son nez.
-  const M = await import("/la-loupe/corner.mjs?v=52");
+  const M = await import("/la-loupe/corner.mjs?v=54");
   const m = M.marketPrice(s.reput ?? 20, s.day ?? 1);
   const txt = document.getElementById("cDrawer")?.textContent || "";
   return { enc: !!document.getElementById("enc"), pBac: !!document.getElementById("pBac"),

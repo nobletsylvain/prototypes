@@ -9,6 +9,269 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Playtest : la tension du remballage, les raccourcis, la pension muette
+
+Trois retours de Sylvain après une session. Chacun s'est révélé pire — ou plus large —
+que ce qu'il avait ressenti.
+
+### 1. L'ARAH ne coûtait aucun choix
+
+> « J'avais 2 chouffes qui ont bien sonné le ARAH et le feeling était vraiment bon de
+> pouvoir remballer le matos et éviter de se faire capturer. En revanche, le temps donné
+> pour remballer les barrettes était trop long. Pas assez de tension. »
+
+Mesuré sur les constantes d'avant — préavis `[0,6,12,18]`, lot de 8, cadence 520 ms.
+Vider un tampon plein (60 barrettes) demande 8 gestes, plus 1 pour la caisse :
+
+```
+n=1 →  6 s = 12 gestes possibles pour 9 nécessaires →  3 de MARGE
+n=2 → 12 s = 24 gestes possibles pour 9 nécessaires → 15 de marge   ← son cas
+n=3 → 18 s = 35 gestes possibles pour 9 nécessaires → 26 de marge
+```
+
+Il n'y avait donc **aucun arbitrage à aucun niveau de chouffe** : on sauvait tout, deux
+fois plutôt qu'une. Son ressenti était même optimiste — il attribuait le problème à ses
+2 chouffes, alors qu'**un seul suffisait déjà** à tout rentrer avec 3 gestes de rab.
+
+Et le commentaire d'`ARAH_COOL_MS` annonçait depuis le début « on ne sauve jamais tout,
+et ça se voit ». Les nombres ne l'ont jamais tenu. Une intention écrite en commentaire
+n'est pas une garantie — c'est un souvenir.
+
+**Correctif** : `ARAH_LOT` 8 → 5 et `PDV_PREAVIS_S` `[0,6,12,18]` → `[0,3,5,7]`. C'est le
+PRODUIT lot × cadence qui décide de la tension, pas le préavis seul : à 8 par geste, un
+tampon plein tenait en 8 gestes et n'importe quel préavis lisible suffisait.
+
+```
+n=1 → 3 s =  6 gestes → 25 barrettes sur 60 + la caisse
+n=2 → 5 s = 10 gestes → 45 sur 60 : le dernier bloc OU la caisse, pas les deux
+n=3 → 7 s = 14 gestes → tout, si tu ne traînes pas — ce que 180/soir achète
+```
+
+**Ce qui vaut mieux que le réglage lui-même** : avec une sacoche légère (`SAC_LOT` = 25),
+même un seul chouffe sauve tout. La tension devient donc **fonction de ce qu'on a choisi
+d'exposer**. Ce n'est pas le geste qui se durcit (ce serait R5 à l'envers), c'est la
+décision d'amont qui prend enfin un poids — R9 au pied de la lettre.
+
+Le préavis **annonce** maintenant ce qu'il permet (R8) : *« Ils arrivent. 3 s — de quoi
+rentrer ~30 barrettes sur 60. La caisse te coûte un geste. »* Le brief est figé à
+l'ouverture : une consigne qui change pendant qu'on l'exécute n'est plus une consigne.
+
+⚠️ `PDV_PREAVIS_S` et `ARAH_LOT` restent des **placeholders** — la courbe est mesurée,
+le ressenti reste à valider à la main.
+
+### 2. La navigation était de la corvée pure, pas un arbitrage
+
+> « La navigation entre le corner et la nourrice puis revenir sur le corner est assez
+> laborieuse, et donc faudrait penser à mettre plus en évidence les menus clés. Peut-être
+> même les mettre en favoris dans la barre du bas ? »
+
+Mesuré : l'aller-retour coûtait **5 appuis** (↩, pin nourrice, dépôt, pin corner, « Tenir
+le corner »), dont **un seul portait une décision**. Et le point qui tranche : `pdvTick`
+sort immédiatement quand le corner n'est pas tenu — partir chez elle ne coûte **ni client,
+ni vente, ni chaleur**. Ce n'était donc pas un arbitrage déguisé en trajet ; c'était de la
+répétition sans plaisir, exactement ce que R6 dit de ne pas laisser sur la main du joueur.
+
+**Correctif — deux raccourcis, chacun portant sa propre justification :**
+
+- le **favori du dock** (`▶ Corner`, avec le bac) ramène au corner depuis n'importe où.
+  Il occupe la colonne qu'une app masquée laissait vide, et se distingue des onglets
+  (liseré froid) : la barre ne ment pas sur ce qu'elle contient ;
+- la **puce liquide du corner** affiche ce qu'on a sur soi avec la marque 🔥, et mène chez
+  la nourrice, fiche ouverte. Le liquide se fabrique au corner : c'est de là que la
+  décision de le planquer peut naître, et la scène plein écran masquait le HUD.
+
+Trajet : **5 appuis → 3**, dont celui du milieu est le dépôt. Le **lieu reste** — c'est
+chez elle que la pension est annoncée avant d'être prélevée, et supprimer la visite
+supprimerait l'annonce. C'est le chemin qui raccourcit, pas la décision qui disparaît.
+
+**Deux défauts trouvés en écrivant le test, pas en réfléchissant :**
+
+- les boutons de dépôt tombaient à y=855 dans un `#stage` qui s'arrête à 812 : **sous le
+  dock**. Le raccourci déposait le joueur sur une fiche dont les boutons étaient hors du
+  pli. D'où `voirFiche()` — toute sélection de pin faite PAR LE CODE amène la fiche sous
+  les yeux (quand c'est le doigt qui tape un pin, on ne vole pas son défilement) ;
+- la barre du corner **débordait déjà avant** : le bouton `▤ Gérer` sortait de l'écran sur
+  412 px. Le `flex-wrap` ajouté pour la 6ᵉ puce le remet à portée.
+
+Et mon helper de test mentait : il vérifiait « dans le viewport » et répondait *tapable*
+d'un bouton couvert par le dock. Il consulte maintenant `elementFromPoint`. Un contrôle de
+tapabilité qui ne regarde pas le recouvrement ne teste rien.
+
+### 3. La pension était juste, mais muette
+
+> « En checkant le karnet, je vois pension. Du coup il y a eu des frais de nourrice ?
+> Sans doute besoin de le rendre plus explicite. »
+
+Trois trous, dont **un structurel qui valait pour les sept postes** :
+
+- le poste s'appelait « Pension » tout court — il ne disait pas chez qui l'argent part ;
+- **le pont affichait `av → ap` À LA PLACE de l'aide.** Un joueur qui découvrait un poste
+  voyait deux nombres et aucun mot pour dire ce qu'ils comptaient. La question portait sur
+  le poste le plus récent, mais le défaut touchait tout le bilan ;
+- la pension ne s'écrivait qu'au journal : elle ne se voyait qu'en allant la chercher. Un
+  prélèvement automatique doit s'annoncer **quand il tombe** (R4), comme la paie des
+  chouffes le fait déjà.
+
+Plus un quatrième, non signalé mais du même ordre : le magot n'apparaissait nulle part sur
+la carte. **Un puits invisible se lit comme un puits gratuit** — il porte maintenant un
+badge sur son pin, comme le bac sur le corner.
+
+### Ce que les tests ont attrapé, et ce qu'ils ont laissé passer
+
+`bulles-loupe` est tombé à 14/15 : son contrôle du tiroir tournait juste après le bloc
+ARAH, chaleur à 96 — et avec un préavis de 3 s au lieu de 12, la descente vidait le tampon
+**au milieu du contrôle**. Le contrôle accusait alors le tiroir de mentir alors qu'il
+disait la vérité. Il ne tenait pas sur un état, il tenait sur un **délai** : et un délai
+qui dépend d'une constante d'équilibrage d'un autre système n'est pas une garantie, c'est
+un sursis.
+
+Et un contrôle que j'avais écrit ne pouvait pas échouer : « le poste dit à quoi il sert »
+passait aussi sur le code d'avant, parce qu'avec **une seule soirée close** il n'y a pas de
+pont — donc pas de chiffres à la place de l'aide. Il lui fallait deux soirées. Troisième
+fois que ce dépôt écrit un contrôle vide ; le réflexe à garder est de **toujours le
+rejouer sur le code d'avant**, jamais de se fier à ce qu'il prétend vérifier.
+
+Suite : invariants 58/58 · karnet 44/44 · nourrice 19/19 (+5) · **arah 8/8** (nouveau) ·
+**raccourcis 10/10** (nouveau) · karim 14/14 · cause 21/21 · chaleur 8/8 · tap 7/7 ·
+bulles 15/15 · tap-bigo 4/4 · escalier 6/6 · desync 5/5 · cache 3/3 · lexique 1/1 ·
+check 30 fichiers · smoke sans erreur. Modules en `?v=54`.
+
+---
+
+## 2026-07-28 — Les têtes : le Karnet dit enfin quel format couper
+
+Section 3 des quatre demandées par Sylvain. Trois blocs, et l'**ordre est le propos**.
+
+### 1. Ce qu'on te demande — la seule décision de l'écran
+
+```
+Le format qui te manque le plus : 5 g — demandé 8×, raté 5×.
+
+  5 g   demandé 8× · servi 3×          raté 5 (63 %)
+  8 g   demandé 2× · servi 1×          raté 1 (50 %)
+  2 g   demandé 7× · servi 7×          tout servi
+```
+
+C'est la seule chose que cet écran porte (R8), et c'est le **premier éclairage qu'ait jamais
+eu la coupe** — le levier de qualité du jeu (R10). Jusqu'ici `missed` était incrémenté
+depuis des semaines et **lu nulle part**.
+
+Le conseil désigne le format le plus **raté**, pas le plus demandé : le 2 g est plus
+demandé, mais il est servi. Et il ne sort **que** s'il y a de quoi le fonder — carnet vide,
+tout servi, ou une seule demande : le jeu se tait plutôt que de dire quelque chose de
+plausible. Quatre contrôles tiennent ça.
+
+### 2. Tes connaissances, 3. Les têtes du quartier
+
+La séparation est la raison d'être des deux blocs : on **cultive** les personas (relation,
+ardoise, exigence), on **reconnaît** les visages. Mélanger rendrait le déblocage d'un
+persona sans intérêt.
+
+### La capture a trouvé ce que les tests n'attrapaient pas
+
+Sur l'écran fini, **Riton et Nassim apparaissaient des deux côtés** — une fois dans
+« Tes connaissances », une fois dans « Les têtes du quartier ». La réserve de têtes
+reprenait `PDV_NAMES`, écrit avant que les personas existent.
+
+Ça ne cassait rien mécaniquement, et **aucun test ne pouvait le voir** : les deux listes
+étaient correctes séparément. Il a fallu regarder l'écran. C'est la troisième fois cette
+semaine qu'une capture trouve ce qu'un assert ne cherchait pas.
+
+Réserve assainie (24 noms, aucun ne recoupe un persona, ni Karim, ni la nourrice) et
+**invariant posé** : la prochaine tête ajoutée retomberait dans le piège autrement.
+
+### Deux fois le même piège de seed, dans la même journée
+
+`s.clients` n'existe pas encore quand `evaluateOnNewDocument` s'exécute — il est créé au
+chargement. Un `if (s.clients && …)` ne fait donc jamais rien. Rencontré ce matin dans
+`cause-loupe`, re-rencontré ce soir dans `karnet-loupe`. Les deux fois, le contrôle passait
+au vert en ne prouvant rien jusqu'à ce que je regarde le détail.
+
+## 2026-07-28 — Blanchiment : la forme est arrêtée (temps + capacité, la taxe par-dessus)
+
+Sylvain, après la démonstration stock/flux : « On est alignés concernant la mécanique de
+blanchiment. Temps, capacité comme goulot d'étranglement et pas seulement une taxe dessus. »
+
+**Arbitrage figé, à ne pas rediscuter le jour où on le codera :**
+
+| élément | rôle |
+| --- | --- |
+| **Capacité** | combien on peut faire passer par soirée → l'arbitrage « lequel je blanchis d'abord » |
+| **Temps** | l'argent est immobilisé pendant qu'il se lave → blanchir, c'est renoncer à s'en servir maintenant |
+| **Taxe** | un % par-dessus, mais **jamais seule** — seule, elle ne serait qu'un péage |
+
+Le raisonnement qui a mené là, pour mémoire : une commission sur flux ne borne rien et ne
+porte **aucune décision** (on blanchit tout, toujours). Capacité et délai transforment le
+flux en **stock temporaire** — et c'est le stock qui porte la tension, exactement comme la
+garde chez la nourrice.
+
+**Ce qui devra être vrai le jour où on l'écrit :**
+
+- le circuit du **propre** se rouvre (`SORTER_ENABLED`, `FRONT_ENABLED`) — aujourd'hui
+  `S.cash` n'a aucune source in-game, et c'est ce qui avait tué la dette Karim ;
+- la file d'attente du blanchiment se **voit** avant de valider (R8) ;
+- rien d'aléatoire sur le délai ni sur la réussite (R4) ;
+- aucune saisie possible sur ce qui est en cours de lavage sans préavis — sinon on
+  réintroduit la perte sèche que R1 interdit.
+
+**Pas construit maintenant** : Sylvain a explicitement mis `FRONT_ENABLED` en attente, et
+le blanchiment n'a de sens que quand le propre sert à quelque chose.
+
+## 2026-07-28 — Le % sur la valeur devient un motif : réservé pour le blanchiment
+
+Sylvain, après la nourrice : « Le mécanisme de % sur la valeur sera utilisé de nouveau
+lorsqu'on va attaquer le blanchiment d'argent. »
+
+Bonne généralisation — mais il y a une distinction à ne pas rater au moment de coder, parce
+que « un pourcentage » recouvre **deux systèmes qui ne se ressemblent pas du tout**.
+
+### Loyer sur un STOCK ≠ commission sur un FLUX
+
+Simulé, 20 soirées à 800 net :
+
+```
+(a) LOYER sur ce qu'on DÉTIENT — la nourrice, 10 %/soirée
+      il reste 6 325 caché · 9 675 payés
+      → plafond ≈ 8 000 : on ne peut pas cacher plus, quoi qu'on fasse
+
+(b) COMMISSION sur ce qui PASSE — le blanchiment, une fois
+      20 % → 12 800 de propre accumulé      30 % → 11 200      40 % → 9 600
+      → le propre s'accumule SANS LIMITE
+```
+
+Le loyer sur stock crée une **pression continue avec un point d'équilibre** : la détention
+coûte, donc il existe un plafond à ce qu'on peut garder. C'est ce qui fait de la nourrice
+une décision qu'on reprend tous les soirs.
+
+La commission sur flux est une **taxe** : elle rend chaque euro un peu moins rentable et
+c'est tout. Elle ne borne rien, elle ne crée aucune pression, et surtout **elle ne porte
+aucune décision le soir** — on blanchit tout, toujours, il n'y a rien à arbitrer (R8).
+
+### Ce que ça implique pour le blanchiment
+
+Si le blanchiment n'est qu'une commission sur ce qui passe, il ne sera pas un système, il
+sera un péage. Pour qu'il porte une décision, il lui faut au moins un des deux :
+
+- une **capacité** — on ne peut faire passer que N par soirée, donc « lequel je blanchis
+  d'abord » devient un arbitrage ;
+- un **délai** — l'argent est immobilisé pendant qu'il se lave, donc blanchir, c'est
+  renoncer à s'en servir maintenant.
+
+Les deux transforment un flux en stock temporaire, et **c'est le stock qui porte la
+tension**. C'est aussi ce que disait l'angle « Lavomatic » du workflow, qui l'avait
+justement conçu avec tranches plafonnées et deux soirées de délai.
+
+### La règle candidate
+
+La synthèse proposait de la verser dans `CLAUDE.md` :
+
+> *Un puits de liquide se paie par un débit permanent, jamais par un droit d'entrée ; son
+> taux ne baisse jamais avec la progression ; sa capacité est bornée par ce que le joueur
+> produit, pas par ce qu'il achète.*
+
+**Pas encore écrite** : ajouter une règle numérotée est un acte, et Sylvain n'a pas dit
+« fais-en une règle », il a dit que le mécanisme reviendrait. Elle attend son feu vert.
+
 ## 2026-07-28 — La vanne du liquide : Tata Yamina garde, et se paie
 
 Sylvain, en jouant : « aucune option de retirer l'argent du corner, ou bien de cacher

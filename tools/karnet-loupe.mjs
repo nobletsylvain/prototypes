@@ -25,6 +25,8 @@ import path from "path";
 import puppeteer from "puppeteer";
 import { resolveOffer, cornerTol, cornerBudget, menuAt } from "../la-loupe/corner.mjs";
 import { pont, margeDe, postesDe, manqueDe, manqueTotal, POSTES } from "../la-loupe/karnet.mjs";
+import { calibres, calibreARattraper, tetes, connaissances } from "../la-loupe/karnet.mjs";
+import { CORNER_PERSONAS, VISAGES, CORNER } from "../la-loupe/corner.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -139,6 +141,68 @@ const ok = (nom, pass, detail = "") => results.push({ nom, pass, detail });
     ok("Le manque à gagner n'entre PAS dans la marge (ce n'est pas de l'argent sorti)",
        margeDe(a) === margeDe(b) && manqueTotal(manqueDe(b)) === 476,
        `marges ${margeDe(a)} et ${margeDe(b)} identiques · manque ${manqueTotal(manqueDe(b))}`);
+  }
+}
+
+/* ── 1 ter. Les têtes : le conseil de coupe ne s'invente pas ──────────────
+   L'écran des têtes ne vaut que par UNE ligne : « le format qui te manque le plus, c'est
+   le 5 g ». C'est la seule décision qu'il porte (R8), et c'est le seul éclairage qu'ait
+   jamais eu la coupe, qui est le levier de qualité du jeu (R10).
+   Une ligne pareille doit être IMPOSSIBLE à fabriquer : si la donnée ne la porte pas, on
+   ne dit rien plutôt que de dire quelque chose de plausible. */
+{
+  const v = (g, rate) => ({ vu: 5, dernier: 3, g, rate: rate || {}, bredouille: 0 });
+
+  // conservation : servi = demandé − raté, sur chaque format, quoi qu'on lui donne
+  {
+    const visages = { 0: v({ 2: 6, 5: 4 }, { 5: 3 }), 1: v({ 5: 8, 8: 2 }, { 5: 5, 8: 2 }) };
+    const c = calibres(visages);
+    const par = Object.fromEntries(c.map((x) => [x.g, x]));
+    ok("Les calibres additionnent tous les visages, sans perdre ni inventer",
+       par[2].demande === 6 && par[5].demande === 12 && par[8].demande === 2
+         && par[5].rate === 8 && par[8].rate === 2,
+       c.map((x) => `${x.g}g ${x.demande}dem/${x.rate}raté`).join(" · "));
+    ok("Servi = demandé − raté, jamais négatif",
+       c.every((x) => x.servi === x.demande - x.rate && x.servi >= 0),
+       c.map((x) => `${x.g}g servi ${x.servi}`).join(" · "));
+  }
+
+  // le conseil ne sort QUE s'il y a de quoi le fonder
+  ok("Aucun conseil de coupe quand personne n'est passé",
+     calibreARattraper({}) === null, "carnet vide → aucun conseil");
+
+  ok("Aucun conseil quand tout est servi (on n'invente pas un reproche)",
+     calibreARattraper({ 0: v({ 5: 9 }, {}) }) === null,
+     "9 demandes, 0 raté → aucun conseil");
+
+  ok("Aucun conseil sur une donnée trop maigre (une seule demande ne fait pas une tendance)",
+     calibreARattraper({ 0: v({ 5: 1 }, { 5: 1 }) }) === null,
+     "1 demande ratée sur 1 → sous le seuil, on se tait");
+
+  {
+    const c = calibreARattraper({ 0: v({ 2: 10, 5: 6 }, { 5: 5, 2: 1 }) });
+    ok("Le conseil désigne le format le plus RATÉ, pas le plus demandé",
+       c && c.g === 5,
+       c ? `conseil ${c.g} g (raté ${c.rate}/${c.demande}) — le 2 g est plus demandé mais mieux servi` : "aucun conseil");
+  }
+
+  // les deux populations ne se mélangent pas : c'est ce qui garde son sens au déblocage
+  {
+    const clients = Object.fromEntries(CORNER_PERSONAS.map((p) => [p.id,
+      { rel: 30, unlocked: !!p.start, missed: p.id === "momo" ? 4 : 0, gougeStreak: 0, quit: false }]));
+    const cons = connaissances(clients, CORNER_PERSONAS, CORNER.GOUGE_STREAK_QUIT);
+    ok("Seuls les personas DÉBLOQUÉS entrent au carnet (les autres ne sont pas encore connus)",
+       cons.length > 0 && cons.length === CORNER_PERSONAS.filter((p) => p.start).length,
+       `${cons.length} connaissances sur ${CORNER_PERSONAS.length} personas`);
+
+    ok("`missed` est ENFIN lu — il était compté depuis des semaines et affiché nulle part",
+       (cons.find((c) => c.id === "momo") || {}).missed === 4,
+       `Momo reparti sans être servi ${(cons.find((c) => c.id === "momo") || {}).missed}×`);
+
+    const t = tetes({ 3: v({ 8: 2 }, { 8: 1 }) }, VISAGES, 7);
+    ok("Un visage n'a NI relation NI ardoise — la frontière avec les personas tient",
+       t.length === 1 && t[0].rel === undefined && t[0].ardoise === undefined && t[0].nm === VISAGES[3].nm,
+       `« ${t[0].nm} » · champs : ${Object.keys(t[0]).join(", ")}`);
   }
 }
 
@@ -371,6 +435,67 @@ ok("Le pont boucle : le liquide encaissé == ce que les compteurs disent (euros 
 
   ok("Le fil du journal date ses lignes",
      /J4/.test(ecran.txt) && /Le fil/.test(ecran.txt), "bloc « Le fil » présent");
+}
+
+/* ── 7. Les têtes : l'écran porte-t-il la décision de coupe ? ─────────────
+   Cet écran n'a qu'une raison d'exister : dire quel format couper ce soir. Le reste est
+   du décor. On seede un carnet où le 5 g est massivement raté et le 2 g bien servi, et on
+   vérifie que l'écran DÉSIGNE le 5 g — le plus RATÉ, pas le plus demandé. */
+{
+  await page.evaluateOnNewDocument(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    s.visages = {
+      0: { vu: 9, dernier: 4, g: { 2: 7, 5: 2 }, rate: {}, bredouille: 0 },
+      3: { vu: 6, dernier: 4, g: { 5: 6 }, rate: { 5: 5 }, bredouille: 5 },
+      7: { vu: 2, dernier: 1, g: { 8: 2 }, rate: { 8: 1 }, bredouille: 1 },
+    };
+    /* Un persona qu'on a laissé repartir. On écrit la fiche EN ENTIER : au moment où ce
+       seed s'exécute, `s.clients` n'existe pas encore (il est créé au chargement), donc un
+       `if (s.clients…)` ne ferait jamais rien. Piège déjà rencontré dans cause-loupe. */
+    s.clients = Object.assign({}, s.clients, {
+      momo: { rel: 35, unlocked: true, missed: 4, gougeStreak: 0, quit: false } });
+    localStorage.setItem("loupe_save", JSON.stringify(s));
+  });
+  await page.reload({ waitUntil: "load" });
+  await sleep(700);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-go]")].find((x) => x.dataset.go === "karnet"); if (b) b.click(); });
+  await sleep(600);
+  const t = await page.evaluate(() => ((document.getElementById("stage") || {}).textContent || "").replace(/\s+/g, " "));
+  await page.screenshot({ path: path.join(OUT, "04-les-tetes.png"), fullPage: true });
+
+  ok("R8 · l'écran DÉSIGNE le format à couper — la seule décision qu'il porte",
+     /format qui te manque le plus/i.test(t) && /5 g/.test(t),
+     (t.match(/Le format qui te manque le plus[^.]*\./) || ["introuvable"])[0]);
+
+  ok("…et c'est le plus RATÉ, pas le plus demandé (le 2 g est plus demandé, mieux servi)",
+     !/manque le plus : 2 g/i.test(t), "il ne désigne pas le 2 g");
+
+  ok("Chaque calibre montre demandé / servi / raté, pas un score opaque",
+     /demandé \d+× · servi \d+×/.test(t),
+     /demandé \d+× · servi \d+×/.test(t) ? "les trois nombres sont là" : t.slice(0, 140));
+
+  ok("`missed` est enfin VISIBLE — compté depuis des semaines, affiché nulle part",
+     /reparti sans être servi 4/.test(t),
+     /reparti sans être servi/.test(t) ? "Momo · 4×" : "toujours invisible");
+
+  ok("Les deux populations restent séparées à l'écran",
+     /Tes connaissances/.test(t) && /Les têtes du quartier/.test(t),
+     `connaissances ${/Tes connaissances/.test(t)} · têtes ${/Les têtes du quartier/.test(t)}`);
+
+  // le contrôle qui empêche l'écran de mentir : sur un carnet vierge, il se tait
+  await page.evaluateOnNewDocument(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    s.visages = {};
+    localStorage.setItem("loupe_save", JSON.stringify(s));
+  });
+  await page.reload({ waitUntil: "load" });
+  await sleep(700);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-go]")].find((x) => x.dataset.go === "karnet"); if (b) b.click(); });
+  await sleep(600);
+  const vide = await page.evaluate(() => ((document.getElementById("stage") || {}).textContent || "").replace(/\s+/g, " "));
+  ok("Carnet vierge : aucun conseil de coupe fabriqué",
+     !/format qui te manque le plus/i.test(vide),
+     /format qui te manque/i.test(vide) ? "IL INVENTE UN CONSEIL SANS DONNÉE" : "il se tait");
 }
 
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
