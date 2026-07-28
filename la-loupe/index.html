@@ -1248,9 +1248,16 @@ function cornerResolveLouche(P, cl){
   if(cl.cop===false){ S.reput=clamp(S.reput+corner.CORNER.REP_DEAL,0,100); cause("Grosse vente", cl.nm+" +"+cl.offer+" · client réglo"); cornerLeave(P, cl, "pigeon"); }
   else { S.heat=clamp(S.heat+corner.CORNER.HEAT_LOUCHE,0,100); cause("Vente cramée", cl.nm+" +"+cl.offer+" · chaleur +"+corner.CORNER.HEAT_LOUCHE); cornerLeave(P, cl, "louche"); }
 }
-// refuser le louche : cop:false = t'as recalé un vrai client (juste une vente perdue, R1) ; sinon t'as flairé le flic (+discrétion)
+/* refuser le louche : cop:false = t'as recalé un vrai client (juste une vente perdue, R1) ; sinon t'as flairé le flic (+discrétion)
+   Le refus ne casse PAS le combo. Il le cassait, pendant que le toast affichait, dans la
+   même frame, « vente perdue (aucun malus) » — et la chip tombait de ⚡×3 à ⚡×1 sous les
+   yeux du joueur. Trois preuves que c'était un lapsus, pas une intention : le cas frère
+   `refus` (recaler un client normal) porte le MÊME libellé et ne touche à rien ; la
+   branche d'à côté — flairer un VRAI flic, la bonne issue — préserve le combo ; et le
+   commentaire de cette ligne annonce « juste une vente perdue ». Le combo est la chaîne
+   de prix JUSTES : il se casse quand on se trompe de prix, pas quand on renonce à vendre. */
 function cornerFlair(P, cl){
-  if(cl.cop===false){ P.combo=1; cornerLeave(P, cl, "pigeonRefus"); }
+  if(cl.cop===false){ cornerLeave(P, cl, "pigeonRefus"); }
   else { S.dirty+=corner.CORNER.FLAIR_BONUS; cause("Flic flairé","+"+corner.CORNER.FLAIR_BONUS+" discrétion"); cornerLeave(P, cl, "flair"); }
 }
 // ardoise (étape 4) : le stock part MAINTENANT, l'argent revient à J+N (+intérêt) — réglé à la clôture

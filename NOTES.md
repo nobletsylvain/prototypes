@@ -9,6 +9,45 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — « aucun malus » s'affichait pendant que le combo tombait de ×3 à ×1
+
+Septième trouvaille. Recaler un profil louche qui s'avère être un vrai client affiche
+« 🙄 C'était un vrai client… vente perdue (aucun malus). » — et remettait le combo à 1.
+
+Le combo, c'est la chaîne de prix justes de la soirée : multiplicateur de pourboire
+jusqu'à ×3, affiché en permanence dans la chip ⚡×N. Mesuré en navigateur, le geste réel,
+avec un pigeon en file et un combo plein :
+
+```
+  avant le geste : chip ⚡×3
+  après le geste : chip ⚡×1     message : « vente perdue (aucun malus) »
+```
+
+Les deux dans la **même frame**. Le joueur lit « aucun malus » en regardant son multiplicateur
+s'effondrer.
+
+**Trois indices disaient que c'était un lapsus, pas une intention.** Le cas frère — recaler
+un client normal — porte le même libellé « (aucun malus) » et ne touche à rien. La branche
+d'à côté dans la *même fonction* — flairer un vrai flic, donc la bonne issue — préserve le
+combo. Et le commentaire qui gouverne la ligne annonce « juste une vente perdue, R1 ». Le
+code contredisait son propre commentaire, son propre message et son cas frère.
+
+Correctif : le refus ne touche plus au combo. Il se casse quand on se **trompe de prix**
+(walk), pas quand on **renonce à vendre**.
+
+Le contrôle ajouté à `cause-loupe.mjs` est volontairement général : il ne vérifie pas
+« le combo », il vérifie que **rien** de ce que le joueur voit ne se dégrade pendant qu'on
+lui promet le contraire (combo, standing, réservoir). Contre-épreuve faite en repassant le
+contrôle sur l'`index.html` d'avant correctif : il échoue, `⚡×3 → ⚡×1`.
+
+### Repéré au passage, pas corrigé
+
+`cornerResolveLouche` remet aussi le combo à 1 sur la **vente** au pigeon — celle que le jeu
+présente comme une réussite (« client réglo, grosse vente propre »). Là, aucun message ne
+ment : c'est silencieux, pas contradictoire. C'est donc une question d'équilibrage, pas un
+bug — **[DÉCISION REQUISE]** : une grosse vente hors bande « prix juste » doit-elle casser
+la chaîne, ou seulement ne pas l'allonger ?
+
 ## 2026-07-28 — La tête du client promettait une marge sur le prix qui casse la relation
 
 Sixième trouvaille de la chasse à la logique, corrigée. `negoFace` — le visage qui réagit

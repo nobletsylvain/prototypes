@@ -162,6 +162,79 @@ ok("La cause dit quoi FAIRE, pas seulement ce qui se passe",
      `barre ${t0}% → ${fin.barre}% · avancement réel ${fin.reel}%`);
 }
 
+// ── « aucun malus » veut dire aucun malus ────────────────────────────────
+// Refuser un profil louche qui s'avère être un vrai client affiche : « C'était un vrai
+// client… vente perdue (aucun malus). » Le même geste remettait le combo à 1 — la chaîne
+// de prix justes de la soirée, multiplicateur de pourboire jusqu'à ×3, affichée en
+// permanence dans la chip ⚡×N. Mesuré avant correctif, dans la MÊME frame :
+//
+//   avant le geste : chip ⚡×3     après : chip ⚡×1     message : « (aucun malus) »
+//
+// Contre-épreuve faite en repassant ce contrôle sur l'index.html d'avant correctif : il
+// échoue (⚡×3 → ⚡×1). Elle ne peut pas vivre dans le fichier — `cornerFlair` est une
+// fonction de module, on ne peut pas lui réinjecter son ancienne version depuis la page.
+//
+// Le contrôle est volontairement GÉNÉRAL : il ne teste pas « le combo », il teste que
+// rien de ce que le joueur voit ne se dégrade pendant qu'on lui promet le contraire.
+// Trois indices convergents disaient que le reset était un lapsus : le cas frère (recaler
+// un client normal) porte le même libellé et ne touche à rien ; la branche d'à côté
+// (flairer un vrai flic) préserve le combo ; le commentaire annonce « juste une vente perdue ».
+{
+  const pigeon = { kind: "louche", mode: "louche", nm: "L'envoyé de Momo", av: "👤",
+    tx: "Il te salue par ton blaze.", tell: "Poli et surpaie, MAIS cite un contact que tu connais.",
+    cop: false, g: 20, offer: 260, pat: 400, pat0: 400 };
+  // rappel : `evaluateOnNewDocument` REJOUE à chaque navigation — on EMPILE, on n'écrase pas.
+  await page.evaluateOnNewDocument((pig) => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    s.day = 3; s.dirty = 40; s.reput = 40; s.heat = 10;
+    // le premier seed écrit la forme d'AVANT les corners pluriels (`shelter.pdv`) : la
+    // migration la réapplique PAR-DESSUS `corners.pdv` et écraserait ce seed-ci en silence.
+    delete s.shelter.pdv;
+    s.shelter.corners = { pdv: { res: 90, bac: 0, prix: 10, chouffes: 0, tampon: { 2: 40, 5: 20 },
+      tamponQ: 70, queue: [pig], ledger: [], qacc: 0, serveAcc: 0, seq: 5, combo: 3, charbonneur: null } };
+    s.shelter.cornerId = "pdv";
+    localStorage.setItem("loupe_save", JSON.stringify(s));
+  }, pigeon);
+  await page.reload({ waitUntil: "load" });
+  await sleep(700);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin]")].find((x) => x.dataset.pin === "pdv"); if (b) b.click(); });
+  await sleep(300);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin-go]")].find((x) => x.dataset.pinGo === "pdv"); if (b) b.click(); });
+  await sleep(800);
+
+  const lire = () => page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    const P = (s.shelter && s.shelter.corners && s.shelter.corners.pdv) || {};
+    return { chip: ((document.getElementById("cComboChip") || {}).textContent || "").trim(),
+             combo: P.combo, reput: s.reput, res: P.res, carte: !!document.querySelector('[data-neg="loucheNo"]') };
+  });
+  const avant = await lire();
+  ok("Le pigeon est bien là, combo plein — sinon le contrôle ne prouverait rien",
+     avant.carte && avant.combo === 3, `chip ${avant.chip} · carte ${avant.carte}`);
+
+  await page.evaluate(() => { const b = document.querySelector('[data-neg="loucheNo"]'); if (b) b.click(); });
+  await sleep(500);
+  const apres = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    const P = (s.shelter && s.shelter.corners && s.shelter.corners.pdv) || {};
+    return { chip: ((document.getElementById("cComboChip") || {}).textContent || "").trim(),
+             combo: P.combo, reput: s.reput, res: P.res,
+             toast: [...document.querySelectorAll(".toast, #toast, .tw")].map((t) => t.textContent).join(" ") };
+  });
+  await page.screenshot({ path: path.join(OUT, "03-aucun-malus.png") });
+
+  const promet = /aucun malus/i.test(apres.toast);
+  const degrade = [];
+  if (apres.combo < avant.combo) degrade.push(`combo ${avant.chip} → ${apres.chip}`);
+  if (apres.reput < avant.reput) degrade.push(`standing ${avant.reput} → ${apres.reput}`);
+  if (apres.res < avant.res) degrade.push(`réservoir ${avant.res} → ${apres.res}`);
+
+  ok("R1 · quand l'écran promet « aucun malus », rien ne se dégrade en coulisse",
+     promet && degrade.length === 0,
+     promet ? (degrade.length ? `PROMESSE TENUE ? non : ${degrade.join(" · ")}` : `chip ${apres.chip} conservée · « ${apres.toast.trim()} »`)
+            : `le message attendu n'est pas apparu : « ${apres.toast.trim()} »`);
+}
+
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
 
 console.log("\n─── causes nommées · La Loupe ───");
