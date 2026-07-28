@@ -9,6 +9,38 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — La tête du client promettait une marge sur le prix qui casse la relation
+
+Sixième trouvaille de la chasse à la logique, corrigée. `negoFace` — le visage qui réagit
+pendant qu'on règle le prix — reprenait les deux plafonds de **refus** de `resolveOffer`
+(budget, tolérance) mais pas la **frontière de l'abus** : celle qui, au-dessus de ×1,2 le
+menu, fait basculer une vente pourtant *acceptée* en `gouge` (relation −, standing −, et
+deux fois d'affilée le client ne revient plus jamais).
+
+La fonction porte pourtant sa propre promesse en commentaire : *« même référence que
+resolveOffer : la tête qu'il fait doit prédire son verdict »*. Elle ne la tenait pas, et
+rien ne le vérifiait.
+
+Mesuré avant de toucher au code, sur le vrai module — 3 033 offres acceptées balayées
+(kind × rel × qFac × grammage × standing) :
+
+```
+  88 cas où le visage rassure alors que le verdict est « gouge »
+  ex. regulier rel100 · 2 g à 17 € → « Il suit… y a de la marge. »  →  gouge
+```
+
+C'est le pire type de tell : il n'est pas silencieux, il **invite** — au geste qui coûte.
+Un tell muet laisse le joueur prudent ; celui-là le pousse.
+
+Correctif : la même frontière, calculée de la même façon (`ref × NEGO_MAX × max(1, qFac)`),
+avec son propre visage — 😒 *« Il paiera… mais il retiendra. »* Après : **0 sur 3 033**.
+
+**Contre-épreuve, dans les deux sens.** Le test rejoue la chaîne d'avant (identique, moins
+les deux lignes ajoutées) et compte 88 cas ; en repassant le contrôle principal sur le
+`corner.mjs` d'avant correctif, il **échoue à 88** — le même nombre. Cette égalité vaut
+validation de la reconstitution elle-même : si ma copie du code retiré avait dérivé, les
+deux comptes auraient divergé.
+
 ## 2026-07-28 — Le HUD mentait sur la chaleur, et deux sceptiques m'avaient dit que non
 
 Suite de l'audit. Onze trouvailles confirmées au total ; deux d'entre elles étaient

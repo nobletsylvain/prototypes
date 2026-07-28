@@ -16,7 +16,7 @@ import {
   CORNER, CORNER_PERSONAS, makeOffer, makeAnon, makeLouche, makeArdoise,
   resolveOffer, cornerBudget, cornerTol, cornerFair, wantsArdoise, offerCap,
   qualFac, QUAL_REF, QUAL_TOL_MAX,
-  anonQty, ruePartGros, rueCalibre, checkUnlocks, cornerClientsDefault, rueApres,
+  negoFace, anonQty, ruePartGros, rueCalibre, checkUnlocks, cornerClientsDefault, rueApres,
   RUE_MIN, RUE_PALIERS, RUE_PART_MAX, RUE_INERTIE, menuAt, rabaisVolume, RABAIS_FORMAT,
 } from "../la-loupe/corner.mjs";
 import { qtyToSachets, applySachetPlan, composables, evacuerLot, deplacerBarrettes } from "../la-loupe/snap.mjs";
@@ -868,6 +868,72 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
   ok("Contre-épreuve · réinjecter la demande faisait ouvrir sur l'inservable",
      avecPush.includes(demande) && plusProche(avecPush) === demande,
      `sans le correctif : liste [${avecPush.join(", ")}] → ouvre sur ${plusProche(avecPush)} g (incomposable)`);
+}
+
+/* ── La tête qu'il fait prédit le verdict qu'il rendra ────────────────────────
+   `negoFace` porte dans son propre commentaire ce qu'elle promet : « même référence que
+   resolveOffer : la tête qu'il fait doit prédire son verdict ». Elle reprenait bien les
+   deux plafonds de refus (budget, tolérance), mais pas la frontière de l'ABUS — celle
+   qui, au-dessus de ×1,2 le menu, fait basculer une vente acceptée en `gouge` : relation
+   −, standing −, et deux fois d'affilée le client ne revient plus jamais.
+
+   Conséquence pour le joueur : le visage affichait « Il suit… y a de la marge » — une
+   invitation — sur un prix qui abîmait la relation. C'est le tell qui pousse au geste
+   qui coûte, donc l'inverse de sa raison d'être (R4 : relier le résultat au geste).
+
+   On appelle ici les DEUX vraies fonctions et on compare leurs sorties ; la
+   contre-épreuve rejoue la chaîne d'avant (sans la frontière) pour montrer que ces cas
+   existaient bien. */
+{
+  const RASSURANT = { "😏": "marge", "😊": "prix menu", "😍": "belle affaire" };
+  // la chaîne d'avant : identique, moins les deux lignes de la frontière d'abus
+  const ancienne = (client, total, reput, prix) => {
+    const g = client.g || client.qty || 0, menu = prix || cornerFair(reput);
+    if (!g || !total) return { emo: "🤨" };
+    const ref = menuAt(menu, g), ppu = total / g;
+    const tol = cornerTol(client.kind, client.rel, ref) * (client.qFac || 1);
+    const bud = cornerBudget(client.kind, client.rel);
+    if (total > bud) return { emo: "😤" };
+    if (ppu > tol) return { emo: "😤" };
+    if (ppu > tol * 0.9) return { emo: "😬" };
+    if (ppu <= ref * 0.9) return { emo: "😍" };
+    if (ppu <= ref * 1.1) return { emo: "😊" };
+    return { emo: "😏" };
+  };
+
+  let acceptees = 0, menteusesAvant = 0, menteusesApres = 0, exemple = "";
+  for (const kind of ["regulier", "accro", "lowball", "hesitant", "grossiste"]) {
+    for (const rel of [0, 25, 50, 75, 100]) {
+      for (const qFac of [0.85, 1, 1.18]) {
+        for (const g of [2, 5, 8, 12, 16]) {
+          for (const reput of [10, 40, 80]) {
+            const menu = cornerFair(reput);
+            const cl = { kind, rel, g, qFac };
+            for (const total of Array.from({ length: 28 }, (_, i) => Math.max(1, R(g * menu * (0.7 + i * 0.1))))) {
+              const v = resolveOffer(cl, g, total, false, false, reput, menu);
+              if (!v.accepted) continue;
+              acceptees++;
+              if (v.outcome !== "gouge") continue;
+              if (RASSURANT[negoFace(cl, total, reput, menu).emo]) menteusesApres++;
+              const av = ancienne(cl, total, reput, menu);
+              if (RASSURANT[av.emo]) {
+                menteusesAvant++;
+                if (!exemple) exemple = `${kind} rel${rel} ${g} g à ${total} € → « ${RASSURANT[av.emo]} » mais verdict gouge`;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  ok("R4 · la tête du client ne promet jamais une marge sur un prix qui part en abus",
+     acceptees > 0 && menteusesApres === 0,
+     `${acceptees} offres acceptées balayées · ${menteusesApres} promesse(s) démentie(s)`);
+
+  ok("Contre-épreuve · sans la frontière d'abus, le visage invitait au prix qui coûte",
+     menteusesAvant > 0,
+     menteusesAvant ? `${menteusesAvant} cas — ex. ${exemple}` : "aucun cas reproduit");
 }
 
 console.log("\n─── invariants La Loupe ───");

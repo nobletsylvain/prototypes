@@ -464,6 +464,13 @@ export function negoFace(client, total, reput, prix){
   const ppu = total/g, tol = cornerTol(client.kind, client.rel, ref)*(client.qFac||1), bud = cornerBudget(client.kind, client.rel);
   if(total>bud) return { emo:"😤", tx:"Au-dessus de sa poche." };
   if(ppu>tol) return { emo:"😤", tx:"À ce prix, c'est mort pour lui." };
+  /* La frontière de l'ABUS, la même que `resolveOffer` — sans elle, la tête ne prédisait
+     pas le verdict qu'elle promet de prédire. Mesuré : 63 cas où le visage annonçait
+     « y a de la marge » alors que la vente partait en `gouge` (relation −, et deux fois
+     d'affilée le client ne revient plus). Un tell qui ment sur la conséquence est pire
+     que pas de tell : il invite au geste qui coûte. */
+  const abus = ref * CORNER.NEGO_MAX * Math.max(1, client.qFac || 1);
+  if(ppu>abus) return { emo:"😒", tx:"Il paiera… mais il retiendra." };
   if(ppu>tol*0.9) return { emo:"😬", tx:"Il grimace — t'es à la limite." };
   if(ppu<=ref*0.9) return { emo:"😍", tx:"Belle affaire… pour lui." };
   if(ppu<=ref*1.1) return { emo:"😊", tx:"Prix menu, ça lui va." };
