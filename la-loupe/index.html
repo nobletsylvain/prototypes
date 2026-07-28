@@ -419,6 +419,7 @@ import * as snap from "./snap.mjs?v=55";
 import * as beuher from "./beuher.mjs?v=55";
 import * as shelter from "./shelter.mjs?v=55";
 import * as karnet from "./karnet.mjs?v=55";
+import * as blanchiment from "./blanchiment.mjs?v=55";
 import * as corner from "./corner.mjs?v=55";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
@@ -540,9 +541,12 @@ const APPS = [
   { id:"beuher", ic:"🛵", lb:"Beuher" },
   { id:"cash", ic:"▣", lb:"Liquide" },
 ];
-// La trieuse (liquide→propre) est masquée pour l'instant : le core loop tourne au liquide, le
-// propre n'a plus d'usage (dette coupée). Elle reviendra plus tard, refondue en INVENTAIRE. → false
-const SORTER_ENABLED = false;
+/* La trieuse revient (2026-07-28). Elle avait été coupée parce que le propre qu'elle
+   produisait ne servait à RIEN — une monnaie sans débouché n'est pas une monnaie.
+   Elle ne produit plus de propre directement : elle produit des LIASSES, du sale
+   comptable. Un commerce n'accepte pas un sac de billets en vrac ; compter est donc
+   redevenu la PORTE du blanchiment au lieu d'en être un raccourci. */
+const SORTER_ENABLED = true;
 
 const store = { get:k=>localStorage.getItem(LS+k), set:(k,v)=>localStorage.setItem(LS+k,v) };
 const money = n => String(Math.round(n));
@@ -561,6 +565,7 @@ function defaultState(){
     assign:{}, counted:0, atelierMode:"cut",
     clients: corner.cornerClientsDefault(), // clientèle du corner (négo Phase B — voir INTEGRATION)
     shelter: shelter.shelterDefaults(),
+    blanchiment: blanchiment.blanchimentDefaults(),
     ...snap.snapDefaults(),
   };
 }
@@ -610,6 +615,13 @@ if(S.karimBuys==null){
   const enCours = S.day>1 || shelter.stockG(S)>0 || (S.journal&&S.journal.length);
   S.karimBuys = enCours ? shelter.SUPPLIER.unlockAfter : 0;
 }
+/* Le blanchiment arrive dans une partie en cours : on le remplit sans rien lui retirer.
+   Une save d'avant a peut-être du propre (la trieuse a tourné avant d'être coupée) —
+   on le lui laisse, c'est un acquis (R2), et il a enfin de quoi le dépenser. */
+if(!S.blanchiment || typeof S.blanchiment!=="object") S.blanchiment=blanchiment.blanchimentDefaults();
+if(!S.blanchiment.laveries || typeof S.blanchiment.laveries!=="object") S.blanchiment.laveries={};
+if(!Array.isArray(S.blanchiment.depots)) S.blanchiment.depots=[];
+if(typeof S.blanchiment.seq!=="number") S.blanchiment.seq=0;
 
 let tab="shelter", toastT=0, atelierSub="menu", cashSub="sorter", shelterSub="map";
 /** Session trieuse (non persistée) — feel Kisan 4+1 fitness sorter. */
@@ -3209,7 +3221,7 @@ function renderCashSorter(){
   const rjHot=cur&&(cur.v===1||!SORT_POCKETS.includes(cur.v));
   stage.innerHTML=`
     <h2 style="color:var(--dirty)">Trieuse</h2>
-    <div class="sub">Tu charges, tu lances, tu attends. La machine trie. ${BUNDLE_SIZE} identiques → liasse. Puis encaisser.</div>
+    <div class="sub">Tu charges, tu lances, tu attends. La machine trie. ${BUNDLE_SIZE} identiques → liasse. Compter ne lave rien : ça rend l'argent <b>déposable</b>.</div>
     <div class="sorter" id="sorter">
       <div class="sorter-top">
         <div class="sorter-hopper"><div class="lb">TRÉMIE</div><div class="n">${S.bills.length}</div><div class="muted" style="font-size:10px">${money(S.dirty)} à trier</div></div>
@@ -3236,15 +3248,66 @@ function renderCashSorter(){
     </div>
     <div class="card">
       <div class="stat"><span>Compté</span><b>${money(S.counted||0)}</b></div>
-      <div class="stat"><span>Liasses + poche</span><b>${money(cashBundleVal())} + ${money(S.looseChange||0)}</b></div>
-      <button class="btn ok" id="bank" ${cashBankTotal()<=0?"disabled":""}>Encaisser (+${money(cashBankTotal())} propre)</button>
-    </div>`;
+      <div class="stat"><span>Liasses + poche</span><b class="pill dirty">${money(cashBankTotal())}</b></div>
+      <div class="muted" style="font-size:10px;margin:4px 0 0">Compté, donc déposable. Un commerce ne prend pas un sac en vrac.</div>
+    </div>
+    ${renderLaverie()}`;
   document.getElementById("run").onclick=()=>{
     if(sorter.running){ sorter.running=false; toast("Stop."); }
     else { sorter.running=true; sorter.cooldown=0; toast("Tri en cours."); }
     renderCashSorter();
   };
-  document.getElementById("bank").onclick=()=>bankBundles();
+  stage.querySelectorAll("[data-lav-dep]").forEach(b=>b.onclick=()=>laverieDeposer(b.dataset.lavDep, +b.dataset.m));
+  stage.querySelectorAll("[data-lav-buy]").forEach(b=>b.onclick=()=>racheterFonds(b.dataset.lavBuy));
+}
+
+/* La laverie. Trois choses, dans cet ordre, et l'ordre est le propos :
+   1. CE QUI EST EN ROUTE — la file, AVANT les boutons qui l'allongent (R8). Sans elle on
+      empile à l'aveugle et le délai devient une surprise au lieu d'être un arbitrage.
+   2. CHAQUE LIEU avec ses trois nombres EN VIGUEUR (frais, plafond restant, délai) : le
+      joueur calcule ce qu'il touchera et quand, au billet près, avant de valider.
+   3. LE RACHAT — le premier vrai débouché du propre. Il affiche l'avant/après, sinon
+      « 3 500 » ne veut rien dire. */
+function renderLaverie(){
+  const B=S.blanchiment, jour=S.day;
+  const route=blanchiment.enRoute(B, jour);
+  const dispo=cashBankTotal();
+  const lieux=blanchiment.laveriesOuvertes(B);
+  const fileTx = route.length
+    ? route.map(d=>{ const L=blanchiment.laverieById(d.laverieId)||{};
+        const j=d.jourPret-jour;
+        return `<div class="stat"><span>${L.ic||"·"} ${L.nm||d.laverieId}<br><span class="muted" style="font-size:10px">déposé J${d.jourDepot} · ${money(d.brut)} sale − ${money(d.frais)} de frais</span></span>
+          <b class="q-good">${money(d.net)} <span class="muted" style="font-size:10px">dans ${j} jour${j>1?"s":""}</span></b></div>`; }).join("")
+    : `<div class="muted" style="font-size:11px">Rien en route.</div>`;
+
+  return `<div class="card">
+    <h3>En route <span class="muted" style="font-size:11px">— ${money(blanchiment.totalEnRoute(B,jour))} propre à venir</span></h3>
+    <div class="muted" style="font-size:10px;margin:-4px 0 6px">Ce qui est engagé ne peut plus être saisi. C'est ce que le délai t'achète.</div>
+    ${fileTx}
+  </div>
+  ${lieux.map(L=>{
+    const etat=(B.laveries||{})[L.id]||{};
+    const r=blanchiment.reglesDe(L, etat);
+    const reste=blanchiment.resteAujourdhui(B, L, jour);
+    const pas=[100,500,"tout"];
+    const rachat=blanchiment.devisRachat(B, L, S.cash);
+    return `<div class="card">
+      <h3>${L.ic} ${L.nm}${etat.possede?` <span class="q-good" style="font-size:11px">— à toi</span>`:` <span class="muted" style="font-size:11px">— loué</span>`}</h3>
+      <div class="muted" style="font-size:10px;margin:-4px 0 6px">${L.blurb}</div>
+      <div class="stat"><span>Ses frais</span><b>${Math.round(r.frais*100)} %</b></div>
+      <div class="stat"><span>Encore aujourd'hui</span><b class="${reste?"":"q-bad"}">${reste?money(reste):"plafond atteint"} <span class="muted" style="font-size:10px">/ ${money(r.capJour)}</span></b></div>
+      <div class="stat"><span>Le propre arrive</span><b>J+${r.delai}</b></div>
+      <div class="grid3" style="margin-top:6px">${pas.map(m=>{
+        const veut = m==="tout" ? dispo : Math.min(+m, dispo);
+        const d=blanchiment.devis(B, L, jour, veut);
+        return `<button class="btn ghost" style="margin:0" data-lav-dep="${L.id}" data-m="${m==="tout"?dispo:m}" ${d.ok?"":"disabled"}>
+          ${m==="tout"?"Tout":"+"+m}${d.ok?`<br><span class="muted" style="font-size:9px">→ ${money(d.net)} propre</span>`:""}</button>`;
+      }).join("")}</div>
+      ${etat.possede?"":`<button class="btn ${rachat.ok?"ok":"ghost"}" style="margin-top:8px" data-lav-buy="${L.id}" ${rachat.ok?"":"disabled"}>
+        ${rachat.ok?`💼 Racheter le fonds — ${money(L.prixFonds)} propre`:`💼 Racheter le fonds — ${rachat.raison}`}
+        <br><span class="muted" style="font-size:9px">frais ${Math.round(L.loue.frais*100)} % → ${Math.round(L.possede.frais*100)} % · plafond ${money(L.loue.capJour)} → ${money(L.possede.capJour)}/jour</span></button>`}
+    </div>`;
+  }).join("")}`;
 }
 
 /** Commit le billet en gorge dans la bonne poche (toujours correct — machine). */
@@ -3300,15 +3363,56 @@ function sortBill(id){
   }
   save();
 }
-function bankBundles(){
-  let got=0;
-  for(const d of [5,20,50,100]){ const n=S.bundles[d]||0; if(n>0){ got+=d*BUNDLE_SIZE*n; S.bundles[d]=0; } }
-  const loose=S.looseChange||0;
-  got+=loose; S.looseChange=0;
-  if(got<=0) return;
-  S.cash+=got; S.counted=0;
-  cause("Liasses encaissées",`+${money(got)} propre`);
-  toast(`+${money(got)} propre. Rachat autorisé.`);
+/* Vider les liasses vers une laverie. Ce n'est PLUS un encaissement : avant, `bankBundles`
+   transformait les liasses en propre d'un tap, ce qui court-circuitait le blanchiment
+   entier — compter suffisait à laver. Maintenant compter ne fait que rendre l'argent
+   DÉPOSABLE ; le lavage a son prix, son plafond et son délai.
+   Le débit est fait ICI parce que `blanchiment.mjs` ne connaît pas l'état global : c'est
+   ce qui le garde pur et testable hors navigateur. */
+function laverieDeposer(laverieId, montantVoulu){
+  const L=blanchiment.laverieById(laverieId); if(!L) return;
+  const dispo=cashBankTotal();
+  const d=blanchiment.devis(S.blanchiment, L, S.day, Math.min(montantVoulu, dispo));
+  if(!d.ok){ toast(d.raison==="plafond du jour atteint"
+      ? `${L.nm} a pris tout ce qu'il pouvait aujourd'hui. Reviens demain.`
+      : "Rien de compté à déposer — passe par la trieuse."); return; }
+  const depot=blanchiment.deposer(S.blanchiment, L, S.day, d.brut);
+  if(!depot) return;
+  retirerDesLiasses(depot.brut);
+  cause("Déposé "+L.nm, `${money(depot.brut)} sale · frais ${money(depot.frais)} · ${money(depot.net)} propre à J${depot.jourPret}`,
+        {eur:0, poste:"blanchiment"});
+  toast(`${L.ic} ${money(depot.brut)} déposés. ${money(depot.net)} propre à J${depot.jourPret}.`);
+  save(); render();
+}
+/* Retire EXACTEMENT `montant` des liasses puis de la poche. Les grosses coupures d'abord :
+   déposer 400 doit sortir quatre billets de 100, pas quatre-vingts de 5 — et surtout, sans
+   cet ordre, un dépôt partiel laisserait la monnaie et emporterait les liasses, ce qui
+   rendrait le reliquat indéposable au coup suivant. */
+function retirerDesLiasses(montant){
+  let reste=Math.round(montant);
+  for(const d of [100,50,20,5]){
+    while(reste>=d*BUNDLE_SIZE && (S.bundles[d]||0)>0){ S.bundles[d]--; reste-=d*BUNDLE_SIZE; }
+  }
+  if(reste>0){ const p=Math.min(reste, S.looseChange||0); S.looseChange=(S.looseChange||0)-p; reste-=p; }
+  /* Reliquat : le dépôt était borné par `cashBankTotal()`, donc on ne peut arriver ici
+     qu'avec une liasse à casser. On la casse en monnaie plutôt que de perdre la
+     différence — R1, aucun geste ne doit créer une perte sèche. */
+  for(const d of [5,20,50,100]){
+    if(reste<=0) break;
+    while(reste>0 && (S.bundles[d]||0)>0){ S.bundles[d]--; S.looseChange=(S.looseChange||0)+d*BUNDLE_SIZE; 
+      const p=Math.min(reste, S.looseChange); S.looseChange-=p; reste-=p; }
+  }
+  S.counted=0;
+}
+function racheterFonds(laverieId){
+  const L=blanchiment.laverieById(laverieId); if(!L) return;
+  const d=blanchiment.devisRachat(S.blanchiment, L, S.cash);
+  if(!d.ok){ toast(d.raison==="déjà à toi" ? `${L.nm}, c'est déjà chez toi.` : `Pas encore : ${d.raison}.`); return; }
+  if(!blanchiment.racheter(S.blanchiment, L)) return;
+  S.cash-=d.prix;
+  cause("Rachat "+L.nm, `−${money(d.prix)} propre · frais ${Math.round(L.loue.frais*100)} % → ${Math.round(L.possede.frais*100)} %, plafond ${L.loue.capJour} → ${L.possede.capJour}/jour`,
+        {eur:-d.prix, poste:"upgrade"});
+  toast(`${L.ic} ${L.nm} est à toi. La caisse ne te coûte plus que les charges.`);
   save(); render();
 }
 
@@ -3457,6 +3561,21 @@ function advanceDay(manual){
          où il tombe (R4 : le joueur relie la conséquence au geste), comme la paie des
          chouffes s'annonce dans le toast de clôture. */
       toastQ.push("🧶 Pension "+NOURRICE_NM+" −"+money(p)+" · elle garde "+money(N.garde)+".");
+    } }
+  /* Le blanchiment arrive à échéance. Déterministe (R4) : le jour de versement a été
+     annoncé au dépôt et il ne bouge pas. Une cause PAR dépôt, jamais un total agrégé —
+     un virement sans origine serait exactement ce que le Karnet reproche au reste. */
+  { const prets=blanchiment.encaisser(S.blanchiment, S.day);
+    for(const d of prets){
+      const L=blanchiment.laverieById(d.laverieId)||{nm:d.laverieId, ic:"·"};
+      S.cash+=d.net;
+      cause("Blanchi chez "+(L.nm||d.laverieId),
+            `+${money(d.net)} propre · déposé J${d.jourDepot}, ${money(d.brut)} sale − ${money(d.frais)} de frais`,
+            {eur:0, poste:"blanchiment", day:jourClos});
+    }
+    if(prets.length){
+      const net=prets.reduce((a,d)=>a+d.net,0);
+      toastQ.push(`🧼 ${money(net)} propre sont arrivés. ${prets.length} dépôt${prets.length>1?"s":""} soldé${prets.length>1?"s":""}.`);
     } }
   /* Compteurs de soirée remis à zéro APRÈS la paie des chouffes et le règlement des
      ardoises, jamais avant : ces deux lignes appartiennent à la soirée qui se clôt.

@@ -9,6 +9,77 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Le blanchiment (1/4) : la trieuse revient, et le propre sert enfin
+
+Sylvain, après playtest : « la nourrice fonctionne bien, et on arrive désormais au moment
+où on a besoin de » — trieuse de billets, blanchiment par petit commerce (% + plafond
+quotidien + temps), borne crypto plafonnée à 1000/jour, achat OTC « pas regardant »,
+et l'introduction au réseau de fournisseurs du dark web.
+
+### Le diagnostic qui commande tout le reste
+
+`S.cash` (le propre) n'avait **aucun débouché**. Ses seuls usages : l'affichage du HUD, le
+remboursement de Karim (coupé), et un repli sur la paie des chouffes. C'est ce qui avait
+fait couper la trieuse ET le front : une monnaie sans débouché n'est pas une monnaie, c'est
+un compteur.
+
+**Le blanchiment ne vaut donc que s'il s'ouvre EN MÊME TEMPS qu'un débouché.** Sinon on
+rebâtit exactement l'impasse qu'on vient de démonter.
+
+### Ce qui a été arbitré
+
+| question | arbitrage |
+| --- | --- |
+| Propre et crypto : deux étages ou deux sorties ? | **Deux étages** — sale → propre → crypto |
+| Le commerce : loué ou acheté ? | **Les deux** — on loue avant de pouvoir acheter |
+| À quoi sert le blanchi ? | **Les gros investissements** (planque, corners, commerces) |
+
+Le troisième choix est le plus intéressant, et ce n'est pas celui que j'avais recommandé :
+Sylvain a écarté « les fournisseurs du dark web » comme débouché du propre, alors qu'il
+l'avait lui-même listé. Ça donne une boucle **qui se referme sur elle-même** : on blanchit
+pour racheter le commerce qui permet de blanchir plus. Le dark web reste au programme, mais
+sa monnaie sera à confirmer quand on y arrivera — je ne la déduis pas.
+
+### Passe 1 : la boucle complète, en petit
+
+- **La trieuse revient**, mais elle ne produit plus de propre. Elle produit des **liasses**,
+  du sale comptable. Un commerce n'accepte pas un sac de billets en vrac : compter est
+  redevenu la **porte** du blanchiment au lieu d'en être le raccourci. Avant, `bankBundles`
+  convertissait liasses → propre d'un tap et court-circuitait tout le système.
+- **Chez Sofiane** (barber shop), loué : 22 % de frais, 400/jour, versement à J+2. Rachat
+  du fonds à 3 500 propre → 8 %, 900/jour. **L'Épicerie du bas** ne s'ouvre qu'une fois un
+  premier fonds possédé — on ne loue pas deux fois en aveugle.
+- Les **trois** paramètres, pas un seul (arbitrage antérieur : « temps, capacité comme
+  goulot et pas seulement une taxe »). Une taxe seule se paie et s'oublie — c'est le défaut
+  mesuré sur la pension fixe. Le plafond et le délai, eux, ne se rattrapent pas avec de
+  l'argent : ils bornent le **débit**, donc la vitesse à laquelle l'empire grandit.
+- **Ce qui est engagé est sûr** (R1) : une fois déposé, l'argent n'est plus saisissable.
+  C'est la contrepartie du délai. Sans elle, le joueur paierait des frais **et** porterait
+  un risque — le blanchiment deviendrait une punition pour avoir bien vendu.
+- **Aucun aléa** (R4) : délai en jours fixe, frais en pourcentage fixe, plafond fixe. Le
+  devis annonce au billet près ce qui sera versé et quand, **avant** de valider (R8), et la
+  clôture verse exactement ça. Une seule source — c'est la leçon de l'impayé.
+
+### Le contrôle qui compte
+
+`sorti des liasses 100 = propre 78 + frais 22`. Une fuite de conversion ne se verrait
+qu'au bout de vingt soirées, et jamais comme un bug — seulement comme un équilibrage qui
+« ne tombe pas juste ». C'est le genre de chose qu'un test attrape et qu'un playtest non.
+
+⚠️ Tous les nombres sont des **placeholders**. Ordre de grandeur visé : à pleine capacité
+louée, racheter le fonds demande une dizaine de soirées.
+
+### Reste au programme
+
+Borne crypto (1000/jour) + OTC (2), second corner et planque au propre (3), dark web (4).
+
+Suite : blanchiment **18/18** (nouveau) · ardoise 16/16 · invariants 58/58 · karnet 44/44 ·
+nourrice 19/19 · arah 8/8 · raccourcis 10/10 · karim 14/14 · cause 21/21 · chaleur 8/8 ·
+tap 7/7 · bulles 15/15 · tap-bigo 4/4 · escalier 6/6 · desync 5/5 · cache 3/3 · lexique 1/1 ·
+check 31 fichiers · smoke sans erreur.
+
+---
+
 ## 2026-07-28 — L'impayé : R4 interdit le hasard, pas la perte
 
 ### Une coquille lue comme un arbitrage
