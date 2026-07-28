@@ -9,6 +9,53 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Karnet : les quatre derniers arbitrages
+
+| Question | Décision de Sylvain |
+| --- | --- |
+| Les anonymes | **Des têtes récurrentes** (j'avais recommandé l'agrégat par format — il a tranché l'inverse) |
+| La soirée en cours | **Seulement les soirées closes** |
+| L'ardoise | **Le retard est possible** — et l'écran s'appelle **Paiements**, pas Échéances |
+| La dette Karim (`FRONT_ENABLED`) | **Pas maintenant** |
+
+### Têtes anonymes récurrentes
+
+Il veut que le quartier soit **peuplé**, pas statistique. Ça demande une identité stable
+pour les passants, qu'aucun n'a aujourd'hui (`cid: null`).
+
+La contrainte à tenir : cette identité doit rester **déterministe** (R4). Elle se dérivera
+du hash de présentation déjà en place (`cornerHash(day, seq)`), donc sans aucun aléa
+d'état — le même seed donnera les mêmes visages. Et il faudra une frontière lisible avec
+les personas nommés, qui restent la **récompense** du bouche-à-oreille : un habitué anonyme
+n'est pas un persona, il n'a ni ardoise, ni exigence de qualité, ni graphe social.
+
+### Le retard sur l'ardoise — et pourquoi il faut y aller prudemment
+
+J'avais signalé le risque : le retard rouvre la porte que `FRONT_ENABLED = false` a dû
+fermer — une dette qui enfle (+8 chaleur, −6 standing, ×1,15 tous les 2 jours) sans moyen
+de la solder, c'est-à-dire **R1 violé de la pire façon**. Sylvain a maintenu son choix.
+C'est sa décision, et elle se tient : sans risque, accepter une ardoise n'est pas un
+arbitrage, c'est un bouton « oui ».
+
+Ce que ça engage côté implémentation, et qui n'est pas négociable :
+
+- le retard doit être **borné** — un montant qui rentre plus tard, pas une dette qui enfle
+  indéfiniment ;
+- il doit toujours exister une **sortie** ;
+- il doit être **annoncé avant** le geste (R8 : la carte doit dire ce qu'on risque), et
+  **déterministe** (R4 : jamais un tirage) — donc lisible sur la fiche du client, pas une
+  surprise à la clôture.
+
+Autrement dit : ce n'est pas le retard qui violait R1 dans l'ancien système, c'est
+l'**escalade sans issue**. On garde le premier, on ne réintroduit pas la seconde.
+
+### « Paiements » plutôt que « Échéances »
+
+Sa formulation exacte : « J'aime l'idée du retard possible et le nom paiement ». Je le lis
+comme le nom de l'écran. **Interprétation de ma part** — s'il voulait dire autre chose,
+c'est à corriger avant que le mot se répande dans les identifiants et les tests (R11 : une
+fois qu'une forme existe quelque part, elle remonte).
+
 ## 2026-07-28 — Le socle du Karnet, et une erreur d'un jour qui ne se voyait pas
 
 Sylvain a arbitré les **quatre** sections du Karnet. Un workflow de conception a tourné
