@@ -108,7 +108,11 @@ const counterSold = negoUI && afterCounter.dirty > afterDeal.dirty && afterCount
 await page.click("#cManage"); await sleep(250);
 const drawerUI = await page.evaluate(async () => {
   const s = JSON.parse(localStorage.getItem("loupe_save"));
-  const M = await import("/la-loupe/corner.mjs?v=3");
+  // Version LITTÉRALE, à bumper avec celle du jeu — elle était restée à ?v=3, donc ce
+  // test chargeait une seconde instance de corner.mjs, périmée, à côté de celle du jeu.
+  // On la garde littérale exprès : `cache-loupe.mjs` balaie ce dossier et refuse toute
+  // divergence, donc l'oubli est impossible. Un calcul dynamique passerait sous son nez.
+  const M = await import("/la-loupe/corner.mjs?v=47");
   const m = M.marketPrice(s.reput ?? 20, s.day ?? 1);
   const txt = document.getElementById("cDrawer")?.textContent || "";
   return { enc: !!document.getElementById("enc"), pBac: !!document.getElementById("pBac"),

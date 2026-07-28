@@ -9,6 +9,25 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Le garde du cache ne regardait pas dans `tools/`
+
+Repéré en travaillant sur le verrou de carte : `smoke-loupe-pdv.mjs` importait
+`/la-loupe/corner.mjs?v=3` — une version figée au 20 juillet, pendant que le module était
+réécrit de fond en comble. Le smoke tournait donc sur une **seconde instance** du module,
+périmée, à côté de celle du jeu.
+
+C'est exactement la faute que `cache-loupe.mjs` a été écrit pour attraper — le `?v=19` de
+`scene3d`. Le garde affichait pourtant 3/3, parce qu'il ne balayait que `la-loupe/`.
+
+Troisième fois que la même leçon revient sous un habit différent : **un garde ne couvre que
+ce qu'on a pensé à lui montrer**. La première fois c'était une forme d'import (statique vs
+dynamique), la deuxième une forme de mot (texte affiché vs identifiant), celle-ci un
+dossier. À chaque fois le garde existait, à chaque fois il rassurait à tort.
+
+`cache-loupe.mjs` balaie maintenant aussi `tools/`. La version reste **littérale** dans le
+test, exprès : le garde refuse toute divergence, donc l'oubli est impossible, alors qu'un
+calcul dynamique passerait sous son nez sans rien vérifier.
+
 ## 2026-07-28 — Le revers du tap mort : l'appui qui atterrit sur quelqu'un d'autre
 
 Dixième et dernière trouvaille de la chasse. Même racine que les taps morts corrigés hier
