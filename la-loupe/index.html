@@ -1118,9 +1118,10 @@ function spendDe(){
    commence simplement à s'en souvenir à partir de maintenant. */
 function visageDe(vid){
   if(!S.visages || typeof S.visages!=="object") S.visages={};
-  if(!S.visages[vid]) S.visages[vid]={ vu:0, dernier:0, g:{}, bredouille:0 };
+  if(!S.visages[vid]) S.visages[vid]={ vu:0, dernier:0, g:{}, rate:{}, bredouille:0 };
   const v=S.visages[vid];
   if(!v.g || typeof v.g!=="object") v.g={};
+  if(!v.rate || typeof v.rate!=="object") v.rate={};   // fiches d'avant : complétées à la lecture
   return v;
 }
 function soirDe(P){
@@ -1297,7 +1298,8 @@ function cornerNegoTick(P, dt, demande, open){
          un visage parti d'impatience y serait oublié. Il est reparti les mains vides comme
          les autres : on le note ici. */
       if(cl.vid!=null){ const vg=visageDe(cl.vid); vg.vu=(vg.vu||0)+1; vg.dernier=S.day;
-        if(cl.g>0) vg.g[cl.g]=(vg.g[cl.g]||0)+1; vg.bredouille=(vg.bredouille||0)+1; }
+        if(cl.g>0){ vg.g[cl.g]=(vg.g[cl.g]||0)+1; vg.rate[cl.g]=(vg.rate[cl.g]||0)+1; }
+        vg.bredouille=(vg.bredouille||0)+1; }
       cause("Client parti", cl.nm+" a attendu trop longtemps"+(cl.offer>0?" · "+money(cl.offer)+" non encaissés":""),
             cl.offer>0?{eur:-Math.round(cl.offer), poste:"impatience"}:{poste:"impatience"});
     } else keep.push(cl);
@@ -1355,8 +1357,13 @@ function cornerLeave(P, cl, why, v, tip){
   if(cl.vid!=null){
     const vg=visageDe(cl.vid);
     vg.vu=(vg.vu||0)+1; vg.dernier=S.day;
-    if(cl.g>0) vg.g[cl.g]=(vg.g[cl.g]||0)+1;
-    if(why==="rupture"||why==="walk"||why==="refus") vg.bredouille=(vg.bredouille||0)+1;
+    /* On sépare DEMANDÉ et NON SERVI, par format. C'est cette paire qui donnera au Karnet
+       sa ligne la plus utile — « on t'a demandé douze fois du 5 g, tu en as servi quatre » —
+       et donc la décision de coupe (R10). Un compteur global ne le dirait pas : il faut
+       savoir QUEL calibre te manque, pas seulement que du monde repart. */
+    const vide = why==="rupture"||why==="walk"||why==="refus";
+    if(cl.g>0){ vg.g[cl.g]=(vg.g[cl.g]||0)+1; if(vide) vg.rate[cl.g]=(vg.rate[cl.g]||0)+1; }
+    if(vide) vg.bredouille=(vg.bredouille||0)+1;
   }
   if(why==="done"){ const rc=v?corner.reactLine(v.outcome, S.day+(P.seq||0), corner.personaById(cl.cid)):"";
     haptic(v&&v.outcome==="juste"?HAPTIC.juste:HAPTIC.deal);
