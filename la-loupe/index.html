@@ -16,6 +16,9 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-u
 .row{display:flex;gap:8px;align-items:center;justify-content:space-between}
 .pill{font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);white-space:nowrap}
 .pill.cash{color:var(--cash)}.pill.dirty{color:var(--dirty)}.pill.heat{color:var(--heat)}.pill.rep{color:#9ec9ff}.pill.expo{color:#ff8ab8}
+.pill.dirty.warm{border-color:rgba(255,180,84,.55);background:rgba(255,180,84,.14)}
+.pill.dirty.hot{border-color:rgba(255,106,106,.65);background:rgba(255,106,106,.18);animation:dirtyPulse 1.6s ease-in-out infinite}
+@keyframes dirtyPulse{0%,100%{opacity:1}50%{opacity:.62}}
 /* ARAH — l'évacuation. Plein écran, au-dessus de tout : quand ils arrivent, il n'y a
    plus qu'une chose à faire, et le jeu doit le dire sans ambiguïté. */
 #arah{position:fixed;inset:0;z-index:120;background:rgba(14,6,6,.94);display:flex;align-items:center;justify-content:center;padding:18px}
@@ -200,6 +203,13 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 #cActive{position:absolute;left:8px;right:8px;bottom:8px;z-index:8}
 #cActive .card{margin:0;animation:cslide .26s cubic-bezier(.2,.9,.3,1.15)}
 @keyframes cslide{from{transform:translateY(40px);opacity:0}}
+/* Carte d'un client QU'ON N'A PAS ENCORE VU. `cslide` seul ne distingue pas un simple
+   re-rendu (un cran de stepper) d'un changement de client : le joueur voyait la même
+   animation dans les deux cas, donc rien ne signalait que la personne en face avait
+   changé. Le liseré dit « c'est quelqu'un d'autre », et le verrou (CARD_LOCK_MS) empêche
+   un appui déjà décidé d'atterrir dessus. */
+#cActive .card.neuf{animation:cslide .26s cubic-bezier(.2,.9,.3,1.15),cneuf .5s ease-out}
+@keyframes cneuf{from{box-shadow:0 0 0 2px var(--accent) inset}}
 .cdrawer-bk{position:absolute;inset:0;z-index:19;background:rgba(0,0,0,.5);display:none}
 .cdrawer-bk.on{display:block}
 /* panneau « Gérer » : plein écran quand ouvert (translateY 0), caché sinon (110%). Une poignée persistante
@@ -383,10 +393,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=35";
-import * as beuher from "./beuher.mjs?v=35";
-import * as shelter from "./shelter.mjs?v=35";
-import * as corner from "./corner.mjs?v=35";
+import * as snap from "./snap.mjs?v=47";
+import * as beuher from "./beuher.mjs?v=47";
+import * as shelter from "./shelter.mjs?v=47";
+import * as corner from "./corner.mjs?v=47";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -421,7 +431,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=35"),
+      import("./scene3d.mjs?v=47"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -544,6 +554,21 @@ S.painG=0; S.painQ=0; // évite une double migration au prochain chargement
 if(!(S.painSel>=0) || S.painSel>=S.pains.length) S.painSel=0;
 if(!S.shelter) S.shelter=shelter.shelterDefaults();
 else S.shelter={...shelter.shelterDefaults(), ...S.shelter};
+/* Migration douce v31 : le corner unique `shelter.pdv` devient la carte `shelter.corners`.
+   Migration plutôt que bump de SAVE_VERSION : une partie est en cours, on ne la jette pas.
+
+   La condition porte sur « un ancien `pdv` existe », PAS sur « `corners.pdv` manque » :
+   `shelterDefaults()` fournit TOUJOURS un `corners.pdv` neuf, donc tester son absence ne
+   déclencherait jamais la migration — et l'ancien corner (sacoche, bac, ledger, prix,
+   chouffes) partirait à la poubelle en silence. Attrapé par les tests, pas par relecture. */
+if(S.shelter.pdv){
+  S.shelter.corners={ ...(S.shelter.corners||{}),
+    pdv:{ ...shelter.cornerDefaults(), ...(S.shelter.corners&&S.shelter.corners.pdv), ...S.shelter.pdv } };
+  delete S.shelter.pdv;                      // évite une double migration au prochain chargement
+}
+if(!S.shelter.corners || !Object.keys(S.shelter.corners).length) S.shelter.corners={ pdv: shelter.cornerDefaults() };
+for(const id of Object.keys(S.shelter.corners)) S.shelter.corners[id]={ ...shelter.cornerDefaults(), ...S.shelter.corners[id] };
+if(!S.shelter.corners[S.shelter.cornerId]) S.shelter.cornerId=Object.keys(S.shelter.corners)[0];
 // clientèle du corner : seed + migration douce (nouveaux personas ajoutés en cours de route)
 if(!S.clients || typeof S.clients!=="object") S.clients=corner.cornerClientsDefault();
 else for(const p of corner.CORNER_PERSONAS) if(!S.clients[p.id]) S.clients[p.id]={ rel:10, unlocked:!!p.start, missed:0, gougeStreak:0, quit:false };
@@ -573,6 +598,16 @@ let toastQ=[];
 function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show"); clearTimeout(toastT);
   toastT=setTimeout(()=>{ toastEl.classList.remove("show"); if(toastQ.length) toastT=setTimeout(()=>toast(toastQ.shift()),250); },1800); }
 function cause(txt, why){ S.journal.unshift({t:Date.now(),txt,cause:why}); if(S.journal.length>50) S.journal.length=50; }
+/* LE corner qu'on regarde. Null-safe par construction : il remplace les trois formes
+   qui traînaient (`activeCorner()`, `activeCorner()`, `activeCorner()||{}`), et
+   surtout il rend le pluriel possible sans toucher aux 21 appelants. */
+function activeCorner(){
+  const sh=S.shelter; if(!sh) return null;
+  const c=sh.corners && sh.corners[sh.cornerId||"pdv"];
+  return c || (sh.corners && sh.corners.pdv) || null;
+}
+/** Tous les corners ouverts, dans l'ordre de la carte. */
+function allCorners(){ const sh=S.shelter; return sh&&sh.corners ? Object.keys(sh.corners) : []; }
 function planqueCap(){ return PLANQUE_CAP_BASE + S.upgrades.planque*120; }
 function sizesOf(map){ return Object.keys(map).map(Number).filter(f=>map[f]>0).sort((a,b)=>b-a); }
 function barsG(){ return Object.entries(S.bars).reduce((a,[f,n])=>a+n*+f,0); }
@@ -635,9 +670,33 @@ function rueLabel(){
 function fmtSachets(){ const ks=sizesOf(S.sachets); return ks.length?ks.map(f=>`${S.sachets[f]}×${f}g`).join(" · "):"—"; }
 function qualAvg(){ return Math.round(S.sachetQ || S.barQ || 60); }
 
+/* Les deux pastilles du HUD qui changent SANS geste du joueur.
+   `hud()` n'est appelée que sur événement discret — navigation, vente, fin de journée.
+   Or la chaleur monte en continu dès qu'on tient le corner, et la journée avance toujours.
+   Mesuré : le HUD affichait « chaleur 0 » quand la chip du corner disait « 🔥 31 », et la
+   barre du jour restait à 0 % alors que la journée était à 9 %. Une barre de progression
+   qui ne progresse pas, et deux nombres contradictoires sur la jauge qui décide de la
+   descente — celle du haut étant la seule visible depuis les autres écrans.
+   Appelée depuis `frame()`, bridée : ce sont deux écritures de texte et un dégradé, aucun
+   nœud interactif n'est reconstruit (le tap mort est venu de là, on ne le rouvre pas). */
+function hudLive(){
+  const hh=document.getElementById("hudHeat");
+  if(hh){ const t=`chaleur ${Math.round(S.heat)}`; if(hh.textContent!==t) hh.textContent=t; }
+  const dp=document.getElementById("daypill");
+  if(dp){
+    const t=`J${S.day}`; if(dp.textContent!==t) dp.textContent=t;
+    const f=Math.min(100,Math.round((S.dayAcc||0)/DAY_SEC_REAL*100));
+    if(dp._f!==f){ dp._f=f; dp.style.background=`linear-gradient(90deg, rgba(110,200,255,.30) ${f}%, transparent ${f}%)`; }
+  }
+}
 function hud(){
   const hudCash=document.getElementById("hudCash"); hudCash.style.display=SORTER_ENABLED?"":"none"; hudCash.textContent=`propre ${money(S.cash)}`;
-  document.getElementById("hudDirty").textContent=`liquide ${money(S.dirty)}`;
+  { const hd=document.getElementById("hudDirty");
+    const z = S.dirty>DIRTY_HOLD_HARD ? 2 : S.dirty>DIRTY_HOLD_SOFT ? 1 : 0;
+    // le chiffre seul ne disait rien : la marque dit que CE chiffre est en train de coûter
+    hd.textContent = z ? `liquide ${money(S.dirty)} 🔥` : `liquide ${money(S.dirty)}`;
+    hd.classList.toggle("warm", z===1); hd.classList.toggle("hot", z===2);
+    hd.title = z ? `Au-dessus de ${z>1?DIRTY_HOLD_HARD:DIRTY_HOLD_SOFT}, le liquide qui dort chauffe le quartier` : ""; }
   document.getElementById("hudHeat").textContent=`chaleur ${Math.round(S.heat)}`;
   document.getElementById("hudExpo").textContent=`buzz ${Math.round(S.expo)}`;
   { const dp=document.getElementById("daypill"); const f=Math.min(100,Math.round((S.dayAcc||0)/DAY_SEC_REAL*100)); dp.textContent=`J${S.day}`; dp.style.background=`linear-gradient(90deg, rgba(110,200,255,.30) ${f}%, transparent ${f}%)`; }
@@ -812,7 +871,7 @@ function renderShelter(){
 function pinMapBtn(p){
   const on=S.shelter.selectedPin===p.id?"on":"";
   const locked=p.locked?"locked":"";
-  const bac=p.id==="pdv"?((S.shelter.pdv&&S.shelter.pdv.bac)||0):0;
+  const bac=p.id==="pdv"?(((activeCorner()||{}).bac)||0):0;
   const badge=p.id==="pdv"?`<span class="pin-bac${bac>0?"":" off"}" id="pinBac">€${money(bac)}</span>`:"";
   return `<button class="map-pin ${p.kind} ${on} ${locked}" style="left:${p.x}%;top:${p.y}%" data-pin="${p.id}" type="button">
     ${badge}<span class="dot"></span><span class="lbl">${p.title}</span></button>`;
@@ -834,7 +893,7 @@ function pinSheet(p, hit, hitLb){
   }
   if(p.kind==="pdv"){
     const pending=(S.dms||[]).filter(d=>d.status==="pending").length;
-    const P=S.shelter.pdv||{};
+    const P=activeCorner()||{};
     return `<div class="card">
       <h3>${p.title}</h3>
       <div class="muted">${p.blurb}</div>
@@ -862,6 +921,15 @@ const PDV_RUSH_AMP=1.3, PDV_RUSH_PERIOD=38; // pics de rush cycliques
 const PDV_EXPO_SCALE=140;         // buzz (vitrine SnapShit) → demande
 const PDV_SERVE_RATE=4;           // clients servis/s (débit du corner)
 const PDV_MAX_WAIT=5, PDV_MAX_QUEUE=14, PDV_RES_PER_SALE=0.05, PDV_RUPTURE_HIT=1.2;
+/* Le temps pendant lequel la carte d'un client QU'ON VIENT DE DÉCOUVRIR n'accepte aucun
+   appui. Un pouce met ~200 à 300 ms à retomber : passé la vente précédente, la carte
+   suivante prend la même place, avec les mêmes boutons aux mêmes pixels, et l'appui déjà
+   décidé atterrit dessus. Mesuré — deux appuis au MÊME point (81,748), 230 ms d'écart,
+   file de deux anonymes : DEUX ventes, la seconde à un client dont la carte n'a jamais
+   été lue (4 g pour 38 €). Calé au-dessus de `cslide` (260 ms) : tant que la carte glisse,
+   elle n'est pas lisible, donc elle ne doit pas être actionnable. */
+const CARD_LOCK_MS=320;
+let cardLast=null, cardLockUntil=0;
 const PDV_HEAT_RATE=2.0, PDV_HEAT_DECAY=0.7, PDV_SEUIL=95, PDV_AFTER=45;
 /* Le chouffe achète du PRÉAVIS, plus de l'immunité (arbitrage Sylvain, 2026-07-26).
    Avant : il divisait la génération de chaleur, et à 3 chouffes la génération passait
@@ -893,7 +961,7 @@ const pdvRushHot=()=>pdvRush()>1+PDV_RUSH_AMP*0.7;
 // marché du jour (concurrence) — bouge chaque matin, annoncé à la clôture (déterministe, R4)
 function marcheDuJour(){ return corner.marketPrice(S.reput, S.day); }
 function pdvDemande(){
-  const P=S.shelter.pdv; const Qd=tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55); const Qa=P.advQ||Qd;
+  const P=activeCorner(); const Qd=tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55); const Qa=P.advQ||Qd;
   // le PRIX pilote la demande, RELATIVE au marché du jour : pente raide autour de prix=marché —
   // suivre (ou pas) la concurrence doit se sentir. Baseline inchangée à prix=marché (attract 0.8).
   const pr=P.prix/marcheDuJour(); const attract=clamp(0.8-(pr-1)*0.9,0.12,1.35);
@@ -1016,7 +1084,7 @@ function cornerSilhouette(cl){
   const pe=document.createElement("div"); pe.className="cperso"; pe.dataset.k=cl.kind;
   pe.style.left="108%"; pe.style.bottom="26%"; pe.style.setProperty("--s",0.7);
   pe.innerHTML=`<div class="chead">${cl.av||"👤"}</div><div class="cbody"></div><div class="clbl">${cl.nm}</div><div class="cpat2"><i></i></div>`;
-  pe.onclick=()=>{ const P=S.shelter.pdv; cornerPrioritize(P, cl); };
+  pe.onclick=()=>{ const P=activeCorner(); cornerPrioritize(P, cl); };
   return pe;
 }
 function cornerLayoutPersos(P){
@@ -1066,19 +1134,44 @@ function cornerNegoTick(P, dt, demande, open){
   for(let i=0;i<P.queue.length;i++){ const cl=P.queue[i]; if(!waiting(cl)) continue; cl.pat-=dt*(i===0?1:corner.CORNER.QUEUE_MELT); }
   const keep=[];
   for(const cl of P.queue){ if(waiting(cl)&&cl.pat<=0){ expired++; if(cl.cid&&S.clients[cl.cid]) S.clients[cl.cid].missed++; } else keep.push(cl); }
-  // R1 : un client qui se lasse est une VENTE PERDUE, pas une amende. Ponctionner
-  // `res` (qui pilote la demande) punissait la LENTEUR DE LA MAIN — exactement ce
-  // que R1 interdit. Le walk après une contre-offre trop haute, lui, reste sanctionné :
-  // il est annoncé par negoFace avant le bouton, donc c'est une décision (R8).
-  if(expired){ P.queue=keep; P.combo=1; }
+  /* R1 : un client qui se lasse est une VENTE PERDUE, pas une amende. Ponctionner
+     `res` (qui pilote la demande) punissait la LENTEUR DE LA MAIN — exactement ce
+     que R1 interdit. Le walk après une contre-offre trop haute, lui, reste sanctionné :
+     il est annoncé par negoFace avant le bouton, donc c'est une décision (R8).
+
+     Le `P.combo=1` qui vivait sur cette ligne était la MOITIÉ NON CORRIGÉE de la même
+     faute : l'audit avait retiré la ponction de `res` et laissé la remise à 1 juste à
+     côté, sous le commentaire qui la condamne. Or seul le client de tête est gelé pendant
+     la négo (`waiting`) ; le fond de file, lui, fond à QUEUE_MELT. Mesuré : file de 4,
+     tête en « nego », on ne touche à rien — combo 2,5 → 1 en 5 s, pendant que le client
+     EN FACE garde toute sa patience (pat 22, il n'a rien raté), et sans un mot à l'écran.
+     Autrement dit : prendre le temps de bien négocier — ce que la carte invite à faire —
+     coûtait le multiplicateur, en silence.
+
+     Le combo est la chaîne de prix JUSTES : il se casse quand on se trompe de prix, pas
+     quand la file s'impatiente. Il ne reste donc plus qu'une seule façon de le perdre en
+     soirée, le walk, et elle est annoncée avant le geste. */
+  if(expired) P.queue=keep;
   if(cornerActive(P)!==was) renderCornerActive(P); else cornerPatchActive(P);
   cornerLayoutPersos(P); // positionne les silhouettes + jauges de patience
 }
 function applyDeltas(cl, v){
-  const c=S.clients[cl.cid]; if(!c) return;
-  if(v.rel) c.rel=clamp(c.rel+v.rel,0,100);
+  /* `reput` et `res` sont GLOBAUX : ils ne dépendent d'aucune fiche persona. Ils étaient
+     pourtant derrière le `return` qui protège la fiche — or un anonyme n'a pas de `cid`,
+     et les anonymes sont 85 % du trafic (`ANON_SHARE`). Donc 85 % des ventes ne
+     créditaient NI standing NI réservoir, pendant que le verdict et le toast annonçaient
+     la récompense (R4 : le résultat doit se relier au geste).
+
+     Pire, ça rendait le réservoir à sens unique. `res` monte de RES_DEAL sur une bonne
+     vente et descend de RES_WALK sur un départ — mais les RUPTURES le font baisser en
+     dehors d'ici (4 sites), et rien ne le recharge à la clôture. La seule voie de recharge
+     — les bonnes ventes — était donc coupée pour 85 % d'entre elles : le réservoir ne
+     pouvait que fondre, et à 0 le corner est mort sans issue (R1).
+     Une seule correction ferme les deux trous. */
   if(v.reput) S.reput=clamp(S.reput+v.reput,0,100);
-  if(v.res){ const P=S.shelter.pdv; P.res=clamp(P.res+v.res,0,100); }
+  if(v.res){ const P=activeCorner(); if(P) P.res=clamp(P.res+v.res,0,100); }
+  const c=S.clients[cl.cid]; if(!c) return;   // ce qui suit est per-persona : rel, abus
+  if(v.rel) c.rel=clamp(c.rel+v.rel,0,100);
   if(v.resetGouge) c.gougeStreak=0;
   if(v.gouge){ c.gougeStreak=(c.gougeStreak||0)+1; if(c.gougeStreak>=corner.CORNER.GOUGE_STREAK_QUIT){ c.quit=true; toast("💔 "+cl.nm+" ne reviendra plus (trop d'abus)."); } }
 }
@@ -1140,13 +1233,30 @@ function cornerQuantites(P, cl){
   for(let g=1; g<=60; g++) if(g*corner.menuAt(menu,g)<=bud) poche=g;
   const cap=Math.max(cl.g, poche);
   const liste=snap.composables(P.tampon||{}, cap);
-  if(!liste.includes(cl.g) && cl.g>0) liste.push(cl.g);
+  /* On NE réinjecte PAS sa demande quand le tampon ne la compose pas. Cette liste
+     s'appelle « servable » et sert de rail au stepper : y glisser une quantité
+     inservable ouvrait la négo sur un cul-de-sac — un seul bouton, qui ne peut pas
+     aboutir. Pire, ça défaisait l'intention écrite juste en dessous (« on ouvre sur le
+     composable le plus proche ») : le reduce du plus proche retombait mécaniquement sur
+     sa demande, donc la carte n'ouvrait jamais sur le 8 g qu'on avait vraiment.
+     Dernier recours seulement : si RIEN n'est composable, on garde sa demande comme
+     ancre pour que le stepper ait un index — la carte dit déjà « aucune barrette ne
+     compose N g », et la vente partira en rupture annoncée. */
+  if(!liste.length && cl.g>0) liste.push(cl.g);
   return liste.sort((a,b)=>a-b);
 }
 function cornerResolve(P, cl, total, firstTry, isClientOffer){
   const g=propG(cl);
-  const v=corner.resolveOffer(cl, g, total, firstTry, isClientOffer, S.reput, P.prix);
-  if(v.outcome==="counter"){ cl.countered=true; cl.dernier=v.counterTotal; cl.mode="dernier"; renderCornerActive(P); toast("Il contre — dernier prix "+v.counterTotal); return; }
+  /* Son « dernier prix » a été calculé contre le menu DU MOMENT (`tol` en dépend). Le
+     ré-évaluer contre le menu COURANT le faisait refuser son propre prix dès qu'on avait
+     baissé son tarif entre-temps : tolérance plus basse, même montant, donc `walk` — un
+     départ fâché en tapant « ✅ Vendu », sur un prix que le client venait d'annoncer.
+     On gèle donc le menu au moment de la contre-offre et on l'honore. Le commentaire de
+     `resolveOffer` dit déjà que ce prix « doit TOUJOURS passer son propre test » : le cas
+     de l'arrondi avait été fermé, celui du changement de menu était resté ouvert. */
+  const menu = (cl.mode==="dernier" && cl.menuFige>0) ? cl.menuFige : P.prix;
+  const v=corner.resolveOffer(cl, g, total, firstTry, isClientOffer, S.reput, menu);
+  if(v.outcome==="counter"){ cl.countered=true; cl.dernier=v.counterTotal; cl.menuFige=P.prix; cl.mode="dernier"; renderCornerActive(P); toast("Il contre — dernier prix "+v.counterTotal); return; }
   if(v.outcome==="walk"){ applyDeltas(cl, v); P.combo=1; cornerLeave(P, cl, "walk", v); return; }
   let tip=0;
   if(v.tipRate){ tip=Math.round(total*v.tipRate*(P.combo||1)); }
@@ -1167,9 +1277,16 @@ function cornerResolveLouche(P, cl){
   if(cl.cop===false){ S.reput=clamp(S.reput+corner.CORNER.REP_DEAL,0,100); cause("Grosse vente", cl.nm+" +"+cl.offer+" · client réglo"); cornerLeave(P, cl, "pigeon"); }
   else { S.heat=clamp(S.heat+corner.CORNER.HEAT_LOUCHE,0,100); cause("Vente cramée", cl.nm+" +"+cl.offer+" · chaleur +"+corner.CORNER.HEAT_LOUCHE); cornerLeave(P, cl, "louche"); }
 }
-// refuser le louche : cop:false = t'as recalé un vrai client (juste une vente perdue, R1) ; sinon t'as flairé le flic (+discrétion)
+/* refuser le louche : cop:false = t'as recalé un vrai client (juste une vente perdue, R1) ; sinon t'as flairé le flic (+discrétion)
+   Le refus ne casse PAS le combo. Il le cassait, pendant que le toast affichait, dans la
+   même frame, « vente perdue (aucun malus) » — et la chip tombait de ⚡×3 à ⚡×1 sous les
+   yeux du joueur. Trois preuves que c'était un lapsus, pas une intention : le cas frère
+   `refus` (recaler un client normal) porte le MÊME libellé et ne touche à rien ; la
+   branche d'à côté — flairer un VRAI flic, la bonne issue — préserve le combo ; et le
+   commentaire de cette ligne annonce « juste une vente perdue ». Le combo est la chaîne
+   de prix JUSTES : il se casse quand on se trompe de prix, pas quand on renonce à vendre. */
 function cornerFlair(P, cl){
-  if(cl.cop===false){ P.combo=1; cornerLeave(P, cl, "pigeonRefus"); }
+  if(cl.cop===false){ cornerLeave(P, cl, "pigeonRefus"); }
   else { S.dirty+=corner.CORNER.FLAIR_BONUS; cause("Flic flairé","+"+corner.CORNER.FLAIR_BONUS+" discrétion"); cornerLeave(P, cl, "flair"); }
 }
 // ardoise (étape 4) : le stock part MAINTENANT, l'argent revient à J+N (+intérêt) — réglé à la clôture
@@ -1187,14 +1304,32 @@ function cornerResolveArdoise(P, cl){
   cause("Ardoise ouverte", cl.nm+" · "+cl.due+" à J"+cl.payday);
   cornerLeave(P, cl, "ardoise");
 }
+/* L'hésitant : ses deux boutons servaient des grammages FIXES — son habituel, ou 2 g —
+   jamais confrontés à la sacoche. Mesuré : sacoche de 24 g en barrettes de 8, Sofia
+   demande son 5 g habituel ; le bouton « 💬 Son 5 g habituel » est proposé, et le tap
+   répond « Rupture — charge ta sacoche (Gérer). » en ponctionnant le réservoir. Perte
+   sèche sur un bouton offert par le jeu, stock plein en main — et un message faux : la
+   sacoche est chargée, c'est le FORMAT qui ne compose pas 5 g (une barrette ne se casse
+   pas). Exactement la classe de bug déjà fermée pour le rail du stepper de négo, restée
+   ouverte ici. On sert donc le composable le plus proche, et le bouton l'ANNONCE. */
+function hesitG(P, cl, perso){
+  const liste=cornerQuantites(P, cl);           // déjà borné par sa poche, déjà composable
+  const cible=perso?(cl.usual||cl.g||2):2;
+  return liste.reduce((a,b)=>Math.abs(b-cible)<Math.abs(a-cible)?b:a, liste[0]);
+}
 // hésitant : toute attention convertit ; son habituel (perso) paie un pourboire
 function cornerResolveHesit(P, cl, perso){
-  const fair=P.prix||marcheDuJour(), g=perso?cl.usual:2, total=Math.round(g*fair);
+  const fair=P.prix||marcheDuJour(), g=hesitG(P, cl, perso), total=Math.round(g*fair);
   const tip=perso?Math.round(total*corner.CORNER.TIP_LU):0;
   if(!cornerSell(P, cl, g, total, tip)) return;
   const c=S.clients[cl.cid]; if(c) c.rel=clamp(c.rel+(perso?corner.CORNER.REL_PERSO:corner.CORNER.REL_DEAL),0,100);
   S.reput=clamp(S.reput+corner.CORNER.REP_DEAL,0,100);
-  cornerLeave(P, cl, "done", {emo:perso?"🥰":"🙂", outcome:perso?"lu":"deal"}, tip);
+  /* La récompense de l'attention reste acquise même quand le format oblige à s'écarter de
+     son habituel — sinon la contrainte de sacoche redeviendrait une amende (R1). Mais la
+     réplique, elle, ne peut pas dire « C'est EXACTEMENT ça » sur 8 g quand il en voulait 5 :
+     `lu` n'est mérité que si on lui a servi son grammage. */
+  const juste=g===(cl.usual||cl.g);
+  cornerLeave(P, cl, "done", {emo:perso?"🥰":"🙂", outcome:(perso&&juste)?"lu":"deal"}, tip);
 }
 // ambigu : le joueur compose ; bien lu (grammes == attendu) → pourboire, sinon vendu quand même (R1)
 function cornerResolveAmbig(P, cl){
@@ -1212,8 +1347,23 @@ function cornerResolveAmbig(P, cl){
 }
 function cornerAct(P, a){
   const cl=cornerActive(P); if(!cl) return;
+  /* Verrou de carte neuve : on n'agit pas sur quelqu'un qu'on n'a pas encore vu. Le
+     verrou ne s'arme QUE sur un changement de client (cf. renderCornerActive) — un
+     re-rendu pour le même client, un cran de stepper, une modification de prix, restent
+     immédiats. Sans quoi on remplacerait un tap qui atterrit au mauvais endroit par un
+     tap qui meurt : l'autre moitié du même problème. */
+  if(performance.now()<cardLockUntil) return;
   if(a==="refuse"||a==="refuse2") return cornerLeave(P, cl, "refus");
-  if(a==="cancel"){ cl.mode="offer"; return renderCornerActive(P); }
+  /* « Annuler » doit ANNULER la contre-proposition, pas seulement fermer l'écran.
+     Le mode revenait à "offer" en laissant `cl.propG` posé : la carte réaffichait alors
+     l'offre d'origine (`cl.g` / `cl.offer`, ex. « 5 g → 46 ») pendant que `cornerResolve`
+     exécutait sur `propG(cl)`, resté à 8. Taper « ✅ OK 46 » sortait donc 8 g du tampon
+     pour le prix de 5 — le montant venait de la carte, les grammes d'un état invisible.
+     Reproduit depuis une partie neuve en six taps, avec un anonyme à 2 g.
+     C'est une perte sèche déclenchée par le bouton le plus neutre de l'écran (R1), et
+     c'est très exactement la sur-livraison silencieuse que le commentaire d'à côté
+     déclare avoir fermée — elle revenait par la porte de derrière. */
+  if(a==="cancel"){ cl.mode="offer"; cl.propG=null; return renderCornerActive(P); }
   if(a==="counter"){
     cl.mode="nego";
     // point de départ utile : sa demande si on peut la composer, sinon ce qu'on PEUT
@@ -1250,6 +1400,9 @@ function renderCornerActive(P){
   const host=document.getElementById("cActive"); if(!host) return;
   const cl=cornerActive(P);
   const cb=document.getElementById("cComboChip"); if(cb) cb.textContent="⚡×"+(P.combo||1).toFixed(1).replace(".0","");
+  // changement de CLIENT (pas un simple re-rendu) : on le signale, et on verrouille
+  const neuf = cl!==cardLast;
+  if(neuf){ cardLast=cl; cardLockUntil=performance.now()+CARD_LOCK_MS; }
   if(!cl){ host.innerHTML=""; return; } // rue calme → la scène respire
   const fair=P.prix||marcheDuJour(), tag=corner.CORNER_TAG[cl.kind];
   const patW=clamp(cl.pat/cl.pat0,0,1)*100, patBar=`<div class="nego-pat"><i id="pNegoPat" style="width:${patW}%"></i></div>`;
@@ -1262,10 +1415,17 @@ function renderCornerActive(P){
       <div class="grid2"><button class="btn bad" style="margin:0" data-neg="loucheOk">🤝 Vendre ${cl.offer}</button>
         <button class="btn ok" style="margin:0" data-neg="loucheNo">🕶️ Refuser</button></div>`;
   } else if(cl.mode==="hesit"){
+    /* Les boutons annoncent le grammage RÉELLEMENT servi (cf. hesitG) : sinon ils
+       promettent un format que la sacoche ne compose pas. « Son habituel » quand on peut
+       le lui donner, « au plus près » quand le format oblige à s'en écarter — le joueur
+       doit voir que sa sacoche décide. Quand les deux boutons retombent sur la même
+       quantité, le second n'offre plus de choix : on ne l'affiche pas. */
+    const gP=hesitG(P, cl, true), gG=hesitG(P, cl, false);
+    const juste=gP===(cl.usual||cl.g);
+    const petit = gG<gP ? `<button class="btn ghost" style="margin:0" data-neg="hesitGen">Un petit · ${gG} g</button>` : "";
     body=`<div class="nego-tx">${cl.tx}</div>${patBar}
-      <div class="grid3"><button class="btn ok" style="margin:0" data-neg="hesitPerso">💬 Son ${cl.usual} g habituel</button>
-        <button class="btn ghost" style="margin:0" data-neg="hesitGen">Un petit</button>
-        <button class="btn bad" style="margin:0" data-neg="refuse">❌</button></div>`;
+      <div class="${petit?"grid3":"grid2"}"><button class="btn ok" style="margin:0" data-neg="hesitPerso">💬 ${juste?`Son ${gP} g habituel`:`Au plus près · ${gP} g`}</button>
+        ${petit}<button class="btn bad" style="margin:0" data-neg="refuse">❌</button></div>`;
   } else if(cl.mode==="ambig"){
     const g=cl.composeG||0, tot=Math.round(g*fair);
     body=`<div class="nego-tx">« ${cl.tx} » — à toi de voir combien.</div>
@@ -1326,7 +1486,7 @@ function renderCornerActive(P){
     if(cl.mode==="ambig") chips.push(cl.qc.ok?`<span style="color:#3ddc84">✔ ${qb} — pourboire si bien lu</span>`:`<span style="color:#9aa4b8">👃 ${qb}</span>`); // pas de « il rogne » ici : sans effet en mode ambigu
     else chips.push(`<span style="color:${cl.qc.ok?"#3ddc84":cl.qc.miss?"#ff6a6a":"#ffd06a"}">${cl.qc.ok?"✔":cl.qc.miss?"✖":"≈"} ${qb}${cl.qc.ok?" — paie mieux":cl.qc.miss?" — il rogne":" — sans effet"}</span>`); }
   const traitLine = chips.length ? `<div style="font-size:10px;margin:-2px 0 6px">${chips.join(" · ")}</div>` : "";
-  host.innerHTML=`<div class="card"><div class="nego-head"><div class="nego-av">${cl.av}</div>
+  host.innerHTML=`<div class="card${neuf?" neuf":""}"><div class="nego-head"><div class="nego-av">${cl.av}</div>
       <div><span class="nego-nm">${cl.nm}</span><span class="nego-tag">${tag}</span></div>
       <div class="nego-rel">${relTxt}</div></div>${tellLine}${traitLine}${body}</div>`;
   host.querySelectorAll("[data-neg]").forEach(b=>b.onclick=()=>cornerAct(P, b.dataset.neg));
@@ -1357,7 +1517,7 @@ function renderCornerActive(P){
     cl.composeG=Math.max(0,(cl.composeG||0)+ (+b.dataset.comp)*pas); renderCornerActive(P); });
 }
 function pdvTick(dt){
-  const P=S.shelter&&S.shelter.pdv; if(!P) return;
+  const P=activeCorner(); if(!P) return;
   // PRÉSENCE REQUISE : au début, le charbonneur c'est TOI — tu ne vends au corner
   // que quand tu le tiens (écran corner). Vendre au corner ⇄ vendre/livrer sur
   // SnapShit = un arbitrage de ta présence. L'embauche d'un charbonneur (plus tard)
@@ -1435,7 +1595,7 @@ function chouffeGain(P){
   return b===Infinity && a===Infinity ? "le coin ne chauffe plus" : `ouverture ${fmt(a)} → ${fmt(b)} avec un de plus`;
 }
 function pdvPatch(){
-  const P=S.shelter.pdv, Qd=Math.round(tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55));
+  const P=activeCorner(), Qd=Math.round(tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55));
   const set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
   set("pDem",Math.round(pdvDemande())+" clients/h"+(pdvRushHot()?" · RUSH":""));
   const r=document.getElementById("pRes"); if(r) r.style.width=clamp(P.res,0,100)+"%";
@@ -1459,6 +1619,37 @@ function pdvPatch(){
   if(led) led.innerHTML=ledRows(P);
   const ar=document.getElementById("pArds");
   if(ar) ar.innerHTML=ardsRow();
+  /* Le tiroir « Gérer » s'ouvre en pur CSS : son contenu date de la dernière construction
+     complète de l'écran. Deux textes y bougent pourtant SANS geste du joueur —
+     l'argumentaire des chouffes (il dépend de la chaleur, qui monte à chaque frame) et
+     le conseil de prix (il dépend du marché, qui suit la réputation). Ils promettaient
+     donc des chiffres périmés au moment précis où on décide de lâcher 60/soir ou de
+     bouger son tarif. On patche le TEXTE seul — surtout pas l'innerHTML d'un conteneur
+     de boutons, ce serait rouvrir le tap mort. */
+  const cg=document.getElementById("pChGain");
+  if(cg){ const t=chouffeGain(P); if(cg.textContent!==t) cg.textContent=t; }
+  const ph=document.getElementById("pPrixHint");
+  if(ph){ const t=prixHintTx(P.prix||marcheDuJour(), marcheDuJour()); if(ph.textContent!==t) ph.textContent=t; }
+  const pg=document.getElementById("pPrixG");
+  if(pg){ const t=(P.prix||marcheDuJour())+"/g"; if(pg.textContent!==t) pg.textContent=t; }
+}
+/* Le conseil de prix, extrait pour avoir UNE source : il était défini en fermeture dans
+   renderCorner (capturant le marché du moment), donc impossible à rafraîchir. */
+/* Le menu par format, tel qu'il sera RÉELLEMENT facturé.
+   Il affichait `g × prix` brut, alors que toute vente passe par `menuAt` (le rabais au
+   volume voulu par Sylvain : « le prix au gramme d'un 8 g doit être plus attractif »).
+   Mesuré à 10/g : 5 g annoncé 50 encaissé 46, 8 g annoncé 80 encaissé 68, 20 g annoncé
+   200 encaissé 150 — jusqu'à un quart d'écart. Or c'est CETTE ligne que le joueur lit
+   pour régler son tarif : il calibrait sur un nombre que le jeu ne pratique jamais (R4).
+   Une seule source, comme pour `prixHintTx`. */
+function menuFmtTx(p){
+  return [2,5,8].map(g=>`${g}g ${Math.round(g*corner.menuAt(p,g))}`).join(" · ");
+}
+function prixHintTx(p, f){
+  const d=Math.round((p/f-1)*100);
+  return d>0?`+${d} % marché · moins de clients, + de marge`
+       : d<0?`${d} % marché · plus de clients, − de marge`
+       : `au prix du marché`;
 }
 /* ---------- ARAH : l'évacuation, portée de le-spot ----------
    Le chouffe ne t'immunise pas, il te prévient. Pendant le préavis le monde
@@ -1492,7 +1683,7 @@ function arahCri(P){
   setTimeout(()=>{ b.classList.add("out"); setTimeout(()=>b.remove(),200); }, 1500);
 }
 function arahOuvrir(preavis){
-  const P=S.shelter.pdv;
+  const P=activeCorner();
   arahState={ left:preavis, total:preavis, cool:0, sauveG:0, cash:0, cri:0.9 };
   cause("ARAH","Chouffe : "+preavis+" s de préavis");
   arahCri(P);
@@ -1501,7 +1692,7 @@ function arahOuvrir(preavis){
   // commence quand tu as compris, pas quand il ouvre la bouche.
 }
 function arahRentrer(){
-  const P=S.shelter.pdv;
+  const P=activeCorner();
   if(!arahState || arahState.cool>0) return;
   // la boucle vit dans snap.mjs : le jeu l'appelle, les invariants l'importent
   const { n, g }=snap.evacuerLot(P.tampon, S.sachets, ARAH_LOT);
@@ -1516,7 +1707,7 @@ function arahRentrer(){
   save(); arahRender();
 }
 function arahCaisse(){
-  const P=S.shelter.pdv;
+  const P=activeCorner();
   if(!arahState || arahState.cool>0 || !(P.bac>0)) return;
   arahState.cash+=P.bac; S.dirty+=P.bac; P.bac=0;
   arahState.cool=ARAH_COOL_MS/1000;
@@ -1556,7 +1747,7 @@ function arahRender(){
    encore dehors, et l'état des deux gestes. Aucun `innerHTML` sur les boutons. */
 function arahPatch(){
   if(!arahState) return;
-  const P=S.shelter.pdv;
+  const P=activeCorner();
   const bar=document.getElementById("arahBar");
   if(bar) bar.style.width=Math.max(0,arahState.left/arahState.total*100)+"%";
   const t=document.getElementById("arahT"), c=document.getElementById("arahC");
@@ -1575,7 +1766,7 @@ function arahTick(dt){
   if(arahState.left<=0){ arahState=null; const el=document.getElementById("arah"); if(el) el.classList.add("hide"); pdvDescente(); }
 }
 function pdvDescente(){
-  const P=S.shelter.pdv, lost=Math.round(P.bac+tampG(P.tampon)*P.prix);
+  const P=activeCorner(), lost=Math.round(P.bac+tampG(P.tampon)*P.prix);
   P.bac=0; P.tampon={}; P.tamponQ=0; P.queue=[]; S.heat=PDV_AFTER; S.reput=clamp(S.reput-6,0,100);
   cause("Descente au corner","−"+lost+" exposé"); hud();
   toast("🚨 Descente — barrettes + bac saisis (−"+lost+"). La planque est sauve.");
@@ -1647,7 +1838,7 @@ function rentrerQ(P, g){
 }
 /* Un mouvement de barrettes, dans un sens ou dans l'autre. */
 function sacoche(f, delta){
-  const P=S.shelter.pdv; if(!P.tampon) P.tampon={};
+  const P=activeCorner(); if(!P.tampon) P.tampon={};
   if(delta>0){
     const place=PDV_TAMPON_MAX-tampN(P.tampon);
     if(place<=0){ toast("Sacoche pleine ("+PDV_TAMPON_MAX+" barrettes)."); return; }
@@ -1663,7 +1854,7 @@ function sacoche(f, delta){
   save(); pdvSacPatch(P);
 }
 function sacocheTout(sens){
-  const P=S.shelter.pdv;
+  const P=activeCorner();
   if(sens==="out"){
     let g=0; for(const f of sizesOf(P.tampon)) g+=snap.deplacerBarrettes(P.tampon, S.sachets, f, P.tampon[f]).g;
     rentrerQ(P, g); toast("Sacoche vidée — plus rien d'exposé.");
@@ -1729,7 +1920,7 @@ function pdvSacPatch(P){
 }
 function renderPDV(){
   tab="shelter"; shelterSub="pdv"; if(typeof set3d==="function") set3d("hidden"); hud(); renderDock();
-  const P=S.shelter.pdv; if(!P.tampon) P.tampon={}; if(!P.queue) P.queue=[]; if(!P.ledger) P.ledger=[];
+  const P=activeCorner(); if(!P.tampon) P.tampon={}; if(!P.queue) P.queue=[]; if(!P.ledger) P.ledger=[];
   renderCorner(P); // la scène rue plein écran
 }
 // La rue, plein écran (Option B) : négo au client (carte slide-up) + tiroir « Gérer »
@@ -1774,13 +1965,13 @@ function renderCorner(P){
   const fair=marcheDuJour();                 // prix du marché DU JOUR (concurrence — bouge chaque matin)
   if(!(P.prix>0)) P.prix=fair;               // ton prix affiché (réglable à la main), défaut = marché
   const prix=P.prix;
-  const prixHint=(p,f)=>{ const d=Math.round((p/f-1)*100); return d>0?`+${d} % marché · moins de clients, + de marge`:d<0?`${d} % marché · plus de clients, − de marge`:`au prix du marché`; };
+  const prixHint=prixHintTx;   // une seule source (voir prixHintTx, patchée à chaque tick)
   const emptyTx = cornerEmptyTx(P);   // même source que le rafraîchissement par tick
   const mPrev=corner.marketPrice(S.reput, S.day-1), mTrend=fair>mPrev?" ▲":fair<mPrev?" ▼":"";
   const mNews=corner.marketNews(S.day);
   const drawerBody=`<div class="stat"><span>📋 Ton menu <span class="muted" style="font-size:10px">· marché ${fair}/g${mTrend}</span></span><b id="pPrixG">${prix}/g</b></div>
       <div class="nego-price" style="margin:2px 0 2px"><button class="pb" data-prix="-1">−1</button>
-        <div id="pMenuF" style="font-size:12px">2g ${2*prix} · 5g ${5*prix} · 8g ${8*prix}</div>
+        <div id="pMenuF" style="font-size:12px">${menuFmtTx(prix)}</div>
         <button class="pb" data-prix="1">+1</button></div>
       <div class="muted" id="pPrixHint" style="font-size:10px;margin:0 0 ${mNews?"2px":"8px"}">${prixHint(prix,fair)}</div>
       ${mNews?`<div class="muted" style="font-size:10px;margin:0 0 8px;color:${mNews.dir>0?"#ffb454":"#8fd0ff"}">${mNews.tx}</div>`:""}
@@ -1789,7 +1980,7 @@ function renderCorner(P){
       <h3 style="margin:10px 0 2px;font-size:12px">Ta sacoche</h3>
       <div class="muted" style="font-size:10px;margin:0 0 6px">Ce que tu sors de la planque. C'est tout ce que la police peut saisir — et tout ce que tu peux vendre.</div>
       <div id="pSac">${sacocheRows(P)}</div>
-      <div class="stat" style="margin-top:10px"><span>Chouffes (${PDV_CHOUFFE_PAY}/soir)<br><span class="muted" style="font-size:10px">${chouffeGain(P)}</span></span><b id="pCh">${P.chouffes}</b></div>
+      <div class="stat" style="margin-top:10px"><span>Chouffes (${PDV_CHOUFFE_PAY}/soir)<br><span class="muted" id="pChGain" style="font-size:10px">${chouffeGain(P)}</span></span><b id="pCh">${P.chouffes}</b></div>
       <div class="grid2"><button class="btn ghost" style="margin:0" id="chM">− chouffe</button><button class="btn ok" style="margin:0" id="chP">+ chouffe</button></div>
       <h3 style="margin:10px 0 4px;font-size:12px">Ledger</h3>
       <div id="pArds">${ardsRow()}</div>
@@ -1832,6 +2023,12 @@ function renderCorner(P){
       drawer.style.display="block";
       if(wasHidden){ drawer.style.transform="translateY(115%)"; void drawer.offsetHeight; } // reflow → l'anim part d'en bas
       drawer.classList.add("on"); drawer.style.transform="translateY(0px)";
+      /* Le corps du tiroir a été construit une fois. Entre-temps le joueur a vendu : les
+         compteurs par format et la ligne « Sert : » dataient d'avant les ventes, et
+         contredisaient le total « Exposé » affiché juste en dessous — deux vérités dans
+         le même panneau. L'ouverture est un événement DISCRET (le doigt n'est pas en
+         train d'appuyer sur un bouton du tiroir), donc reconstruire ici est sans risque. */
+      pdvSacPatch(P); pdvPatch();
     } else {
       drawer.classList.remove("on"); drawer.style.transform="translateY(115%)";
       clearTimeout(drawer._hideT); drawer._hideT=setTimeout(()=>{ if(!drawer.classList.contains("on")) drawer.style.display="none"; }, 300);
@@ -1858,7 +2055,11 @@ function renderCorner(P){
   document.getElementById("chM").onclick=()=>{ P.chouffes=Math.max(0,P.chouffes-1); save(); renderCorner(P); };
   // menu réglable à la main : patch en place (le tiroir reste ouvert) — le prix pilote la demande + la négo
   const patchPrix=()=>{ const p=P.prix, f=marcheDuJour(), set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
-    set("pPrixG",p+"/g"); set("pMenuF",`2g ${2*p} · 5g ${5*p} · 8g ${8*p}`); set("pPrixHint",prixHint(p,f)); set("cMenuChip","📋 "+p+"/g"); set("cMarChip","⚖ "+f); };
+    set("pPrixG",p+"/g"); set("pMenuF",menuFmtTx(p)); set("pPrixHint",prixHint(p,f)); set("cMenuChip","📋 "+p+"/g"); set("cMarChip","⚖ "+f);
+    // La carte du client annonce « prix menu » et une tête (😊 / grimace) calculées AVEC
+    // l'ancien tarif. Sans ce rappel, on montait son prix, la carte gardait son 😊, et le
+    // « ✅ OK » promis se soldait en contre-offre ou en départ. La promesse doit suivre.
+    renderCornerActive(P); };
   stage.querySelectorAll("[data-prix]").forEach(b=>b.onclick=()=>{ const f=marcheDuJour(); P.prix=clamp((P.prix||f)+ +b.dataset.prix,1,Math.round(f*3)); save(); patchPrix(); });
   stage.querySelectorAll("[data-sac]").forEach(b=>b.onclick=()=>{
     const v=b.dataset.sac;
@@ -1922,7 +2123,7 @@ function renderKarnet(){
 
 /* ---------- SnapShit ---------- */
 // prix affiché (menu du corner) que la story met en avant — réglé à la main au corner
-function snapMenuPrix(){ const p=S.shelter&&S.shelter.pdv&&S.shelter.pdv.prix; return p>0?p:marcheDuJour(); }
+function snapMenuPrix(){ const p=(activeCorner()||{}).prix; return p>0?p:marcheDuJour(); }
 /* L'ANNONCE — c'est ici que SnapShit sert enfin à quelque chose : communiquer le
    format. Couper du 8 g ne suffit pas à ce que la rue en demande ; il faut le dire.
    Et parce que c'est un geste explicite, il est SYMÉTRIQUE : on ré-annonce le petit
@@ -2596,7 +2797,7 @@ function advanceDay(manual){
   S.day++; S.heat=clamp(S.heat-6,0,100); S.soldDay=0;
   cons.forEach(c=>cause(c.t,c.c));
   // ardoises : le crédit se règle tout seul au jour dit (déterministe, R4) — l'argent revient en liquide
-  { const P=S.shelter&&S.shelter.pdv;
+  { const P=activeCorner();
     for(const p of corner.CORNER_PERSONAS){ const c=S.clients&&S.clients[p.id];
       if(c&&c.ardoise&&S.day>=c.ardoise.day){ const v=Math.round(c.ardoise.due); S.dirty+=v; pushBills(v);
         c.rel=clamp(c.rel+2,0,100); cause("Ardoise réglée", p.nm+" +"+v+" liquide"); delete c.ardoise;
@@ -2608,11 +2809,11 @@ function advanceDay(manual){
   cause("Marché", mNow+"/g"+(mD?" ("+(mD>0?"+":"")+mD+")":""));
   if(mNews) toastQ.push(mNews.tx+" Marché "+mNow+"/g.");
   // paie des chouffes du corner (liquide d'abord, puis propre) — sinon un chouffe part
-  { const P=S.shelter&&S.shelter.pdv; const due=(P&&P.chouffes||0)*PDV_CHOUFFE_PAY;
+  { const P=activeCorner(); const due=(P&&P.chouffes||0)*PDV_CHOUFFE_PAY;
     if(due>0){ if(S.dirty>=due){ S.dirty-=due; cause("Paie chouffes","−"+due+" liquide"); }
       else if(S.cash>=due){ S.cash-=due; cause("Paie chouffes","−"+due+" propre"); }
       else { P.chouffes=Math.max(0,P.chouffes-1); cause("Chouffe parti","paie manquée"); } } }
-  if(S.shelter&&S.shelter.pdv) S.shelter.pdv.combo=1; // combo négo : remis à zéro à chaque clôture de soirée
+  if(activeCorner()) activeCorner().combo=1; // combo négo : remis à zéro à chaque clôture de soirée
   /* Les contacts s'ouvrent aussi à la CLÔTURE, plus seulement quand un client quitte
      le corner. Sans ça, un grossiste qui ne vient plus au corner ne pourrait plus
      jamais être débloqué par la rumeur de calibre : `rueGate` deviendrait du code
@@ -2629,7 +2830,15 @@ function advanceDay(manual){
   const last=sh.cons[sh.cons.length-1] || cons[cons.length-1];
   toast(manual ? (last?.c || "Nouvelle nuit.") : ("J"+S.day+" — marché "+mNow+"/g"+(mD>0?" ▲":mD<0?" ▼":"")+", paie faite."));
   save(); hud();
-  if(tab==="shelter"&&shelterSub==="pdv") renderCorner(S.shelter.pdv); // rafraîchit la scène après clôture
+  /* La clôture rebat TOUT : liquide (paie des chouffes), stock, marché, standing, hit de
+     planque, prix des upgrades. Seul le corner était rafraîchi — sur n'importe quel autre
+     écran, le corps gardait les chiffres de la veille jusqu'à ce qu'on navigue. Le bloc
+     « Réinvest » du Quartier annonçait notamment une abordabilité périmée (l'achat est
+     gardé, donc pas de perte sèche — juste un écran qui ment).
+     La bascule est un événement RARE (toutes les 180 s) et discret : re-rendre ici ne
+     risque pas le tap mort, contrairement à un rendu par frame. */
+  if(tab==="shelter"&&shelterSub==="pdv") renderCorner(activeCorner());
+  else render();
 }
 
 let last=performance.now();
@@ -2638,10 +2847,31 @@ function frame(now){
   S.clock+=dt;
   // horloge unique : la journée avance toute seule
   S.dayAcc=(S.dayAcc||0)+dt;
+  frame._hud=(frame._hud||0)+dt; if(frame._hud>=0.25){ frame._hud=0; hudLive(); }
   if(S.dayAcc>=DAY_SEC_REAL){ advanceDay(false); if(tab==="snap") renderSnap(); }
-  if(S.dirty>DIRTY_HOLD_SOFT){
-    S._dirtyAcc=(S._dirtyAcc||0)+dt;
-    if(S._dirtyAcc>=3){ S._dirtyAcc=0; S.heat=clamp(S.heat+(S.dirty>DIRTY_HOLD_HARD?2:1),0,100); }
+  /* Le liquide qui dort chauffe le quartier. La mécanique existait depuis toujours mais
+     n'était NOMMÉE NULLE PART : ni cause au Karnet, ni marque au HUD, ni seuil affiché.
+     Le joueur voyait sa chaleur grimper de +20/min au-dessus de 180, +40/min au-dessus
+     de 450, et n'avait aucun moyen de relier l'effet à sa cause — alors que le Karnet
+     promet noir sur blanc « chaque ligne a une cause ».
+     On ne change AUCUN nombre ici : on rend seulement lisible ce qui existait déjà.
+     La cause est émise au FRANCHISSEMENT de palier, jamais à chaque tick — une ligne
+     toutes les 3 secondes noierait le journal et ne dirait plus rien. */
+  {
+    const zone = S.dirty>DIRTY_HOLD_HARD ? 2 : S.dirty>DIRTY_HOLD_SOFT ? 1 : 0;
+    if(zone>0){
+      S._dirtyAcc=(S._dirtyAcc||0)+dt;
+      if(S._dirtyAcc>=3){ S._dirtyAcc=0; S.heat=clamp(S.heat+(zone>1?2:1),0,100); }
+    } else S._dirtyAcc=0;
+    if(zone!==(S._dirtyZone||0)){
+      if(zone>(S._dirtyZone||0)){
+        const par = zone>1 ? 40 : 20;
+        cause("Le liquide dort", `${money(S.dirty)} en poche · +${par} chaleur/min — réinvestis (pain, upgrades)`);
+        toast(zone>1 ? `💵 ${money(S.dirty)} qui dorment — le quartier jase fort (+${par} chaleur/min).`
+                     : `💵 ${money(S.dirty)} qui dorment — ça commence à se voir (+${par} chaleur/min).`);
+      } else if(zone===0) cause("Liquide écoulé", "Plus de pression sur le quartier");
+      S._dirtyZone=zone; hud(); save();   // la cause doit SURVIVRE au rechargement, pas seulement exister en mémoire
+    }
   }
   if(SORTER_ENABLED && S.upgrades.counter>0 && S.dirty>0 && S.bills.length===0){
     const take=Math.min(S.dirty, COUNTER_RATE*dt); S.dirty-=take; S.cash+=take;
@@ -2689,7 +2919,7 @@ function setupDebug(){
   h+=add("+1000 liquide", ()=>S.dirty+=1000);
   h+=add("+200 propre", ()=>S.cash+=200);
   h+=H("Boucle");
-  h+=add("🚀 Kit test (stock + liquide)", ()=>{ S.pains.push({g:100,q:52},{g:100,q:52}); S.painSel=0; S.sachets["2"]=(S.sachets["2"]||0)+60; S.sachetQ=S.sachetQ||62; S.dirty+=1000; S.reput=Math.max(S.reput,30); const P=S.shelter.pdv; P.bac=0; P.tampon={}; P.tamponQ=0; P.queue=[]; });
+  h+=add("🚀 Kit test (stock + liquide)", ()=>{ S.pains.push({g:100,q:52},{g:100,q:52}); S.painSel=0; S.sachets["2"]=(S.sachets["2"]||0)+60; S.sachetQ=S.sachetQ||62; S.dirty+=1000; S.reput=Math.max(S.reput,30); const P=activeCorner(); P.bac=0; P.tampon={}; P.tamponQ=0; P.queue=[]; });
   h+=add("Embauche charbonneur (on/off)", ()=>{ S.upgrades.charbonneur=S.upgrades.charbonneur?0:1; });
   h+=H("Stock");
   h+=add("+Pain 100 g", ()=>{ S.pains.push({g:100,q:52}); });

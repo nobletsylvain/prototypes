@@ -16,6 +16,15 @@ mkdirSync(OUT, { recursive: true });
 // version de save lue depuis la source → le seed suit les bumps de SAVE_VERSION tout seul
 const SAVE_VER = (readFileSync(path.join(ROOT, "la-loupe/index.html"), "utf8").match(/SAVE_VERSION\s*=\s*"(\d+)"/) || [, "26"])[1];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/* Rythme entre deux clients servis d'affilée. La carte d'un client qu'on découvre est
+   VERROUILLÉE le temps qu'elle glisse (`CARD_LOCK_MS`) : sans ça, un appui déjà décidé
+   sur la carte précédente s'exécutait sur la personne suivante, aux mêmes pixels — voir
+   tap-loupe.mjs. Ce smoke enchaînait ses clics toutes les 250 ms, plus vite que le
+   verrou ; il pilotait donc le jeu plus vite qu'un joueur qui LIT la carte devant lui.
+   On lit la constante dans la source pour que le rythme suive si elle bouge, plutôt que
+   de figer un nombre qui redeviendrait faux en silence. */
+const CARD_LOCK = +(readFileSync(path.join(ROOT, "la-loupe/index.html"), "utf8").match(/CARD_LOCK_MS\s*=\s*(\d+)/) || [, 320])[1];
+const APRES_CLIENT = CARD_LOCK + 80;   // le temps de voir qui arrive, puis d'agir
 const MIME = { ".html":"text/html", ".mjs":"text/javascript", ".js":"text/javascript",
   ".png":"image/png", ".jpg":"image/jpeg", ".jpeg":"image/jpeg" };
 
@@ -76,11 +85,11 @@ const view = await page.evaluate(() => ({
 const sceneShown = view.scene && view.persos >= 2, cardShown = view.card;
 
 // accepter l'offre de Momo (48 = prix menu → deal) : liquide ↑ (auto), tampon ↓, relation ↑, file vidée
-const before = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
+const before = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.corners[s.shelter.cornerId||'pdv'];
   return { dirty: s.dirty || 0, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), rel: s.clients.momo.rel, q: p.queue.length }; });
 await page.click('[data-neg="accept"]');
 await sleep(300);
-const afterDeal = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
+const afterDeal = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.corners[s.shelter.cornerId||'pdv'];
   return { dirty: s.dirty || 0, bac: p.bac, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), rel: s.clients.momo.rel, q: p.queue.length }; });
 // vente présentielle → liquide direct (le bac reste à 0, plus d'« encaisser »)
 const negoSold = afterDeal.dirty > before.dirty && afterDeal.bac === 0 && afterDeal.tampon < before.tampon && afterDeal.rel > before.rel && afterDeal.q < before.q;
@@ -90,7 +99,7 @@ await page.screenshot({ path: path.join(OUT, "03-nego-deal.png") });
 await page.click('[data-neg="counter"]'); await sleep(200);
 const negoUI = await page.evaluate(() => !!document.getElementById("negoP")); // les steppers s'affichent
 await page.click('[data-neg="send"]'); await sleep(300);
-const afterCounter = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
+const afterCounter = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.corners[s.shelter.cornerId||'pdv'];
   return { dirty: s.dirty || 0, combo: p.combo, q: p.queue.length }; });
 const counterSold = negoUI && afterCounter.dirty > afterDeal.dirty && afterCounter.combo > 1; // vente en liquide + combo JUSTE armé
 
@@ -99,7 +108,11 @@ const counterSold = negoUI && afterCounter.dirty > afterDeal.dirty && afterCount
 await page.click("#cManage"); await sleep(250);
 const drawerUI = await page.evaluate(async () => {
   const s = JSON.parse(localStorage.getItem("loupe_save"));
-  const M = await import("/la-loupe/corner.mjs?v=3");
+  // Version LITTÉRALE, à bumper avec celle du jeu — elle était restée à ?v=3, donc ce
+  // test chargeait une seconde instance de corner.mjs, périmée, à côté de celle du jeu.
+  // On la garde littérale exprès : `cache-loupe.mjs` balaie ce dossier et refuse toute
+  // divergence, donc l'oubli est impossible. Un calcul dynamique passerait sous son nez.
+  const M = await import("/la-loupe/corner.mjs?v=47");
   const m = M.marketPrice(s.reput ?? 20, s.day ?? 1);
   const txt = document.getElementById("cDrawer")?.textContent || "";
   return { enc: !!document.getElementById("enc"), pBac: !!document.getElementById("pBac"),
@@ -166,17 +179,17 @@ const pageM = await seedPage({ shelter: { phase: "B", introSeen: true, pdv: { ..
 await pageM.click('.map-pin[data-pin="pdv"]'); await sleep(200);
 await pageM.click('[data-pin-go="pdv"]'); await sleep(400);
 // louche : refuser → discrétion (dirty += FLAIR_BONUS)
-await pageM.click('[data-neg="loucheNo"]'); await sleep(250);
+await pageM.click('[data-neg="loucheNo"]'); await sleep(APRES_CLIENT);
 const mFlair = await pageM.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).dirty || 0);
 // hésitant (Sofia) : son habituel → vente + relation
 const hBefore = await pageM.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")); return { dirty: s.dirty || 0, rel: s.clients.sofia.rel }; });
-await pageM.click('[data-neg="hesitPerso"]'); await sleep(250);
+await pageM.click('[data-neg="hesitPerso"]'); await sleep(APRES_CLIENT);
 const hAfter = await pageM.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")); return { dirty: s.dirty || 0, rel: s.clients.sofia.rel }; });
 // ambigu (Momo) : composer 2 barrettes (4 g = attendu) → bien lu → vente + combo
 await pageM.click('[data-comp="1"]'); await sleep(120);
 await pageM.click('[data-comp="1"]'); await sleep(120);
 await pageM.click('[data-neg="compSell"]'); await sleep(250);
-const mAmbig = await pageM.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv; return { dirty: s.dirty || 0, combo: p.combo, q: p.queue.length }; });
+const mAmbig = await pageM.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.corners[s.shelter.cornerId||'pdv']; return { dirty: s.dirty || 0, combo: p.combo, q: p.queue.length }; });
 await pageM.screenshot({ path: path.join(OUT, "07-modes.png") });
 await pageM.close();
 const loucheOK = mFlair >= 25;                                              // discrétion versée
@@ -230,24 +243,24 @@ await pageT.click('.map-pin[data-pin="pdv"]'); await sleep(200);
 await pageT.click('[data-pin-go="pdv"]'); await sleep(400);
 await pageT.screenshot({ path: path.join(OUT, "08-ardoise.png") }); // carte ardoise de Nassim
 // ardoise : stock débité, AUCUN liquide maintenant, dette posée sur le client
-await pageT.click('[data-neg="ardoiseOk"]'); await sleep(250);
-const tArd = await pageT.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.pdv;
+await pageT.click('[data-neg="ardoiseOk"]'); await sleep(APRES_CLIENT);
+const tArd = await pageT.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save")), p = s.shelter.corners[s.shelter.cornerId||'pdv'];
   return { dirty: s.dirty || 0, tampon: Object.values(p.tampon || {}).reduce((a, n) => a + n, 0), ard: s.clients.nassim.ardoise || null }; });
 // qualité : chip affichée + deal à 20 → pourboire 12 % (dirty +22, pas +20) + rel 10+2+1
 const qualChip = await pageT.evaluate(() => /exige Q70/.test(document.getElementById("cActive")?.textContent || ""));
-await pageT.click('[data-neg="accept"]'); await sleep(250);
+await pageT.click('[data-neg="accept"]'); await sleep(APRES_CLIENT);
 const tQual = await pageT.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save"));
   return { dirty: s.dirty || 0, rel: s.clients.ines.rel }; });
 // qualité ratée : accepter ses 22 → la tolérance ×0.85 fait REFUSER (walk, rel −2, zéro vente)
-await pageT.click('[data-neg="accept"]'); await sleep(250);
+await pageT.click('[data-neg="accept"]'); await sleep(APRES_CLIENT);
 const tMiss = await pageT.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save"));
   return { dirty: s.dirty || 0, rel: s.clients.ines.rel }; });
 // heat : servir Diego chauffe le coin (delta autour du clic, pas la valeur absolue — dérive passive du tick)
 const hBefore2 = await pageT.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).heat || 0);
-await pageT.click('[data-neg="accept"]'); await sleep(250);
+await pageT.click('[data-neg="accept"]'); await sleep(APRES_CLIENT);
 const tHeat = await pageT.evaluate(() => JSON.parse(localStorage.getItem("loupe_save")).heat || 0);
 // déblocage : le deal avec Momo (39 → 41 ≥ 40) débloque Diego
-await pageT.click('[data-neg="accept"]'); await sleep(250);
+await pageT.click('[data-neg="accept"]'); await sleep(APRES_CLIENT);
 const tUnlock = await pageT.evaluate(() => { const s = JSON.parse(localStorage.getItem("loupe_save"));
   return { relMomo: s.clients.momo.rel, diego: s.clients.diego.unlocked }; });
 // clôture de soirée (debug « Passer la nuit ») : SEULE l'ardoise échue (Nassim, J2) se règle — pas celle de Riton (J3)

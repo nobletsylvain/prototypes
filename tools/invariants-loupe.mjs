@@ -16,11 +16,11 @@ import {
   CORNER, CORNER_PERSONAS, makeOffer, makeAnon, makeLouche, makeArdoise,
   resolveOffer, cornerBudget, cornerTol, cornerFair, wantsArdoise, offerCap,
   qualFac, QUAL_REF, QUAL_TOL_MAX,
-  anonQty, ruePartGros, rueCalibre, checkUnlocks, cornerClientsDefault, rueApres,
+  negoFace, anonQty, ruePartGros, rueCalibre, checkUnlocks, cornerClientsDefault, rueApres,
   RUE_MIN, RUE_PALIERS, RUE_PART_MAX, RUE_INERTIE, menuAt, rabaisVolume, RABAIS_FORMAT,
 } from "../la-loupe/corner.mjs";
 import { qtyToSachets, applySachetPlan, composables, evacuerLot, deplacerBarrettes } from "../la-loupe/snap.mjs";
-import { FRONT_ENABLED, grantOpeningFront, nightTick, shelterDefaults } from "../la-loupe/shelter.mjs";
+import { FRONT_ENABLED, grantOpeningFront, nightTick, shelterDefaults, cornerDefaults } from "../la-loupe/shelter.mjs";
 
 const results = [];
 const ok = (nom, pass, detail = "") => results.push({ nom, pass, detail });
@@ -530,10 +530,14 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
      d && !(d.traits && d.traits.hours) && !(d.traits && d.traits.heat),
      d ? JSON.stringify(d.traits || {}) : "absent");
 
-  // les constantes de son kind restent définies : elles bornent le prix du DM et
-  // sont balayées par les invariants §2 ter et §5 ter (les retirer donnerait NaN)
+  // Les constantes de son kind restent DÉFINIES — c'est tout ce que ce contrôle dit.
+  // Il affirmait « elles bornent le DM » : c'était faux, snap.mjs n'importe de corner.mjs
+  // que menuAt/personaById/rueCalibre/RUE_MIN. Un libellé de test est l'endroit le plus
+  // crédible du dépôt ; s'il ment, la prochaine session raisonnera à partir du mensonge.
+  // Les garder reste utile : cornerBudget/qualCheck les liraient si un grossiste
+  // repassait un jour par la file du corner, et un kind sans borne y donnerait NaN.
   const ok2 = ["TOL", "BUDGET", "PATIENCE"].every((k) => CORNER[k].grossiste != null);
-  ok("Les bornes du kind grossiste restent définies (elles bornent le DM)",
+  ok("Les constantes du kind grossiste restent définies (elles ne bornent rien : vestige)",
      ok2, `TOL ${CORNER.TOL.grossiste} · BUDGET ${CORNER.BUDGET.grossiste} · PATIENCE ${CORNER.PATIENCE.grossiste}`);
 
   // sa porte de rumeur survit au déménagement : c'est ce que « annoncer son format » achète
@@ -731,6 +735,205 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
        sauveG > petitesDabord && (planque[8] || 0) === 6,
        `${sauveG} g sauvés en 8 barrettes (les petites d'abord n'en sauvaient que ${petitesDabord} g)`);
   }
+}
+
+/* ── La migration du corner unique vers les corners pluriels ──────────────────
+   Elle a failli manger une partie en cours : `shelterDefaults()` fournit TOUJOURS un
+   `corners.pdv` neuf, donc la première condition (« corners.pdv manque ») n'était jamais
+   vraie et l'ancien corner partait en silence. Le contrôle rejoue la fusion telle que le
+   jeu la fait, avec une sauvegarde à l'ancienne forme. */
+{
+  const ancien = { res: 77, bac: 340, prix: 13, chouffes: 2,
+    tampon: { 2: 11, 5: 3 }, tamponQ: 71, queue: [], ledger: [{ x: 1 }], seq: 9, combo: 2.5 };
+  // la fusion du jeu, à l'identique
+  const shelter = { ...shelterDefaults(), pdv: ancien };
+  let corners = { ...(shelter.corners || {}) };
+  if (shelter.pdv) {
+    corners = { ...corners, pdv: { ...cornerDefaults(), ...(corners && corners.pdv), ...shelter.pdv } };
+  }
+  const c = corners.pdv;
+  const garde = ["res", "bac", "prix", "chouffes", "tamponQ", "seq", "combo"]
+    .filter((k) => c[k] !== ancien[k]);
+  const stock = JSON.stringify(c.tampon) === JSON.stringify(ancien.tampon);
+  ok("R1 · migrer vers les corners pluriels ne perd RIEN de la partie en cours",
+     garde.length === 0 && stock && c.ledger.length === 1,
+     garde.length ? `perdus : ${garde.join(", ")}`
+                  : `res ${c.res} · bac ${c.bac} · prix ${c.prix} · chouffes ${c.chouffes} · sacoche ${JSON.stringify(c.tampon)} · ledger ${c.ledger.length}`);
+
+  // contre-épreuve : la condition d'origine ne se déclenchait jamais
+  const naif = { ...shelterDefaults(), pdv: ancien };
+  let cN = { ...(naif.corners || {}) };
+  if (naif.pdv && (!cN || !cN.pdv)) cN = { ...cN, pdv: { ...cornerDefaults(), ...naif.pdv } };
+  ok("Contre-épreuve · l'ancienne condition de migration jetait le corner en silence",
+     cN.pdv.bac === 0 && cN.pdv.prix !== ancien.prix,
+     `elle rendait un corner NEUF (bac ${cN.pdv.bac}, prix ${cN.pdv.prix}) au lieu de bac ${ancien.bac}, prix ${ancien.prix}`);
+}
+
+/* ── Le réservoir du corner n'est pas un cliquet vers zéro ────────────────────
+   `applyDeltas` sortait avant d'appliquer `reput` et `res` quand le client n'avait pas de
+   fiche persona — or les anonymes sont 85 % du trafic (ANON_SHARE). Donc la seule voie de
+   RECHARGE du réservoir (les bonnes ventes) était coupée pour 85 % d'entre elles, tandis
+   que les ruptures le vidaient depuis quatre autres endroits et que rien ne le rechargeait
+   à la clôture. Le corner ne pouvait que mourir.
+   On rejoue ici la logique de `applyDeltas` telle que le jeu l'écrit, sur une soirée
+   d'anonymes bien servis. */
+{
+  const appliquer = (S, cl, v, corner) => {           // la version corrigée, à l'identique
+    if (v.reput) S.reput = Math.max(0, Math.min(100, S.reput + v.reput));
+    if (v.res) corner.res = Math.max(0, Math.min(100, corner.res + v.res));
+    const c = S.clients[cl.cid]; if (!c) return;
+    if (v.rel) c.rel = Math.max(0, Math.min(100, c.rel + v.rel));
+  };
+  const soiree = (appl) => {
+    const S = { reput: 20, clients: {} }, P = { res: 30 };
+    for (let i = 0; i < 40; i++) {                    // 40 anonymes, tous bien servis
+      const v = { rel: CORNER.REL_DEAL, reput: CORNER.REP_DEAL, res: CORNER.RES_DEAL };
+      appl(S, { cid: undefined, nm: "anon" }, v, P);
+    }
+    return { reput: S.reput, res: P.res };
+  };
+  const apres = soiree(appliquer);
+  ok("R4 · bien servir des anonymes crédite le standing ET recharge le réservoir",
+     apres.reput > 20 && apres.res > 30,
+     `40 ventes anonymes → standing 20 → ${apres.reput} · réservoir 30 → ${apres.res}`);
+
+  // contre-épreuve : la version d'avant, qui sortait avant tout
+  const ancienne = (S, cl, v, corner) => {
+    const c = S.clients[cl.cid]; if (!c) return;
+    if (v.rel) c.rel = Math.max(0, Math.min(100, c.rel + v.rel));
+    if (v.reput) S.reput = Math.max(0, Math.min(100, S.reput + v.reput));
+    if (v.res) corner.res = Math.max(0, Math.min(100, corner.res + v.res));
+  };
+  const av = soiree(ancienne);
+  ok("Contre-épreuve · l'ancienne version ne créditait RIEN sur une soirée d'anonymes",
+     av.reput === 20 && av.res === 30,
+     `40 ventes → standing ${av.reput} (inchangé) · réservoir ${av.res} (inchangé) — 85 % du trafic sans conséquence`);
+}
+
+/* ── Son « dernier prix » passe toujours son propre test ──────────────────────
+   Le client contre avec un montant calculé contre le menu DU MOMENT (sa tolérance en
+   dépend). Si le joueur baisse son tarif avant d'accepter, ré-évaluer contre le menu
+   COURANT lui fait refuser son propre prix : départ fâché en tapant « ✅ Vendu ».
+   On appelle ici le VRAI resolveOffer, on ne recopie rien. */
+{
+  const cl = { kind: "regulier", rel: 30, qFac: 1 };
+  const g = 5, reput = 40;
+  let refusApres = 0, refusFige = 0, cas = 0, exemple = "";
+  for (const menuAvant of [8, 10, 12, 14, 16]) {
+    // il contre, contre le menu du moment
+    const c = resolveOffer(cl, g, Math.round(g * menuAvant * 1.6), true, false, reput, menuAvant);
+    if (c.outcome !== "counter") continue;
+    for (const menuApres of [4, 5, 6, 7]) {          // le joueur BAISSE son tarif
+      if (menuApres >= menuAvant) continue;
+      cas++;
+      // (a) ré-évalué avec le menu courant — l'ancien comportement
+      const a = resolveOffer(cl, g, c.counterTotal, false, true, reput, menuApres);
+      if (a.outcome === "walk") { refusApres++; if (!exemple) exemple = `menu ${menuAvant}→${menuApres}, son prix ${c.counterTotal}`; }
+      // (b) honoré avec le menu gelé — le correctif
+      const b = resolveOffer(cl, g, c.counterTotal, false, true, reput, menuAvant);
+      if (b.outcome === "walk") refusFige++;
+    }
+  }
+  ok("R1 · accepter le « dernier prix » du client ne le fait jamais partir fâché",
+     cas > 0 && refusFige === 0,
+     `${cas} cas · avec le menu gelé : ${refusFige} départ(s)`);
+  ok("Contre-épreuve · ré-évaluer avec le menu courant le faisait refuser son propre prix",
+     refusApres > 0,
+     refusApres ? `${refusApres}/${cas} cas finissaient en départ fâché — ex. ${exemple}` : "aucun cas reproduit");
+}
+
+/* ── La liste « servable » ne contient que du servable ────────────────────────
+   `cornerQuantites` réinjectait la demande du client même quand le tampon ne la compose
+   pas. Cette liste est le RAIL du stepper de négo : y glisser une quantité inservable
+   ouvrait sur un cul-de-sac, et défaisait l'intention écrite juste en dessous — « on
+   ouvre sur le composable le plus proche », qui retombait mécaniquement sur la demande.
+   On rejoue ici les deux versions avec le VRAI `composables`. */
+{
+  const tampon = { 8: 3 };            // que du 8 g
+  const demande = 5;                  // il en veut 5 : incomposable
+  const cap = 20;
+  const brut = composables(tampon, cap);
+  const avecPush = brut.includes(demande) ? brut.slice() : [...brut, demande].sort((a, b) => a - b);
+  const corrige = brut.length ? brut.slice() : [demande];
+  const plusProche = (l) => l.reduce((a, b) => Math.abs(b - demande) < Math.abs(a - demande) ? b : a);
+
+  ok("La liste des quantités proposées ne contient que du composable",
+     corrige.every((g) => brut.includes(g)) && !corrige.includes(demande),
+     `tampon {8×3}, il veut ${demande} g → propositions [${corrige.join(", ")}]`);
+
+  ok("R8 · la négo s'ouvre sur le composable le plus proche, comme le code le promet",
+     plusProche(corrige) === 8,
+     `avec le correctif : ouvre sur ${plusProche(corrige)} g`);
+
+  ok("Contre-épreuve · réinjecter la demande faisait ouvrir sur l'inservable",
+     avecPush.includes(demande) && plusProche(avecPush) === demande,
+     `sans le correctif : liste [${avecPush.join(", ")}] → ouvre sur ${plusProche(avecPush)} g (incomposable)`);
+}
+
+/* ── La tête qu'il fait prédit le verdict qu'il rendra ────────────────────────
+   `negoFace` porte dans son propre commentaire ce qu'elle promet : « même référence que
+   resolveOffer : la tête qu'il fait doit prédire son verdict ». Elle reprenait bien les
+   deux plafonds de refus (budget, tolérance), mais pas la frontière de l'ABUS — celle
+   qui, au-dessus de ×1,2 le menu, fait basculer une vente acceptée en `gouge` : relation
+   −, standing −, et deux fois d'affilée le client ne revient plus jamais.
+
+   Conséquence pour le joueur : le visage affichait « Il suit… y a de la marge » — une
+   invitation — sur un prix qui abîmait la relation. C'est le tell qui pousse au geste
+   qui coûte, donc l'inverse de sa raison d'être (R4 : relier le résultat au geste).
+
+   On appelle ici les DEUX vraies fonctions et on compare leurs sorties ; la
+   contre-épreuve rejoue la chaîne d'avant (sans la frontière) pour montrer que ces cas
+   existaient bien. */
+{
+  const RASSURANT = { "😏": "marge", "😊": "prix menu", "😍": "belle affaire" };
+  // la chaîne d'avant : identique, moins les deux lignes de la frontière d'abus
+  const ancienne = (client, total, reput, prix) => {
+    const g = client.g || client.qty || 0, menu = prix || cornerFair(reput);
+    if (!g || !total) return { emo: "🤨" };
+    const ref = menuAt(menu, g), ppu = total / g;
+    const tol = cornerTol(client.kind, client.rel, ref) * (client.qFac || 1);
+    const bud = cornerBudget(client.kind, client.rel);
+    if (total > bud) return { emo: "😤" };
+    if (ppu > tol) return { emo: "😤" };
+    if (ppu > tol * 0.9) return { emo: "😬" };
+    if (ppu <= ref * 0.9) return { emo: "😍" };
+    if (ppu <= ref * 1.1) return { emo: "😊" };
+    return { emo: "😏" };
+  };
+
+  let acceptees = 0, menteusesAvant = 0, menteusesApres = 0, exemple = "";
+  for (const kind of ["regulier", "accro", "lowball", "hesitant", "grossiste"]) {
+    for (const rel of [0, 25, 50, 75, 100]) {
+      for (const qFac of [0.85, 1, 1.18]) {
+        for (const g of [2, 5, 8, 12, 16]) {
+          for (const reput of [10, 40, 80]) {
+            const menu = cornerFair(reput);
+            const cl = { kind, rel, g, qFac };
+            for (const total of Array.from({ length: 28 }, (_, i) => Math.max(1, R(g * menu * (0.7 + i * 0.1))))) {
+              const v = resolveOffer(cl, g, total, false, false, reput, menu);
+              if (!v.accepted) continue;
+              acceptees++;
+              if (v.outcome !== "gouge") continue;
+              if (RASSURANT[negoFace(cl, total, reput, menu).emo]) menteusesApres++;
+              const av = ancienne(cl, total, reput, menu);
+              if (RASSURANT[av.emo]) {
+                menteusesAvant++;
+                if (!exemple) exemple = `${kind} rel${rel} ${g} g à ${total} € → « ${RASSURANT[av.emo]} » mais verdict gouge`;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  ok("R4 · la tête du client ne promet jamais une marge sur un prix qui part en abus",
+     acceptees > 0 && menteusesApres === 0,
+     `${acceptees} offres acceptées balayées · ${menteusesApres} promesse(s) démentie(s)`);
+
+  ok("Contre-épreuve · sans la frontière d'abus, le visage invitait au prix qui coûte",
+     menteusesAvant > 0,
+     menteusesAvant ? `${menteusesAvant} cas — ex. ${exemple}` : "aucun cas reproduit");
 }
 
 console.log("\n─── invariants La Loupe ───");

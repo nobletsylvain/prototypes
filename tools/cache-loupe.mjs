@@ -26,6 +26,15 @@ const ok = (nom, pass, detail = "") => results.push({ nom, pass, detail });
 
 // tous les fichiers qui importent un .mjs local : index.html + les modules eux-mêmes
 const fichiers = ["index.html", ...readdirSync(DIR).filter((f) => f.endsWith(".mjs"))];
+/* Les TESTS importent eux aussi ces modules — et le garde ne regardait que `la-loupe/`.
+   Résultat : `smoke-loupe-pdv.mjs` chargeait `/la-loupe/corner.mjs?v=3` depuis la page,
+   une version figée au 20 juillet, pendant que le module était réécrit de fond en comble.
+   Le test tournait donc sur une SECONDE instance du module, périmée, à côté de celle du
+   jeu — et le garde écrit exactement pour ça affichait 3/3, parce qu'il ne balayait pas
+   ce dossier. Même faute que le `?v=19` de scene3d, à un dossier près : un garde ne
+   couvre que ce qu'on a pensé à lui montrer. */
+const TESTS = path.resolve(__dirname);
+const fichiersTests = readdirSync(TESTS).filter((f) => f.endsWith(".mjs"));
 // DEUX formes d'import, et il a fallu se faire avoir pour s'en souvenir :
 //   statique  : import … from "./x.mjs?v=N"
 //   dynamique : import("./x.mjs?v=N")        ← pas de `from`
@@ -45,6 +54,13 @@ for (const f of fichiers) {
     re.lastIndex = 0;
     for (const m of src.matchAll(re)) imports.push({ dans: f, module: m[1], v: m[3] || null });
   }
+}
+// côté tests, le chemin est absolu depuis la racine servie : "/la-loupe/x.mjs?v=N"
+const RE_TEST = /["']\/la-loupe\/([\w-]+\.mjs)(\?v=(\d+))?["']/g;
+for (const f of fichiersTests) {
+  const src = readFileSync(path.join(TESTS, f), "utf8");
+  RE_TEST.lastIndex = 0;
+  for (const m of src.matchAll(RE_TEST)) imports.push({ dans: "tools/" + f, module: m[1], v: m[3] || null });
 }
 
 // ── 1. aucun import sans version ───────────────────────────────────────────

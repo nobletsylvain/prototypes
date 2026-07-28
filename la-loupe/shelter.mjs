@@ -91,11 +91,23 @@ export function shelterDefaults() {
     paidOff: false,
     selectedPin: null,
     mapTipSeen: false,
-    // PDV (corner) — point de vente à 3 curseurs, vente par client (file + ledger)
-    // combo : chaîne de deals JUSTE de la soirée (négo Phase B) — remis à 1 à la clôture / sur raté
-    pdv: { res: 30, bac: 0, advQ: 0, prix: 10, chouffes: 0,
-      tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0, combo: 1 },
+    /* Les corners sont PLURIELS depuis le début, même quand il n'y en a qu'un.
+       Le jeu n'en connaissait qu'un seul (`shelter.pdv`), ce qui rendait impossible
+       tout ce qui suit : une sacoche qui tourne entre deux points, un charbonneur qui
+       tient l'un pendant que tu es à l'autre, et le choix « lequel je ravitaille, lequel
+       j'encaisse ce soir ». Avec un point de vente unique, une rotation n'est pas une
+       rotation, c'est une navette. */
+    corners: { pdv: cornerDefaults() },
+    cornerId: "pdv",          // celui qu'on regarde
   };
+}
+
+/** L'état d'UN corner. `combo` = chaîne de deals JUSTE de la soirée, remis à 1 à la clôture. */
+export function cornerDefaults(over) {
+  return { res: 30, bac: 0, advQ: 0, prix: 10, chouffes: 0,
+    tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0, combo: 1,
+    charbonneur: null,        // qui le tient quand tu n'y es pas (null = personne)
+    ...(over || {}) };
 }
 
 /** Boot d'ouverture : Karim te file 100 g à crédit. Une seule fois. */

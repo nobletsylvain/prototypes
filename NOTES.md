@@ -9,6 +9,747 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Le garde du cache ne regardait pas dans `tools/`
+
+Repéré en travaillant sur le verrou de carte : `smoke-loupe-pdv.mjs` importait
+`/la-loupe/corner.mjs?v=3` — une version figée au 20 juillet, pendant que le module était
+réécrit de fond en comble. Le smoke tournait donc sur une **seconde instance** du module,
+périmée, à côté de celle du jeu.
+
+C'est exactement la faute que `cache-loupe.mjs` a été écrit pour attraper — le `?v=19` de
+`scene3d`. Le garde affichait pourtant 3/3, parce qu'il ne balayait que `la-loupe/`.
+
+Troisième fois que la même leçon revient sous un habit différent : **un garde ne couvre que
+ce qu'on a pensé à lui montrer**. La première fois c'était une forme d'import (statique vs
+dynamique), la deuxième une forme de mot (texte affiché vs identifiant), celle-ci un
+dossier. À chaque fois le garde existait, à chaque fois il rassurait à tort.
+
+`cache-loupe.mjs` balaie maintenant aussi `tools/`. La version reste **littérale** dans le
+test, exprès : le garde refuse toute divergence, donc l'oubli est impossible, alors qu'un
+calcul dynamique passerait sous son nez sans rien vérifier.
+
+## 2026-07-28 — Le revers du tap mort : l'appui qui atterrit sur quelqu'un d'autre
+
+Dixième et dernière trouvaille de la chasse. Même racine que les taps morts corrigés hier
+— une carte reconstruite en place — mais la panne est **inverse**.
+
+Le tap mort, c'est le nœud détruit *sous* le doigt : rien ne se passe. Ici le nœud n'est pas
+détruit sous le doigt, il est **remplacé entre deux appuis** par la carte du client suivant,
+aux mêmes pixels, avec les mêmes libellés. Le joueur a lu une carte, décidé, et son appui
+s'exécute **sur une autre personne**.
+
+Mesuré — deux appuis au **même point** (81,748), 230 ms d'écart, file de deux anonymes dont
+les offres viennent de `makeAnon` (donc en bande, état non fabriqué) :
+
+```
+  1er appui : « ✅ OK 20 » (Le premier)  → vente 2 g / 20 €
+  2e appui  : même pixel, la carte est devenue « ✅ OK 47 » (Le suivant)
+  résultat  : DEUX ventes — ledger [Le suivant 4 g/38 €, Le premier 2 g/20 €]
+```
+
+La seconde vente porte sur un client dont la carte n'a **jamais été lue**.
+
+Correctif en deux morceaux, parce qu'un seul ne suffit pas :
+
+- **`CARD_LOCK_MS` (320 ms)** — la carte d'un client qu'on découvre n'accepte aucun appui
+  tant qu'elle glisse. Le verrou ne s'arme que sur un **changement de client** : un cran de
+  stepper, une modification de prix, un re-rendu pour le même client restent immédiats.
+  Sinon on aurait remplacé un tap qui atterrit au mauvais endroit par un tap qui meurt —
+  l'autre moitié du même problème.
+- **Un liseré sur la carte neuve.** `cslide` jouait déjà, mais **à l'identique** pour un
+  simple re-rendu et pour un changement de client : rien ne signalait que la personne en
+  face avait changé. Le verrou seul aurait juste mangé un appui sans dire pourquoi.
+
+Le test `tap-loupe.mjs` porte les deux moitiés : l'appui volé est bloqué, **et** l'appui
+suivant marche normalement une fois le verrou relâché.
+
+### Ce que le correctif a révélé dans le smoke test
+
+`smoke-loupe-pdv.mjs` enchaînait ses clics toutes les **250 ms** — plus vite que le verrou,
+donc plus vite qu'un joueur qui *lit* la carte devant lui. Il est passé au rouge, ce qui est
+la bonne réaction : il pilotait le jeu à une cadence qu'aucune main n'atteint. Son rythme
+lit maintenant `CARD_LOCK_MS` dans la source, pour qu'il suive si la constante bouge au lieu
+de figer un nombre qui redeviendrait faux en silence.
+
+## 2026-07-28 — L'hésitant partait en « rupture » avec 24 g dans la sacoche
+
+Neuvième trouvaille. Les deux boutons de l'hésitant servaient des grammages **fixes** —
+son habituel, ou 2 g — jamais confrontés à la sacoche. Une barrette ne se casse pas : une
+sacoche de 24 g en barrettes de 8 ne compose pas 5 g. Mesuré :
+
+```
+  sacoche {8:3} — 24 g bien réels · Sofia veut son 5 g habituel
+  bouton offert : « 💬 Son 5 g habituel »
+  tap           → « Rupture — charge ta sacoche (Gérer). » · réservoir 90 → 88,8
+```
+
+Perte sèche sur un bouton **offert par le jeu**, stock plein en main — et un message faux
+par-dessus : la sacoche *est* chargée, c'est le **format** qui ne convient pas.
+
+C'est exactement la classe de bug déjà fermée pour le rail du stepper de négo (« la liste
+servable ne contenait que de l'inservable »). Elle était restée ouverte ici : le correctif
+avait été appliqué à l'endroit où on l'avait vu, pas à la classe. **Troisième fois en deux
+jours** qu'une faute survit à côté de sa jumelle réparée.
+
+Correctif : on sert le composable le plus proche, et le bouton l'**annonce** — « Son 5 g
+habituel » quand on peut le lui donner, « Au plus près · 8 g » quand le format oblige à
+s'en écarter. Le joueur voit que c'est sa **sacoche** qui décide, ce qui en fait une
+information de jeu au lieu d'un mur (R2 : la composition de la sacoche devient un levier
+lisible). Quand les deux boutons retombent sur la même quantité, le second n'offre plus de
+choix : il disparaît.
+
+La récompense de l'attention reste acquise même quand le format oblige à s'écarter — sinon
+la contrainte de sacoche redeviendrait une amende. En revanche la réplique ne peut plus
+dire « C'est EXACTEMENT ça » sur 8 g quand il en voulait 5 : `lu` n'est mérité que si on
+lui a servi **son** grammage. Le test vérifie les deux sens — que la sacoche qui compose
+pile son habituel le lui serve, et garde sa réplique.
+
+## 2026-07-28 — Négocier tranquillement coûtait le multiplicateur, en silence
+
+Huitième trouvaille — et c'est **l'autre moitié de la précédente**, laissée sur place par
+un audit qui n'avait corrigé que sa voisine.
+
+Le gel de patience ne protège que le client de **tête** : le fond de file continue de
+fondre pendant qu'on négocie. Or une expiration **n'importe où** dans la file remettait le
+combo à 1. Mesuré — file de 4, tête en « nego », on ne touche à rien pendant 5 s :
+
+```
+  t0    chip ⚡×2.5 · file 4 · tête « nego » pat 22
+  t+5s  chip ⚡×1   · file 2 · tête « nego » pat 22
+  message à l'écran : aucun
+```
+
+Le client **en face** n'a rien raté — il garde toute sa patience. C'est prendre le temps de
+bien négocier, ce que la carte invite explicitement à faire, qui coûtait le multiplicateur.
+Sans un mot.
+
+**Ce qui rend le diagnostic sûr : le commentaire au-dessus de la ligne la condamne.** Il dit
+qu'un client qui se lasse est « une VENTE PERDUE, pas une amende », et que ponctionner `res`
+« punissait la LENTEUR DE LA MAIN — exactement ce que R1 interdit ». L'audit d'alors a retiré
+la ponction de `res`… et laissé `P.combo=1` sur la même ligne, sous ce commentaire.
+
+C'est très exactement le mode de défaillance que R11 décrit : **la moitié visible réparée, la
+même faute survivant à côté** sous une autre forme. Deux fois en deux jours, sur deux sujets
+sans rapport (l'orthographe d'ARAH, puis ce combo). La leçon tient : ce qui n'est pas
+vérifié mécaniquement revient.
+
+Correctif : l'expiration ne touche plus au combo.
+
+### Conséquence d'équilibrage, à valider
+
+Il ne reste plus qu'**une seule** façon de perdre le combo en cours de soirée : le `walk`,
+c'est-à-dire s'être trompé de prix — et il est annoncé par `negoFace` **avant** le bouton
+(R8). Le combo devient donc littéralement « depuis quand tu n'as pas mal tarifé », ce qui est
+cohérent avec ce qu'il prétend être, mais **plus facile à tenir haut** qu'avant.
+
+**[DÉCISION REQUISE]** : ×3 tenable toute une soirée sur un pourboire de 18–22 %, est-ce le
+bon plafond ? Si c'est trop, le levier propre est `COMBO_MAX` / `COMBO_STEP` (constantes
+nommées, `corner.mjs:14`) — pas le retour d'une amende sur la lenteur.
+
+## 2026-07-28 — « aucun malus » s'affichait pendant que le combo tombait de ×3 à ×1
+
+Septième trouvaille. Recaler un profil louche qui s'avère être un vrai client affiche
+« 🙄 C'était un vrai client… vente perdue (aucun malus). » — et remettait le combo à 1.
+
+Le combo, c'est la chaîne de prix justes de la soirée : multiplicateur de pourboire
+jusqu'à ×3, affiché en permanence dans la chip ⚡×N. Mesuré en navigateur, le geste réel,
+avec un pigeon en file et un combo plein :
+
+```
+  avant le geste : chip ⚡×3
+  après le geste : chip ⚡×1     message : « vente perdue (aucun malus) »
+```
+
+Les deux dans la **même frame**. Le joueur lit « aucun malus » en regardant son multiplicateur
+s'effondrer.
+
+**Trois indices disaient que c'était un lapsus, pas une intention.** Le cas frère — recaler
+un client normal — porte le même libellé « (aucun malus) » et ne touche à rien. La branche
+d'à côté dans la *même fonction* — flairer un vrai flic, donc la bonne issue — préserve le
+combo. Et le commentaire qui gouverne la ligne annonce « juste une vente perdue, R1 ». Le
+code contredisait son propre commentaire, son propre message et son cas frère.
+
+Correctif : le refus ne touche plus au combo. Il se casse quand on se **trompe de prix**
+(walk), pas quand on **renonce à vendre**.
+
+Le contrôle ajouté à `cause-loupe.mjs` est volontairement général : il ne vérifie pas
+« le combo », il vérifie que **rien** de ce que le joueur voit ne se dégrade pendant qu'on
+lui promet le contraire (combo, standing, réservoir). Contre-épreuve faite en repassant le
+contrôle sur l'`index.html` d'avant correctif : il échoue, `⚡×3 → ⚡×1`.
+
+### Repéré au passage, pas corrigé
+
+`cornerResolveLouche` remet aussi le combo à 1 sur la **vente** au pigeon — celle que le jeu
+présente comme une réussite (« client réglo, grosse vente propre »). Là, aucun message ne
+ment : c'est silencieux, pas contradictoire. C'est donc une question d'équilibrage, pas un
+bug — **[DÉCISION REQUISE]** : une grosse vente hors bande « prix juste » doit-elle casser
+la chaîne, ou seulement ne pas l'allonger ?
+
+## 2026-07-28 — La tête du client promettait une marge sur le prix qui casse la relation
+
+Sixième trouvaille de la chasse à la logique, corrigée. `negoFace` — le visage qui réagit
+pendant qu'on règle le prix — reprenait les deux plafonds de **refus** de `resolveOffer`
+(budget, tolérance) mais pas la **frontière de l'abus** : celle qui, au-dessus de ×1,2 le
+menu, fait basculer une vente pourtant *acceptée* en `gouge` (relation −, standing −, et
+deux fois d'affilée le client ne revient plus jamais).
+
+La fonction porte pourtant sa propre promesse en commentaire : *« même référence que
+resolveOffer : la tête qu'il fait doit prédire son verdict »*. Elle ne la tenait pas, et
+rien ne le vérifiait.
+
+Mesuré avant de toucher au code, sur le vrai module — 3 033 offres acceptées balayées
+(kind × rel × qFac × grammage × standing) :
+
+```
+  88 cas où le visage rassure alors que le verdict est « gouge »
+  ex. regulier rel100 · 2 g à 17 € → « Il suit… y a de la marge. »  →  gouge
+```
+
+C'est le pire type de tell : il n'est pas silencieux, il **invite** — au geste qui coûte.
+Un tell muet laisse le joueur prudent ; celui-là le pousse.
+
+Correctif : la même frontière, calculée de la même façon (`ref × NEGO_MAX × max(1, qFac)`),
+avec son propre visage — 😒 *« Il paiera… mais il retiendra. »* Après : **0 sur 3 033**.
+
+**Contre-épreuve, dans les deux sens.** Le test rejoue la chaîne d'avant (identique, moins
+les deux lignes ajoutées) et compte 88 cas ; en repassant le contrôle principal sur le
+`corner.mjs` d'avant correctif, il **échoue à 88** — le même nombre. Cette égalité vaut
+validation de la reconstitution elle-même : si ma copie du code retiré avait dérivé, les
+deux comptes auraient divergé.
+
+## 2026-07-28 — Le HUD mentait sur la chaleur, et deux sceptiques m'avaient dit que non
+
+Suite de l'audit. Onze trouvailles confirmées au total ; deux d'entre elles étaient
+**contredites entre lentilles** — une lentille les confirmait, un sceptique les réfutait
+en raisonnant sur les appelants de `hud()`.
+
+J'ai mesuré au lieu de trancher sur le raisonnement. Sonde en navigateur, corner ouvert,
+on ne touche à rien pendant 12 secondes :
+
+```
+  t+2.5s   HUD « chaleur 0 » · chip « 🔥 7 »  · état réel 6
+  t+5s     HUD « chaleur 0 » · chip « 🔥 13 » · état réel 10
+  t+12.5s  HUD « chaleur 0 » · chip « 🔥 31 » · état réel 30
+```
+
+**Le sceptique avait tort.** `hud()` n'est appelée que sur événement discret — navigation,
+vente, fin de journée. Or au corner la chaleur monte **en continu**, sans événement.
+Résultat : deux nombres contradictoires à l'écran en même temps, sur la jauge qui décide
+de la descente — et celui du haut est le seul qu'on voit depuis les autres écrans.
+
+Sur les captures de Sylvain les deux coïncidaient, ce qui m'aurait rassuré à tort : elles
+étaient prises juste après une navigation ou une vente, donc juste après un `hud()`.
+
+### Et la barre du jour ne progressait pas non plus
+
+La seconde trouvaille contredite portait sur la pastille de jour. Même mesure, sur le
+Quartier cette fois, sans rien toucher :
+
+```
+  t+4s   barre « 0 % » · avancement réel 2 %
+  t+16s  barre « 0 % » · avancement réel 9 %
+```
+
+**Une barre de progression qui ne progresse pas.** Deux sceptiques contredits par la
+mesure, deux fois sur deux.
+
+### Le correctif : global, pas propre au corner
+
+Mon premier jet patchait la chaleur dans `pdvPatch` — donc uniquement au corner. Or ces
+deux pastilles bougent sur **tous** les écrans : la journée avance partout, et la chaleur
+monte aussi hors du corner (la dérive du liquide qui dort tourne dans `frame()`).
+
+Une source unique, `hudLive()`, appelée depuis la boucle et bridée à 4 Hz. Deux écritures
+de texte et un dégradé : aucun nœud interactif reconstruit — le tap mort est venu de là,
+on ne rouvre pas cette porte.
+
+Après : `HUD 31 · chip 31`, et la barre passe de 3 % à 9 % en suivant la journée.
+
+### Et la clôture de journée ne rafraîchissait que le corner
+
+Dernière trouvaille de l'audit : `advanceDay` rebat tout — liquide (paie des chouffes),
+stock, marché, standing, hit de planque, prix des upgrades — mais ne re-rendait **que** le
+corner. Sur n'importe quel autre écran, le corps gardait les chiffres de la veille jusqu'à
+ce qu'on navigue. Le bloc « Réinvest » du Quartier annonçait notamment une abordabilité
+périmée.
+
+Gravité réelle : faible, parce que l'achat **est gardé** (`if(S.dirty<cost)` → toast). Ce
+n'est pas une perte sèche, c'est un écran qui ment. Corrigé quand même : la bascule est
+rare (toutes les 180 s) et discrète, donc re-rendre l'écran courant n'y risque pas le tap
+mort — contrairement à un rendu par frame.
+
+### Bilan de la nuit : six correctifs, une seule famille
+
+Cinq des six sortent du même motif — **une couche de mise à jour incrémentale qui ne
+couvre pas tout ce que le rendu initial a écrit**. C'est la quatrième fois de la semaine.
+La règle qui se dégage, et qui vaut mieux que « relire les patchs » :
+
+> Tout ce que le joueur LIT et qui peut changer **sans qu'il agisse** doit être produit
+> par une fonction rafraîchie depuis la boucle — jamais écrit en dur dans un template.
+
+Trois catégories de choses bougent sans geste : le **temps** (la journée), les **jauges
+continues** (la chaleur), et les **conséquences différées** (la clôture). Elles étaient
+toutes les trois affichées comme des photos.
+
+---
+
+
+
+### Ce que ça dit sur la méthode
+
+Le panel de sceptiques est là pour **tuer les fausses pistes**, et il le fait bien — sept
+trouvailles écartées à raison. Mais il peut aussi tuer une vraie, parce qu'un sceptique
+lit le code et conclut, là où le bug ne se voit qu'à l'exécution. La règle qui se dégage :
+**quand une trouvaille porte sur ce que le joueur LIT, on la mesure ; on ne la
+raisonne pas.** Un `getElementById` et douze secondes d'observation tranchent ce que trois
+lectures de code n'arrivent pas à trancher.
+
+C'est la même leçon que le `RELACHE_MIN` de ce matin, dans l'autre sens : là j'avais
+conclu « instable » sans mesurer, ici j'ai failli conclure « faux positif » sans mesurer.
+
+### Vérification
+
+`cause-loupe` passe à 7/7. Contre-épreuve : sans le correctif, `HUD 0 · chip 12`.
+Le contrôle porte un garde `aMonte` — si la chaleur ne monte pas (sacoche vide → corner
+fermé → activité nulle), il échoue bruyamment au lieu de passer à vide. Il a d'ailleurs
+attrapé exactement ça à son premier jet.
+
+---
+
+## 2026-07-28 — Le tiroir « Gérer » décidait sur des chiffres périmés
+
+Audit systématique de la classe de bug qui a mordu trois fois cette semaine (un
+affichage qui ne suit pas l'état). **Quatre trouvailles, toutes classées « trompe une
+décision », toutes dans le tiroir du corner, et toutes la même racine.**
+
+### La racine unique
+
+`openDr` ouvre le tiroir en **pur CSS** (`display:block` + `transform`). Le corps a été
+construit une fois, dans `renderCorner`. Tout ce que `pdvPatch` ne vise pas explicitement
+reste donc figé à la dernière construction complète de l'écran.
+
+### Les quatre mensonges
+
+1. **Les compteurs de la sacoche.** Tu charges 20×2 g + 6×5 g, tu fermes, tu sers quatre
+   clients, tu rouvres : les lignes disent toujours 20 et 6, pendant que le total
+   « Exposé » affiché **trois lignes plus bas** dit 17 barrettes. *Deux vérités
+   contradictoires dans le même panneau*, au moment précis où on décide quoi recharger.
+   Et la ligne « Sert : » listait des quantités que le tampon ne composait plus — celle-là
+   même qu'on avait ajoutée pour supprimer la devinette.
+2. **La tête du client.** Tu montes ton prix dans le tiroir, tu refermes : la carte
+   affiche toujours « prix menu » et 😊. Tu tapes « ✅ OK », et `resolveOffer` évalue avec
+   le NOUVEAU tarif → contre-offre ou départ. La grimace promise avant le bouton avait
+   menti.
+3. **L'argumentaire des chouffes.** « ouverture 49 s → 119 s avec un de plus » est daté de
+   l'ouverture du tiroir, alors que la chip du haut affiche déjà « 🔥 88 · 4 s ». C'est le
+   seul chiffre qui justifie de lâcher 60/soir.
+4. **Le conseil de prix.** « au prix du marché » reste affiché pendant que le marché
+   monte avec la réputation. Tu te retrouves sous le marché sans le savoir — donc plus de
+   clients, donc plus de chaleur — sans pouvoir relier l'un à l'autre.
+
+### Le correctif : un seul, à la racine
+
+- **À l'ouverture** du tiroir, on repart de l'état réel. C'est un événement **discret** —
+  le doigt n'est pas en train d'appuyer sur un bouton du tiroir — donc reconstruire ici
+  ne peut pas rouvrir le tap mort.
+- **Pendant** qu'il est ouvert, les deux textes qui bougent tout seuls (chouffes, conseil
+  de prix) sont patchés en `textContent` par `pdvPatch`. Jamais d'`innerHTML` sur un
+  conteneur de boutons.
+- **Changer son prix** rappelle `renderCornerActive` : la promesse faite au joueur doit
+  suivre le tarif qu'il vient de fixer.
+- `prixHint` était une **fermeture** dans `renderCorner`, capturant le marché du moment —
+  donc structurellement impossible à rafraîchir. Extrait en `prixHintTx`, une seule
+  source.
+
+### Le piège de test, une troisième fois
+
+Premier jet du contrôle : j'écrivais le tampon dans le `localStorage` puis je
+rechargeais. `evaluateOnNewDocument` **rejoue à chaque navigation** et écrasait mon
+écriture — le test passait en affichant `avant 20 · vrai 20`, c'est-à-dire **en ne
+prouvant rien**. Réécrit pour **vendre pour de vrai** (cliquer le bouton du client), avec
+un garde `aBouge` qui fait échouer bruyamment si aucune vente n'a eu lieu.
+
+C'est la troisième fois cette nuit que ce piège me prend. Il est désormais commenté à
+l'endroit exact où il mord, dans les deux fichiers de test concernés.
+
+### Vérification
+
+13/13 sur `bulles-loupe`. Contre-épreuve : sans le rafraîchissement à l'ouverture, le
+tiroir annonce **20** quand l'état réel est **10**.
+
+---
+
+## 2026-07-28 — Un libellé de test qui mentait (le grossiste et ses bornes fantômes)
+
+En vérifiant un écart que j'avais chiffré il y a des jours sans jamais le contrôler
+(« le grossiste paie 432 en DM alors que sa poche au corner est de 260 »), j'ai trouvé
+autre chose : **l'écart n'existe pas, mais trois textes affirment qu'il devrait**.
+
+Un commentaire de `corner.mjs` déclare : *« `TOL`/`BUDGET`/`OFFER.grossiste` restent
+définis : ils bornent le prix du DM. »* C'est faux. `snap.mjs` n'importe de `corner.mjs`
+que `menuAt`, `personaById`, `rueCalibre` et `RUE_MIN` — jamais `BUDGET`, jamais `TOL`.
+Le prix du gros sort du barème volume commun, ce qui est **le bon comportement** (une
+seule échelle de prix dans tout le jeu, c'était un correctif délibéré). Sa poche de 260
+est un vestige de l'époque où il faisait la queue au corner.
+
+Le plus gênant : **le libellé d'un invariant répétait la même affirmation** — « Les
+bornes du kind grossiste restent définies (elles bornent le DM) ». Un libellé de test est
+l'endroit le plus crédible du dépôt : il passe au vert à chaque exécution, donc il se lit
+comme une vérité vérifiée. Il ne vérifiait pourtant qu'une chose, que les constantes sont
+`!= null`. La prochaine session aurait raisonné à partir de là.
+
+Corrigé aux trois endroits, en disant ce qui est vrai : ces constantes ne bornent rien
+aujourd'hui, on les garde pour que la persona reste bien formée et parce qu'un grossiste
+qui repasserait un jour par la file du corner en aurait besoin.
+
+C'est la même leçon que R11, appliquée au code plutôt qu'au vocabulaire : **une
+affirmation qui survit finit par être crue**. Un test qui décrit mal ce qu'il vérifie est
+pire qu'un test absent.
+
+### Fausse piste, notée pour ne pas la refaire
+
+J'ai aussi soupçonné un trou de lisibilité côté BeuherShit : le lancement refuse de
+partir si un coursier serait saisi (« CHAUD — allège la charge »), et je pensais que rien
+n'indiquait **lequel**. Vérification faite, le bandeau « Flotte » affiche déjà une puce de
+risque par coursier, avec la charge et le cap. Pas de trou. Vérifier avant d'affirmer a
+économisé un correctif inutile.
+
+Reste, pour mémoire, que le `busted` post-mortem (`SAISI`, `Constater`, 🚨) est du contenu
+**inatteignable** : `runBusted` sert à refuser le départ, puis les tournées sont créées
+avec `busted:false` en dur. La plomberie est prête si on veut un jour qu'un coursier se
+fasse prendre — ce n'est pas un bug, c'est une porte fermée.
+
+---
+
+## 2026-07-28 — La liste « servable » contenait de l'inservable
+
+Sixième bug de la chasse. `cornerQuantites` calcule les quantités que le tampon compose
+vraiment (`snap.composables`), puis **réinjecte la demande du client** même quand elle
+n'en fait pas partie :
+
+```js
+const liste = snap.composables(P.tampon||{}, cap);
+if(!liste.includes(cl.g) && cl.g>0) liste.push(cl.g);   // ← la ligne fautive
+```
+
+Cette liste est le **rail du stepper** de négociation. Y glisser une quantité inservable
+ouvre la négo sur un **cul-de-sac** : un seul bouton, qui ne peut pas aboutir.
+
+### Le pire : ça défaisait l'intention écrite juste en dessous
+
+Trois lignes plus bas, le code promet :
+
+> « on ouvre sur le composable le plus proche de sa demande : quand le tampon ne fait que
+> du 8 g et qu'il en veut 5, la carte s'ouvre **déjà sur 8 g** »
+
+Sauf que le `reduce` du « plus proche de `cl.g` » tombe **mécaniquement sur `cl.g`**
+puisqu'on vient de l'ajouter. La carte n'ouvrait donc **jamais** sur le 8 g qu'on avait
+réellement. Un commentaire qui décrit une intention que la ligne d'à côté annule.
+
+C'est le troisième cas cette nuit où **le code dit une chose et fait l'autre** — après le
+libellé de test sur les bornes du grossiste, et le commentaire sur la sur-livraison que
+`cancel` rouvrait.
+
+### Le correctif
+
+On ne réinjecte plus. Dernier recours seulement : si **rien** n'est composable, on garde
+sa demande comme ancre pour que le stepper ait un index — la carte dit déjà « aucune
+barrette ne compose N g », et la vente part en rupture **annoncée**.
+
+Mesuré avec le vrai `composables` : tampon `{8×3}`, demande 5 g → propositions `[8, 16]`,
+et la négo ouvre bien sur **8**. Contre-épreuve : avec la réinjection, la liste devient
+`[5, 8, 16]` et la négo ouvre sur **5**, incomposable.
+
+---
+
+## 2026-07-28 — Le client refusait le prix qu'il venait lui-même d'annoncer
+
+Cinquième bug de la chasse. Le client contre avec un « dernier prix », calculé contre le
+menu **du moment** — sa tolérance en dépend :
+
+```js
+const t2 = Math.max(1, Math.min(Math.floor(g*tol*0.97), Math.floor(bud)));
+```
+
+Mais `accept2` rappelle `resolveOffer` avec le menu **courant**. Si le joueur baisse son
+tarif entre la contre-offre et l'acceptation, `fair` baisse, donc `tol` baisse, donc le
+montant que le client venait d'annoncer dépasse sa propre tolérance : **`walk`**. Un
+départ fâché en tapant « ✅ Vendu », sur un prix que le client a lui-même fixé.
+
+Mesuré avec le vrai `resolveOffer` : **20 cas sur 20** finissent en départ.
+
+Le correctif gèle le menu au moment de la contre-offre et l'honore. Le commentaire de
+`resolveOffer` disait déjà que ce prix « doit TOUJOURS passer son propre test (R4) » — le
+cas de l'**arrondi** avait été fermé, celui du **changement de menu** était resté ouvert.
+
+Le contrôle appelle le module réel et balaie les couples (menu avant, menu après) ; la
+contre-épreuve prouve les 20/20.
+
+---
+
+## 2026-07-28 — Le menu annonçait un tarif que le corner ne facture jamais
+
+Le tiroir affichait le menu par format en `g × prix` brut. Or **toute** vente passe par
+`menuAt`, c'est-à-dire par le rabais au volume que Sylvain avait demandé (« le prix au
+gramme d'un 8 g doit être plus attractif que celui d'un 2 g »).
+
+Mesuré à 10/g :
+
+| format | affiché | encaissé | écart |
+| --- | --- | --- | --- |
+| 2 g | 20 | 20 | 0 % |
+| 5 g | 50 | 46 | 8 % |
+| 8 g | 80 | 68 | **15 %** |
+| 12 g | 120 | 96 | 20 % |
+| 20 g | 200 | 150 | **25 %** |
+
+Le rabais est **voulu** — ce n'est pas lui le bug. Le bug, c'est que la ligne sur laquelle
+le joueur **règle son tarif** annonce un nombre que le jeu ne pratique nulle part. Il
+calibrait son prix sur une fiction, jusqu'à un quart au-dessus (R4).
+
+Une seule source, `menuFmtTx`, comme pour `prixHintTx` — les deux sites d'affichage la
+partagent. Le contrôle vérifie que les lignes ne sont pas toutes au tarif brut ; la
+contre-épreuve, elle, en trouve 3 sur 3.
+
+---
+
+## 2026-07-28 — 85 % des ventes ne comptaient pas, et le corner mourait de ça
+
+Deux trouvailles de la chasse de nuit, rapportées séparément par deux lentilles
+différentes. **C'est le même bug**, et une seule ligne ferme les deux.
+
+### Le défaut
+
+```js
+function applyDeltas(cl, v){
+  const c=S.clients[cl.cid]; if(!c) return;   // ← tout est derrière ce garde
+  …
+  if(v.reput) S.reput = …
+  if(v.res)   P.res   = …
+}
+```
+
+Le garde protège la **fiche persona**. Mais `reput` et `res` sont **globaux** : ils n'ont
+besoin d'aucune fiche. Or un client anonyme n'a pas de `cid`, et `ANON_SHARE = 0.85` —
+**85 % du trafic**.
+
+Donc 85 % des ventes ne créditaient **ni standing ni réservoir**, pendant que le verdict
+affichait 😍 et que le toast annonçait la récompense. Le joueur ne pouvait pas relier son
+résultat à son geste (R4), pour la écrasante majorité de ses gestes.
+
+### Pourquoi le corner mourait
+
+`res` monte de `RES_DEAL` sur une bonne vente, descend de `RES_WALK` sur un départ. Mais
+les **ruptures** le font baisser depuis **quatre autres endroits**, qui ne passent pas par
+`applyDeltas` — et **rien ne le recharge à la clôture**.
+
+La seule voie de recharge, les bonnes ventes, était donc coupée pour 85 % d'entre elles.
+Résultat : un réservoir **à sens unique**, qui ne peut que fondre. À 0, le corner est mort
+définitivement, sans issue — R1 dans sa forme la plus dure, un blocage de progression.
+
+La seconde lentille avait rapporté ça comme un bug distinct (« `P.res` est un cliquet »).
+C'était la **conséquence** du premier, pas une cause séparée.
+
+### Le correctif
+
+Sortir les deux effets globaux **avant** le garde. Le garde reste, pour ce qui est
+réellement per-persona : la relation et le compteur d'abus.
+
+### Vérification
+
+Un invariant rejoue une soirée de 40 anonymes bien servis : standing 20 → 60, réservoir
+30 → 100. La contre-épreuve rejoue l'ancienne version sur la même soirée : **standing 20,
+réservoir 30, inchangés** — quarante ventes sans la moindre conséquence.
+
+---
+
+## 2026-07-28 — « Annuler » offrait des grammes en silence
+
+La chasse de nuit sur la logique a rendu. Sa première trouvaille est une violation de R1
+franche, et **trois sceptiques indépendants l'ont reproduite en exécutant les vrais
+modules — 0 sur 3 la réfutent**.
+
+### Le défaut
+
+`cancel` remettait `cl.mode="offer"` et **laissait `cl.propG` posé** :
+
+```js
+if(a==="cancel"){ cl.mode="offer"; return renderCornerActive(P); }
+```
+
+La carte « offre » réaffiche alors `cl.g` et `cl.offer` — l'offre d'origine — pendant que
+`cornerResolve` exécute sur `propG(cl)`, resté à la valeur du brouillon. **Le montant vient
+de la carte, les grammes viennent d'un état invisible.**
+
+Séquence : un client demande 5 g → « ↔️ Autre quantité » → un tap sur `+` (le brouillon
+passe à 6) → on se ravise, « Annuler » → la carte réaffiche « [5 g → 48] » → « ✅ OK 48 ».
+Résultat mesuré : **6 g sortent pour le prix de 5**.
+
+Le bouton le plus neutre de l'écran produisait une perte sèche non annoncée.
+
+### L'ironie
+
+Le commentaire situé trois lignes plus haut déclare : *« l'ancien code sur-livrait en
+silence (24 g pour 5) »*. Le garde `cornerComposable` protège bien le chemin direct — et
+`cancel` rouvrait exactement la même sur-livraison par la porte de derrière.
+
+### Deux fois où j'ai failli écrire un test qui ne prouve rien
+
+**1. Comparer au ledger.** Premier jet : « les grammes débités == ceux du ledger ». Les
+deux sortent du **même chemin de code** : si le jeu débitait 6 et écrivait 6 au ledger, le
+contrôle passait au vert pendant que la carte affichait 5. Il faut comparer à ce que la
+**carte** annonce — c'est la promesse faite au joueur, et c'est la seule référence externe.
+
+**2. Comparer à l'égalité.** Deuxième jet : « débité == annoncé ». Il a échoué… sur un
+comportement **légitime** : quand le tampon ne compose pas la quantité demandée, la vente
+est partielle et facturée au prorata (4 g pour 38 au lieu de 5 g pour 48). La carte le dit
+(« ton tampon ne compose que 4 g »), et le joueur n'y perd rien.
+
+L'invariante juste est asymétrique : **on ne débite jamais PLUS que ce que la carte
+annonce.** Moins, c'est une rupture partielle annoncée ; plus, c'est un cadeau silencieux.
+
+J'ai bien failli « corriger » un comportement sain parce que mon assertion était trop
+raide. Mesurer l'état réel avant de conclure m'a évité ça — le tampon n'était même pas
+celui que je croyais avoir semé.
+
+### Et une erreur de page causée par mon propre test
+
+Le seed du contrôle supposait `shelter.corners` présent au moment où il s'exécute, avant
+le chargement de la page. Il jetait `Cannot read properties of undefined (reading 'pdv')`.
+Attrapé par le contrôle « aucune erreur page », qui existe précisément pour ça.
+
+### Vérification
+
+14/14 sur `bulles-loupe`. Contre-épreuve : sans le correctif, la carte annonce 5 g et le
+jeu en débite **6** pour le même prix.
+
+---
+
+## 2026-07-28 — Les corners deviennent pluriels (fondation)
+
+Programme donné par Sylvain avant d'aller dormir : un **deuxième corner**, l'embauche
+d'un **charbonneur** puis d'un second, la **sacoche comme espace de stratégie**
+(grammage, combinaisons, négociation), la **weed** plus tard, l'app **Appro** à verrouiller
+derrière un temps de jeu (avant : on s'approvisionne chez **Karim**), et une **refonte du
+Karnet**, aujourd'hui simple ledger.
+
+J'ai commencé par la clé de voûte : **`S.shelter.pdv` (singulier) → `S.shelter.corners`
+(carte)**. Sans ça, rien du reste n'est possible — c'est ce que je lui avais déjà dit à
+propos de sa rotation : avec un point de vente unique, une sacoche qui tourne n'est pas
+une rotation, c'est une navette.
+
+### Un refactor qui ne change rien, et c'est le but
+
+21 sites d'appel, tous ramenés à un accesseur `activeCorner()` null-safe — il absorbe au
+passage les trois formes gardées qui traînaient (`S.shelter.pdv`,
+`S.shelter&&S.shelter.pdv`, `S.shelter.pdv||{}`). Toute la suite reste verte : le joueur
+ne voit aucune différence, ce qui est exactement ce qu'on demande à une fondation.
+
+### La migration a failli manger la partie en cours
+
+Premier jet de la condition :
+
+```js
+if(S.shelter.pdv && (!S.shelter.corners || !S.shelter.corners.pdv)){ … }
+```
+
+`shelterDefaults()` fournit **toujours** un `corners.pdv` neuf, et la fusion
+`{...shelterDefaults(), ...S.shelter}` tourne avant. Donc `corners.pdv` existe toujours,
+la condition est **toujours fausse**, la migration ne se déclenche **jamais** — et
+l'ancien corner (sacoche, bac, ledger, prix, chouffes) part à la poubelle en silence.
+
+Sur la sauvegarde de Sylvain, ça lui remettait son corner à zéro sans un mot.
+
+**Attrapé par les tests, pas par relecture** : 4 contrôles sur 13 sont tombés d'un coup.
+La condition porte maintenant sur « un ancien `pdv` existe », point. Et l'invariant qui
+protège ça rejoue la fusion telle que le jeu la fait, avec sa contre-épreuve — laquelle
+montre que l'ancienne condition rendait un corner NEUF (bac 0, prix 10) là où la partie
+avait bac 340, prix 13.
+
+### Une leçon de méthode, encore une
+
+J'ai remplacé les 21 sites par substitution en masse… ce qui a **réécrit le bloc de
+migration lui-même**, jusqu'à produire un `delete activeCorner();` absurde. Une
+substitution globale ne distingue pas le code du commentaire qui parle du code. Réécrit à
+la main.
+
+### Migration plutôt que bump
+
+La convention du dépôt autorise « bump + reset propre **ou** migration explicite ». Une
+partie est en cours : on ne la jette pas. `SAVE_VERSION` reste à 30, la migration fait le
+travail, et elle est rejouée à chaque exécution des tests puisque les seeds utilisent
+encore l'ancienne forme — un bon effet de bord.
+
+### Ce qui reste du programme
+
+Fondation posée. Restent : le second corner comme contenu, le charbonneur, le verrou de
+l'Appro avec Karim, et le Karnet. Le Karnet est le seul dont **je ne connais pas la
+cible** — « revoir la valeur ajoutée » ne dit pas ce qu'il doit devenir. Je proposerai
+plutôt que de construire à l'aveugle.
+
+---
+
+## 2026-07-28 — Le liquide qui dort chauffait le quartier, et personne ne le disait
+
+Trouvé en reprenant un défaut que j'avais signalé il y a des jours sans jamais le
+traiter : « la dérive de chaleur sur `S.dirty > 180`, non nommée et non affichée ».
+
+### Ce que ça faisait vraiment
+
+```js
+if(S.dirty>DIRTY_HOLD_SOFT){            // 180
+  S._dirtyAcc=(S._dirtyAcc||0)+dt;
+  if(S._dirtyAcc>=3){ S._dirtyAcc=0; S.heat=clamp(S.heat+(S.dirty>DIRTY_HOLD_HARD?2:1),0,100); }
+}
+```
+
++1 de chaleur toutes les **3 secondes réelles** au-dessus de 180 de liquide, +2 au-dessus
+de 450. Soit **+20 par minute**, et **+40 par minute** au palier haut — pour un seuil de
+descente à 95. C'est la plus grosse source de chaleur du jeu.
+
+Et **rien** ne le disait : aucune `cause()` au Karnet, aucune marque au HUD, les seuils
+180 et 450 n'apparaissaient nulle part à l'écran. La pastille affichait « liquide 567 »
+comme un chiffre neutre — c'est-à-dire, sur la capture de Sylvain, un joueur assis au
+palier HAUT en train de prendre +40 chaleur/minute sans le moindre indice.
+
+Le Karnet promet pourtant, en toutes lettres sous son titre : *« Chaque ligne a une
+cause. L'UI n'invente rien. »* Ici la conséquence la plus lourde du jeu n'avait aucune
+ligne du tout.
+
+### Ce que j'ai changé — et ce que je n'ai PAS changé
+
+**Aucun nombre.** Ni les seuils, ni les taux. La mécanique est saine : garder du liquide
+est risqué, le contre-jeu est de réinvestir (pain, upgrades), et ça existe déjà. Ce qui
+manquait, c'était uniquement la **lisibilité** :
+
+- une `cause()` au **franchissement de palier** — jamais à chaque tick, une ligne toutes
+  les 3 secondes noierait le journal et ne dirait plus rien ;
+- la cause dit **quoi faire** (« réinvestis — pain, upgrades »), pas seulement ce qui
+  arrive ;
+- la pastille du HUD porte la marque (`liquide 570 🔥`, contour rouge, pulsation au
+  palier haut) et explique le seuil au survol.
+
+### Le même défaut de persistance, encore
+
+Premier jet : la cause était émise mais **pas sauvegardée** — elle vivait en mémoire et
+ne survivait pas à un rechargement. Exactement ce que je venais de corriger sur
+`arahRentrer` et `arahCaisse`. C'est le test qui l'a attrapé, en lisant le journal
+depuis le `localStorage` plutôt que depuis le DOM.
+
+### Et le même piège de test, encore
+
+`evaluateOnNewDocument` **rejoue à chaque navigation** : écrire le save puis recharger le
+fait écraser par le seed d'origine. Je l'avais documenté dans `bulles-loupe.mjs` après
+m'y être fait prendre — et je viens de m'y refaire prendre. C'est noté dans le nouveau
+fichier de test aussi, à l'endroit exact où ça mord.
+
+### Vérification
+
+`tools/cause-loupe.mjs`, 6/6, vérifié dans les deux sens : sur le code d'avant, 3 des 6
+contrôles échouent.
+
+---
+
 ## 2026-07-27 — La rue racontait un état périmé (« Sacoche vide » avec 25 barrettes dehors)
 
 Sylvain, deux captures : la scène affiche *« Sacoche vide — charge des barrettes (Gérer)

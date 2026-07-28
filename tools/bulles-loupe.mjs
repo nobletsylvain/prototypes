@@ -125,14 +125,14 @@ ok("La sacoche propose un réglage par FORMAT (plus de +10/+25/Max aveugle)",
 {
   const avant = await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-    return (s.shelter?.pdv?.queue || []).map((c) => ({ nm: c.nm, mode: c.mode, qFac: c.qFac }));
+    return (s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.queue || []).map((c) => ({ nm: c.nm, mode: c.mode, qFac: c.qFac }));
   });
   // on charge du 8 g : la qualité exposée bouge, donc qFac aussi
   await page.evaluate(() => { const b = document.querySelector('#pSac [data-sac="max"][data-f="8"]'); if (b) b.click(); });
   await sleep(400);
   const apres = await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-    return (s.shelter?.pdv?.queue || []).map((c) => ({ nm: c.nm, mode: c.mode, qFac: c.qFac }));
+    return (s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.queue || []).map((c) => ({ nm: c.nm, mode: c.mode, qFac: c.qFac }));
   });
   const gele = apres.find((c) => c.mode === "dernier");
   const geleAvant = avant.find((c) => c.mode === "dernier");
@@ -165,7 +165,7 @@ ok("La sacoche propose un réglage par FORMAT (plus de +10/+25/Max aveugle)",
   await sleep(600);
   const apres = await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-    const t = s.shelter?.pdv?.tampon || {};
+    const t = s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.tampon || {};
     return { tx: (document.getElementById("cEmpty") || {}).textContent || "",
              n: Object.values(t).reduce((a, v) => a + v, 0) };
   });
@@ -181,7 +181,7 @@ await page.evaluate(() => { const b = [...document.querySelectorAll('#pSac [data
 await sleep(500);
 const apresIn = await page.evaluate(() => {
   const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-  return { tampon: s.shelter?.pdv?.tampon || {}, sachets: s.sachets || {} };
+  return { tampon: s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.tampon || {}, sachets: s.sachets || {} };
 });
 const formats = Object.keys(apresIn.tampon).filter((f) => apresIn.tampon[f] > 0);
 ok("« Charger au max » sort PLUSIEURS formats (le 5 g ne meurt plus)",
@@ -194,7 +194,7 @@ await page.evaluate(() => { const b = [...document.querySelectorAll('#pSac [data
 await sleep(500);
 const apresOut = await page.evaluate(() => {
   const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-  return { tampon: s.shelter?.pdv?.tampon || {}, sachets: s.sachets || {} };
+  return { tampon: s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.tampon || {}, sachets: s.sachets || {} };
 });
 const apresG = Object.entries(apresOut.tampon).reduce((a, [f, n]) => a + +f * n, 0)
              + Object.entries(apresOut.sachets).reduce((a, [f, n]) => a + +f * n, 0);
@@ -284,7 +284,7 @@ ok("L'écran d'évacuation s'ouvre après le cri, avec ses deux gestes",
 {
   const avant = await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-    const t = s.shelter?.pdv?.tampon || {};
+    const t = s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.tampon || {};
     return Object.entries(t).reduce((a, [f, n]) => a + +f * n, 0);
   });
   const etatAvant = await page.evaluate(() => {
@@ -302,7 +302,7 @@ ok("L'écran d'évacuation s'ouvre après le cri, avec ses deux gestes",
   await sleep(350);
   const apres = await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
-    const t = s.shelter?.pdv?.tampon || {};
+    const t = s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.tampon || {};
     const arah = document.getElementById("arah");
     return { g: Object.entries(t).reduce((a, [f, n]) => a + +f * n, 0),
              ouvert: !!(arah && !arah.classList.contains("hide")) };
@@ -311,6 +311,148 @@ ok("L'écran d'évacuation s'ouvre après le cri, avec ses deux gestes",
   ok("R1 · taper « Rentrer les barrettes » rentre vraiment des barrettes (appui de 120 ms)",
      apres.g < avant && !tapErr,
      tapErr ? `le tap a échoué : ${tapErr}` : `exposé ${avant} g → ${apres.g} g${apres.g === avant ? " (RIEN n'a bougé)" : ""}`);
+}
+
+// ── 2d. Le tiroir « Gérer » ne garde pas des compteurs d'avant les ventes ─
+// L'audit a trouvé quatre affichages du tiroir figés à la derniere construction de
+// l'écran, parce que `openDr` l'ouvre en PUR CSS. Le pire : les compteurs par format
+// contredisaient le total « Exposé » affiché trois lignes plus bas — deux vérités dans
+// le même panneau, au moment précis où on décide quoi recharger.
+//
+// On VEND POUR DE VRAI plutôt que de bricoler le localStorage : écrire le save puis
+// recharger le fait écraser par `evaluateOnNewDocument`, qui rejoue à chaque navigation.
+// (Piège documenté deux fois déjà dans ce dépôt — et retombé dedans une troisième.)
+{
+  await page.evaluate(() => { const b = document.getElementById("cClose"); if (b) b.click(); });
+  await sleep(300);
+  const avant = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    return String((s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.tampon || {})["2"] || 0);
+  });
+  // servir le client au premier plan : ça débite le tampon par le vrai chemin du jeu
+  let vendu = false;
+  for (let i = 0; i < 6 && !vendu; i++) {
+    vendu = await page.evaluate(() => {
+      const b = document.querySelector('#cActive [data-neg="accept"], #cActive [data-neg="hesitGen"], #cActive [data-neg="compSell"]');
+      if (!b || b.disabled) return false; b.click(); return true;
+    });
+    if (!vendu) await sleep(700);
+  }
+  await sleep(500);
+  const milieu = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    return String((s.shelter?.corners?.[s.shelter?.cornerId||'pdv']?.tampon || {})["2"] || 0);
+  });
+  await page.evaluate(() => { const b = document.getElementById("cManage"); if (b) b.click(); });
+  await sleep(500);
+  const apres = await page.evaluate(() => {
+    const row = document.querySelector('#pSac [data-sac="-1"][data-f="2"]');
+    return { compteur: row ? row.parentElement.querySelector("b").textContent : "?",
+             tot: (document.getElementById("pTamp") || {}).textContent || "" };
+  });
+  await page.screenshot({ path: path.join(OUT, "08-tiroir-frais.png") });
+  const aBouge = milieu !== avant;
+  ok("Le tiroir rouvert affiche l'état RÉEL, pas celui d'avant les ventes",
+     aBouge && apres.compteur === milieu,
+     aBouge ? `2 g : ${avant} → ${milieu} après vente · le tiroir rouvert dit « ${apres.compteur} » · ${apres.tot.slice(0, 30)}`
+            : `AUCUNE VENTE n'a eu lieu (${avant} → ${milieu}) — le contrôle ne prouverait rien`);
+}
+
+// ── 4. « Annuler » annule vraiment la contre-proposition ──────────────────
+// Trouvé par la chasse de nuit, reproduit par trois sceptiques indépendants (0/3 la
+// réfutent). `cancel` remettait `cl.mode="offer"` en laissant `cl.propG` posé : la carte
+// réaffichait l'offre d'origine pendant que la résolution exécutait sur propG. Taper
+// « OK 46 » sortait 8 g pour le prix de 5.
+//
+// On TAPE la séquence dans le navigateur — on ne recopie pas la logique dans le test,
+// sinon on ne teste que sa propre copie. On compare ce qui est ÉCRIT sur le bouton
+// d'acceptation aux grammes réellement débités.
+{
+  // état propre : la section ARAH a poussé la chaleur à 96 et la descente a vidé la file.
+  // On empile un 3e seed (il s'exécute après les deux autres) et on recharge.
+  await page.evaluateOnNewDocument(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    s.heat = 0;
+    /* Le seed tourne AVANT le chargement de la page : il lit ce que la session
+       précédente a écrit, et rien ne garantit la forme. Sans ces gardes il jetait
+       « Cannot read properties of undefined (reading 'pdv') » — une erreur de page
+       causée par le TEST, qu'un contrôle « aucune erreur page » a fini par attraper. */
+    if (!s.shelter) s.shelter = {};
+    if (!s.shelter.corners) { s.shelter.corners = {}; s.shelter.cornerId = "pdv"; }
+    const id = s.shelter.cornerId || "pdv";
+    const c = (s.shelter.corners[id] = s.shelter.corners[id] || {});
+    c.queue = [{ cid: "momo", nm: "Momo", av: "🧢", kind: "regulier", rel: 30,
+                 want: 5, g: 5, offer: 46, tx: "Momo arrive et parle.",
+                 pat: 400, pat0: 400, mode: "offer", negoP: 46, dernier: null }];
+    localStorage.setItem("loupe_save", JSON.stringify(s));
+  });
+  await page.reload({ waitUntil: "load" }); await sleep(800);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin]")].find((x) => x.dataset.pin === "pdv"); if (b) b.click(); });
+  await sleep(250);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin-go]")].find((x) => x.dataset.pinGo === "pdv"); if (b) b.click(); });
+  await sleep(700);
+  const av = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    const t = s.shelter.corners[s.shelter.cornerId || "pdv"].tampon || {};
+    return Object.entries(t).reduce((a, [f, n]) => a + +f * n, 0);
+  });
+  // contrer → bouger la quantité → annuler → accepter
+  const seq = await page.evaluate(async () => {
+    const tap = (sel) => { const b = document.querySelector(sel); if (!b || b.disabled) return false; b.click(); return true; };
+    const w = (ms) => new Promise((r) => setTimeout(r, ms));
+    if (!tap('#cActive [data-neg="counter"]')) return { ko: "pas de bouton contrer" };
+    await w(250);
+    if (!tap('#cActive [data-negq="1"]') && !tap('#cActive [data-negq="-1"]')) return { ko: "pas de stepper" };
+    await w(250);
+    if (!tap('#cActive [data-neg="cancel"]')) return { ko: "pas de bouton annuler" };
+    await w(250);
+    const btn = document.querySelector('#cActive [data-neg="accept"]');
+    if (!btn) return { ko: "pas de bouton accepter après annulation" };
+    // ce que la CARTE annonce : « [5 g → 46 · … ] ». C'est la promesse faite au joueur,
+    // et c'est à ELLE qu'on compare le débit — pas au ledger, qui sort du même chemin de
+    // code que le débit et passerait donc même si les deux étaient faux ensemble.
+    const carte = (document.querySelector("#cActive .offer") || {}).textContent || "";
+    const mg = carte.match(/(\d+)\s*g/);
+    btn.click();
+    return { label: btn.textContent, annonceCarte: mg ? +mg[1] : null, carte };
+  });
+  await sleep(500);
+  const ap = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    const c = s.shelter.corners[s.shelter.cornerId || "pdv"];
+    const t = c.tampon || {};
+    return { g: Object.entries(t).reduce((a, [f, n]) => a + +f * n, 0), tampon: t,
+             dernier: (c.ledger || [])[0] || null };
+  });
+  await page.screenshot({ path: path.join(OUT, "09-annuler.png") });
+  const debite = av - ap.g;
+  /* L'invariante juste est « jamais PLUS que ce que la carte annonce », pas « exactement ».
+     Une vente partielle au prorata (tampon qui ne compose pas la quantité demandée) débite
+     MOINS et facture moins — c'est prévu, la carte le dit (« ton tampon ne compose que
+     N g »), et le joueur n'y perd rien. Le bug, lui, débitait PLUS : 8 g annoncés 5.
+     Ma première version comparait à l'égalité et échouait sur le cas partiel légitime. */
+  ok("R1 · après « Annuler », on ne débite jamais PLUS que ce que la carte annonce",
+     !seq.ko && seq.annonceCarte != null && debite <= seq.annonceCarte,
+     seq.ko ? seq.ko
+            : `carte « ${seq.carte.trim()} » → annonce ${seq.annonceCarte} g · bouton « ${String(seq.label).trim()} » · RÉELLEMENT débité ${debite} g`);
+}
+
+// ── 5. Le menu annonce ce qui sera VRAIMENT encaissé ──────────────────────
+// Il affichait `g × prix` brut, alors que toute vente passe par le rabais au volume.
+// Mesuré à 10/g : 8 g annoncé 80, encaissé 68 — 15 % d'écart, jusqu'à 25 % à 20 g. Or
+// c'est cette ligne que le joueur lit pour régler son tarif.
+{
+  const lu = await page.evaluate(() => {
+    const el = document.getElementById("pMenuF");
+    const chip = document.getElementById("pPrixG");
+    return { menu: (el || {}).textContent || "", prix: (chip || {}).textContent || "" };
+  });
+  const p = +(lu.prix.match(/(\d+)/) || [, 0])[1];
+  const paires = [...lu.menu.matchAll(/(\d+)g\s+(\d+)/g)].map((m) => [+m[1], +m[2]]);
+  const brut = paires.filter(([g, v]) => v === g * p);
+  ok("Le menu du tiroir annonce le tarif RÉELLEMENT encaissé (rabais volume compris)",
+     p > 0 && paires.length >= 3 && brut.length < paires.length,
+     `menu « ${lu.menu} » à ${p}/g — ${brut.length}/${paires.length} ligne(s) au tarif brut (8 g brut vaudrait ${8 * p})`);
 }
 
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");

@@ -78,8 +78,13 @@ export const CORNER_PERSONAS = [
      Ses `hours` disparaissent — un DM n'a pas d'heure de passage — et son `traits.heat`
      aussi : la cause rendue était « le COIN chauffe », ce qui n'a plus de sens pour un
      deal livré. Le coût du gros passe désormais par la livraison et par le liquide
-     qui dort. `TOL`/`BUDGET`/`OFFER.grossiste` restent définis : ils bornent le prix
-     du DM et sont balayés par les invariants. */
+     qui dort. `TOL`/`BUDGET`/`OFFER.grossiste` restent définis, mais ATTENTION : ils ne
+     bornent RIEN aujourd'hui. Le canal DM ne lit de ce module que `menuAt`,
+     `personaById`, `rueCalibre` et `RUE_MIN` — jamais `BUDGET` ni `TOL`. Le prix du gros
+     sort donc du barème volume commun (`menuAt`), comme tous les autres canaux, et sa
+     poche de 260 est un vestige de l'époque où il faisait la queue au corner.
+     On les garde pour que la persona reste bien formée et pour qu'un futur canal
+     puisse s'en servir — pas parce qu'ils agissent. */
   { id:"diego", nm:"Diego", av:"🏗️", kind:"grossiste", usual:16, exig:45, unlockedBy:"momo", rueGate:5, canal:"dm",
     tell:"Ne traîne pas dans la rue : il écrit, il paie clean, il se fait livrer.",
     bank:{ arrive:["Seize grammes d'un coup. Chaque semaine si t'assures. {t} ?","Je prends gros, je paie clean, mais je traîne pas. {q} g, {t}.","Vingt grammes. Emballe vite, on nous regarde."],
@@ -459,6 +464,13 @@ export function negoFace(client, total, reput, prix){
   const ppu = total/g, tol = cornerTol(client.kind, client.rel, ref)*(client.qFac||1), bud = cornerBudget(client.kind, client.rel);
   if(total>bud) return { emo:"😤", tx:"Au-dessus de sa poche." };
   if(ppu>tol) return { emo:"😤", tx:"À ce prix, c'est mort pour lui." };
+  /* La frontière de l'ABUS, la même que `resolveOffer` — sans elle, la tête ne prédisait
+     pas le verdict qu'elle promet de prédire. Mesuré : 63 cas où le visage annonçait
+     « y a de la marge » alors que la vente partait en `gouge` (relation −, et deux fois
+     d'affilée le client ne revient plus). Un tell qui ment sur la conséquence est pire
+     que pas de tell : il invite au geste qui coûte. */
+  const abus = ref * CORNER.NEGO_MAX * Math.max(1, client.qFac || 1);
+  if(ppu>abus) return { emo:"😒", tx:"Il paiera… mais il retiendra." };
   if(ppu>tol*0.9) return { emo:"😬", tx:"Il grimace — t'es à la limite." };
   if(ppu<=ref*0.9) return { emo:"😍", tx:"Belle affaire… pour lui." };
   if(ppu<=ref*1.1) return { emo:"😊", tx:"Prix menu, ça lui va." };
