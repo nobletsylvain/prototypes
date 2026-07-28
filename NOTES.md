@@ -9,6 +9,61 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Le % sur la valeur devient un motif : réservé pour le blanchiment
+
+Sylvain, après la nourrice : « Le mécanisme de % sur la valeur sera utilisé de nouveau
+lorsqu'on va attaquer le blanchiment d'argent. »
+
+Bonne généralisation — mais il y a une distinction à ne pas rater au moment de coder, parce
+que « un pourcentage » recouvre **deux systèmes qui ne se ressemblent pas du tout**.
+
+### Loyer sur un STOCK ≠ commission sur un FLUX
+
+Simulé, 20 soirées à 800 net :
+
+```
+(a) LOYER sur ce qu'on DÉTIENT — la nourrice, 10 %/soirée
+      il reste 6 325 caché · 9 675 payés
+      → plafond ≈ 8 000 : on ne peut pas cacher plus, quoi qu'on fasse
+
+(b) COMMISSION sur ce qui PASSE — le blanchiment, une fois
+      20 % → 12 800 de propre accumulé      30 % → 11 200      40 % → 9 600
+      → le propre s'accumule SANS LIMITE
+```
+
+Le loyer sur stock crée une **pression continue avec un point d'équilibre** : la détention
+coûte, donc il existe un plafond à ce qu'on peut garder. C'est ce qui fait de la nourrice
+une décision qu'on reprend tous les soirs.
+
+La commission sur flux est une **taxe** : elle rend chaque euro un peu moins rentable et
+c'est tout. Elle ne borne rien, elle ne crée aucune pression, et surtout **elle ne porte
+aucune décision le soir** — on blanchit tout, toujours, il n'y a rien à arbitrer (R8).
+
+### Ce que ça implique pour le blanchiment
+
+Si le blanchiment n'est qu'une commission sur ce qui passe, il ne sera pas un système, il
+sera un péage. Pour qu'il porte une décision, il lui faut au moins un des deux :
+
+- une **capacité** — on ne peut faire passer que N par soirée, donc « lequel je blanchis
+  d'abord » devient un arbitrage ;
+- un **délai** — l'argent est immobilisé pendant qu'il se lave, donc blanchir, c'est
+  renoncer à s'en servir maintenant.
+
+Les deux transforment un flux en stock temporaire, et **c'est le stock qui porte la
+tension**. C'est aussi ce que disait l'angle « Lavomatic » du workflow, qui l'avait
+justement conçu avec tranches plafonnées et deux soirées de délai.
+
+### La règle candidate
+
+La synthèse proposait de la verser dans `CLAUDE.md` :
+
+> *Un puits de liquide se paie par un débit permanent, jamais par un droit d'entrée ; son
+> taux ne baisse jamais avec la progression ; sa capacité est bornée par ce que le joueur
+> produit, pas par ce qu'il achète.*
+
+**Pas encore écrite** : ajouter une règle numérotée est un acte, et Sylvain n'a pas dit
+« fais-en une règle », il a dit que le mécanisme reviendrait. Elle attend son feu vert.
+
 ## 2026-07-28 — La vanne du liquide : Tata Yamina garde, et se paie
 
 Sylvain, en jouant : « aucune option de retirer l'argent du corner, ou bien de cacher
