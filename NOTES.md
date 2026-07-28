@@ -213,6 +213,31 @@ fasse prendre — ce n'est pas un bug, c'est une porte fermée.
 
 ---
 
+## 2026-07-28 — Le client refusait le prix qu'il venait lui-même d'annoncer
+
+Cinquième bug de la chasse. Le client contre avec un « dernier prix », calculé contre le
+menu **du moment** — sa tolérance en dépend :
+
+```js
+const t2 = Math.max(1, Math.min(Math.floor(g*tol*0.97), Math.floor(bud)));
+```
+
+Mais `accept2` rappelle `resolveOffer` avec le menu **courant**. Si le joueur baisse son
+tarif entre la contre-offre et l'acceptation, `fair` baisse, donc `tol` baisse, donc le
+montant que le client venait d'annoncer dépasse sa propre tolérance : **`walk`**. Un
+départ fâché en tapant « ✅ Vendu », sur un prix que le client a lui-même fixé.
+
+Mesuré avec le vrai `resolveOffer` : **20 cas sur 20** finissent en départ.
+
+Le correctif gèle le menu au moment de la contre-offre et l'honore. Le commentaire de
+`resolveOffer` disait déjà que ce prix « doit TOUJOURS passer son propre test (R4) » — le
+cas de l'**arrondi** avait été fermé, celui du **changement de menu** était resté ouvert.
+
+Le contrôle appelle le module réel et balaie les couples (menu avant, menu après) ; la
+contre-épreuve prouve les 20/20.
+
+---
+
 ## 2026-07-28 — Le menu annonçait un tarif que le corner ne facture jamais
 
 Le tiroir affichait le menu par format en `g × prix` brut. Or **toute** vente passe par

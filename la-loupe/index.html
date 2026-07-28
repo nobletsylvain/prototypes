@@ -386,10 +386,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=44";
-import * as beuher from "./beuher.mjs?v=44";
-import * as shelter from "./shelter.mjs?v=44";
-import * as corner from "./corner.mjs?v=44";
+import * as snap from "./snap.mjs?v=45";
+import * as beuher from "./beuher.mjs?v=45";
+import * as shelter from "./shelter.mjs?v=45";
+import * as corner from "./corner.mjs?v=45";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -424,7 +424,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=44"),
+      import("./scene3d.mjs?v=45"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -1209,8 +1209,16 @@ function cornerQuantites(P, cl){
 }
 function cornerResolve(P, cl, total, firstTry, isClientOffer){
   const g=propG(cl);
-  const v=corner.resolveOffer(cl, g, total, firstTry, isClientOffer, S.reput, P.prix);
-  if(v.outcome==="counter"){ cl.countered=true; cl.dernier=v.counterTotal; cl.mode="dernier"; renderCornerActive(P); toast("Il contre — dernier prix "+v.counterTotal); return; }
+  /* Son « dernier prix » a été calculé contre le menu DU MOMENT (`tol` en dépend). Le
+     ré-évaluer contre le menu COURANT le faisait refuser son propre prix dès qu'on avait
+     baissé son tarif entre-temps : tolérance plus basse, même montant, donc `walk` — un
+     départ fâché en tapant « ✅ Vendu », sur un prix que le client venait d'annoncer.
+     On gèle donc le menu au moment de la contre-offre et on l'honore. Le commentaire de
+     `resolveOffer` dit déjà que ce prix « doit TOUJOURS passer son propre test » : le cas
+     de l'arrondi avait été fermé, celui du changement de menu était resté ouvert. */
+  const menu = (cl.mode==="dernier" && cl.menuFige>0) ? cl.menuFige : P.prix;
+  const v=corner.resolveOffer(cl, g, total, firstTry, isClientOffer, S.reput, menu);
+  if(v.outcome==="counter"){ cl.countered=true; cl.dernier=v.counterTotal; cl.menuFige=P.prix; cl.mode="dernier"; renderCornerActive(P); toast("Il contre — dernier prix "+v.counterTotal); return; }
   if(v.outcome==="walk"){ applyDeltas(cl, v); P.combo=1; cornerLeave(P, cl, "walk", v); return; }
   let tip=0;
   if(v.tipRate){ tip=Math.round(total*v.tipRate*(P.combo||1)); }

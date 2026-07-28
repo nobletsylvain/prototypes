@@ -810,6 +810,38 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
      `40 ventes → standing ${av.reput} (inchangé) · réservoir ${av.res} (inchangé) — 85 % du trafic sans conséquence`);
 }
 
+/* ── Son « dernier prix » passe toujours son propre test ──────────────────────
+   Le client contre avec un montant calculé contre le menu DU MOMENT (sa tolérance en
+   dépend). Si le joueur baisse son tarif avant d'accepter, ré-évaluer contre le menu
+   COURANT lui fait refuser son propre prix : départ fâché en tapant « ✅ Vendu ».
+   On appelle ici le VRAI resolveOffer, on ne recopie rien. */
+{
+  const cl = { kind: "regulier", rel: 30, qFac: 1 };
+  const g = 5, reput = 40;
+  let refusApres = 0, refusFige = 0, cas = 0, exemple = "";
+  for (const menuAvant of [8, 10, 12, 14, 16]) {
+    // il contre, contre le menu du moment
+    const c = resolveOffer(cl, g, Math.round(g * menuAvant * 1.6), true, false, reput, menuAvant);
+    if (c.outcome !== "counter") continue;
+    for (const menuApres of [4, 5, 6, 7]) {          // le joueur BAISSE son tarif
+      if (menuApres >= menuAvant) continue;
+      cas++;
+      // (a) ré-évalué avec le menu courant — l'ancien comportement
+      const a = resolveOffer(cl, g, c.counterTotal, false, true, reput, menuApres);
+      if (a.outcome === "walk") { refusApres++; if (!exemple) exemple = `menu ${menuAvant}→${menuApres}, son prix ${c.counterTotal}`; }
+      // (b) honoré avec le menu gelé — le correctif
+      const b = resolveOffer(cl, g, c.counterTotal, false, true, reput, menuAvant);
+      if (b.outcome === "walk") refusFige++;
+    }
+  }
+  ok("R1 · accepter le « dernier prix » du client ne le fait jamais partir fâché",
+     cas > 0 && refusFige === 0,
+     `${cas} cas · avec le menu gelé : ${refusFige} départ(s)`);
+  ok("Contre-épreuve · ré-évaluer avec le menu courant le faisait refuser son propre prix",
+     refusApres > 0,
+     refusApres ? `${refusApres}/${cas} cas finissaient en départ fâché — ex. ${exemple}` : "aucun cas reproduit");
+}
+
 console.log("\n─── invariants La Loupe ───");
 let bad = 0;
 for (const r of results) {
