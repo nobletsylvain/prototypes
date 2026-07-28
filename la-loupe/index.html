@@ -203,6 +203,13 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 #cActive{position:absolute;left:8px;right:8px;bottom:8px;z-index:8}
 #cActive .card{margin:0;animation:cslide .26s cubic-bezier(.2,.9,.3,1.15)}
 @keyframes cslide{from{transform:translateY(40px);opacity:0}}
+/* Carte d'un client QU'ON N'A PAS ENCORE VU. `cslide` seul ne distingue pas un simple
+   re-rendu (un cran de stepper) d'un changement de client : le joueur voyait la même
+   animation dans les deux cas, donc rien ne signalait que la personne en face avait
+   changé. Le liseré dit « c'est quelqu'un d'autre », et le verrou (CARD_LOCK_MS) empêche
+   un appui déjà décidé d'atterrir dessus. */
+#cActive .card.neuf{animation:cslide .26s cubic-bezier(.2,.9,.3,1.15),cneuf .5s ease-out}
+@keyframes cneuf{from{box-shadow:0 0 0 2px var(--accent) inset}}
 .cdrawer-bk{position:absolute;inset:0;z-index:19;background:rgba(0,0,0,.5);display:none}
 .cdrawer-bk.on{display:block}
 /* panneau « Gérer » : plein écran quand ouvert (translateY 0), caché sinon (110%). Une poignée persistante
@@ -914,6 +921,15 @@ const PDV_RUSH_AMP=1.3, PDV_RUSH_PERIOD=38; // pics de rush cycliques
 const PDV_EXPO_SCALE=140;         // buzz (vitrine SnapShit) → demande
 const PDV_SERVE_RATE=4;           // clients servis/s (débit du corner)
 const PDV_MAX_WAIT=5, PDV_MAX_QUEUE=14, PDV_RES_PER_SALE=0.05, PDV_RUPTURE_HIT=1.2;
+/* Le temps pendant lequel la carte d'un client QU'ON VIENT DE DÉCOUVRIR n'accepte aucun
+   appui. Un pouce met ~200 à 300 ms à retomber : passé la vente précédente, la carte
+   suivante prend la même place, avec les mêmes boutons aux mêmes pixels, et l'appui déjà
+   décidé atterrit dessus. Mesuré — deux appuis au MÊME point (81,748), 230 ms d'écart,
+   file de deux anonymes : DEUX ventes, la seconde à un client dont la carte n'a jamais
+   été lue (4 g pour 38 €). Calé au-dessus de `cslide` (260 ms) : tant que la carte glisse,
+   elle n'est pas lisible, donc elle ne doit pas être actionnable. */
+const CARD_LOCK_MS=320;
+let cardLast=null, cardLockUntil=0;
 const PDV_HEAT_RATE=2.0, PDV_HEAT_DECAY=0.7, PDV_SEUIL=95, PDV_AFTER=45;
 /* Le chouffe achète du PRÉAVIS, plus de l'immunité (arbitrage Sylvain, 2026-07-26).
    Avant : il divisait la génération de chaleur, et à 3 chouffes la génération passait
@@ -1331,6 +1347,12 @@ function cornerResolveAmbig(P, cl){
 }
 function cornerAct(P, a){
   const cl=cornerActive(P); if(!cl) return;
+  /* Verrou de carte neuve : on n'agit pas sur quelqu'un qu'on n'a pas encore vu. Le
+     verrou ne s'arme QUE sur un changement de client (cf. renderCornerActive) — un
+     re-rendu pour le même client, un cran de stepper, une modification de prix, restent
+     immédiats. Sans quoi on remplacerait un tap qui atterrit au mauvais endroit par un
+     tap qui meurt : l'autre moitié du même problème. */
+  if(performance.now()<cardLockUntil) return;
   if(a==="refuse"||a==="refuse2") return cornerLeave(P, cl, "refus");
   /* « Annuler » doit ANNULER la contre-proposition, pas seulement fermer l'écran.
      Le mode revenait à "offer" en laissant `cl.propG` posé : la carte réaffichait alors
@@ -1378,6 +1400,9 @@ function renderCornerActive(P){
   const host=document.getElementById("cActive"); if(!host) return;
   const cl=cornerActive(P);
   const cb=document.getElementById("cComboChip"); if(cb) cb.textContent="⚡×"+(P.combo||1).toFixed(1).replace(".0","");
+  // changement de CLIENT (pas un simple re-rendu) : on le signale, et on verrouille
+  const neuf = cl!==cardLast;
+  if(neuf){ cardLast=cl; cardLockUntil=performance.now()+CARD_LOCK_MS; }
   if(!cl){ host.innerHTML=""; return; } // rue calme → la scène respire
   const fair=P.prix||marcheDuJour(), tag=corner.CORNER_TAG[cl.kind];
   const patW=clamp(cl.pat/cl.pat0,0,1)*100, patBar=`<div class="nego-pat"><i id="pNegoPat" style="width:${patW}%"></i></div>`;
@@ -1461,7 +1486,7 @@ function renderCornerActive(P){
     if(cl.mode==="ambig") chips.push(cl.qc.ok?`<span style="color:#3ddc84">✔ ${qb} — pourboire si bien lu</span>`:`<span style="color:#9aa4b8">👃 ${qb}</span>`); // pas de « il rogne » ici : sans effet en mode ambigu
     else chips.push(`<span style="color:${cl.qc.ok?"#3ddc84":cl.qc.miss?"#ff6a6a":"#ffd06a"}">${cl.qc.ok?"✔":cl.qc.miss?"✖":"≈"} ${qb}${cl.qc.ok?" — paie mieux":cl.qc.miss?" — il rogne":" — sans effet"}</span>`); }
   const traitLine = chips.length ? `<div style="font-size:10px;margin:-2px 0 6px">${chips.join(" · ")}</div>` : "";
-  host.innerHTML=`<div class="card"><div class="nego-head"><div class="nego-av">${cl.av}</div>
+  host.innerHTML=`<div class="card${neuf?" neuf":""}"><div class="nego-head"><div class="nego-av">${cl.av}</div>
       <div><span class="nego-nm">${cl.nm}</span><span class="nego-tag">${tag}</span></div>
       <div class="nego-rel">${relTxt}</div></div>${tellLine}${traitLine}${body}</div>`;
   host.querySelectorAll("[data-neg]").forEach(b=>b.onclick=()=>cornerAct(P, b.dataset.neg));

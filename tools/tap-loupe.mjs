@@ -111,6 +111,83 @@ ok("Le bouton n'est PAS remplacé pendant qu'une tournée tourne (sinon le doigt
             : `liquide ${avant.dirty} → ${apres.dirty} · encaissé ${apres.collecte}`);
 }
 
+// ── Le revers du tap mort : le tap qui atterrit SUR QUELQU'UN D'AUTRE ─────
+// Même racine que le reste du fichier — une carte reconstruite en place — mais la panne
+// est inverse. Ici le nœud n'est pas détruit sous le doigt : il est REMPLACÉ entre deux
+// appuis, par la carte du client suivant, aux mêmes pixels et avec les mêmes libellés.
+// Le joueur a lu une carte, décidé, et son appui s'exécute sur une autre personne.
+//
+// Mesuré avant correctif — deux appuis au MÊME point (81,748), 230 ms d'écart, file de
+// deux anonymes issus de `makeAnon` (offres en bande, état non fabriqué) :
+//
+//   1er appui : « ✅ OK 20 » (Le premier)   → vente 2 g / 20 €
+//   2e appui  : même pixel, carte devenue « ✅ OK 47 » (Le suivant, jamais lu)
+//   résultat  : DEUX ventes, ledger [Le suivant 4 g/38 €, Le premier 2 g/20 €]
+//
+// Correctif : `CARD_LOCK_MS` — la carte d'un client qu'on découvre n'accepte aucun appui
+// tant qu'elle glisse (`cslide`, 260 ms), et un liseré la marque comme neuve.
+//
+// Les DEUX contrôles suivants comptent autant l'un que l'autre : le premier prouve que
+// l'appui volé est bloqué, le second qu'on n'a pas simplement rendu la carte sourde —
+// sinon on aurait remplacé ce bug par celui que tout ce fichier traque.
+{
+  const LOCK = +(SRC.match(/CARD_LOCK_MS\s*=\s*(\d+)/) || [, 320])[1];
+  const cli = (nm, g, offer) => ({ cid: null, nm, av: "🧢", kind: "anon", rel: 0, g, offer,
+    tx: nm + " passe.", pat: 400, pat0: 400, mode: "offer", negoP: offer, dernier: null, qFac: 1 });
+  await page.evaluateOnNewDocument((q) => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    s.dirty = 0; s.reput = 40; s.day = 3; s.sachets = { 2: 60 }; s.sachetQ = 70;
+    s.shelter = { phase: "B", introSeen: true, paidOff: true, cornerId: "pdv",
+      corners: { pdv: { res: 90, bac: 0, prix: 10, chouffes: 0, tampon: { 2: 60 }, tamponQ: 70,
+        queue: q, ledger: [], qacc: 0, serveAcc: 0, seq: 5, combo: 1, charbonneur: null } } };
+    localStorage.setItem("loupe_save", JSON.stringify(s));
+  }, [cli("Le premier", 2, 20), cli("Le suivant", 5, 47), cli("Le troisième", 2, 20)]);
+  await page.reload({ waitUntil: "load" });
+  await sleep(700);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin]")].find((x) => x.dataset.pin === "pdv"); if (b) b.click(); });
+  await sleep(300);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin-go]")].find((x) => x.dataset.pinGo === "pdv"); if (b) b.click(); });
+  await sleep(700);
+
+  const carte = () => page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    const P = (s.shelter && s.shelter.corners && s.shelter.corners.pdv) || {};
+    const nm = document.querySelector(".nego-nm"), b = document.querySelector('[data-neg="accept"]');
+    const r = b ? b.getBoundingClientRect() : null;
+    return { qui: nm ? nm.textContent : "(personne)", bouton: b ? b.textContent.trim() : "(absent)",
+             x: r ? Math.round(r.x + r.width / 2) : 0, y: r ? Math.round(r.y + r.height / 2) : 0,
+             file: (P.queue || []).length, ventes: (P.ledger || []).length };
+  });
+
+  const t0 = await carte();
+  await page.mouse.click(t0.x, t0.y, { delay: 90 });      // 1er appui : décidé, légitime
+  await sleep(140);                                        // moins que CARD_LOCK_MS
+  const t1 = await carte();
+  await page.mouse.click(t0.x, t0.y, { delay: 90 });      // 2e appui : au même pixel
+  await sleep(400);
+  const t2 = await carte();
+  await page.screenshot({ path: path.join(OUT, "02-carte-neuve.png") });
+
+  ok("La carte change bien de client au même endroit — sinon le contrôle ne prouve rien",
+     t1.qui !== t0.qui && t1.ventes === 1,
+     `« ${t0.qui} / ${t0.bouton} » → « ${t1.qui} / ${t1.bouton} » au même pixel (${t0.x},${t0.y})`);
+
+  ok(`R4 · un appui décidé sur une carte ne s'exécute pas sur le client suivant (verrou ${LOCK} ms)`,
+     t2.ventes === 1 && t2.file === t1.file,
+     t2.ventes === 1 ? `1 vente, « ${t1.qui} » toujours en file` : `${t2.ventes} ventes — le 2e appui a servi « ${t1.qui} »`);
+
+  // …et le verrou se relâche : sans ça on aurait juste fabriqué un tap mort
+  await sleep(LOCK);
+  const avant = await carte();
+  let tapErr = "";
+  try { await page.click('[data-neg="accept"]', { delay: APPUI }); } catch (e) { tapErr = e.message; }
+  await sleep(400);
+  const apres = await carte();
+  ok(`R1 · passé le verrou, l'appui sur la carte neuve marche normalement (appui de ${APPUI} ms)`,
+     !tapErr && apres.ventes > avant.ventes,
+     tapErr ? `le tap a échoué : ${tapErr}` : `« ${avant.qui} » servi · ventes ${avant.ventes} → ${apres.ventes}`);
+}
+
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
 
 console.log("\n─── les gestes survivent à un appui · La Loupe ───");

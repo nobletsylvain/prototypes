@@ -9,6 +9,49 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Le revers du tap mort : l'appui qui atterrit sur quelqu'un d'autre
+
+Dixième et dernière trouvaille de la chasse. Même racine que les taps morts corrigés hier
+— une carte reconstruite en place — mais la panne est **inverse**.
+
+Le tap mort, c'est le nœud détruit *sous* le doigt : rien ne se passe. Ici le nœud n'est pas
+détruit sous le doigt, il est **remplacé entre deux appuis** par la carte du client suivant,
+aux mêmes pixels, avec les mêmes libellés. Le joueur a lu une carte, décidé, et son appui
+s'exécute **sur une autre personne**.
+
+Mesuré — deux appuis au **même point** (81,748), 230 ms d'écart, file de deux anonymes dont
+les offres viennent de `makeAnon` (donc en bande, état non fabriqué) :
+
+```
+  1er appui : « ✅ OK 20 » (Le premier)  → vente 2 g / 20 €
+  2e appui  : même pixel, la carte est devenue « ✅ OK 47 » (Le suivant)
+  résultat  : DEUX ventes — ledger [Le suivant 4 g/38 €, Le premier 2 g/20 €]
+```
+
+La seconde vente porte sur un client dont la carte n'a **jamais été lue**.
+
+Correctif en deux morceaux, parce qu'un seul ne suffit pas :
+
+- **`CARD_LOCK_MS` (320 ms)** — la carte d'un client qu'on découvre n'accepte aucun appui
+  tant qu'elle glisse. Le verrou ne s'arme que sur un **changement de client** : un cran de
+  stepper, une modification de prix, un re-rendu pour le même client restent immédiats.
+  Sinon on aurait remplacé un tap qui atterrit au mauvais endroit par un tap qui meurt —
+  l'autre moitié du même problème.
+- **Un liseré sur la carte neuve.** `cslide` jouait déjà, mais **à l'identique** pour un
+  simple re-rendu et pour un changement de client : rien ne signalait que la personne en
+  face avait changé. Le verrou seul aurait juste mangé un appui sans dire pourquoi.
+
+Le test `tap-loupe.mjs` porte les deux moitiés : l'appui volé est bloqué, **et** l'appui
+suivant marche normalement une fois le verrou relâché.
+
+### Ce que le correctif a révélé dans le smoke test
+
+`smoke-loupe-pdv.mjs` enchaînait ses clics toutes les **250 ms** — plus vite que le verrou,
+donc plus vite qu'un joueur qui *lit* la carte devant lui. Il est passé au rouge, ce qui est
+la bonne réaction : il pilotait le jeu à une cadence qu'aucune main n'atteint. Son rythme
+lit maintenant `CARD_LOCK_MS` dans la source, pour qu'il suive si la constante bouge au lieu
+de figer un nombre qui redeviendrait faux en silence.
+
 ## 2026-07-28 — L'hésitant partait en « rupture » avec 24 g dans la sacoche
 
 Neuvième trouvaille. Les deux boutons de l'hésitant servaient des grammages **fixes** —
