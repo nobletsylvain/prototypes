@@ -9,6 +9,36 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Blanchiment : la forme est arrêtée (temps + capacité, la taxe par-dessus)
+
+Sylvain, après la démonstration stock/flux : « On est alignés concernant la mécanique de
+blanchiment. Temps, capacité comme goulot d'étranglement et pas seulement une taxe dessus. »
+
+**Arbitrage figé, à ne pas rediscuter le jour où on le codera :**
+
+| élément | rôle |
+| --- | --- |
+| **Capacité** | combien on peut faire passer par soirée → l'arbitrage « lequel je blanchis d'abord » |
+| **Temps** | l'argent est immobilisé pendant qu'il se lave → blanchir, c'est renoncer à s'en servir maintenant |
+| **Taxe** | un % par-dessus, mais **jamais seule** — seule, elle ne serait qu'un péage |
+
+Le raisonnement qui a mené là, pour mémoire : une commission sur flux ne borne rien et ne
+porte **aucune décision** (on blanchit tout, toujours). Capacité et délai transforment le
+flux en **stock temporaire** — et c'est le stock qui porte la tension, exactement comme la
+garde chez la nourrice.
+
+**Ce qui devra être vrai le jour où on l'écrit :**
+
+- le circuit du **propre** se rouvre (`SORTER_ENABLED`, `FRONT_ENABLED`) — aujourd'hui
+  `S.cash` n'a aucune source in-game, et c'est ce qui avait tué la dette Karim ;
+- la file d'attente du blanchiment se **voit** avant de valider (R8) ;
+- rien d'aléatoire sur le délai ni sur la réussite (R4) ;
+- aucune saisie possible sur ce qui est en cours de lavage sans préavis — sinon on
+  réintroduit la perte sèche que R1 interdit.
+
+**Pas construit maintenant** : Sylvain a explicitement mis `FRONT_ENABLED` en attente, et
+le blanchiment n'a de sens que quand le propre sert à quelque chose.
+
 ## 2026-07-28 — Le % sur la valeur devient un motif : réservé pour le blanchiment
 
 Sylvain, après la nourrice : « Le mécanisme de % sur la valeur sera utilisé de nouveau
