@@ -213,6 +213,32 @@ fasse prendre — ce n'est pas un bug, c'est une porte fermée.
 
 ---
 
+## 2026-07-28 — Le menu annonçait un tarif que le corner ne facture jamais
+
+Le tiroir affichait le menu par format en `g × prix` brut. Or **toute** vente passe par
+`menuAt`, c'est-à-dire par le rabais au volume que Sylvain avait demandé (« le prix au
+gramme d'un 8 g doit être plus attractif que celui d'un 2 g »).
+
+Mesuré à 10/g :
+
+| format | affiché | encaissé | écart |
+| --- | --- | --- | --- |
+| 2 g | 20 | 20 | 0 % |
+| 5 g | 50 | 46 | 8 % |
+| 8 g | 80 | 68 | **15 %** |
+| 12 g | 120 | 96 | 20 % |
+| 20 g | 200 | 150 | **25 %** |
+
+Le rabais est **voulu** — ce n'est pas lui le bug. Le bug, c'est que la ligne sur laquelle
+le joueur **règle son tarif** annonce un nombre que le jeu ne pratique nulle part. Il
+calibrait son prix sur une fiction, jusqu'à un quart au-dessus (R4).
+
+Une seule source, `menuFmtTx`, comme pour `prixHintTx` — les deux sites d'affichage la
+partagent. Le contrôle vérifie que les lignes ne sont pas toutes au tarif brut ; la
+contre-épreuve, elle, en trouve 3 sur 3.
+
+---
+
 ## 2026-07-28 — 85 % des ventes ne comptaient pas, et le corner mourait de ça
 
 Deux trouvailles de la chasse de nuit, rapportées séparément par deux lentilles

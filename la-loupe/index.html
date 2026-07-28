@@ -386,10 +386,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=43";
-import * as beuher from "./beuher.mjs?v=43";
-import * as shelter from "./shelter.mjs?v=43";
-import * as corner from "./corner.mjs?v=43";
+import * as snap from "./snap.mjs?v=44";
+import * as beuher from "./beuher.mjs?v=44";
+import * as shelter from "./shelter.mjs?v=44";
+import * as corner from "./corner.mjs?v=44";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -424,7 +424,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=43"),
+      import("./scene3d.mjs?v=44"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -1548,6 +1548,16 @@ function pdvPatch(){
 }
 /* Le conseil de prix, extrait pour avoir UNE source : il était défini en fermeture dans
    renderCorner (capturant le marché du moment), donc impossible à rafraîchir. */
+/* Le menu par format, tel qu'il sera RÉELLEMENT facturé.
+   Il affichait `g × prix` brut, alors que toute vente passe par `menuAt` (le rabais au
+   volume voulu par Sylvain : « le prix au gramme d'un 8 g doit être plus attractif »).
+   Mesuré à 10/g : 5 g annoncé 50 encaissé 46, 8 g annoncé 80 encaissé 68, 20 g annoncé
+   200 encaissé 150 — jusqu'à un quart d'écart. Or c'est CETTE ligne que le joueur lit
+   pour régler son tarif : il calibrait sur un nombre que le jeu ne pratique jamais (R4).
+   Une seule source, comme pour `prixHintTx`. */
+function menuFmtTx(p){
+  return [2,5,8].map(g=>`${g}g ${Math.round(g*corner.menuAt(p,g))}`).join(" · ");
+}
 function prixHintTx(p, f){
   const d=Math.round((p/f-1)*100);
   return d>0?`+${d} % marché · moins de clients, + de marge`
@@ -1874,7 +1884,7 @@ function renderCorner(P){
   const mNews=corner.marketNews(S.day);
   const drawerBody=`<div class="stat"><span>📋 Ton menu <span class="muted" style="font-size:10px">· marché ${fair}/g${mTrend}</span></span><b id="pPrixG">${prix}/g</b></div>
       <div class="nego-price" style="margin:2px 0 2px"><button class="pb" data-prix="-1">−1</button>
-        <div id="pMenuF" style="font-size:12px">2g ${2*prix} · 5g ${5*prix} · 8g ${8*prix}</div>
+        <div id="pMenuF" style="font-size:12px">${menuFmtTx(prix)}</div>
         <button class="pb" data-prix="1">+1</button></div>
       <div class="muted" id="pPrixHint" style="font-size:10px;margin:0 0 ${mNews?"2px":"8px"}">${prixHint(prix,fair)}</div>
       ${mNews?`<div class="muted" style="font-size:10px;margin:0 0 8px;color:${mNews.dir>0?"#ffb454":"#8fd0ff"}">${mNews.tx}</div>`:""}
@@ -1958,7 +1968,7 @@ function renderCorner(P){
   document.getElementById("chM").onclick=()=>{ P.chouffes=Math.max(0,P.chouffes-1); save(); renderCorner(P); };
   // menu réglable à la main : patch en place (le tiroir reste ouvert) — le prix pilote la demande + la négo
   const patchPrix=()=>{ const p=P.prix, f=marcheDuJour(), set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
-    set("pPrixG",p+"/g"); set("pMenuF",`2g ${2*p} · 5g ${5*p} · 8g ${8*p}`); set("pPrixHint",prixHint(p,f)); set("cMenuChip","📋 "+p+"/g"); set("cMarChip","⚖ "+f);
+    set("pPrixG",p+"/g"); set("pMenuF",menuFmtTx(p)); set("pPrixHint",prixHint(p,f)); set("cMenuChip","📋 "+p+"/g"); set("cMarChip","⚖ "+f);
     // La carte du client annonce « prix menu » et une tête (😊 / grimace) calculées AVEC
     // l'ancien tarif. Sans ce rappel, on montait son prix, la carte gardait son 😊, et le
     // « ✅ OK » promis se soldait en contre-offre ou en départ. La promesse doit suivre.

@@ -437,6 +437,24 @@ ok("L'écran d'évacuation s'ouvre après le cri, avec ses deux gestes",
             : `carte « ${seq.carte.trim()} » → annonce ${seq.annonceCarte} g · bouton « ${String(seq.label).trim()} » · RÉELLEMENT débité ${debite} g`);
 }
 
+// ── 5. Le menu annonce ce qui sera VRAIMENT encaissé ──────────────────────
+// Il affichait `g × prix` brut, alors que toute vente passe par le rabais au volume.
+// Mesuré à 10/g : 8 g annoncé 80, encaissé 68 — 15 % d'écart, jusqu'à 25 % à 20 g. Or
+// c'est cette ligne que le joueur lit pour régler son tarif.
+{
+  const lu = await page.evaluate(() => {
+    const el = document.getElementById("pMenuF");
+    const chip = document.getElementById("pPrixG");
+    return { menu: (el || {}).textContent || "", prix: (chip || {}).textContent || "" };
+  });
+  const p = +(lu.prix.match(/(\d+)/) || [, 0])[1];
+  const paires = [...lu.menu.matchAll(/(\d+)g\s+(\d+)/g)].map((m) => [+m[1], +m[2]]);
+  const brut = paires.filter(([g, v]) => v === g * p);
+  ok("Le menu du tiroir annonce le tarif RÉELLEMENT encaissé (rabais volume compris)",
+     p > 0 && paires.length >= 3 && brut.length < paires.length,
+     `menu « ${lu.menu} » à ${p}/g — ${brut.length}/${paires.length} ligne(s) au tarif brut (8 g brut vaudrait ${8 * p})`);
+}
+
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
 
 console.log("\n─── bulles & ARAH · La Loupe ───");
