@@ -235,6 +235,65 @@ ok("La cause dit quoi FAIRE, pas seulement ce qui se passe",
             : `le message attendu n'est pas apparu : « ${apres.toast.trim()} »`);
 }
 
+// ── Négocier tranquillement ne coûte pas le multiplicateur ───────────────
+// Même faute que ci-dessus, l'autre moitié. Le gel de patience (`waiting`) ne protège que
+// le client de TÊTE ; le fond de file continue de fondre à QUEUE_MELT pendant qu'on
+// négocie. Une expiration N'IMPORTE OÙ dans la file remettait le combo à 1 — sous le
+// commentaire qui condamne précisément ça (« punir la LENTEUR DE LA MAIN, exactement ce
+// que R1 interdit »), et dont l'audit précédent n'avait retiré que la ponction de `res`.
+//
+// Mesuré avant correctif — file de 4, tête en « nego », on ne touche à rien 5 s :
+//   combo 2,5 → 1, pendant que le client EN FACE garde pat 22 (il n'a rien raté),
+//   et sans un mot à l'écran.
+//
+// Contre-épreuve faite en repassant ce contrôle sur l'index.html d'avant correctif : il
+// échoue (⚡×2.5 → ⚡×1).
+{
+  const tete = { cid: null, nm: "Un gars", av: "🧢", kind: "anon", rel: 0, g: 5, offer: 55,
+    tx: "Il te fait signe.", pat: 22, pat0: 22, mode: "nego", negoP: 55, dernier: null, qFac: 1 };
+  const fond = (i) => ({ cid: null, nm: "Passant " + i, av: "🧍", kind: "anon", rel: 0, g: 2, offer: 20,
+    tx: "Il attend.", pat: 2, pat0: 22, mode: "offer", negoP: 20, dernier: null, qFac: 1 });
+  await page.evaluateOnNewDocument((q) => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    delete s.shelter.pdv;   // cf. plus haut : la migration réappliquerait l'ancienne forme
+    s.shelter.corners = { pdv: { res: 90, bac: 0, prix: 10, chouffes: 0, tampon: { 2: 40, 5: 20 },
+      tamponQ: 70, queue: q, ledger: [], qacc: 0, serveAcc: 0, seq: 5, combo: 2.5, charbonneur: null } };
+    s.shelter.cornerId = "pdv";
+    localStorage.setItem("loupe_save", JSON.stringify(s));
+  }, [tete, fond(1), fond(2), fond(3)]);
+  await page.reload({ waitUntil: "load" });
+  await sleep(700);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin]")].find((x) => x.dataset.pin === "pdv"); if (b) b.click(); });
+  await sleep(300);
+  await page.evaluate(() => { const b = [...document.querySelectorAll("[data-pin-go]")].find((x) => x.dataset.pinGo === "pdv"); if (b) b.click(); });
+  await sleep(600);
+
+  const etat = () => page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
+    const P = (s.shelter && s.shelter.corners && s.shelter.corners.pdv) || {};
+    const act = (P.queue || [])[0] || {};
+    return { chip: ((document.getElementById("cComboChip") || {}).textContent || "").trim(),
+             combo: P.combo, file: (P.queue || []).length, mode: act.mode, pat: Math.round(act.pat || 0) };
+  });
+  const t0 = await etat();
+  await sleep(5000);            // on NÉGOCIE : on ne touche à rien, la file s'impatiente
+  const t1 = await etat();
+  await page.screenshot({ path: path.join(OUT, "04-file-combo.png") });
+
+  ok("La file se vide bien pendant la négo — sinon le contrôle ne prouverait rien",
+     t0.file > t1.file && t0.combo === 2.5,
+     `file ${t0.file} → ${t1.file} · chip de départ ${t0.chip}`);
+
+  ok("R1 · le client en face reste gelé pendant qu'on négocie avec lui",
+     t1.mode === "nego" && t1.pat === t0.pat,
+     `« ${t1.mode} » · patience ${t0.pat} → ${t1.pat}`);
+
+  ok("R1 · prendre le temps de négocier ne coûte pas le multiplicateur",
+     t1.combo === t0.combo,
+     t1.combo === t0.combo ? `chip ${t1.chip} conservée alors que ${t0.file - t1.file} client(s) se sont lassés`
+                           : `chip ${t0.chip} → ${t1.chip} — la lenteur de la main est amendée`);
+}
+
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
 
 console.log("\n─── causes nommées · La Loupe ───");

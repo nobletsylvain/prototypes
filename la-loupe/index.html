@@ -1118,11 +1118,24 @@ function cornerNegoTick(P, dt, demande, open){
   for(let i=0;i<P.queue.length;i++){ const cl=P.queue[i]; if(!waiting(cl)) continue; cl.pat-=dt*(i===0?1:corner.CORNER.QUEUE_MELT); }
   const keep=[];
   for(const cl of P.queue){ if(waiting(cl)&&cl.pat<=0){ expired++; if(cl.cid&&S.clients[cl.cid]) S.clients[cl.cid].missed++; } else keep.push(cl); }
-  // R1 : un client qui se lasse est une VENTE PERDUE, pas une amende. Ponctionner
-  // `res` (qui pilote la demande) punissait la LENTEUR DE LA MAIN — exactement ce
-  // que R1 interdit. Le walk après une contre-offre trop haute, lui, reste sanctionné :
-  // il est annoncé par negoFace avant le bouton, donc c'est une décision (R8).
-  if(expired){ P.queue=keep; P.combo=1; }
+  /* R1 : un client qui se lasse est une VENTE PERDUE, pas une amende. Ponctionner
+     `res` (qui pilote la demande) punissait la LENTEUR DE LA MAIN — exactement ce
+     que R1 interdit. Le walk après une contre-offre trop haute, lui, reste sanctionné :
+     il est annoncé par negoFace avant le bouton, donc c'est une décision (R8).
+
+     Le `P.combo=1` qui vivait sur cette ligne était la MOITIÉ NON CORRIGÉE de la même
+     faute : l'audit avait retiré la ponction de `res` et laissé la remise à 1 juste à
+     côté, sous le commentaire qui la condamne. Or seul le client de tête est gelé pendant
+     la négo (`waiting`) ; le fond de file, lui, fond à QUEUE_MELT. Mesuré : file de 4,
+     tête en « nego », on ne touche à rien — combo 2,5 → 1 en 5 s, pendant que le client
+     EN FACE garde toute sa patience (pat 22, il n'a rien raté), et sans un mot à l'écran.
+     Autrement dit : prendre le temps de bien négocier — ce que la carte invite à faire —
+     coûtait le multiplicateur, en silence.
+
+     Le combo est la chaîne de prix JUSTES : il se casse quand on se trompe de prix, pas
+     quand la file s'impatiente. Il ne reste donc plus qu'une seule façon de le perdre en
+     soirée, le walk, et elle est annoncée avant le geste. */
+  if(expired) P.queue=keep;
   if(cornerActive(P)!==was) renderCornerActive(P); else cornerPatchActive(P);
   cornerLayoutPersos(P); // positionne les silhouettes + jauges de patience
 }

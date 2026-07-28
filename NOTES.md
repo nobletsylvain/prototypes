@@ -9,6 +9,48 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Négocier tranquillement coûtait le multiplicateur, en silence
+
+Huitième trouvaille — et c'est **l'autre moitié de la précédente**, laissée sur place par
+un audit qui n'avait corrigé que sa voisine.
+
+Le gel de patience ne protège que le client de **tête** : le fond de file continue de
+fondre pendant qu'on négocie. Or une expiration **n'importe où** dans la file remettait le
+combo à 1. Mesuré — file de 4, tête en « nego », on ne touche à rien pendant 5 s :
+
+```
+  t0    chip ⚡×2.5 · file 4 · tête « nego » pat 22
+  t+5s  chip ⚡×1   · file 2 · tête « nego » pat 22
+  message à l'écran : aucun
+```
+
+Le client **en face** n'a rien raté — il garde toute sa patience. C'est prendre le temps de
+bien négocier, ce que la carte invite explicitement à faire, qui coûtait le multiplicateur.
+Sans un mot.
+
+**Ce qui rend le diagnostic sûr : le commentaire au-dessus de la ligne la condamne.** Il dit
+qu'un client qui se lasse est « une VENTE PERDUE, pas une amende », et que ponctionner `res`
+« punissait la LENTEUR DE LA MAIN — exactement ce que R1 interdit ». L'audit d'alors a retiré
+la ponction de `res`… et laissé `P.combo=1` sur la même ligne, sous ce commentaire.
+
+C'est très exactement le mode de défaillance que R11 décrit : **la moitié visible réparée, la
+même faute survivant à côté** sous une autre forme. Deux fois en deux jours, sur deux sujets
+sans rapport (l'orthographe d'ARAH, puis ce combo). La leçon tient : ce qui n'est pas
+vérifié mécaniquement revient.
+
+Correctif : l'expiration ne touche plus au combo.
+
+### Conséquence d'équilibrage, à valider
+
+Il ne reste plus qu'**une seule** façon de perdre le combo en cours de soirée : le `walk`,
+c'est-à-dire s'être trompé de prix — et il est annoncé par `negoFace` **avant** le bouton
+(R8). Le combo devient donc littéralement « depuis quand tu n'as pas mal tarifé », ce qui est
+cohérent avec ce qu'il prétend être, mais **plus facile à tenir haut** qu'avant.
+
+**[DÉCISION REQUISE]** : ×3 tenable toute une soirée sur un pourboire de 18–22 %, est-ce le
+bon plafond ? Si c'est trop, le levier propre est `COMBO_MAX` / `COMBO_STEP` (constantes
+nommées, `corner.mjs:14`) — pas le retour d'une amende sur la lenteur.
+
 ## 2026-07-28 — « aucun malus » s'affichait pendant que le combo tombait de ×3 à ×1
 
 Septième trouvaille. Recaler un profil louche qui s'avère être un vrai client affiche
