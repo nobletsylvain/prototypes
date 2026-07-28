@@ -769,6 +769,47 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
      `elle rendait un corner NEUF (bac ${cN.pdv.bac}, prix ${cN.pdv.prix}) au lieu de bac ${ancien.bac}, prix ${ancien.prix}`);
 }
 
+/* ── Le réservoir du corner n'est pas un cliquet vers zéro ────────────────────
+   `applyDeltas` sortait avant d'appliquer `reput` et `res` quand le client n'avait pas de
+   fiche persona — or les anonymes sont 85 % du trafic (ANON_SHARE). Donc la seule voie de
+   RECHARGE du réservoir (les bonnes ventes) était coupée pour 85 % d'entre elles, tandis
+   que les ruptures le vidaient depuis quatre autres endroits et que rien ne le rechargeait
+   à la clôture. Le corner ne pouvait que mourir.
+   On rejoue ici la logique de `applyDeltas` telle que le jeu l'écrit, sur une soirée
+   d'anonymes bien servis. */
+{
+  const appliquer = (S, cl, v, corner) => {           // la version corrigée, à l'identique
+    if (v.reput) S.reput = Math.max(0, Math.min(100, S.reput + v.reput));
+    if (v.res) corner.res = Math.max(0, Math.min(100, corner.res + v.res));
+    const c = S.clients[cl.cid]; if (!c) return;
+    if (v.rel) c.rel = Math.max(0, Math.min(100, c.rel + v.rel));
+  };
+  const soiree = (appl) => {
+    const S = { reput: 20, clients: {} }, P = { res: 30 };
+    for (let i = 0; i < 40; i++) {                    // 40 anonymes, tous bien servis
+      const v = { rel: CORNER.REL_DEAL, reput: CORNER.REP_DEAL, res: CORNER.RES_DEAL };
+      appl(S, { cid: undefined, nm: "anon" }, v, P);
+    }
+    return { reput: S.reput, res: P.res };
+  };
+  const apres = soiree(appliquer);
+  ok("R4 · bien servir des anonymes crédite le standing ET recharge le réservoir",
+     apres.reput > 20 && apres.res > 30,
+     `40 ventes anonymes → standing 20 → ${apres.reput} · réservoir 30 → ${apres.res}`);
+
+  // contre-épreuve : la version d'avant, qui sortait avant tout
+  const ancienne = (S, cl, v, corner) => {
+    const c = S.clients[cl.cid]; if (!c) return;
+    if (v.rel) c.rel = Math.max(0, Math.min(100, c.rel + v.rel));
+    if (v.reput) S.reput = Math.max(0, Math.min(100, S.reput + v.reput));
+    if (v.res) corner.res = Math.max(0, Math.min(100, corner.res + v.res));
+  };
+  const av = soiree(ancienne);
+  ok("Contre-épreuve · l'ancienne version ne créditait RIEN sur une soirée d'anonymes",
+     av.reput === 20 && av.res === 30,
+     `40 ventes → standing ${av.reput} (inchangé) · réservoir ${av.res} (inchangé) — 85 % du trafic sans conséquence`);
+}
+
 console.log("\n─── invariants La Loupe ───");
 let bad = 0;
 for (const r of results) {

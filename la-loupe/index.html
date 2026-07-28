@@ -386,10 +386,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=42";
-import * as beuher from "./beuher.mjs?v=42";
-import * as shelter from "./shelter.mjs?v=42";
-import * as corner from "./corner.mjs?v=42";
+import * as snap from "./snap.mjs?v=43";
+import * as beuher from "./beuher.mjs?v=43";
+import * as shelter from "./shelter.mjs?v=43";
+import * as corner from "./corner.mjs?v=43";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -424,7 +424,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=42"),
+      import("./scene3d.mjs?v=43"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -1127,10 +1127,22 @@ function cornerNegoTick(P, dt, demande, open){
   cornerLayoutPersos(P); // positionne les silhouettes + jauges de patience
 }
 function applyDeltas(cl, v){
-  const c=S.clients[cl.cid]; if(!c) return;
-  if(v.rel) c.rel=clamp(c.rel+v.rel,0,100);
+  /* `reput` et `res` sont GLOBAUX : ils ne dépendent d'aucune fiche persona. Ils étaient
+     pourtant derrière le `return` qui protège la fiche — or un anonyme n'a pas de `cid`,
+     et les anonymes sont 85 % du trafic (`ANON_SHARE`). Donc 85 % des ventes ne
+     créditaient NI standing NI réservoir, pendant que le verdict et le toast annonçaient
+     la récompense (R4 : le résultat doit se relier au geste).
+
+     Pire, ça rendait le réservoir à sens unique. `res` monte de RES_DEAL sur une bonne
+     vente et descend de RES_WALK sur un départ — mais les RUPTURES le font baisser en
+     dehors d'ici (4 sites), et rien ne le recharge à la clôture. La seule voie de recharge
+     — les bonnes ventes — était donc coupée pour 85 % d'entre elles : le réservoir ne
+     pouvait que fondre, et à 0 le corner est mort sans issue (R1).
+     Une seule correction ferme les deux trous. */
   if(v.reput) S.reput=clamp(S.reput+v.reput,0,100);
-  if(v.res){ const P=activeCorner(); P.res=clamp(P.res+v.res,0,100); }
+  if(v.res){ const P=activeCorner(); if(P) P.res=clamp(P.res+v.res,0,100); }
+  const c=S.clients[cl.cid]; if(!c) return;   // ce qui suit est per-persona : rel, abus
+  if(v.rel) c.rel=clamp(c.rel+v.rel,0,100);
   if(v.resetGouge) c.gougeStreak=0;
   if(v.gouge){ c.gougeStreak=(c.gougeStreak||0)+1; if(c.gougeStreak>=corner.CORNER.GOUGE_STREAK_QUIT){ c.quit=true; toast("💔 "+cl.nm+" ne reviendra plus (trop d'abus)."); } }
 }

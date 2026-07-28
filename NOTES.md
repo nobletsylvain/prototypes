@@ -213,6 +213,56 @@ fasse prendre — ce n'est pas un bug, c'est une porte fermée.
 
 ---
 
+## 2026-07-28 — 85 % des ventes ne comptaient pas, et le corner mourait de ça
+
+Deux trouvailles de la chasse de nuit, rapportées séparément par deux lentilles
+différentes. **C'est le même bug**, et une seule ligne ferme les deux.
+
+### Le défaut
+
+```js
+function applyDeltas(cl, v){
+  const c=S.clients[cl.cid]; if(!c) return;   // ← tout est derrière ce garde
+  …
+  if(v.reput) S.reput = …
+  if(v.res)   P.res   = …
+}
+```
+
+Le garde protège la **fiche persona**. Mais `reput` et `res` sont **globaux** : ils n'ont
+besoin d'aucune fiche. Or un client anonyme n'a pas de `cid`, et `ANON_SHARE = 0.85` —
+**85 % du trafic**.
+
+Donc 85 % des ventes ne créditaient **ni standing ni réservoir**, pendant que le verdict
+affichait 😍 et que le toast annonçait la récompense. Le joueur ne pouvait pas relier son
+résultat à son geste (R4), pour la écrasante majorité de ses gestes.
+
+### Pourquoi le corner mourait
+
+`res` monte de `RES_DEAL` sur une bonne vente, descend de `RES_WALK` sur un départ. Mais
+les **ruptures** le font baisser depuis **quatre autres endroits**, qui ne passent pas par
+`applyDeltas` — et **rien ne le recharge à la clôture**.
+
+La seule voie de recharge, les bonnes ventes, était donc coupée pour 85 % d'entre elles.
+Résultat : un réservoir **à sens unique**, qui ne peut que fondre. À 0, le corner est mort
+définitivement, sans issue — R1 dans sa forme la plus dure, un blocage de progression.
+
+La seconde lentille avait rapporté ça comme un bug distinct (« `P.res` est un cliquet »).
+C'était la **conséquence** du premier, pas une cause séparée.
+
+### Le correctif
+
+Sortir les deux effets globaux **avant** le garde. Le garde reste, pour ce qui est
+réellement per-persona : la relation et le compteur d'abus.
+
+### Vérification
+
+Un invariant rejoue une soirée de 40 anonymes bien servis : standing 20 → 60, réservoir
+30 → 100. La contre-épreuve rejoue l'ancienne version sur la même soirée : **standing 20,
+réservoir 30, inchangés** — quarante ventes sans la moindre conséquence.
+
+---
+
 ## 2026-07-28 — « Annuler » offrait des grammes en silence
 
 La chasse de nuit sur la logique a rendu. Sa première trouvaille est une violation de R1
