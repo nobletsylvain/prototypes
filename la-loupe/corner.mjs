@@ -436,6 +436,49 @@ export function anonQty(day, seq, rue, rueMax){
 }
 
 // PNJ anonyme (le volume) : petite dose, ouvre proche du menu, accepte vite. Ni relation ni tell.
+/* ── Les visages du quartier ──────────────────────────────────────────────
+   Arbitrage de Sylvain (2026-07-28) : les anonymes doivent avoir des TÊTES RÉCURRENTES.
+   Il veut un quartier peuplé, pas des statistiques — et il a raison : 85 % du trafic
+   défilait sans qu'aucun de ces gens n'existe deux fois.
+
+   Ce qu'un visage EST : quelqu'un qu'on reconnaît. Il revient, on se souvient de ce qu'il
+   demande, on sait combien de fois on l'a laissé repartir les mains vides.
+   Ce qu'un visage N'EST PAS : un persona. Pas d'ardoise, pas d'exigence de qualité, pas de
+   graphe social, pas de relation qui monte. Les personas nommés restent la RÉCOMPENSE du
+   bouche-à-oreille ; si un passant pouvait devenir aussi intéressant qu'eux, débloquer
+   Lina ou Nassim ne voudrait plus rien dire. La frontière est nette et tient à une chose :
+   un visage n'a pas de `cid`, donc `applyDeltas` continue de sauter sa branche persona.
+
+   L'identité est DÉTERMINISTE (R4) : elle sort du même hash que le reste de la
+   présentation, donc même seed = mêmes visages, dans le même ordre.
+
+   Pourquoi 24 et pas 12 : à ~19 anonymes par soirée, une réserve de 12 ferait revenir
+   chaque tête 1,6 fois par SOIRÉE — ce n'est pas un habitué, c'est un figurant en boucle.
+   À 24, on croise la même tête une soirée sur deux environ : assez pour la reconnaître,
+   assez rare pour que ça compte. */
+export const VISAGES = [
+  { nm:"Momo",   av:"🧢" }, { nm:"Inès",   av:"🎧" }, { nm:"Yaz",    av:"🛵" }, { nm:"Riton",  av:"🥀" },
+  { nm:"Sofia",  av:"💅" }, { nm:"Sami",   av:"🎒" }, { nm:"Lou",    av:"👟" }, { nm:"Nassim", av:"🎲" },
+  { nm:"Aya",    av:"🌙" }, { nm:"Karim",  av:"🧥" }, { nm:"Zoé",    av:"🎀" }, { nm:"Paul",   av:"👤" },
+  { nm:"Djibril",av:"🧣" }, { nm:"Naïma",  av:"🕶️" }, { nm:"Ryan",   av:"🎸" }, { nm:"Fatou",  av:"🧶" },
+  { nm:"Théo",   av:"🛹" }, { nm:"Mila",   av:"📻" }, { nm:"Ousmane",av:"🥊" }, { nm:"Jade",   av:"🪩" },
+  { nm:"Kevin",  av:"🚬" }, { nm:"Assia",  av:"🧵" }, { nm:"Bruno",  av:"⚙️" }, { nm:"Lena",   av:"🎤" },
+];
+/** Le visage croisé à (jour, rang). Déterministe : même seed, même tête au même moment. */
+export function visageDe(day, seq){
+  const i = Math.floor(hh(day*29+7, seq*3+1) * VISAGES.length) % VISAGES.length;
+  return { vid: i, ...VISAGES[i] };
+}
+/** Ce qu'on dit d'une tête déjà croisée. Rien avant la 2e fois : reconnaître quelqu'un
+    qu'on voit pour la première fois serait un mensonge, et le jeu n'en fait pas. */
+export function visageTell(v){
+  if(!v || (v.vu||0) < 2) return "";
+  const fmts = Object.entries(v.g||{}).sort((a,b)=>b[1]-a[1]);
+  const habitue = fmts.length ? `${fmts[0][0]} g d'habitude` : "";
+  const rate = (v.bredouille||0) > 0 ? ` · reparti bredouille ${v.bredouille}×` : "";
+  return `Déjà vu ${v.vu}×${habitue?" · "+habitue:""}${rate}`;
+}
+
 export function makeAnon(day, seq, reput, prix, rue, rueMax){
   const menu = prix || cornerFair(reput);
   const qty = anonQty(day, seq, rue, rueMax);

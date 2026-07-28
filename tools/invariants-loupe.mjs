@@ -16,7 +16,7 @@ import {
   CORNER, CORNER_PERSONAS, makeOffer, makeAnon, makeLouche, makeArdoise,
   resolveOffer, cornerBudget, cornerTol, cornerFair, wantsArdoise, offerCap,
   qualFac, QUAL_REF, QUAL_TOL_MAX,
-  negoFace, anonQty, ruePartGros, rueCalibre, checkUnlocks, cornerClientsDefault, rueApres,
+  negoFace, visageDe, visageTell, VISAGES, anonQty, ruePartGros, rueCalibre, checkUnlocks, cornerClientsDefault, rueApres,
   RUE_MIN, RUE_PALIERS, RUE_PART_MAX, RUE_INERTIE, menuAt, rabaisVolume, RABAIS_FORMAT,
 } from "../la-loupe/corner.mjs";
 import { qtyToSachets, applySachetPlan, composables, evacuerLot, deplacerBarrettes } from "../la-loupe/snap.mjs";
@@ -934,6 +934,72 @@ const QUALITES = [40, 52, 55, 64, 70, 78, 90, 100];
   ok("Contre-épreuve · sans la frontière d'abus, le visage invitait au prix qui coûte",
      menteusesAvant > 0,
      menteusesAvant ? `${menteusesAvant} cas — ex. ${exemple}` : "aucun cas reproduit");
+}
+
+/* ── Les visages du quartier ──────────────────────────────────────────────
+   Arbitrage de Sylvain : les anonymes doivent avoir des TÊTES RÉCURRENTES — un quartier
+   peuplé, pas des statistiques. Trois choses doivent tenir, et elles se contredisent
+   facilement l'une l'autre :
+   1. DÉTERMINISME (R4) — même seed, même tête au même moment. Sans ça on retombe dans
+      l'anti-exemple fondateur : un jeu dont le joueur ne peut pas relier ce qu'il voit à
+      ce qu'il a fait.
+   2. RÉCURRENCE — une tête doit revenir assez pour être reconnue.
+   3. VARIÉTÉ — mais pas au point de repasser en boucle dans la même soirée : à ce
+      moment-là ce n'est plus un habitué, c'est un figurant qui tourne. */
+{
+  // 1. déterministe, et borné à la réserve
+  let cas = 0, horsBornes = 0, instable = 0;
+  for (let d = 1; d <= 40; d++) {
+    for (let q = 0; q < 30; q++) {
+      const a = visageDe(d, q), b = visageDe(d, q);
+      cas++;
+      if (!(a.vid >= 0 && a.vid < VISAGES.length) || !a.nm || !a.av) horsBornes++;
+      if (a.vid !== b.vid) instable++;
+    }
+  }
+  ok("R4 · le visage croisé est déterministe et toujours dans la réserve",
+     cas > 0 && horsBornes === 0 && instable === 0,
+     `${cas} tirages · ${instable} instable(s) · ${horsBornes} hors réserve`);
+
+  // 2 et 3. la distribution : reconnaissable sans devenir une boucle
+  const SOIREES = 8, PAR_SOIR = 19;
+  const parSoir = [];
+  const total = {};
+  for (let d = 1; d <= SOIREES; d++) {
+    const vus = {};
+    for (let q = 0; q < PAR_SOIR; q++) {
+      const v = visageDe(d, q);
+      vus[v.vid] = (vus[v.vid] || 0) + 1;
+      total[v.vid] = (total[v.vid] || 0) + 1;
+    }
+    parSoir.push(vus);
+  }
+  const distinctes = Object.keys(total).length;
+  const maxDansUneSoiree = Math.max(...parSoir.map((v) => Math.max(...Object.values(v))));
+  const revenues = Object.values(total).filter((n) => n >= 2).length;
+
+  ok("La réserve tourne vraiment (le quartier n'est pas peuplé de trois personnes)",
+     distinctes >= VISAGES.length * 0.8,
+     `${distinctes} têtes distinctes sur ${VISAGES.length} en ${SOIREES} soirées`);
+
+  ok("Une tête revient assez pour être reconnue",
+     revenues >= distinctes * 0.8,
+     `${revenues}/${distinctes} têtes croisées au moins deux fois`);
+
+  ok("…mais ne repasse pas en boucle dans la même soirée (habitué, pas figurant)",
+     maxDansUneSoiree <= 4,
+     `au pire ${maxDansUneSoiree} passages de la même tête dans une soirée de ${PAR_SOIR}`);
+
+  // 4. on ne reconnaît personne qu'on n'a pas encore vu deux fois — sinon l'écran ment
+  ok("R4 · aucune reconnaissance avant la 2e rencontre (le jeu ne feint pas de se souvenir)",
+     visageTell({ vu: 0 }) === "" && visageTell({ vu: 1, g: { 5: 1 } }) === ""
+       && /Déjà vu 2/.test(visageTell({ vu: 2, g: { 5: 2 } })),
+     `vu 0 → « ${visageTell({ vu: 0 })} » · vu 1 → « ${visageTell({ vu: 1, g: { 5: 1 } })} » · vu 2 → « ${visageTell({ vu: 2, g: { 5: 2 } })} »`);
+
+  // 5. ce qu'il demande d'habitude = le format le PLUS demandé, pas le dernier vu
+  ok("Son habitude, c'est ce qu'il demande le plus souvent — pas sa dernière visite",
+     /8 g d'habitude/.test(visageTell({ vu: 9, g: { 2: 1, 8: 6, 5: 2 } })),
+     visageTell({ vu: 9, g: { 2: 1, 8: 6, 5: 2 } }));
 }
 
 console.log("\n─── invariants La Loupe ───");

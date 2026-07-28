@@ -9,6 +9,61 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Les visages du quartier, et une fausse alerte sur mon propre poste
+
+Arbitrage de Sylvain : les anonymes doivent avoir des **têtes récurrentes**. Il a pris
+l'option que je n'avais pas recommandée, et il avait raison : 85 % du trafic défilait sans
+que personne n'existe deux fois. Un quartier peuplé, pas des statistiques.
+
+Ce qu'un visage **est** : quelqu'un qu'on reconnaît. Il revient, on se souvient de ce qu'il
+demande, on sait combien de fois on l'a laissé repartir les mains vides —
+« Déjà vu 4× · 8 g d'habitude · reparti bredouille 2× ».
+
+Ce qu'un visage **n'est pas** : un persona. Pas d'ardoise, pas d'exigence de qualité, pas de
+graphe social, pas de relation qui monte. Les personas nommés restent la **récompense** du
+bouche-à-oreille — si un passant pouvait devenir aussi intéressant qu'eux, débloquer Lina ou
+Nassim ne voudrait plus rien dire. La frontière tient à une chose et une seule : un visage
+n'a **pas de `cid`**, donc `applyDeltas` continue de sauter sa branche persona.
+
+La mémoire est **purement descriptive** : aucune conséquence mécanique. C'est ce qui évite
+d'inventer un malus sur une rupture de stock (R1), et ce qui alimentera le Karnet — « on t'a
+demandé douze fois du 5 g, tu en as servi quatre », c'est-à-dire la décision de coupe, le
+seul vrai levier de qualité (R10). Sylvain avait à choisir entre têtes récurrentes et
+agrégat par format : en le construisant comme ça, on a les deux.
+
+### Pourquoi 24 têtes et pas 12
+
+Mesuré : à ~19 anonymes par soirée, une réserve de 12 ferait revenir chaque tête **1,6 fois
+par soirée** — ce n'est pas un habitué, c'est un figurant en boucle. À 24, on croise 24 têtes
+distinctes en 8 soirées, chacune ~4,8 fois, et jamais plus de 4 fois dans la même soirée.
+
+### La reconnaissance se calcule au RENDU, pas au spawn
+
+Premier jet : le tell était figé dans `cl.tell` au moment du spawn. Un client déjà en file
+revenait donc **sans mémoire** après un rechargement, et la vérité était dupliquée alors
+qu'elle vit déjà dans `S.visages`. Attrapé par le test d'écran, pas par relecture. Une seule
+source, lue au moment où on la montre : elle ne peut pas être périmée.
+
+L'autre oubli : l'expiration de patience ne passe **pas** par `cornerLeave` (la file est
+filtrée directement), donc un visage parti d'impatience n'aurait rien laissé. Il est reparti
+les mains vides comme les autres.
+
+### La fausse alerte
+
+En cours de route, mon checkout local s'est retrouvé **trois commits en arrière** :
+`karnet.mjs` avait disparu du disque et `karnet-loupe.mjs` était retombé à 13 contrôles au
+lieu de 29. J'ai bien failli annoncer à Sylvain que `main` était cassé — que son `index.html`
+importait un module absent, donc que le jeu ne chargeait plus.
+
+**C'était faux, et sa capture d'écran le prouvait déjà** : elle montrait le nouveau Karnet,
+donc le pont était bien déployé. J'ai vérifié `origin/main` avant de parler. Le dépôt était
+intact ; c'est ma copie de travail qui avait perdu le fil, et j'avais construit les visages
+sur cette base périmée. Tout a été rejoué sur le vrai `main`.
+
+**La leçon, et elle vaut d'être écrite** : avant d'annoncer une panne, vérifier la source de
+vérité — pas son propre poste. Et quand une observation du joueur contredit mon diagnostic,
+c'est le diagnostic qui est suspect.
+
 ## 2026-07-28 — Le Karnet dit enfin quelque chose : le pont
 
 Écran 1 du plan, fait. Le Karnet n'est plus un journal : il ouvre sur **le pont** — d'où
