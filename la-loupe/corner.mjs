@@ -523,5 +523,12 @@ export function resolveOffer(client, g, total, firstTry, isClientOffer, reput, p
     const t2 = Math.max(1, Math.min(Math.floor(g*tol*0.97), Math.floor(bud)));
     return { outcome:"counter", accepted:false, counterTotal:t2 }; // son « dernier prix »
   }
-  return { outcome:"walk", accepted:false, emo:"🤬", rel:CORNER.REL_WALK, reput:CORNER.REP_WALK, res:-CORNER.RES_WALK };
+  /* `ceil` et `asked` : ce qu'il aurait payé au maximum, et ce qu'on lui a demandé. Les
+     deux nombres existent DÉJÀ dans le scope (`tol`, `bud`, `total`) — on les rend au
+     lieu de les jeter. Sans eux, un départ fâché ne peut être expliqué qu'en RESIMULANT
+     le client après coup, c'est-à-dire en inventant un contrefactuel : le Karnet dirait
+     « son plafond était 88 » sans que 88 ait jamais existé. Ici, 88 est le nombre qui a
+     réellement décidé du refus. La fonction reste pure et déterministe. */
+  return { outcome:"walk", accepted:false, emo:"🤬", rel:CORNER.REL_WALK, reput:CORNER.REP_WALK, res:-CORNER.RES_WALK,
+           ceil:Math.max(1, Math.floor(Math.min(g*tol, bud))), asked:total };
 }

@@ -28,6 +28,17 @@ export const PINS = {
     title: "Le corner",
     blurb: "Le spot que Karim t'a filé. Tu vitrines ici — les clients arrivent en DM.",
   },
+  /* Chez Karim. Avant que l'Appro s'ouvre, c'est la SEULE source de matière (arbitrage
+     Sylvain, 2026-07-28). Il n'est pas un menu déguisé : il vend plus cher que le marché
+     — c'est le prix de ne pas avoir encore les contacts — et c'est en le faisant tourner
+     qu'on les obtient. */
+  karim: {
+    id: "karim",
+    x: 26, y: 30,
+    kind: "karim",
+    title: "Chez Karim",
+    blurb: "Arrière-boutique, rideau à moitié tiré. C'est lui qui t'a lancé — et pour l'instant, c'est lui qui te fournit.",
+  },
   rival: {
     id: "rival",
     x: 64, y: 38,
@@ -56,7 +67,24 @@ export const SUPPLIER = {
   price: 280,
   /** Jours pour rembourser Karim (J1 = jour du front). */
   dueDays: 4,
+  /* Ce qu'il vend, en LIQUIDE, avant que l'Appro s'ouvre. Même gabarit que le front :
+     100 g à q55. Son prix (`price`) est celui du front — 280 pour 100 g, contre 200 au
+     marché : +40 %. Ce n'est pas une punition, c'est ce que coûte de n'avoir qu'un seul
+     fournisseur (R9 — la friction se paie au niveau système, pas au geste). */
+  buyG: 100,
+  buyQ: 55,
+  /** Achats chez lui avant qu'il te passe le contact et que l'Appro s'ouvre. [PLACEHOLDER] */
+  unlockAfter: 3,
 };
+
+/** L'Appro est-elle ouverte ? Avant, tout passe par Karim. */
+export function approOuverte(S) {
+  return (S.karimBuys || 0) >= SUPPLIER.unlockAfter;
+}
+/** Ce qu'il reste à lui acheter avant le contact (0 = c'est ouvert). */
+export function approReste(S) {
+  return Math.max(0, SUPPLIER.unlockAfter - (S.karimBuys || 0));
+}
 
 /** Hit planque : 0–100, déterministe.
     Monte avec grammes stockés et « valeur » (qualité × g). Cap planque saturée = plus chaud. */
@@ -103,10 +131,21 @@ export function shelterDefaults() {
 }
 
 /** L'état d'UN corner. `combo` = chaîne de deals JUSTE de la soirée, remis à 1 à la clôture. */
+/* Les compteurs de la soirée EN COURS, par corner. Remis à zéro à la clôture.
+   Pourquoi ici et pas déduits du journal : le journal est plafonné à 50 entrées, donc
+   ses totaux seraient faux dès qu'une soirée dépasse 50 événements — et une soirée en
+   dépasse. Un bilan qui ne boucle pas est un mensonge : il vaut mieux compter à la
+   source, là où le montant est déjà en main, que reconstituer après coup. */
+export function soirDefaults() {
+  return { eur: 0, g: 0, tips: 0, servis: 0,
+    perdu: { rupture: 0, ruptureEur: 0, impat: 0, impatEur: 0, walk: 0, walkEur: 0 },
+    descente: { n: 0, eur: 0 } };
+}
 export function cornerDefaults(over) {
   return { res: 30, bac: 0, advQ: 0, prix: 10, chouffes: 0,
     tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0, combo: 1,
     charbonneur: null,        // qui le tient quand tu n'y es pas (null = personne)
+    soir: soirDefaults(),     // compteurs de la soirée en cours (cf. soirDefaults)
     ...(over || {}) };
 }
 

@@ -97,6 +97,11 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .app.beuher .icon{background:linear-gradient(145deg,#22e07a,#0a8f4a)}
 .app.atelier .icon{background:linear-gradient(145deg,#c06d6d,#6a3030)}
 .app.appro .icon{background:linear-gradient(145deg,#6d8ac0,#334a7a)}
+/* App pas encore acquise : elle reste VISIBLE et cliquable — elle mène à celui qui
+   l'ouvre. Une tuile qu'on cache n'apprend rien ; une tuile éteinte qu'on peut taper
+   dit à la fois « pas encore » et « voilà par où ». */
+.app.locked .icon{filter:grayscale(1);opacity:.42;box-shadow:0 6px 16px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08)}
+.app.locked .nm{opacity:.5}
 .app.cash .icon{background:linear-gradient(145deg,#e8c96a,#8a6a20)}
 .app.karnet .icon{background:linear-gradient(145deg,#9a8ab0,#4a3a60)}
 .app.shelter .icon{background:linear-gradient(145deg,#6ec8ff,#2a5a8a)}
@@ -115,6 +120,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .map-pin.pdv .dot{background:#9be37d}
 .map-pin.rival .dot{background:#ff8a6a}
 .map-pin.info .dot{background:#e8c96a}
+.map-pin.karim .dot{background:#c9a227}   /* le fournisseur : ni ton spot, ni un rival */
 .map-pin.on .dot{box-shadow:0 0 0 3px rgba(255,180,84,.55),0 0 12px rgba(255,180,84,.35)}
 .map-pin.locked{opacity:.55}
 .map-pin.locked .dot{filter:grayscale(.4)}
@@ -393,10 +399,11 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=47";
-import * as beuher from "./beuher.mjs?v=47";
-import * as shelter from "./shelter.mjs?v=47";
-import * as corner from "./corner.mjs?v=47";
+import * as snap from "./snap.mjs?v=50";
+import * as beuher from "./beuher.mjs?v=50";
+import * as shelter from "./shelter.mjs?v=50";
+import * as karnet from "./karnet.mjs?v=50";
+import * as corner from "./corner.mjs?v=50";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -431,7 +438,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=47"),
+      import("./scene3d.mjs?v=50"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -576,6 +583,16 @@ else for(const p of corner.CORNER_PERSONAS) if(!S.clients[p.id]) S.clients[p.id]
 if(!S.shelter.introSeen && (S.day>1 || shelter.stockG(S)>0 || (S.journal&&S.journal.length))){
   S.shelter.introSeen=true;
 }
+/* Migration v32 : l'Appro se mérite désormais chez Karim (`S.karimBuys`). Une partie DÉJÀ
+   EN COURS l'utilise depuis des jours — la verrouiller lui retirerait un outil acquis,
+   c'est-à-dire exactement le contraire de R2. On considère donc l'Appro déjà ouverte pour
+   toute save qui a vécu : même critère que la cinématique d'intro juste au-dessus, parce
+   que c'est la même question (« cette partie a-t-elle déjà commencé ? »). Une partie neuve,
+   elle, passe par Karim. */
+if(S.karimBuys==null){
+  const enCours = S.day>1 || shelter.stockG(S)>0 || (S.journal&&S.journal.length);
+  S.karimBuys = enCours ? shelter.SUPPLIER.unlockAfter : 0;
+}
 
 let tab="shelter", toastT=0, atelierSub="menu", cashSub="sorter", shelterSub="map";
 /** Session trieuse (non persistée) — feel Kisan 4+1 fitness sorter. */
@@ -597,7 +614,19 @@ function save(){ store.set("save", JSON.stringify(S)); }
 let toastQ=[];
 function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show"); clearTimeout(toastT);
   toastT=setTimeout(()=>{ toastEl.classList.remove("show"); if(toastQ.length) toastT=setTimeout(()=>toast(toastQ.shift()),250); },1800); }
-function cause(txt, why){ S.journal.unshift({t:Date.now(),txt,cause:why}); if(S.journal.length>50) S.journal.length=50; }
+/* Le journal porte désormais le JOUR et, quand l'appelant l'a sous la main, de quoi
+   chiffrer la ligne : `{eur, poste}`. Les ~40 appels existants marchent inchangés — le 3e
+   argument est optionnel.
+   Pourquoi le jour : le journal est plafonné à 50 entrées et sert de fil chronologique ;
+   sans `day`, impossible de dire à quelle soirée appartient une ligne dès qu'on en a
+   plusieurs à l'écran. Pourquoi `poste` : c'est ce qui permettra au bilan de dire d'où
+   vient un euro au lieu de l'agréger en « divers ». Le Karnet ne tirera PAS ses totaux
+   d'ici (le plafond de 50 les fausserait) — il les tirera de `P.soir` ; le journal reste
+   la trace lisible, pas la comptabilité. */
+function cause(txt, why, meta){
+  S.journal.unshift({t:Date.now(), day:S.day, txt, cause:why, ...(meta||{})});
+  if(S.journal.length>50) S.journal.length=50;
+}
 /* LE corner qu'on regarde. Null-safe par construction : il remplace les trois formes
    qui traînaient (`activeCorner()`, `activeCorner()`, `activeCorner()||{}`), et
    surtout il rend le pluriel possible sans toucher aux 21 appelants. */
@@ -830,7 +859,9 @@ function renderShelter(){
       <button class="app snap" data-go="snap"><div class="icon">⚡</div><div class="nm">SnapShit</div></button>
       <button class="app atelier" data-go="atelier"><div class="icon">✂</div><div class="nm">Atelier</div></button>
       <button class="app beuher" data-go="beuher"><div class="icon">🛵</div><div class="nm">Beuher</div></button>
-      <button class="app appro" data-go="buy"><div class="icon">◎</div><div class="nm">Appro</div></button>
+      ${shelter.approOuverte(S)
+        ? `<button class="app appro" data-go="buy"><div class="icon">◎</div><div class="nm">Appro</div></button>`
+        : `<button class="app appro locked" data-go="karim"><div class="icon">🔒</div><div class="nm">Appro</div></button>`}
       ${SORTER_ENABLED?`<button class="app cash" data-go="cash"><div class="icon">▣</div><div class="nm">Liquide</div></button>`:""}
       <button class="app karnet" data-go="karnet"><div class="icon">📓</div><div class="nm">Karnet</div></button>
     </div>
@@ -847,7 +878,10 @@ function renderShelter(){
   });
   stage.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{
     const g=b.dataset.go;
-    if(g==="buy"){ tab="atelier"; atelierSub="buy"; render(); return; }
+    // Appro fermée : la tuile verrouillée renvoie vers CELUI qui l'ouvre, jamais vers un
+    // mur muet. Le joueur doit toujours savoir quoi faire du refus (R1).
+    if(g==="karim"){ S.shelter.selectedPin="karim"; save(); renderShelter(); return; }
+    if(g==="buy") return allerAppro();
     if(g==="atelier"){ tab="atelier"; atelierSub="cut"; render(); return; }
     if(g==="karnet"){ renderKarnet(); return; }
     tab=g; atelierSub="menu"; render();
@@ -855,10 +889,12 @@ function renderShelter(){
   stage.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>buyUp(b.dataset.up));
   const repayBtn=document.getElementById("repay");
   if(repayBtn) repayBtn.onclick=()=>openRepay();
+  stage.querySelectorAll("[data-karim]").forEach(b=>b.onclick=()=>karimAchat());
   stage.querySelectorAll("[data-pin-go]").forEach(b=>b.onclick=()=>{
     const g=b.dataset.pinGo;
+    if(g==="karim"){ S.shelter.selectedPin="karim"; save(); renderShelter(); return; }
     if(g==="cut"){ tab="atelier"; atelierSub="cut"; render(); return; }
-    if(g==="buy"){ tab="atelier"; atelierSub="buy"; render(); return; }
+    if(g==="buy") return allerAppro();
     if(g==="snap"){ tab="snap"; render(); return; }
     if(g==="pdv"){ shelterSub="pdv"; renderPDV(); return; }
   });
@@ -887,7 +923,9 @@ function pinSheet(p, hit, hitLb){
       <div class="stat"><span>Barrettes · Sachets</span><b>${fmtBars()} · ${fmtSachets()}</b></div>
       <div class="grid2">
         <button class="btn ok" style="margin:0" data-pin-go="cut">✂ Couper</button>
-        <button class="btn ghost" style="margin:0" data-pin-go="buy">◎ Appro</button>
+        ${shelter.approOuverte(S)
+          ? `<button class="btn ghost" style="margin:0" data-pin-go="buy">◎ Appro</button>`
+          : `<button class="btn ghost" style="margin:0" data-pin-go="karim">🤝 Voir Karim</button>`}
       </div>
     </div>`;
   }
@@ -903,10 +941,65 @@ function pinSheet(p, hit, hitLb){
       <button class="btn snap" style="margin-top:6px" data-pin-go="snap">⚡ Ouvrir SnapShit (DM)</button>
     </div>`;
   }
+  if(p.kind==="karim"){
+    /* Karim est un TYPE, pas un distributeur : on lit son offre, ce qu'elle coûte de plus
+       que le marché, et où on en est du contact. Le compteur est affiché parce que sans
+       lui le déblocage tomberait du ciel — R4, le résultat doit se relier au geste. */
+    const S_=shelter.SUPPLIER, reste=shelter.approReste(S), ouvert=shelter.approOuverte(S);
+    const place=finiG()+painsG()+S_.buyG<=planqueCap();
+    const payable=S.dirty>=S_.price;
+    return `<div class="card">
+      <h3>${p.title}</h3>
+      <div class="muted">${p.blurb}</div>
+      <div class="stat"><span>Son gabarit</span><b>${S_.buyG} g · Q${S_.buyQ}</b></div>
+      <div class="stat"><span>Son prix (liquide)</span><b>${money(S_.price)} <span class="muted" style="font-size:10px">· ${(S_.price/S_.buyG).toFixed(2)}/g</span></b></div>
+      <div class="stat"><span>${ouvert?"Le contact":"Avant qu'il te passe le contact"}</span><b>${ouvert?"donné ✓":reste+" achat"+(reste>1?"s":"")}</b></div>
+      <button class="btn ok" data-karim="1" ${payable&&place?"":"disabled"}>
+        ${!payable?`Liquide insuffisant (${money(S.dirty)})`:!place?`Planque pleine — ${money(finiG()+painsG())}/${planqueCap()} g`:`🤝 Prendre ${S_.buyG} g · ${money(S_.price)}`}</button>
+      ${ouvert?`<button class="btn ghost" style="margin-top:6px" data-pin-go="buy">◎ Appro — tu as le contact maintenant</button>`
+              :`<div class="muted" style="font-size:10px;margin-top:6px">Le marché, c'est par relations. Fais-le tourner et il te présentera.</div>`}
+    </div>`;
+  }
   return `<div class="card">
     <h3>${p.title}${p.locked?' · bientôt':''}</h3>
     <div class="muted">${p.blurb}</div>
   </div>`;
+}
+/* Acheter chez Karim. Le compteur qui ouvre l'Appro n'avance que sur un achat RÉUSSI :
+   c'est le geste qui compte, pas l'intention. */
+/* UNE seule porte vers l'Appro. Cinq endroits y menaient (tuile, planque, écran de coupe,
+   repli 2D, reprise 3D) : poser le verrou dans quatre d'entre eux et en oublier un, c'est
+   la moitié-corrigée que ce dépôt s'est déjà infligée. Tant que Karim n'a pas passé le
+   contact, toutes ces portes mènent CHEZ LUI — jamais vers un refus muet. */
+function allerAppro(){
+  if(!shelter.approOuverte(S)){
+    tab="shelter"; shelterSub="map"; S.shelter.selectedPin="karim"; save(); render();
+    toast(`Pas encore de contact au marché. ${shelter.SUPPLIER.name} te fournit — ${shelter.approReste(S)} achat${shelter.approReste(S)>1?"s":""} avant qu'il te présente.`);
+    return;
+  }
+  tab="atelier"; atelierSub="buy"; render();
+}
+function karimAchat(){
+  const K=shelter.SUPPLIER;
+  if(S.dirty<K.price){ toast("Liquide insuffisant."); return; }
+  if(finiG()+painsG()+K.buyG>planqueCap()){
+    toast(`Planque ${money(finiG()+painsG())}/${planqueCap()} g — pas la place pour +${K.buyG} g.`); return;
+  }
+  S.dirty-=K.price;
+  S.pains.push({ g:K.buyG, q:K.buyQ });
+  const avant=shelter.approOuverte(S);
+  S.karimBuys=(S.karimBuys||0)+1;
+  spendDe().pain+=K.price;
+  cause(`Pain chez ${K.name}`, `−${money(K.price)} liquide · ${K.buyG} g Q${K.buyQ}`, {eur:-K.price, poste:"pain"});
+  if(!avant && shelter.approOuverte(S)){
+    // le déblocage est une CONSÉQUENCE nommée, pas une surprise
+    cause(`${K.name} te passe le contact`, `${K.unlockAfter} pains pris chez lui · l'Appro s'ouvre`);
+    toast(`🤝 « T'es réglo. Tiens, appelle ce numéro. » — l'Appro s'ouvre.`);
+  } else {
+    const r=shelter.approReste(S);
+    toast(`Pain reçu. ${r?`Encore ${r} et il te présente.`:""}`.trim());
+  }
+  save(); hud(); renderShelter();
 }
 
 /* ============ PDV — le corner : point de vente à 3 curseurs (CADRE) ============
@@ -946,6 +1039,29 @@ const PDV_CHOUFFE_DAMP=0.18, PDV_CHOUFFE_PAY=60, PDV_TAMPON_MAX=60; // barrettes
 // grimper (88 g → 145 g). Placeholder — en attente de tuning humain.
 const SAC_LOT=25;
 const PDV_PREAVIS_S=[0, 6, 12, 18];   // [PLACEHOLDER] secondes de préavis selon le nombre de chouffes
+/* L'amortissement SATURE là où le préavis cesse de s'améliorer (arbitrage Sylvain,
+   2026-07-28). `PDV_PREAVIS_S` s'arrête à 3 chouffes — au-delà, un chouffe de plus
+   n'achetait plus une seconde de préavis mais continuait d'écraser la génération de
+   chaleur, indéfiniment. Mesuré sur les constantes de la source, à activité 1 :
+
+     n=0 → 1,300/s, descente en  73 s      n=6  → 0,262/s, descente en 363 s
+     n=3 → 0,599/s, descente en 159 s      n=10 → 0,014/s, descente en 6650 s
+                                           n=11 → NÉGATIF : la chaleur ne monte PLUS JAMAIS
+
+   Dès ONZE chouffes — 660/soir — l'ARAH, la descente et l'écran d'évacuation devenaient
+   inatteignables. Ce n'était pas un plafond de sécurité, c'était un interrupteur.
+
+   Le plancher est calé sur l'amortissement du DERNIER palier de préavis : au-delà, le
+   chouffe supplémentaire n'achète plus rien, ni secondes ni chaleur. Pas de mur — on peut
+   toujours en embaucher — mais `chouffeGain` le dit, et le salaire continue de courir.
+   R9 : la friction supprimée reste compensée, la tension se règle au niveau système. */
+const PDV_CHOUFFE_PLANCHER=1/(1+(PDV_PREAVIS_S.length-1)*PDV_CHOUFFE_DAMP);
+/** Génération de chaleur amortie par les chouffes, plancher compris. Un seul endroit :
+    trois sites la recalculaient à l'identique, et un plancher oublié quelque part serait
+    exactement le genre de moitié-corrigée que ce dépôt s'est déjà infligé trois fois. */
+function chouffeAmorti(activity, n){
+  return activity*PDV_HEAT_RATE*Math.max(PDV_CHOUFFE_PLANCHER, 1/(1+(n||0)*PDV_CHOUFFE_DAMP));
+}
 const ARAH_COOL_MS=520;                // le temps de rentrer un bloc : on ne sauve jamais tout, et ça se voit
 const ARAH_LOT=8;                      // barrettes rentrées par tap (les grosses d'abord : on sauve la valeur)
 const PDV_WANT=[1,1,2,1,3,2,1,2]; // paniers clients (barrettes)
@@ -986,6 +1102,24 @@ function pdvServe(P){
 const CORNER_MAX_QUEUE=6;   // on sert un client à la fois → file courte
 const CORNER_ARRIVAL=3.2;   // arrivées négo : quelques clients/soirée (pas le flux auto)
 function cornerActive(P){ return P.queue&&P.queue.length?P.queue[0]:null; }
+/* Les compteurs de soirée d'un corner, toujours complets. L'accesseur est défensif parce
+   que la fusion du chargement (`{...cornerDefaults(), ...sauvegardé}`) remplace `soir` EN
+   BLOC dès qu'une save en porte un : un `soir` écrit par une version antérieure survivrait
+   tel quel, sans les clés ajoutées depuis, et le premier `+=` sur une clé absente donnerait
+   NaN — qui se propage en silence jusqu'au bilan. On complète donc à la lecture. */
+/** Le poste de dépense de la soirée, toujours présent (même raison défensive que soirDe). */
+function spendDe(){
+  const d={ pain:0, upg:0, chouffes:0 };
+  if(!S.dayTally) S.dayTally={ sold:0, brade:0, volume:0, cash:0, soldG:0, soldQSum:0, spend:d };
+  S.dayTally.spend={...d, ...(S.dayTally.spend||{})};
+  return S.dayTally.spend;
+}
+function soirDe(P){
+  const d=shelter.soirDefaults();
+  if(!P.soir) P.soir=d;
+  else { P.soir={...d, ...P.soir, perdu:{...d.perdu, ...(P.soir.perdu||{})}, descente:{...d.descente, ...(P.soir.descente||{})}}; }
+  return P.soir;
+}
 /* Débite EXACTEMENT `targetG` grammes du tampon, en composant avec les barrettes
    disponibles (tailles libres, fixées à la coupe). Si aucune combinaison exacte
    n'existe, on sert le meilleur sous-total ATTEIGNABLE — jamais plus que demandé.
@@ -1133,7 +1267,20 @@ function cornerNegoTick(P, dt, demande, open){
   const waiting=cl=>cl.mode!=="nego"&&cl.mode!=="dernier"; // gelé pendant qu'on négocie/dernier prix
   for(let i=0;i<P.queue.length;i++){ const cl=P.queue[i]; if(!waiting(cl)) continue; cl.pat-=dt*(i===0?1:corner.CORNER.QUEUE_MELT); }
   const keep=[];
-  for(const cl of P.queue){ if(waiting(cl)&&cl.pat<=0){ expired++; if(cl.cid&&S.clients[cl.cid]) S.clients[cl.cid].missed++; } else keep.push(cl); }
+  for(const cl of P.queue){
+    if(waiting(cl)&&cl.pat<=0){
+      expired++;
+      if(cl.cid&&S.clients[cl.cid]) S.clients[cl.cid].missed++;
+      /* On compte toujours le départ ; on ne le CHIFFRE que si la carte affichait un
+         montant que le joueur aurait pu taper (`cl.offer`). Un hésitant ou un ambigu
+         n'annonce aucun prix (`offer:0`) : lui attribuer un euro serait inventer ce
+         qu'il aurait payé. Le Karnet dira « 3 partis » sans montant plutôt qu'un
+         chiffre fabriqué. */
+      { const so=soirDe(P); so.perdu.impat++; if(cl.offer>0) so.perdu.impatEur+=Math.round(cl.offer); }
+      cause("Client parti", cl.nm+" a attendu trop longtemps"+(cl.offer>0?" · "+money(cl.offer)+" non encaissés":""),
+            cl.offer>0?{eur:-Math.round(cl.offer), poste:"impatience"}:{poste:"impatience"});
+    } else keep.push(cl);
+  }
   /* R1 : un client qui se lasse est une VENTE PERDUE, pas une amende. Ponctionner
      `res` (qui pilote la demande) punissait la LENTEUR DE LA MAIN — exactement ce
      que R1 interdit. Le walk après une contre-offre trop haute, lui, reste sanctionné :
@@ -1204,12 +1351,17 @@ function cornerLeave(P, cl, why, v, tip){
 // (Le bac ne sert plus qu'au charbonneur embauché plus tard : corner qui tourne en ton absence → recette à ramasser.)
 function cornerSell(P, cl, targetG, total, tip){
   const sold=cornerTakeG(P, targetG);
-  if(sold.g===0){ P.res=clamp(P.res-PDV_RUPTURE_HIT,0,100); cornerLeave(P, cl, "rupture"); return false; }
+  if(sold.g===0){
+    /* Euro RÉEL, pas estimé : `total` a déjà passé `resolveOffer` et été accepté au
+       moment où la sacoche se révèle incapable de composer. On perd une vente conclue. */
+    { const so=soirDe(P); so.perdu.rupture++; so.perdu.ruptureEur+=Math.round(total||0); }
+    P.res=clamp(P.res-PDV_RUPTURE_HIT,0,100); cornerLeave(P, cl, "rupture"); return false; }
   // rupture partielle : on ne facture JAMAIS ce qu'on n'a pas livré (au prorata)
   const eur=sold.g<targetG ? Math.round(total*sold.g/targetG) : total;
   const gain=eur+(tip||0);
   S.dirty+=gain; pushBills(gain);
   P.ledger.unshift({nm:cl.nm, n:sold.n, g:sold.g, eur:gain}); if(P.ledger.length>6) P.ledger.length=6;
+  { const so=soirDe(P); so.eur+=eur; so.tips+=(tip||0); so.g+=sold.g; so.servis++; }
   return true;
 }
 /* La quantité RÉELLEMENT proposée. Par défaut celle qu'il demande, mais le joueur
@@ -1257,7 +1409,15 @@ function cornerResolve(P, cl, total, firstTry, isClientOffer){
   const menu = (cl.mode==="dernier" && cl.menuFige>0) ? cl.menuFige : P.prix;
   const v=corner.resolveOffer(cl, g, total, firstTry, isClientOffer, S.reput, menu);
   if(v.outcome==="counter"){ cl.countered=true; cl.dernier=v.counterTotal; cl.menuFige=P.prix; cl.mode="dernier"; renderCornerActive(P); toast("Il contre — dernier prix "+v.counterTotal); return; }
-  if(v.outcome==="walk"){ applyDeltas(cl, v); P.combo=1; cornerLeave(P, cl, "walk", v); return; }
+  if(v.outcome==="walk"){
+    /* `v.ceil` est le plafond qui a RÉELLEMENT décidé du refus (rendu par resolveOffer),
+       pas une reconstitution. C'est ce qui permet au Karnet de dire « tu as demandé 104,
+       son plafond était 88 » sans inventer 88. */
+    { const so=soirDe(P); so.perdu.walk++; so.perdu.walkEur+=Math.round(v.ceil||0); }
+    cause("Client fâché", cl.nm+" · "+money(v.asked||total)+" demandés, son plafond était "+money(v.ceil||0),
+          {eur:-Math.round(v.ceil||0), poste:"walk"});
+    applyDeltas(cl, v); P.combo=1; cornerLeave(P, cl, "walk", v); return;
+  }
   let tip=0;
   if(v.tipRate){ tip=Math.round(total*v.tipRate*(P.combo||1)); }
   if(cl.qc&&cl.qc.ok&&v.outcome!=="gouge") tip+=Math.round(total*corner.CORNER.TIP_QUAL); // le connaisseur paie le propre
@@ -1546,7 +1706,7 @@ function pdvTick(dt){
   }
   // Heat : le corner ne chauffe que quand il tourne (à sec → il refroidit), amortie par les chouffes
   const activity=open ? clamp(demande/PDV_BASE_DEMAND + P.queue.length*0.04, 0, 1.6) : 0;
-  S.heat=clamp(S.heat+(activity*PDV_HEAT_RATE/(1+(P.chouffes||0)*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY)*dt,0,100);
+  S.heat=clamp(S.heat+(chouffeAmorti(activity, P.chouffes)-PDV_HEAT_DECAY)*dt,0,100);
   if(S.heat>=PDV_SEUIL && !arahState){
     // le chouffe achète des SECONDES, pas l'immunité : sans lui, la descente tombe sec
     const pre=PDV_PREAVIS_S[Math.min(P.chouffes||0, PDV_PREAVIS_S.length-1)];
@@ -1568,7 +1728,7 @@ function pdvBadge(P){ const b=document.getElementById("pinBac"); if(b){ b.textCo
    dans le dos du joueur n'est pas une décision). */
 function pdvVitesseHeat(P){
   const activity=clamp(pdvDemande()/PDV_BASE_DEMAND + (P.queue?P.queue.length:0)*0.04, 0, 1.6);
-  return activity*PDV_HEAT_RATE/(1+(P.chouffes||0)*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY;
+  return chouffeAmorti(activity, P.chouffes)-PDV_HEAT_DECAY;
 }
 function heatChipTxt(P){
   const v=pdvVitesseHeat(P), h=Math.round(S.heat);
@@ -1582,17 +1742,29 @@ function heatChipTxt(P){
 function resChipTxt(P){ return `👥 ${Math.round(P.res)}`; }
 /* Ce qu'un chouffe de plus t'achète, dit en SECONDES d'ouverture — pas en « −Heat ».
    C'est le barreau R2 de l'escalier au corner, et il était illisible : personne ne peut
-   deviner que passer de 0 à 1 chouffe fait passer de 49 s à 119 s. */
+   deviner que passer de 0 à 1 chouffe fait passer de 49 s à 119 s.
+
+   Depuis que l'amortissement sature (PDV_CHOUFFE_PLANCHER), un chouffe au-delà du dernier
+   palier de préavis n'achète RIEN — ni secondes d'ouverture, ni préavis — mais coûte son
+   salaire chaque soir. Sylvain a écarté le plafond dur : on peut toujours en embaucher.
+   Alors on le DIT, ici, avant le bouton — c'est de l'information, pas un mur, et c'est ce
+   qui rend le choix autolimitant sans jamais refuser le geste (R2/R8). */
 function chouffeGain(P){
+  const n=P.chouffes||0;
+  const activity=clamp(pdvDemande()/PDV_BASE_DEMAND + (P.queue?P.queue.length:0)*0.04, 0, 1.6);
   const sec=(c)=>{
-    const activity=clamp(pdvDemande()/PDV_BASE_DEMAND + (P.queue?P.queue.length:0)*0.04, 0, 1.6);
-    const v=activity*PDV_HEAT_RATE/(1+c*PDV_CHOUFFE_DAMP)-PDV_HEAT_DECAY;
+    const v=chouffeAmorti(activity, c)-PDV_HEAT_DECAY;
     // borné à 0 : au-delà du seuil la marge est nulle, pas négative
     return v<=0.001 ? Infinity : Math.max(0,(PDV_SEUIL-S.heat)/v);
   };
-  const a=sec(P.chouffes||0), b=sec((P.chouffes||0)+1);
+  const pre=(c)=>PDV_PREAVIS_S[Math.min(c, PDV_PREAVIS_S.length-1)];
+  const a=sec(n), b=sec(n+1);
+  if(a===Infinity && b===Infinity) return "le coin ne chauffe plus";
+  // rien de plus à acheter : ni ouverture, ni préavis
+  if(Math.round(a)===Math.round(b) && pre(n)===pre(n+1))
+    return `un de plus n'achète rien · préavis déjà au max (${pre(n)} s) — et ${PDV_CHOUFFE_PAY}/soir en plus`;
   const fmt=(x)=>x===Infinity?"illimité":Math.round(x)+" s";
-  return b===Infinity && a===Infinity ? "le coin ne chauffe plus" : `ouverture ${fmt(a)} → ${fmt(b)} avec un de plus`;
+  return `ouverture ${fmt(a)} → ${fmt(b)} · préavis ${pre(n)} s → ${pre(n+1)} s`;
 }
 function pdvPatch(){
   const P=activeCorner(), Qd=Math.round(tampN(P.tampon)>0?P.tamponQ:(S.sachetQ||55));
@@ -1768,7 +1940,8 @@ function arahTick(dt){
 function pdvDescente(){
   const P=activeCorner(), lost=Math.round(P.bac+tampG(P.tampon)*P.prix);
   P.bac=0; P.tampon={}; P.tamponQ=0; P.queue=[]; S.heat=PDV_AFTER; S.reput=clamp(S.reput-6,0,100);
-  cause("Descente au corner","−"+lost+" exposé"); hud();
+  { const so=soirDe(P); so.descente.n++; so.descente.eur+=lost; }
+  cause("Descente au corner","−"+lost+" exposé", {eur:-lost, poste:"descente"}); hud();
   toast("🚨 Descente — barrettes + bac saisis (−"+lost+"). La planque est sauve.");
   save(); if(tab==="shelter"&&shelterSub==="pdv") renderPDV();
 }
@@ -2110,14 +2283,81 @@ function buyUp(key){
   const conf=UPG[key]; if(!conf) return;
   const lv=S.upgrades[key]||0; if(lv>=conf.max) return;
   const cost=conf.cost*(lv+1); if(S.dirty<cost){ toast("Liquide insuffisant."); return; }
-  S.dirty-=cost; S.upgrades[key]=lv+1; cause(`Upgrade ${conf.title}`,`−${money(cost)}`); toast("Ça scale."); save(); render();
+  S.dirty-=cost; S.upgrades[key]=lv+1; spendDe().upg+=cost;
+  cause(`Upgrade ${conf.title}`,`−${money(cost)}`, {eur:-cost, poste:"upgrade"}); toast("Ça scale."); save(); render();
 }
 
+/* Le Karnet. Il ne montre QUE les soirées closes (arbitrage Sylvain) : une ligne qui bouge
+   ne peut pas être une leçon, et on ne compare pas une soirée finie à une soirée à moitié
+   jouée. Le prix est assumé — à J1 il dit « reviens demain » au lieu de faire semblant.
+
+   Trois blocs, dans cet ordre, et l'ordre est le propos :
+   1. LE PONT — d'où vient l'écart de marge avec la veille, poste par poste. La somme tombe
+      juste par construction (cf. karnet.mjs) ; si un résidu apparaît, il est AFFICHÉ, parce
+      qu'un résidu visible est un bug qu'on corrige et un résidu caché est un mensonge.
+   2. CE QUE TU N'AS PAS ENCAISSÉ — ruptures, départs, descente. Hors marge, dit comme tel :
+      ce n'est pas de l'argent sorti de la poche, c'est de l'argent jamais entré. Les trois
+      restent séparés parce que chacun appelle une correction différente.
+   3. LE FIL — le journal, inchangé, pour retrouver une ligne précise. */
+let karnetJour=0;                       // index dans S.soirees : 0 = la dernière close
 function renderKarnet(){
   tab="shelter"; set3d("hidden"); hud(); renderDock();
+  const soirees=Array.isArray(S.soirees)?S.soirees:[];
+  karnetJour=clamp(karnetJour,0,Math.max(0,soirees.length-1));
+  const ap=soirees[karnetJour], av=soirees[karnetJour+1];
+  const p=karnet.pont(av, ap), m=karnet.manqueDe(ap);
+  const sg=(n)=>(n>0?"+":"")+money(Math.abs(n)).replace(/^/, n<0?"−":"");
+
+  let corps;
+  if(!ap){
+    corps=`<div class="card muted">Aucune soirée close. Le Karnet compare des soirées finies :
+      joue-en une jusqu'au bout, il aura quelque chose à te dire.</div>`;
+  } else {
+    const fleche=!p.pont?"":p.ecart>0?"▲":p.ecart<0?"▼":"=";
+    const cls=!p.pont?"":p.ecart>0?"q-good":p.ecart<0?"q-bad":"";
+    corps=`<div class="card">
+      <div class="stat"><span>J${p.jour} · clôturée</span><b>marge ${money(p.marge)}</b></div>
+      ${p.pont?`<div class="stat"><span>contre J${p.jourAv} (${money(p.margeAv)})</span>
+        <b class="${cls}">${fleche} ${sg(p.ecart)}</b></div>`:""}
+      <div class="muted" style="font-size:11px;margin-top:4px">${karnet.verdict(p, m)}</div>
+    </div>
+    <div class="card">
+      <h3>${p.pont?"D'où vient l'écart":"Le détail de la soirée"}</h3>
+      ${p.lignes.length?p.lignes.map(l=>`<div class="stat">
+        <span>${l.nm}<br><span class="muted" style="font-size:10px">${
+          l.brut?`${money(l.brut.av)} → ${money(l.brut.ap)}`:l.aide}</span></span>
+        <b class="${l.montant>0?"q-good":"q-bad"}">${sg(l.montant)}</b></div>`).join("")
+        :`<div class="muted">Rien n'a bougé d'un poste à l'autre.</div>`}
+      ${p.pont&&p.nonExplique?`<div class="stat"><span style="color:var(--heat)">Non expliqué
+        <br><span class="muted" style="font-size:10px">un poste manque au bilan — c'est un bug, pas un arrondi</span></span>
+        <b style="color:var(--heat)">${sg(p.nonExplique)}</b></div>`:""}
+    </div>
+    <div class="card">
+      <h3>Pas encaissé <span class="muted" style="font-size:11px">— hors marge</span></h3>
+      <div class="muted" style="font-size:10px;margin:-4px 0 6px">Ce n'est pas sorti de ta poche : ce n'est jamais entré.</div>
+      ${karnet.manqueTotal(m)||m.impat.n?[
+        [`Ruptures`, m.rupture, `la sacoche ne composait pas — coupe un autre format`],
+        [`Partis d'impatience`, m.impat, `la file a fondu pendant que tu négociais`],
+        [`Départs fâchés`, m.walk, `ton prix a dépassé leur plafond`],
+        [`Descente`, m.descente, `saisi au corner`],
+      ].filter(([,v])=>v.n>0).map(([nm,v,aide])=>`<div class="stat">
+        <span>${nm}<br><span class="muted" style="font-size:10px">${v.n} · ${aide}</span></span>
+        <b class="q-bad">${v.eur?"−"+money(v.eur):"—"}</b></div>`).join("")
+        :`<div class="muted">Personne n'est reparti les mains vides. Soirée pleine.</div>`}
+    </div>`;
+  }
+
   stage.innerHTML=`<h2>Karnet</h2><div class="sub">Chaque ligne a une cause. L'UI n'invente rien.</div>
-    <div class="card journal">${S.journal.slice(0,20).map(j=>`<div class="item">${j.txt}<div class="c">↩ ${j.cause}</div></div>`).join("")||`<div class="muted">Vide.</div>`}</div>
+    ${soirees.length>1?`<div class="grid2" style="margin-bottom:8px">
+      <button class="btn ghost" style="margin:0" id="kPrev" ${karnetJour>=soirees.length-1?"disabled":""}>← soirée d'avant</button>
+      <button class="btn ghost" style="margin:0" id="kNext" ${karnetJour<=0?"disabled":""}>soirée d'après →</button>
+    </div>`:""}
+    ${corps}
+    <div class="card journal"><h3>Le fil</h3>${S.journal.slice(0,20).map(j=>`<div class="item">${
+      j.day?`<span class="muted" style="font-size:10px">J${j.day}</span> `:""}${j.txt}<div class="c">↩ ${j.cause}</div></div>`).join("")||`<div class="muted">Vide.</div>`}</div>
     <button class="btn ghost" id="back">↩ Quartier</button>`;
+  const pv=document.getElementById("kPrev"); if(pv) pv.onclick=()=>{ karnetJour++; renderKarnet(); };
+  const nx=document.getElementById("kNext"); if(nx) nx.onclick=()=>{ karnetJour--; renderKarnet(); };
   document.getElementById("back").onclick=()=>{ tab="shelter"; shelterSub="map"; render(); };
 }
 
@@ -2244,7 +2484,7 @@ function renderAtelierMenu(){
   document.getElementById("gBag").onclick=()=>{ atelierSub="bag"; render(); };
   document.getElementById("gCut").onclick=()=>{ atelierSub="cut"; render(); };
   document.getElementById("gDose").onclick=()=>{ atelierSub="dose"; render(); };
-  document.getElementById("gBuy").onclick=()=>{ atelierSub="buy"; render(); };
+  document.getElementById("gBuy").onclick=()=>allerAppro();
 }
 
 /** Emballe UNE barrette de taille f (telle que coupée). Retourne true si OK. */
@@ -2451,7 +2691,8 @@ function buyPain(p){
   const chunk=p.split||p.g;
   for(let left=p.g; left>0; left-=chunk) S.pains.push({ g:Math.min(chunk,left), q:p.q });
   if(S.painSel>=S.pains.length) S.painSel=0;
-  cause(`Achat ${p.label}`,`−${money(p.price)}`); toast("Pain reçu."); save(); hud();
+  spendDe().pain+=p.price;
+  cause(`Achat ${p.label}`,`−${money(p.price)}`, {eur:-p.price, poste:"pain"}); toast("Pain reçu."); save(); hud();
 }
 
 /* ---------- Secours 2D (3D indisponible : unpkg bloqué sur mobile) ---------- */
@@ -2489,7 +2730,7 @@ function renderCut2D(){
   stage.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{ S.painSel=+b.dataset.p; save(); renderCut2D(); });
   document.getElementById("c1").onclick=()=>manualCut(cutBatch());
   document.getElementById("c5").onclick=()=>manualCut(5*cutBatch());
-  const gb=document.getElementById("gBuy2"); if(gb) gb.onclick=()=>{ atelierSub="buy"; render(); };
+  const gb=document.getElementById("gBuy2"); if(gb) gb.onclick=()=>allerAppro();
   document.getElementById("gBag2").onclick=()=>{ atelierSub="bag"; render(); };
   document.getElementById("retry3d").onclick=()=>{ no3d=false; atelierSub="cut"; render(); };
   document.getElementById("menu2").onclick=()=>{ atelierSub="menu"; render(); };
@@ -2526,7 +2767,7 @@ function renderBuy2D(){
     renderBuy2D();
   });
   document.getElementById("gCut2").onclick=()=>{ atelierSub="cut"; render(); };
-  document.getElementById("retry3d").onclick=()=>{ no3d=false; atelierSub="buy"; render(); };
+  document.getElementById("retry3d").onclick=()=>{ no3d=false; allerAppro(); };
   document.getElementById("menu2").onclick=()=>{ atelierSub="menu"; render(); };
 }
 
@@ -2791,16 +3032,77 @@ function ensureDemand(){
 // Temps UNIQUE : une soirée s'écoule en temps réel et se clôture toute seule.
 // « Passer la nuit » (bouton) = juste avancer plus vite. (retour de test : corner temps réel
 // vs SnapShit à la soirée coïncidaient mal → une seule horloge.)
+/* ── La photo d'une soirée ────────────────────────────────────────────────
+   Arbitrage de Sylvain : le Karnet ne montre QUE les soirées closes. Une ligne qui bouge
+   ne peut pas être une leçon — on ne compare pas une soirée finie à une soirée à moitié
+   jouée. Il faut donc figer la soirée au moment où elle se ferme.
+
+   En DEUX temps, et pas un seul, parce que les chiffres d'une soirée ne sont pas tous
+   disponibles au même instant :
+   — `karnetOuvrir()` s'exécute AVANT `snap.passerSoiree`, qui remet `dayTally` à zéro dès
+     sa première instruction. La recette SnapShit de la soirée disparaîtrait sinon.
+   — `karnetSceller()` s'exécute APRÈS la paie des chouffes et le règlement des ardoises.
+     Ces deux lignes appartiennent à la soirée qui se clôt ; les lire trop tôt donnerait un
+     bilan amputé de la dépense la plus régulière du jeu.
+   Une seule fonction au milieu manquerait forcément l'un des deux bouts.
+
+   `seq` et `res` sont figés à l'ouverture pour que « passages » soit un DELTA : le nombre
+   de clients qui se sont présentés cette soirée-là, pas le compteur cumulé depuis toujours. */
+const KARNET_MAX_SOIREES = 14;   // ~2 Ko dans le save ; deux semaines de recul suffisent à comparer
+let karnetPhoto = null;
+function karnetOuvrir(){
+  const t = S.dayTally || {};
+  karnetPhoto = {
+    jour: S.day,
+    dm: Math.round(t.cash || 0),               // recette SnapShit, effacée par passerSoiree
+    dmVentes: t.sold || 0,
+    spend: { ...(t.spend || { pain:0, upg:0, chouffes:0 }) },
+    corners: Object.fromEntries(allCorners().map(id => {
+      const C = S.shelter.corners[id], so = soirDe(C);
+      return [id, { seq0: C.seq || 0, res0: Math.round(C.res || 0), prix: C.prix || 0,
+                    chouffes: C.chouffes || 0, soir: JSON.parse(JSON.stringify(so)) }];
+    })),
+    ardoise: 0,                                // rempli entre les deux temps (cf. plus bas)
+    heat: Math.round(S.heat), reput: Math.round(S.reput), dirty: Math.round(S.dirty),
+  };
+}
+function karnetSceller(){
+  if(!karnetPhoto) return;                     // clôture sans ouverture : on ne fabrique rien
+  const p = karnetPhoto; karnetPhoto = null;
+  // la paie et les ardoises sont tombées ENTRE les deux temps : on relit `spend` maintenant
+  p.spend = { ...p.spend, ...(S.dayTally && S.dayTally.spend ? S.dayTally.spend : {}) };
+  p.corners = Object.fromEntries(Object.entries(p.corners).map(([id, c]) => {
+    const C = S.shelter.corners[id];
+    return [id, { ...c, passages: Math.max(0, (C ? C.seq || 0 : c.seq0) - c.seq0),
+                        resFin: C ? Math.round(C.res || 0) : c.res0 }];
+  }));
+  p.heatFin = Math.round(S.heat);
+  if(!Array.isArray(S.soirees)) S.soirees = [];
+  S.soirees.unshift(p);
+  if(S.soirees.length > KARNET_MAX_SOIREES) S.soirees.length = KARNET_MAX_SOIREES;
+}
 function advanceDay(manual){
   const qLivree=snap.deliveredQuality(S, qualAvg());
+  karnetOuvrir();                    // AVANT passerSoiree : elle efface dayTally
   const cons=snap.passerSoiree(S, qLivree);
+  /* `S.day++` tombe ICI, donc tout ce qui suit serait daté de la soirée SUIVANTE — alors
+     que la paie des chouffes, les ardoises qui se règlent et les conséquences de la nuit
+     appartiennent à la soirée qui vient de se CLORE. Mesuré : la paie du soir arrivait au
+     journal avec le jour d'après. Un bilan bâti là-dessus imputerait chaque soir la
+     dépense la plus régulière du jeu à la mauvaise colonne — une erreur d'un jour qui ne
+     se voit jamais, parce que le total reste plausible.
+     On garde donc le jour qui se ferme et on le passe explicitement aux lignes concernées. */
+  const jourClos=S.day;
   S.day++; S.heat=clamp(S.heat-6,0,100); S.soldDay=0;
-  cons.forEach(c=>cause(c.t,c.c));
+  cons.forEach(c=>cause(c.t,c.c,{day:jourClos}));
   // ardoises : le crédit se règle tout seul au jour dit (déterministe, R4) — l'argent revient en liquide
   { const P=activeCorner();
     for(const p of corner.CORNER_PERSONAS){ const c=S.clients&&S.clients[p.id];
       if(c&&c.ardoise&&S.day>=c.ardoise.day){ const v=Math.round(c.ardoise.due); S.dirty+=v; pushBills(v);
-        c.rel=clamp(c.rel+2,0,100); cause("Ardoise réglée", p.nm+" +"+v+" liquide"); delete c.ardoise;
+        c.rel=clamp(c.rel+2,0,100);
+        // le crédit qui rentre appartient à la soirée qui se clôt : il entre dans SA photo
+        if(karnetPhoto) karnetPhoto.ardoise+=v;
+        cause("Ardoise réglée", p.nm+" +"+v+" liquide", {eur:v, poste:"ardoise", day:jourClos}); delete c.ardoise;
         if(P&&P.ledger){ const e=P.ledger.find(x=>x.ard&&!x.ok&&x.nm===p.nm); if(e){ e.ok=true; e.eur=v; } } } } // le ledger passe 🧾 → 🧾✓
     // l'offre « ce soir je suis à sec » ne survit pas à la nuit : une carte ardoise non acceptée s'en va (vente perdue, R1)
     if(P&&P.queue&&P.queue.length) P.queue=P.queue.filter(c=>c.mode!=="ardoise"); }
@@ -2810,9 +3112,16 @@ function advanceDay(manual){
   if(mNews) toastQ.push(mNews.tx+" Marché "+mNow+"/g.");
   // paie des chouffes du corner (liquide d'abord, puis propre) — sinon un chouffe part
   { const P=activeCorner(); const due=(P&&P.chouffes||0)*PDV_CHOUFFE_PAY;
-    if(due>0){ if(S.dirty>=due){ S.dirty-=due; cause("Paie chouffes","−"+due+" liquide"); }
-      else if(S.cash>=due){ S.cash-=due; cause("Paie chouffes","−"+due+" propre"); }
-      else { P.chouffes=Math.max(0,P.chouffes-1); cause("Chouffe parti","paie manquée"); } } }
+    if(due>0){ if(S.dirty>=due){ S.dirty-=due; spendDe().chouffes+=due; cause("Paie chouffes","−"+due+" liquide", {eur:-due, poste:"chouffes", day:jourClos}); }
+      else if(S.cash>=due){ S.cash-=due; spendDe().chouffes+=due; cause("Paie chouffes","−"+due+" propre", {eur:-due, poste:"chouffes", day:jourClos}); }
+      else { P.chouffes=Math.max(0,P.chouffes-1); cause("Chouffe parti","paie manquée · "+money(due)+" dus", {poste:"chouffes", day:jourClos}); } } }
+  /* Compteurs de soirée remis à zéro APRÈS la paie des chouffes et le règlement des
+     ardoises, jamais avant : ces deux lignes appartiennent à la soirée qui se clôt.
+     `advanceDay` appelle `snap.passerSoiree` en PREMIÈRE instruction, et celle-ci remet
+     `dayTally` à zéro — d'où la scission à venir en deux temps (photo puis scellement)
+     quand `S.soirees[]` arrivera. Ici on ne remet que ce qui vit sur le corner. */
+  karnetSceller();                   // APRÈS la paie et les ardoises, AVANT la remise à zéro
+  for(const id of allCorners()){ const C=S.shelter.corners[id]; C.soir=shelter.soirDefaults(); }
   if(activeCorner()) activeCorner().combo=1; // combo négo : remis à zéro à chaque clôture de soirée
   /* Les contacts s'ouvrent aussi à la CLÔTURE, plus seulement quand un client quitte
      le corner. Sans ça, un grossiste qui ne vient plus au corner ne pourrait plus

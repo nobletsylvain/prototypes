@@ -9,6 +9,329 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Le Karnet dit enfin quelque chose : le pont
+
+Écran 1 du plan, fait. Le Karnet n'est plus un journal : il ouvre sur **le pont** — d'où
+vient l'écart de marge avec la veille, poste par poste.
+
+```
+J4 · clôturée                                     marge 175
+Le détail de la soirée
+  Corner     ventes au comptoir, pourboires compris        +20
+  SnapShit   les commandes livrées en DM                  +275
+  Chouffes   leur paie, prélevée à la clôture             −120
+
+Pas encaissé — hors marge
+  Ce n'est pas sorti de ta poche : ce n'est jamais entré.
+  Ruptures         1 · la sacoche ne composait pas — coupe un autre format    −10
+  Départs fâchés   1 · ton prix a dépassé leur plafond                        −22
+```
+
+**La somme tombe juste, et elle est visible** : 20 + 275 − 120 = 175.
+
+### Ce qui rend le pont honnête
+
+**La somme est juste par CONSTRUCTION**, pas vérifiée après coup. Chaque ligne est la
+différence du même poste entre deux soirées, et la marge est la somme de ces postes, lue
+depuis **la même liste** (`POSTES`). Ajouter un poste l'ajoute au total automatiquement :
+il n'y a pas de somme parallèle qui puisse prendre du retard sur la liste.
+
+Le test balaie quand même **3 024 paires de soirées** — parce qu'une construction qui se
+croit correcte, ça existe. Et la contre-épreuve vérifie que **le contrôle mord** : oublier
+un poste fait bien apparaître un résidu. Sans elle, « ça boucle » ne prouverait rien, un
+pont vide boucle aussi.
+
+**Le manque à gagner reste DEHORS.** Ruptures, départs fâchés et descente ne sont pas des
+dépenses : c'est de l'argent qui n'est jamais entré. Les mélanger au pont casserait la
+somme et ferait passer une vente jamais conclue pour de l'argent sorti de la poche. Bloc
+séparé, étiqueté « hors marge », avec la phrase qui le dit en clair.
+
+**Un résidu, s'il y en avait un, s'AFFICHERAIT** — « Non expliqué : un poste manque au
+bilan, c'est un bug, pas un arrondi ». Un résidu visible est un bug qu'on corrige ; un
+résidu lissé est un mensonge.
+
+### Ce que j'ai changé par rapport au plan de conception
+
+Le plan mélangeait dans le même pont les postes de marge (pain, chouffes) et le manque à
+gagner (ruptures, descente). **Ça ne peut pas boucler** : les deux ne sont pas de même
+nature. Je les ai séparés — c'est la seule façon de garantir la somme, qui est le seul
+argument que le Karnet a pour exister.
+
+Le plan proposait aussi une ligne « + 80 Pain » quand on achète moins que la veille. Écarté
+pour la même raison qu'il l'écartait lui-même : ça apprendrait « achète moins de pain, ta
+soirée est meilleure » pendant que la planque se vide.
+
+### Le verdict ne fait pas de reproche
+
+Il nomme le poste le plus lourd **en valeur absolue, gain compris** : une bonne soirée doit
+s'expliquer aussi bien qu'une mauvaise. Un Karnet qui ne parlerait que des pertes serait un
+instrument de reproche, ce que R1 interdit.
+
+## 2026-07-28 — La photo de soirée, en deux temps parce qu'un seul ne suffit pas
+
+Sylvain a tranché : le Karnet ne montre **que les soirées closes**. Il faut donc figer
+chaque soirée au moment où elle se ferme. Étape 2 du plan, faite.
+
+**Une capture unique ne peut pas marcher, où qu'on la place** — les chiffres d'une soirée
+ne sont pas disponibles au même instant :
+
+- la **recette SnapShit** meurt dès la **première** instruction de la clôture
+  (`passerSoiree` remet `dayTally` à zéro) ;
+- la **paie des chouffes** tombe vers la **fin**, après le règlement des ardoises.
+
+D'où `karnetOuvrir()` avant, `karnetSceller()` après. Une seule fonction au milieu perdrait
+forcément l'un des deux bouts — et en silence, puisqu'un bilan amputé reste plausible.
+
+`seq` et `res` sont figés à l'ouverture pour que « passages » soit un **delta** : les
+clients de cette soirée-là, pas le compteur cumulé depuis le début de la partie.
+
+### Deux contrôles qui passaient sans rien prouver
+
+Écrits d'abord comme ça : la photo gardait `dm 0` et `passages 0` — les deux vérifications
+passaient au vert **sur des zéros**. Un contrôle qui ne peut pas échouer ne garde rien,
+c'est la troisième fois cette semaine que je m'y reprends.
+
+Refaits pour être vrais :
+
+- la soirée est seedée avec **275 € de recette DM**, et le test vérifie à la fois que la
+  photo les garde **et** que le jeu les a bien effacés (`dayTally.cash → 0`). Sans la
+  seconde moitié, on ne saurait pas si la photo a sauvé quoi que ce soit ;
+- le compteur cumulé part à **5** : si la photo rendait le cumul au lieu du delta, elle
+  afficherait « 5 passages » pour une soirée qui n'a vu arriver personne. Le test compare
+  explicitement les deux lectures.
+
+## 2026-07-28 — Karnet : les quatre derniers arbitrages
+
+| Question | Décision de Sylvain |
+| --- | --- |
+| Les anonymes | **Des têtes récurrentes** (j'avais recommandé l'agrégat par format — il a tranché l'inverse) |
+| La soirée en cours | **Seulement les soirées closes** |
+| L'ardoise | **Le retard est possible** — et l'écran s'appelle **Paiements**, pas Échéances |
+| La dette Karim (`FRONT_ENABLED`) | **Pas maintenant** |
+
+### Têtes anonymes récurrentes
+
+Il veut que le quartier soit **peuplé**, pas statistique. Ça demande une identité stable
+pour les passants, qu'aucun n'a aujourd'hui (`cid: null`).
+
+La contrainte à tenir : cette identité doit rester **déterministe** (R4). Elle se dérivera
+du hash de présentation déjà en place (`cornerHash(day, seq)`), donc sans aucun aléa
+d'état — le même seed donnera les mêmes visages. Et il faudra une frontière lisible avec
+les personas nommés, qui restent la **récompense** du bouche-à-oreille : un habitué anonyme
+n'est pas un persona, il n'a ni ardoise, ni exigence de qualité, ni graphe social.
+
+### Le retard sur l'ardoise — et pourquoi il faut y aller prudemment
+
+J'avais signalé le risque : le retard rouvre la porte que `FRONT_ENABLED = false` a dû
+fermer — une dette qui enfle (+8 chaleur, −6 standing, ×1,15 tous les 2 jours) sans moyen
+de la solder, c'est-à-dire **R1 violé de la pire façon**. Sylvain a maintenu son choix.
+C'est sa décision, et elle se tient : sans risque, accepter une ardoise n'est pas un
+arbitrage, c'est un bouton « oui ».
+
+Ce que ça engage côté implémentation, et qui n'est pas négociable :
+
+- le retard doit être **borné** — un montant qui rentre plus tard, pas une dette qui enfle
+  indéfiniment ;
+- il doit toujours exister une **sortie** ;
+- il doit être **annoncé avant** le geste (R8 : la carte doit dire ce qu'on risque), et
+  **déterministe** (R4 : jamais un tirage) — donc lisible sur la fiche du client, pas une
+  surprise à la clôture.
+
+Autrement dit : ce n'est pas le retard qui violait R1 dans l'ancien système, c'est
+l'**escalade sans issue**. On garde le premier, on ne réintroduit pas la seconde.
+
+### « Paiements » plutôt que « Échéances »
+
+Sa formulation exacte : « J'aime l'idée du retard possible et le nom paiement ». Je le lis
+comme le nom de l'écran. **Interprétation de ma part** — s'il voulait dire autre chose,
+c'est à corriger avant que le mot se répande dans les identifiants et les tests (R11 : une
+fois qu'une forme existe quelque part, elle remonte).
+
+## 2026-07-28 — Le socle du Karnet, et une erreur d'un jour qui ne se voyait pas
+
+Sylvain a arbitré les **quatre** sections du Karnet. Un workflow de conception a tourné
+(relevé de ce que le save contient déjà, trois propositions jugées contre R1..R11,
+synthèse). J'ai **vérifié ses affirmations sur le code** avant de m'en servir — quatre
+étaient porteuses, quatre sont exactes :
+
+| affirmation | vérifié |
+| --- | --- |
+| `missed` incrémenté (`index.html:1238`), **lu nulle part** | ✅ que des écritures |
+| la branche `walk` ne rend ni le plafond ni le montant demandé | ✅ `corner.mjs:526` |
+| `passerSoiree` remet `dayTally` à zéro **avant** la paie et les ardoises | ✅ `advanceDay:2910` puis `:2913+` |
+| `FRONT_ENABLED = false` rend la dette Karim morte | ✅ coupe `takeFront`, l'escalade, `debtInfo` |
+
+L'**étape 1** du plan ne dépend d'aucun arbitrage restant : c'est de la plomberie. Faite.
+
+### Compter à la source, pas relire le journal
+
+`S.journal` est plafonné à 50 entrées et une soirée en dépasse. Des totaux tirés de là
+seraient faux dès qu'une soirée est chargée — et faux **en silence**, ce qui est le pire
+cas. Les compteurs vivent donc sur le corner (`P.soir`), écrits là où le montant est déjà
+en main : vente, rupture, impatience, départ fâché, descente.
+
+### Les trois pertes ne se confondent plus
+
+Dire « tu as perdu 380 » n'aide personne : le joueur ne sait pas s'il doit couper un autre
+format, ravitailler plus, ou baisser son prix. Elles sont désormais séparées, et chacune
+porte le **nombre réel** :
+
+- **rupture** → l'euro avait été **accepté** au moment où la sacoche s'est révélée
+  incapable de composer ;
+- **impatience** → chiffrée **seulement** si la carte affichait un montant tapable. Un
+  hésitant n'annonce aucun prix : le Karnet dira « 3 partis » sans montant plutôt qu'un
+  chiffre fabriqué ;
+- **départ fâché** → `resolveOffer` rend maintenant `ceil` et `asked`. Les deux nombres
+  **existaient déjà dans le scope** ; on les rendait à la poubelle. Sans eux, expliquer un
+  départ imposerait de **resimuler** le client après coup — donc d'afficher « son plafond
+  était 88 » sans que 88 ait jamais décidé de quoi que ce soit.
+
+### L'erreur d'un jour
+
+`advanceDay` fait `S.day++` **en troisième instruction**, avant la paie des chouffes, le
+règlement des ardoises et les conséquences de la nuit. Toutes ces lignes étaient donc
+datées de la soirée **suivante**.
+
+Un bilan bâti là-dessus aurait imputé chaque soir la dépense la plus régulière du jeu à la
+mauvaise colonne. Et ça ne se voit **jamais** : le total reste plausible. Attrapé par le
+contrôle « la paie du soir reste attribuée à la soirée qui vient de se clore », qui est
+tombé du premier coup.
+
+### Trois erreurs dans mon propre test
+
+Écrites ici parce qu'elles disent quelque chose sur le jeu :
+
+1. Je croyais qu'un client demandant 5 g depuis une sacoche de 2 g déclenchait une
+   **rupture**. Non : c'est un **remplissage partiel** (4 g couverts). Seul un format
+   strictement incomposable — 1 g depuis des 2 g — donne une rupture.
+2. Je croyais qu'une contre-offre trop haute donnait un `walk`. Non : au premier tour elle
+   donne un `counter` (son dernier prix). Le walk demande deux tours, ou une offre
+   au-dessus de sa poche acceptée directement.
+3. Un contrôle « planque pleine » écrit en ternaire retombait sur `true` — il **passait
+   sans rien vérifier**. Remplacé.
+
+### Ce qui attend Sylvain
+
+Cinq `[DÉCISION REQUISE]` sont sortis de la conception, et je ne les tranche pas :
+la mémoire des anonymes (85 % du trafic), ce que `missed` doit coûter, si l'ardoise peut
+échouer, si le Karnet doit jamais montrer la soirée **en cours**, et s'il faut réveiller
+`FRONT_ENABLED`.
+
+## 2026-07-28 — L'appro passe par Karim avant que le marché s'ouvre
+
+Deuxième arbitrage implémenté. L'app Appro n'est plus disponible d'emblée : avant, on se
+fournit chez **Karim** — celui qui t'a lancé — et c'est en le faisant tourner qu'on obtient
+le contact. Déblocage **narratif et mérité**, pas un compte à rebours.
+
+- Un pin **Chez Karim** sur la carte. Il vend son gabarit, 100 g à Q55, **280 en liquide**
+  — contre 200 au marché pour 100 g. **+40 %** : ce que coûte de n'avoir qu'un seul
+  fournisseur. Ce n'est pas une punition, c'est la friction qui donne sa valeur au contact.
+- Au **3e achat** : « T'es réglo. Tiens, appelle ce numéro. » L'Appro s'ouvre, et le
+  déblocage entre au Karnet comme une cause nommée — jamais une surprise.
+- La tuile Appro reste **visible mais éteinte**, et **cliquable** : elle mène chez Karim.
+  Une app qu'on cache n'apprend rien ; une app éteinte qu'on peut taper dit à la fois
+  « pas encore » et « voilà par où ».
+
+### Cinq portes, une seule serrure
+
+Cinq endroits menaient à l'Appro : la tuile, la planque, l'écran de coupe, le repli 2D, la
+reprise 3D. Poser le verrou dans quatre et en oublier un, c'est **exactement** la
+moitié-corrigée que ce dépôt s'est infligée trois fois cette semaine. Tout passe par une
+fonction `allerAppro()` unique — et quand elle refuse, elle **emmène chez Karim** au lieu
+d'afficher un mur.
+
+### Ce que la planque impose, et qu'on garde
+
+La planque de départ tient 250 g, son pain fait 100 g : **on ne peut pas en empiler trois**.
+Le déblocage force donc à jouer la boucle — acheter, couper, vendre, revenir. Découvert en
+écrivant le test, qui achetait trois fois d'affilée et voyait le 3e achat tomber à +0 g.
+**Le fautif était le test, pas le jeu**, et la contrainte est même ce qui rend le contact
+mérité plutôt qu'acheté. On la garde. En revanche le test vérifie maintenant que les deux
+refus possibles se **lisent** — « Planque pleine — 200/250 g », « Liquide insuffisant (279) » —
+parce qu'un bouton mort sans raison, ça, ce serait un vrai bug.
+
+### La partie en cours ne perd rien
+
+Migration v32 : toute save qui a **déjà vécu** (jour > 1, du stock, ou un journal) est
+considérée comme ayant le contact. Verrouiller l'Appro de Sylvain l'aurait renvoyé à un
+tutoriel fini depuis des jours — R2 à l'envers. Même critère que la cinématique d'intro,
+parce que c'est la même question : cette partie a-t-elle commencé ?
+
+Nouveau `tools/karim-loupe.mjs` (14/14). Contre-épreuve : sur le code d'avant, **12 des 14
+contrôles tombent**.
+
+### Un contrôle creux, attrapé et remplacé
+
+Le premier jet du contrôle « planque pleine » était écrit `!/Prendre/.test(t) ? … : true` —
+donc il retombait sur `true` dès que le bouton était actif, et **passait sans rien vérifier**.
+C'est le même défaut que la comparaison au ledger de la semaine dernière : un test qui ne
+peut pas échouer ne garde rien. Remplacé par deux scénarios qui provoquent vraiment chaque
+refus.
+
+## 2026-07-28 — Quatre arbitrages de Sylvain, et deux de mes chiffres qui étaient faux
+
+Sylvain a tranché quatre questions en attente. **Deux des chiffres sur lesquels je l'ai
+fait décider étaient erronés** — les voici corrigés avant les décisions elles-mêmes.
+
+### Ce que j'avais dit de travers
+
+1. **« Les chouffes s'embauchent gratuitement. »** Faux. `PDV_CHOUFFE_PAY = 60` existe,
+   est prélevé à la clôture de soirée (liquide d'abord, puis propre, et un chouffe part si
+   la paie manque), et l'écran l'affiche : « Chouffes (60/soir) ». Ma phrase se contredisait
+   d'ailleurs elle-même, puisqu'elle chiffrait « 1 200/soir » deux lignes plus bas.
+2. **« La chaleur ne monte plus dès n = 20. »** Le seuil réel est **n = 11** (660/soir), à
+   activité pleine. J'avais vérifié qu'à 20 c'était négatif sans chercher où ça basculait.
+
+Le fond tenait — la jauge se fige bel et bien — mais je l'ai fait décider sur un prix
+d'entrée deux fois trop élevé et sur un système que je croyais absent.
+
+### Les arbitrages
+
+| Question | Décision |
+| --- | --- |
+| Chouffes | **Plancher de chaleur + salaire par soirée** |
+| App Appro | **Après N pains achetés chez Karim** (déblocage narratif, mérité) |
+| Karnet | **Les quatre sections** : bilan de soirée, échéances, carnet de clientèle, tableau de bord des corners |
+| Combo | **On garde tel quel** — à tester en jeu avant de toucher aux nombres |
+
+### Chouffes : le plancher, fait
+
+Le salaire existait déjà ; il ne restait que le plancher. Il est calé **là où le préavis
+cesse de s'améliorer** : `PDV_PREAVIS_S` s'arrête à 3 chouffes, donc l'amortissement sature
+à 3 chouffes. Au-delà, un chouffe de plus n'achète plus rien — ni secondes d'ouverture, ni
+préavis — mais son salaire continue de courir.
+
+Mesuré sur la vraie page, corner tenu, 5 s sans rien toucher :
+
+```
+                 avant            après
+  0 chouffe    +12,8            +12,7
+  3 chouffes    +7,0             +7,1     ← la plage voulue : rien ne change
+ 24 chouffes     0,0  « le coin  +7,1     ← la jauge repart
+                       ne chauffe plus »
+```
+
+**Pas de plafond dur** — Sylvain l'a écarté, et il avait raison : un mur se subit sans se
+comprendre. L'autolimitation passe par l'information. `chouffeGain` dit maintenant
+« un de plus n'achète rien · préavis déjà au max (18 s) — et 60/soir en plus », **avant**
+le bouton. On peut toujours embaucher ; on sait juste que c'est de l'argent jeté.
+
+Trois sites recalculaient la formule à l'identique. Ils passent par un `chouffeAmorti()`
+unique : un plancher oublié dans l'un des trois aurait été exactement la moitié-corrigée
+que ce dépôt s'est déjà infligée trois fois cette semaine.
+
+Nouveau fichier `tools/chaleur-loupe.mjs` (8/8). Contre-épreuve : sur l'`index.html` d'avant,
+**5 contrôles sur 8 tombent**, dont « LA JAUGE EST GELÉE ». Les deux contrôles de contexte
+— ça chauffe à sec, le chouffe ralentit — passent dans les deux cas : ils sont là pour
+qu'un échec des autres veuille dire quelque chose.
+
+### Resté ouvert
+
+Ma question sur le combo mêlait deux choses : l'équilibrage (×3 plus facile à tenir) et le
+cas du **pigeon**, dont la vente remet le combo à 1 en silence. Sylvain a répondu « on garde
+tel quel » — ce qui tranche l'équilibrage. Le message manquant sur le pigeon reste donc
+**non arbitré** : ma question était mal découpée, pas sa réponse.
+
 ## 2026-07-28 — Le garde du cache ne regardait pas dans `tools/`
 
 Repéré en travaillant sur le verrou de carte : `smoke-loupe-pdv.mjs` importait
