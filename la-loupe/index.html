@@ -399,10 +399,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=48";
-import * as beuher from "./beuher.mjs?v=48";
-import * as shelter from "./shelter.mjs?v=48";
-import * as corner from "./corner.mjs?v=48";
+import * as snap from "./snap.mjs?v=49";
+import * as beuher from "./beuher.mjs?v=49";
+import * as shelter from "./shelter.mjs?v=49";
+import * as corner from "./corner.mjs?v=49";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -437,7 +437,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=48"),
+      import("./scene3d.mjs?v=49"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -613,7 +613,19 @@ function save(){ store.set("save", JSON.stringify(S)); }
 let toastQ=[];
 function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show"); clearTimeout(toastT);
   toastT=setTimeout(()=>{ toastEl.classList.remove("show"); if(toastQ.length) toastT=setTimeout(()=>toast(toastQ.shift()),250); },1800); }
-function cause(txt, why){ S.journal.unshift({t:Date.now(),txt,cause:why}); if(S.journal.length>50) S.journal.length=50; }
+/* Le journal porte désormais le JOUR et, quand l'appelant l'a sous la main, de quoi
+   chiffrer la ligne : `{eur, poste}`. Les ~40 appels existants marchent inchangés — le 3e
+   argument est optionnel.
+   Pourquoi le jour : le journal est plafonné à 50 entrées et sert de fil chronologique ;
+   sans `day`, impossible de dire à quelle soirée appartient une ligne dès qu'on en a
+   plusieurs à l'écran. Pourquoi `poste` : c'est ce qui permettra au bilan de dire d'où
+   vient un euro au lieu de l'agréger en « divers ». Le Karnet ne tirera PAS ses totaux
+   d'ici (le plafond de 50 les fausserait) — il les tirera de `P.soir` ; le journal reste
+   la trace lisible, pas la comptabilité. */
+function cause(txt, why, meta){
+  S.journal.unshift({t:Date.now(), day:S.day, txt, cause:why, ...(meta||{})});
+  if(S.journal.length>50) S.journal.length=50;
+}
 /* LE corner qu'on regarde. Null-safe par construction : il remplace les trois formes
    qui traînaient (`activeCorner()`, `activeCorner()`, `activeCorner()||{}`), et
    surtout il rend le pluriel possible sans toucher aux 21 appelants. */
@@ -976,7 +988,8 @@ function karimAchat(){
   S.pains.push({ g:K.buyG, q:K.buyQ });
   const avant=shelter.approOuverte(S);
   S.karimBuys=(S.karimBuys||0)+1;
-  cause(`Pain chez ${K.name}`, `−${money(K.price)} liquide · ${K.buyG} g Q${K.buyQ}`);
+  spendDe().pain+=K.price;
+  cause(`Pain chez ${K.name}`, `−${money(K.price)} liquide · ${K.buyG} g Q${K.buyQ}`, {eur:-K.price, poste:"pain"});
   if(!avant && shelter.approOuverte(S)){
     // le déblocage est une CONSÉQUENCE nommée, pas une surprise
     cause(`${K.name} te passe le contact`, `${K.unlockAfter} pains pris chez lui · l'Appro s'ouvre`);
@@ -1088,6 +1101,24 @@ function pdvServe(P){
 const CORNER_MAX_QUEUE=6;   // on sert un client à la fois → file courte
 const CORNER_ARRIVAL=3.2;   // arrivées négo : quelques clients/soirée (pas le flux auto)
 function cornerActive(P){ return P.queue&&P.queue.length?P.queue[0]:null; }
+/* Les compteurs de soirée d'un corner, toujours complets. L'accesseur est défensif parce
+   que la fusion du chargement (`{...cornerDefaults(), ...sauvegardé}`) remplace `soir` EN
+   BLOC dès qu'une save en porte un : un `soir` écrit par une version antérieure survivrait
+   tel quel, sans les clés ajoutées depuis, et le premier `+=` sur une clé absente donnerait
+   NaN — qui se propage en silence jusqu'au bilan. On complète donc à la lecture. */
+/** Le poste de dépense de la soirée, toujours présent (même raison défensive que soirDe). */
+function spendDe(){
+  const d={ pain:0, upg:0, chouffes:0 };
+  if(!S.dayTally) S.dayTally={ sold:0, brade:0, volume:0, cash:0, soldG:0, soldQSum:0, spend:d };
+  S.dayTally.spend={...d, ...(S.dayTally.spend||{})};
+  return S.dayTally.spend;
+}
+function soirDe(P){
+  const d=shelter.soirDefaults();
+  if(!P.soir) P.soir=d;
+  else { P.soir={...d, ...P.soir, perdu:{...d.perdu, ...(P.soir.perdu||{})}, descente:{...d.descente, ...(P.soir.descente||{})}}; }
+  return P.soir;
+}
 /* Débite EXACTEMENT `targetG` grammes du tampon, en composant avec les barrettes
    disponibles (tailles libres, fixées à la coupe). Si aucune combinaison exacte
    n'existe, on sert le meilleur sous-total ATTEIGNABLE — jamais plus que demandé.
@@ -1235,7 +1266,20 @@ function cornerNegoTick(P, dt, demande, open){
   const waiting=cl=>cl.mode!=="nego"&&cl.mode!=="dernier"; // gelé pendant qu'on négocie/dernier prix
   for(let i=0;i<P.queue.length;i++){ const cl=P.queue[i]; if(!waiting(cl)) continue; cl.pat-=dt*(i===0?1:corner.CORNER.QUEUE_MELT); }
   const keep=[];
-  for(const cl of P.queue){ if(waiting(cl)&&cl.pat<=0){ expired++; if(cl.cid&&S.clients[cl.cid]) S.clients[cl.cid].missed++; } else keep.push(cl); }
+  for(const cl of P.queue){
+    if(waiting(cl)&&cl.pat<=0){
+      expired++;
+      if(cl.cid&&S.clients[cl.cid]) S.clients[cl.cid].missed++;
+      /* On compte toujours le départ ; on ne le CHIFFRE que si la carte affichait un
+         montant que le joueur aurait pu taper (`cl.offer`). Un hésitant ou un ambigu
+         n'annonce aucun prix (`offer:0`) : lui attribuer un euro serait inventer ce
+         qu'il aurait payé. Le Karnet dira « 3 partis » sans montant plutôt qu'un
+         chiffre fabriqué. */
+      { const so=soirDe(P); so.perdu.impat++; if(cl.offer>0) so.perdu.impatEur+=Math.round(cl.offer); }
+      cause("Client parti", cl.nm+" a attendu trop longtemps"+(cl.offer>0?" · "+money(cl.offer)+" non encaissés":""),
+            cl.offer>0?{eur:-Math.round(cl.offer), poste:"impatience"}:{poste:"impatience"});
+    } else keep.push(cl);
+  }
   /* R1 : un client qui se lasse est une VENTE PERDUE, pas une amende. Ponctionner
      `res` (qui pilote la demande) punissait la LENTEUR DE LA MAIN — exactement ce
      que R1 interdit. Le walk après une contre-offre trop haute, lui, reste sanctionné :
@@ -1306,12 +1350,17 @@ function cornerLeave(P, cl, why, v, tip){
 // (Le bac ne sert plus qu'au charbonneur embauché plus tard : corner qui tourne en ton absence → recette à ramasser.)
 function cornerSell(P, cl, targetG, total, tip){
   const sold=cornerTakeG(P, targetG);
-  if(sold.g===0){ P.res=clamp(P.res-PDV_RUPTURE_HIT,0,100); cornerLeave(P, cl, "rupture"); return false; }
+  if(sold.g===0){
+    /* Euro RÉEL, pas estimé : `total` a déjà passé `resolveOffer` et été accepté au
+       moment où la sacoche se révèle incapable de composer. On perd une vente conclue. */
+    { const so=soirDe(P); so.perdu.rupture++; so.perdu.ruptureEur+=Math.round(total||0); }
+    P.res=clamp(P.res-PDV_RUPTURE_HIT,0,100); cornerLeave(P, cl, "rupture"); return false; }
   // rupture partielle : on ne facture JAMAIS ce qu'on n'a pas livré (au prorata)
   const eur=sold.g<targetG ? Math.round(total*sold.g/targetG) : total;
   const gain=eur+(tip||0);
   S.dirty+=gain; pushBills(gain);
   P.ledger.unshift({nm:cl.nm, n:sold.n, g:sold.g, eur:gain}); if(P.ledger.length>6) P.ledger.length=6;
+  { const so=soirDe(P); so.eur+=eur; so.tips+=(tip||0); so.g+=sold.g; so.servis++; }
   return true;
 }
 /* La quantité RÉELLEMENT proposée. Par défaut celle qu'il demande, mais le joueur
@@ -1359,7 +1408,15 @@ function cornerResolve(P, cl, total, firstTry, isClientOffer){
   const menu = (cl.mode==="dernier" && cl.menuFige>0) ? cl.menuFige : P.prix;
   const v=corner.resolveOffer(cl, g, total, firstTry, isClientOffer, S.reput, menu);
   if(v.outcome==="counter"){ cl.countered=true; cl.dernier=v.counterTotal; cl.menuFige=P.prix; cl.mode="dernier"; renderCornerActive(P); toast("Il contre — dernier prix "+v.counterTotal); return; }
-  if(v.outcome==="walk"){ applyDeltas(cl, v); P.combo=1; cornerLeave(P, cl, "walk", v); return; }
+  if(v.outcome==="walk"){
+    /* `v.ceil` est le plafond qui a RÉELLEMENT décidé du refus (rendu par resolveOffer),
+       pas une reconstitution. C'est ce qui permet au Karnet de dire « tu as demandé 104,
+       son plafond était 88 » sans inventer 88. */
+    { const so=soirDe(P); so.perdu.walk++; so.perdu.walkEur+=Math.round(v.ceil||0); }
+    cause("Client fâché", cl.nm+" · "+money(v.asked||total)+" demandés, son plafond était "+money(v.ceil||0),
+          {eur:-Math.round(v.ceil||0), poste:"walk"});
+    applyDeltas(cl, v); P.combo=1; cornerLeave(P, cl, "walk", v); return;
+  }
   let tip=0;
   if(v.tipRate){ tip=Math.round(total*v.tipRate*(P.combo||1)); }
   if(cl.qc&&cl.qc.ok&&v.outcome!=="gouge") tip+=Math.round(total*corner.CORNER.TIP_QUAL); // le connaisseur paie le propre
@@ -1882,7 +1939,8 @@ function arahTick(dt){
 function pdvDescente(){
   const P=activeCorner(), lost=Math.round(P.bac+tampG(P.tampon)*P.prix);
   P.bac=0; P.tampon={}; P.tamponQ=0; P.queue=[]; S.heat=PDV_AFTER; S.reput=clamp(S.reput-6,0,100);
-  cause("Descente au corner","−"+lost+" exposé"); hud();
+  { const so=soirDe(P); so.descente.n++; so.descente.eur+=lost; }
+  cause("Descente au corner","−"+lost+" exposé", {eur:-lost, poste:"descente"}); hud();
   toast("🚨 Descente — barrettes + bac saisis (−"+lost+"). La planque est sauve.");
   save(); if(tab==="shelter"&&shelterSub==="pdv") renderPDV();
 }
@@ -2224,7 +2282,8 @@ function buyUp(key){
   const conf=UPG[key]; if(!conf) return;
   const lv=S.upgrades[key]||0; if(lv>=conf.max) return;
   const cost=conf.cost*(lv+1); if(S.dirty<cost){ toast("Liquide insuffisant."); return; }
-  S.dirty-=cost; S.upgrades[key]=lv+1; cause(`Upgrade ${conf.title}`,`−${money(cost)}`); toast("Ça scale."); save(); render();
+  S.dirty-=cost; S.upgrades[key]=lv+1; spendDe().upg+=cost;
+  cause(`Upgrade ${conf.title}`,`−${money(cost)}`, {eur:-cost, poste:"upgrade"}); toast("Ça scale."); save(); render();
 }
 
 function renderKarnet(){
@@ -2565,7 +2624,8 @@ function buyPain(p){
   const chunk=p.split||p.g;
   for(let left=p.g; left>0; left-=chunk) S.pains.push({ g:Math.min(chunk,left), q:p.q });
   if(S.painSel>=S.pains.length) S.painSel=0;
-  cause(`Achat ${p.label}`,`−${money(p.price)}`); toast("Pain reçu."); save(); hud();
+  spendDe().pain+=p.price;
+  cause(`Achat ${p.label}`,`−${money(p.price)}`, {eur:-p.price, poste:"pain"}); toast("Pain reçu."); save(); hud();
 }
 
 /* ---------- Secours 2D (3D indisponible : unpkg bloqué sur mobile) ---------- */
@@ -2908,13 +2968,21 @@ function ensureDemand(){
 function advanceDay(manual){
   const qLivree=snap.deliveredQuality(S, qualAvg());
   const cons=snap.passerSoiree(S, qLivree);
+  /* `S.day++` tombe ICI, donc tout ce qui suit serait daté de la soirée SUIVANTE — alors
+     que la paie des chouffes, les ardoises qui se règlent et les conséquences de la nuit
+     appartiennent à la soirée qui vient de se CLORE. Mesuré : la paie du soir arrivait au
+     journal avec le jour d'après. Un bilan bâti là-dessus imputerait chaque soir la
+     dépense la plus régulière du jeu à la mauvaise colonne — une erreur d'un jour qui ne
+     se voit jamais, parce que le total reste plausible.
+     On garde donc le jour qui se ferme et on le passe explicitement aux lignes concernées. */
+  const jourClos=S.day;
   S.day++; S.heat=clamp(S.heat-6,0,100); S.soldDay=0;
-  cons.forEach(c=>cause(c.t,c.c));
+  cons.forEach(c=>cause(c.t,c.c,{day:jourClos}));
   // ardoises : le crédit se règle tout seul au jour dit (déterministe, R4) — l'argent revient en liquide
   { const P=activeCorner();
     for(const p of corner.CORNER_PERSONAS){ const c=S.clients&&S.clients[p.id];
       if(c&&c.ardoise&&S.day>=c.ardoise.day){ const v=Math.round(c.ardoise.due); S.dirty+=v; pushBills(v);
-        c.rel=clamp(c.rel+2,0,100); cause("Ardoise réglée", p.nm+" +"+v+" liquide"); delete c.ardoise;
+        c.rel=clamp(c.rel+2,0,100); cause("Ardoise réglée", p.nm+" +"+v+" liquide", {eur:v, poste:"ardoise", day:jourClos}); delete c.ardoise;
         if(P&&P.ledger){ const e=P.ledger.find(x=>x.ard&&!x.ok&&x.nm===p.nm); if(e){ e.ok=true; e.eur=v; } } } } // le ledger passe 🧾 → 🧾✓
     // l'offre « ce soir je suis à sec » ne survit pas à la nuit : une carte ardoise non acceptée s'en va (vente perdue, R1)
     if(P&&P.queue&&P.queue.length) P.queue=P.queue.filter(c=>c.mode!=="ardoise"); }
@@ -2924,9 +2992,15 @@ function advanceDay(manual){
   if(mNews) toastQ.push(mNews.tx+" Marché "+mNow+"/g.");
   // paie des chouffes du corner (liquide d'abord, puis propre) — sinon un chouffe part
   { const P=activeCorner(); const due=(P&&P.chouffes||0)*PDV_CHOUFFE_PAY;
-    if(due>0){ if(S.dirty>=due){ S.dirty-=due; cause("Paie chouffes","−"+due+" liquide"); }
-      else if(S.cash>=due){ S.cash-=due; cause("Paie chouffes","−"+due+" propre"); }
-      else { P.chouffes=Math.max(0,P.chouffes-1); cause("Chouffe parti","paie manquée"); } } }
+    if(due>0){ if(S.dirty>=due){ S.dirty-=due; spendDe().chouffes+=due; cause("Paie chouffes","−"+due+" liquide", {eur:-due, poste:"chouffes", day:jourClos}); }
+      else if(S.cash>=due){ S.cash-=due; spendDe().chouffes+=due; cause("Paie chouffes","−"+due+" propre", {eur:-due, poste:"chouffes", day:jourClos}); }
+      else { P.chouffes=Math.max(0,P.chouffes-1); cause("Chouffe parti","paie manquée · "+money(due)+" dus", {poste:"chouffes", day:jourClos}); } } }
+  /* Compteurs de soirée remis à zéro APRÈS la paie des chouffes et le règlement des
+     ardoises, jamais avant : ces deux lignes appartiennent à la soirée qui se clôt.
+     `advanceDay` appelle `snap.passerSoiree` en PREMIÈRE instruction, et celle-ci remet
+     `dayTally` à zéro — d'où la scission à venir en deux temps (photo puis scellement)
+     quand `S.soirees[]` arrivera. Ici on ne remet que ce qui vit sur le corner. */
+  for(const id of allCorners()){ const C=S.shelter.corners[id]; C.soir=shelter.soirDefaults(); }
   if(activeCorner()) activeCorner().combo=1; // combo négo : remis à zéro à chaque clôture de soirée
   /* Les contacts s'ouvrent aussi à la CLÔTURE, plus seulement quand un client quitte
      le corner. Sans ça, un grossiste qui ne vient plus au corner ne pourrait plus

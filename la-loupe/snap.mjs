@@ -1,8 +1,8 @@
 /* SnapShit — moteur de demande (story → DM → commandes).
    Conséquences déterministes. Math.random = présentation uniquement. */
 // MÊME suffixe de version que index.html : sans lui, `./corner.mjs` et
-// `./corner.mjs?v=48` sont deux URL distinctes, donc DEUX instances du module.
-import { menuAt, personaById, rueCalibre, RUE_MIN } from "./corner.mjs?v=48";
+// `./corner.mjs?v=49` sont deux URL distinctes, donc DEUX instances du module.
+import { menuAt, personaById, rueCalibre, RUE_MIN } from "./corner.mjs?v=49";
 export const SC = {
   EXPO_INIT: 10, EXPO_PAR_DROP: 30, EXPO_PAR_VITRINE: 12, EXPO_DECAY: 0.72, EXPO_CAP: 100,
   EXPO_SEUIL_MAUVAIS_PUBLIC: 60, EXPO_DELAI_MAUVAIS_PUBLIC: 2,
@@ -63,7 +63,9 @@ export function snapDefaults() {
     pendingBadPublic: [],
     comtesseState: "idle",
     storyFlash: [],
-    dayTally: { sold: 0, brade: 0, volume: 0, cash: 0, soldG: 0, soldQSum: 0 },
+    // `spend` : ce que la soirée a COÛTÉ, par poste. Sans lui le bilan ne peut montrer que
+    // les recettes, et un pont qui n'a qu'un côté ne boucle jamais.
+    dayTally: { sold: 0, brade: 0, volume: 0, cash: 0, soldG: 0, soldQSum: 0, spend: { pain: 0, upg: 0, chouffes: 0 } },
   };
 }
 
@@ -412,7 +414,7 @@ export function passerSoiree(S, qualLivree) {
   const dmBad = Math.round(dmGood * S.flake);
   S.dms = buildDMs(S, dmGood, dmBad, expoAvant);
   S.posteAujourdhui = false;
-  S.dayTally = { sold: 0, brade: 0, volume: 0, cash: 0, soldG: 0, soldQSum: 0 };
+  S.dayTally = { sold: 0, brade: 0, volume: 0, cash: 0, soldG: 0, soldQSum: 0, spend: { pain: 0, upg: 0, chouffes: 0 } };
   S.storyFlash = [];
 
   cons.push({

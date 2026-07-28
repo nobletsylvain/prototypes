@@ -131,10 +131,21 @@ export function shelterDefaults() {
 }
 
 /** L'état d'UN corner. `combo` = chaîne de deals JUSTE de la soirée, remis à 1 à la clôture. */
+/* Les compteurs de la soirée EN COURS, par corner. Remis à zéro à la clôture.
+   Pourquoi ici et pas déduits du journal : le journal est plafonné à 50 entrées, donc
+   ses totaux seraient faux dès qu'une soirée dépasse 50 événements — et une soirée en
+   dépasse. Un bilan qui ne boucle pas est un mensonge : il vaut mieux compter à la
+   source, là où le montant est déjà en main, que reconstituer après coup. */
+export function soirDefaults() {
+  return { eur: 0, g: 0, tips: 0, servis: 0,
+    perdu: { rupture: 0, ruptureEur: 0, impat: 0, impatEur: 0, walk: 0, walkEur: 0 },
+    descente: { n: 0, eur: 0 } };
+}
 export function cornerDefaults(over) {
   return { res: 30, bac: 0, advQ: 0, prix: 10, chouffes: 0,
     tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0, combo: 1,
     charbonneur: null,        // qui le tient quand tu n'y es pas (null = personne)
+    soir: soirDefaults(),     // compteurs de la soirée en cours (cf. soirDefaults)
     ...(over || {}) };
 }
 

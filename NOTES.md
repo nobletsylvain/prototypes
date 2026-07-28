@@ -9,6 +9,76 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Le socle du Karnet, et une erreur d'un jour qui ne se voyait pas
+
+Sylvain a arbitré les **quatre** sections du Karnet. Un workflow de conception a tourné
+(relevé de ce que le save contient déjà, trois propositions jugées contre R1..R11,
+synthèse). J'ai **vérifié ses affirmations sur le code** avant de m'en servir — quatre
+étaient porteuses, quatre sont exactes :
+
+| affirmation | vérifié |
+| --- | --- |
+| `missed` incrémenté (`index.html:1238`), **lu nulle part** | ✅ que des écritures |
+| la branche `walk` ne rend ni le plafond ni le montant demandé | ✅ `corner.mjs:526` |
+| `passerSoiree` remet `dayTally` à zéro **avant** la paie et les ardoises | ✅ `advanceDay:2910` puis `:2913+` |
+| `FRONT_ENABLED = false` rend la dette Karim morte | ✅ coupe `takeFront`, l'escalade, `debtInfo` |
+
+L'**étape 1** du plan ne dépend d'aucun arbitrage restant : c'est de la plomberie. Faite.
+
+### Compter à la source, pas relire le journal
+
+`S.journal` est plafonné à 50 entrées et une soirée en dépasse. Des totaux tirés de là
+seraient faux dès qu'une soirée est chargée — et faux **en silence**, ce qui est le pire
+cas. Les compteurs vivent donc sur le corner (`P.soir`), écrits là où le montant est déjà
+en main : vente, rupture, impatience, départ fâché, descente.
+
+### Les trois pertes ne se confondent plus
+
+Dire « tu as perdu 380 » n'aide personne : le joueur ne sait pas s'il doit couper un autre
+format, ravitailler plus, ou baisser son prix. Elles sont désormais séparées, et chacune
+porte le **nombre réel** :
+
+- **rupture** → l'euro avait été **accepté** au moment où la sacoche s'est révélée
+  incapable de composer ;
+- **impatience** → chiffrée **seulement** si la carte affichait un montant tapable. Un
+  hésitant n'annonce aucun prix : le Karnet dira « 3 partis » sans montant plutôt qu'un
+  chiffre fabriqué ;
+- **départ fâché** → `resolveOffer` rend maintenant `ceil` et `asked`. Les deux nombres
+  **existaient déjà dans le scope** ; on les rendait à la poubelle. Sans eux, expliquer un
+  départ imposerait de **resimuler** le client après coup — donc d'afficher « son plafond
+  était 88 » sans que 88 ait jamais décidé de quoi que ce soit.
+
+### L'erreur d'un jour
+
+`advanceDay` fait `S.day++` **en troisième instruction**, avant la paie des chouffes, le
+règlement des ardoises et les conséquences de la nuit. Toutes ces lignes étaient donc
+datées de la soirée **suivante**.
+
+Un bilan bâti là-dessus aurait imputé chaque soir la dépense la plus régulière du jeu à la
+mauvaise colonne. Et ça ne se voit **jamais** : le total reste plausible. Attrapé par le
+contrôle « la paie du soir reste attribuée à la soirée qui vient de se clore », qui est
+tombé du premier coup.
+
+### Trois erreurs dans mon propre test
+
+Écrites ici parce qu'elles disent quelque chose sur le jeu :
+
+1. Je croyais qu'un client demandant 5 g depuis une sacoche de 2 g déclenchait une
+   **rupture**. Non : c'est un **remplissage partiel** (4 g couverts). Seul un format
+   strictement incomposable — 1 g depuis des 2 g — donne une rupture.
+2. Je croyais qu'une contre-offre trop haute donnait un `walk`. Non : au premier tour elle
+   donne un `counter` (son dernier prix). Le walk demande deux tours, ou une offre
+   au-dessus de sa poche acceptée directement.
+3. Un contrôle « planque pleine » écrit en ternaire retombait sur `true` — il **passait
+   sans rien vérifier**. Remplacé.
+
+### Ce qui attend Sylvain
+
+Cinq `[DÉCISION REQUISE]` sont sortis de la conception, et je ne les tranche pas :
+la mémoire des anonymes (85 % du trafic), ce que `missed` doit coûter, si l'ardoise peut
+échouer, si le Karnet doit jamais montrer la soirée **en cours**, et s'il faut réveiller
+`FRONT_ENABLED`.
+
 ## 2026-07-28 — L'appro passe par Karim avant que le marché s'ouvre
 
 Deuxième arbitrage implémenté. L'app Appro n'est plus disponible d'emblée : avant, on se
