@@ -9,6 +9,57 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — L'appro passe par Karim avant que le marché s'ouvre
+
+Deuxième arbitrage implémenté. L'app Appro n'est plus disponible d'emblée : avant, on se
+fournit chez **Karim** — celui qui t'a lancé — et c'est en le faisant tourner qu'on obtient
+le contact. Déblocage **narratif et mérité**, pas un compte à rebours.
+
+- Un pin **Chez Karim** sur la carte. Il vend son gabarit, 100 g à Q55, **280 en liquide**
+  — contre 200 au marché pour 100 g. **+40 %** : ce que coûte de n'avoir qu'un seul
+  fournisseur. Ce n'est pas une punition, c'est la friction qui donne sa valeur au contact.
+- Au **3e achat** : « T'es réglo. Tiens, appelle ce numéro. » L'Appro s'ouvre, et le
+  déblocage entre au Karnet comme une cause nommée — jamais une surprise.
+- La tuile Appro reste **visible mais éteinte**, et **cliquable** : elle mène chez Karim.
+  Une app qu'on cache n'apprend rien ; une app éteinte qu'on peut taper dit à la fois
+  « pas encore » et « voilà par où ».
+
+### Cinq portes, une seule serrure
+
+Cinq endroits menaient à l'Appro : la tuile, la planque, l'écran de coupe, le repli 2D, la
+reprise 3D. Poser le verrou dans quatre et en oublier un, c'est **exactement** la
+moitié-corrigée que ce dépôt s'est infligée trois fois cette semaine. Tout passe par une
+fonction `allerAppro()` unique — et quand elle refuse, elle **emmène chez Karim** au lieu
+d'afficher un mur.
+
+### Ce que la planque impose, et qu'on garde
+
+La planque de départ tient 250 g, son pain fait 100 g : **on ne peut pas en empiler trois**.
+Le déblocage force donc à jouer la boucle — acheter, couper, vendre, revenir. Découvert en
+écrivant le test, qui achetait trois fois d'affilée et voyait le 3e achat tomber à +0 g.
+**Le fautif était le test, pas le jeu**, et la contrainte est même ce qui rend le contact
+mérité plutôt qu'acheté. On la garde. En revanche le test vérifie maintenant que les deux
+refus possibles se **lisent** — « Planque pleine — 200/250 g », « Liquide insuffisant (279) » —
+parce qu'un bouton mort sans raison, ça, ce serait un vrai bug.
+
+### La partie en cours ne perd rien
+
+Migration v32 : toute save qui a **déjà vécu** (jour > 1, du stock, ou un journal) est
+considérée comme ayant le contact. Verrouiller l'Appro de Sylvain l'aurait renvoyé à un
+tutoriel fini depuis des jours — R2 à l'envers. Même critère que la cinématique d'intro,
+parce que c'est la même question : cette partie a-t-elle commencé ?
+
+Nouveau `tools/karim-loupe.mjs` (14/14). Contre-épreuve : sur le code d'avant, **12 des 14
+contrôles tombent**.
+
+### Un contrôle creux, attrapé et remplacé
+
+Le premier jet du contrôle « planque pleine » était écrit `!/Prendre/.test(t) ? … : true` —
+donc il retombait sur `true` dès que le bouton était actif, et **passait sans rien vérifier**.
+C'est le même défaut que la comparaison au ledger de la semaine dernière : un test qui ne
+peut pas échouer ne garde rien. Remplacé par deux scénarios qui provoquent vraiment chaque
+refus.
+
 ## 2026-07-28 — Quatre arbitrages de Sylvain, et deux de mes chiffres qui étaient faux
 
 Sylvain a tranché quatre questions en attente. **Deux des chiffres sur lesquels je l'ai

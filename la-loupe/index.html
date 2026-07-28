@@ -97,6 +97,11 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .app.beuher .icon{background:linear-gradient(145deg,#22e07a,#0a8f4a)}
 .app.atelier .icon{background:linear-gradient(145deg,#c06d6d,#6a3030)}
 .app.appro .icon{background:linear-gradient(145deg,#6d8ac0,#334a7a)}
+/* App pas encore acquise : elle reste VISIBLE et cliquable — elle mène à celui qui
+   l'ouvre. Une tuile qu'on cache n'apprend rien ; une tuile éteinte qu'on peut taper
+   dit à la fois « pas encore » et « voilà par où ». */
+.app.locked .icon{filter:grayscale(1);opacity:.42;box-shadow:0 6px 16px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08)}
+.app.locked .nm{opacity:.5}
 .app.cash .icon{background:linear-gradient(145deg,#e8c96a,#8a6a20)}
 .app.karnet .icon{background:linear-gradient(145deg,#9a8ab0,#4a3a60)}
 .app.shelter .icon{background:linear-gradient(145deg,#6ec8ff,#2a5a8a)}
@@ -115,6 +120,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .map-pin.pdv .dot{background:#9be37d}
 .map-pin.rival .dot{background:#ff8a6a}
 .map-pin.info .dot{background:#e8c96a}
+.map-pin.karim .dot{background:#c9a227}   /* le fournisseur : ni ton spot, ni un rival */
 .map-pin.on .dot{box-shadow:0 0 0 3px rgba(255,180,84,.55),0 0 12px rgba(255,180,84,.35)}
 .map-pin.locked{opacity:.55}
 .map-pin.locked .dot{filter:grayscale(.4)}
@@ -393,10 +399,10 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=47";
-import * as beuher from "./beuher.mjs?v=47";
-import * as shelter from "./shelter.mjs?v=47";
-import * as corner from "./corner.mjs?v=47";
+import * as snap from "./snap.mjs?v=48";
+import * as beuher from "./beuher.mjs?v=48";
+import * as shelter from "./shelter.mjs?v=48";
+import * as corner from "./corner.mjs?v=48";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -431,7 +437,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=47"),
+      import("./scene3d.mjs?v=48"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -575,6 +581,16 @@ else for(const p of corner.CORNER_PERSONAS) if(!S.clients[p.id]) S.clients[p.id]
 // Save pré-Shelter : pas de cinématique front si déjà en course
 if(!S.shelter.introSeen && (S.day>1 || shelter.stockG(S)>0 || (S.journal&&S.journal.length))){
   S.shelter.introSeen=true;
+}
+/* Migration v32 : l'Appro se mérite désormais chez Karim (`S.karimBuys`). Une partie DÉJÀ
+   EN COURS l'utilise depuis des jours — la verrouiller lui retirerait un outil acquis,
+   c'est-à-dire exactement le contraire de R2. On considère donc l'Appro déjà ouverte pour
+   toute save qui a vécu : même critère que la cinématique d'intro juste au-dessus, parce
+   que c'est la même question (« cette partie a-t-elle déjà commencé ? »). Une partie neuve,
+   elle, passe par Karim. */
+if(S.karimBuys==null){
+  const enCours = S.day>1 || shelter.stockG(S)>0 || (S.journal&&S.journal.length);
+  S.karimBuys = enCours ? shelter.SUPPLIER.unlockAfter : 0;
 }
 
 let tab="shelter", toastT=0, atelierSub="menu", cashSub="sorter", shelterSub="map";
@@ -830,7 +846,9 @@ function renderShelter(){
       <button class="app snap" data-go="snap"><div class="icon">⚡</div><div class="nm">SnapShit</div></button>
       <button class="app atelier" data-go="atelier"><div class="icon">✂</div><div class="nm">Atelier</div></button>
       <button class="app beuher" data-go="beuher"><div class="icon">🛵</div><div class="nm">Beuher</div></button>
-      <button class="app appro" data-go="buy"><div class="icon">◎</div><div class="nm">Appro</div></button>
+      ${shelter.approOuverte(S)
+        ? `<button class="app appro" data-go="buy"><div class="icon">◎</div><div class="nm">Appro</div></button>`
+        : `<button class="app appro locked" data-go="karim"><div class="icon">🔒</div><div class="nm">Appro</div></button>`}
       ${SORTER_ENABLED?`<button class="app cash" data-go="cash"><div class="icon">▣</div><div class="nm">Liquide</div></button>`:""}
       <button class="app karnet" data-go="karnet"><div class="icon">📓</div><div class="nm">Karnet</div></button>
     </div>
@@ -847,7 +865,10 @@ function renderShelter(){
   });
   stage.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{
     const g=b.dataset.go;
-    if(g==="buy"){ tab="atelier"; atelierSub="buy"; render(); return; }
+    // Appro fermée : la tuile verrouillée renvoie vers CELUI qui l'ouvre, jamais vers un
+    // mur muet. Le joueur doit toujours savoir quoi faire du refus (R1).
+    if(g==="karim"){ S.shelter.selectedPin="karim"; save(); renderShelter(); return; }
+    if(g==="buy") return allerAppro();
     if(g==="atelier"){ tab="atelier"; atelierSub="cut"; render(); return; }
     if(g==="karnet"){ renderKarnet(); return; }
     tab=g; atelierSub="menu"; render();
@@ -855,10 +876,12 @@ function renderShelter(){
   stage.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>buyUp(b.dataset.up));
   const repayBtn=document.getElementById("repay");
   if(repayBtn) repayBtn.onclick=()=>openRepay();
+  stage.querySelectorAll("[data-karim]").forEach(b=>b.onclick=()=>karimAchat());
   stage.querySelectorAll("[data-pin-go]").forEach(b=>b.onclick=()=>{
     const g=b.dataset.pinGo;
+    if(g==="karim"){ S.shelter.selectedPin="karim"; save(); renderShelter(); return; }
     if(g==="cut"){ tab="atelier"; atelierSub="cut"; render(); return; }
-    if(g==="buy"){ tab="atelier"; atelierSub="buy"; render(); return; }
+    if(g==="buy") return allerAppro();
     if(g==="snap"){ tab="snap"; render(); return; }
     if(g==="pdv"){ shelterSub="pdv"; renderPDV(); return; }
   });
@@ -887,7 +910,9 @@ function pinSheet(p, hit, hitLb){
       <div class="stat"><span>Barrettes · Sachets</span><b>${fmtBars()} · ${fmtSachets()}</b></div>
       <div class="grid2">
         <button class="btn ok" style="margin:0" data-pin-go="cut">✂ Couper</button>
-        <button class="btn ghost" style="margin:0" data-pin-go="buy">◎ Appro</button>
+        ${shelter.approOuverte(S)
+          ? `<button class="btn ghost" style="margin:0" data-pin-go="buy">◎ Appro</button>`
+          : `<button class="btn ghost" style="margin:0" data-pin-go="karim">🤝 Voir Karim</button>`}
       </div>
     </div>`;
   }
@@ -903,10 +928,64 @@ function pinSheet(p, hit, hitLb){
       <button class="btn snap" style="margin-top:6px" data-pin-go="snap">⚡ Ouvrir SnapShit (DM)</button>
     </div>`;
   }
+  if(p.kind==="karim"){
+    /* Karim est un TYPE, pas un distributeur : on lit son offre, ce qu'elle coûte de plus
+       que le marché, et où on en est du contact. Le compteur est affiché parce que sans
+       lui le déblocage tomberait du ciel — R4, le résultat doit se relier au geste. */
+    const S_=shelter.SUPPLIER, reste=shelter.approReste(S), ouvert=shelter.approOuverte(S);
+    const place=finiG()+painsG()+S_.buyG<=planqueCap();
+    const payable=S.dirty>=S_.price;
+    return `<div class="card">
+      <h3>${p.title}</h3>
+      <div class="muted">${p.blurb}</div>
+      <div class="stat"><span>Son gabarit</span><b>${S_.buyG} g · Q${S_.buyQ}</b></div>
+      <div class="stat"><span>Son prix (liquide)</span><b>${money(S_.price)} <span class="muted" style="font-size:10px">· ${(S_.price/S_.buyG).toFixed(2)}/g</span></b></div>
+      <div class="stat"><span>${ouvert?"Le contact":"Avant qu'il te passe le contact"}</span><b>${ouvert?"donné ✓":reste+" achat"+(reste>1?"s":"")}</b></div>
+      <button class="btn ok" data-karim="1" ${payable&&place?"":"disabled"}>
+        ${!payable?`Liquide insuffisant (${money(S.dirty)})`:!place?`Planque pleine — ${money(finiG()+painsG())}/${planqueCap()} g`:`🤝 Prendre ${S_.buyG} g · ${money(S_.price)}`}</button>
+      ${ouvert?`<button class="btn ghost" style="margin-top:6px" data-pin-go="buy">◎ Appro — tu as le contact maintenant</button>`
+              :`<div class="muted" style="font-size:10px;margin-top:6px">Le marché, c'est par relations. Fais-le tourner et il te présentera.</div>`}
+    </div>`;
+  }
   return `<div class="card">
     <h3>${p.title}${p.locked?' · bientôt':''}</h3>
     <div class="muted">${p.blurb}</div>
   </div>`;
+}
+/* Acheter chez Karim. Le compteur qui ouvre l'Appro n'avance que sur un achat RÉUSSI :
+   c'est le geste qui compte, pas l'intention. */
+/* UNE seule porte vers l'Appro. Cinq endroits y menaient (tuile, planque, écran de coupe,
+   repli 2D, reprise 3D) : poser le verrou dans quatre d'entre eux et en oublier un, c'est
+   la moitié-corrigée que ce dépôt s'est déjà infligée. Tant que Karim n'a pas passé le
+   contact, toutes ces portes mènent CHEZ LUI — jamais vers un refus muet. */
+function allerAppro(){
+  if(!shelter.approOuverte(S)){
+    tab="shelter"; shelterSub="map"; S.shelter.selectedPin="karim"; save(); render();
+    toast(`Pas encore de contact au marché. ${shelter.SUPPLIER.name} te fournit — ${shelter.approReste(S)} achat${shelter.approReste(S)>1?"s":""} avant qu'il te présente.`);
+    return;
+  }
+  tab="atelier"; atelierSub="buy"; render();
+}
+function karimAchat(){
+  const K=shelter.SUPPLIER;
+  if(S.dirty<K.price){ toast("Liquide insuffisant."); return; }
+  if(finiG()+painsG()+K.buyG>planqueCap()){
+    toast(`Planque ${money(finiG()+painsG())}/${planqueCap()} g — pas la place pour +${K.buyG} g.`); return;
+  }
+  S.dirty-=K.price;
+  S.pains.push({ g:K.buyG, q:K.buyQ });
+  const avant=shelter.approOuverte(S);
+  S.karimBuys=(S.karimBuys||0)+1;
+  cause(`Pain chez ${K.name}`, `−${money(K.price)} liquide · ${K.buyG} g Q${K.buyQ}`);
+  if(!avant && shelter.approOuverte(S)){
+    // le déblocage est une CONSÉQUENCE nommée, pas une surprise
+    cause(`${K.name} te passe le contact`, `${K.unlockAfter} pains pris chez lui · l'Appro s'ouvre`);
+    toast(`🤝 « T'es réglo. Tiens, appelle ce numéro. » — l'Appro s'ouvre.`);
+  } else {
+    const r=shelter.approReste(S);
+    toast(`Pain reçu. ${r?`Encore ${r} et il te présente.`:""}`.trim());
+  }
+  save(); hud(); renderShelter();
 }
 
 /* ============ PDV — le corner : point de vente à 3 curseurs (CADRE) ============
@@ -2279,7 +2358,7 @@ function renderAtelierMenu(){
   document.getElementById("gBag").onclick=()=>{ atelierSub="bag"; render(); };
   document.getElementById("gCut").onclick=()=>{ atelierSub="cut"; render(); };
   document.getElementById("gDose").onclick=()=>{ atelierSub="dose"; render(); };
-  document.getElementById("gBuy").onclick=()=>{ atelierSub="buy"; render(); };
+  document.getElementById("gBuy").onclick=()=>allerAppro();
 }
 
 /** Emballe UNE barrette de taille f (telle que coupée). Retourne true si OK. */
@@ -2524,7 +2603,7 @@ function renderCut2D(){
   stage.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{ S.painSel=+b.dataset.p; save(); renderCut2D(); });
   document.getElementById("c1").onclick=()=>manualCut(cutBatch());
   document.getElementById("c5").onclick=()=>manualCut(5*cutBatch());
-  const gb=document.getElementById("gBuy2"); if(gb) gb.onclick=()=>{ atelierSub="buy"; render(); };
+  const gb=document.getElementById("gBuy2"); if(gb) gb.onclick=()=>allerAppro();
   document.getElementById("gBag2").onclick=()=>{ atelierSub="bag"; render(); };
   document.getElementById("retry3d").onclick=()=>{ no3d=false; atelierSub="cut"; render(); };
   document.getElementById("menu2").onclick=()=>{ atelierSub="menu"; render(); };
@@ -2561,7 +2640,7 @@ function renderBuy2D(){
     renderBuy2D();
   });
   document.getElementById("gCut2").onclick=()=>{ atelierSub="cut"; render(); };
-  document.getElementById("retry3d").onclick=()=>{ no3d=false; atelierSub="buy"; render(); };
+  document.getElementById("retry3d").onclick=()=>{ no3d=false; allerAppro(); };
   document.getElementById("menu2").onclick=()=>{ atelierSub="menu"; render(); };
 }
 
