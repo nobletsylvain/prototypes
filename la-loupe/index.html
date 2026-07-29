@@ -13,7 +13,12 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-u
   border-left:1px solid var(--line);border-right:1px solid var(--line)}
 #top{padding:max(10px,env(safe-area-inset-top)) 14px 8px;display:grid;gap:6px;background:rgba(0,0,0,.55);
   border-bottom:1px solid var(--line);z-index:30;backdrop-filter:blur(12px)}
-.row{display:flex;gap:8px;align-items:center;justify-content:space-between}
+/* `flex-wrap` : la deuxième ligne du HUD porte maintenant cinq pastilles (propre, crypto,
+   liquide, chaleur, buzz) et « buzz » sortait de l'écran sur 412 px. Un chiffre coupé au
+   bord est pire qu'absent — on croit le lire. Le HUD est en `grid` avec `gap`, donc une
+   ligne qui passe sur deux hauteurs pousse simplement la scène de 20 px au lieu de la
+   recouvrir. */
+.row{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;justify-content:space-between}
 .pill{font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);white-space:nowrap}
 .pill.cash{color:var(--cash)}.pill.dirty{color:var(--dirty)}.pill.heat{color:var(--heat)}.pill.rep{color:#9ec9ff}.pill.expo{color:#ff8ab8}
 .pill.dirty.warm{border-color:rgba(255,180,84,.55);background:rgba(255,180,84,.14)}
@@ -309,6 +314,16 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .spk.hot{border-color:rgba(155,227,125,.65);box-shadow:0 0 0 2px rgba(155,227,125,.2)}
 .sorter-bar{display:flex;gap:6px;padding:0 10px 10px}
 .sorter-bar .btn{margin:0}
+/* Sous-onglets de l'app Liquide. La chaîne fait quatre étapes (trier → déposer → changer
+   → commander) et les empiler sur un seul écran donnait quatre hauteurs de défilement.
+   Chaque puce porte l'ÉTAT de son étape : la chaîne se lit d'un coup d'œil au lieu de se
+   dérouler. */
+.subtabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:0 0 10px}
+.subtab{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--muted);
+  border-radius:12px;padding:7px 2px;font-size:10px;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:2px}
+.subtab.on{color:#fff;background:rgba(255,180,84,.16);border-color:rgba(255,180,84,.4)}
+.subtab .n{font-size:11px;font-weight:900;color:#e8c96a;line-height:1}
+.subtab .n.off{color:var(--muted);opacity:.5}
 .sorter-fly{animation-duration:.28s!important}
 .journal .item{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px}
 .journal .item .c{color:rgba(255,220,160,.4);font-size:11px;margin-top:2px}
@@ -381,6 +396,7 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
     <div class="row"><div class="pill">La Loupe</div><div class="pill" id="hudHit" style="display:none">planque ·</div><div class="pill" id="daypill">J1</div></div>
     <div class="row">
       <div class="pill cash" id="hudCash">propre 0</div>
+      <div class="pill" id="hudCrypto" style="color:#c9a227;display:none">🪙 0</div>
       <div class="pill dirty" id="hudDirty">liquide 0</div>
       <div class="pill heat" id="hudHeat">chaleur 0</div>
       <div class="pill expo" id="hudExpo">buzz 10</div>
@@ -415,11 +431,13 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=54";
-import * as beuher from "./beuher.mjs?v=54";
-import * as shelter from "./shelter.mjs?v=54";
-import * as karnet from "./karnet.mjs?v=54";
-import * as corner from "./corner.mjs?v=54";
+import * as snap from "./snap.mjs?v=57";
+import * as beuher from "./beuher.mjs?v=57";
+import * as shelter from "./shelter.mjs?v=57";
+import * as karnet from "./karnet.mjs?v=57";
+import * as blanchiment from "./blanchiment.mjs?v=57";
+import * as darkweb from "./darkweb.mjs?v=57";
+import * as corner from "./corner.mjs?v=57";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -454,7 +472,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=54"),
+      import("./scene3d.mjs?v=57"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -540,9 +558,12 @@ const APPS = [
   { id:"beuher", ic:"🛵", lb:"Beuher" },
   { id:"cash", ic:"▣", lb:"Liquide" },
 ];
-// La trieuse (liquide→propre) est masquée pour l'instant : le core loop tourne au liquide, le
-// propre n'a plus d'usage (dette coupée). Elle reviendra plus tard, refondue en INVENTAIRE. → false
-const SORTER_ENABLED = false;
+/* La trieuse revient (2026-07-28). Elle avait été coupée parce que le propre qu'elle
+   produisait ne servait à RIEN — une monnaie sans débouché n'est pas une monnaie.
+   Elle ne produit plus de propre directement : elle produit des LIASSES, du sale
+   comptable. Un commerce n'accepte pas un sac de billets en vrac ; compter est donc
+   redevenu la PORTE du blanchiment au lieu d'en être un raccourci. */
+const SORTER_ENABLED = true;
 
 const store = { get:k=>localStorage.getItem(LS+k), set:(k,v)=>localStorage.setItem(LS+k,v) };
 const money = n => String(Math.round(n));
@@ -561,6 +582,9 @@ function defaultState(){
     assign:{}, counted:0, atelierMode:"cut",
     clients: corner.cornerClientsDefault(), // clientèle du corner (négo Phase B — voir INTEGRATION)
     shelter: shelter.shelterDefaults(),
+    blanchiment: blanchiment.blanchimentDefaults(),
+    crypto: 0,                                     // 3e monnaie : seule le marché la prend
+    darkweb: darkweb.darkwebDefaults(),
     ...snap.snapDefaults(),
   };
 }
@@ -610,8 +634,21 @@ if(S.karimBuys==null){
   const enCours = S.day>1 || shelter.stockG(S)>0 || (S.journal&&S.journal.length);
   S.karimBuys = enCours ? shelter.SUPPLIER.unlockAfter : 0;
 }
+/* Le blanchiment arrive dans une partie en cours : on le remplit sans rien lui retirer.
+   Une save d'avant a peut-être du propre (la trieuse a tourné avant d'être coupée) —
+   on le lui laisse, c'est un acquis (R2), et il a enfin de quoi le dépenser. */
+if(!S.blanchiment || typeof S.blanchiment!=="object") S.blanchiment=blanchiment.blanchimentDefaults();
+if(!S.blanchiment.laveries || typeof S.blanchiment.laveries!=="object") S.blanchiment.laveries={};
+if(!Array.isArray(S.blanchiment.depots)) S.blanchiment.depots=[];
+if(typeof S.blanchiment.seq!=="number") S.blanchiment.seq=0;
+if(!Array.isArray(S.blanchiment.crypto)) S.blanchiment.crypto=[];
+if(typeof S.blanchiment.otcPassages!=="number") S.blanchiment.otcPassages=0;
+if(typeof S.crypto!=="number") S.crypto=0;
+if(!S.darkweb || typeof S.darkweb!=="object") S.darkweb=darkweb.darkwebDefaults();
+if(!Array.isArray(S.darkweb.commandes)) S.darkweb.commandes=[];
+if(typeof S.darkweb.seq!=="number") S.darkweb.seq=0;
 
-let tab="shelter", toastT=0, atelierSub="menu", cashSub="sorter", shelterSub="map";
+let tab="shelter", toastT=0, atelierSub="menu", cashSub="trieuse", shelterSub="map";
 /** Session trieuse (non persistée) — feel Kisan 4+1 fitness sorter. */
 const sorter = { running:false, current:null, cooldown:0, combo:0, sessionOk:0, sessionRj:0, dirtyUi:false };
 const stage=document.getElementById("stage");
@@ -737,6 +774,13 @@ function hudLive(){
 }
 function hud(){
   const hudCash=document.getElementById("hudCash"); hudCash.style.display=SORTER_ENABLED?"":"none"; hudCash.textContent=`propre ${money(S.cash)}`;
+  /* La crypto n'apparaît qu'une fois qu'on en a touché. Avant, c'est un mot de plus dans
+     un bandeau déjà chargé, pour une monnaie qui n'existe pas encore dans la partie ;
+     après, c'est indispensable — une monnaie qu'on ne voit qu'en scrollant jusqu'à son
+     écran, on l'oublie, et c'est comme ça qu'un débouché meurt. */
+  { const hc=document.getElementById("hudCrypto");
+    const vu=(S.crypto||0)>0 || ((S.blanchiment&&S.blanchiment.crypto)||[]).length>0;
+    hc.style.display=vu?"":"none"; hc.textContent=`🪙 ${money(S.crypto||0)}`; }
   { const hd=document.getElementById("hudDirty");
     const z = S.dirty>DIRTY_HOLD_HARD ? 2 : S.dirty>DIRTY_HOLD_SOFT ? 1 : 0;
     // le chiffre seul ne disait rien : la marque dit que CE chiffre est en train de coûter
@@ -783,7 +827,7 @@ function renderDock(){
   dock.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
     tab=b.dataset.t;
     atelierSub = tab==="atelier" ? "cut" : "menu"; // découpe = scène par défaut
-    if(tab==="cash") cashSub="sorter";
+    if(tab==="cash") cashSub="trieuse";
     if(tab==="shelter") shelterSub="map"; // le dock Quartier ramène à la carte
     render();
   });
@@ -1252,7 +1296,9 @@ function visageDe(vid){
 function soirDe(P){
   const d=shelter.soirDefaults();
   if(!P.soir) P.soir=d;
-  else { P.soir={...d, ...P.soir, perdu:{...d.perdu, ...(P.soir.perdu||{})}, descente:{...d.descente, ...(P.soir.descente||{})}}; }
+  else { P.soir={...d, ...P.soir, perdu:{...d.perdu, ...(P.soir.perdu||{})},
+                 descente:{...d.descente, ...(P.soir.descente||{})},
+                 impaye:{...d.impaye, ...(P.soir.impaye||{})}}; }
   return P.soir;
 }
 /* Débite EXACTEMENT `targetG` grammes du tampon, en composant avec les barrettes
@@ -1813,6 +1859,15 @@ function renderCornerActive(P){
   // traits mécaniques AFFICHÉS avant de décider (R4) : le coût/bénéfice se lit, jamais ne se devine
   const chips=[];
   if(cl.heatAdd) chips.push(`<span style="color:var(--heat)">🔥 +${cl.heatAdd} chaleur s'il achète</span>`);
+  /* Le risque d'impayé, AFFICHÉ avant d'accepter. Le tell le dit déjà en prose, mais c'est
+     ce trait-ci qui tient R4 : une phrase d'ambiance se lit en diagonale, un chip coloré
+     à côté du bouton, non. Il ne s'affiche que sur la carte d'ardoise — ailleurs il n'y a
+     rien à décider, et un avertissement permanent devient un décor qu'on ne lit plus. */
+  if(cl.mode==="ardoise" && cl.cid){
+    const sur = corner.paieArdoise(corner.personaById(cl.cid))==="sur";
+    chips.push(sur ? `<span style="color:#3ddc84">✔ il revient toujours payer</span>`
+                   : `<span style="color:#ff6a6a">✖ ce qu'il prend à crédit ne revient pas — ni lui</span>`);
+  }
   if(cl.qc){ const qb=`exige Q${cl.qc.exig} · tampon Q${cl.qc.q}`;
     if(cl.mode==="ambig") chips.push(cl.qc.ok?`<span style="color:#3ddc84">✔ ${qb} — pourboire si bien lu</span>`:`<span style="color:#9aa4b8">👃 ${qb}</span>`); // pas de « il rogne » ici : sans effet en mode ambigu
     else chips.push(`<span style="color:${cl.qc.ok?"#3ddc84":cl.qc.miss?"#ff6a6a":"#ffd06a"}">${cl.qc.ok?"✔":cl.qc.miss?"✖":"≈"} ${qb}${cl.qc.ok?" — paie mieux":cl.qc.miss?" — il rogne":" — sans effet"}</span>`); }
@@ -2317,7 +2372,11 @@ function cornerSkyPatch(){ const sc=document.getElementById("cScene"); if(!sc) r
   sc.style.background=cornerSky(h); sc.style.setProperty("--night", n.toFixed(2));
   const hr=document.getElementById("cHour"); if(hr) hr.textContent=(n>0.5?"🌙 ":"🌤️ ")+cornerHourLabel(h); }
 // lignes du ledger — vente cash (+liquide), ardoise ouverte (🧾 règle J+N) ou ardoise réglée (🧾✓)
-function ledRows(P){ return P.ledger.length ? P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr. (${e.g} g)</span>${e.ard?(e.ok?`<b class="pill dirty">🧾✓ +${money(e.eur)}</b>`:`<b class="pill" style="color:#ffd06a">🧾 ${e.ard}</b>`):`<b class="pill dirty">+${money(e.eur)}</b>`}</div>`).join("") : `<div class="muted" style="font-size:11px">Aucune vente encore.</div>`; }
+function ledRows(P){ return P.ledger.length ? P.ledger.map(e=>`<div class="stat"><span>${e.nm} · ${e.n} barr. (${e.g} g)</span>${
+  e.ard?(e.perdu?`<b class="pill" style="color:#ff6a6a">🧾✗ jamais rendu</b>`
+        :e.ok?`<b class="pill dirty">🧾✓ +${money(e.eur)}</b>`
+        :`<b class="pill" style="color:#ffd06a">🧾 ${e.ard}</b>`)
+       :`<b class="pill dirty">+${money(e.eur)}</b>`}</div>`).join("") : `<div class="muted" style="font-size:11px">Aucune vente encore.</div>`; }
 // ligne « Au carnet » du tiroir (crédits ouverts) — dans un conteneur fixe #pArds, patchée en live par pdvPatch
 function ardsRow(){ const ards=corner.CORNER_PERSONAS.filter(p=>S.clients[p.id]&&S.clients[p.id].ardoise);
   return ards.length?`<div class="stat"><span>🧾 Au carnet</span><b style="color:#ffd06a">${ards.map(p=>p.nm+" "+money(S.clients[p.id].ardoise.due)+" · J"+S.clients[p.id].ardoise.day).join(" · ")}</b></div>`:""; }
@@ -2546,11 +2605,17 @@ function karnetTetes(){
   ${cons.length?`<div class="card">
     <h3>Tes connaissances</h3>
     <div class="muted" style="font-size:10px;margin:-4px 0 6px">Ceux qu'on cultive : une relation, une ardoise, une exigence.</div>
+    ${/* « Parti » ne suffit plus : depuis l'impayé, deux histoires opposées finissent sur
+          le même mot — celui qu'on a fait fuir à force de le presser, et celui qui s'est
+          tiré avec la marchandise. Le second garde son montant, seule trace de ce qu'il
+          a coûté. */""}
     ${cons.map(c=>`<div class="stat">
-      <span>${c.av} ${c.nm}${c.quit?` <span style="color:var(--heat)">· parti</span>`:""}
+      <span>${c.av} ${c.nm}${c.quit?` <span style="color:var(--heat)">· ${
+          c.quitCause==="impaye"?"parti avec ta came":"parti (trop pressé)"}</span>`:""}
         <br><span class="muted" style="font-size:10px">${c.usual} g d'habitude${
           c.missed?` · reparti sans être servi ${c.missed}×`:""}${
           c.ardoise?` · te doit ${money(c.ardoise.due)} à J${c.ardoise.day}`:""}${
+          c.impaye?` · ne t'a jamais rendu ${money(c.impaye)}`:""}${
           !c.quit&&c.avantRupture<=1?` · encore ${c.avantRupture} abus et il ne revient plus`:""}</span></span>
       <b class="${c.quit?"q-bad":c.rel>=60?"q-good":""}">${c.quit?"—":"rel "+c.rel}</b></div>`).join("")}
   </div>`:""}
@@ -2610,6 +2675,7 @@ function renderKarnet(){
         [`Partis d'impatience`, m.impat, `la file a fondu pendant que tu négociais`],
         [`Départs fâchés`, m.walk, `ton prix a dépassé leur plafond`],
         [`Descente`, m.descente, `saisi au corner`],
+        [`Ardoises envolées`, m.impaye, `partis avec la marchandise — et partis tout court`],
       ].filter(([,v])=>v.n>0).map(([nm,v,aide])=>`<div class="stat">
         <span>${nm}<br><span class="muted" style="font-size:10px">${v.n} · ${aide}</span></span>
         <b class="q-bad">${v.eur?"−"+money(v.eur):"—"}</b></div>`).join("")
@@ -3156,7 +3222,7 @@ function collectRun(id){
   }
   save();
   if(!r.busted){
-    tab="cash"; cashSub="sorter";
+    tab="cash"; cashSub="trieuse";
     sorter.running=true; sorter.cooldown=0.15; // auto-start : tu attends
     render();
   } else renderBeuher();
@@ -3179,15 +3245,42 @@ function cashBundleVal(){ return Object.entries(S.bundles).reduce((a,[d,n])=>a+(
 function cashBankTotal(){ return cashBundleVal()+(S.looseChange||0); }
 function pileOf(d){ return (S._pile&&S._pile[d])||0; }
 
+/* Les quatre étapes de la chaîne, et ce que chacune a à dire. La barre n'est pas qu'une
+   navigation : chaque puce porte son compteur, donc on voit où le goulot se forme sans
+   ouvrir les écrans. C'est la même idée que le bac sur le favori du corner. */
+function cashOnglets(){
+  const B=S.blanchiment, jour=S.day;
+  return [
+    { id:"trieuse", lb:"Billets", n:money(cashBankTotal()), vide:cashBankTotal()<=0 },
+    { id:"laverie", lb:"Laveries", n:money(blanchiment.totalEnRoute(B,jour)), vide:blanchiment.totalEnRoute(B,jour)<=0 },
+    { id:"crypto",  lb:"Crypto",   n:money(S.crypto||0), vide:(S.crypto||0)<=0 },
+    { id:"marche",  lb:"Marché",   n:blanchiment.marcheOuvert(B)?String(darkweb.enTransit(S.darkweb,jour).length):"—",
+      vide:!blanchiment.marcheOuvert(B)||darkweb.enTransit(S.darkweb,jour).length===0 },
+  ];
+}
 function renderCashSorter(){
   set3d("hidden"); hud(); renderDock();
   sorter.dirtyUi=false;
   const cur=sorter.current;
   const cls=cur?(cur.v===1?"n1":cur.v):"";
   const rjHot=cur&&(cur.v===1||!SORT_POCKETS.includes(cur.v));
+  const ongl=cashOnglets();
+  if(!ongl.some(o=>o.id===cashSub)) cashSub="trieuse";
+  const nav=`<div class="subtabs">${ongl.map(o=>`<button class="subtab ${cashSub===o.id?"on":""}" data-cs="${o.id}">
+    ${o.lb}<span class="n${o.vide?" off":""}">${o.n}</span></button>`).join("")}</div>`;
+  const titres={ trieuse:["Trieuse","var(--dirty)"], laverie:["Les laveries","#9be37d"],
+                 crypto:["La crypto","#e8c96a"], marche:["Le marché","#c08cff"] };
+  const [ttl,col]=titres[cashSub];
+  if(cashSub!=="trieuse"){
+    stage.innerHTML=`<h2 style="color:${col}">${ttl}</h2>${nav}${
+      cashSub==="laverie"?renderLaverie():cashSub==="crypto"?renderCrypto():renderMarche()}`;
+    cashBind();
+    return;
+  }
   stage.innerHTML=`
     <h2 style="color:var(--dirty)">Trieuse</h2>
-    <div class="sub">Tu charges, tu lances, tu attends. La machine trie. ${BUNDLE_SIZE} identiques → liasse. Puis encaisser.</div>
+    ${nav}
+    <div class="sub">Tu charges, tu lances, tu attends. La machine trie. ${BUNDLE_SIZE} identiques → liasse. Compter ne lave rien : ça rend l'argent <b>déposable</b>.</div>
     <div class="sorter" id="sorter">
       <div class="sorter-top">
         <div class="sorter-hopper"><div class="lb">TRÉMIE</div><div class="n">${S.bills.length}</div><div class="muted" style="font-size:10px">${money(S.dirty)} à trier</div></div>
@@ -3214,15 +3307,158 @@ function renderCashSorter(){
     </div>
     <div class="card">
       <div class="stat"><span>Compté</span><b>${money(S.counted||0)}</b></div>
-      <div class="stat"><span>Liasses + poche</span><b>${money(cashBundleVal())} + ${money(S.looseChange||0)}</b></div>
-      <button class="btn ok" id="bank" ${cashBankTotal()<=0?"disabled":""}>Encaisser (+${money(cashBankTotal())} propre)</button>
-    </div>`;
+      <div class="stat"><span>Liasses + poche</span><b class="pill dirty">${money(cashBankTotal())}</b></div>
+      <div class="muted" style="font-size:10px;margin:4px 0 0">Compté, donc déposable. Un commerce ne prend pas un sac en vrac.</div>
+    </div>
+    <div class="muted" style="font-size:10px;margin:-4px 0 0">Compté ? Passe aux <b>Laveries</b>.</div>`;
   document.getElementById("run").onclick=()=>{
     if(sorter.running){ sorter.running=false; toast("Stop."); }
     else { sorter.running=true; sorter.cooldown=0; toast("Tri en cours."); }
     renderCashSorter();
   };
-  document.getElementById("bank").onclick=()=>bankBundles();
+  cashBind();
+}
+/* Les gestes sont câblés au MÊME endroit pour les quatre onglets. Deux blocs de liaison
+   parallèles, c'est la garantie qu'on en oublie un le jour où on ajoute une étape — et un
+   bouton muet ne se voit pas dans un test qui ne le tape pas. */
+function cashBind(){
+  stage.querySelectorAll("[data-cs]").forEach(b=>b.onclick=()=>{ cashSub=b.dataset.cs; renderCashSorter(); });
+  stage.querySelectorAll("[data-lav-dep]").forEach(b=>b.onclick=()=>laverieDeposer(b.dataset.lavDep, +b.dataset.m));
+  stage.querySelectorAll("[data-lav-buy]").forEach(b=>b.onclick=()=>racheterFonds(b.dataset.lavBuy));
+  stage.querySelectorAll("[data-cry]").forEach(b=>b.onclick=()=>acheterCrypto(b.dataset.cry, +b.dataset.m));
+  stage.querySelectorAll("[data-dark]").forEach(b=>b.onclick=()=>commanderDark(b.dataset.dark, +b.dataset.g));
+}
+
+/* Les deux portes de la crypto. Elles ne se concurrencent pas : la BORNE avale des
+   billets et rend tout de suite mais plafonne bas — c'est la porte d'entrée, on peut
+   toucher au marché sans posséder un seul commerce. L'OTC prend du PROPRE, donc il
+   suppose qu'on a déjà blanchi : moins de frais, gros volumes. Il ne s'ouvre pas plus
+   tôt, il s'ouvre plus GRAND. Le goulot se déplace tout seul quand l'échelle monte (R9). */
+function renderCrypto(){
+  const B=S.blanchiment, jour=S.day;
+  const route=blanchiment.cryptoEnRoute(B, jour);
+  const canaux=[
+    { id:"borne", c:blanchiment.BORNE, dispo:cashBankTotal(), src:"liasses" },
+    { id:"otc",   c:blanchiment.OTC,   dispo:S.cash,          src:"propre" },
+  ];
+  return `<div class="card">
+    <h3>🪙 La crypto <span class="muted" style="font-size:11px">— ${money(S.crypto)} en poche</span></h3>
+    <div class="muted" style="font-size:10px;margin:-4px 0 6px">Le marché ne prend que ça. Rien d'autre ne l'achète.</div>
+    ${route.length?route.map(o=>`<div class="stat"><span>${o.via==="otc"?"🤝 Vlad":"🏧 La borne"}<br><span class="muted" style="font-size:10px">changé J${o.jour} · ${money(o.brut)} − ${money(o.frais)} de frais</span></span>
+      <b class="q-good">${money(o.net)} <span class="muted" style="font-size:10px">dans ${o.jourPret-jour} j</span></b></div>`).join(""):""}
+    ${canaux.map(({id,c,dispo,src})=>{
+      const reste=blanchiment.resteCanal(B, id, jour);
+      const pas=[100,500,"tout"];
+      return `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed rgba(255,255,255,.08)">
+        <div class="stat"><span>${c.ic} ${c.nm}<br><span class="muted" style="font-size:10px">${c.blurb}</span></span>
+          <b>${Math.round(c.frais*100)} %</b></div>
+        <div class="stat"><span>Encore aujourd'hui · depuis ton ${src}</span>
+          <b class="${reste?"":"q-bad"}">${reste?money(reste):"plafond atteint"} <span class="muted" style="font-size:10px">/ ${money(c.capJour)}${c.delai?` · J+${c.delai}`:" · direct"}</span></b></div>
+        <div class="grid3">${pas.map(m=>{
+          const veut = m==="tout" ? dispo : Math.min(+m, dispo);
+          const d=blanchiment.devisCrypto(B, id, jour, veut);
+          return `<button class="btn ghost" style="margin:0" data-cry="${id}" data-m="${m==="tout"?dispo:m}" ${d.ok?"":"disabled"}>
+            ${m==="tout"?"Tout":"+"+m}${d.ok?`<br><span class="muted" style="font-size:9px">→ ${money(d.net)} crypto</span>`:""}</button>`;
+        }).join("")}</div></div>`;
+    }).join("")}
+  </div>`;
+}
+/* Le marché. Il n'existe à l'écran QUE si le contact a été donné : afficher un lieu
+   verrouillé avec un cadenas en ferait un catalogue, et le contact se gagne en faisant
+   tourner le change — jamais au hasard ni au calendrier (R4).
+   Le transit est affiché AVANT les boutons (R8) : sans ça on recommande à l'aveugle et
+   la planque déborde à l'arrivée. */
+function renderMarche(){
+  const B=S.blanchiment, D=S.darkweb, jour=S.day;
+  if(!blanchiment.marcheOuvert(B)){
+    const reste=blanchiment.marcheReste(B);
+    return `<div class="card">
+      <h3>🧅 Le marché <span class="muted" style="font-size:11px">— pas encore</span></h3>
+      <div class="muted" style="font-size:11px">Ça ne se trouve pas avec une adresse : ça se trouve avec quelqu'un.
+        Vlad connaît du monde — encore <b>${reste} passage${reste>1?"s":""}</b> chez lui et il te présentera.</div>
+    </div>`;
+  }
+  const transit=darkweb.enTransit(D, jour);
+  const place=planqueCap()-(finiG()+painsG());
+  const enMer=darkweb.grammesEnTransit(D,jour);
+  return `<div class="card">
+    <h3>🧅 En mer <span class="muted" style="font-size:11px">— ${money(S.crypto)} crypto en poche</span></h3>
+    ${transit.length?transit.map(c=>{ const v=darkweb.vendeurById(c.vendeurId)||{};
+      return `<div class="stat"><span>${v.ic||"📦"} ${c.g} g · q${c.q}<br><span class="muted" style="font-size:10px">${v.nm||c.vendeurId} · commandé J${c.jour}</span></span>
+        <b class="q-good">dans ${c.jourLivraison-jour} j</b></div>`; }).join("")
+      :`<div class="muted" style="font-size:11px">Rien en mer.</div>`}
+    ${enMer>place?`<div class="muted" style="font-size:10px;color:var(--heat);margin-top:4px">⚠ ${money(enMer)} g arrivent pour ${money(Math.max(0,place))} g de place. Ça rentrera quand même — la planque chauffera.</div>`:""}
+  </div>
+  ${darkweb.VENDEURS.map(v=>{
+    const n=darkweb.commandesChez(D, v.id), fid=darkweb.fidelite(n);
+    const qr=darkweb.qualiteReelle(v);
+    const ech=darkweb.echelle(D, v);
+    /* L'ANNONCE ET LE RÉEL, côte à côte, avant le moindre bouton. C'est tout le design du
+       marché : l'écart n'est pas une surprise à la livraison, c'est une donnée d'entrée.
+       Le cacher ferait de la note un dé déguisé en vendeur (R4). */
+    return `<div class="card">
+      <h3>${v.ic} ${v.nm} <span class="muted" style="font-size:11px">${"★".repeat(Math.round(v.note))}${v.note.toFixed(1)} · ${v.ventes} ventes</span></h3>
+      <div class="muted" style="font-size:10px;margin:-4px 0 6px">${v.prod} — ${v.desc}</div>
+      <div class="stat"><span>Annoncé <b>q${v.annoncee}</b> · <span style="color:${qr>=80?"#9be37d":qr>=65?"#ffd06a":"#ff8a6a"}">livre <b>q${qr}</b></span>
+        <br><span class="muted" style="font-size:10px">sa note dit ce qu'il retire à son annonce</span></span>
+        <b>${v.eurG.toFixed(2)}<span class="muted" style="font-size:10px">/g</span></b></div>
+      <div class="stat"><span>Chez lui</span><b class="${n?"q-good":""}">${fid.lvl}${fid.pct?` · −${fid.pct} %`:""} <span class="muted" style="font-size:10px">${n} commande${n>1?"s":""}</span></b></div>
+      <div class="grid2" style="margin-top:6px">${ech.map(({g,ouvert,besoin})=>{
+        const d=darkweb.devisCommande(D, v, g, S.crypto);
+        if(!ouvert) return `<button class="btn ghost" style="margin:0" disabled>${g} g<br><span class="muted" style="font-size:9px">${d.raison}</span></button>`;
+        return `<button class="btn ${d.ok?"ok":"ghost"}" style="margin:0" data-dark="${v.id}" data-g="${g}" ${d.ok?"":"disabled"}>
+          ${g} g · ${money(d.prix)}<br><span class="muted" style="font-size:9px">${d.ok?`${d.parPoint}/point · J+${d.delai}${d.pct?` · −${d.pct} %`:""}`:d.raison}</span></button>`;
+      }).join("")}</div>
+    </div>`;
+  }).join("")}`;
+}
+/* La laverie. Trois choses, dans cet ordre, et l'ordre est le propos :
+   1. CE QUI EST EN ROUTE — la file, AVANT les boutons qui l'allongent (R8). Sans elle on
+      empile à l'aveugle et le délai devient une surprise au lieu d'être un arbitrage.
+   2. CHAQUE LIEU avec ses trois nombres EN VIGUEUR (frais, plafond restant, délai) : le
+      joueur calcule ce qu'il touchera et quand, au billet près, avant de valider.
+   3. LE RACHAT — le premier vrai débouché du propre. Il affiche l'avant/après, sinon
+      « 3 500 » ne veut rien dire. */
+function renderLaverie(){
+  const B=S.blanchiment, jour=S.day;
+  const route=blanchiment.enRoute(B, jour);
+  const dispo=cashBankTotal();
+  const lieux=blanchiment.laveriesOuvertes(B);
+  const fileTx = route.length
+    ? route.map(d=>{ const L=blanchiment.laverieById(d.laverieId)||{};
+        const j=d.jourPret-jour;
+        return `<div class="stat"><span>${L.ic||"·"} ${L.nm||d.laverieId}<br><span class="muted" style="font-size:10px">déposé J${d.jourDepot} · ${money(d.brut)} sale − ${money(d.frais)} de frais</span></span>
+          <b class="q-good">${money(d.net)} <span class="muted" style="font-size:10px">dans ${j} jour${j>1?"s":""}</span></b></div>`; }).join("")
+    : `<div class="muted" style="font-size:11px">Rien en route.</div>`;
+
+  return `<div class="card">
+    <h3>En route <span class="muted" style="font-size:11px">— ${money(blanchiment.totalEnRoute(B,jour))} propre à venir</span></h3>
+    <div class="muted" style="font-size:10px;margin:-4px 0 6px">Ce qui est engagé ne peut plus être saisi. C'est ce que le délai t'achète.</div>
+    ${fileTx}
+  </div>
+  ${lieux.map(L=>{
+    const etat=(B.laveries||{})[L.id]||{};
+    const r=blanchiment.reglesDe(L, etat);
+    const reste=blanchiment.resteAujourdhui(B, L, jour);
+    const pas=[100,500,"tout"];
+    const rachat=blanchiment.devisRachat(B, L, S.cash);
+    return `<div class="card">
+      <h3>${L.ic} ${L.nm}${etat.possede?` <span class="q-good" style="font-size:11px">— à toi</span>`:` <span class="muted" style="font-size:11px">— loué</span>`}</h3>
+      <div class="muted" style="font-size:10px;margin:-4px 0 6px">${L.blurb}</div>
+      <div class="stat"><span>Ses frais</span><b>${Math.round(r.frais*100)} %</b></div>
+      <div class="stat"><span>Encore aujourd'hui</span><b class="${reste?"":"q-bad"}">${reste?money(reste):"plafond atteint"} <span class="muted" style="font-size:10px">/ ${money(r.capJour)}</span></b></div>
+      <div class="stat"><span>Le propre arrive</span><b>J+${r.delai}</b></div>
+      <div class="grid3" style="margin-top:6px">${pas.map(m=>{
+        const veut = m==="tout" ? dispo : Math.min(+m, dispo);
+        const d=blanchiment.devis(B, L, jour, veut);
+        return `<button class="btn ghost" style="margin:0" data-lav-dep="${L.id}" data-m="${m==="tout"?dispo:m}" ${d.ok?"":"disabled"}>
+          ${m==="tout"?"Tout":"+"+m}${d.ok?`<br><span class="muted" style="font-size:9px">→ ${money(d.net)} propre</span>`:""}</button>`;
+      }).join("")}</div>
+      ${etat.possede?"":`<button class="btn ${rachat.ok?"ok":"ghost"}" style="margin-top:8px" data-lav-buy="${L.id}" ${rachat.ok?"":"disabled"}>
+        ${rachat.ok?`💼 Racheter le fonds — ${money(L.prixFonds)} propre`:`💼 Racheter le fonds — ${rachat.raison}`}
+        <br><span class="muted" style="font-size:9px">frais ${Math.round(L.loue.frais*100)} % → ${Math.round(L.possede.frais*100)} % · plafond ${money(L.loue.capJour)} → ${money(L.possede.capJour)}/jour</span></button>`}
+    </div>`;
+  }).join("")}`;
 }
 
 /** Commit le billet en gorge dans la bonne poche (toujours correct — machine). */
@@ -3233,11 +3469,13 @@ function sorterCommit(){
   sorter.sessionOk++;
   sorter.cooldown=0.04;
   try{ navigator.vibrate&&navigator.vibrate(6); }catch{}
-  if(tab==="cash") renderCashSorter();
+  // seulement si la trieuse est À L'ÉCRAN : depuis les sous-onglets, un billet trié
+  // repeignait l'écran d'une AUTRE étape à chaque passage
+  if(tab==="cash" && cashSub==="trieuse") renderCashSorter();
 }
 
 function sorterTick(dt){
-  if(tab!=="cash") return;
+  if(tab!=="cash" || cashSub!=="trieuse") return;
   if(sorter.cooldown>0) sorter.cooldown-=dt;
   // billet en vol → à la fin du passage, poche auto
   if(sorter.current){
@@ -3278,15 +3516,99 @@ function sortBill(id){
   }
   save();
 }
-function bankBundles(){
-  let got=0;
-  for(const d of [5,20,50,100]){ const n=S.bundles[d]||0; if(n>0){ got+=d*BUNDLE_SIZE*n; S.bundles[d]=0; } }
-  const loose=S.looseChange||0;
-  got+=loose; S.looseChange=0;
-  if(got<=0) return;
-  S.cash+=got; S.counted=0;
-  cause("Liasses encaissées",`+${money(got)} propre`);
-  toast(`+${money(got)} propre. Rachat autorisé.`);
+/* Vider les liasses vers une laverie. Ce n'est PLUS un encaissement : avant, `bankBundles`
+   transformait les liasses en propre d'un tap, ce qui court-circuitait le blanchiment
+   entier — compter suffisait à laver. Maintenant compter ne fait que rendre l'argent
+   DÉPOSABLE ; le lavage a son prix, son plafond et son délai.
+   Le débit est fait ICI parce que `blanchiment.mjs` ne connaît pas l'état global : c'est
+   ce qui le garde pur et testable hors navigateur. */
+function laverieDeposer(laverieId, montantVoulu){
+  const L=blanchiment.laverieById(laverieId); if(!L) return;
+  const dispo=cashBankTotal();
+  const d=blanchiment.devis(S.blanchiment, L, S.day, Math.min(montantVoulu, dispo));
+  if(!d.ok){ toast(d.raison==="plafond du jour atteint"
+      ? `${L.nm} a pris tout ce qu'il pouvait aujourd'hui. Reviens demain.`
+      : "Rien de compté à déposer — passe par la trieuse."); return; }
+  const depot=blanchiment.deposer(S.blanchiment, L, S.day, d.brut);
+  if(!depot) return;
+  retirerDesLiasses(depot.brut);
+  cause("Déposé "+L.nm, `${money(depot.brut)} sale · frais ${money(depot.frais)} · ${money(depot.net)} propre à J${depot.jourPret}`,
+        {eur:0, poste:"blanchiment"});
+  toast(`${L.ic} ${money(depot.brut)} déposés. ${money(depot.net)} propre à J${depot.jourPret}.`);
+  save(); render();
+}
+/* Retire EXACTEMENT `montant` des liasses puis de la poche. Les grosses coupures d'abord :
+   déposer 400 doit sortir quatre billets de 100, pas quatre-vingts de 5 — et surtout, sans
+   cet ordre, un dépôt partiel laisserait la monnaie et emporterait les liasses, ce qui
+   rendrait le reliquat indéposable au coup suivant. */
+function retirerDesLiasses(montant){
+  let reste=Math.round(montant);
+  for(const d of [100,50,20,5]){
+    while(reste>=d*BUNDLE_SIZE && (S.bundles[d]||0)>0){ S.bundles[d]--; reste-=d*BUNDLE_SIZE; }
+  }
+  if(reste>0){ const p=Math.min(reste, S.looseChange||0); S.looseChange=(S.looseChange||0)-p; reste-=p; }
+  /* Reliquat : le dépôt était borné par `cashBankTotal()`, donc on ne peut arriver ici
+     qu'avec une liasse à casser. On la casse en monnaie plutôt que de perdre la
+     différence — R1, aucun geste ne doit créer une perte sèche. */
+  for(const d of [5,20,50,100]){
+    if(reste<=0) break;
+    while(reste>0 && (S.bundles[d]||0)>0){ S.bundles[d]--; S.looseChange=(S.looseChange||0)+d*BUNDLE_SIZE; 
+      const p=Math.min(reste, S.looseChange); S.looseChange-=p; reste-=p; }
+  }
+  S.counted=0;
+}
+/* Acheter de la crypto. Deux canaux, une seule fonction : ils ne diffèrent que par la
+   monnaie SOURCE et leurs trois nombres. Deux fonctions jumelles finiraient par diverger —
+   c'est déjà ce qui avait été évité pour le profil de payeur des ardoises. */
+function acheterCrypto(canal, montantVoulu){
+  const c = canal==="borne" ? blanchiment.BORNE : blanchiment.OTC;
+  const dispo = canal==="borne" ? cashBankTotal() : S.cash;
+  const d=blanchiment.devisCrypto(S.blanchiment, canal, S.day, Math.min(montantVoulu, dispo));
+  if(!d.ok){ toast(d.raison==="plafond du jour atteint"
+      ? `${c.nm} : plafond du jour atteint (${money(c.capJour)}). Demain.`
+      : canal==="borne" ? "Rien de compté à insérer — passe par la trieuse."
+                        : "Pas de propre à changer — passe par une laverie."); return; }
+  const op=blanchiment.acheterCrypto(S.blanchiment, canal, S.day, d.brut);
+  if(!op) return;
+  if(canal==="borne") retirerDesLiasses(op.brut); else S.cash-=op.brut;
+  /* La borne est immédiate : on crédite ICI plutôt que d'attendre la clôture. Sinon
+     « immédiat » serait un mensonge d'écran — et c'est précisément ce que la chaîne
+     entière essaie de ne jamais faire. */
+  if(op.jourPret<=S.day){ blanchiment.encaisserCrypto(S.blanchiment, S.day); S.crypto+=op.net; }
+  cause(canal==="borne"?"Borne crypto":"Change chez Vlad",
+        `${money(op.brut)} ${canal==="borne"?"sale":"propre"} · frais ${money(op.frais)} · ${money(op.net)} crypto${op.jourPret>S.day?` à J${op.jourPret}`:""}`,
+        {eur:0, poste:"blanchiment"});
+  toast(`${c.ic} ${money(op.net)} crypto${op.jourPret>S.day?` à J${op.jourPret}`:" — tout de suite"}.`);
+  if(canal==="otc" && blanchiment.marcheOuvert(S.blanchiment) && !S.darkweb.presente){
+    S.darkweb.presente=true;
+    cause("Contact donné", "Vlad t'a présenté au marché", {poste:"blanchiment"});
+    toastQ.push("🧅 Vlad t'a filé une adresse. « Tu n'as pas eu ça de moi. »");
+  }
+  save(); render();
+}
+function commanderDark(vendeurId, g){
+  const v=darkweb.vendeurById(vendeurId); if(!v) return;
+  const d=darkweb.devisCommande(S.darkweb, v, g, S.crypto);
+  if(!d.ok){ toast(`Pas encore : ${d.raison}.`); return; }
+  const cmd=darkweb.commander(S.darkweb, v, g, S.day, S.crypto);
+  if(!cmd) return;
+  S.crypto-=cmd.prix;
+  /* La qualité écrite au journal est celle qui ARRIVERA, pas celle qu'il annonce : le
+     joueur doit pouvoir relire sa décision telle qu'elle était, écart compris. */
+  cause("Commande "+v.nm, `−${money(cmd.prix)} crypto · ${cmd.g} g · annoncé q${v.annoncee}, livré q${cmd.q} · J${cmd.jourLivraison}`,
+        {eur:0, poste:"pain"});
+  toast(`🧅 ${v.ic} ${cmd.g} g commandés. q${cmd.q} réels à J${cmd.jourLivraison}.`);
+  save(); render();
+}
+function racheterFonds(laverieId){
+  const L=blanchiment.laverieById(laverieId); if(!L) return;
+  const d=blanchiment.devisRachat(S.blanchiment, L, S.cash);
+  if(!d.ok){ toast(d.raison==="déjà à toi" ? `${L.nm}, c'est déjà chez toi.` : `Pas encore : ${d.raison}.`); return; }
+  if(!blanchiment.racheter(S.blanchiment, L)) return;
+  S.cash-=d.prix;
+  cause("Rachat "+L.nm, `−${money(d.prix)} propre · frais ${Math.round(L.loue.frais*100)} % → ${Math.round(L.possede.frais*100)} %, plafond ${L.loue.capJour} → ${L.possede.capJour}/jour`,
+        {eur:-d.prix, poste:"upgrade"});
+  toast(`${L.ic} ${L.nm} est à toi. La caisse ne te coûte plus que les charges.`);
   save(); render();
 }
 
@@ -3342,9 +3664,16 @@ function karnetSceller(){
   const p = karnetPhoto; karnetPhoto = null;
   // la paie et les ardoises sont tombées ENTRE les deux temps : on relit `spend` maintenant
   p.spend = { ...p.spend, ...(S.dayTally && S.dayTally.spend ? S.dayTally.spend : {}) };
+  /* `soir` est RELU maintenant, pas gardé depuis l'ouverture. Des conséquences de la
+     soirée tombent ENTRE les deux temps — l'ardoise qu'un client n'est jamais revenu
+     régler s'écrit après `karnetOuvrir` — et la photo prise à l'ouverture les manquait
+     toutes. Mesuré : une ardoise envolée de 240 n'apparaissait nulle part dans le bilan.
+     `soir` n'est remis à zéro qu'APRÈS le scellement, donc le relire ici est sûr, et
+     c'est la seule lecture qui contient la soirée entière. */
   p.corners = Object.fromEntries(Object.entries(p.corners).map(([id, c]) => {
     const C = S.shelter.corners[id];
-    return [id, { ...c, passages: Math.max(0, (C ? C.seq || 0 : c.seq0) - c.seq0),
+    return [id, { ...c, soir: C ? JSON.parse(JSON.stringify(soirDe(C))) : c.soir,
+                        passages: Math.max(0, (C ? C.seq || 0 : c.seq0) - c.seq0),
                         resFin: C ? Math.round(C.res || 0) : c.res0 }];
   }));
   p.heatFin = Math.round(S.heat);
@@ -3369,7 +3698,30 @@ function advanceDay(manual){
   // ardoises : le crédit se règle tout seul au jour dit (déterministe, R4) — l'argent revient en liquide
   { const P=activeCorner();
     for(const p of corner.CORNER_PERSONAS){ const c=S.clients&&S.clients[p.id];
-      if(c&&c.ardoise&&S.day>=c.ardoise.day){ const v=Math.round(c.ardoise.due); S.dirty+=v; pushBills(v);
+      if(c&&c.ardoise&&S.day>=c.ardoise.day){ const v=Math.round(c.ardoise.due);
+        /* L'IMPAYÉ (arbitrage Sylvain, 2026-07-28). Le profil de payeur vient de
+           `corner.paieArdoise` — la MÊME source que le chip affiché sur la carte avant
+           d'accepter. C'est ce qui garantit que la nuit tient ce que la carte a promis :
+           deux décisions parallèles finiraient par diverger, et le joueur se ferait planter
+           par un client annoncé sûr.
+
+           Il emporte la marchandise ET il disparaît : `quit` existe déjà pour le client
+           qu'on a trop pressé, et le tirage l'exclut déjà (`!c.quit`), le Karnet l'affiche
+           déjà « parti ». On réutilise ce chemin plutôt que d'en ouvrir un second.
+           `quitCause` distingue les deux départs — sans elle le Karnet dirait « parti »
+           pour deux histoires opposées : celui qu'on a fait fuir, et celui qui nous a volé. */
+        if(corner.paieArdoise(p)==="jamais"){
+          c.quit=true; c.quitCause="impaye"; c.impaye=(c.impaye||0)+v; delete c.ardoise;
+          /* Manque à gagner, pas dépense : le liquide n'est JAMAIS entré. Le passer en
+             débit ferait mentir la marge de la soirée — le pont du Karnet ne boucle que
+             parce que chaque poste compte de l'argent réellement déplacé. */
+          { const so=soirDe(P); so.impaye.n++; so.impaye.eur+=v; }
+          cause("Ardoise jamais réglée", p.nm+" a disparu avec "+v, {eur:0, poste:"ardoise", day:jourClos});
+          toastQ.push("🧾 "+p.nm+" n'est jamais revenu. "+v+" partis avec lui — et lui aussi.");
+          if(P&&P.ledger){ const e=P.ledger.find(x=>x.ard&&!x.ok&&x.nm===p.nm); if(e){ e.perdu=true; } }
+          continue;
+        }
+        S.dirty+=v; pushBills(v);
         c.rel=clamp(c.rel+2,0,100);
         // le crédit qui rentre appartient à la soirée qui se clôt : il entre dans SA photo
         if(karnetPhoto) karnetPhoto.ardoise+=v;
@@ -3405,6 +3757,43 @@ function advanceDay(manual){
          où il tombe (R4 : le joueur relie la conséquence au geste), comme la paie des
          chouffes s'annonce dans le toast de clôture. */
       toastQ.push("🧶 Pension "+NOURRICE_NM+" −"+money(p)+" · elle garde "+money(N.garde)+".");
+    } }
+  /* Le blanchiment arrive à échéance. Déterministe (R4) : le jour de versement a été
+     annoncé au dépôt et il ne bouge pas. Une cause PAR dépôt, jamais un total agrégé —
+     un virement sans origine serait exactement ce que le Karnet reproche au reste. */
+  { const prets=blanchiment.encaisser(S.blanchiment, S.day);
+    for(const d of prets){
+      const L=blanchiment.laverieById(d.laverieId)||{nm:d.laverieId, ic:"·"};
+      S.cash+=d.net;
+      cause("Blanchi chez "+(L.nm||d.laverieId),
+            `+${money(d.net)} propre · déposé J${d.jourDepot}, ${money(d.brut)} sale − ${money(d.frais)} de frais`,
+            {eur:0, poste:"blanchiment", day:jourClos});
+    }
+    if(prets.length){
+      const net=prets.reduce((a,d)=>a+d.net,0);
+      toastQ.push(`🧼 ${money(net)} propre sont arrivés. ${prets.length} dépôt${prets.length>1?"s":""} soldé${prets.length>1?"s":""}.`);
+    } }
+  /* La crypto de l'OTC arrive à son tour (la borne, elle, a crédité tout de suite). */
+  { const prets=blanchiment.encaisserCrypto(S.blanchiment, S.day);
+    for(const c of prets){
+      S.crypto+=c.net;
+      cause("Crypto reçue", `+${money(c.net)} · changé J${c.jour} chez ${c.via==="otc"?"Vlad":"la borne"}`,
+            {eur:0, poste:"blanchiment", day:jourClos});
+    }
+    if(prets.length) toastQ.push(`🪙 ${money(prets.reduce((a,c)=>a+c.net,0))} crypto sont arrivés.`); }
+  /* Les livraisons du marché. Elles entrent en PAINS, comme l'Appro — le reste du jeu ne
+     sait manipuler que ça. On livre même si la planque déborde : refuser une commande
+     déjà payée serait une perte sèche (R1). Le débordement se paie déjà, en hit de
+     planque, et il est annoncé au moment de commander. */
+  { const recues=darkweb.livrer(S.darkweb, S.day);
+    for(const cmd of recues){
+      for(const pain of darkweb.painsDe(cmd)) S.pains.push(pain);
+      cause("Livraison "+cmd.g+" g", `q${cmd.q} · commandé J${cmd.jour} · ${money(cmd.prix)} crypto`,
+            {eur:0, poste:"pain", day:jourClos});
+    }
+    if(recues.length){
+      const g=recues.reduce((a,c)=>a+c.g,0);
+      toastQ.push(`📦 ${money(g)} g livrés. ${finiG()+painsG()>planqueCap()?"La planque déborde — écoule vite.":"À la planque."}`);
     } }
   /* Compteurs de soirée remis à zéro APRÈS la paie des chouffes et le règlement des
      ardoises, jamais avant : ces deux lignes appartiennent à la soirée qui se clôt.

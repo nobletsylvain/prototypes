@@ -187,7 +187,10 @@ export function shelterDefaults() {
 export function soirDefaults() {
   return { eur: 0, g: 0, tips: 0, servis: 0,
     perdu: { rupture: 0, ruptureEur: 0, impat: 0, impatEur: 0, walk: 0, walkEur: 0 },
-    descente: { n: 0, eur: 0 } };
+    descente: { n: 0, eur: 0 },
+    // ardoises emportées et jamais réglées : du manque à gagner, comme la descente —
+    // la marchandise est partie, le liquide n'est jamais entré
+    impaye: { n: 0, eur: 0 } };
 }
 export function cornerDefaults(over) {
   return { res: 30, bac: 0, advQ: 0, prix: 10, chouffes: 0,

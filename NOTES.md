@@ -9,6 +9,371 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Le marché, récolté sur `darkweb-market/`
+
+Sylvain : « Regarde le proto onion market. Il contient déjà énormément de bonnes choses. »
+Il avait raison, et sur un point que je n'avais pas vu.
+
+### Ce que j'avais écrit, et pourquoi c'était pauvre
+
+Trois offres fixes, une qualité fixe, un prix fixe. Le marché était un **palier supérieur** :
+meilleur que l'Appro, donc on y va dès qu'on peut. Aucune décision.
+
+### La pièce maîtresse du proto
+
+```
+realQual = annoncée x (0,5 + 0,1 x note)
+```
+
+**La qualité affichée n'est pas celle qui arrive**, et l'écart est une fonction
+déterministe d'une note publique. PneuDeSecours (2,1 etoiles) annonce 74 et livre **53** ;
+AtlasFinest (4,2) annonce 85 et livre **78**.
+
+Le vendeur pas cher n'est donc pas un piège : c'est un **calcul**. C'est R4 dans sa
+meilleure forme — le risque est lisible, arithmétique, et il ne surprend jamais celui qui
+lit. L'écran l'affiche côte à côte avant le moindre bouton : `Annoncé q74 · livre q53`.
+
+### Le reste de la récolte
+
+- **Remises plafonnées par tier** — 32 % en cheap, 14 % en premium. Volume et fidélité
+  s'additionnent mais le plafond est plus serré là où le produit est bon : le premium ne
+  brade pas, donc la progression n'aplatit jamais le choix (R9).
+- **Les grosses quantités exigent un passé CHEZ CE VENDEUR** — 2, 5, 10 commandes pour
+  ouvrir 100, 250, 500 g. Une relation, pas un niveau global : choisir un fournisseur
+  devient un engagement.
+- **Le volume paie surtout en bas de gamme** — 16 % à 500 g en cheap, 7 % en premium.
+
+Non repris : l'économie de **revente** sur le marché (prix et qualité annoncés par le
+joueur, demande déterministe, falaise de confiance quand la tromperie s'accumule) — c'est
+un second système complet et La Loupe vend au corner. Les familles hors hash non plus.
+**Les fournitures méritent un vrai coup d'oeil le jour où on touchera au levier de coupe
+(R10)** : agents de coupe par pureté, kits réactifs, presse, précurseurs.
+
+Changé pour La Loupe : le proto livre immédiatement, ici la livraison prend des jours et
+plus la commande est grosse plus elle traîne — c'est l'arbitrage « temps ET capacité comme
+goulot ».
+
+### Le contrôle qui a démontré que ma question était mal posée
+
+J'avais écrit : « à qualité comparable, la chaîne bat l'Appro ». **Il est tombé.**
+
+```
+Appro        250 g q78 = 1700 sale -> 8,72 par g et par point
+AtlasFinest  250 g q78 = 1799 sale -> 9,23
+```
+
+Ce n'était pas un bug de test : la valeur du marché n'est **pas** d'être moins cher à
+qualité égale, c'est d'offrir ce que l'Appro ne peut pas vendre. Deux promesses, donc deux
+contrôles — le marché atteint **q92** quand l'Appro plafonne à q78, et en bas de gamme il
+descend à **7,92/point** contre 8,72.
+
+### Un trou d'équilibrage, compté plutôt que caché
+
+Le tier **moyen est aujourd'hui strictement dominé** par l'Appro : qualité équivalente,
+9,58-9,62 contre 8,72. Deux vendeurs sur six sont du contenu mort.
+
+C'est une question d'équilibrage — donc de Sylvain, pas de moi. Le test ne l'interdit pas,
+il le **compte** :
+
+```
+[VEILLE] 2/6 - AtlasFinest (q78, 9.62/point), CaramelBeldia (q71, 9.58/point)
+```
+
+Le jour où les nombres bougeront, cette ligne dira si le trou s'est refermé. Un défaut
+d'équilibrage qu'on connaît et qu'on chiffre vaut mieux qu'un test vert qui l'ignore.
+
+Suite : crypto **29/29** · blanchiment 19/19 · ardoise 16/16 · invariants 58/58 ·
+karnet 44/44 · nourrice 19/19 · arah 8/8 · raccourcis 10/10 · karim 14/14 · cause 21/21 ·
+chaleur 8/8 · tap 7/7 · bulles 15/15 · tap-bigo 4/4 · escalier 6/6 · desync 5/5 · cache 3/3 ·
+lexique 1/1 · smoke sans erreur. Modules en `?v=57`.
+
+---
+
+## 2026-07-28 — L'écran Liquide passe en onglets, et un contrôle qui mesurait à côté
+
+Sylvain, sur mon constat que l'app Liquide devenait très longue : « Exact. »
+
+La chaîne fait quatre étapes — trier → déposer → changer → commander — et les empiler sur
+un seul écran donnait **quatre hauteurs de défilement**. Chacune a maintenant son onglet,
+et **chaque puce porte le compteur de son étape** : `Billets 2000 · Laveries 0 · Crypto 0 ·
+Marché 0`. Ce n'est pas qu'une navigation — on voit où le goulot se forme sans ouvrir les
+écrans, comme le bac sur le favori du corner.
+
+Deux gardes posés au passage :
+
+- `sorterTick` et `sorterCommit` repeignaient l'écran à chaque billet trié, **même depuis
+  un autre onglet**. Guardés sur `cashSub === "trieuse"`.
+- Les quatre onglets partagent **un seul bloc de liaison** (`cashBind`). Deux blocs
+  parallèles, c'est la garantie d'en oublier un le jour où on ajoute une étape — et un
+  bouton muet ne se voit pas dans un test qui ne le tape pas.
+
+### Le contrôle qui mesurait la seule chose qui allait bien
+
+En ajoutant la crypto au HUD, la deuxième ligne est passée à cinq pastilles et « buzz »
+sortait de l'écran sur 412 px. J'ai écrit un contrôle qui comparait
+`getBoundingClientRect().right` à la largeur de l'écran. **Il passait aussi bien avec que
+sans le correctif.**
+
+La raison : en flex sans retour à la ligne, les pastilles ne débordent pas, elles se font
+**écraser** (`flex-shrink` vaut 1 par défaut). La boîte reste donc dans l'écran, et c'est
+le **texte** qui déborde d'elle. Je mesurais la boîte — la seule chose qui allait bien.
+
+Deux corrections, et la seconde est celle qui compte :
+
+1. comparer `scrollWidth` à `clientWidth` : la largeur qu'il **faudrait** contre celle
+   qu'on a ;
+2. **mesurer au bon moment.** Même corrigé, le contrôle passait encore : il tournait en fin
+   de scénario, quand les nombres sont courts. Déplacé à l'ouverture du marché — l'état où
+   j'avais vu la coupure — il tombe enfin : `J5 (30px dans 30px) · buzz 10 (66px dans 66px)`.
+
+Un contrôle juste au mauvais moment ne vaut pas mieux qu'un contrôle faux. La discipline
+« rejouer sur le code d'avant » a attrapé les deux — c'est la quatrième fois de la semaine
+qu'elle rattrape un contrôle vide, et la première où le défaut était l'**instant** de la
+mesure et pas la mesure elle-même.
+
+Suite : crypto **20/20** · blanchiment 19/19 · ardoise 16/16 · invariants 58/58 ·
+karnet 44/44 · nourrice 19/19 · arah 8/8 · raccourcis 10/10 · karim 14/14 · cause 21/21 ·
+chaleur 8/8 · tap 7/7 · bulles 15/15 · tap-bigo 4/4 · escalier 6/6 · desync 5/5 · cache 3/3 ·
+lexique 1/1 · check 32 fichiers · smoke sans erreur.
+
+---
+
+## 2026-07-28 — Le blanchiment (2/4) : la crypto, et la règle qu'on ne refera pas une 3e fois
+
+Sylvain : « oui le propre → crypto → darkweb ». Ça confirmait l'architecture en deux
+étages et ça réglait la question que je gardais ouverte.
+
+### La contrainte que ça impose, et qui a décidé du découpage
+
+**Je ne pouvais pas livrer la crypto sans le dark web.** Ce dépôt a fait deux fois la même
+erreur : `S.cash` était produit sans rien acheter, et il a fallu couper la trieuse ET le
+front de Karim. Une monnaie sans débouché n'est pas une monnaie, c'est un compteur. La
+crypto aurait eu exactement le même sort.
+
+D'où la règle appliquée ici, et le premier contrôle du fichier de test :
+**une monnaie et son débouché s'ouvrent dans la même passe, jamais l'un avant l'autre.**
+Si ce contrôle tombe un jour, c'est que le marché a été retiré et que la crypto est
+redevenue un compteur — la troisième fois, on le saura tout de suite.
+
+### Deux portes qui ne se concurrencent pas
+
+| | frais | plafond | délai | source |
+| --- | --- | --- | --- | --- |
+| 🏧 **La borne** | 15 % | 1 000/jour | direct | liasses |
+| 🤝 **Vlad (OTC)** | 6 % | 5 000/jour | J+1 | propre |
+
+La borne est la **porte d'entrée** : on peut toucher au marché sans posséder un seul
+commerce, et on paie cher pour n'avoir rien monté. L'OTC prend du propre, donc il suppose
+qu'on a déjà blanchi. **Il ne s'ouvre pas plus tôt, il s'ouvre plus grand.**
+
+Elles ne se marchent pas dessus parce que le plafond de la borne est journalier : à petite
+échelle elle suffit, à grande échelle elle devient une goutte d'eau. Le goulot se déplace
+de lui-même sans qu'on interdise quoi que ce soit (R9).
+
+### Le contact se gagne
+
+Le marché ne s'ouvre pas avec une adresse : c'est Vlad qui présente, après trois passages.
+Même gabarit que Karim et l'Appro — le déblocage se relie à un geste. Et l'écran fermé
+**dit comment l'ouvrir** au lieu d'afficher un cadenas : un cadenas est un catalogue, une
+phrase est une direction.
+
+### Le contrôle qui valide toute la chaîne
+
+Rien ne garantissait que monter les deux étages serve à quelque chose. Le test le calcule,
+tous frais payés, en ramenant tout en sale :
+
+```
+Appro   250 g q78 = 1700 sale (6,80/g)
+Marché  250 g q88 = 1619 sale (6,48/g)   ← fonds possédé (8 %) puis OTC (6 %)
+```
+
+**Moins cher au gramme ET dix points de qualité.** La chaîne se justifie au gramme, pas par
+un discours. C'est aussi la comparaison qu'aucun écran ne fait pour le joueur — donc celle
+qu'un test doit tenir, sinon un rééquilibrage la casse sans que personne ne le voie.
+
+### Détails qui comptent
+
+- **La borne crédite sur place.** Elle est annoncée « immédiate » : la faire passer par la
+  clôture aurait fait de ce mot un mensonge d'écran.
+- **Une commande payée arrive**, même si la planque déborde — refuser une livraison déjà
+  réglée serait une perte sèche (R1). Le débordement est annoncé au moment de commander et
+  se paie en hit de planque, ce qui existe déjà.
+- **La crypto n'entre au HUD qu'une fois touchée.** Avant, c'est un mot de plus dans un
+  bandeau chargé pour une monnaie qui n'existe pas dans la partie ; après, c'est
+  indispensable — une monnaie qu'on ne voit qu'en scrollant jusqu'à son écran, on l'oublie,
+  et c'est exactement comme ça qu'un débouché meurt.
+
+⚠️ Tous les nombres restent des **placeholders**.
+
+### Reste au programme
+
+Second corner et planque au propre (3), puis l'approfondissement du marché (4).
+
+Suite : crypto **19/19** (nouveau) · blanchiment 18/18 · ardoise 16/16 · invariants 58/58 ·
+karnet 44/44 · nourrice 19/19 · arah 8/8 · raccourcis 10/10 · karim 14/14 · cause 21/21 ·
+chaleur 8/8 · tap 7/7 · bulles 15/15 · tap-bigo 4/4 · escalier 6/6 · desync 5/5 · cache 3/3 ·
+lexique 1/1 · check 32 fichiers · smoke sans erreur. Modules en `?v=56`.
+
+---
+
+## 2026-07-28 — Le blanchiment (1/4) : la trieuse revient, et le propre sert enfin
+
+Sylvain, après playtest : « la nourrice fonctionne bien, et on arrive désormais au moment
+où on a besoin de » — trieuse de billets, blanchiment par petit commerce (% + plafond
+quotidien + temps), borne crypto plafonnée à 1000/jour, achat OTC « pas regardant »,
+et l'introduction au réseau de fournisseurs du dark web.
+
+### Le diagnostic qui commande tout le reste
+
+`S.cash` (le propre) n'avait **aucun débouché**. Ses seuls usages : l'affichage du HUD, le
+remboursement de Karim (coupé), et un repli sur la paie des chouffes. C'est ce qui avait
+fait couper la trieuse ET le front : une monnaie sans débouché n'est pas une monnaie, c'est
+un compteur.
+
+**Le blanchiment ne vaut donc que s'il s'ouvre EN MÊME TEMPS qu'un débouché.** Sinon on
+rebâtit exactement l'impasse qu'on vient de démonter.
+
+### Ce qui a été arbitré
+
+| question | arbitrage |
+| --- | --- |
+| Propre et crypto : deux étages ou deux sorties ? | **Deux étages** — sale → propre → crypto |
+| Le commerce : loué ou acheté ? | **Les deux** — on loue avant de pouvoir acheter |
+| À quoi sert le blanchi ? | **Les gros investissements** (planque, corners, commerces) |
+
+Le troisième choix est le plus intéressant, et ce n'est pas celui que j'avais recommandé :
+Sylvain a écarté « les fournisseurs du dark web » comme débouché du propre, alors qu'il
+l'avait lui-même listé. Ça donne une boucle **qui se referme sur elle-même** : on blanchit
+pour racheter le commerce qui permet de blanchir plus. Le dark web reste au programme, mais
+sa monnaie sera à confirmer quand on y arrivera — je ne la déduis pas.
+
+### Passe 1 : la boucle complète, en petit
+
+- **La trieuse revient**, mais elle ne produit plus de propre. Elle produit des **liasses**,
+  du sale comptable. Un commerce n'accepte pas un sac de billets en vrac : compter est
+  redevenu la **porte** du blanchiment au lieu d'en être le raccourci. Avant, `bankBundles`
+  convertissait liasses → propre d'un tap et court-circuitait tout le système.
+- **Chez Sofiane** (barber shop), loué : 22 % de frais, 400/jour, versement à J+2. Rachat
+  du fonds à 3 500 propre → 8 %, 900/jour. **L'Épicerie du bas** ne s'ouvre qu'une fois un
+  premier fonds possédé — on ne loue pas deux fois en aveugle.
+- Les **trois** paramètres, pas un seul (arbitrage antérieur : « temps, capacité comme
+  goulot et pas seulement une taxe »). Une taxe seule se paie et s'oublie — c'est le défaut
+  mesuré sur la pension fixe. Le plafond et le délai, eux, ne se rattrapent pas avec de
+  l'argent : ils bornent le **débit**, donc la vitesse à laquelle l'empire grandit.
+- **Ce qui est engagé est sûr** (R1) : une fois déposé, l'argent n'est plus saisissable.
+  C'est la contrepartie du délai. Sans elle, le joueur paierait des frais **et** porterait
+  un risque — le blanchiment deviendrait une punition pour avoir bien vendu.
+- **Aucun aléa** (R4) : délai en jours fixe, frais en pourcentage fixe, plafond fixe. Le
+  devis annonce au billet près ce qui sera versé et quand, **avant** de valider (R8), et la
+  clôture verse exactement ça. Une seule source — c'est la leçon de l'impayé.
+
+### Le contrôle qui compte
+
+`sorti des liasses 100 = propre 78 + frais 22`. Une fuite de conversion ne se verrait
+qu'au bout de vingt soirées, et jamais comme un bug — seulement comme un équilibrage qui
+« ne tombe pas juste ». C'est le genre de chose qu'un test attrape et qu'un playtest non.
+
+⚠️ Tous les nombres sont des **placeholders**. Ordre de grandeur visé : à pleine capacité
+louée, racheter le fonds demande une dizaine de soirées.
+
+### Reste au programme
+
+Borne crypto (1000/jour) + OTC (2), second corner et planque au propre (3), dark web (4).
+
+Suite : blanchiment **18/18** (nouveau) · ardoise 16/16 · invariants 58/58 · karnet 44/44 ·
+nourrice 19/19 · arah 8/8 · raccourcis 10/10 · karim 14/14 · cause 21/21 · chaleur 8/8 ·
+tap 7/7 · bulles 15/15 · tap-bigo 4/4 · escalier 6/6 · desync 5/5 · cache 3/3 · lexique 1/1 ·
+check 31 fichiers · smoke sans erreur.
+
+---
+
+## 2026-07-28 — L'impayé : R4 interdit le hasard, pas la perte
+
+### Une coquille lue comme un arbitrage
+
+Sylvain avait écrit « J'aime l'idée du retard possible et **le nom paiement** ». J'ai lu ça
+comme le nom d'un écran et j'ai passé une session à demander confirmation de l'orthographe.
+Sa réponse : « je voulais dire le **NON** paiement — c'est une faute de frappe. Que celui à
+qui on prête ne revient jamais rembourser. »
+
+Ce qui a sauvé le coup, c'est R11 : j'avais gardé le mot **hors du code** en attendant.
+S'il était parti dans les identifiants, les classes CSS et les libellés de tests, il aurait
+fallu le déraciner de partout — et il serait remonté, comme `ARAH`. **La règle a payé sur
+un cas qu'elle n'avait pas prévu** : elle protège du contresens, pas seulement de la faute
+d'orthographe.
+
+Leçon à garder : une citation qui ne veut **presque** rien dire est le signal d'une
+coquille, pas d'un arbitrage à interpréter. À relancer, pas à lire.
+
+### La règle avait été mal lue, et ça avait coûté la mécanique
+
+Le code disait, noir sur blanc :
+
+```js
+// ardoise (crédit) : … — jamais d'impayé (R4)
+```
+
+C'est une confusion, et elle est instructive : **R4 interdit le HASARD, pas la perte.** Un
+impayé qu'on voit venir est parfaitement déterministe. Le design s'était privé du crédit
+risqué en croyant respecter le déterminisme — une règle appliquée de travers coûte plus
+qu'une règle absente, parce qu'on ne la rediscute jamais.
+
+### Ce qui a été arbitré, et construit
+
+| question | arbitrage |
+| --- | --- |
+| Qu'est-ce qui rend l'impayé prévisible ? | **Le type du client, dit dans son tell** |
+| Qu'est-ce qu'on perd ? | **L'argent ET le client** — il disparaît |
+| Combien de prêteurs ? | **Plusieurs** |
+
+Quatre prêteurs, deux et deux : **Yaz** et **Nassim** règlent, **Riton** et **Kenza**
+disparaissent. Chaque tell le dit, et un test le vérifie mot pour mot — sans ça, l'impayé
+serait un dé déguisé en personnage.
+
+Deux choses valent d'être notées sur la construction :
+
+- **Une seule source.** `corner.paieArdoise()` est lue par la carte (qui annonce) ET par la
+  clôture (qui applique). Deux décisions parallèles finiraient par diverger, et le joueur
+  se ferait planter par un client annoncé sûr. C'est le contrôle central du fichier de
+  test : quand on débranche le lien, **six vérifications tombent**.
+- **Le défaut est « sûr ».** Un persona à qui on ajoute `credit` sans y penser paie. La
+  valeur qui fait mal ne s'obtient jamais par omission.
+
+Le chip d'avertissement s'affiche **au-dessus des boutons**, en rouge, comme 🔥 chaleur et
+👃 exigence. Le tell le dit déjà en prose, mais c'est le chip qui tient R4 : une phrase
+d'ambiance se lit en diagonale.
+
+Réutilisations plutôt que nouveaux chemins : `c.quit` existait déjà (le client qu'on a trop
+pressé), le tirage l'excluait déjà, le Karnet l'affichait déjà. On a ajouté `quitCause`,
+sans quoi l'écran écrivait « parti » pour deux histoires opposées — celui qu'on a fait
+fuir, et celui qui s'est tiré avec la came.
+
+### Un bug de comptabilité trouvé au passage
+
+`karnetOuvrir()` photographiait `soir` **à l'ouverture** de la clôture. Or l'ardoise
+envolée s'écrit *après*. Résultat mesuré : une perte de 240 n'apparaissait **nulle part**
+dans le bilan. `soir` n'est remis à zéro qu'après le scellement — il est donc relu au
+scellement maintenant, ce qui est de toute façon la seule lecture qui contient la soirée
+entière.
+
+La perte est rangée en **manque à gagner**, pas en dépense : la marchandise est partie, le
+liquide n'est jamais entré. La compter comme un débit ferait mentir la marge, et « Non
+expliqué » s'allumerait.
+
+### Ce qui reste mince, et que je signale plutôt que de le corriger tout seul
+
+Tel qu'arbitré, la décision se réduit à **lire l'avertissement**. Refuser un crédit est
+gratuit aujourd'hui (`cornerLeave(…, "refus")` ne touche pas la relation), donc face à un
+fuyard il n'y a aucun arbitrage : on refuse, point. Le levier qui l'épaissirait — **refuser
+coûte la relation** — n'est pas posé : c'est un arbitrage de Sylvain, pas une correction.
+
+Suite : ardoise **16/16** (nouveau) · invariants 58/58 · karnet 44/44 · nourrice 19/19 ·
+arah 8/8 · raccourcis 10/10 · karim 14/14 · cause 21/21 · chaleur 8/8 · tap 7/7 ·
+bulles 15/15 · tap-bigo 4/4 · escalier 6/6 · desync 5/5 · cache 3/3 · lexique 1/1 ·
+check 30 fichiers · smoke sans erreur. Modules en `?v=55`.
+
+---
+
 ## 2026-07-28 — Playtest : la tension du remballage, les raccourcis, la pension muette
 
 Trois retours de Sylvain après une session. Chacun s'est révélé pire — ou plus large —
@@ -549,12 +914,23 @@ Ce que ça engage côté implémentation, et qui n'est pas négociable :
 Autrement dit : ce n'est pas le retard qui violait R1 dans l'ancien système, c'est
 l'**escalade sans issue**. On garde le premier, on ne réintroduit pas la seconde.
 
-### « Paiements » plutôt que « Échéances »
+### ~~« Paiements » plutôt que « Échéances »~~ — LECTURE FAUSSE, corrigée le 2026-07-28
 
-Sa formulation exacte : « J'aime l'idée du retard possible et le nom paiement ». Je le lis
-comme le nom de l'écran. **Interprétation de ma part** — s'il voulait dire autre chose,
-c'est à corriger avant que le mot se répande dans les identifiants et les tests (R11 : une
-fois qu'une forme existe quelque part, elle remonte).
+Sa formulation exacte : « J'aime l'idée du retard possible et le nom paiement ». Je l'ai lu
+comme le nom de l'écran, en marquant que c'était une interprétation.
+
+**Ce n'en était pas une de bonne.** Sylvain : « je voulais dire le **NON** paiement — c'est
+une faute de frappe. Que celui à qui on prête ne revient jamais rembourser. » Il n'y avait
+aucun nom d'écran à trancher : il arbitrait une **mécanique**.
+
+Ce qui a marché, et qui vaut d'être noté : j'ai gardé le mot **hors du code** en attendant
+sa confirmation, précisément au nom de R11. S'il était parti dans les identifiants, les
+classes CSS et les libellés de tests, il aurait fallu le déraciner de partout — et il
+serait remonté, comme `ARAH`. La règle a payé sur un cas qu'elle n'avait pas prévu :
+elle protège aussi du contresens, pas seulement de la faute d'orthographe.
+
+Leçon de fond : une citation qui ne veut **presque** rien dire (« le nom paiement ») est le
+signal d'une coquille, pas d'un arbitrage à interpréter. À relancer, pas à lire.
 
 ## 2026-07-28 — Le socle du Karnet, et une erreur d'un jour qui ne se voyait pas
 

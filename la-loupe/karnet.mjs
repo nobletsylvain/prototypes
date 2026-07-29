@@ -80,6 +80,12 @@ export function manqueDe(soiree) {
     impat: { n: a((p) => p.impat), eur: R(a((p) => p.impatEur)) },
     walk: { n: a((p) => p.walk), eur: R(a((p) => p.walkEur)) },
     descente: { n: descN, eur: R(desc) },
+    /* Les ardoises emportées. Elles vivent ICI et pas dans le pont : le liquide n'est
+       jamais entré, donc ce n'est pas une dépense. Le compter comme un débit ferait
+       mentir la marge — et le pont ne boucle que parce que chaque poste compte de
+       l'argent réellement déplacé. */
+    impaye: { n: cs.reduce((s, c) => s + (((c.soir && c.soir.impaye) || {}).n || 0), 0),
+              eur: R(cs.reduce((s, c) => s + (((c.soir && c.soir.impaye) || {}).eur || 0), 0)) },
   };
 }
 
@@ -197,6 +203,12 @@ export function connaissances(clients, personas, quitAfter) {
       if (!c || !c.unlocked) return null;
       return { id: p.id, nm: p.nm, av: p.av, kind: p.kind, usual: p.usual,
                rel: Math.round(c.rel || 0), missed: c.missed || 0, quit: !!c.quit,
+               /* POURQUOI il est parti. Sans ça, l'écran écrit « parti » pour deux
+                  histoires opposées : celui qu'on a fait fuir à force de le presser, et
+                  celui qui s'est tiré avec la marchandise. Le second doit garder son
+                  montant — c'est la seule trace de ce qu'il a coûté. */
+               quitCause: c.quit ? (c.quitCause || "abus") : null,
+               impaye: Math.round(c.impaye || 0),
                // combien d'abus avant qu'il ne revienne plus — la seule vraie menace
                avantRupture: c.quit ? 0 : Math.max(0, (quitAfter || 2) - (c.gougeStreak || 0)),
                ardoise: c.ardoise || null };
@@ -207,5 +219,5 @@ export function connaissances(clients, personas, quitAfter) {
 
 /** Total du manque à gagner — pratique pour l'en-tête du bloc. */
 export function manqueTotal(m) {
-  return m ? R(m.rupture.eur + m.impat.eur + m.walk.eur + m.descente.eur) : 0;
+  return m ? R(m.rupture.eur + m.impat.eur + m.walk.eur + m.descente.eur + m.impaye.eur) : 0;
 }
