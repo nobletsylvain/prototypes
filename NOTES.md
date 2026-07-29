@@ -9,6 +9,55 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — L'écran Liquide passe en onglets, et un contrôle qui mesurait à côté
+
+Sylvain, sur mon constat que l'app Liquide devenait très longue : « Exact. »
+
+La chaîne fait quatre étapes — trier → déposer → changer → commander — et les empiler sur
+un seul écran donnait **quatre hauteurs de défilement**. Chacune a maintenant son onglet,
+et **chaque puce porte le compteur de son étape** : `Billets 2000 · Laveries 0 · Crypto 0 ·
+Marché 0`. Ce n'est pas qu'une navigation — on voit où le goulot se forme sans ouvrir les
+écrans, comme le bac sur le favori du corner.
+
+Deux gardes posés au passage :
+
+- `sorterTick` et `sorterCommit` repeignaient l'écran à chaque billet trié, **même depuis
+  un autre onglet**. Guardés sur `cashSub === "trieuse"`.
+- Les quatre onglets partagent **un seul bloc de liaison** (`cashBind`). Deux blocs
+  parallèles, c'est la garantie d'en oublier un le jour où on ajoute une étape — et un
+  bouton muet ne se voit pas dans un test qui ne le tape pas.
+
+### Le contrôle qui mesurait la seule chose qui allait bien
+
+En ajoutant la crypto au HUD, la deuxième ligne est passée à cinq pastilles et « buzz »
+sortait de l'écran sur 412 px. J'ai écrit un contrôle qui comparait
+`getBoundingClientRect().right` à la largeur de l'écran. **Il passait aussi bien avec que
+sans le correctif.**
+
+La raison : en flex sans retour à la ligne, les pastilles ne débordent pas, elles se font
+**écraser** (`flex-shrink` vaut 1 par défaut). La boîte reste donc dans l'écran, et c'est
+le **texte** qui déborde d'elle. Je mesurais la boîte — la seule chose qui allait bien.
+
+Deux corrections, et la seconde est celle qui compte :
+
+1. comparer `scrollWidth` à `clientWidth` : la largeur qu'il **faudrait** contre celle
+   qu'on a ;
+2. **mesurer au bon moment.** Même corrigé, le contrôle passait encore : il tournait en fin
+   de scénario, quand les nombres sont courts. Déplacé à l'ouverture du marché — l'état où
+   j'avais vu la coupure — il tombe enfin : `J5 (30px dans 30px) · buzz 10 (66px dans 66px)`.
+
+Un contrôle juste au mauvais moment ne vaut pas mieux qu'un contrôle faux. La discipline
+« rejouer sur le code d'avant » a attrapé les deux — c'est la quatrième fois de la semaine
+qu'elle rattrape un contrôle vide, et la première où le défaut était l'**instant** de la
+mesure et pas la mesure elle-même.
+
+Suite : crypto **20/20** · blanchiment 19/19 · ardoise 16/16 · invariants 58/58 ·
+karnet 44/44 · nourrice 19/19 · arah 8/8 · raccourcis 10/10 · karim 14/14 · cause 21/21 ·
+chaleur 8/8 · tap 7/7 · bulles 15/15 · tap-bigo 4/4 · escalier 6/6 · desync 5/5 · cache 3/3 ·
+lexique 1/1 · check 32 fichiers · smoke sans erreur.
+
+---
+
 ## 2026-07-28 — Le blanchiment (2/4) : la crypto, et la règle qu'on ne refera pas une 3e fois
 
 Sylvain : « oui le propre → crypto → darkweb ». Ça confirmait l'architecture en deux

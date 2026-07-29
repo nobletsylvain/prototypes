@@ -13,7 +13,12 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:"Segoe UI",system-u
   border-left:1px solid var(--line);border-right:1px solid var(--line)}
 #top{padding:max(10px,env(safe-area-inset-top)) 14px 8px;display:grid;gap:6px;background:rgba(0,0,0,.55);
   border-bottom:1px solid var(--line);z-index:30;backdrop-filter:blur(12px)}
-.row{display:flex;gap:8px;align-items:center;justify-content:space-between}
+/* `flex-wrap` : la deuxième ligne du HUD porte maintenant cinq pastilles (propre, crypto,
+   liquide, chaleur, buzz) et « buzz » sortait de l'écran sur 412 px. Un chiffre coupé au
+   bord est pire qu'absent — on croit le lire. Le HUD est en `grid` avec `gap`, donc une
+   ligne qui passe sur deux hauteurs pousse simplement la scène de 20 px au lieu de la
+   recouvrir. */
+.row{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;justify-content:space-between}
 .pill{font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);white-space:nowrap}
 .pill.cash{color:var(--cash)}.pill.dirty{color:var(--dirty)}.pill.heat{color:var(--heat)}.pill.rep{color:#9ec9ff}.pill.expo{color:#ff8ab8}
 .pill.dirty.warm{border-color:rgba(255,180,84,.55);background:rgba(255,180,84,.14)}
@@ -309,6 +314,16 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
 .spk.hot{border-color:rgba(155,227,125,.65);box-shadow:0 0 0 2px rgba(155,227,125,.2)}
 .sorter-bar{display:flex;gap:6px;padding:0 10px 10px}
 .sorter-bar .btn{margin:0}
+/* Sous-onglets de l'app Liquide. La chaîne fait quatre étapes (trier → déposer → changer
+   → commander) et les empiler sur un seul écran donnait quatre hauteurs de défilement.
+   Chaque puce porte l'ÉTAT de son étape : la chaîne se lit d'un coup d'œil au lieu de se
+   dérouler. */
+.subtabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:0 0 10px}
+.subtab{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--muted);
+  border-radius:12px;padding:7px 2px;font-size:10px;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:2px}
+.subtab.on{color:#fff;background:rgba(255,180,84,.16);border-color:rgba(255,180,84,.4)}
+.subtab .n{font-size:11px;font-weight:900;color:#e8c96a;line-height:1}
+.subtab .n.off{color:var(--muted);opacity:.5}
 .sorter-fly{animation-duration:.28s!important}
 .journal .item{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px}
 .journal .item .c{color:rgba(255,220,160,.4);font-size:11px;margin-top:2px}
@@ -633,7 +648,7 @@ if(!S.darkweb || typeof S.darkweb!=="object") S.darkweb=darkweb.darkwebDefaults(
 if(!Array.isArray(S.darkweb.commandes)) S.darkweb.commandes=[];
 if(typeof S.darkweb.seq!=="number") S.darkweb.seq=0;
 
-let tab="shelter", toastT=0, atelierSub="menu", cashSub="sorter", shelterSub="map";
+let tab="shelter", toastT=0, atelierSub="menu", cashSub="trieuse", shelterSub="map";
 /** Session trieuse (non persistée) — feel Kisan 4+1 fitness sorter. */
 const sorter = { running:false, current:null, cooldown:0, combo:0, sessionOk:0, sessionRj:0, dirtyUi:false };
 const stage=document.getElementById("stage");
@@ -812,7 +827,7 @@ function renderDock(){
   dock.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
     tab=b.dataset.t;
     atelierSub = tab==="atelier" ? "cut" : "menu"; // découpe = scène par défaut
-    if(tab==="cash") cashSub="sorter";
+    if(tab==="cash") cashSub="trieuse";
     if(tab==="shelter") shelterSub="map"; // le dock Quartier ramène à la carte
     render();
   });
@@ -3207,7 +3222,7 @@ function collectRun(id){
   }
   save();
   if(!r.busted){
-    tab="cash"; cashSub="sorter";
+    tab="cash"; cashSub="trieuse";
     sorter.running=true; sorter.cooldown=0.15; // auto-start : tu attends
     render();
   } else renderBeuher();
@@ -3230,14 +3245,41 @@ function cashBundleVal(){ return Object.entries(S.bundles).reduce((a,[d,n])=>a+(
 function cashBankTotal(){ return cashBundleVal()+(S.looseChange||0); }
 function pileOf(d){ return (S._pile&&S._pile[d])||0; }
 
+/* Les quatre étapes de la chaîne, et ce que chacune a à dire. La barre n'est pas qu'une
+   navigation : chaque puce porte son compteur, donc on voit où le goulot se forme sans
+   ouvrir les écrans. C'est la même idée que le bac sur le favori du corner. */
+function cashOnglets(){
+  const B=S.blanchiment, jour=S.day;
+  return [
+    { id:"trieuse", lb:"Billets", n:money(cashBankTotal()), vide:cashBankTotal()<=0 },
+    { id:"laverie", lb:"Laveries", n:money(blanchiment.totalEnRoute(B,jour)), vide:blanchiment.totalEnRoute(B,jour)<=0 },
+    { id:"crypto",  lb:"Crypto",   n:money(S.crypto||0), vide:(S.crypto||0)<=0 },
+    { id:"marche",  lb:"Marché",   n:blanchiment.marcheOuvert(B)?String(darkweb.enTransit(S.darkweb,jour).length):"—",
+      vide:!blanchiment.marcheOuvert(B)||darkweb.enTransit(S.darkweb,jour).length===0 },
+  ];
+}
 function renderCashSorter(){
   set3d("hidden"); hud(); renderDock();
   sorter.dirtyUi=false;
   const cur=sorter.current;
   const cls=cur?(cur.v===1?"n1":cur.v):"";
   const rjHot=cur&&(cur.v===1||!SORT_POCKETS.includes(cur.v));
+  const ongl=cashOnglets();
+  if(!ongl.some(o=>o.id===cashSub)) cashSub="trieuse";
+  const nav=`<div class="subtabs">${ongl.map(o=>`<button class="subtab ${cashSub===o.id?"on":""}" data-cs="${o.id}">
+    ${o.lb}<span class="n${o.vide?" off":""}">${o.n}</span></button>`).join("")}</div>`;
+  const titres={ trieuse:["Trieuse","var(--dirty)"], laverie:["Les laveries","#9be37d"],
+                 crypto:["La crypto","#e8c96a"], marche:["Le marché","#c08cff"] };
+  const [ttl,col]=titres[cashSub];
+  if(cashSub!=="trieuse"){
+    stage.innerHTML=`<h2 style="color:${col}">${ttl}</h2>${nav}${
+      cashSub==="laverie"?renderLaverie():cashSub==="crypto"?renderCrypto():renderMarche()}`;
+    cashBind();
+    return;
+  }
   stage.innerHTML=`
     <h2 style="color:var(--dirty)">Trieuse</h2>
+    ${nav}
     <div class="sub">Tu charges, tu lances, tu attends. La machine trie. ${BUNDLE_SIZE} identiques → liasse. Compter ne lave rien : ça rend l'argent <b>déposable</b>.</div>
     <div class="sorter" id="sorter">
       <div class="sorter-top">
@@ -3268,14 +3310,19 @@ function renderCashSorter(){
       <div class="stat"><span>Liasses + poche</span><b class="pill dirty">${money(cashBankTotal())}</b></div>
       <div class="muted" style="font-size:10px;margin:4px 0 0">Compté, donc déposable. Un commerce ne prend pas un sac en vrac.</div>
     </div>
-    ${renderLaverie()}
-    ${renderCrypto()}
-    ${renderMarche()}`;
+    <div class="muted" style="font-size:10px;margin:-4px 0 0">Compté ? Passe aux <b>Laveries</b>.</div>`;
   document.getElementById("run").onclick=()=>{
     if(sorter.running){ sorter.running=false; toast("Stop."); }
     else { sorter.running=true; sorter.cooldown=0; toast("Tri en cours."); }
     renderCashSorter();
   };
+  cashBind();
+}
+/* Les gestes sont câblés au MÊME endroit pour les quatre onglets. Deux blocs de liaison
+   parallèles, c'est la garantie qu'on en oublie un le jour où on ajoute une étape — et un
+   bouton muet ne se voit pas dans un test qui ne le tape pas. */
+function cashBind(){
+  stage.querySelectorAll("[data-cs]").forEach(b=>b.onclick=()=>{ cashSub=b.dataset.cs; renderCashSorter(); });
   stage.querySelectorAll("[data-lav-dep]").forEach(b=>b.onclick=()=>laverieDeposer(b.dataset.lavDep, +b.dataset.m));
   stage.querySelectorAll("[data-lav-buy]").forEach(b=>b.onclick=()=>racheterFonds(b.dataset.lavBuy));
   stage.querySelectorAll("[data-cry]").forEach(b=>b.onclick=()=>acheterCrypto(b.dataset.cry, +b.dataset.m));
@@ -3407,11 +3454,13 @@ function sorterCommit(){
   sorter.sessionOk++;
   sorter.cooldown=0.04;
   try{ navigator.vibrate&&navigator.vibrate(6); }catch{}
-  if(tab==="cash") renderCashSorter();
+  // seulement si la trieuse est À L'ÉCRAN : depuis les sous-onglets, un billet trié
+  // repeignait l'écran d'une AUTRE étape à chaque passage
+  if(tab==="cash" && cashSub==="trieuse") renderCashSorter();
 }
 
 function sorterTick(dt){
-  if(tab!=="cash") return;
+  if(tab!=="cash" || cashSub!=="trieuse") return;
   if(sorter.cooldown>0) sorter.cooldown-=dt;
   // billet en vol → à la fin du passage, poche auto
   if(sorter.current){

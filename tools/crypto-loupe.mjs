@@ -130,6 +130,14 @@ await sleep(700);
 await page.evaluate(() => { const b = document.querySelector('[data-t="cash"]'); if (b) b.click(); });
 await sleep(600);
 
+/* Les quatre étapes de la chaîne vivent dans des sous-onglets (l'écran unique faisait
+   quatre hauteurs de défilement). On ouvre celui qu'on veut lire, et on le ROUVRE après
+   chaque nuit : la clôture ramène toujours sur l'écran par défaut. */
+const onglet = async (id) => {
+  await page.evaluate((i) => { const b = document.querySelector(`[data-cs="${i}"]`); if (b) b.click(); }, id);
+  await sleep(400);
+};
+
 const lire = () => page.evaluate(() => {
   const s = JSON.parse(localStorage.getItem("loupe_save") || "{}");
   return { cash: Math.round(s.cash || 0), crypto: Math.round(s.crypto || 0), day: s.day,
@@ -143,6 +151,7 @@ const ecran = () => page.evaluate(() => ((document.getElementById("stage") || {}
 
 // ── 8..9 · le marché est fermé, et il DIT comment l'ouvrir ───────────────
 {
+  await onglet("marche");
   const t = await ecran();
   ok("Le marché fermé dit COMMENT l'ouvrir, il ne montre pas un cadenas",
      /Le marché/.test(t) && /passage/.test(t),
@@ -155,6 +164,7 @@ await page.screenshot({ path: path.join(OUT, "01-marche-ferme.png"), fullPage: t
 
 // ── 10..12 · l'OTC, jusqu'à l'introduction ───────────────────────────────
 const av = await lire();
+await onglet("crypto");
 for (let i = 0; i < B.OTC.contactApres; i++) {
   await page.evaluate(() => {
     const bs = [...document.querySelectorAll('[data-cry="otc"]')];
@@ -173,13 +183,44 @@ ok("Le contact tombe exactement au passage annoncé — et il est dit",
    && apOtc.journal.some((j) => /Contact donné/.test(j.txt)),
    (apOtc.journal.find((j) => /Contact donné/.test(j.txt)) || {}).cause || "aucune trace du contact");
 
+await onglet("marche");
 ok("Le marché s'ouvre alors à l'écran",
    await page.evaluate(() => !!document.querySelector("[data-dark]")),
    "les offres deviennent commandables");
 await page.screenshot({ path: path.join(OUT, "02-marche-ouvert.png"), fullPage: true });
 
+/* Le HUD porte cinq pastilles depuis que la crypto s'y est ajoutée, et « buzz » sortait
+   de l'écran sur 412 px.
+
+   PREMIÈRE VERSION DE CE CONTRÔLE : elle comparait `getBoundingClientRect().right` à la
+   largeur de l'écran — et elle passait AUSSI SANS le correctif. La raison : en flex sans
+   retour à la ligne, les pastilles ne débordent pas, elles se font ÉCRASER
+   (`flex-shrink` vaut 1 par défaut). La boîte reste donc dans l'écran, et c'est le TEXTE
+   qui déborde d'elle. Mesurer la boîte, c'était mesurer la seule chose qui allait bien.
+   On compare donc `scrollWidth` à `clientWidth` : la largeur qu'il FAUDRAIT contre celle
+   qu'on a. Un chiffre coupé est pire qu'absent — on croit le lire. */
+const debord = await page.evaluate(() => {
+  const bad = [];
+  for (const r of document.querySelectorAll("#top .row")) {
+    for (const p of r.children) {
+      const b = p.getBoundingClientRect();
+      if (b.width <= 0) continue;
+      const rogne = p.scrollWidth > p.clientWidth + 1;
+      const dehors = b.right > innerWidth + 1 || b.left < -1;
+      if (rogne || dehors) {
+        bad.push(`${(p.textContent || "").trim()} (${p.scrollWidth}px dans ${p.clientWidth}px)`);
+      }
+    }
+  }
+  return { bad, largeur: innerWidth };
+});
+ok("Aucune pastille du HUD ne sort de l'écran",
+   debord.bad.length === 0,
+   debord.bad.length ? debord.bad.join(" · ") : `tout tient dans ${debord.largeur}px`);
+
+
 // ── 13 · la nuit verse la crypto de l'OTC ────────────────────────────────
-const passerNuit = async () => {
+const passerNuit = async (revenirSur) => {
   await page.evaluate(() => { const b = document.getElementById("dbgBtn"); if (b) b.click(); });
   await sleep(200);
   await page.evaluate(() => {
@@ -189,9 +230,10 @@ const passerNuit = async () => {
   await sleep(900);
   await page.evaluate(() => { const b = document.querySelector('[data-t="cash"]'); if (b) b.click(); });
   await sleep(400);
+  if (revenirSur) await onglet(revenirSur);
 };
 const attenduCrypto = Math.round(500 * (1 - B.OTC.frais)) * B.OTC.contactApres;
-await passerNuit();
+await passerNuit("marche");
 const apNuit = await lire();
 ok("À l'échéance, la crypto arrive — exactement le net annoncé",
    apNuit.crypto === attenduCrypto && apNuit.enRoute === 0,
@@ -209,7 +251,7 @@ ok("Commander débite la crypto et met la marchandise en mer",
 ok("Rien n'arrive avant le délai annoncé (R4)",
    apCmd.pains.length === 0, `planque : ${apCmd.pains.join(", ") || "vide"}`);
 
-for (let i = 0; i < offre.delai; i++) await passerNuit();
+for (let i = 0; i < offre.delai; i++) await passerNuit("marche");
 const fin = await lire();
 const attenduPains = DW.painsDe({ g: offre.g, q: offre.q, split: offre.split || offre.g }).length;
 ok("À la livraison, les pains entrent à la planque avec LEUR qualité",
@@ -221,6 +263,7 @@ ok("La livraison laisse une cause qui remonte à la commande",
    (fin.journal.find((j) => /Livraison/.test(j.txt)) || {}).cause || "(rien au journal)");
 
 await page.screenshot({ path: path.join(OUT, "03-livre.png"), fullPage: true });
+
 ok("Aucune erreur page", errors.length === 0, errors.join(" | ") || "aucune");
 
 // ── rapport ─────────────────────────────────────────────────────────────

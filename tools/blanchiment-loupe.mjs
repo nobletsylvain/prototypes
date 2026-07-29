@@ -153,13 +153,25 @@ const lire = () => page.evaluate(() => {
            journal: (s.journal || []).map((j) => ({ txt: j.txt, cause: j.cause, poste: j.poste })) };
 });
 
-// ── 10 · l'app Liquide est de retour ─────────────────────────────────────
+// ── 10 · l'app Liquide est de retour, et la chaîne se lit dans la barre ──
 await page.evaluate(() => { const b = document.querySelector('[data-t="cash"]'); if (b) b.click(); });
 await sleep(600);
-const ecran = await page.evaluate(() => ((document.getElementById("stage") || {}).textContent || "").replace(/\s+/g, " "));
-ok("La trieuse est de retour, avec la laverie sous elle",
-   /Trieuse/.test(ecran) && new RegExp(L0.nm).test(ecran),
-   /Trieuse/.test(ecran) ? `« ${L0.nm} » visible` : "l'app Liquide est toujours masquée");
+/* Les quatre étapes vivent dans des sous-onglets depuis que l'écran unique faisait
+   quatre hauteurs de défilement. On ouvre donc l'onglet avant de le lire. */
+const onglet = async (id) => {
+  await page.evaluate((i) => { const b = document.querySelector(`[data-cs="${i}"]`); if (b) b.click(); }, id);
+  await sleep(400);
+  return page.evaluate(() => ((document.getElementById("stage") || {}).textContent || "").replace(/\s+/g, " "));
+};
+const barre = await page.evaluate(() =>
+  [...document.querySelectorAll("[data-cs]")].map((b) => b.dataset.cs));
+ok("La chaîne se lit dans la barre : trier, deposer, changer, commander",
+   barre.join(",") === "trieuse,laverie,crypto,marche",
+   barre.join(" - ") || "aucun sous-onglet");
+
+const ecran = await onglet("laverie");
+ok("La laverie a son ecran, et le lieu y est",
+   new RegExp(L0.nm).test(ecran), new RegExp(L0.nm).test(ecran) ? `« ${L0.nm} » visible` : "onglet non ouvert");
 
 ok("R8 · la file « en route » s'affiche AVANT les boutons qui l'allongent",
    ecran.indexOf("En route") >= 0 && ecran.indexOf("En route") < ecran.indexOf(L0.nm),
