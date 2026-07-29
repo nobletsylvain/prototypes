@@ -9,6 +9,84 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Le blanchiment (2/4) : la crypto, et la règle qu'on ne refera pas une 3e fois
+
+Sylvain : « oui le propre → crypto → darkweb ». Ça confirmait l'architecture en deux
+étages et ça réglait la question que je gardais ouverte.
+
+### La contrainte que ça impose, et qui a décidé du découpage
+
+**Je ne pouvais pas livrer la crypto sans le dark web.** Ce dépôt a fait deux fois la même
+erreur : `S.cash` était produit sans rien acheter, et il a fallu couper la trieuse ET le
+front de Karim. Une monnaie sans débouché n'est pas une monnaie, c'est un compteur. La
+crypto aurait eu exactement le même sort.
+
+D'où la règle appliquée ici, et le premier contrôle du fichier de test :
+**une monnaie et son débouché s'ouvrent dans la même passe, jamais l'un avant l'autre.**
+Si ce contrôle tombe un jour, c'est que le marché a été retiré et que la crypto est
+redevenue un compteur — la troisième fois, on le saura tout de suite.
+
+### Deux portes qui ne se concurrencent pas
+
+| | frais | plafond | délai | source |
+| --- | --- | --- | --- | --- |
+| 🏧 **La borne** | 15 % | 1 000/jour | direct | liasses |
+| 🤝 **Vlad (OTC)** | 6 % | 5 000/jour | J+1 | propre |
+
+La borne est la **porte d'entrée** : on peut toucher au marché sans posséder un seul
+commerce, et on paie cher pour n'avoir rien monté. L'OTC prend du propre, donc il suppose
+qu'on a déjà blanchi. **Il ne s'ouvre pas plus tôt, il s'ouvre plus grand.**
+
+Elles ne se marchent pas dessus parce que le plafond de la borne est journalier : à petite
+échelle elle suffit, à grande échelle elle devient une goutte d'eau. Le goulot se déplace
+de lui-même sans qu'on interdise quoi que ce soit (R9).
+
+### Le contact se gagne
+
+Le marché ne s'ouvre pas avec une adresse : c'est Vlad qui présente, après trois passages.
+Même gabarit que Karim et l'Appro — le déblocage se relie à un geste. Et l'écran fermé
+**dit comment l'ouvrir** au lieu d'afficher un cadenas : un cadenas est un catalogue, une
+phrase est une direction.
+
+### Le contrôle qui valide toute la chaîne
+
+Rien ne garantissait que monter les deux étages serve à quelque chose. Le test le calcule,
+tous frais payés, en ramenant tout en sale :
+
+```
+Appro   250 g q78 = 1700 sale (6,80/g)
+Marché  250 g q88 = 1619 sale (6,48/g)   ← fonds possédé (8 %) puis OTC (6 %)
+```
+
+**Moins cher au gramme ET dix points de qualité.** La chaîne se justifie au gramme, pas par
+un discours. C'est aussi la comparaison qu'aucun écran ne fait pour le joueur — donc celle
+qu'un test doit tenir, sinon un rééquilibrage la casse sans que personne ne le voie.
+
+### Détails qui comptent
+
+- **La borne crédite sur place.** Elle est annoncée « immédiate » : la faire passer par la
+  clôture aurait fait de ce mot un mensonge d'écran.
+- **Une commande payée arrive**, même si la planque déborde — refuser une livraison déjà
+  réglée serait une perte sèche (R1). Le débordement est annoncé au moment de commander et
+  se paie en hit de planque, ce qui existe déjà.
+- **La crypto n'entre au HUD qu'une fois touchée.** Avant, c'est un mot de plus dans un
+  bandeau chargé pour une monnaie qui n'existe pas dans la partie ; après, c'est
+  indispensable — une monnaie qu'on ne voit qu'en scrollant jusqu'à son écran, on l'oublie,
+  et c'est exactement comme ça qu'un débouché meurt.
+
+⚠️ Tous les nombres restent des **placeholders**.
+
+### Reste au programme
+
+Second corner et planque au propre (3), puis l'approfondissement du marché (4).
+
+Suite : crypto **19/19** (nouveau) · blanchiment 18/18 · ardoise 16/16 · invariants 58/58 ·
+karnet 44/44 · nourrice 19/19 · arah 8/8 · raccourcis 10/10 · karim 14/14 · cause 21/21 ·
+chaleur 8/8 · tap 7/7 · bulles 15/15 · tap-bigo 4/4 · escalier 6/6 · desync 5/5 · cache 3/3 ·
+lexique 1/1 · check 32 fichiers · smoke sans erreur. Modules en `?v=56`.
+
+---
+
 ## 2026-07-28 — Le blanchiment (1/4) : la trieuse revient, et le propre sert enfin
 
 Sylvain, après playtest : « la nourrice fonctionne bien, et on arrive désormais au moment

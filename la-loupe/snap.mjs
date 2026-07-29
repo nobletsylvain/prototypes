@@ -1,8 +1,8 @@
 /* SnapShit — moteur de demande (story → DM → commandes).
    Conséquences déterministes. Math.random = présentation uniquement. */
 // MÊME suffixe de version que index.html : sans lui, `./corner.mjs` et
-// `./corner.mjs?v=55` sont deux URL distinctes, donc DEUX instances du module.
-import { menuAt, personaById, rueCalibre, RUE_MIN } from "./corner.mjs?v=55";
+// `./corner.mjs?v=56` sont deux URL distinctes, donc DEUX instances du module.
+import { menuAt, personaById, rueCalibre, RUE_MIN } from "./corner.mjs?v=56";
 export const SC = {
   EXPO_INIT: 10, EXPO_PAR_DROP: 30, EXPO_PAR_VITRINE: 12, EXPO_DECAY: 0.72, EXPO_CAP: 100,
   EXPO_SEUIL_MAUVAIS_PUBLIC: 60, EXPO_DELAI_MAUVAIS_PUBLIC: 2,
