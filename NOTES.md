@@ -9,6 +9,86 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — Le marché, récolté sur `darkweb-market/`
+
+Sylvain : « Regarde le proto onion market. Il contient déjà énormément de bonnes choses. »
+Il avait raison, et sur un point que je n'avais pas vu.
+
+### Ce que j'avais écrit, et pourquoi c'était pauvre
+
+Trois offres fixes, une qualité fixe, un prix fixe. Le marché était un **palier supérieur** :
+meilleur que l'Appro, donc on y va dès qu'on peut. Aucune décision.
+
+### La pièce maîtresse du proto
+
+```
+realQual = annoncée x (0,5 + 0,1 x note)
+```
+
+**La qualité affichée n'est pas celle qui arrive**, et l'écart est une fonction
+déterministe d'une note publique. PneuDeSecours (2,1 etoiles) annonce 74 et livre **53** ;
+AtlasFinest (4,2) annonce 85 et livre **78**.
+
+Le vendeur pas cher n'est donc pas un piège : c'est un **calcul**. C'est R4 dans sa
+meilleure forme — le risque est lisible, arithmétique, et il ne surprend jamais celui qui
+lit. L'écran l'affiche côte à côte avant le moindre bouton : `Annoncé q74 · livre q53`.
+
+### Le reste de la récolte
+
+- **Remises plafonnées par tier** — 32 % en cheap, 14 % en premium. Volume et fidélité
+  s'additionnent mais le plafond est plus serré là où le produit est bon : le premium ne
+  brade pas, donc la progression n'aplatit jamais le choix (R9).
+- **Les grosses quantités exigent un passé CHEZ CE VENDEUR** — 2, 5, 10 commandes pour
+  ouvrir 100, 250, 500 g. Une relation, pas un niveau global : choisir un fournisseur
+  devient un engagement.
+- **Le volume paie surtout en bas de gamme** — 16 % à 500 g en cheap, 7 % en premium.
+
+Non repris : l'économie de **revente** sur le marché (prix et qualité annoncés par le
+joueur, demande déterministe, falaise de confiance quand la tromperie s'accumule) — c'est
+un second système complet et La Loupe vend au corner. Les familles hors hash non plus.
+**Les fournitures méritent un vrai coup d'oeil le jour où on touchera au levier de coupe
+(R10)** : agents de coupe par pureté, kits réactifs, presse, précurseurs.
+
+Changé pour La Loupe : le proto livre immédiatement, ici la livraison prend des jours et
+plus la commande est grosse plus elle traîne — c'est l'arbitrage « temps ET capacité comme
+goulot ».
+
+### Le contrôle qui a démontré que ma question était mal posée
+
+J'avais écrit : « à qualité comparable, la chaîne bat l'Appro ». **Il est tombé.**
+
+```
+Appro        250 g q78 = 1700 sale -> 8,72 par g et par point
+AtlasFinest  250 g q78 = 1799 sale -> 9,23
+```
+
+Ce n'était pas un bug de test : la valeur du marché n'est **pas** d'être moins cher à
+qualité égale, c'est d'offrir ce que l'Appro ne peut pas vendre. Deux promesses, donc deux
+contrôles — le marché atteint **q92** quand l'Appro plafonne à q78, et en bas de gamme il
+descend à **7,92/point** contre 8,72.
+
+### Un trou d'équilibrage, compté plutôt que caché
+
+Le tier **moyen est aujourd'hui strictement dominé** par l'Appro : qualité équivalente,
+9,58-9,62 contre 8,72. Deux vendeurs sur six sont du contenu mort.
+
+C'est une question d'équilibrage — donc de Sylvain, pas de moi. Le test ne l'interdit pas,
+il le **compte** :
+
+```
+[VEILLE] 2/6 - AtlasFinest (q78, 9.62/point), CaramelBeldia (q71, 9.58/point)
+```
+
+Le jour où les nombres bougeront, cette ligne dira si le trou s'est refermé. Un défaut
+d'équilibrage qu'on connaît et qu'on chiffre vaut mieux qu'un test vert qui l'ignore.
+
+Suite : crypto **29/29** · blanchiment 19/19 · ardoise 16/16 · invariants 58/58 ·
+karnet 44/44 · nourrice 19/19 · arah 8/8 · raccourcis 10/10 · karim 14/14 · cause 21/21 ·
+chaleur 8/8 · tap 7/7 · bulles 15/15 · tap-bigo 4/4 · escalier 6/6 · desync 5/5 · cache 3/3 ·
+lexique 1/1 · smoke sans erreur. Modules en `?v=57`.
+
+---
+
 ## 2026-07-28 — L'écran Liquide passe en onglets, et un contrôle qui mesurait à côté
 
 Sylvain, sur mon constat que l'app Liquide devenait très longue : « Exact. »

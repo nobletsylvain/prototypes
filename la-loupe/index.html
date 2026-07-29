@@ -431,13 +431,13 @@ h2{font-size:20px;font-weight:900;letter-spacing:.2px;margin-bottom:4px}
    des deux versions. Symptôme observé en playtest : une descente sans aucune alerte.
    Le suffixe doit être IDENTIQUE partout, y compris dans les imports croisés entre
    modules (snap.mjs → corner.mjs) : deux URL différentes = deux instances chargées. */
-import * as snap from "./snap.mjs?v=56";
-import * as beuher from "./beuher.mjs?v=56";
-import * as shelter from "./shelter.mjs?v=56";
-import * as karnet from "./karnet.mjs?v=56";
-import * as blanchiment from "./blanchiment.mjs?v=56";
-import * as darkweb from "./darkweb.mjs?v=56";
-import * as corner from "./corner.mjs?v=56";
+import * as snap from "./snap.mjs?v=57";
+import * as beuher from "./beuher.mjs?v=57";
+import * as shelter from "./shelter.mjs?v=57";
+import * as karnet from "./karnet.mjs?v=57";
+import * as blanchiment from "./blanchiment.mjs?v=57";
+import * as darkweb from "./darkweb.mjs?v=57";
+import * as corner from "./corner.mjs?v=57";
 
 const SAVE_VERSION = "30"; // 30 : rabais au volume (menu par format) + annonce du calibre sur SnapShit
 // La taille se décide À LA COUPE (anti-triche : plus de format au conditionnement).
@@ -472,7 +472,7 @@ async function ensure3d() {
   if (scene3d) return scene3d;
   if (!scene3dPromise) {
     scene3dPromise = Promise.race([
-      import("./scene3d.mjs?v=56"),
+      import("./scene3d.mjs?v=57"),
       new Promise((_, rej) => setTimeout(() => rej(new Error("3D timeout")), T3D_MS)),
     ]).then((m) => {
       if (scene3d) return scene3d; // import lent arrivé après un retry déjà monté
@@ -3326,7 +3326,7 @@ function cashBind(){
   stage.querySelectorAll("[data-lav-dep]").forEach(b=>b.onclick=()=>laverieDeposer(b.dataset.lavDep, +b.dataset.m));
   stage.querySelectorAll("[data-lav-buy]").forEach(b=>b.onclick=()=>racheterFonds(b.dataset.lavBuy));
   stage.querySelectorAll("[data-cry]").forEach(b=>b.onclick=()=>acheterCrypto(b.dataset.cry, +b.dataset.m));
-  stage.querySelectorAll("[data-dark]").forEach(b=>b.onclick=()=>commanderDark(b.dataset.dark));
+  stage.querySelectorAll("[data-dark]").forEach(b=>b.onclick=()=>commanderDark(b.dataset.dark, +b.dataset.g));
 }
 
 /* Les deux portes de la crypto. Elles ne se concurrencent pas : la BORNE avale des
@@ -3375,27 +3375,42 @@ function renderMarche(){
     return `<div class="card">
       <h3>🧅 Le marché <span class="muted" style="font-size:11px">— pas encore</span></h3>
       <div class="muted" style="font-size:11px">Ça ne se trouve pas avec une adresse : ça se trouve avec quelqu'un.
-        ${blanchiment.OTC.nm.replace("Le bureau de change de ","")} connaît du monde — encore <b>${reste} passage${reste>1?"s":""}</b> chez lui et il te présentera.</div>
+        Vlad connaît du monde — encore <b>${reste} passage${reste>1?"s":""}</b> chez lui et il te présentera.</div>
     </div>`;
   }
   const transit=darkweb.enTransit(D, jour);
   const place=planqueCap()-(finiG()+painsG());
+  const enMer=darkweb.grammesEnTransit(D,jour);
   return `<div class="card">
-    <h3>🧅 Le marché <span class="muted" style="font-size:11px">— ${money(S.crypto)} crypto</span></h3>
-    <div class="muted" style="font-size:10px;margin:-4px 0 6px">Plus propre que ce que Karim touchera jamais. Ça se paie en jetons, et ça met des jours.</div>
-    ${transit.length?transit.map(c=>`<div class="stat"><span>📦 ${c.g} g · q${c.q}<br><span class="muted" style="font-size:10px">commandé J${c.jour}</span></span>
-      <b class="q-good">dans ${c.jourLivraison-jour} j</b></div>`).join("")
+    <h3>🧅 En mer <span class="muted" style="font-size:11px">— ${money(S.crypto)} crypto en poche</span></h3>
+    ${transit.length?transit.map(c=>{ const v=darkweb.vendeurById(c.vendeurId)||{};
+      return `<div class="stat"><span>${v.ic||"📦"} ${c.g} g · q${c.q}<br><span class="muted" style="font-size:10px">${v.nm||c.vendeurId} · commandé J${c.jour}</span></span>
+        <b class="q-good">dans ${c.jourLivraison-jour} j</b></div>`; }).join("")
       :`<div class="muted" style="font-size:11px">Rien en mer.</div>`}
-    ${darkweb.grammesEnTransit(D,jour)>place?`<div class="muted" style="font-size:10px;color:var(--heat);margin-top:4px">⚠ ${money(darkweb.grammesEnTransit(D,jour))} g arrivent pour ${money(Math.max(0,place))} g de place. Ça rentrera quand même — la planque chauffera.</div>`:""}
-    ${darkweb.offresVisibles().map(o=>{
-      const d=darkweb.devisCommande(o, S.crypto, S.reput);
-      return `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed rgba(255,255,255,.08)">
-        <div class="stat"><span>${o.nm}<br><span class="muted" style="font-size:10px">${o.note}</span></span>
-          <b>${money(o.prix)} <span class="muted" style="font-size:10px">· ${(o.prix/o.g).toFixed(2)}/g</span></b></div>
-        <button class="btn ${d.ok?"ok":"ghost"}" style="margin:4px 0 0" data-dark="${o.id}" ${d.ok?"":"disabled"}>
-          ${d.ok?`Commander — livré J+${o.delai}`:d.raison}</button></div>`;
-    }).join("")}
-  </div>`;
+    ${enMer>place?`<div class="muted" style="font-size:10px;color:var(--heat);margin-top:4px">⚠ ${money(enMer)} g arrivent pour ${money(Math.max(0,place))} g de place. Ça rentrera quand même — la planque chauffera.</div>`:""}
+  </div>
+  ${darkweb.VENDEURS.map(v=>{
+    const n=darkweb.commandesChez(D, v.id), fid=darkweb.fidelite(n);
+    const qr=darkweb.qualiteReelle(v);
+    const ech=darkweb.echelle(D, v);
+    /* L'ANNONCE ET LE RÉEL, côte à côte, avant le moindre bouton. C'est tout le design du
+       marché : l'écart n'est pas une surprise à la livraison, c'est une donnée d'entrée.
+       Le cacher ferait de la note un dé déguisé en vendeur (R4). */
+    return `<div class="card">
+      <h3>${v.ic} ${v.nm} <span class="muted" style="font-size:11px">${"★".repeat(Math.round(v.note))}${v.note.toFixed(1)} · ${v.ventes} ventes</span></h3>
+      <div class="muted" style="font-size:10px;margin:-4px 0 6px">${v.prod} — ${v.desc}</div>
+      <div class="stat"><span>Annoncé <b>q${v.annoncee}</b> · <span style="color:${qr>=80?"#9be37d":qr>=65?"#ffd06a":"#ff8a6a"}">livre <b>q${qr}</b></span>
+        <br><span class="muted" style="font-size:10px">sa note dit ce qu'il retire à son annonce</span></span>
+        <b>${v.eurG.toFixed(2)}<span class="muted" style="font-size:10px">/g</span></b></div>
+      <div class="stat"><span>Chez lui</span><b class="${n?"q-good":""}">${fid.lvl}${fid.pct?` · −${fid.pct} %`:""} <span class="muted" style="font-size:10px">${n} commande${n>1?"s":""}</span></b></div>
+      <div class="grid2" style="margin-top:6px">${ech.map(({g,ouvert,besoin})=>{
+        const d=darkweb.devisCommande(D, v, g, S.crypto);
+        if(!ouvert) return `<button class="btn ghost" style="margin:0" disabled>${g} g<br><span class="muted" style="font-size:9px">${d.raison}</span></button>`;
+        return `<button class="btn ${d.ok?"ok":"ghost"}" style="margin:0" data-dark="${v.id}" data-g="${g}" ${d.ok?"":"disabled"}>
+          ${g} g · ${money(d.prix)}<br><span class="muted" style="font-size:9px">${d.ok?`${d.parPoint}/point · J+${d.delai}${d.pct?` · −${d.pct} %`:""}`:d.raison}</span></button>`;
+      }).join("")}</div>
+    </div>`;
+  }).join("")}`;
 }
 /* La laverie. Trois choses, dans cet ordre, et l'ordre est le propos :
    1. CE QUI EST EN ROUTE — la file, AVANT les boutons qui l'allongent (R8). Sans elle on
@@ -3571,16 +3586,18 @@ function acheterCrypto(canal, montantVoulu){
   }
   save(); render();
 }
-function commanderDark(offreId){
-  const o=darkweb.offreById(offreId); if(!o) return;
-  const d=darkweb.devisCommande(o, S.crypto, S.reput);
+function commanderDark(vendeurId, g){
+  const v=darkweb.vendeurById(vendeurId); if(!v) return;
+  const d=darkweb.devisCommande(S.darkweb, v, g, S.crypto);
   if(!d.ok){ toast(`Pas encore : ${d.raison}.`); return; }
-  const cmd=darkweb.commander(S.darkweb, o, S.day, S.crypto, S.reput);
+  const cmd=darkweb.commander(S.darkweb, v, g, S.day, S.crypto);
   if(!cmd) return;
   S.crypto-=cmd.prix;
-  cause("Commande "+o.nm, `−${money(cmd.prix)} crypto · ${cmd.g} g q${cmd.q} à J${cmd.jourLivraison}`,
+  /* La qualité écrite au journal est celle qui ARRIVERA, pas celle qu'il annonce : le
+     joueur doit pouvoir relire sa décision telle qu'elle était, écart compris. */
+  cause("Commande "+v.nm, `−${money(cmd.prix)} crypto · ${cmd.g} g · annoncé q${v.annoncee}, livré q${cmd.q} · J${cmd.jourLivraison}`,
         {eur:0, poste:"pain"});
-  toast(`🧅 Commandé. ${cmd.g} g q${cmd.q} arrivent à J${cmd.jourLivraison}.`);
+  toast(`🧅 ${v.ic} ${cmd.g} g commandés. q${cmd.q} réels à J${cmd.jourLivraison}.`);
   save(); render();
 }
 function racheterFonds(laverieId){

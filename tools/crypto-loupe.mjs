@@ -41,8 +41,52 @@ const ok = (nom, pass, detail = "") => results.push({ nom, pass, detail });
 
 // ── 1 · LE contrôle : la crypto a un débouché ────────────────────────────
 ok("La crypto achète quelque chose — elle n'est pas un compteur de plus",
-   DW.OFFRES.length > 0 && DW.OFFRES.every((o) => o.prix > 0),
-   `${DW.OFFRES.length} offre(s) au marché, payables uniquement en crypto`);
+   DW.VENDEURS.length > 0 && DW.VENDEURS.every((v) => v.eurG > 0),
+   `${DW.VENDEURS.length} vendeur(s) au marché, payables uniquement en crypto`);
+
+/* ── Le modèle récolté sur `darkweb-market/` ─────────────────────────────
+   LA fonction du marché : la note décide de ce qui arrive. Sans elle, choisir un vendeur
+   revient à lire un prix — avec elle, ça devient un calcul. Le contrôle vérifie que
+   l'écart existe VRAIMENT et qu'il va dans le bon sens, sinon la note serait un décor. */
+{
+  const bas = DW.VENDEURS.reduce((a, v) => (v.note < a.note ? v : a));
+  const haut = DW.VENDEURS.reduce((a, v) => (v.note > a.note ? v : a));
+  ok("La note publique décide de ce qui arrive vraiment (R4, aucun dé)",
+     DW.qualiteReelle(bas) < bas.annoncee && DW.qualiteReelle(haut) > DW.qualiteReelle(bas),
+     `${bas.nm} ${bas.note}★ annonce ${bas.annoncee} livre ${DW.qualiteReelle(bas)} · ` +
+     `${haut.nm} ${haut.note}★ annonce ${haut.annoncee} livre ${DW.qualiteReelle(haut)}`);
+
+  ok("Personne ne livre plus que ce qu'il annonce — la note retire, elle n'ajoute jamais",
+     DW.VENDEURS.every((v) => DW.qualiteReelle(v) <= v.annoncee),
+     `${DW.VENDEURS.length} vendeurs vérifiés`);
+
+  /* Le marché doit être un ÉVENTAIL, pas un palier supérieur. Si le premium était
+     meilleur ET moins cher au point de qualité, il n'y aurait plus de décision — juste
+     un ordre d'achat. On mesure le coût par point RÉELLEMENT livré. */
+  const parPoint = (v) => v.eurG / DW.qualiteReelle(v) * 100;
+  const cheap = DW.VENDEURS.filter((v) => v.tier === "cheap");
+  const prem = DW.VENDEURS.filter((v) => v.tier === "premium");
+  ok("Le marché est un éventail : le pas cher est moins cher AU POINT DE QUALITÉ",
+     Math.min(...cheap.map(parPoint)) < Math.min(...prem.map(parPoint)),
+     `cheap ${Math.min(...cheap.map(parPoint)).toFixed(1)}/point (livre ${Math.max(...cheap.map(DW.qualiteReelle))}) · ` +
+     `premium ${Math.min(...prem.map(parPoint)).toFixed(1)}/point (livre ${Math.max(...prem.map(DW.qualiteReelle))})`);
+
+  ok("Le premium ne brade pas — le plafond de remise est plus serré là où c'est bon (R9)",
+     DW.CAP_REMISE.premium < DW.CAP_REMISE.mid && DW.CAP_REMISE.mid < DW.CAP_REMISE.cheap,
+     `cheap ${DW.CAP_REMISE.cheap} % · mid ${DW.CAP_REMISE.mid} % · premium ${DW.CAP_REMISE.premium} %`);
+
+  const D = DW.darkwebDefaults(), v0 = DW.VENDEURS[0];
+  const grosse = v0.qtys[v0.qtys.length - 1];
+  ok("Les grosses quantités exigent un passé chez CE vendeur, pas un niveau global",
+     !DW.echelle(D, v0).find((e) => e.g === grosse).ouvert
+     && DW.echelle(D, v0)[0].ouvert,
+     `${grosse} g fermé au premier passage, ${v0.qtys[0]} g ouvert`);
+
+  for (let i = 0; i < 10; i++) { D.rel = D.rel || {}; D.rel[v0.id] = i + 1; }
+  ok("…et le rang s'ouvre en commandant chez lui",
+     DW.echelle(D, v0).every((e) => e.ouvert) && DW.fidelite(10).pct > 0,
+     `après 10 commandes : tout ouvert · fidélité « ${DW.fidelite(10).lvl} » −${DW.fidelite(10).pct} %`);
+}
 
 // ── 2..6 · les deux canaux ───────────────────────────────────────────────
 {
@@ -78,15 +122,33 @@ ok("La crypto achète quelque chose — elle n'est pas un compteur de plus",
    On compare le meilleur de l'Appro au marché, en ramenant TOUT en sale : c'est la seule
    comparaison qui compte pour le joueur, et c'est celle qu'aucun écran ne fait pour lui. */
 {
-  const appro = { g: 250, q: 78, prix: 1700 };          // le meilleur pain de l'Appro
-  const fondsPossede = B.LAVERIES[0].possede.frais;      // 8 % une fois le fonds racheté
-  const o = DW.OFFRES[0];                                // 250 g, même gabarit
-  // sale → propre (laverie) → crypto (OTC) : chaque étage prend sa part
-  const saleRequis = o.prix / (1 - B.OTC.frais) / (1 - fondsPossede);
-  ok("Tous frais payés, le marché bat l'Appro — sinon la chaîne ne sert à rien",
-     saleRequis < appro.prix && o.q > appro.q,
-     `Appro ${appro.g} g q${appro.q} = ${appro.prix} sale (${(appro.prix / appro.g).toFixed(2)}/g) · ` +
-     `marché ${o.g} g q${o.q} = ${Math.round(saleRequis)} sale (${(saleRequis / o.g).toFixed(2)}/g)`);
+  const APPRO = { g: 250, q: 78, prix: 1700 };            // le meilleur pain de l'Appro
+  const APPRO_PT = APPRO.prix / APPRO.g / APPRO.q * 100;  // coût par gramme et par point livré
+  const parPoint = (v) => v.eurG / DW.qualiteReelle(v) * 100;
+
+  /* PREMIÈRE VERSION DE CE CONTRÔLE : « à qualité comparable, la chaîne bat l'Appro ».
+     Elle était MAL POSÉE, et elle l'a prouvé en tombant — au tier moyen, le marché coûte
+     9,23 contre 8,72. La valeur du marché n'est pas d'être moins cher à qualité égale :
+     c'est d'offrir ce que l'Appro ne peut pas vendre. Deux promesses, donc deux contrôles,
+     et ils casseraient tous les deux si un rééquilibrage aplatissait le roster. */
+  ok("Le marché atteint des qualités hors d'atteinte de l'Appro",
+     DW.VENDEURS.some((v) => DW.qualiteReelle(v) > APPRO.q),
+     `Appro plafonne à q${APPRO.q} · marché monte à q${Math.max(...DW.VENDEURS.map(DW.qualiteReelle))}`);
+
+  ok("…et en bas de gamme il est moins cher AU POINT DE QUALITÉ que l'Appro",
+     Math.min(...DW.VENDEURS.map(parPoint)) < APPRO_PT,
+     `Appro ${APPRO_PT.toFixed(2)}/point · meilleur du marché ${Math.min(...DW.VENDEURS.map(parPoint)).toFixed(2)}/point`);
+
+  /* Le tier MOYEN est aujourd'hui dominé par l'Appro (9,58-9,62 contre 8,72, à qualité
+     équivalente) : c'est du contenu mort, et c'est une question d'équilibrage — donc de
+     Sylvain, pas de moi. Le contrôle ne l'interdit pas, il le COMPTE : le jour où les
+     nombres bougeront, ce chiffre dira si le trou s'est refermé. */
+  const domines = DW.VENDEURS.filter((v) => DW.qualiteReelle(v) <= APPRO.q && parPoint(v) > APPRO_PT);
+  ok("[VEILLE] combien de vendeurs sont strictement dominés par l'Appro",
+     true,
+     domines.length
+       ? `${domines.length}/${DW.VENDEURS.length} — ${domines.map((v) => `${v.nm} (q${DW.qualiteReelle(v)}, ${parPoint(v).toFixed(2)}/point)`).join(", ")} · nombres en placeholder`
+       : "aucun — chaque vendeur a sa raison d'exister");
 }
 
 // ── la page ──────────────────────────────────────────────────────────────
@@ -240,23 +302,41 @@ ok("À l'échéance, la crypto arrive — exactement le net annoncé",
    `annoncé ${attenduCrypto} → reçu ${apNuit.crypto} · file ${apNuit.enRoute}`);
 
 // ── 14..16 · commander, et recevoir ──────────────────────────────────────
-const offre = DW.OFFRES.find((o) => o.prix <= apNuit.crypto) || DW.OFFRES[0];
-await page.evaluate((id) => { const b = document.querySelector(`[data-dark="${id}"]`); if (b && !b.disabled) b.click(); }, offre.id);
+/* On prend le premier bouton de commande RÉELLEMENT actif à l'écran, et on lui demande
+   quel vendeur et quelle quantité il porte. Choisir l'offre depuis le module puis espérer
+   que le bouton correspondant soit ouvert, c'est parier sur le rang et le solde — deux
+   choses que ce scénario fait bouger. */
+const cible = await page.evaluate(() => {
+  const b = [...document.querySelectorAll("[data-dark]")].find((x) => !x.disabled);
+  return b ? { id: b.dataset.dark, g: +b.dataset.g } : null;
+});
+ok("Au moins une commande est à portée après le premier change",
+   !!cible, cible ? `${cible.id} · ${cible.g} g` : "aucun bouton actif");
+
+const vend = DW.vendeurById(cible.id);
+const devis = DW.devisCommande({ rel: {} }, vend, cible.g, Infinity);
+await page.evaluate((id, g) => {
+  const b = [...document.querySelectorAll("[data-dark]")].find((x) => x.dataset.dark === id && +x.dataset.g === g);
+  if (b && !b.disabled) b.click();
+}, cible.id, cible.g);
 await sleep(500);
 const apCmd = await lire();
 ok("Commander débite la crypto et met la marchandise en mer",
-   apCmd.commandes === 1 && apCmd.crypto === apNuit.crypto - offre.prix,
-   `crypto ${apNuit.crypto} → ${apCmd.crypto} (−${offre.prix}) · ${apCmd.commandes} commande(s) en transit`);
+   apCmd.commandes === 1 && apCmd.crypto === apNuit.crypto - devis.prix,
+   `crypto ${apNuit.crypto} → ${apCmd.crypto} (−${devis.prix}) · ${apCmd.commandes} commande(s) en transit`);
 
 ok("Rien n'arrive avant le délai annoncé (R4)",
    apCmd.pains.length === 0, `planque : ${apCmd.pains.join(", ") || "vide"}`);
 
-for (let i = 0; i < offre.delai; i++) await passerNuit("marche");
+for (let i = 0; i < devis.delai; i++) await passerNuit("marche");
 const fin = await lire();
-const attenduPains = DW.painsDe({ g: offre.g, q: offre.q, split: offre.split || offre.g }).length;
-ok("À la livraison, les pains entrent à la planque avec LEUR qualité",
-   fin.pains.length === attenduPains && fin.pains.every((p) => p.endsWith(`q${offre.q}`)),
-   `${fin.pains.join(", ") || "rien"} (attendu ${attenduPains} pain(s) q${offre.q})`);
+/* La qualité livrée est la RÉELLE, pas l'annoncée. C'est le contrôle qui relie le modèle
+   à l'écran : si un jour la livraison reprenait `annoncee`, la note redeviendrait un
+   décor et le marché un catalogue. */
+ok("À la livraison, les pains portent la qualité RÉELLE, pas celle annoncée",
+   fin.pains.length > 0 && fin.pains.every((p) => p.endsWith(`q${devis.qReel}`))
+   && devis.qReel < vend.annoncee,
+   `${fin.pains.join(", ") || "rien"} — ${vend.nm} annonçait q${vend.annoncee}, a livré q${devis.qReel}`);
 
 ok("La livraison laisse une cause qui remonte à la commande",
    fin.journal.some((j) => /Livraison/.test(j.txt) && /commandé J/.test(j.cause || "")),

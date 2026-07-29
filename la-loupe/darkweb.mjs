@@ -1,83 +1,170 @@
 /* Le marché du dark web — PUR : aucun DOM, aucun état global. Testable hors navigateur.
 
-   POURQUOI IL ARRIVE EN MÊME TEMPS QUE LA CRYPTO, ET PAS APRÈS.
+   RÉCOLTÉ SUR `darkweb-market/` (« Onion Market »), sur indication de Sylvain. Ma première
+   version était un catalogue de trois offres fixes ; celle du proto est un vrai marché.
+   Ce qui a été repris, et pourquoi chaque pièce mérite de l'être :
 
-   Ce dépôt a déjà fait deux fois l'erreur : `S.cash` (le propre) était produit sans rien
-   acheter, et il a fallu couper la trieuse ET le front de Karim. Une monnaie sans
-   débouché n'est pas une monnaie, c'est un compteur. La crypto aurait exactement le même
-   sort si elle arrivait seule — d'où la règle appliquée ici : **une monnaie et son
-   débouché s'ouvrent dans la même passe**, jamais l'un avant l'autre.
+   1. LA NOTE DÉCIDE DE CE QUI ARRIVE. `realQual = annoncée × (0,5 + 0,1 × note)`. La
+      qualité affichée n'est PAS celle qu'on reçoit, et l'écart est une fonction
+      déterministe d'une note publique. PneuDeSecours (2,1★) annonce 74 et livre 53 ;
+      AtlasFinest (4,2★) annonce 85 et livre 78. Le vendeur pas cher n'est donc pas un
+      piège, c'est un CALCUL — R4 dans sa meilleure forme : le risque est lisible,
+      arithmétique, et il ne surprend jamais celui qui lit.
 
-   CE QU'IL APPORTE, ET POURQUOI ÇA VAUT LA CHAÎNE. L'Appro plafonne à q78 (250 g,
-   1700 liquide = 6,80/g). Le marché descend plus bas au gramme ET monte plus haut en
-   qualité — mais il ne se paie qu'en crypto, donc il oblige à monter les deux étages
-   (sale → propre → crypto). Compté bout à bout, avec un fonds possédé (8 %) puis l'OTC
-   (6 %), 250 g q88 revient à ~1620 de sale : moins cher que l'Appro, et dix points de
-   qualité de plus. La chaîne ne se justifie donc pas par un discours, elle se justifie
-   au gramme.
+   2. CE N'EST PAS UNE AMÉLIORATION, C'EST UN ÉVENTAIL. Mesuré, en ramenant tout au point
+      de qualité réellement livré :
 
-   LE CONTACT SE GAGNE (R4). On n'arrive pas sur le marché en tapant une adresse : c'est
-   le changeur qui présente, après qu'on lui a fait gagner sa vie. Même gabarit que Karim
-   et l'Appro — le déblocage se relie à un geste, jamais au hasard ni au calendrier.
+        cheap (livre 53–62) …… 7,9–8,1     l'Appro de La Loupe (q78) …… 8,7
+        mid   (livre 71–78) …… 9,6         premium (livre 86–92) ……… 14–15
 
-   AUCUN ALÉA (R4), ET RIEN NE SE PERD (R1). Le délai de livraison est un nombre de jours
-   fixe, annoncé avant la commande (R8). Une commande passée arrive : pas de saisie en
-   transit, pas d'arnaque au vendeur. Le risque du dark web, dans ce jeu, c'est ce qu'il
-   FAUT MONTER pour y accéder — pas un dé au moment de payer. */
+      Le pas cher est donc MOINS cher au point de qualité que l'Appro, mais il livre du 53.
+      Ma version faisait du marché un simple palier supérieur ; celle-ci en fait un
+      arbitrage — et elle branche enfin l'appro sur ce que le corner récompense (les
+      personas connaisseurs paient la qualité, les autres non).
+
+   3. LES REMISES SE GAGNENT ET SE PLAFONNENT. Volume, fidélité et rang de réputation
+      s'additionnent, mais le plafond est PLUS SERRÉ là où le produit est meilleur
+      (32 % en cheap, 14 % en premium). Le premium ne brade pas : c'est ce qui empêche la
+      progression d'aplatir le choix (R9 — la tension se règle au niveau système).
+
+   4. LES GROSSES QUANTITÉS EXIGENT UN PASSÉ. On n'arrive pas en achetant 2 kg : le rang
+      vient du nombre de commandes chez CE vendeur. Une relation, pas un niveau global.
+
+   CE QUI N'A PAS ÉTÉ REPRIS, ET POURQUOI. Le proto porte aussi une économie de REVENTE
+   sur le marché (prix + qualité annoncée par le joueur, demande déterministe, falaise de
+   confiance quand la tromperie s'accumule). C'est un second système complet, et La Loupe
+   vend au corner — on ne le prend pas tant que ça n'a pas été arbitré. Idem pour les
+   familles hors hash (coke, MDMA, speed, cachets) et pour les fournitures (agents de
+   coupe, presse, précurseurs) — ces dernières valent d'être regardées de près le jour où
+   on touchera au levier de coupe (R10).
+
+   CE QUI A ÉTÉ CHANGÉ POUR LA LOUPE. Le proto livre immédiatement ; ici la livraison prend
+   des jours, et plus la commande est grosse plus elle traîne. C'est l'arbitrage « temps et
+   capacité comme goulot » : sans délai, la crypto n'achèterait qu'un prix. */
 
 const R = Math.round;
 
-/* Le catalogue. [PLACEHOLDER] — en attente de tuning humain.
-   Repère de lecture : l'Appro vend 100 g q52 à 2,00/g et 250 g q78 à 6,80/g. */
-export const OFFRES = [
-  { id: "d250", g: 250, q: 88, prix: 1400, delai: 2,
-    nm: "250 g · q88", note: "Coupe propre, odeur franche. Le genre qui fait revenir." },
-  { id: "d500", g: 500, q: 86, prix: 2500, delai: 3, split: 250,
-    nm: "500 g · q86", note: "Deux pains scellés. Le transporteur ne sait pas ce qu'il porte." },
-  { id: "d1000", g: 1000, q: 84, prix: 4400, delai: 4, split: 250, reputGate: 35,
-    nm: "1 kg · q84", note: "Ils ne servent ce volume qu'à ceux dont on parle." },
+/* Roster : résine et extraction seulement — c'est ce que La Loupe sait manipuler. Prix en
+   CRYPTO. Repris du proto sans retoucher les nombres : les deux protos étaient déjà
+   calibrés l'un sur l'autre, et y toucher casserait la comparaison ci-dessus.
+   [PLACEHOLDER] — en attente de tuning humain. */
+export const VENDEURS = [
+  { id: "pneu", nm: "PneuDeSecours", ic: "🛞", tier: "cheap", note: 2.1, ventes: 418,
+    prod: "Hash marocain", eurG: 4.2, annoncee: 74, qtys: [50, 100, 250, 500],
+    desc: "Gros volumes, prix planché. Beaucoup d'avis tièdes : « pas ce qui est sur la photo »." },
+  { id: "bazar", nm: "BazarDuBled", ic: "🐫", tier: "cheap", note: 3.0, ventes: 1102,
+    prod: "Hash pollen", eurG: 5.0, annoncee: 78, qtys: [50, 100, 250, 500],
+    desc: "Le volume du marché. Correct sans plus, livre à peu près ce qu'il annonce." },
+  { id: "atlas", nm: "AtlasFinest", ic: "⛰️", tier: "mid", note: 4.2, ventes: 734,
+    prod: "Hash Ketama", eurG: 7.5, annoncee: 85, qtys: [25, 50, 100, 250],
+    desc: "Bonne réput, peu de litiges. Un cran au-dessus en propreté." },
+  { id: "camo", nm: "CaramelBeldia", ic: "🍯", tier: "mid", note: 3.7, ventes: 289,
+    prod: "Beldia artisanal", eurG: 6.8, annoncee: 82, qtys: [25, 50, 100, 250],
+    desc: "Petit producteur, lots irréguliers mais honnêtes. Parfois en-dessous de l'annonce." },
+  { id: "frost", nm: "FrostbiteLab", ic: "❄️", tier: "premium", note: 4.8, ventes: 512,
+    prod: "Ice-o-lator 1ère coulée", eurG: 14.0, annoncee: 94, qtys: [25, 50, 100, 250],
+    desc: "Top du marché. PGP signé, escrow, lab-tested. Ce que tu commandes EST ce qui arrive." },
+  { id: "verde", nm: "VerdeReserva", ic: "🫒", tier: "premium", note: 4.5, ventes: 201,
+    prod: "Dry-sift 120µ", eurG: 12.0, annoncee: 90, qtys: [25, 50, 100, 250],
+    desc: "Réserve haut de gamme, stock limité. Min. de commande bas, idéal pour tester." },
 ];
 
-export const offreById = (id) => OFFRES.find((o) => o.id === id) || null;
+export const vendeurById = (id) => VENDEURS.find((v) => v.id === id) || null;
 
-export function darkwebDefaults() {
-  return { commandes: [], seq: 0, recues: 0 };
+/* ── Les fonctions déterministes (cœur du design, reprises telles quelles) ── */
+
+/** Fiabilité 0..1 depuis la note. Une note de 5 livre 100 % de l'annonce, une note de 0
+    en livre la moitié : personne ne ment TOTALEMENT, et personne n'est parfait par défaut. */
+export const fiabilite = (note) => Math.min(1, 0.5 + 0.1 * note);
+/** LA fonction. Ce qu'on reçoit vraiment — affiché à l'écran avant de commander (R8),
+    parce qu'un écart caché serait un dé déguisé en vendeur. */
+export const qualiteReelle = (v) => R(v.annoncee * fiabilite(v.note));
+
+/** Plafond de remise par tier. Plus serré là où le produit est meilleur : le premium ne
+    brade pas, donc la progression n'aplatit jamais le choix (R9). */
+export const CAP_REMISE = { cheap: 32, mid: 24, premium: 14 };
+/** Remise « gros volume ». C'est en bas de gamme qu'on fait les affaires de volume. */
+const BULK = {
+  cheap:   [[500, 16], [250, 11], [100, 7], [50, 3]],
+  mid:     [[250, 12], [100, 9], [50, 6], [25, 3]],
+  premium: [[250, 7], [100, 5], [50, 2]],
+};
+export function remiseVolume(v, g) {
+  for (const [seuil, pct] of BULK[v.tier]) if (g >= seuil) return pct;
+  return 0;
+}
+/** Palier de fidélité, depuis le nombre de commandes passées CHEZ CE VENDEUR. Une
+    relation, pas un niveau global : c'est ce qui rend le choix d'un fournisseur durable. */
+export function fidelite(n) {
+  if (n >= 10) return { lvl: "régulier", pct: 8 };
+  if (n >= 5)  return { lvl: "habitué",  pct: 5 };
+  if (n >= 2)  return { lvl: "connu",    pct: 2 };
+  return { lvl: "nouveau", pct: 0 };
+}
+/** Rang chez ce vendeur — c'est lui qui ouvre les grosses quantités. */
+export const rang = (n) => (n >= 10 ? 3 : n >= 5 ? 2 : n >= 2 ? 1 : 0);
+/** Rang requis par une quantité. On n'arrive pas en commandant 500 g. */
+export const rangRequis = (g) => (g >= 500 ? 3 : g >= 250 ? 2 : g >= 100 ? 1 : 0);
+
+export function commandesChez(D, id) { return ((D && D.rel) || {})[id] || 0; }
+
+/** L'échelle de quantités d'un vendeur, avec ce qui est encore fermé et pourquoi. */
+export function echelle(D, v) {
+  const n = commandesChez(D, v.id), r = rang(n);
+  return v.qtys.map((g) => ({ g, besoin: rangRequis(g), ouvert: r >= rangRequis(g) }));
 }
 
-/** Ce que le joueur peut voir. Une offre hors standing reste AFFICHÉE mais barrée : ici,
-    contrairement aux laveries, savoir qu'il existe plus gros EST l'information utile —
-    c'est ce qui donne une direction au standing. */
-export function offresVisibles() { return OFFRES; }
+/** Remise totale, plafonnée. Volume + fidélité, jamais au-delà du plafond du tier. */
+export function remise(D, v, g) {
+  const f = fidelite(commandesChez(D, v.id)).pct;
+  return Math.min(CAP_REMISE[v.tier], f + remiseVolume(v, g));
+}
 
-/** Le devis d'une commande, AVANT de valider (R8). Porte toujours la raison d'un refus. */
-export function devisCommande(offre, crypto, reput) {
-  if (!offre) return { ok: false, raison: "offre inconnue" };
-  if (offre.reputGate && (reput || 0) < offre.reputGate) {
-    return { ok: false, raison: `standing ${Math.round(reput || 0)}/${offre.reputGate}`,
-             prix: offre.prix, delai: offre.delai };
+/* Le délai : plus la commande est grosse, plus elle traîne. Sans ça, la crypto
+   n'achèterait qu'un prix — or l'arbitrage était « temps ET capacité comme goulot ». */
+export const delaiDe = (g) => (g >= 500 ? 5 : g >= 250 ? 4 : g >= 100 ? 3 : 2);
+
+export function darkwebDefaults() {
+  return { commandes: [], rel: {}, seq: 0, recues: 0 };
+}
+
+/** Le devis, AVANT de valider (R8). Porte toujours la raison d'un refus — jamais muet. */
+export function devisCommande(D, v, g, crypto) {
+  if (!v) return { ok: false, raison: "vendeur inconnu" };
+  const n = commandesChez(D, v.id);
+  if (rang(n) < rangRequis(g)) {
+    const manque = [2, 5, 10][rangRequis(g) - 1] - n;
+    return { ok: false, raison: `${manque} commande${manque > 1 ? "s" : ""} de plus chez lui`,
+             g, pct: 0, prix: 0 };
   }
-  if ((crypto || 0) < offre.prix) {
-    return { ok: false, raison: `il te manque ${R(offre.prix - (crypto || 0))} en crypto`,
-             prix: offre.prix, delai: offre.delai, manque: R(offre.prix - (crypto || 0)) };
+  const pct = remise(D, v, g);
+  const prix = R(v.eurG * g * (1 - pct / 100));
+  const qr = qualiteReelle(v);
+  if ((crypto || 0) < prix) {
+    return { ok: false, raison: `il te manque ${R(prix - (crypto || 0))} en crypto`,
+             g, pct, prix, qReel: qr, manque: R(prix - (crypto || 0)), delai: delaiDe(g) };
   }
-  return { ok: true, prix: offre.prix, delai: offre.delai, g: offre.g, q: offre.q,
-           prixGramme: +(offre.prix / offre.g).toFixed(2) };
+  return { ok: true, g, pct, prix, qReel: qr, delai: delaiDe(g),
+           prixGramme: +(prix / g).toFixed(2),
+           // le vrai coût : par point de qualité RÉELLEMENT livré. C'est la comparaison
+           // que le joueur ne peut pas faire de tête, et la seule qui départage les tiers.
+           parPoint: +(prix / g / qr * 100).toFixed(1) };
 }
 
 /** Passe la commande. L'appelant débite la crypto — ce module ignore l'état global. */
-export function commander(D, offre, jour, crypto, reput) {
-  const d = devisCommande(offre, crypto, reput);
+export function commander(D, v, g, jour, crypto) {
+  const d = devisCommande(D, v, g, crypto);
   if (!d.ok) return null;
   D.seq = (D.seq || 0) + 1;
-  const cmd = { id: D.seq, offreId: offre.id, g: offre.g, q: offre.q, prix: offre.prix,
-                split: offre.split || offre.g, jour, jourLivraison: jour + offre.delai };
+  if (!D.rel) D.rel = {};
+  D.rel[v.id] = (D.rel[v.id] || 0) + 1;
+  const cmd = { id: D.seq, vendeurId: v.id, g, q: d.qReel, prix: d.prix, pct: d.pct,
+                jour, jourLivraison: jour + d.delai, split: 250 };
   if (!Array.isArray(D.commandes)) D.commandes = [];
   D.commandes.push(cmd);
   return cmd;
 }
 
-/** Ce qui est encore en mer. L'écran doit le montrer AVANT les boutons qui l'allongent :
-    sans ça on recommande à l'aveugle et la planque déborde à l'arrivée. */
 export function enTransit(D, jour) {
   return ((D && D.commandes) || []).filter((c) => c.jourLivraison > jour)
     .sort((a, b) => a.jourLivraison - b.jourLivraison || a.id - b.id);
@@ -85,9 +172,6 @@ export function enTransit(D, jour) {
 export function grammesEnTransit(D, jour) {
   return R(enTransit(D, jour).reduce((a, c) => a + c.g, 0));
 }
-
-/** Les commandes livrées. Retirées de la file et rendues, pour que la clôture pousse les
-    pains et écrive une cause par ligne. */
 export function livrer(D, jour) {
   const prets = ((D && D.commandes) || []).filter((c) => c.jourLivraison <= jour);
   if (!prets.length) return [];
@@ -96,8 +180,9 @@ export function livrer(D, jour) {
   return prets;
 }
 
-/** Les pains d'une commande — un lot livre plusieurs plaquettes, chacune gardant SA
-    qualité. Même découpage que l'Appro : le reste du jeu ne sait manipuler que des pains. */
+/** Les pains d'une commande. Chacun garde SA qualité — celle qui a été RÉELLEMENT livrée,
+    pas celle qui était annoncée. Même découpage que l'Appro : le reste du jeu ne sait
+    manipuler que des pains. */
 export function painsDe(cmd) {
   const out = [], chunk = cmd.split || cmd.g;
   for (let left = cmd.g; left > 0; left -= chunk) out.push({ g: Math.min(chunk, left), q: cmd.q });
