@@ -9,6 +9,97 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-07-28 — POINT DE REPRISE (fin de session)
+
+À lire en premier au début de la prochaine session. Rien ici ne remplace la lecture des
+entrées du jour ci-dessous, mais ceci dit **où on en est** et **ce qui attend une décision**.
+
+### État du dépôt
+
+`main` = `1a6f312`. Arbre propre, branche de session repartie de `main`.
+Suite complète : **287/287 vérifications**, `smoke` sans erreur, `check` 32 fichiers.
+Modules de La Loupe en `?v=57`.
+
+```
+invariants 58 · karnet 44 · crypto 29 · cause 21 · blanchiment 19 · nourrice 19
+ardoise 16 · bulles 15 · karim 14 · raccourcis 10 · arah 8 · chaleur 8 · tap 7
+escalier 6 · desync 5 · tap-bigo 4 · cache 3 · lexique 1
+```
+
+### Ce que La Loupe sait faire maintenant
+
+La chaîne complète, **cinq étages avec un délai à chaque palier** :
+
+```
+vendre au corner → trier (liasses) → déposer en laverie (J+2) → changer (J+1) → commander (J+2..J+5)
+   liquide             sale comptable          propre              crypto            pains q53..q92
+```
+
+Plus, côté corner : l'ARAH qui mord enfin (25 barrettes sur 60 à un chouffe), les ardoises
+avec impayé possible, la nourrice, le Karnet à quatre blocs, et deux raccourcis (favori du
+dock, puce liquide) qui ramènent l'aller-retour nourrice de 5 appuis à 3.
+
+### CE QUI ATTEND UNE DÉCISION DE SYLVAIN
+
+Rien de tout ceci n'est bloquant pour avancer sur autre chose, mais rien ne doit être
+tranché sans lui.
+
+1. **Le tier moyen du marché est du contenu mort.** Mesuré : AtlasFinest (q78, 9,62/point)
+   et CaramelBeldia (q71, 9,58/point) contre l'Appro à 8,72/point pour la même qualité.
+   2 vendeurs sur 6. Compté en veille dans `crypto-loupe` — la ligne dira si le trou s'est
+   refermé quand les nombres bougeront. **C'est de l'équilibrage : son appel.**
+
+2. **Refuser un crédit est gratuit**, donc l'impayé ne porte qu'une décision mince : lire
+   l'avertissement, puis refuser. Le levier qui l'épaissirait — **refuser coûte la
+   relation** — n'est pas posé.
+
+3. **Trois règles candidates pour `CLAUDE.md`**, toutes issues de cette session. Je ne
+   touche pas aux règles sans son feu vert :
+
+   - *R4 interdit le hasard, pas la perte.* Le code portait `jamais d'impayé (R4)` : une
+     règle appliquée de travers, qui a coûté la mécanique du crédit pendant des semaines.
+     Une clarification, pas une nouvelle règle.
+   - *Une monnaie et son débouché s'ouvrent dans la même passe.* Le propre a été produit
+     sans usage deux fois (trieuse coupée, front coupé). La crypto aurait suivi.
+   - *Un contrôle se rejoue toujours sur le code d'avant.* Cinq contrôles vides attrapés
+     cette semaine, dont un où le défaut était l'**instant** de la mesure et pas la mesure.
+
+4. **La monnaie du dark web pour les gros investissements.** Le propre achète les gros
+   investissements (arbitré), la crypto achète le marché (arbitré). Mais le second corner
+   et la planque — passe 3 — n'ont pas encore de prix, ni de monnaie assignée.
+
+### Suite du programme, dans l'ordre convenu
+
+- **Passe 3** — second corner + planque au propre. Le propre a enfin une source ; c'est le
+  moment. Attention : déplacer un upgrade EXISTANT du liquide vers le propre retirerait un
+  outil acquis à une partie en cours (R2). Le safe est de donner un prix en propre aux
+  choses NEUVES.
+- **Charbonneur** puis un second — le code le prévoit déjà (`P.charbonneur`, `CHARB_WAGE`,
+  et `pdvTick` sait déjà tourner en l'absence du joueur).
+- **Weed** comme second produit.
+- **Le levier de coupe (R10)** — et c'est là que le proto `darkweb-market/` a le plus à
+  donner : agents de coupe classés par pureté (`PharmaGradeCut` 96 → `BulkFillers` 60),
+  kits réactifs, presse, précurseurs. La Loupe n'a toujours qu'un seul curseur de qualité.
+- **L'économie de revente** du même proto (prix et qualité annoncés par le joueur, demande
+  déterministe, falaise de confiance quand la tromperie s'accumule) — un second système,
+  non arbitré.
+
+### Ce que la prochaine session doit savoir sur la méthode
+
+- **Chaque correctif se rejoue sur le code d'avant** (`git stash push la-loupe/…`). Cinq
+  contrôles vides attrapés cette semaine par cette seule discipline.
+- **`evaluateOnNewDocument` REJOUE à chaque navigation.** Piège rencontré six fois. Un seed
+  empilé doit être écrit pour s'appliquer sur l'état laissé par les précédents.
+- **Les modules de La Loupe portent une version d'import** (`?v=NN`) : bumper les 8 imports
+  d'un coup et vérifier avec `cache-loupe`. Il a déjà attrapé un `snap.mjs` resté en arrière.
+- **`node --check` sur le module extrait d'`index.html`** avant tout commit — le fichier
+  fait 3 900 lignes et une accolade manquante ne se voit pas.
+- **Mesurer, ne pas raisonner.** Les trois quarts des vraies trouvailles de la semaine
+  viennent d'un nombre calculé, pas d'une relecture : les 15 gestes de marge de l'ARAH, les
+  boutons de dépôt sous le dock, le tier moyen dominé, la pastille de HUD écrasée.
+
+---
+
 ## 2026-07-28 — Le marché, récolté sur `darkweb-market/`
 
 Sylvain : « Regarde le proto onion market. Il contient déjà énormément de bonnes choses. »
