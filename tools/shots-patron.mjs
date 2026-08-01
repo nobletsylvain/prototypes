@@ -65,12 +65,16 @@ const tap = async (sel) => { const el = await page.$(sel); if (el) { await el.cl
 await shot("00-intro");
 await tap('#sheet button[data-a="close"]');
 
-// Résout tout événement en attente en prenant la première option possible.
+// La feuille d'événement EST le moment de jeu : on la photographie une fois par
+// type avant de la résoudre, sinon le proto n'est jamais illustré là où il se joue.
+const vus = new Set();
 async function resoudreEvenements() {
   for (let i = 0; i < 6; i++) {
     const ouvert = await page.$eval("#sheet", (s) => s.classList.contains("on")).catch(() => false);
     if (!ouvert) return;
     const titre = await page.$eval("#sheet .st", (e) => e.textContent).catch(() => "");
+    const genre = titre.split(" ")[0].toLowerCase();
+    if (!vus.has(genre)) { vus.add(genre); await shot("ev-" + genre.replace(/[^a-z]/g, "")); }
     const pris = await page.evaluate(() => {
       const b = [...document.querySelectorAll('#sheet button[data-a="opt"]')].find((x) => !x.disabled);
       if (b) { b.click(); return b.querySelector("b").textContent; }
@@ -156,9 +160,16 @@ await page.evaluate(() => document.querySelector('#sheet button[data-a="close"]'
 
 // Une longue traite pour attraper les paliers hauts, les contrôles et les descentes
 await sleep(300);
-await jouer(38);
+await jouer(60);
 await invariants("en fin de partie");
 await shot("07-tard");
+await page.evaluate(() => document.querySelector("#segNet").click());
+await sleep(350); await shot("08-pourquoi-tard");
+for (const t of ["lessive", "reseau"]) {
+  await page.evaluate((tt) => document.querySelector(`.tab[data-t="${tt}"]`).click(), t);
+  await sleep(420);
+  await shot("09-" + t + "-tard");
+}
 
 const fin = await page.evaluate(() => {
   const s = JSON.parse(localStorage.getItem("patron_save"));
