@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>El Patrón — de la finca au cash propre</title>
+<style>
+:root{
+  --bg:#0E0D0C; --surface:#1A1714; --surface2:#221E1A; --border:#352E28;
+  --text:#E4DED5; --muted:#8C837B; --faint:#615951;
+  --sodium:#E8A33D; --neon:#3E7CC2; --rust:#C8442F; --green:#7FA37F;
+  --sale:#E8A33D; --propre:#9BE37D; --chaud:#FF8A6A;
+  --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none;}
+html,body{height:100%;overflow:hidden;
+  font:400 15px/1.4 -apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);background:var(--bg);}
+body{touch-action:manipulation;}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
+.hide{display:none!important;}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+.elab{font-size:9.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--faint);}
+.sect{font-size:10.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;
+  color:rgba(255,255,255,.4);margin:15px 0 7px;}
+.pos{color:var(--propre);} .neg{color:var(--chaud);} .warn{color:var(--sodium);}
+
+#app{position:fixed;inset:0;display:flex;flex-direction:column;max-width:460px;margin:0 auto;
+  background:var(--bg);border-left:1px solid var(--border);border-right:1px solid var(--border);}
+
+/* ───────── bandeau ───────── */
+#hud{flex:none;padding:max(6px,env(safe-area-inset-top)) 12px 7px;
+  background:linear-gradient(#171412,#110F0D);border-bottom:1px solid var(--border);}
+#top{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.brand{font-weight:900;font-size:11px;letter-spacing:1.4px;color:var(--sodium);}
+#jour{font-size:11px;color:var(--muted);margin-left:auto;}
+.vit{display:flex;gap:3px;}
+.vb{width:30px;height:24px;border-radius:7px;font-size:12px;font-weight:800;
+  background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--muted);}
+.vb.on{background:rgba(62,124,194,.25);border-color:rgba(62,124,194,.6);color:#A8D5FF;}
+#money{display:flex;gap:6px;}
+.seg{flex:1;min-width:0;text-align:left;padding:5px 7px;border-radius:9px;
+  background:var(--surface);border:1px solid var(--border);}
+.seg .k{display:block;font-size:9px;font-weight:700;letter-spacing:.5px;
+  text-transform:uppercase;color:var(--faint);}
+.seg b{display:block;font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:15px;font-weight:800;letter-spacing:-.3px;}
+.seg i{display:block;font-family:var(--mono);font-size:9.5px;font-style:normal;color:var(--muted);}
+#segPropre b{color:var(--propre);} #segSale b{color:var(--sale);}
+#segNet{border-color:rgba(255,255,255,.18);}
+
+#why{margin-top:6px;border-radius:10px;background:var(--surface2);
+  border:1px solid var(--border);padding:8px 10px;}
+.wl{display:flex;gap:7px;align-items:flex-start;padding:4px 0;font-size:12px;line-height:1.35;}
+.wl+.wl{border-top:1px solid rgba(255,255,255,.06);}
+.wd{font-size:11px;color:var(--muted);}
+.wp{font-size:11px;color:var(--muted);margin-top:5px;}
+
+/* jauge de chaleur avec ses seuils nommés */
+#heatwrap{margin-top:7px;}
+#heatrow{display:flex;align-items:baseline;gap:6px;font-size:10px;}
+#heatname{font-weight:800;letter-spacing:.4px;}
+#heatnum{margin-left:auto;font-family:var(--mono);font-weight:800;}
+.gbar{position:relative;height:10px;border-radius:5px;background:rgba(255,255,255,.09);
+  margin-top:4px;overflow:visible;}
+.gclip{position:absolute;inset:0;border-radius:5px;overflow:hidden;}
+.gfill{position:absolute;inset:0 auto 0 0;border-radius:5px;transition:width .25s linear;
+  background:linear-gradient(90deg,#7FA37F,#E8A33D 48%,#C8442F 82%);}
+.thr{position:absolute;top:-2px;bottom:-2px;width:2px;background:rgba(255,255,255,.4);}
+.ghost{position:absolute;top:-4px;bottom:-4px;width:2px;background:#fff;opacity:.85;
+  transition:left .3s linear;}
+.ghost::after{content:"";position:absolute;top:-3px;left:-3px;width:8px;height:8px;
+  border-radius:50%;background:#fff;}
+
+/* ───────── corps ───────── */
+#body{flex:1;position:relative;overflow:hidden;}
+.view{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:0 12px 16px;opacity:0;pointer-events:none;transition:opacity .18s;}
+.view.on{opacity:1;pointer-events:auto;}
+
+/* carte */
+/* On borne la LARGEUR, pas la hauteur : le SVG garde son ratio 100×128 et
+   remplit exactement son cadre, donc les boutons de #hits — positionnés en
+   pourcentage — restent pile sur les nœuds. Plafonner la hauteur aurait
+   letterboxé le SVG et décalé toutes les zones tactiles.
+   Sans ce plafond, sur un 375×667 la carte mangeait tout le scroller et la
+   fiche de contexte passait sous le pli au premier chargement.
+   Hauteur = largeur × 1,28 ⇒ 36vh de large ≈ 46vh de haut. */
+#mapwrap{position:relative;width:min(calc(100% + 24px), 36vh);margin:0 auto;}
+#map{display:block;width:100%;height:auto;background:linear-gradient(#12100E,#0C0B0A);}
+#hits{position:absolute;inset:0;}
+#hits button{position:absolute;width:48px;height:48px;transform:translate(-50%,-50%);
+  border-radius:50%;background:none;}
+#hits button.sel{background:rgba(232,163,61,.15);box-shadow:0 0 0 2px rgba(232,163,61,.5) inset;}
+.bandlab{font:800 3.2px/1 -apple-system,sans-serif;letter-spacing:.35px;
+  fill:rgba(255,255,255,.26);text-transform:uppercase;}
+.nlab{font:700 3.6px/1 -apple-system,sans-serif;fill:rgba(255,255,255,.62);text-anchor:middle;}
+.nval{font:800 3.4px/1 var(--mono);fill:rgba(255,255,255,.9);text-anchor:middle;}
+.nem{font-size:5.4px;text-anchor:middle;}
+.nbox{fill:var(--surface);stroke:var(--border);stroke-width:.5;}
+.nbox.act{stroke:var(--sodium);stroke-width:.9;}
+.flow{fill:none;stroke-linecap:round;stroke-dasharray:2.4 2.2;}
+@keyframes crawl{to{stroke-dashoffset:-9.2;}}
+
+#ctx{position:sticky;top:0;z-index:3;margin-top:8px;padding:9px 11px;border-radius:12px;
+  background:var(--surface2);border:1px solid var(--border);}
+#ctxt{font-weight:800;font-size:13.5px;}
+#ctxs{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.4;}
+#ctxb{margin-top:7px;}
+
+.row{display:flex;align-items:center;gap:9px;padding:9px 11px;margin-top:7px;border-radius:12px;
+  background:var(--surface);border:1px solid var(--border);width:100%;text-align:left;}
+.row:active{transform:scale(.99);}
+.row .ic{font-size:19px;width:26px;text-align:center;flex:none;}
+.row .nm{font-weight:800;font-size:13px;}
+.row .ds{font-size:11px;color:var(--muted);margin-top:1px;line-height:1.35;}
+.row .rt{margin-left:auto;text-align:right;flex:none;font-family:var(--mono);font-size:11.5px;}
+.row.bad{border-color:rgba(200,68,47,.55);background:rgba(200,68,47,.09);}
+.row[disabled]{opacity:.4;}
+
+.mini{position:relative;height:5px;border-radius:3px;background:rgba(255,255,255,.09);
+  margin-top:5px;overflow:hidden;}
+.mini i{position:absolute;inset:0 auto 0 0;border-radius:3px;}
+
+.btn{border-radius:11px;padding:9px 12px;font-weight:800;font-size:12.5px;text-align:center;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);}
+.btn:active{transform:scale(.97);}
+.btn.pri{background:rgba(62,124,194,.22);border-color:rgba(62,124,194,.55);color:#A8D5FF;}
+.btn.warn{background:rgba(232,163,61,.16);border-color:rgba(232,163,61,.45);color:var(--sodium);}
+.btn.dgr{background:rgba(200,68,47,.16);border-color:rgba(200,68,47,.5);color:#FF9E8C;}
+.btn[disabled]{opacity:.35;}
+.btnrow{display:flex;gap:7px;}
+.btnrow .btn{flex:1;}
+
+.step{display:flex;align-items:center;gap:8px;margin-top:8px;}
+.step button{width:44px;height:44px;border-radius:11px;font-size:19px;font-weight:800;
+  background:rgba(255,255,255,.07);border:1px solid var(--border);}
+.step button:active{transform:scale(.95);}
+.step .v{flex:1;text-align:center;font-family:var(--mono);font-weight:800;font-size:13px;}
+.chips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+.chip{padding:8px 11px;border-radius:999px;font-size:12px;font-weight:700;min-height:44px;
+  display:flex;align-items:center;background:rgba(255,255,255,.06);border:1px solid var(--border);}
+.chip.on{background:rgba(232,163,61,.2);border-color:rgba(232,163,61,.55);color:var(--sodium);}
+
+/* ticker + onglets */
+#ticker{flex:none;height:64px;overflow:hidden;padding:0 12px;
+  border-top:1px solid var(--border);background:#100E0D;}
+.ledr{display:flex;gap:8px;padding:6px 0;font-size:11.5px;align-items:baseline;
+  border-bottom:1px solid rgba(255,255,255,.05);}
+.ledr .j{font-family:var(--mono);color:var(--faint);font-size:10px;flex:none;width:30px;}
+.ledr .c{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);}
+.ledr .m{font-family:var(--mono);font-weight:700;flex:none;}
+#tabs{flex:none;display:flex;border-top:1px solid var(--border);background:#0B0A09;
+  padding-bottom:env(safe-area-inset-bottom);}
+.tab{flex:1;height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;font-size:10px;font-weight:700;color:var(--faint);position:relative;}
+.tab em{font-size:18px;font-style:normal;}
+.tab.on{color:var(--sodium);}
+.tab .bdg{position:absolute;top:9px;right:calc(50% - 21px);min-width:15px;height:15px;
+  border-radius:8px;background:var(--rust);color:#fff;font-size:9px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;padding:0 4px;}
+
+/* feuille + toast */
+#scrim{position:fixed;inset:0;background:rgba(4,3,2,.72);backdrop-filter:blur(3px);
+  opacity:0;pointer-events:none;transition:opacity .2s;z-index:40;}
+#scrim.on{opacity:1;pointer-events:auto;}
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;max-width:460px;margin:0 auto;
+  background:var(--surface);border:1px solid var(--border);border-radius:20px 20px 0 0;
+  padding:14px 14px calc(16px + env(safe-area-inset-bottom));
+  transform:translateY(101%);transition:transform .24s cubic-bezier(.2,.8,.3,1);
+  max-height:82%;overflow-y:auto;}
+#sheet.on{transform:translateY(0);}
+.grab{width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.2);margin:0 auto 11px;}
+.st{font-weight:900;font-size:17px;}
+.ss{font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.45;}
+.opt{display:block;width:100%;text-align:left;margin-top:9px;padding:12px 13px;border-radius:13px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);min-height:64px;}
+.opt:active{transform:scale(.985);}
+.opt b{display:block;font-size:13.5px;font-weight:800;}
+.opt span{display:block;font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.35;}
+.opt[disabled]{opacity:.4;}
+#toast{position:fixed;left:50%;bottom:96px;transform:translate(-50%,14px);z-index:60;
+  background:#241F1A;border:1px solid var(--border);border-radius:11px;padding:9px 14px;
+  font-size:12.5px;font-weight:600;opacity:0;transition:.22s;pointer-events:none;max-width:88%;}
+#toast.on{opacity:1;transform:translate(-50%,0);}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <div id="top">
+      <span class="brand">EL PATRÓN</span>
+      <span id="jour" class="mono">J0</span>
+      <div class="vit" id="vit"></div>
+    </div>
+    <div id="money">
+      <button class="seg" id="segPropre"><span class="k">Propre</span><b>—</b><i>—</i></button>
+      <button class="seg" id="segSale"><span class="k">Liquide</span><b>—</b><i>—</i></button>
+      <button class="seg" id="segNet"><span class="k">Net / jour ⌄</span><b>—</b><i>—</i></button>
+    </div>
+    <div id="why" class="hide"></div>
+    <div id="heatwrap">
+      <div id="heatrow">
+        <span class="elab">Chaleur</span>
+        <span id="heatname"></span>
+        <span id="heatnum"></span>
+      </div>
+      <div class="gbar">
+        <div class="gclip"><div class="gfill" id="heatfill" style="width:0%"></div></div>
+        <div id="heatthr"></div>
+        <div class="ghost" id="heatghost" style="left:0%"></div>
+      </div>
+    </div>
+  </header>
+
+  <main id="body">
+    <section class="view on" id="v-carte">
+      <div id="mapwrap">
+        <svg id="map" viewBox="0 0 100 128" preserveAspectRatio="xMidYMid meet"></svg>
+        <div id="hits"></div>
+      </div>
+      <div id="ctx">
+        <div id="ctxt">—</div>
+        <div id="ctxs"></div>
+        <div id="ctxb"></div>
+      </div>
+      <div id="strip"></div>
+    </section>
+    <section class="view" id="v-lessive"></section>
+    <section class="view" id="v-registre"></section>
+    <section class="view" id="v-reseau"></section>
+  </main>
+
+  <div id="ticker"></div>
+  <nav id="tabs">
+    <button class="tab on" data-t="carte"><em>🗺️</em>Carte</button>
+    <button class="tab" data-t="lessive"><em>🧼</em>Lessive</button>
+    <button class="tab" data-t="registre"><em>📒</em>Registre</button>
+    <button class="tab" data-t="reseau"><em>🤝</em>Réseau</button>
+  </nav>
+</div>
+
+<div id="scrim"></div>
+<div id="sheet"></div>
+<div id="toast"></div>
+
+<script type="module">
+import * as G from "./sim.mjs";
+
+/* ═══════ persistance ═══════ */
+const CLE = "patron_save", CLE_VER = "patron_ver";
+let S = charger();
+
+function charger(){
+  try{
+    if (+localStorage.getItem(CLE_VER) !== G.SAVE_VERSION) { localStorage.removeItem(CLE); }
+    const brut = localStorage.getItem(CLE);
+    if (brut){
+      const s = JSON.parse(brut);
+      if (s && s.version === G.SAVE_VERSION){
+        s._flux = Object.create(null);
+        s.notifs = s.notifs || [];
+        return s;
+      }
+    }
+  }catch(e){}
+  return G.nouvelEtat(20260801);
+}
+// Sérialiser tout l'état est trop cher pour le faire à chaque rendu : on ne
+// sauve qu'à intervalle, et à chaque décision du joueur.
+let dernierSauve = 0;
+function sauver(force){
+  const t = performance.now();
+  if (!force && t - dernierSauve < 2000) return;
+  dernierSauve = t;
+  try{
+    localStorage.setItem(CLE_VER, String(G.SAVE_VERSION));
+    localStorage.setItem(CLE, JSON.stringify(S, (k,v)=> k==="_flux" ? undefined : v));
+  }catch(e){}
+}
+function recommencer(){
+  localStorage.removeItem(CLE);
+  S = G.nouvelEtat(20260801);
+  selection = null; onglet = "carte"; luRegistre = 0;
+  derniereNotif = S.notifs.length;
+  document.querySelectorAll(".vb").forEach((x)=>x.classList.toggle("on", +x.dataset.v === S.vitesse));
+  fermerFeuille(); choisirOnglet("carte");
+}
+
+/* ═══════ raccourcis ═══════ */
+const $ = (s)=>document.querySelector(s);
+const eur = G.fmtEuro, kg = G.fmtKg;
+const pct = (v)=> Math.round(v*100)+" %";
+const sgn = (n)=> (n>=0?"+":"−")+eur(Math.abs(n));
+const esc = (s)=> String(s).replace(/[&<>"]/g, (c)=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+
+let onglet = "carte";
+let selection = null;      // {type:"finca"|"labo"|"ruta"|"punto"|"planque"|"lessive", id}
+let whyOuvert = false;
+let luRegistre = 0;
+// On reprend le fil des notifications là où la sauvegarde s'est arrêtée : sinon
+// rouvrir la page rejouait d'un coup toutes les notifs déjà vues.
+let derniereNotif = S.notifs.length;
+
+/* ═══════ boucle ═══════ */
+let precedent = performance.now(), reste = 0;
+function boucle(now){
+  const dtms = Math.min(now - precedent, 1000);
+  precedent = now;
+  if (!S.fini && S.evenements.length === 0 && S.vitesse > 0){
+    reste += dtms * S.vitesse;
+    let n = 0;
+    while (reste >= G.TICK_MS && n < 40){
+      G.tick(S, G.TICK_MS * G.JOUR_PAR_MS);
+      reste -= G.TICK_MS; n++;
+      if (S.evenements.length) { reste = 0; break; }
+    }
+  }
+  majTout();
+  requestAnimationFrame(boucle);
+}
+
+/* ═══════ bandeau ═══════ */
+function majHud(){
+  const r = G.rythmes(S);
+  $("#jour").textContent = "J" + Math.floor(S.jour);
+
+  const p = $("#segPropre"), sa = $("#segSale"), ne = $("#segNet");
+  p.querySelector("b").textContent = eur(S.propre);
+  p.querySelector("i").textContent = "+" + eur(r.propreJour) + "/j";
+
+  const vol = G.volumeLiquide(S), cap = G.cacheCapacite(S);
+  sa.querySelector("b").textContent = eur(S.liquide);
+  sa.querySelector("i").textContent = vol.toFixed(2) + " / " + cap.toFixed(1) + " m³";
+  sa.querySelector("i").className = vol > cap ? "neg" : "";
+
+  ne.querySelector("b").textContent = sgn(r.netLiquide);
+  ne.querySelector("b").className = r.netLiquide >= 0 ? "pos" : "neg";
+  ne.querySelector("i").textContent = "sale · lessive " + eur(r.blanchiJour) + "/j";
+  ne.querySelector(".k").textContent = "Net / jour " + (whyOuvert ? "⌃" : "⌄");
+
+  $("#why").classList.toggle("hide", !whyOuvert);
+  if (whyOuvert) majWhy(r);
+
+  const pal = G.palier(S.chaleur);
+  $("#heatname").textContent = pal.nom;
+  $("#heatname").style.color = S.chaleur >= 75 ? "var(--rust)" : S.chaleur >= 50 ? "var(--sodium)" : "var(--green)";
+  $("#heatnum").textContent = Math.round(S.chaleur) + " / 100";
+  $("#heatfill").style.width = S.chaleur + "%";
+  $("#heatghost").style.left = S.chaleurCible + "%";
+  if (!$("#heatthr").dataset.fait){
+    $("#heatthr").innerHTML = G.PALIERS.slice(1)
+      .map((q)=>`<div class="thr" style="left:${q.seuil}%"></div>`).join("");
+    $("#heatthr").dataset.fait = "1";
+  }
+}
+
+function majWhy(r){
+  const d = G.diagnostics(S).slice(0, 3);
+  const lignes = [
+    `<div class="wl"><span class="mono pos">${sgn(r.exportJour)}</span><span>Export brut<div class="wd">${kg(S.rutas.reduce((a,x)=>a+(x.active&&!x.bloquee?x.kgJour:0),0))}/j écoulés</div></span></div>`,
+    `<div class="wl"><span class="mono neg">${sgn(-r.charges.total)}</span><span>Charges d'exploitation<div class="wd">Précurseurs ${eur(r.charges.precurseurs)} · fret ${eur(r.charges.fret)} · paysans ${eur(r.charges.paysans)} · escortes ${eur(r.charges.escortes)} · politique ${eur(r.charges.politique)}</div></span></div>`,
+    `<div class="wl"><span class="mono warn">${sgn(-r.blanchiJour)}</span><span>Part envoyée à la lessive<div class="wd">Elle ressort en propre à ${eur(r.propreJour)}/j, la commission mange le reste.</div></span></div>`,
+  ];
+  const diag = d.map((x)=>
+    `<div class="wl"><span class="mono ${x.ton==="mal"?"neg":"warn"}">${x.ton==="mal"?"✕":"!"}</span>`+
+    `<span>${esc(x.texte)}<div class="wd">${esc(x.detail)}</div></span></div>`).join("");
+  $("#why").innerHTML = lignes.join("") + diag +
+    `<div class="wp">Réserve d'exploitation sanctuarisée : <b class="mono">${eur(G.reserveOperationnelle(S))}</b> (${S.reserveJours} j de charges). Réglable dans Lessive.</div>`;
+}
+
+/* ═══════ carte ═══════ */
+/* Géométrie de la carte, viewBox 100 × 122.
+   Une gouttière de 18 unités à gauche est RÉSERVÉE aux libellés de bande : sans
+   elle les titres passaient sous les nœuds. La valeur chiffrée vit DANS la
+   boîte (sous l'emoji) et le nom dessous — sinon l'empilement boîte + nom +
+   valeur ne tenait pas dans une bande et « Export » chevauchait « Lessive ». */
+const COL = [34, 60, 86];
+const posFinca = (i)=> ({ x: COL[i % 3], y: i < 3 ? 13 : 31 });
+const posLabo  = (i, n)=> ({ x: n <= 1 ? 60 : 28 + i * (60 / Math.max(1, n - 1)), y: 51 });
+const posPunto = { frontera:{x:34,y:92}, puerto:{x:60,y:92}, pista:{x:86,y:92} };
+const posPlanque = { x: 40, y: 114 }, posLessive = { x: 78, y: 114 };
+const EMO_PUNTO = { frontera:"🛂", puerto:"⚓", pista:"✈️" };
+const CORRIDOR_Y = 74;
+const SORTIE_LABOS = 70;   // sous la ligne de bande, pour ne pas barrer le nom des labos
+
+function dessinerCarte(){
+  const parts = [];
+  const T = (x,y,t,c)=>`<text class="${c}" x="${x}" y="${y}">${t}</text>`;
+
+  for (const [y, t] of [[22,"Culture"],[53,"Raffinage"],[75,"Corridor"],[93,"Export"],[115,"Lessive"]])
+    parts.push(`<text class="bandlab" x="2" y="${y}">${t}</text>`);
+  for (const y of [42, 66, 82, 104])
+    parts.push(`<line x1="0" y1="${y}" x2="100" y2="${y}" stroke="rgba(255,255,255,.05)" stroke-width=".4"/>`);
+
+  // rutas : sortie des labos → point de corridor → punto. Les tirets rampent
+  // vers le punto, et se FIGENT quand la ruta est bloquée : ça se lit avant les mots.
+  S.rutas.forEach((r, i)=>{
+    const wx = 26 + i * (62 / Math.max(1, G.RUTA_MAX - 1));
+    const pu = posPunto[r.punto];
+    const m = G.MODES[r.mode];
+    const ep = 0.7 + 1.6 * Math.min(1, r.kgJour / m.debit);
+    const roule = r.active && !r.bloquee && r.kgJour > 0.01;
+    const col = r.bloquee ? "var(--rust)" : !r.active ? "rgba(255,255,255,.16)" : "var(--sodium)";
+    const anim = roule ? `animation:crawl ${(1.6 / (0.4 + r.kgJour / m.debit)).toFixed(2)}s linear infinite;` : "";
+    parts.push(`<path class="flow" d="M60 ${SORTIE_LABOS} L${wx} ${CORRIDOR_Y} L${pu.x} ${pu.y - 7}" stroke="${col}" stroke-width="${ep.toFixed(2)}" style="${anim}"/>`);
+    if (r.bloquee) parts.push(T(wx, CORRIDOR_Y + 1.6, "⛔", "nem"));
+  });
+
+  S.fincas.forEach((f, i)=>{
+    const p = posFinca(i);
+    parts.push(noeud(p.x, p.y, "🌿", f.nom, kg(f.pate), f.pate / G.FINCA_STOCK_MAX, selEst("finca", f.id)));
+  });
+  S.labos.forEach((l, i)=>{
+    const p = posLabo(i, S.labos.length);
+    parts.push(noeud(p.x, p.y, l.rupture ? "🚱" : "🏭", l.nom, kg(l.poudre), l.poudre / G.LABO_STOCK_MAX, selEst("labo", l.id)));
+  });
+
+  for (const cle of Object.keys(G.PUNTOS)){
+    const p = posPunto[cle], sat = G.puntoSaturation(S, cle), d = G.PUNTOS[cle];
+    const sel = selEst("punto", cle);
+    // Le disque se remplit par le bas à mesure qu'il sature : un punto gorgé se
+    // voit sans lire le prix.
+    parts.push(
+      `<clipPath id="cp-${cle}"><circle cx="${p.x}" cy="${p.y}" r="7"/></clipPath>`+
+      `<circle cx="${p.x}" cy="${p.y}" r="7" fill="var(--surface)" stroke="${sel?"var(--sodium)":"var(--border)"}" stroke-width="${sel?.9:.5}"/>`+
+      `<rect x="${p.x-7}" y="${p.y+7-14*sat}" width="14" height="${14*sat}" fill="rgba(200,68,47,.42)" clip-path="url(#cp-${cle})"/>`+
+      T(p.x, p.y-0.4, EMO_PUNTO[cle], "nem") +
+      T(p.x, p.y+4.6, eur(G.puntoPrix(S, cle))+"/kg", "nval") +
+      T(p.x, p.y+11.4, esc(d.nom), "nlab"));
+  }
+
+  // La planque : un bidon qui se remplit. Quand ça déborde, ça se voit.
+  const vol = G.volumeLiquide(S), cap = G.cacheCapacite(S), plein = Math.min(1, vol/cap);
+  const deborde = vol > cap;
+  parts.push(
+    `<rect x="${posPlanque.x-9}" y="${posPlanque.y-6}" width="18" height="12" rx="2.5" fill="var(--surface)" stroke="${deborde?"var(--rust)":selEst("planque")?"var(--sodium)":"var(--border)"}" stroke-width="${deborde||selEst("planque")?.9:.5}"/>`+
+    `<rect x="${posPlanque.x-8.4}" y="${posPlanque.y+5.4-10.8*plein}" width="16.8" height="${10.8*plein}" rx="2" fill="${deborde?"rgba(200,68,47,.5)":"rgba(232,163,61,.42)"}"/>`+
+    T(posPlanque.x, posPlanque.y-0.6, "💰", "nem")+
+    T(posPlanque.x, posPlanque.y+4.4, vol.toFixed(2)+"/"+cap.toFixed(1)+" m³", "nval")+
+    T(posPlanque.x, posPlanque.y+11, "Planque", "nlab"));
+
+  const capL = G.capaciteBlanchiment(S);
+  parts.push(
+    `<rect x="${posLessive.x-9}" y="${posLessive.y-6}" width="18" height="12" rx="2.5" fill="var(--surface)" stroke="${selEst("lessive")?"var(--sodium)":"var(--border)"}" stroke-width="${selEst("lessive")?.9:.5}"/>`+
+    T(posLessive.x, posLessive.y-0.6, "🧺", "nem")+
+    T(posLessive.x, posLessive.y+4.4, eur(capL)+"/j", "nval")+
+    T(posLessive.x, posLessive.y+11, "Lessive", "nlab"));
+  parts.push(`<path class="flow" d="M${posPlanque.x+9} ${posPlanque.y} L${posLessive.x-9} ${posLessive.y}" stroke="var(--green)" stroke-width="1.4" style="${capL>0?"animation:crawl 1.1s linear infinite;":""}"/>`);
+
+  $("#map").innerHTML = parts.join("");
+  dessinerHits();
+}
+
+function noeud(x, y, em, nom, val, plein, sel){
+  const T = (xx,yy,t,c)=>`<text class="${c}" x="${xx}" y="${yy}">${t}</text>`;
+  return `<rect class="nbox${sel?" act":""}" x="${x-9}" y="${y-6}" width="18" height="12" rx="2.5"/>`+
+    `<rect x="${x-8.4}" y="${y+5.4-10.8*Math.min(1,plein)}" width="16.8" height="${10.8*Math.min(1,plein)}" rx="2" fill="rgba(232,163,61,.22)"/>`+
+    T(x, y-0.6, em, "nem") + T(x, y+4.4, val, "nval") + T(x, y+11, esc(nom), "nlab");
+}
+function selEst(type, id){ return selection && selection.type === type && selection.id === id; }
+
+function dessinerHits(){
+  const h = [];
+  const btn = (x, y, type, id, sel)=>
+    `<button class="${sel?"sel":""}" style="left:${x}%;top:${y/128*100}%" data-n="${type}" data-i="${id}"></button>`;
+  S.fincas.forEach((f,i)=>{ const p=posFinca(i); h.push(btn(p.x,p.y,"finca",f.id,selEst("finca",f.id))); });
+  S.labos.forEach((l,i)=>{ const p=posLabo(i,S.labos.length); h.push(btn(p.x,p.y,"labo",l.id,selEst("labo",l.id))); });
+  for (const c of Object.keys(G.PUNTOS)){ const p=posPunto[c]; h.push(btn(p.x,p.y,"punto",c,selEst("punto",c))); }
+  h.push(btn(posPlanque.x, posPlanque.y, "planque", "", selEst("planque")));
+  h.push(btn(posLessive.x, posLessive.y, "lessive", "", selEst("lessive")));
+  $("#hits").innerHTML = h.join("");
+}
+
+/* ═══════ carte : fiche de contexte + bande des rutas ═══════ */
+function majCtx(){
+  const t = $("#ctxt"), s = $("#ctxs"), b = $("#ctxb");
+  b.innerHTML = "";
+  if (!selection){
+    const r = G.rythmes(S);
+    t.textContent = "L'empire";
+    s.innerHTML = `${S.fincas.length}/${G.FINCA_MAX} fincas · ${S.labos.length}/${G.LABO_MAX} labos · ${S.rutas.length}/${G.RUTA_MAX} rutas · ${S.fronts.length}/${Object.keys(G.FRONTS).length} fronts`+
+      `<br>Production <b class="mono">${kg(S.rythmePoudre)}/j</b> · export <b class="mono">${eur(r.exportJour)}/j</b>`+
+      `<br><span class="wd">Touche un nœud de la carte pour le régler.</span>`;
+    return;
+  }
+  if (selection.type === "finca"){
+    const f = S.fincas.find((x)=>x.id===selection.id); if(!f) return vider();
+    t.textContent = f.nom + " · " + G.ZONES[f.zone].nom;
+    s.innerHTML = `Niveau ${f.niveau}/${G.FINCA_NIVEAU_MAX} · rendement <b class="mono">${kg(G.fincaRendement(f))}/j</b> de pâte`+
+      `<br>Stock sur place ${kg(f.pate)} / ${G.FINCA_STOCK_MAX} kg · ${G.ZONES[f.zone].desc}`;
+    const prix = G.FINCA_UPGRADE_PRIX[f.niveau];
+    b.innerHTML = f.niveau >= G.FINCA_NIVEAU_MAX
+      ? `<div class="wd">Niveau maximum.</div>`
+      : `<button class="btn pri" data-a="upFinca" data-i="${f.id}" ${S.propre<prix?"disabled":""}>Agrandir — ${eur(prix)} propre → +${Math.round(G.FINCA_UPGRADE_GAIN*100)} % de rendement</button>`;
+  }
+  else if (selection.type === "labo"){
+    const l = S.labos.find((x)=>x.id===selection.id); if(!l) return vider();
+    const pu = G.PURETES[l.purete];
+    t.textContent = l.nom;
+    s.innerHTML = `Niveau ${l.niveau}/${G.LABO_NIVEAU_MAX} · traite <b class="mono">${kg(G.laboCapacite(l))}/j</b> de pâte`+
+      `<br>Sortie ${kg(l.poudre)} / ${G.LABO_STOCK_MAX} kg` +
+      (l.rupture ? `<br><b class="neg">À sec de précurseurs — il faut du liquide.</b>` : "");
+    const prix = G.LABO_UPGRADE_PRIX[l.niveau];
+    b.innerHTML =
+      `<div class="elab">Pureté — le levier prix / trace</div><div class="chips">` +
+      Object.entries(G.PURETES).map(([k,v])=>
+        `<button class="chip${k===l.purete?" on":""}" data-a="purete" data-i="${l.id}" data-k="${k}">`+
+        `${v.nom} · ×${v.prix} prix · ×${v.trace} trace · ${v.ratio} kg pâte/kg</button>`).join("") + `</div>` +
+      (l.niveau >= G.LABO_NIVEAU_MAX ? "" :
+        `<button class="btn pri" style="margin-top:8px;width:100%" data-a="upLabo" data-i="${l.id}" ${S.propre<prix?"disabled":""}>Agrandir — ${eur(prix)} propre → +${Math.round(G.LABO_UPGRADE_GAIN*100)} % de capacité</button>`);
+  }
+  else if (selection.type === "punto"){
+    const d = G.PUNTOS[selection.id], sat = G.puntoSaturation(S, selection.id);
+    t.textContent = d.nom;
+    s.innerHTML = `${d.desc}<br>Prix <b class="mono">${eur(G.puntoPrix(S,selection.id))}/kg</b> (base ${eur(d.prix)})`+
+      `<br>Saturation <b class="mono ${sat>0.6?"neg":""}">${pct(sat)}</b> — capacité ${d.capacite} kg/j`+
+      `<div class="mini"><i style="width:${sat*100}%;background:var(--rust)"></i></div>`+
+      `<span class="wd">Un punto gorgé paie moins. Laisse-le respirer ou envoie ailleurs.</span>`;
+  }
+  else if (selection.type === "planque"){
+    const vol = G.volumeLiquide(S), cap = G.cacheCapacite(S);
+    t.textContent = "La planque";
+    s.innerHTML = `<b class="mono">${vol.toFixed(2)} / ${cap.toFixed(1)} m³</b> — ${eur(S.liquide)} en coupures`+
+      (vol>cap ? `<br><b class="neg">${(vol-cap).toFixed(2)} m³ dorment dehors : +${((vol-cap)*G.CHALEUR_EXPOSE).toFixed(0)} de chaleur visée.</b>`
+               : `<br><span class="wd">Le liquide est un volume. Quand il déborde, il chauffe.</span>`);
+    const prix = G.CACHE_PRIX[S.cacheNiveau+1];
+    b.innerHTML = S.cacheNiveau >= G.CACHE_NIVEAU_MAX
+      ? `<div class="wd">Planque au maximum.</div>`
+      : `<button class="btn pri" data-a="cache" ${S.propre<prix?"disabled":""}>Agrandir — ${eur(prix)} propre → +${G.CACHE_GAIN} m³</button>`;
+  }
+  else if (selection.type === "lessive"){
+    const r = G.rythmes(S);
+    t.textContent = "La lessive";
+    s.innerHTML = `Capacité <b class="mono">${eur(G.capaciteBlanchiment(S))}/j</b> · entrée sale <b class="mono">${eur(r.entreeSale)}/j</b>`+
+      `<br><span class="wd">Chaque front est unique : la lessive a un plafond, la production n'en a pas.</span>`;
+    b.innerHTML = `<button class="btn" data-a="tab" data-k="lessive">Ouvrir la lessive</button>`;
+  }
+  function vider(){ selection = null; }
+}
+
+function majStrip(){
+  const h = [`<div class="sect">Rutas — ordres permanents</div>`];
+  for (const r of S.rutas){
+    const m = G.MODES[r.mode], jours = G.rutaJoursAvantControle(S, r);
+    const susp = r.suspicion / G.SUSPICION_MAX;
+    const etat = r.bloquee ? `<span class="neg">bloquée</span>`
+      : !r.active ? `<span class="wd">à l'arrêt</span>`
+      : jours === Infinity ? `<span class="wd">stable</span>`
+      : `contrôle dans <b class="mono ${jours<2?"neg":jours<5?"warn":""}">${jours.toFixed(1)} j</b>`;
+    h.push(
+      `<button class="row${r.bloquee?" bad":""}" data-a="ruta" data-i="${r.id}">`+
+        `<span class="ic">${r.bloquee?"⛔":r.active?"🚚":"⏸"}</span>`+
+        `<span style="flex:1;min-width:0">`+
+          `<span class="nm">${esc(r.nom)}</span>`+
+          `<span class="ds">${m.nom} → ${G.PUNTOS[r.punto].nom} · ${kg(r.kgJour)}/j · escorte ${r.escorte}</span>`+
+          `<span class="mini"><i style="width:${susp*100}%;background:${susp>0.75?"var(--rust)":"var(--sodium)"}"></i></span>`+
+        `</span>`+
+        `<span class="rt">${etat}<br><span class="wd">susp. ${Math.round(r.suspicion)}</span></span>`+
+      `</button>`);
+  }
+  if (!S.rutas.length) h.push(`<div class="wd" style="padding:10px 2px">Aucune ruta. Ouvre-en une dans Réseau.</div>`);
+  $("#strip").innerHTML = h.join("");
+}
+
+/* ═══════ lessive ═══════ */
+function majLessive(){
+  const r = G.rythmes(S), cap = G.capaciteBlanchiment(S);
+  const surplus = r.entreeSale - cap;
+  const h = [];
+  h.push(`<div class="sect">Le robinet</div>`);
+  h.push(`<div style="padding:10px 11px;border-radius:12px;background:var(--surface2);border:1px solid var(--border)">`+
+    `Entrée sale <b class="mono">${eur(r.entreeSale)}/j</b> · lessive <b class="mono">${eur(cap)}/j</b><br>`+
+    (surplus > 0
+      ? `<b class="warn">Tu accumules ${eur(surplus)}/j</b> <span class="wd">— la planque se remplit, puis ça chauffe.</span>`
+      : `<b class="pos">La lessive suit.</b> <span class="wd">Le liquide reste au niveau de la réserve.</span>`)+
+    `<div class="wp">Plafond absolu, tous fronts confondus : <b class="mono">${eur(G.CAPACITE_BLANCHIMENT_MAX)}/j</b>. La production, elle, n'a pas de plafond.</div></div>`);
+
+  h.push(`<div class="sect">Réserve d'exploitation</div>`);
+  h.push(`<div style="padding:10px 11px;border-radius:12px;background:var(--surface);border:1px solid var(--border)">`+
+    `<span class="wd">Précurseurs, paysans, fret et mordidas se paient <b>en liquide</b>. Les fronts ne touchent jamais à cette réserve.</span>`+
+    `<div class="step"><button data-a="res" data-k="-1">−</button>`+
+    `<span class="v">${S.reserveJours} j = ${eur(G.reserveOperationnelle(S))}</span>`+
+    `<button data-a="res" data-k="1">+</button></div></div>`);
+
+  h.push(`<div class="sect">Fronts — un seul de chaque</div>`);
+  for (const f of S.fronts){
+    const d = G.FRONTS[f.type], sp = f.soupcon / G.SOUPCON_MAX;
+    const exces = f.blanchiJour - d.credibilite;
+    h.push(`<div class="row${f.gele?" bad":""}" style="display:block">`+
+      `<div style="display:flex;align-items:center;gap:9px">`+
+        `<span class="ic">${f.gele?"🧊":"🧼"}</span>`+
+        `<span style="flex:1"><span class="nm">${d.nom}</span>`+
+        `<span class="ds">${eur(f.blanchiJour)}/j blanchis · commission ${pct(d.commission)} · plausible jusqu'à ${eur(d.credibilite)}/j</span></span>`+
+      `</div>`+
+      `<div class="mini"><i style="width:${sp*100}%;background:${sp>0.7?"var(--rust)":"var(--sodium)"}"></i></div>`+
+      `<div class="elab" style="margin-top:4px">Soupçon fiscal ${Math.round(f.soupcon)} / 100 ${exces>0?`· <span class="warn">+${eur(exces)}/j au-dessus du plausible</span>`:""}</div>`+
+      (f.gele
+        ? `<button class="btn" style="width:100%;margin-top:8px" data-a="reveil" data-i="${f.id}" ${f.soupcon>0?"disabled":""}>${f.soupcon>0?`Réveiller (soupçon ${Math.round(f.soupcon)})`:"Réveiller le front"}</button>`
+        : `<div class="step"><button data-a="int" data-i="${f.id}" data-k="-0.2">−</button>`+
+          `<span class="v">Intensité ${Math.round(f.intensite*100)} %${f.intensite>1?" ⚠":""}</span>`+
+          `<button data-a="int" data-i="${f.id}" data-k="0.2">+</button></div>`)+
+      `</div>`);
+  }
+  const dispo = Object.entries(G.FRONTS).filter(([k])=> !S.fronts.some((f)=>f.type===k));
+  if (dispo.length){
+    h.push(`<div class="sect">À reprendre</div>`);
+    for (const [k,d] of dispo){
+      h.push(`<button class="row" data-a="front" data-k="${k}" ${S.propre<d.prix?"disabled":""}>`+
+        `<span class="ic">🏷️</span><span style="flex:1"><span class="nm">${d.nom}</span>`+
+        `<span class="ds">${eur(d.debit)}/j · commission ${pct(d.commission)} · plausible ${eur(d.credibilite)}/j</span></span>`+
+        `<span class="rt">${eur(d.prix)}<br><span class="wd">propre</span></span></button>`);
+    }
+  }
+  $("#v-lessive").innerHTML = h.join("");
+}
+
+/* ═══════ registre ═══════ */
+function majRegistre(){
+  const h = [`<div class="sect">Registre — une ligne par cause, par jour</div>`];
+  const jours = new Map();
+  for (const e of S.registre){
+    const j = Math.floor(e.jour);
+    if (!jours.has(j)) jours.set(j, []);
+    jours.get(j).push(e);
+  }
+  const cles = [...jours.keys()].sort((a,b)=>b-a).slice(0, 14);
+  if (!cles.length) h.push(`<div class="wd" style="padding:10px 2px">Rien encore.</div>`);
+  for (const j of cles){
+    h.push(`<div class="elab" style="margin:12px 0 4px">Jour ${j}</div>`);
+    const lignes = jours.get(j).slice().sort((a,b)=> (a.montant) - (b.montant));
+    for (const e of lignes){
+      h.push(`<div class="ledr"><span class="j">${e.champ==="propre"?"PRO":"LIQ"}</span>`+
+        `<span class="c">${esc(e.cause)}</span>`+
+        `<span class="m ${e.montant>=0?"pos":"neg"}">${sgn(e.montant)}</span></div>`);
+    }
+  }
+  h.push(`<div class="sect">Compteurs</div>`);
+  h.push(`<div style="padding:10px 11px;border-radius:12px;background:var(--surface);border:1px solid var(--border);font-size:12.5px;line-height:1.7">`+
+    `Propre cumulé <b class="mono pos">${eur(S.totaux.propreCumule)}</b><br>`+
+    `Exporté <b class="mono">${kg(S.totaux.exporteKg)}</b> · saisi <b class="mono neg">${kg(S.totaux.saisiKg)}</b><br>`+
+    `Mordidas payées <b class="mono">${S.totaux.mordidas}</b> · politiciens <b class="mono">${S.politiciens}/${G.POLITICIEN_MAX}</b><br>`+
+    `Pression militaire <b class="mono">${Math.round(S.pression)} / 100</b></div>`);
+  h.push(`<button class="btn dgr" style="width:100%;margin-top:16px" data-a="reset">Recommencer une partie</button>`);
+  $("#v-registre").innerHTML = h.join("");
+  luRegistre = S.registre.length;
+}
+
+/* ═══════ réseau ═══════ */
+function majReseau(){
+  const h = [];
+  h.push(`<div class="sect">Chaleur — le seul plafond dur</div>`);
+  const pp = G.politicienPrix(S);
+  h.push(`<div style="padding:10px 11px;border-radius:12px;background:var(--surface2);border:1px solid var(--border)">`+
+    `<span class="wd">Un juge acheté retire <b>${G.POLITICIEN_ABATTEMENT} points</b> de chaleur visée, à vie, contre ${eur(G.POLITICIEN_ENTRETIEN)}/j. Ça se paie <b>en liquide</b> — c'est à ça que sert d'en garder.</span>`+
+    `<button class="btn warn" style="width:100%;margin-top:8px" data-a="poli" ${S.politiciens>=G.POLITICIEN_MAX||S.liquide<pp?"disabled":""}>`+
+    (S.politiciens>=G.POLITICIEN_MAX?"Tout le monde est déjà payé":`Acheter un juge — ${eur(pp)} liquide (${S.politiciens}/${G.POLITICIEN_MAX})`)+`</button></div>`);
+
+  h.push(`<div class="sect">Fincas ${S.fincas.length}/${G.FINCA_MAX}</div>`);
+  for (const [k,z] of Object.entries(G.ZONES)){
+    if (z.prix === 0) continue;
+    const bloque = S.fincas.length >= G.FINCA_MAX;
+    h.push(`<button class="row" data-a="finca" data-k="${k}" ${bloque||S.propre<z.prix?"disabled":""}>`+
+      `<span class="ic">🌿</span><span style="flex:1"><span class="nm">Finca en ${z.nom}</span>`+
+      `<span class="ds">${kg(z.rendement)}/j de pâte · exposition ×${z.expo} · ${z.desc}</span></span>`+
+      `<span class="rt">${eur(z.prix)}<br><span class="wd">propre</span></span></button>`);
+  }
+  h.push(`<div class="sect">Labos ${S.labos.length}/${G.LABO_MAX}</div>`);
+  h.push(`<button class="row" data-a="labo" ${S.labos.length>=G.LABO_MAX||S.propre<G.LABO_PRIX?"disabled":""}>`+
+    `<span class="ic">⚗️</span><span style="flex:1"><span class="nm">Nouvelle cocina</span>`+
+    `<span class="ds">${kg(G.LABO_CAPACITE)}/j de pâte traitée</span></span>`+
+    `<span class="rt">${eur(G.LABO_PRIX)}<br><span class="wd">propre</span></span></button>`);
+
+  h.push(`<div class="sect">Rutas ${S.rutas.length}/${G.RUTA_MAX}</div>`);
+  if (S.rutas.length >= G.RUTA_MAX) h.push(`<div class="wd" style="padding:4px 2px">Plafond atteint — remplace plutôt un mode par un plus gros.</div>`);
+  for (const [k,m] of Object.entries(G.MODES)){
+    const bloque = S.rutas.length >= G.RUTA_MAX;
+    h.push(`<button class="row" data-a="ruta+" data-k="${k}" ${bloque||S.propre<m.prix?"disabled":""}>`+
+      `<span class="ic">${{mula:"🐴",camion:"🚚",avioneta:"🛩️",lancha:"🚤",tunel:"🕳️",contenedor:"🚢"}[k]}</span>`+
+      `<span style="flex:1"><span class="nm">${m.nom}</span>`+
+      `<span class="ds">${m.debit} kg/j · ${eur(m.cout)}/kg de fret · trace ×${m.trace} · ${pct(m.perte)} perdus si tu forces</span></span>`+
+      `<span class="rt">${m.prix?eur(m.prix):"—"}<br><span class="wd">${m.prix?"propre":"gratuit"}</span></span></button>`);
+  }
+  $("#v-reseau").innerHTML = h.join("");
+}
+
+/* ═══════ feuille du bas ═══════ */
+function ouvrirFeuille(html, force){
+  $("#sheet").innerHTML = (force ? "" : `<div class="grab"></div>`) + html;
+  $("#sheet").classList.add("on");
+  $("#scrim").classList.add("on");
+  $("#scrim").dataset.force = force ? "1" : "";
+}
+function fermerFeuille(){
+  $("#sheet").classList.remove("on");
+  $("#scrim").classList.remove("on");
+}
+function feuilleEvenement(){
+  const e = S.evenements[0];
+  if (!e) return;
+  if ($("#sheet").dataset.ev === String(e.titre) && $("#sheet").classList.contains("on")) return;
+  $("#sheet").dataset.ev = String(e.titre);
+  const opts = e.options.map((o)=>{
+    const cher = o.cout && S[o.devise] < o.cout;
+    return `<button class="opt" data-a="opt" data-k="${o.cle}" ${cher?"disabled":""}>`+
+      `<b>${esc(o.label)}${cher?" — pas assez de liquide":""}</b><span>${esc(o.detail)}</span></button>`;
+  }).join("");
+  ouvrirFeuille(`<div class="st">${esc(e.titre)}</div><div class="ss">${esc(e.texte)}</div>${opts}`, true);
+}
+function feuilleRuta(id){
+  const r = S.rutas.find((x)=>x.id===id); if(!r) return;
+  const m = G.MODES[r.mode], j = G.rutaJoursAvantControle(S, r);
+  ouvrirFeuille(
+    `<div class="st">${esc(r.nom)}</div>`+
+    `<div class="ss">${m.nom} · ${m.debit} kg/j · fret ${eur(m.cout)}/kg · trajet ${m.transit} j`+
+    `<br>Suspicion <b class="mono">${Math.round(r.suspicion)}/100</b>${j===Infinity?"":` — contrôle dans <b class="mono">${j.toFixed(1)} j</b>`}`+
+    `<br><span class="wd">La suspicion monte à chaque passage, pas à chaque kilo : monter en gabarit fait vraiment baisser la trace au kilo.</span></div>`+
+    `<div class="elab" style="margin-top:12px">Destination</div><div class="chips">`+
+    Object.entries(G.PUNTOS).map(([k,d])=>
+      `<button class="chip${k===r.punto?" on":""}" data-a="punto" data-i="${r.id}" data-k="${k}">${d.nom} · ${eur(G.puntoPrix(S,k))}/kg</button>`).join("")+
+    `</div>`+
+    `<div class="elab" style="margin-top:12px">Escorte — ${eur(G.ESCORTE_COUT_JOUR)}/j par sicario, trace ÷ ${(1+r.escorte*G.ESCORTE_ABATTEMENT).toFixed(2)}, mais des hommes armés se voient</div>`+
+    `<div class="step"><button data-a="esc" data-i="${r.id}" data-k="-1">−</button>`+
+    `<span class="v">${r.escorte} / ${G.ESCORTE_MAX}</span>`+
+    `<button data-a="esc" data-i="${r.id}" data-k="1">+</button></div>`+
+    `<div class="btnrow" style="margin-top:12px">`+
+    `<button class="btn ${r.active?"warn":"pri"}" data-a="bascule" data-i="${r.id}" ${r.bloquee?"disabled":""}>${r.active?"Mettre à l'arrêt":"Relancer"}</button>`+
+    `<button class="btn" data-a="close">Fermer</button></div>`);
+}
+function feuilleFin(){
+  if ($("#sheet").dataset.ev === "FIN") return;
+  $("#sheet").dataset.ev = "FIN";
+  ouvrirFeuille(`<div class="st">${esc(S.fini.titre)}</div><div class="ss">${esc(S.fini.texte)}</div>`+
+    `<button class="opt" data-a="reset"><b>Recommencer</b><span>Nouvelle partie, même pays.</span></button>`, true);
+}
+
+/* ═══════ toast ═══════ */
+let toastT = 0;
+function toast(t){
+  $("#toast").textContent = t;
+  $("#toast").classList.add("on");
+  clearTimeout(toastT);
+  toastT = setTimeout(()=>$("#toast").classList.remove("on"), 2200);
+}
+
+/* ═══════ ticker ═══════ */
+function majTicker(){
+  const der = S.registre.slice(-2).reverse();
+  $("#ticker").innerHTML = der.map((e)=>
+    `<div class="ledr"><span class="j">J${Math.floor(e.jour)}</span>`+
+    `<span class="c">${esc(e.cause)}</span>`+
+    `<span class="m ${e.montant>=0?"pos":"neg"}">${sgn(e.montant)}</span></div>`).join("")
+    || `<div class="ledr"><span class="c wd">Le registre se remplira au premier jour écoulé.</span></div>`;
+}
+
+/* ═══════ rendu global ═══════ */
+let dernierRendu = 0;
+function majTout(){
+  majHud();
+  const now = performance.now();
+  if (now - dernierRendu > 220){
+    dernierRendu = now;
+    if (onglet === "carte"){ dessinerCarte(); majCtx(); majStrip(); majTicker(); }
+    else if (onglet === "lessive") majLessive();
+    else if (onglet === "registre") majRegistre();
+    else if (onglet === "reseau") majReseau();
+    const nb = S.registre.length - luRegistre;
+    const t = document.querySelector('.tab[data-t="registre"]');
+    const b = t.querySelector(".bdg");
+    if (nb > 0 && onglet !== "registre"){
+      if (!b) t.insertAdjacentHTML("beforeend", `<span class="bdg">${Math.min(nb,99)}</span>`);
+      else b.textContent = Math.min(nb,99);
+    } else if (b) b.remove();
+    sauver();
+  }
+  if (S.fini) feuilleFin();
+  else if (S.evenements.length) feuilleEvenement();
+
+  while (S.notifs.length > derniereNotif){
+    const n = S.notifs[derniereNotif++];
+    if (S.jour - n.jour < 1.5) toast(n.texte);
+  }
+  if (S.notifs.length > 40){ S.notifs.splice(0, S.notifs.length - 40); derniereNotif = S.notifs.length; }
+}
+
+/* ═══════ entrées ═══════ */
+function choisirOnglet(t){
+  onglet = t;
+  document.querySelectorAll(".tab").forEach((b)=>b.classList.toggle("on", b.dataset.t === t));
+  document.querySelectorAll(".view").forEach((v)=>v.classList.toggle("on", v.id === "v-"+t));
+  $("#ticker").classList.toggle("hide", t !== "carte");
+  dernierRendu = 0;
+  majTout();
+}
+
+document.addEventListener("click", (ev)=>{
+  const b = ev.target.closest("button");
+  if (!b) return;
+
+  if (b.dataset.v !== undefined){ S.vitesse = +b.dataset.v;
+    document.querySelectorAll(".vb").forEach((x)=>x.classList.toggle("on", x===b)); return; }
+  if (b.dataset.t){ choisirOnglet(b.dataset.t); return; }
+  if (b.id === "segNet"){ whyOuvert = !whyOuvert; return; }
+  if (b.id === "segPropre" || b.id === "segSale"){ whyOuvert = true; return; }
+  if (b.dataset.n !== undefined){
+    const id = b.dataset.n === "punto" ? b.dataset.i
+      : (b.dataset.n === "planque" || b.dataset.n === "lessive") ? "" : +b.dataset.i;
+    selection = selEst(b.dataset.n, id) ? null : { type: b.dataset.n, id };
+    dernierRendu = 0; return;
+  }
+
+  const a = b.dataset.a, i = +b.dataset.i, k = b.dataset.k;
+  if (!a) return;
+  let ok = true;
+  switch(a){
+    case "opt": {
+      const r = G.resoudre(S, 0, k);
+      $("#sheet").dataset.ev = "";
+      if (r === null) toast("Impossible — vérifie le liquide."); else fermerFeuille();
+      break;
+    }
+    case "close": fermerFeuille(); break;
+    case "reset": recommencer(); return;
+    case "tab": choisirOnglet(k); return;
+    case "ruta": feuilleRuta(i); return;
+    case "upFinca": ok = G.ameliorerFinca(S, i); break;
+    case "upLabo":  ok = G.ameliorerLabo(S, i); break;
+    case "purete":  ok = G.reglerPurete(S, i, k); break;
+    case "cache":   ok = G.acheterCache(S); break;
+    case "finca":   ok = G.acheterFinca(S, k); break;
+    case "labo":    ok = G.acheterLabo(S); break;
+    case "ruta+":   ok = G.acheterRuta(S, k, "frontera"); break;
+    case "front":   ok = G.acheterFront(S, k); break;
+    case "poli":    ok = G.acheterPoliticien(S); break;
+    case "res":     ok = G.reglerReserve(S, S.reserveJours + (+k)); break;
+    case "int": {
+      const f = S.fronts.find((x)=>x.id===i);
+      ok = f ? G.reglerIntensite(S, i, Math.round((f.intensite + (+k)) * 10) / 10) : false;
+      break;
+    }
+    case "reveil":  ok = G.reveillerFront(S, i); break;
+    case "esc": {
+      const r = S.rutas.find((x)=>x.id===i);
+      ok = r ? G.reglerEscorte(S, i, r.escorte + (+k)) : false;
+      if (ok) feuilleRuta(i);
+      break;
+    }
+    case "punto":   ok = G.reglerPunto(S, i, k); if (ok) feuilleRuta(i); break;
+    case "bascule": ok = G.basculerRuta(S, i); if (ok) feuilleRuta(i); break;
+  }
+  if (!ok) toast("Pas les moyens, ou plafond atteint.");
+  dernierRendu = 0;
+  sauver(true);          // une décision du joueur ne se perd jamais
+  majTout();
+});
+
+$("#scrim").addEventListener("click", ()=>{ if (!$("#scrim").dataset.force) fermerFeuille(); });
+
+/* ═══════ intro ═══════ */
+if (!localStorage.getItem("patron_vu")){
+  localStorage.setItem("patron_vu", "1");
+  ouvrirFeuille(
+    `<div class="st">El Patrón</div>`+
+    `<div class="ss">Tu ne touches plus le produit. Tu décides <b>où il pousse</b>, <b>comment il sort</b>, et <b>où l'argent redevient propre</b>.`+
+    `<br><br><b>La chaîne :</b> finca → labo → ruta → punto d'export → liquide → lessive → propre.`+
+    `<br><br><b>Trois choses à savoir :</b>`+
+    `<br>• <b>Rien n'est tiré au sort.</b> Une ruta accumule de la suspicion à chaque passage ; à 100, le barrage tombe. Tu vois le compte à rebours — décide avant.`+
+    `<br>• <b>Le liquide est un volume.</b> Il paie les précurseurs, les paysans et les mordidas. Ce qui dépasse la planque dort dehors, et ça chauffe.`+
+    `<br>• <b>Le propre achète la capacité.</b> Mais il n'y a qu'un club de foot à racheter dans ce pays : la lessive a un plafond, la production non.`+
+    `</div>`+
+    `<button class="opt" data-a="close"><b>Prendre les affaires</b><span>La partie tourne déjà. ⏸ en haut à droite si tu veux réfléchir.</span></button>`);
+}
+
+// Les vitesses viennent de la sim (`VITESSES`) : une seule source, pas un « 3 »
+// recopié dans le HTML qui divergerait au premier réglage.
+const GLYPHE_VITESSE = { 0:"⏸", 1:"▶", 3:"⏩" };
+$("#vit").innerHTML = G.VITESSES.map((v)=>
+  `<button class="vb${v === S.vitesse ? " on" : ""}" data-v="${v}">${GLYPHE_VITESSE[v] || "×" + v}</button>`).join("");
+
+choisirOnglet("carte");
+requestAnimationFrame(boucle);
+</script>
+</body>
+</html>

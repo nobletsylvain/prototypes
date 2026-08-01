@@ -5,6 +5,7 @@ Petits prototypes de **core loops** jouables/testables dans le navigateur (mobil
 
 ```
 /index.html              ← hub (liste des core loops)
+/el-patron/           ← core loop "El Patrón" (cartel, échelle pays)
 /hash-slicer/         ← core loop "Hash Slicer"
 /green-front/         ← core loop "Green Front"
 /guitar-shito/        ← core loop "GuitarShito"
@@ -14,6 +15,46 @@ Petits prototypes de **core loops** jouables/testables dans le navigateur (mobil
 ```
 
 Hub en ligne : **https://nobletsylvain.github.io/prototypes/**
+
+## 🛻 El Patrón (core loop) — *le cartel à l'échelle du pays*
+
+Pendant **macro** de La Loupe : là où La Loupe tient un bloc à la main, El Patrón
+pilote un pays. **2D DOM/SVG, zéro dépendance, zéro CDN.** Design complet et
+tableau des reproches corrigés : **`el-patron/SCOPE.md`**.
+
+```
+FINCA ──► LABO ──► RUTA ──► PUNTO D'EXPORT ──► LIQUIDE ──► LESSIVE ──► PROPRE
+```
+
+**La thèse.** Le core loop de *Cartel Tycoon*, débarrassé de ce qui l'abîme.
+Quatre partis pris :
+
+- **Les rutas sont des ordres permanents.** On règle mode / destination /
+  escorte une fois, ça tourne. Le joueur édite une *politique*, jamais un trajet
+  — c'est le reproche n°1 fait au jeu d'origine (redonner l'ordre de convoi à la
+  main, indéfiniment).
+- **Rien n'est tiré au sort** (R4). La saisie n'est pas un dé : c'est une jauge
+  de **suspicion** qui monte à chaque passage et déclenche le barrage à 100, avec
+  le compte à rebours affiché en jours. On voit le contrôle arriver, on décide
+  avant.
+- **Deux monnaies qui ne font pas le même métier.** Le *liquide* (sale) paie les
+  précurseurs, les paysans, le fret et les mordidas ; le *propre* achète la
+  capacité. On fait tourner l'usine sur du sale, on ne grandit qu'avec du propre
+  — et le liquide est un **volume** qui déborde de la planque et qui chauffe.
+- **La chaleur fait MONTER le prix** (+10 %, +22 %, +38 % selon le palier) : un
+  corridor surveillé est un corridor où la marchandise se raréfie. Le meilleur
+  tarif du jeu est juste avant la falaise de l'extradition. Sans ça, tout tirait
+  vers le bas et la posture optimale devenait « en faire le moins possible ».
+
+**Architecture.** La sim est un module pur (`el-patron/sim.mjs`) : aucun DOM,
+aucun `Math.random`, aucune `Date`, toutes les constantes d'équilibrage nommées
+en tête. L'UI (`index.html`) ne calcule jamais d'économie, elle affiche.
+
+- En ligne : **https://nobletsylvain.github.io/prototypes/el-patron/**
+- En local : ouvrir `el-patron/index.html` **via un serveur** (les imports de
+  module ES sont interdits en `file://`), p. ex. `python3 -m http.server`.
+- Vérifier : `cd tools && node check.mjs el-patron && node invariants-patron.mjs`
+  puis `node shots-patron.mjs` (joue la page dans Chromium et capture les écrans).
 
 ## 🔦 Le Spot (core loop) — *tenir le point*
 
