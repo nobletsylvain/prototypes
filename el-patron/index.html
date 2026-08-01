@@ -649,6 +649,27 @@ function majRegistre(){
 /* ═══════ réseau ═══════ */
 function majReseau(){
   const h = [];
+
+  // LE GOULOT, ANNONCÉ AU MOMENT DE PAYER. Sans ça, la boutique vend « +55 % de
+  // rendement » à un joueur qui ne sait déjà plus blanchir ce qu'il produit : les
+  // améliorations de production sont continues et bon marché, les fronts sont
+  // rares et chers, donc l'argent fuit toujours par le bas de la grille et la
+  // lessive n'est jamais financée. Mesuré sur la partie de référence : 65 % du
+  // propre part en améliorations, 5 % en fronts, et le liquide finit à 7 m³.
+  const r = G.rythmes(S);
+  const manque = r.entreeSale - G.capaciteBlanchiment(S);
+  if (manque > 0) {
+    const suivant = Object.entries(G.FRONTS)
+      .filter(([k]) => !S.fronts.some((f) => f.type === k))
+      .sort((a, b) => a[1].prix - b[1].prix)[0];
+    h.push(`<div style="margin-top:12px;padding:10px 11px;border-radius:12px;background:rgba(232,163,61,.1);border:1px solid rgba(232,163,61,.45)">`+
+      `<b class="warn">Ton goulot n'est pas la production.</b><br>`+
+      `<span class="wd">Tu encaisses <b class="mono">${eur(manque)}/j</b> de plus que tu ne sais blanchir. `+
+      `Agrandir une finca ou un labo ne fera qu'accélérer le remplissage de la planque.`+
+      (suivant ? ` Le prochain front, <b>${suivant[1].nom}</b>, coûte <b class="mono">${eur(suivant[1].prix)}</b> et absorbe ${eur(suivant[1].debit)}/j.` : ` Tous les fronts sont déjà à toi : il faut pousser leur intensité, ou ralentir.`)+
+      `</span></div>`);
+  }
+
   h.push(`<div class="sect">Chaleur — le seul plafond dur</div>`);
   const pp = G.politicienPrix(S);
   h.push(`<div style="padding:10px 11px;border-radius:12px;background:var(--surface2);border:1px solid var(--border)">`+
