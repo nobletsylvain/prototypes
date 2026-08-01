@@ -9,6 +9,83 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-08-01 — `el-patron/` : le cartel à l'échelle du pays
+
+Nouveau core loop, demandé comme « le core loop de Cartel Tycoon sur mobile, en
+réparant leurs problèmes ». Chaîne : finca → labo → ruta → punto d'export →
+liquide → lessive → propre. C'est le pendant **macro** de La Loupe : là où La
+Loupe tient un bloc à la main, El Patrón pilote un pays. Détail complet et
+tableau des dix reproches corrigés dans `el-patron/SCOPE.md`.
+
+### Ce que la simulation a appris, dans l'ordre où ça a cassé
+
+J'ai écrit la sim avant l'UI et je l'ai fait tourner en `node` sur 220 jours
+simulés **avant** de dessiner un seul pixel. Quatre problèmes de conception sont
+sortis de là, dont aucun ne se serait vu à la lecture :
+
+1. **La spirale de la mort.** Les fronts blanchissaient jusqu'au dernier billet.
+   Or les précurseurs se paient en **sale** : à zéro liquide l'usine s'arrête,
+   donc plus d'export, donc plus de liquide — verrou définitif au jour ~12. D'où
+   la **réserve d'exploitation**, réglable en jours de charges, à laquelle les
+   fronts n'ont pas le droit de toucher. C'est devenu un levier de jeu, pas un
+   correctif : la mettre à zéro est un vrai (mauvais) choix.
+2. **La chaleur ne pouvait pas être additive.** De 4 kg/j à 1 000 kg/j il y a
+   deux ordres de grandeur ; toute chaleur linéaire est soit nulle au début soit
+   collée à 100 pour toujours. Remplacée par une **cible** saturante
+   `100·kg/(kg+K)` vers laquelle la chaleur tend. Bonus inattendu : la cible est
+   déjà la projection, donc le marqueur fantôme sur la jauge est gratuit — le
+   joueur voit où la chaleur *va*, pas seulement où elle est.
+3. **Le registre se noyait dans son propre bruit.** Une ligne par tick faisait
+   déborder le plafond en quelques secondes ; « pourquoi je perds de l'argent »
+   devenait illisible. Séparé en `tx()` (ponctuel, une décision → une ligne) et
+   `flux()` (continu, agrégé en **une ligne par jour et par cause**).
+4. **La suspicion se comptait en kilos.** Conséquence perverse : plus le
+   véhicule était gros, plus il était suicidaire — l'inverse de ce qu'on veut
+   d'un investissement. Elle se compte maintenant en **passages** : monter en
+   gabarit fait vraiment baisser la trace au kilo.
+
+### L'arbitrage qui a le plus changé le jeu
+
+Une relecture adverse a pointé que **tous les vecteurs tiraient vers le bas** —
+produire chauffe, stocker chauffe, grossir chauffe, blanchir prend une
+commission — donc la posture optimale devenait « en faire le moins possible ».
+C'est le contraire d'un jeu de cartel.
+
+Correctif d'une seule constante : **la chaleur fait monter le prix** (×1.10,
+×1.22, ×1.38 selon le palier) parce qu'un corridor surveillé est un corridor où
+la marchandise se raréfie — puis s'effondre à ×0.70 à l'extradition. Le meilleur
+tarif du jeu est désormais **juste avant la falaise**. Sur 220 jours simulés, la
+partie de référence passe de 30,5 M€ à 48 M€ propres, et la chaleur se stabilise
+en « Opération » au lieu de fuir vers le bas.
+
+### Conformité aux règles du dépôt
+
+- **R4 (déterminisme)** est le pivot du proto, pas une contrainte subie : la
+  saisie n'est pas un dé, c'est une **jauge de suspicion** qui monte à chaque
+  passage et déclenche le barrage à 100, avec le compte à rebours affiché en
+  jours. C'est exactement le reproche n°7 fait à Cartel Tycoon (trahisons
+  aléatoires et rétroactives) retourné en mécanique lisible.
+- **R7 (automatiser la satisfaction épuisée, jamais la décision vivante)** : les
+  rutas sont des ordres permanents ; le joueur édite une politique, jamais un
+  trajet.
+- **R3 (le tactile EST le plaisir) n'est PAS honoré**, volontairement — voir
+  `[DÉCISION REQUISE]` n°1 dans `el-patron/SCOPE.md`. La fantaisie macro est de
+  *piloter*, pas de *faire*. C'est un écart assumé à une règle du dépôt et il
+  revient à Sylvain de le valider ou de demander un geste signature (le meilleur
+  candidat étant la mordida en maintien).
+
+### Outillage
+
+`tools/invariants-patron.mjs` — 26 invariants sans navigateur (déterminisme,
+bornes, cause obligatoire, agrégation du registre, plafonds, anti-blocage,
+fin de partie atteignable). Deux d'entre eux ont attrapé de vrais défauts
+pendant l'écriture. `tools/shots-patron.mjs` sert le dépôt en HTTP (les imports
+de module ES sont interdits en `file://`, donc `screenshots.mjs` ne pouvait pas
+servir ce proto), joue la page, résout les événements et échoue sur la moindre
+erreur console.
+
+---
+
 ## 2026-07-28 — Le marché, récolté sur `darkweb-market/`
 
 Sylvain : « Regarde le proto onion market. Il contient déjà énormément de bonnes choses. »
