@@ -9,6 +9,73 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-08-01 — `la-plaza/` : le PvP économique, testé et **invalidé**
+
+Après El Patrón, Sylvain a ouvert une autre exploration : mobile F2P multijoueur,
+cartels formés à plusieurs, attaques façon Clash of Clans. J'avais avancé une
+idée pour éviter le reskin : **dans CoC on attaque pour voler un stock ; dans un
+cartel on devrait attaquer pour prendre un débit** — une plaza, un couloir. Le
+perdant continue de produire, et il te paie.
+
+`la-plaza/` teste cette idée seule, sans rien d'autre : la chaîne d'El Patrón est
+retirée (production abstraite, une monnaie), il reste trois cartels, trois
+sorties, et un curseur d'allocation.
+
+### Le verdict : non
+
+```
+économie vivante        ✅   59,0 M€ pour la meilleure ligne
+course disputée         ✅   16/66 des allocations finissent 1res
+défaite atteignable     ❌   0/66 tombent
+haut de tableau varié   ❌   les 8 meilleures misent toutes sur la même plaza
+réagir vaut le coup     ❌   meilleur adaptatif 52,9 M€ contre 59,0 M€ figé
+```
+
+Trois choses, toutes mesurées, aucune ressentie :
+
+- **La destination se choisit une fois.** Une seule plaza rafle le haut du
+  tableau — c'est une énigme qu'on résout, pas une décision qu'on reprend.
+- **Réagir perd contre s'engager**, et pour une raison structurelle : tenir une
+  plaza demande 45 % de part *soutenue*. Qui réalloue sans cesse ne franchit
+  jamais le seuil, ne touche jamais de péage, et en paie toujours.
+- **Le péage ne rentre presque pas** : 721 k€ versés contre 124 k€ encaissés en
+  partie réelle. Un rival rationnel **contourne** la plaza qu'on taxe. Tenir
+  n'est pas une rente, c'est un refus de terrain.
+
+La cause commune tient en une phrase : **les trois sorties sont des substituts
+parfaits**. Rien ne coûte à un rival taxé d'aller ailleurs le lendemain. Trois
+pistes pour sauver la thèse — coût de bascule, capacités serrées, plazas non
+substituables — détaillées dans `la-plaza/SCOPE.md` §5. La première est une
+constante, et le banc rendra son verdict en une minute.
+
+### Ce que le banc a attrapé, y compris sur lui-même
+
+Quatre défauts sortis du balayage, dont **deux dans le test** :
+
+1. Le monopole était récompensé deux fois (aucun péage à verser, et une plaza non
+   disputée reste froide) → d'où `CHALEUR_DOMINANCE`, « l'État frappe le plus
+   bruyant », qui est aussi l'anti-snowball d'un futur multijoueur.
+2. **Erreur dimensionnelle** : la saturation comparait un *stock* (~8,7 jours de
+   volume mémorisé) à un *débit* (capacité en kg/jour). Le plafond à 100 %
+   masquait le bug ; en l'ôtant, la saturation partait à ×20 et l'économie
+   mourait.
+3. Les rivaux ne grandissaient pas : 66/66 des allocations finissaient premières.
+4. **Le verdict lui-même a menti deux fois.** Il a d'abord crié victoire sur une
+   économie morte (tout le monde à zéro, donc « personne ne domine »), puis
+   comparé le 1er au 2e alors que c'était la même stratégie à 10 points près.
+   Leçon retenue : un test d'équilibrage doit vérifier que **le jeu est jouable**
+   avant de conclure quoi que ce soit sur la dominance, et mesurer la
+   **diversité** du haut de tableau plutôt qu'un écart entre voisins.
+
+### Écart de méthode assumé
+
+« La gourmandise coûte-t-elle ? » a d'abord été écrit comme un *invariant*. C'est
+faux : c'est une question d'**équilibrage**, elle dépend de constantes que
+Sylvain doit régler, et un test rouge sur un réglage finit toujours désactivé.
+Elle est mesurée par `balance-plaza.mjs`, pas par `invariants-plaza.mjs`.
+
+---
+
 ## 2026-08-01 — `el-patron/` : le cartel à l'échelle du pays
 
 Nouveau core loop, demandé comme « le core loop de Cartel Tycoon sur mobile, en
