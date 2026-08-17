@@ -746,7 +746,7 @@ const TRAITS = {
   recherche:    { nom: "Recherché", bon: false, d: "La gendarmerie a sa photo : +1,2 de signature en permanence.", sig: 1.2 },
   bricoleur:    { nom: "Bricoleur", bon: true, d: "Répare seul : les pannes se résorbent toutes seules.", repare: true },
   meneur:       { nom: "Meneur", bon: true, d: "+1,2 de moral pour tout le monde.", meneurs: 1.2 },
-  rancunier:    { nom: "Rancunier", bon: false, d: "N'oublie rien. Les mauvais choix lui restent en travers.", rancune: true },
+  rancunier:    { nom: "Rancunier", bon: false, d: "N'oublie rien : chaque personne perdue lui coûte 18 de moral, et il ne s'en remet pas vite.", rancune: 18 },
   gourmand:     { nom: "Gros mangeur", bon: false, d: "Mange 60 % de plus.", faim: 1.6 },
 };
 const TRAIT_KEYS = Object.keys(TRAITS);
@@ -869,7 +869,7 @@ function nouvellePartie(graine) {
   const rSol = SOL[cSom];
   const exc = [
     { id: 1, c: cSom, r: rSol, w: 2, h: 5, t: 0, key: "galerie", reg: 2 },
-    { id: 2, c: cSom - 3, r: rSol + 5, w: 5, h: 3, t: 0, key: "dortoir", reg: 2 },
+    { id: 2, c: cSom - 3, r: rSol + 5, w: 4, h: 2, t: 0, key: "dortoir", reg: 2 },
   ];
 
   const colons = [];
@@ -883,7 +883,7 @@ function nouvellePartie(graine) {
   return {
     ver: SAVE_VERSION, graine: g,
     t: 0, jour: 1, speed: 1, gameover: null,
-    res: { energie: 0, air: 0, eau: 30, vivres: 30, matos: 90, cash: 14 },
+    res: { energie: 0, air: 0, eau: 30, vivres: 30, matos: 70, cash: 14 },
     tas: 0,                       // déblais empilés en surface (visibles !)
     soupcon: 4,
     exc, nextExc: 3, nextColon: 4, colons,
@@ -1185,6 +1185,7 @@ function step(dt) {
   for (const c of [...S.colons]) {
     if (!c.dehors && (c.bout || 0) >= 25) {
       S.colons = S.colons.filter((x) => x.id !== c.id);
+      deuil(c);
       const bav = aTrait(c, "bavard") ? 15 : 9;
       S.soupcon = clamp(S.soupcon + bav, 0, 100);
       toast(c.nom + " a repris le chemin. Il parlera.", "bad");
@@ -1454,6 +1455,7 @@ function resoudreOp(o) {
   if (rate && equipe[0]) {
     const perdu = equipe[0];
     S.colons = S.colons.filter((c) => c.id !== perdu.id);
+    deuil(perdu);
     S.soupcon = clamp(S.soupcon + 14, 0, 100);
     toast(perdu.nom + " ne rentre pas. Ils l'ont eu.", "bad");
     journal(perdu.nom + " est tombé pendant : " + d.nom);
@@ -1470,6 +1472,16 @@ function resoudreOp(o) {
     sfx("good");
   }
   dirty = true; majTout();
+}
+
+// Perdre quelqu'un pèse sur ceux qui restent — et beaucoup plus sur un rancunier.
+function deuil(parti) {
+  for (const c of S.colons) {
+    const r = TRAITS[c.traits.find((k) => TRAITS[k].rancune) || ""];
+    const perte = r ? r.rancune : 5;
+    c.moral = clamp(c.moral - perte, 0, 100);
+    if (r) journal(c.nom + " n'a pas digéré le départ de " + parti.nom + ".");
+  }
 }
 
 function ajouterColon(nom) {
