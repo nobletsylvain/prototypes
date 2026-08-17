@@ -9,6 +9,80 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-08-17 — La Colline Creuse : nouveau core loop (colonie souterraine)
+
+Nouveau proto `colline-creuse/`, à partir d'un dessin d'enfance de Sylvain
+(bases souterraines sous une colline, cachées du monde extérieur). Colonie
+sim / city builder en **coupe verticale**, inspirations assumées **Fallout
+Shelter** + **Evil Genius**. Cadrage validé avec lui avant de coder :
+rendu **stylo bille**, **les quatre axes de tension** (survie, secret, façade,
+puissance sur l'extérieur), **temps réel avec pauses**.
+
+Les quatre axes sont emboîtés, pas juxtaposés : la survie est le sol, le
+secret la colonne vertébrale, la façade le levier qui l'atténue, les
+opérations extérieures ce qu'on achète avec son secret (et le seul robinet de
+matos au départ — rester terré ne suffit pas).
+
+- **Rendu** : SVG généré, aucun asset, aucun CDN. Traits tremblés par bruit
+  seedé (`mulberry32`) → la colline a toujours le même tracé. Le grain de
+  papier est une tuile `feTurbulence` en `background-image`, posée PAR-DESSUS
+  toute l'interface (en `multiply`) pour que le HUD et la coupe soient sur la
+  même feuille — en couche de fond, le HUD ressortait plus clair que la coupe.
+- **Un bonhomme = 3 poses de membres superposées** (pas gauche / pas droit /
+  repos), on change laquelle est visible. La marche ne redessine jamais un
+  trait — seule la position est mise à jour par image.
+- **Piège SVG** : `var(--hand)` dans un attribut `font-family` ne résout pas.
+  Le texte de la coupe est stylé par CSS (`#scene .rlbl`), pas par attributs.
+
+### Ce que la simulation a trouvé (et que l'intuition n'avait pas vu)
+
+`tools/sim-colline.mjs` joue 4 stratégies (naïf / prudent / pillard /
+équilibré) en headless via une sonde `?debug` qui expose le moteur. Trois
+défauts structurels sortis dès la première exécution, tous corrigés :
+
+- **Spirale de la mort par l'énergie.** Le manque de courant bridait *tout* au
+  prorata, y compris la pompe à eau → plus d'eau → moral à zéro → départs →
+  encore moins de production. Remplacé par un **délestage par priorité** (façon
+  Fallout Shelter) : le courant descend dans un ordre fixe et s'arrête là où il
+  n'y en a plus. On coupe l'atelier, jamais la pompe. Lisible *et* non spiralant.
+- **La panne pouvait bloquer une partie.** L'option « laisser tourner » coupait
+  le groupe électrogène définitivement, sans issue visible si on n'avait plus
+  de matos. Elle le met maintenant **en panne** (moitié de production, 1,7× de
+  signature), réparable depuis la salle — ce que le texte de l'évènement
+  promettait déjà.
+- **Asphyxie dès la minute 0.** L'air manquait avant qu'une ventilation soit
+  payable. Ajout d'un tirage naturel par le puits (`airTrappe`), qui suffit
+  tant qu'on reste haut et peu nombreux : l'air devient un problème quand on
+  descend, pas à l'ouverture.
+
+### Reprises de la passe de conception (plugins gamedev)
+
+- **L'exposition par rangée** est une table écrite sur le bouton *avant*
+  l'achat (×1,45 en haut → ×0,45 en bas), pas une formule invisible.
+- **La barre de soupçon est tapable** → décomposition poste par poste. Un raid
+  doit toujours être explicable en une phrase ; c'est le test à faire au
+  téléphone.
+- **Salle repérée** : un survol raté entoure la salle au stylo rouge, +60 % de
+  signature définitivement, seul le rebouchage l'efface.
+- **Régime de travail par salle** (éteinte / ralenti / normal / poussée) : le
+  dilemme secret-vs-production posé salle par salle, et de la texture pendant
+  les temps de latence.
+- Rejeté : les paliers indexés sur le matos cumulé dépensé (deadlock d'amorçage
+  démontré par les critiques), et la contrainte « zéro scroll / 5 rangées » —
+  la coupe scrolle, comme Fallout Shelter, et c'est ce qui donne le vertige de
+  la profondeur.
+
+### Reste ouvert
+
+- Personne n'a encore gagné en simulation : le bot d'équilibrage plafonne à
+  ~9 colons sur les 10 requis (il sur-construit les puits et ne staffe pas ses
+  ventilations). `test-colline.mjs` prouve qu'un état autonome **déclenche**
+  bien la victoire ; reste à vérifier au doigt qu'un humain y arrive en
+  20-30 min. **C'est la question du premier playtest.**
+- Polices manuscrites : Bradley Hand / Noteworthy existent sur iOS, rien
+  d'équivalent garanti sur Android ou en headless (repli sans-serif). À voir
+  sur le téléphone de Sylvain.
+
 ## 2026-07-20 — La Loupe : pains discrets, réserve sélectionnable, fin du « couper dans le vide »
 
 Retours de test tel (screenshot) sur l'écran de coupe : pas de restant visible

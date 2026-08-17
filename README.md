@@ -25,6 +25,75 @@ Prototypes de vérification du fun pour **Airliner** (tycoon aérien "Football M
 
 > Desktop d'abord (colonnes 60/40, repli une colonne < ~860 px). RNG seedé — « Rejouer même seed » pour itérer à l'identique.
 
+## ⛰️ La Colline Creuse (core loop)
+
+Colonie souterraine **en coupe verticale**, dessinée **au stylo bille sur du
+papier** — tout le rendu est du SVG généré avec un bruit seedé (même partie =
+même tremblement de main). HTML/CSS/JS vanilla, **zéro dépendance, zéro
+requête réseau**. Mobile-first portrait.
+
+Inspirations assumées : **Fallout Shelter** (salles en coupe, colons affectés
+aux postes, ressources, incidents) et **Evil Genius** (repaire caché, façade
+de surface, jauge de chaleur).
+
+**Le pitch :** vous creusez sous une colline une colonie que le monde extérieur
+ne doit pas soupçonner. Tout ce qui fait vivre la colonie finit par se voir de
+dehors — et plus vous grandissez, plus vous êtes détectable.
+
+**Les quatre tensions, emboîtées :**
+
+1. **La survie** — ⚡ énergie, 🌬️ air, 💧 eau, 🍲 vivres, 🔩 matos. Quand le
+   courant manque, il n'est pas rationné : il **descend dans l'ordre et
+   s'arrête là où il n'y en a plus**. La pompe et la ventilation passent avant
+   l'atelier et la salle commune.
+2. **Le secret** — chaque salle allumée émet une *signature*. Le monde en
+   tolère une certaine dose ; au-delà, le **soupçon** monte. La barre de
+   soupçon est **tapable** : elle ouvre le détail poste par poste (« Groupe
+   électrogène +6,4 · rangée 2 ×1,2 »), pour qu'un raid soit toujours
+   explicable en une phrase.
+3. **La façade** — rucher, scierie, chantier de fouilles : elle augmente ce que
+   le monde tolère, rapporte du liquide, ouvre l'achat légal au village… et
+   peut être contrôlée.
+4. **La puissance sur l'extérieur** — sorties d'équipe (ferraille, dépôt,
+   recrutement, brouiller les pistes). C'est le seul robinet de matos au
+   départ : **rester terré ne suffit pas**.
+
+**Les décisions qui comptent :**
+
+- **Où creuser.** L'exposition est écrite sur le bouton *avant* l'achat :
+  rangée 1 ×1,45, rangée 8 ×0,45. La même salle est trois fois plus visible
+  sous la pelouse qu'à quarante mètres — mais creuser profond coûte plus cher.
+- **Le régime de chaque salle** (éteinte / au ralenti / normal / poussée) :
+  produire plus, c'est se voir plus, et user les gens.
+- **Le silence radio.** Quand un appareil approche, un compte à rebours
+  s'affiche : tout couper, ou parier. Rater le survol fait **entourer au stylo
+  rouge** la salle repérée — elle reste 60 % plus visible jusqu'à ce qu'on la
+  rebouche.
+- **Nourrir la colonie** : acheter au village (propre, cher, il faut une
+  façade), marauder (gratuit, gros volume, ça se voit), ou cultiver (serre :
+  énergie + eau, et ça chauffe).
+
+**Objectif de session :** l'autonomie — 10 colons, tous les bilans positifs
+tenus une minute, sans que la colline ait été trouvée. **Défaite :** la
+descente (soupçon à 100) ou la colonie vidée.
+
+Persistance `localStorage` préfixée `colline_` (`SAVE_VERSION`).
+Sons WebAudio synthétisés, aucun fichier.
+
+### Jouer
+
+- En ligne : **https://nobletsylvain.github.io/prototypes/colline-creuse/**
+- En local : ouvrir `colline-creuse/index.html` — aucune connexion requise.
+
+### Outils
+
+```bash
+cd tools && npm install
+node shots-colline.mjs --full   # captures
+node test-colline.mjs           # persistance · objectif · délestage · tenue
+node sim-colline.mjs            # équilibrage : 4 stratégies jouées 15 min
+```
+
 ## 🟫 Hash Slicer (core loop)
 
 Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) chargé via CDN, un seul fichier `index.html`). Reskin humoristique d'un jeu de découpe/revente : chaîne de production en 3 niveaux, du gros au détail.
