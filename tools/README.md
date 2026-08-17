@@ -45,6 +45,18 @@ bilans). Sans ce paramètre, rien n'est exposé. C'est ce qui permet de jouer
 30 minutes en deux secondes et de lire la trajectoire des stocks, du soupçon
 et du moral — au lieu d'équilibrer à l'intuition.
 
+## La Colline Creuse v2 (bac à sable)
+
+```bash
+node test-colline2.mjs   # graine · persistance · creusement · déblais · tenue
+node dig-colline2.mjs    # simule de VRAIS drags au doigt (mouse down/move/up)
+node shots-colline2.mjs  # captures
+```
+
+`dig-colline2.mjs` est le seul moyen fiable de vérifier le creusement au doigt
+sans téléphone : il convertit des coordonnées de cellules en pixels écran et
+rejoue le geste complet, aperçu compris.
+
 ## Mettre à jour Three.js vendoré
 
 Si la version dans l'import-map de `index.html` change, remplacer

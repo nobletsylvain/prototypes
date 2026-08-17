@@ -9,6 +9,53 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-08-17 — La Colline Creuse v2 : bac à sable, sous-sol généré, creusement au doigt
+
+Retour de Sylvain sur la v1 : « en mode sandbox à la RimWorld, avec génération
+procédurale, et l'intérêt du joueur venant à construire leur propre histoire.
+Pourquoi pas tracer les salles au doigt ? Possibilité de commencer via un
+village ou une ville ? » Les trois idées se tiennent, donc fork `colline-creuse-v2/`
+(convention du dépôt : `green-front-v2`, `hash-slicer-v2`) — la v1 reste jouable
+comme point de comparaison, c'est elle le jeu « serré », la v2 est le bac à sable.
+
+- **Le creusement au doigt marche, et c'est le bon geste.** Drag = rectangle
+  snappé sur une grille de 13 unités, avec le coût en direct sous le doigt.
+  Le mode « Creuser » met `touch-action:none` sur la coupe (sinon le drag se
+  bat avec le défilement) et la coupe suit le doigt quand il approche du bas :
+  on peut descendre en creusant sans sortir du mode.
+- **Le contour d'un seul trait** est ce qui fait le rendu : on collecte les
+  arêtes entre creusé et non-creusé (orientées, donc elles forment des boucles
+  fermées), on les chaîne, et chaque boucle devient UN chemin tremblé. 34
+  espaces = 229 tracés, aucune image ratée. Les trous internes sont gérés
+  gratuitement par l'algorithme.
+- **Deux verbes valent mieux qu'un** : creuser un espace brut, puis l'aménager.
+  Ça rend la TAILLE du trou décisive (un poste par tranche de 4 cellules) et ça
+  laisse le joueur creuser en avance sans savoir encore ce qu'il y mettra.
+- **Les déblais sont la trouvaille.** Ils n'existaient pas en v1 parce que la
+  grille fixe ne connaissait pas le volume. Là, tout ce qu'on sort finit en tas
+  DESSINÉ en surface, qui grossit, en rouge, avec son cube — et qui compte dans
+  la signature. C'est le lien direct entre « je creuse » et « on va me trouver ».
+- **Bugs trouvés par les tests, pas par l'œil** : (1) on ne pouvait pas
+  enchaîner deux creusements, parce que l'accroche testait les cellules
+  *terminées* et pas le front de taille en cours — deux ensembles distincts
+  maintenant (`creuse()` pour le vide dessiné, `ouvert()` pour l'accroche) ;
+  (2) le bruit des limites de couches était tiré indépendamment par colonne →
+  dents de scie de 300 px ; il faut le lisser (4 passes de moyenne glissante)
+  pour obtenir de la géologie plutôt que des montagnes.
+- **Piège de tooling** : mon utilitaire de remplacement de sections calculait
+  les bornes UNE fois pour tout le fichier ; au deuxième remplacement les
+  offsets étaient périmés et coupaient le code en plein milieu. Recalculer à
+  chaque appel. (Le `node --check` l'a attrapé tout de suite.)
+- **Piège de test** : `localStorage.clear()` puis `reload()` ne donne pas une
+  partie neuve — le handler `pagehide` re-sauvegarde l'état juste avant de
+  décharger. Passer par `CC.reset(graine)` à la place.
+
+Ce qui reste à faire (la spec de conception v2 tournait encore quand on a livré) :
+narrateur qui pèse vraiment l'état, relations entre colons, habitants nommés du
+village, partie qui commence DEPUIS le village. Et il faut le tester au pouce :
+tout le reste est de la conjecture tant que ça n'a pas été joué sur un vrai
+téléphone.
+
 ## 2026-08-17 — La Colline Creuse : nouveau core loop (colonie souterraine)
 
 Nouveau proto `colline-creuse/`, à partir d'un dessin d'enfance de Sylvain

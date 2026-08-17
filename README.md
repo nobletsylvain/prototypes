@@ -94,6 +94,44 @@ node test-colline.mjs           # persistance · objectif · délestage · tenue
 node sim-colline.mjs            # équilibrage : 4 stratégies jouées 15 min
 ```
 
+### ⛏️ La Colline Creuse v2 (fork bac à sable)
+
+`colline-creuse-v2/` reprend la v1 et la retourne en **bac à sable façon RimWorld** :
+la colline n'est plus une grille d'emplacements, c'est **une colline générée** qu'on
+creuse au doigt. Trois changements de nature :
+
+- **Le sous-sol est procédural et se lit.** Une graine génère le profil du terrain et
+  six couches (terre, limon, argile, calcaire, marne, granite), chacune avec sa dureté,
+  son motif de hachures et son coût. Puis des accidents : **nappe phréatique**,
+  **cavités**, **ancienne carrière**, **décharges enfouies**, **blocs erratiques**.
+  Les couches se voient de loin (c'est de la géologie) ; **les accidents ne se
+  découvrent qu'à la pioche**, dans un rayon de deux cellules autour de ce qu'on a
+  creusé. Même graine = même colline, à la cellule près.
+- **On trace ses salles au doigt.** Mode « Creuser », puis un drag trace un rectangle.
+  Sous le doigt s'affiche en direct ce que ça coûte : `4×2 dans argile · 7 matos ·
+  11,8 s · 8 m³ à sortir · 101 de roche au-dessus → exposition ×1`. L'union de tout ce
+  qui est creusé est dessinée **d'un seul trait de stylo continu** (contour suivi par
+  chaînage d'arêtes). Deux verbes : **creuser** un espace brut, puis **l'aménager** —
+  et c'est **la taille de l'espace qui décide de la capacité** (un poste par tranche
+  de 4 cellules).
+- **Les déblais.** Chaque mètre cube sorti de la colline finit quelque part. Le tas
+  derrière la grange **grossit à l'écran** et pèse directement dans la signature :
+  c'est historiquement ce qui fait repérer les souterrains. Quatre façons de s'en
+  débarrasser (le laisser, reboucher une cavité, épandre de nuit, le vendre comme
+  remblai au village), chacune avec son coût en temps, en gens et en discrétion.
+
+Le reste suit : **exposition continue** (l'épaisseur de roche au-dessus de chaque salle,
+pas un numéro de rangée), **village procédural** en surface (hameau → petite ville : ce
+qui change le marché, le recrutement, la fréquence des évènements et ce que le monde
+tolère), **colons à traits** (Taupe, Claustrophobe, Bavard, Recherché, Ancien mineur…)
+qui pèsent sur le jeu *et* sur les histoires, et **pas de condition de victoire** — des
+**jalons** qui se posent dans le cahier (L'eau, Le fond, Muet, Rien qui dépasse, L'oubli).
+
+```bash
+cd tools && node test-colline2.mjs   # graine · persistance · creusement · déblais · tenue
+cd tools && node dig-colline2.mjs    # simule de vrais drags au doigt et capture
+```
+
 ## 🟫 Hash Slicer (core loop)
 
 Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) chargé via CDN, un seul fichier `index.html`). Reskin humoristique d'un jeu de découpe/revente : chaîne de production en 3 niveaux, du gros au détail.
