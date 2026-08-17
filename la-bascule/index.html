@@ -284,10 +284,11 @@
       <div class="ring mine" id="ring-mine"><div class="inner"><span class="ph">+ TOI</span></div></div>
       <div class="cap">Ta vitrine</div>
     </div>
-    <div class="story"><div class="ring seen"><div class="inner">🏪</div></div><div class="cap">Le Comptoir</div></div>
-    <div class="story"><div class="ring seen"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
-    <div class="story"><div class="ring"><div class="inner">🌃</div></div><div class="cap"><span class="live">● ARRIVAGE</span></div></div>
-    <div class="story"><div class="ring seen"><div class="inner">🚬</div></div><div class="cap">La Ruelle</div></div>
+    <div class="story" data-story="comptoir"><div class="ring seen"><div class="inner">🏪</div></div><div class="cap">Le Comptoir</div></div>
+    <div class="story" data-story="campus"><div class="ring"><div class="inner">🎓</div></div><div class="cap">Le Campus</div></div>
+    <div class="story" data-story="arrivage"><div class="ring"><div class="inner">🌃</div></div><div class="cap"><span class="live">● ARRIVAGE</span></div></div>
+    <div class="story" data-story="ruelle"><div class="ring seen"><div class="inner">🚬</div></div><div class="cap">La Ruelle</div></div>
+    <div class="story" data-story="momo"><div class="ring"><div class="inner">💀</div></div><div class="cap">Momo</div></div>
   </div>
 
   <!-- corps : accueil (liste) OU fil -->
@@ -334,12 +335,15 @@
       <span class="ico">📦</span>
       <span class="txt">VIDÉO 9:16 — ta came, grain de nuit<br>(générée hors-ligne → bakée .mp4)</span>
       <div class="vcap">
-        <div class="big">fraîchement coupé 🔥💨</div>
+        <div class="big" id="viewer-cap">fraîchement coupé 🔥💨</div>
         <div class="sub" id="viewer-views">— vu par 🔥 •••• (opaque)</div>
       </div>
       <div class="vreply"><span>Répondre…</span><span class="emojis">❄️ 🌿 💸</span></div>
     </div>
   </div>
+
+  <!-- viewer des stories NPC (ambiance) — peuple depuis STORIES, tap = slide suivante -->
+  <div class="viewer" id="npcviewer"></div>
 
   <!-- toast / coach -->
   <div class="toast" id="toast"></div>
@@ -668,14 +672,99 @@ els.postBtn.addEventListener("click", () => {
   els.scompose.classList.remove("show");
   els.ringMine.classList.remove("ready"); els.ringMine.classList.add("seen");
   els.viewer.classList.add("show");
-  els.viewerViews.textContent = state.qualite === "A"
-    ? "— vu par 🔥🔥 ••••• (opaque)" : "— vu par 🔥 ••• (opaque)";
+  const v = VITRINE[state.qualite === "A" ? "A" : "C"];
+  $("viewer-cap").textContent = v.caption;
+  els.viewerViews.textContent = v.views;
 });
 els.viewer.addEventListener("click", () => {
   if (!pendingStory) return;
   els.viewer.classList.remove("show");
   const cb = pendingStory; pendingStory = null; cb();
 });
+
+/* =========================================================================
+   STORIES D'AMBIANCE (NPC) — les "fake stories" du quartier.
+   Purement cosmetique : enrichit le decor, n'affecte pas la simu scriptee.
+   Schema par slide : { ts, clip, caption, views, emojis } (cf. STORIES_PROMPT.md).
+   Les vues restent OPAQUES (invariant CrimWorld) : jamais de chiffre exact.
+   ========================================================================= */
+const STORIES = {
+  comptoir: { nm:"Le Comptoir", av:"🏪", slides:[
+    { ts:"il y a 12 min", clip:"STORY 9:16 — Comptoir tabac nuit néons, grain TV",
+      caption:"Prix qui montent sec 💸🔥", views:"— Vu par tout le quartier (opaque)", emojis:["👀","💸","🥶"],
+      prompt:"Vertical 9:16 night shot of a French banlieue tabac counter, flickering neon signs, cigarette packs and price tags in foreground, heavy TV grain and film noise, moody purple and blue lighting, no faces or text, gritty urban atmosphere." },
+  ]},
+  campus: { nm:"Le Campus", av:"🎓", slides:[
+    { ts:"il y a 28 min", clip:"STORY 9:16 — Résidence étudiante nuit, néons verts",
+      caption:"Examens = demande qui flambe ❄️", views:"— Vu par la cité étudiante (opaque)", emojis:["🔥","🌿","💸"],
+      prompt:"Vertical 9:16 video of a French suburban student dorm at night, green neon glow on windows, scattered study notes and energy drinks on a desk, subtle TV grain effect, cold moody lighting, no people or readable text." },
+  ]},
+  arrivage: { nm:"Arrivage", av:"🌃", slides:[
+    { ts:"LIVE", clip:"STORY 9:16 — Sac qui tombe du scooter, néons ruelle",
+      caption:"Gros arrivage vient de tomber 🔥", views:"— Tout le quartier est dessus (opaque)", emojis:["👀","🔥","🌿"],
+      prompt:"Dynamic vertical 9:16 live-style clip of a duffel bag dropped in a dark banlieue alley at night, scooter headlights, neon reflections on wet ground, heavy film grain, urgent movement, no faces, cinematic tension." },
+  ]},
+  ruelle: { nm:"La Ruelle", av:"🚬", slides:[
+    { ts:"il y a 7 min", clip:"STORY 9:16 — Coin de rue sombre, néons rouges",
+      caption:"La concurrence veille 👀", views:"— Les corners sont chauds (opaque)", emojis:["💀","🥶","🔥"],
+      prompt:"Vertical 9:16 gritty night shot of a narrow banlieue alley corner, red neon signs reflecting on pavement, scattered cigarette butts, subtle shadows, heavy TV grain, tense atmosphere, no people." },
+  ]},
+  momo: { nm:"Momo", av:"💀", slides:[
+    { ts:"il y a 41 min", clip:"STORY 9:16 — Montre en or sous néon, grain sale",
+      caption:"La dette elle attend pas 💀", views:"— Message privé du quartier (opaque)", emojis:["💀","💸","🥶"],
+      prompt:"Close-up vertical 9:16 of a gold watch and chain under harsh neon light in dark room, subtle cash stacks in shadow, heavy film grain and noise, menacing moody vibe, no faces or logos." },
+  ]},
+};
+
+/* Vitrine du joueur : 2 variantes selon la qualité de coupe (cf. Grok vitrine_A/_C). */
+const VITRINE = {
+  A: { caption:"Qualité propre, discrète A ❄️", views:"— Vu par les vrais (opaque)" },
+  C: { caption:"Ça part vite, volume max 🔥",   views:"— Vu par les pressés (opaque)" },
+};
+
+const npcViewer = $("npcviewer");
+let curStory = null;   // { key, slides, idx }
+
+function renderStorySlide(){
+  const { slides, idx, key } = curStory;
+  const s = slides[idx];
+  const meta = STORIES[key];
+  const segs = slides.map((_, i) =>
+    `<span class="${i===idx?"on":""}"><b style="width:${i<idx?"100%":"0"}"></b></span>`).join("");
+  npcViewer.innerHTML =
+    `<div class="vclip">`+
+      `<div class="progress">${segs}</div>`+
+      `<div class="vhdr"><div class="av">${meta.av}</div><div>`+
+        `<div class="nm">${meta.nm}</div><div class="tm">${s.ts}</div></div></div>`+
+      `<div class="badge">CLIP IA · placeholder</div>`+
+      `<span class="ico">📦</span>`+
+      `<span class="txt">${s.clip}</span>`+
+      `<div class="vcap"><div class="big">${s.caption}</div>`+
+        `<div class="sub">${s.views}</div></div>`+
+      `<div class="vreply"><span>Répondre…</span>`+
+        `<span class="emojis">${s.emojis.join(" ")}</span></div>`+
+    `</div>`;
+}
+
+function openStory(key){
+  if (!STORIES[key]) return;
+  curStory = { key, slides: STORIES[key].slides, idx:0 };
+  renderStorySlide();
+  npcViewer.classList.add("show");
+}
+
+function advanceStory(){
+  if (!curStory) return;
+  if (curStory.idx < curStory.slides.length - 1){ curStory.idx++; renderStorySlide(); return; }
+  npcViewer.classList.remove("show");                       // derniere slide -> ferme
+  const ring = document.querySelector(`.story[data-story="${curStory.key}"] .ring`);
+  if (ring) ring.classList.add("seen");                     // marque la story comme vue
+  curStory = null;
+}
+
+npcViewer.addEventListener("click", advanceStory);
+document.querySelectorAll(".story[data-story]").forEach((el) =>
+  el.addEventListener("click", () => openStory(el.dataset.story)));
 
 /* Tap global = accelerer la frappe en cours. */
 els.body.addEventListener("click", () => { if (fastFwd) fastFwd(); });

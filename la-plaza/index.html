@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>La Plaza — trois cartels, trois sorties</title>
+<style>
+:root{
+  --bg:#0E0D0C; --surface:#1A1714; --surface2:#221E1A; --border:#352E28;
+  --text:#E4DED5; --muted:#8C837B; --faint:#615951;
+  --sodium:#E8A33D; --neon:#3E7CC2; --rust:#C8442F; --green:#7FA37F;
+  --propre:#9BE37D; --chaud:#FF8A6A;
+  --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none;}
+html,body{height:100%;overflow:hidden;
+  font:400 15px/1.4 -apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);background:var(--bg);}
+body{touch-action:manipulation;}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
+.hide{display:none!important;}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+.elab{font-size:9.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--faint);}
+.sect{font-size:10.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;
+  color:rgba(255,255,255,.4);margin:15px 0 7px;}
+.pos{color:var(--propre);} .neg{color:var(--chaud);} .warn{color:var(--sodium);}
+.wd{font-size:11px;color:var(--muted);line-height:1.4;}
+
+#app{position:fixed;inset:0;display:flex;flex-direction:column;max-width:460px;margin:0 auto;
+  background:var(--bg);border-left:1px solid var(--border);border-right:1px solid var(--border);}
+
+#hud{flex:none;padding:max(6px,env(safe-area-inset-top)) 12px 7px;
+  background:linear-gradient(#171412,#110F0D);border-bottom:1px solid var(--border);}
+#top{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.brand{font-weight:900;font-size:11px;letter-spacing:1.4px;color:var(--sodium);}
+#jour{font-size:11px;color:var(--muted);margin-left:auto;}
+.vit{display:flex;gap:3px;}
+.vb{width:30px;height:24px;border-radius:7px;font-size:12px;font-weight:800;
+  background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--muted);}
+.vb.on{background:rgba(62,124,194,.25);border-color:rgba(62,124,194,.6);color:#A8D5FF;}
+#money{display:flex;gap:6px;}
+.seg{flex:1;min-width:0;text-align:left;padding:5px 7px;border-radius:9px;
+  background:var(--surface);border:1px solid var(--border);}
+.seg .k{display:block;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--faint);}
+.seg b{display:block;font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:15px;font-weight:800;letter-spacing:-.3px;}
+.seg i{display:block;font-family:var(--mono);font-size:9.5px;font-style:normal;color:var(--muted);}
+#why{margin-top:6px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);padding:8px 10px;}
+.wl{display:flex;gap:7px;align-items:flex-start;padding:4px 0;font-size:12px;line-height:1.35;}
+.wl+.wl{border-top:1px solid rgba(255,255,255,.06);}
+
+#heatwrap{margin-top:7px;}
+#heatrow{display:flex;align-items:baseline;gap:6px;font-size:10px;}
+#heatname{font-weight:800;letter-spacing:.4px;}
+#heatnum{margin-left:auto;font-family:var(--mono);font-weight:800;}
+.gbar{position:relative;height:10px;border-radius:5px;background:rgba(255,255,255,.09);margin-top:4px;}
+.gclip{position:absolute;inset:0;border-radius:5px;overflow:hidden;}
+.gfill{position:absolute;inset:0 auto 0 0;border-radius:5px;transition:width .25s linear;
+  background:linear-gradient(90deg,#7FA37F,#E8A33D 48%,#C8442F 82%);}
+.thr{position:absolute;top:-2px;bottom:-2px;width:2px;background:rgba(255,255,255,.4);}
+.ghost{position:absolute;top:-4px;bottom:-4px;width:2px;background:#fff;opacity:.85;transition:left .3s linear;}
+.ghost::after{content:"";position:absolute;top:-3px;left:-3px;width:8px;height:8px;border-radius:50%;background:#fff;}
+
+#body{flex:1;position:relative;overflow:hidden;}
+.view{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:0 12px 16px;opacity:0;pointer-events:none;transition:opacity .18s;}
+.view.on{opacity:1;pointer-events:auto;}
+
+/* la carte des plazas */
+.plaza{margin-top:9px;padding:11px 12px;border-radius:14px;
+  background:var(--surface);border:1px solid var(--border);}
+.plaza.mienne{border-color:rgba(232,163,61,.6);background:rgba(232,163,61,.07);}
+.plaza.rivale{border-color:rgba(200,68,47,.45);}
+.ptop{display:flex;align-items:baseline;gap:8px;}
+.pnom{font-weight:800;font-size:14.5px;}
+.pprix{margin-left:auto;font-family:var(--mono);font-weight:800;font-size:14px;}
+.ptag{font-size:9.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;
+  padding:2px 7px;border-radius:999px;}
+.ptag.mienne{background:rgba(232,163,61,.2);color:var(--sodium);}
+.ptag.rivale{background:rgba(200,68,47,.2);color:#FF9E8C;}
+.ptag.libre{background:rgba(255,255,255,.08);color:var(--muted);}
+
+/* la barre de contrôle : trois parts + le seuil à 45 % */
+.ctrl{position:relative;height:12px;border-radius:6px;overflow:hidden;margin-top:8px;
+  background:rgba(255,255,255,.07);display:flex;}
+.ctrl i{height:100%;transition:width .3s;}
+.seuil{position:absolute;top:-3px;bottom:-3px;width:2px;background:#fff;opacity:.75;}
+.legend{display:flex;gap:10px;margin-top:5px;font-size:10px;color:var(--muted);}
+.legend b{font-family:var(--mono);}
+.dot{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:3px;vertical-align:middle;}
+
+.step{display:flex;align-items:center;gap:8px;margin-top:9px;}
+.step button{width:44px;height:44px;border-radius:11px;font-size:19px;font-weight:800;
+  background:rgba(255,255,255,.07);border:1px solid var(--border);}
+.step button:active{transform:scale(.95);}
+.step button[disabled]{opacity:.3;}
+.step .v{flex:1;text-align:center;font-family:var(--mono);font-weight:800;font-size:14px;}
+
+.row{display:flex;align-items:center;gap:9px;padding:9px 11px;margin-top:7px;border-radius:12px;
+  background:var(--surface);border:1px solid var(--border);width:100%;text-align:left;}
+.row .ic{font-size:19px;width:26px;text-align:center;flex:none;}
+.row .nm{font-weight:800;font-size:13px;}
+.row .ds{font-size:11px;color:var(--muted);margin-top:1px;line-height:1.35;}
+.row .rt{margin-left:auto;text-align:right;flex:none;font-family:var(--mono);font-size:11.5px;}
+.row[disabled]{opacity:.4;}
+.btn{border-radius:11px;padding:10px 12px;font-weight:800;font-size:12.5px;text-align:center;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);width:100%;}
+.btn.warn{background:rgba(232,163,61,.16);border-color:rgba(232,163,61,.45);color:var(--sodium);}
+.btn.dgr{background:rgba(200,68,47,.16);border-color:rgba(200,68,47,.5);color:#FF9E8C;}
+.btn[disabled]{opacity:.35;}
+.mini{position:relative;height:5px;border-radius:3px;background:rgba(255,255,255,.09);margin-top:6px;overflow:hidden;}
+.mini i{position:absolute;inset:0 auto 0 0;border-radius:3px;}
+
+.ledr{display:flex;gap:8px;padding:6px 0;font-size:11.5px;align-items:baseline;
+  border-bottom:1px solid rgba(255,255,255,.05);}
+.ledr .j{font-family:var(--mono);color:var(--faint);font-size:10px;flex:none;width:30px;}
+.ledr .c{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);}
+.ledr .m{font-family:var(--mono);font-weight:700;flex:none;}
+
+#tabs{flex:none;display:flex;border-top:1px solid var(--border);background:#0B0A09;
+  padding-bottom:env(safe-area-inset-bottom);}
+.tab{flex:1;height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;font-size:10px;font-weight:700;color:var(--faint);}
+.tab em{font-size:18px;font-style:normal;}
+.tab.on{color:var(--sodium);}
+
+#scrim{position:fixed;inset:0;background:rgba(4,3,2,.75);backdrop-filter:blur(3px);
+  opacity:0;pointer-events:none;transition:opacity .2s;z-index:40;}
+#scrim.on{opacity:1;pointer-events:auto;}
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;max-width:460px;margin:0 auto;
+  background:var(--surface);border:1px solid var(--border);border-radius:20px 20px 0 0;
+  padding:14px 14px calc(16px + env(safe-area-inset-bottom));
+  transform:translateY(101%);transition:transform .24s cubic-bezier(.2,.8,.3,1);max-height:84%;overflow-y:auto;}
+#sheet.on{transform:translateY(0);}
+.st{font-weight:900;font-size:17px;}
+.ss{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.5;}
+.opt{display:block;width:100%;text-align:left;margin-top:10px;padding:12px 13px;border-radius:13px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);}
+.opt b{display:block;font-size:13.5px;font-weight:800;}
+.opt span{display:block;font-size:11.5px;color:var(--muted);margin-top:3px;}
+#toast{position:fixed;left:50%;bottom:96px;transform:translate(-50%,14px);z-index:60;
+  background:#241F1A;border:1px solid var(--border);border-radius:11px;padding:9px 14px;
+  font-size:12.5px;font-weight:600;opacity:0;transition:.22s;pointer-events:none;max-width:88%;}
+#toast.on{opacity:1;transform:translate(-50%,0);}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <div id="top">
+      <span class="brand">LA PLAZA</span>
+      <span id="jour" class="mono">J0</span>
+      <div class="vit" id="vit"></div>
+    </div>
+    <div id="money">
+      <button class="seg" id="segCash"><span class="k">Caisse</span><b>—</b><i>—</i></button>
+      <button class="seg" id="segNet"><span class="k">Net / jour ⌄</span><b>—</b><i>—</i></button>
+      <button class="seg" id="segRang"><span class="k">Rang</span><b>—</b><i>—</i></button>
+    </div>
+    <div id="why" class="hide"></div>
+    <div id="heatwrap">
+      <div id="heatrow">
+        <span class="elab">Chaleur</span><span id="heatname"></span><span id="heatnum"></span>
+      </div>
+      <div class="gbar">
+        <div class="gclip"><div class="gfill" id="heatfill" style="width:0%"></div></div>
+        <div id="heatthr"></div>
+        <div class="ghost" id="heatghost" style="left:0%"></div>
+      </div>
+    </div>
+  </header>
+
+  <main id="body">
+    <section class="view on" id="v-plazas"></section>
+    <section class="view" id="v-rivaux"></section>
+    <section class="view" id="v-registre"></section>
+    <section class="view" id="v-reseau"></section>
+  </main>
+
+  <nav id="tabs">
+    <button class="tab on" data-t="plazas"><em>🚩</em>Plazas</button>
+    <button class="tab" data-t="rivaux"><em>🎭</em>Rivaux</button>
+    <button class="tab" data-t="registre"><em>📒</em>Registre</button>
+    <button class="tab" data-t="reseau"><em>🤝</em>Réseau</button>
+  </nav>
+</div>
+
+<div id="scrim"></div>
+<div id="sheet"></div>
+<div id="toast"></div>
+
+<script type="module">
+import * as G from "./sim.mjs";
+
+const CLE = "plaza_save", CLE_VER = "plaza_ver";
+let S = charger();
+function charger(){
+  try{
+    if (+localStorage.getItem(CLE_VER) !== G.SAVE_VERSION) localStorage.removeItem(CLE);
+    const b = localStorage.getItem(CLE);
+    if (b){ const s = JSON.parse(b); if (s && s.version === G.SAVE_VERSION){ s._flux = Object.create(null); s.notifs = s.notifs||[]; return s; } }
+  }catch(e){}
+  return G.nouvelEtat();
+}
+let dernierSauve = 0;
+function sauver(force){
+  const t = performance.now();
+  if (!force && t - dernierSauve < 2000) return;
+  dernierSauve = t;
+  try{
+    localStorage.setItem(CLE_VER, String(G.SAVE_VERSION));
+    localStorage.setItem(CLE, JSON.stringify(S, (k,v)=> k==="_flux" ? undefined : v));
+  }catch(e){}
+}
+function recommencer(){
+  localStorage.removeItem(CLE);
+  S = G.nouvelEtat();
+  whyOuvert = false;
+  document.querySelectorAll(".vb").forEach((x)=>x.classList.toggle("on", +x.dataset.v === S.vitesse));
+  fermerFeuille(); $("#sheet").dataset.ev = ""; choisirOnglet("plazas");
+}
+
+const $ = (s)=>document.querySelector(s);
+const eur = G.fmtEuro, kg = G.fmtKg;
+const sgn = (n)=> (n>=0?"+":"−")+eur(Math.abs(n));
+const esc = (s)=> String(s).replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+let onglet = "plazas", whyOuvert = false;
+
+/* ═══════ boucle ═══════ */
+let precedent = performance.now(), reste = 0;
+function boucle(now){
+  const dtms = Math.min(now - precedent, 1000);
+  precedent = now;
+  if (!S.fini && S.vitesse > 0){
+    reste += dtms * S.vitesse;
+    let n = 0;
+    while (reste >= G.TICK_MS && n++ < 40){ G.tick(S, G.TICK_MS * G.JOUR_PAR_MS); reste -= G.TICK_MS; }
+  }
+  majTout();
+  requestAnimationFrame(boucle);
+}
+
+/* ═══════ bandeau ═══════ */
+function majHud(){
+  const r = G.rythmes(S);
+  $("#jour").textContent = `J${Math.floor(S.jour)}/${G.SAISON_JOURS}`;
+  const c = $("#segCash");
+  c.querySelector("b").textContent = eur(S.cash);
+  c.querySelector("b").className = "pos";
+  c.querySelector("i").textContent = kg(G.production(S)) + "/j produits";
+
+  const n = $("#segNet");
+  n.querySelector("b").textContent = sgn(r.net);
+  n.querySelector("b").className = r.net >= 0 ? "pos" : "neg";
+  n.querySelector("i").textContent = r.peaje > 0 ? `dont −${eur(r.peaje)} de péage` : (r.recu > 0 ? `dont +${eur(r.recu)} de péage` : "aucun péage");
+  n.querySelector(".k").textContent = "Net / jour " + (whyOuvert ? "⌃" : "⌄");
+
+  const cl = G.classementFinal(S);
+  const rang = cl.findIndex((x)=>x.f==="joueur") + 1;
+  const rg = $("#segRang");
+  rg.querySelector("b").textContent = rang + "ᵉ / 3";
+  rg.querySelector("b").className = rang === 1 ? "pos" : rang === 3 ? "neg" : "warn";
+  rg.querySelector("i").textContent = "1er : " + eur(cl[0].cash);
+
+  $("#why").classList.toggle("hide", !whyOuvert);
+  if (whyOuvert) majWhy(r);
+
+  const p = G.palier(S.chaleur);
+  $("#heatname").textContent = p.nom;
+  $("#heatname").style.color = S.chaleur >= 82 ? "var(--rust)" : S.chaleur >= 58 ? "var(--sodium)" : "var(--green)";
+  $("#heatnum").textContent = Math.round(S.chaleur) + " / 100";
+  $("#heatfill").style.width = S.chaleur + "%";
+  $("#heatghost").style.left = S.chaleurCible + "%";
+  if (!$("#heatthr").dataset.fait){
+    $("#heatthr").innerHTML = G.PALIERS.slice(1).map((q)=>`<div class="thr" style="left:${q.seuil}%"></div>`).join("");
+    $("#heatthr").dataset.fait = "1";
+  }
+}
+function majWhy(r){
+  const d = G.diagnostics(S).slice(0,3);
+  const lignes = [
+    `<div class="wl"><span class="mono pos">${sgn(r.brut)}</span><span>Export brut<div class="wd">${kg(G.production(S))}/j répartis sur tes trois curseurs.</div></span></div>`,
+    r.peaje > 0 ? `<div class="wl"><span class="mono neg">${sgn(-r.peaje)}</span><span>Péage versé aux rivaux<div class="wd">Tu passes par des plazas que tu ne tiens pas.</div></span></div>` : "",
+    r.recu > 0 ? `<div class="wl"><span class="mono pos">${sgn(r.recu)}</span><span>Péage encaissé<div class="wd">Les rivaux passent par une plaza que tu tiens.</div></span></div>` : "",
+    `<div class="wl"><span class="mono neg">${sgn(-r.charges)}</span><span>Production et avocats<div class="wd">${eur(G.production(S)*G.COUT_PAR_KG)}/j de production · ${eur(S.avocats*G.AVOCAT_ENTRETIEN)}/j d'avocats.</div></span></div>`,
+    `<div class="wl"><span class="mono warn">${Math.round(G.dominance(S)*100)} %</span><span>Ta part du corridor<div class="wd">L'État frappe le plus bruyant : ça te coûte ${Math.round(G.dominance(S)*G.CHALEUR_DOMINANCE)} points de chaleur visée.</div></span></div>`,
+  ].filter(Boolean).join("");
+  const diag = d.map((x)=>`<div class="wl"><span class="mono ${x.ton==="mal"?"neg":x.ton==="bien"?"pos":"warn"}">${x.ton==="mal"?"✕":x.ton==="bien"?"✓":"!"}</span><span>${esc(x.texte)}<div class="wd">${esc(x.detail)}</div></span></div>`).join("");
+  $("#why").innerHTML = lignes + diag;
+}
+
+/* ═══════ les plazas ═══════ */
+function majPlazas(){
+  const h = [`<div class="sect">Trois sorties, trois cartels</div>`,
+    `<div class="wd" style="padding:0 2px">Tes 100 points de production se répartissent ici. Tenir une plaza demande <b>${Math.round(G.SEUIL_CONTROLE*100)} %</b> du volume qui y passe — et donne <b>${Math.round(G.PEAJE_PART*100)} %</b> de ce que les autres y font passer.</div>`];
+
+  for (const cle of G.CLES_PUNTO){
+    const d = G.PUNTOS[cle], p = S.puntos[cle];
+    const t = G.tenant(p), sat = G.saturation(S, cle);
+    const alloc = S.allocation[cle] || 0;
+    const classe = t === "joueur" ? " mienne" : t ? " rivale" : "";
+    const tag = t === "joueur" ? `<span class="ptag mienne">à toi</span>`
+      : t ? `<span class="ptag rivale">${G.FACTIONS[t].court}</span>`
+      : `<span class="ptag libre">disputée</span>`;
+    const parts = G.TOUS.map((f)=>({ f, v: G.part(p, f) }));
+
+    h.push(`<div class="plaza${classe}">
+      <div class="ptop"><span>${d.emo}</span><span class="pnom">${esc(d.nom)}</span>${tag}
+        <span class="pprix">${eur(G.prixNet(S, cle, "joueur"))}<span style="font-size:10px;color:var(--muted)">/kg</span></span></div>
+      <div class="wd" style="margin-top:3px">${esc(d.desc)}</div>
+      <div class="ctrl">
+        ${parts.map((x)=>`<i style="width:${x.v*100}%;background:${G.FACTIONS[x.f].couleur}"></i>`).join("")}
+        <div class="seuil" style="left:${G.SEUIL_CONTROLE*100}%"></div>
+      </div>
+      <div class="legend">
+        ${parts.map((x)=>`<span><span class="dot" style="background:${G.FACTIONS[x.f].couleur}"></span>${G.FACTIONS[x.f].court} <b>${Math.round(x.v*100)}%</b></span>`).join("")}
+      </div>
+      <div class="legend" style="margin-top:6px">
+        <span>Débit <b>${kg(G.debit(S,cle))}/j</b> / ${d.capacite}</span>
+        <span>Tension <b class="${p.tension>55?"neg":p.tension>25?"warn":""}">${Math.round(p.tension)}</b></span>
+        ${sat>1?`<span class="neg">déborde ×${sat.toFixed(1)}</span>`:""}
+      </div>
+      <div class="step">
+        <button data-a="alloc" data-k="${cle}" data-d="-10" ${alloc<=0?"disabled":""}>−</button>
+        <span class="v">${alloc} %</span>
+        <button data-a="alloc" data-k="${cle}" data-d="10" ${alloc>=100?"disabled":""}>+</button>
+      </div>
+    </div>`);
+  }
+  $("#v-plazas").innerHTML = h.join("");
+}
+
+/* ═══════ les rivaux ═══════ */
+function majRivaux(){
+  const h = [`<div class="sect">Les deux autres</div>`,
+    `<div class="wd" style="padding:0 2px">Leur politique est écrite, et elle ne change pas. Rien n'est tiré au sort : tu peux prévoir où ils vont aller.</div>`];
+  for (const f of G.RIVAUX){
+    const r = S.rivaux[f], F = G.FACTIONS[f];
+    h.push(`<div class="plaza" style="border-color:${F.couleur}55">
+      <div class="ptop"><span class="dot" style="background:${F.couleur};width:10px;height:10px"></span>
+        <span class="pnom">${esc(F.nom)}</span>
+        <span class="pprix">${eur(r.cash)}</span></div>
+      <div class="wd" style="margin-top:5px">« ${esc(F.devise)} »</div>
+      <div class="legend" style="margin-top:8px">
+        <span>Produit <b>${kg(r.production)}/j</b></span>
+        <span>Palier <b>${r.palier}/${G.PRODUCTION_MAX}</b></span>
+      </div>
+      <div class="legend" style="margin-top:4px">
+        <span>Va en ce moment vers <b style="color:${F.couleur}">${esc(G.PUNTOS[r.cible].nom)}</b></span>
+      </div>
+    </div>`);
+  }
+  h.push(`<div class="sect">Ta part du corridor</div>`);
+  const dom = G.dominance(S);
+  h.push(`<div class="plaza"><div class="wd">L'État ne compte pas tes kilos : il compte ta <b>part</b>. Plus tu domines le corridor, plus tu es la cible prioritaire.</div>
+    <div class="mini"><i style="width:${dom*100}%;background:${dom>0.5?"var(--rust)":"var(--sodium)"}"></i></div>
+    <div class="legend" style="margin-top:5px"><span>Toi <b>${Math.round(dom*100)} %</b></span>
+    <span>Coût en chaleur visée <b class="${dom>0.5?"neg":""}">+${Math.round(dom*G.CHALEUR_DOMINANCE)}</b></span></div></div>`);
+  $("#v-rivaux").innerHTML = h.join("");
+}
+
+/* ═══════ registre ═══════ */
+function majRegistre(){
+  const h = [`<div class="sect">Registre — une ligne par cause, par jour</div>`];
+  const jours = new Map();
+  for (const e of S.registre){
+    const j = Math.floor(e.jour);
+    if (!jours.has(j)) jours.set(j, []);
+    jours.get(j).push(e);
+  }
+  const cles = [...jours.keys()].sort((a,b)=>b-a).slice(0,12);
+  if (!cles.length) h.push(`<div class="wd" style="padding:8px 2px">Rien encore.</div>`);
+  for (const j of cles){
+    h.push(`<div class="elab" style="margin:12px 0 4px">Jour ${j}</div>`);
+    for (const e of jours.get(j).slice().sort((a,b)=>a.montant-b.montant)){
+      h.push(`<div class="ledr"><span class="j">${e.montant>=0?"+":"−"}</span><span class="c">${esc(e.cause)}</span>
+        <span class="m ${e.montant>=0?"pos":"neg"}">${sgn(e.montant)}</span></div>`);
+    }
+  }
+  h.push(`<div class="sect">Compteurs</div>`);
+  h.push(`<div class="plaza" style="font-size:12.5px;line-height:1.8">
+    Exporté <b class="mono">${kg(S.totaux.exporteKg)}</b><br>
+    Péage versé <b class="mono neg">${eur(S.totaux.peajePaye)}</b> · encaissé <b class="mono pos">${eur(S.totaux.peajeRecu)}</b><br>
+    Gagné en tout <b class="mono">${eur(S.totaux.gagne)}</b></div>`);
+  h.push(`<button class="btn dgr" style="margin-top:16px" data-a="reset">Recommencer la saison</button>`);
+  $("#v-registre").innerHTML = h.join("");
+}
+
+/* ═══════ réseau ═══════ */
+function majReseau(){
+  const h = [`<div class="sect">Production ${S.palierProduction}/${G.PRODUCTION_MAX}</div>`];
+  if (S.palierProduction >= G.PRODUCTION_MAX){
+    h.push(`<div class="wd" style="padding:4px 2px">Palier maximum : ${kg(G.production(S))}/j.</div>`);
+  } else {
+    const prix = G.PRODUCTION_PALIERS[S.palierProduction];
+    const apres = G.PRODUCTION_BASE * Math.pow(1 + G.PRODUCTION_GAIN, S.palierProduction);
+    h.push(`<button class="row" data-a="prod" ${S.cash<prix?"disabled":""}>
+      <span class="ic">🏭</span><span style="flex:1"><span class="nm">Monter d'un palier</span>
+      <span class="ds">${kg(G.production(S))}/j → ${kg(apres)}/j · mais produire plus, c'est peser plus lourd dans le corridor</span></span>
+      <span class="rt">${eur(prix)}</span></button>`);
+  }
+  h.push(`<div class="sect">Avocats ${S.avocats}/${G.AVOCAT_MAX}</div>`);
+  const pa = G.avocatPrix(S);
+  h.push(`<button class="row" data-a="avocat" ${S.avocats>=G.AVOCAT_MAX||S.cash<pa?"disabled":""}>
+    <span class="ic">⚖️</span><span style="flex:1"><span class="nm">Un avocat de plus</span>
+    <span class="ds">−${G.AVOCAT_ABATTEMENT} points de chaleur visée, à vie · ${eur(G.AVOCAT_ENTRETIEN)}/j d'entretien</span></span>
+    <span class="rt">${S.avocats>=G.AVOCAT_MAX?"—":eur(pa)}</span></button>`);
+  $("#v-reseau").innerHTML = h.join("");
+}
+
+/* ═══════ feuille ═══════ */
+function ouvrirFeuille(html, force){
+  $("#sheet").innerHTML = html;
+  $("#sheet").classList.add("on"); $("#scrim").classList.add("on");
+  $("#scrim").dataset.force = force ? "1" : "";
+}
+function fermerFeuille(){ $("#sheet").classList.remove("on"); $("#scrim").classList.remove("on"); }
+function feuilleFin(){
+  if ($("#sheet").dataset.ev === "FIN") return;
+  $("#sheet").dataset.ev = "FIN";
+  const cl = G.classementFinal(S);
+  ouvrirFeuille(`<div class="st">${esc(S.fini.titre)}</div>
+    <div class="ss">${cl.map((x,i)=>`${i+1}. <b style="color:${G.FACTIONS[x.f].couleur}">${esc(G.FACTIONS[x.f].nom)}</b> — ${eur(x.cash)}`).join("<br>")}</div>
+    <div class="ss">Péage versé ${eur(S.totaux.peajePaye)} · encaissé ${eur(S.totaux.peajeRecu)}.</div>
+    <button class="opt" data-a="reset"><b>Rejouer la saison</b><span>Mêmes rivaux, mêmes politiques — c'est ton allocation qui change.</span></button>`, true);
+}
+let toastT = 0;
+function toast(t){ $("#toast").textContent = t; $("#toast").classList.add("on"); clearTimeout(toastT); toastT = setTimeout(()=>$("#toast").classList.remove("on"), 2000); }
+
+/* ═══════ rendu ═══════ */
+let dernierRendu = 0;
+function majTout(){
+  majHud();
+  const now = performance.now();
+  if (now - dernierRendu > 240){
+    dernierRendu = now;
+    if (onglet === "plazas") majPlazas();
+    else if (onglet === "rivaux") majRivaux();
+    else if (onglet === "registre") majRegistre();
+    else if (onglet === "reseau") majReseau();
+    sauver();
+  }
+  if (S.fini) feuilleFin();
+}
+function choisirOnglet(t){
+  onglet = t;
+  document.querySelectorAll(".tab").forEach((b)=>b.classList.toggle("on", b.dataset.t === t));
+  document.querySelectorAll(".view").forEach((v)=>v.classList.toggle("on", v.id === "v-"+t));
+  dernierRendu = 0; majTout();
+}
+
+document.addEventListener("click",(ev)=>{
+  const b = ev.target.closest("button"); if (!b) return;
+  if (b.dataset.v !== undefined){ S.vitesse = +b.dataset.v;
+    document.querySelectorAll(".vb").forEach((x)=>x.classList.toggle("on", x===b)); return; }
+  if (b.dataset.t){ choisirOnglet(b.dataset.t); return; }
+  if (b.id === "segNet" || b.id === "segCash" || b.id === "segRang"){ whyOuvert = !whyOuvert; return; }
+  const a = b.dataset.a; if (!a) return;
+  let ok = true;
+  switch(a){
+    case "alloc": ok = G.allouer(S, b.dataset.k, +b.dataset.d); if (!ok) toast("Il n'y a plus rien à déplacer."); break;
+    case "prod":  ok = G.ameliorerProduction(S); break;
+    case "avocat":ok = G.acheterAvocat(S); break;
+    case "reset": recommencer(); return;
+  }
+  if (!ok && a !== "alloc") toast("Pas les moyens, ou plafond atteint.");
+  dernierRendu = 0; sauver(true); majTout();
+});
+$("#scrim").addEventListener("click", ()=>{ if (!$("#scrim").dataset.force) fermerFeuille(); });
+
+const GLYPHE = { 0:"⏸", 1:"▶", 3:"⏩" };
+$("#vit").innerHTML = G.VITESSES.map((v)=>`<button class="vb${v===S.vitesse?" on":""}" data-v="${v}">${GLYPHE[v]||"×"+v}</button>`).join("");
+
+if (!localStorage.getItem("plaza_vu")){
+  localStorage.setItem("plaza_vu","1");
+  ouvrirFeuille(`<div class="st">La Plaza</div>
+    <div class="ss">Trois cartels, trois sorties, une saison de ${G.SAISON_JOURS} jours. Tu ne choisis pas combien tu produis — tu choisis <b>où ça part</b>.
+    <br><br>• <b>Tenir une plaza</b> demande ${Math.round(G.SEUIL_CONTROLE*100)} % du volume qui y passe. Celui qui la tient prélève ${Math.round(G.PEAJE_PART*100)} % sur les autres — on se bat pour un <b>débit</b>, pas pour un butin.
+    <br>• <b>Une plaza disputée chauffe</b>, et elle chauffe les deux camps. Le troisième, celui qui est ailleurs, encaisse.
+    <br>• <b>L'État frappe le plus bruyant</b> : c'est ta <b>part du corridor</b> qui te met la cible dans le dos, pas ton tonnage.
+    <br>• <b>Rien n'est tiré au sort.</b> La politique de chaque rival est écrite dans l'onglet Rivaux, et elle ne ment pas.</div>
+    <button class="opt" data-a="close" onclick="this.closest('#sheet').classList.remove('on');document.getElementById('scrim').classList.remove('on')"><b>Ouvrir la saison</b><span>⏸ en haut à droite pour réfléchir.</span></button>`);
+}
+choisirOnglet("plazas");
+requestAnimationFrame(boucle);
+</script>
+</body>
+</html>

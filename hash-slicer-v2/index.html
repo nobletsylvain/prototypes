@@ -193,6 +193,25 @@
 "use strict";
 import * as THREE from "three";
 
+/* --- Mode EMBED "bigo" : le telephone-OS « Le Bigo » (le-bigo/index.html) ouvre
+   CE proto en iframe (l'Atelier) pour transformer un lot brut (grammes + qualite)
+   en produit fini partage. Contrat postMessage fige : le-bigo/BUS.md. Slug "atelier".
+   Active par #embed=bigo&g=<grammes>&q=<qualite 0-100>. SANS ce flag, le
+   comportement standalone (et le mode labo #embed=lab) est strictement inchange. --- */
+const EMBED = /[?#&]embed=bigo/.test(location.href);
+const _mg = location.href.match(/[?#&]g=(\d+(?:\.\d+)?)/);
+const EMBED_G = Math.max(1, Math.round(_mg ? +_mg[1] : 100));   // grammes du lot brut
+const _mq = location.href.match(/[?#&]q=(\d+(?:\.\d+)?)/);
+const EMBED_Q = Math.max(0, Math.min(100, Math.round(_mq ? +_mq[1] : 50))); // qualite du lot (0-100)
+// En mode embed bigo, on n'ecrit JAMAIS dans le save du proto autonome (hsv2_*) :
+// toutes les lectures/ecritures passent par un shim memoire (perdu a la fermeture).
+const memStore = (() => { const m = {}; return {
+  getItem: (k) => (k in m ? m[k] : null),
+  setItem: (k, v) => { m[k] = String(v); },
+  removeItem: (k) => { delete m[k]; },
+}; })();
+const STORE = EMBED ? memStore : localStorage;
+
 /* =========================================================================
    CAKE SLICER 3D — quatre-quarts long, coupe multiple
    -------------------------------------------------------------------------
@@ -254,7 +273,7 @@ const VIEW_DIR = new THREE.Vector3(0.04, 0.66, 0.75).normalize(); // 3/4 plongea
 const VIEW_TARGET = new THREE.Vector3(L / 2 - 0.5, 0.30, 0.7);   // centre décalé à gauche (zone des tas)
 const VIEW_RADIUS = Math.hypot(L / 2 + 0.9, 0.85, 1.7);        // englobe sav + bacs + tas latéraux
 const baseCamPos = new THREE.Vector3();                          // position "au repos" (la secousse oscille autour)
-let zoom = +(localStorage.getItem("hsv2_zoom")) || 1;           // facteur de zoom (pinch a 2 doigts)
+let zoom = +(STORE.getItem("hsv2_zoom")) || 1;           // facteur de zoom (pinch a 2 doigts)
 zoom = Math.max(0.6, Math.min(2.6, zoom));
 
 function fitView() {
@@ -425,17 +444,17 @@ let mode = "cut";    // "cut" (coupe) | "wrap" (emballage)
 // --- Version de sauvegarde : on bump apres un gros rééquilibrage pour repartir
 // de zero. Si la version stockee differe, on efface la progression (une fois). ---
 const SAVE_VERSION = "1";
-if (localStorage.getItem("hsv2_ver") !== SAVE_VERSION) {
-  ["hsv2_cash", "hsv2_waste", "hsv2_level", "hsv2_xp", "hsv2_shop"].forEach(k => localStorage.removeItem(k));
-  localStorage.setItem("hsv2_ver", SAVE_VERSION);
+if (STORE.getItem("hsv2_ver") !== SAVE_VERSION) {
+  ["hsv2_cash", "hsv2_waste", "hsv2_level", "hsv2_xp", "hsv2_shop"].forEach(k => STORE.removeItem(k));
+  STORE.setItem("hsv2_ver", SAVE_VERSION);
 }
 
-let cash = +(localStorage.getItem("hsv2_cash") || 0);     // € sauvegardes
-let wasteGrams = +(localStorage.getItem("hsv2_waste") || 0); // dechets accumules (g)
-let level = Math.max(1, +(localStorage.getItem("hsv2_level") || 1)); // niveau joueur
-let xp    = Math.max(0, +(localStorage.getItem("hsv2_xp") || 0));    // XP dans le niveau courant
-let savSize = +(localStorage.getItem("hsv2_savsize") || 250);       // taille savonnette courante (g)
-let barSize = +(localStorage.getItem("hsv2_barsize") || 5);         // taille de barrette choisie (2/5/10 g)
+let cash = +(STORE.getItem("hsv2_cash") || 0);     // € sauvegardes
+let wasteGrams = +(STORE.getItem("hsv2_waste") || 0); // dechets accumules (g)
+let level = Math.max(1, +(STORE.getItem("hsv2_level") || 1)); // niveau joueur
+let xp    = Math.max(0, +(STORE.getItem("hsv2_xp") || 0));    // XP dans le niveau courant
+let savSize = +(STORE.getItem("hsv2_savsize") || 250);       // taille savonnette courante (g)
+let barSize = +(STORE.getItem("hsv2_barsize") || 5);         // taille de barrette choisie (2/5/10 g)
 
 // Coupe au feeling : on maintient pour enfoncer la lame ; a pleine pression -> crack.
 const PRESS_TIME = 0.65;           // s pour traverser la plaque
@@ -443,6 +462,17 @@ let pressing = false, pressT = 0;
 const wrap = { slice:null, film:null, pct:0, shownPct:0, phase:"", t0:0, tSell:0,
                spin:0, spinTarget:0, filmScale:1.32, focus:new THREE.Vector3() };
 const game = { cursor:0, dir:1, flash:0 };   // mini-jeu de coupe : curseur 0..1 qui balaie
+
+/* --- Mode EMBED_LAB : labo du sandbox CrimWorld. Pur mini-jeu : pas de cash, pas de
+   boutique, pas de vente. On coupe la MATIÈRE fournie par le parent et on lui
+   renvoie un BATCH via postMessage. Activé par l'URL ...#embed=lab&produit=&matiere= --- */
+const EMBED_LAB = (() => {
+  const p = new URLSearchParams(location.hash.replace(/^#/, ""));
+  return p.get("embed") === "lab"
+    ? { produit: p.get("produit") || "hash", qualite: p.get("qualite") || "C", matiere: Math.max(0, Math.round(+p.get("matiere") || 0)) }
+    : null;
+})();
+let embLoaf = 0;   // g de matière (savonnette) engagée dans la fournée en cours
 
 const PER_LEN = W * H * DENS;            // grammes par unite de longueur (x)
 function gramsLeft() { return Math.max(0, ((rightNeg + rightPos) / 2) * PER_LEN); }
@@ -459,7 +489,7 @@ function loadLoaf(sizeG) {
   for (const c of crumbs) scene.remove(c.mesh);
   crumbs.length = 0;
 
-  savSize = sizeG; localStorage.setItem("hsv2_savsize", String(sizeG));
+  savSize = sizeG; STORE.setItem("hsv2_savsize", String(sizeG));
   const r = Math.min(L, sizeG / PER_LEN);
   rightNeg = r; rightPos = r;
   count = 0; over = false;
@@ -544,7 +574,8 @@ function spawnBarrette(cutNeg, cutPos, grams, grade, keep = 1, size = 5) {
     over = true;
     showToast("Savonnette finie ! 🎉", "#9be37d");
     ui.hint.style.opacity = "1";
-    ui.hint.textContent = "Savonnette finie — rachète-en une (🔄 ou 🛒)";
+    ui.hint.textContent = EMBED ? "Lot entièrement débité — ✓ Terminer pour renvoyer le bilan"
+                                : "Savonnette finie — rachète-en une (🔄 ou 🛒)";
   }
 }
 
@@ -565,7 +596,7 @@ function performCut(cutNeg, cutPos) {
 
 // Choix de la taille de barrette (avant de couper).
 function setSize(g) {
-  barSize = g; localStorage.setItem("hsv2_barsize", String(g));
+  barSize = g; STORE.setItem("hsv2_barsize", String(g));
   for (const b of document.querySelectorAll(".calbtn")) b.classList.toggle("on", +b.dataset.size === g);
   if (ui.presslbl) ui.presslbl.textContent = "Maintiens pour couper une barrette de " + g + " g";
 }
@@ -795,6 +826,7 @@ function packageBin(s) {
   const b = bins[s];
   if (b.n <= 0) { showToast(s + "g : bac vide", "#caa15f"); return; }
   const n = b.n;
+  if (EMBED_LAB || EMBED) { b.packed += n; b.n = 0; refreshBin(s); showToast("Conditionné ×" + n, "#cfe6ff"); haptic(15); return; }  // embed (labo/atelier) : pas de vente, juste le geste
   const earn = n * s * PRICE_BY_SIZE[s] * levelMult();
   setCash(cash + earn);
   addXP(Math.max(1, Math.round(n * s)));
@@ -817,6 +849,7 @@ function updateSlices(dt) {
       sl.mesh.scale.multiplyScalar(1 - Math.min(0.85, dt * 3.2));
       if (sl.mesh.scale.x < 0.16) {
         b.n = Math.min(b.pile.children.length, b.n + 1);
+        if (EMBED) b.g = (b.g || 0) + sl.grams;   // atelier bigo : grammes REELS ranges dans ce bac (bilan exact)
         refreshBin(sl.size);
         removeSlice(sl);
       }
@@ -869,13 +902,13 @@ const ui = {
 
 function setCash(v) {
   cash = v;
-  localStorage.setItem("hsv2_cash", String(Math.round(cash)));
+  STORE.setItem("hsv2_cash", String(Math.round(cash)));
   ui.cash.textContent = "💶 " + Math.round(cash) + " €";
   if (ui.shop.classList.contains("show")) renderShop(); // garde la boutique a jour
 }
 function setWaste(v) {
   wasteGrams = Math.max(0, v);
-  localStorage.setItem("hsv2_waste", String(Math.round(wasteGrams)));
+  STORE.setItem("hsv2_waste", String(Math.round(wasteGrams)));
   ui.waste.textContent = "🗑️ " + Math.round(wasteGrams) + " g";
 }
 function addWaste(g) { setWaste(wasteGrams + g); }
@@ -898,13 +931,14 @@ function addXP(n) {
     const ac = ensureAudio();
     if (ac) { const t = ac.currentTime; beep(660, t, 0.1, 0.2); beep(880, t + 0.08, 0.1, 0.2); beep(1180, t + 0.16, 0.16, 0.22); }
   }
-  localStorage.setItem("hsv2_level", String(level));
-  localStorage.setItem("hsv2_xp", String(Math.round(xp)));
+  STORE.setItem("hsv2_level", String(level));
+  STORE.setItem("hsv2_xp", String(Math.round(xp)));
   updateXpUI();
 }
 
 // Vendre les dechets aux schlags (bas prix). Vide le bac.
 function sellWaste() {
+  if (EMBED_LAB || EMBED) return;             // embed (labo/atelier) : les déchets sont une perte, pas une vente
   if (wasteGrams < 1) { showToast("Bac déchets vide", "#caa15f"); return; }
   const earn = wasteGrams * SCHLAG_RATE * levelMult();
   setCash(cash + earn);
@@ -930,7 +964,7 @@ function startPinch() {
 }
 function updatePinch() {
   zoom = Math.max(0.6, Math.min(2.6, pinchStartZoom * (pinchDist() / pinchStartDist)));
-  localStorage.setItem("hsv2_zoom", zoom.toFixed(3));
+  STORE.setItem("hsv2_zoom", zoom.toFixed(3));
   fitView();
 }
 
@@ -1131,13 +1165,13 @@ function showToast(msg, color) {
    l'emballe/vend automatiquement (serrage fixe 1.0, donc un peu moins
    rentable que l'emballage manuel soigne). Amelioration "Cadence +".
    ------------------------------------------------------------------------- */
-const owned = JSON.parse(localStorage.getItem("hsv2_shop") || "{}");
+const owned = JSON.parse(STORE.getItem("hsv2_shop") || "{}");
 owned.autowrap = owned.autowrap || 0;
 owned.cadence  = owned.cadence  || 0;
 owned.autocut  = owned.autocut  || 0;   // massicot automatique (decoupe passive)
 owned.affut    = owned.affut    || 0;   // affutage : cadence du massicot
 owned.guide    = owned.guide    || 0;   // gabarit : elargit la zone verte du mini-jeu
-function saveShop() { localStorage.setItem("hsv2_shop", JSON.stringify(owned)); }
+function saveShop() { STORE.setItem("hsv2_shop", JSON.stringify(owned)); }
 function gradeMult(g) { return g === "A" ? 1.5 : g === "B" ? 1.0 : 0.6; }
 function mInterval() { return 3.2 * Math.pow(0.82, owned.cadence); } // s entre deux barrettes
 
@@ -1279,6 +1313,106 @@ setWaste(wasteGrams);
 updateXpUI();
 setSize(barSize);
 SIZES.forEach(refreshBin);
+
+/* --- Bascule en MODE LABO (embed) : on masque l'économie propre du proto, on
+   charge la matière fournie par le sandbox, et on expose « Envoyer au stock ». --- */
+if (EMBED_LAB) {
+  for (const id of ["cash", "waste", "xpwrap", "shopbtn", "shop", "reset"]) {
+    const e = document.getElementById(id); if (e) e.style.display = "none";
+  }
+  embLoaf = Math.min(EMBED_LAB.matiere, 250); // on traite jusqu'à 250 g par fournée
+  loadLoaf(embLoaf);
+  if (ui.title) ui.title.textContent = "MATIÈRE " + Math.round(embLoaf) + "g · " + EMBED_LAB.qualite;
+  if (ui.hint) { ui.hint.style.opacity = "1"; ui.hint.textContent = "Maintiens pour couper · tape un bac 📦 · puis Envoyer au stock"; }
+
+  const send = document.createElement("button");
+  send.id = "labsend";
+  send.textContent = "📦 Au stock";
+  send.style.cssText = "position:fixed;right:14px;bottom:max(12px,calc(env(safe-area-inset-bottom) + 8px));z-index:50;pointer-events:auto;" +
+    "background:#3a6b3a;color:#fff;border:none;font:800 14px system-ui;padding:11px 16px;border-radius:13px;box-shadow:0 8px 24px -6px #000";
+  send.addEventListener("click", () => {
+    const raw = Math.max(0, Math.round(embLoaf - gramsLeft()));        // matière réellement coupée
+    const formats = {}; let nSach = 0;                                 // sachets conditionnés par format (bacs)
+    for (const s of SIZES) { const k = (bins[s].n || 0) + (bins[s].packed || 0); formats[s] = k; nSach += k; }
+    if (raw <= 0 || nSach <= 0) { showToast("Rien à envoyer — coupe des barrettes", "#caa15f"); return; }
+    send.disabled = true;
+    parent.postMessage({ type: "crimworld-lab-batch", produit: EMBED_LAB.produit, qualite: EMBED_LAB.qualite, grammesRaw: raw, formats }, location.origin);
+  });
+  document.body.appendChild(send);
+}
+
+/* --- Mode EMBED "bigo" (Atelier du telephone-OS Le Bigo, contrat : le-bigo/BUS.md).
+   On charge le lot brut passe en URL (#embed=bigo&g=&q=), on masque l'economie
+   propre du proto (achat/boutique/XP — le save est deja shime en memoire via STORE),
+   et « ✓ Terminer » renvoie le bilan au parent : bigo-txn puis bigo-close.
+   Le GESTE (coupe au feeling, bacs par taille, conditionnement) reste inchange. --- */
+if (EMBED) {
+  // HUD : pas d'achat, pas de boutique, pas d'XP a l'atelier. Le cash affiche est
+  // celui du PARENT (recu via bigo-state). Le bac dechets reste visible (les pertes
+  // comptent au bilan) mais ne se vend pas ici (voir sellWaste).
+  for (const id of ["xpwrap", "shopbtn", "shop", "reset"]) {
+    const e = document.getElementById(id); if (e) e.style.display = "none";
+  }
+  ui.cash.textContent = "💶 …";
+
+  // Lot brut : UNE savonnette de EMBED_G grammes (le proto charge des tailles
+  // arbitraires ; geometrie plafonnee a 250 g — l'excedent eventuel reste
+  // « non travaille » et repart au parent dans brutLeft).
+  const loadedG = Math.min(EMBED_G, 250);
+  const overflowG = EMBED_G - loadedG;
+  loadLoaf(loadedG);
+  if (ui.title) ui.title.textContent = "LOT BRUT " + EMBED_G + " g · Q" + EMBED_Q;
+  if (ui.hint) { ui.hint.style.opacity = "1";
+    ui.hint.textContent = "Maintiens pour couper · tape un bac 📦 pour conditionner · ✓ Terminer pour renvoyer le lot"; }
+
+  // Bus entrant : origine verifiee (same-origin, ou "null" en file:// — cf. BUS.md).
+  window.addEventListener("message", (e) => {
+    if (e.origin !== location.origin && e.origin !== "null") return;
+    const d = e.data;
+    if (d && d.type === "bigo-state") ui.cash.textContent = "💶 " + Math.round(+d.cash || 0) + " €";
+  });
+
+  // ✓ Terminer : bilan du travail fait, quel qu'il soit (aucun etat "rate" — R1).
+  const done = document.createElement("button");
+  done.id = "bigodone";
+  done.textContent = "✓ Terminer";
+  done.style.cssText = "position:fixed;right:14px;bottom:max(12px,calc(env(safe-area-inset-bottom) + 8px));z-index:50;pointer-events:auto;" +
+    "background:#3a6b3a;color:#fff;border:none;font:800 15px system-ui;padding:12px 18px;border-radius:13px;box-shadow:0 8px 24px -6px #000";
+  done.addEventListener("click", () => {
+    if (done.disabled) return;
+    done.disabled = true;
+    // Grammes conditionnes : grammes REELS ranges dans les bacs par taille (b.g,
+    // couvre bacs + tas lateraux : conditionner deplace sans rien detruire) + les
+    // barrettes deja coupees encore en vol/posees (en route vers leur bac).
+    // Rien de coupe n'est perdu, deterministe et tracable (R1/R4).
+    let finiG = 0;
+    for (const s of SIZES) finiG += bins[s].g || 0;
+    for (const sl of slices) finiG += sl.grams;
+    finiG = Math.round(finiG);
+    const pertes = Math.round(wasteGrams);          // poussiere de coupe -> miettes (bradables cote parent)
+    // brutLeft : grammes NON travailles (restant de la savonnette + excedent jamais
+    // charge). Ni perdus, ni transformes : le parent RECREE un lot brut du restant
+    // (champ hors contrat de base de BUS.md, ajoute pour l'atelier — le lot passe
+    // en URL est solde par lotConsumed, brutLeft en rend la part non entamee).
+    const brutLeft = Math.round(gramsLeft() + overflowG);
+    parent.postMessage({
+      type: "bigo-txn", app: "atelier",
+      finiAdd: { g: finiG, q: EMBED_Q },            // produit fini -> planque (qualite = celle du lot recu)
+      miettes: pertes,
+      brutLeft,
+      lotConsumed: true,
+      journal: { icon: "🧰",
+        txt: "Atelier : " + finiG + " g conditionnés (" + pertes + " g de pertes).",
+        cause: "↩ ta coupe et ton conditionnement à l'atelier",
+        cls: "good" },
+    }, "*");
+    parent.postMessage({ type: "bigo-close", app: "atelier" }, "*");
+  });
+  document.body.appendChild(done);
+
+  parent.postMessage({ type: "bigo-ready", app: "atelier" }, "*");
+}
+
 requestAnimationFrame(loop);
 </script>
 </body>

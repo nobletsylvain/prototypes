@@ -1,0 +1,64 @@
+{
+  "_meta": {
+    "doc": "Snapshit — réactions légères OPAQUES (vues/likes). Alimente vsub ('vu par 🔥 ••• (opaque)') et les libellés d'engagement.",
+    "version": 1,
+    "updated": "2026-06-23",
+    "regles": [
+      "JAMAIS de compteur chiffré exact (ni followers ni vues). La cote est opaque : elle se lit dans le ton et des libellés vagues.",
+      "views_sub : variantes du sous-titre de ta vitrine (style '— … (opaque)').",
+      "view_gauge : phrasés par niveau de buzz (low/mid/high), sans chiffre.",
+      "likes_by_tone : emojis de like, ordre = poids décroissant, piochés selon le ton.",
+      "reaction_labels : libellés d'engagement flous (aucun nombre)."
+    ]
+  },
+
+  "views_sub": [
+    "— vu par 🔥 ••• (opaque)",
+    "— quelques regards captés 👀",
+    "— ça circule dans le block",
+    "— le quartier a capté 🔥",
+    "— vu en silence…",
+    "— des yeux dessus 👀",
+    "— ça tourne discrètement",
+    "— remarqué, sans bruit"
+  ],
+
+  "view_gauge": {
+    "low": [
+      "ça commence à capter 👀",
+      "deux-trois regards, timide",
+      "discret pour l'instant",
+      "ça frémit doucement"
+    ],
+    "mid": [
+      "ça circule bien 🔥",
+      "le block commence à en parler",
+      "ça prend, tranquille",
+      "des yeux qui reviennent 👀"
+    ],
+    "high": [
+      "tout le block a vu ça 🔥",
+      "ça tourne fort ce soir",
+      "le quartier ne parle que de ça",
+      "vu de partout, sans chiffres 👀"
+    ]
+  },
+
+  "likes_by_tone": {
+    "chaleureux": ["🔥", "❤️", "🙏", "👌", "😮‍💨", "💯"],
+    "neutre": ["👀", "👌", "🤝", "🙂"],
+    "mefi": ["🤨", "😐", "👀", "🤔"],
+    "hostile": ["🙄", "🤡", "⛔", "💀"]
+  },
+
+  "reaction_labels": [
+    "des gens ont capté ta story",
+    "ça réagit en DM 👀",
+    "le block en parle",
+    "quelques-uns ont liké 🔥",
+    "silence radio…",
+    "ça like en douce 👀",
+    "des regards, peu de mots",
+    "ta story fait son chemin"
+  ]
+}

@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Crack — La Cuisson</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
+  html, body { height:100%; overflow:hidden; font-family:-apple-system,"Segoe UI",Roboto,sans-serif; color:#fff;
+    background:radial-gradient(120% 120% at 50% 0%, #3a1730 0%, #1c0d18 60%, #0d0710 100%); }
+  #wrap { position:fixed; inset:0; display:flex; flex-direction:column; max-width:560px; margin:0 auto; }
+
+  /* HUD */
+  #hud { display:flex; gap:8px; align-items:stretch; padding:max(10px,env(safe-area-inset-top)) 10px 8px; }
+  #backbtn { text-decoration:none; color:#fff; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18);
+    border-radius:12px; padding:8px 11px; font-size:16px; font-weight:800; display:flex; align-items:center; }
+  .stat { flex:1; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:12px;
+    padding:6px 8px; min-width:0; }
+  .stat .k { font-size:10px; letter-spacing:.4px; color:rgba(255,255,255,.5); text-transform:uppercase; }
+  .stat .v { font-size:15px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .v.debt { color:#ff8a8a; } .v.cash { color:#bdf0a3; } .v.rep { color:#ffd166; }
+  #repbar { height:4px; border-radius:2px; background:rgba(255,255,255,.12); margin-top:4px; overflow:hidden; }
+  #repfill { height:100%; width:50%; background:linear-gradient(90deg,#e8623d,#ffd166); transition:width .3s; }
+
+  /* Scene */
+  #scenewrap { position:relative; flex:1; min-height:0; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
+  #consigne { position:absolute; left:50%; top:10px; transform:translateX(-50%); white-space:nowrap;
+    background:rgba(0,0,0,.42); border:1px solid rgba(255,255,255,.14); border-radius:999px;
+    padding:6px 14px; font-size:13px; font-weight:700; backdrop-filter:blur(6px); pointer-events:none; }
+  #flash { position:absolute; left:50%; top:46%; transform:translate(-50%,-50%); font-size:40px; font-weight:900;
+    text-shadow:0 3px 14px rgba(0,0,0,.6); opacity:0; pointer-events:none; transition:opacity .12s; }
+
+  /* Controls */
+  #ctrl { padding:8px 10px max(12px,env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:8px; }
+  #cutsel { display:flex; gap:6px; }
+  .cutchip { flex:1; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:10px;
+    padding:5px 4px; text-align:center; font-size:11px; font-weight:700; line-height:1.25; }
+  .cutchip.on { background:rgba(255,209,102,.16); border-color:rgba(255,209,102,.55); color:#ffd166; }
+  .cutchip small { display:block; font-size:9px; font-weight:600; color:rgba(255,255,255,.5); }
+  #buttons { display:flex; gap:8px; }
+  .btn { flex:1; border:none; border-radius:14px; padding:15px 6px; font-size:15px; font-weight:800; color:#fff;
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16); }
+  .btn:active { transform:scale(.97); }
+  .btn[disabled] { opacity:.32; }
+  .btn.hot { background:linear-gradient(180deg,#ff7a45,#d63b1f); border-color:#ff7a45; }
+  .btn.pour { background:linear-gradient(180deg,#7ab8ff,#3a6fd6); border-color:#7ab8ff; }
+  .btn.go { background:linear-gradient(180deg,#9be37d,#4fa23b); border-color:#9be37d; color:#0d2008; }
+  .btn.shop { flex:none; width:58px; background:rgba(255,209,102,.16); border-color:rgba(255,209,102,.5); }
+
+  /* Shop overlay */
+  #shop { position:absolute; inset:0; background:rgba(8,4,10,.92); backdrop-filter:blur(4px); z-index:20;
+    display:none; flex-direction:column; padding:max(16px,env(safe-area-inset-top)) 16px 16px; }
+  #shop.open { display:flex; }
+  #shop h2 { font-size:20px; font-weight:900; margin-bottom:2px; }
+  #shop .hint { font-size:12px; color:rgba(255,255,255,.55); margin-bottom:14px; }
+  .tool { display:flex; gap:12px; align-items:center; background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:12px; margin-bottom:10px; }
+  .tool .em { font-size:30px; width:46px; text-align:center; flex:none; }
+  .tool .nm { font-weight:800; font-size:15px; } .tool .ds { font-size:11.5px; color:rgba(255,255,255,.6); margin-top:2px; }
+  .tool .buy { margin-left:auto; flex:none; border:none; border-radius:10px; padding:9px 12px; font-weight:800; font-size:13px;
+    background:rgba(155,227,125,.18); color:#bdf0a3; border:1px solid rgba(155,227,125,.4); }
+  .tool .buy[disabled] { background:rgba(255,255,255,.06); color:rgba(255,255,255,.4); border-color:rgba(255,255,255,.12); }
+  .tool.owned { opacity:.6; } .tool.owned .buy { background:rgba(255,255,255,.06); color:#9be37d; }
+  #shop .close { margin-top:auto; border:none; border-radius:14px; padding:15px; font-size:16px; font-weight:800;
+    background:rgba(255,255,255,.1); color:#fff; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <a id="backbtn" href="../">‹</a>
+    <div class="stat"><div class="k">Cash</div><div class="v cash" id="hCash">0 €</div></div>
+    <div class="stat"><div class="k">Dette (front)</div><div class="v debt" id="hDebt">0 €</div></div>
+    <div class="stat"><div class="k">Réput · Niv</div><div class="v rep" id="hRep">50 · 1</div>
+      <div id="repbar"><div id="repfill"></div></div></div>
+  </div>
+
+  <div id="scenewrap">
+    <canvas id="cv"></canvas>
+    <div id="consigne">Charge la cuve pour cuisiner</div>
+    <div id="flash"></div>
+  </div>
+
+  <div id="ctrl">
+    <div id="cutsel"></div>
+    <div id="buttons">
+      <button class="btn shop" id="bShop">🛒</button>
+      <button class="btn hot"  id="bHeat">🔥 Chauffer</button>
+      <button class="btn pour" id="bPour">🥄 Couper</button>
+      <button class="btn go"   id="bAct">Charger</button>
+    </div>
+  </div>
+
+  <div id="shop">
+    <h2>Atelier — 5 paliers</h2>
+    <div class="hint">Du briquet de rue au labo automatisé. Chaque palier élargit la zone de chauffe, allonge la fenêtre de séchage, puis automatise.</div>
+    <div id="toolList"></div>
+    <button class="close" id="bClose">Retour à la cuve</button>
+  </div>
+</div>
+
+<script type="module">
+/* =====================================================================
+   CRACK — « La Cuisson »   (core loop prototype, 2D canvas, zéro dépendance)
+   Boucle : Charger → Chauffer (timing doux) + Couper (verser, ça gonfle)
+            → Sécher (timing) → Briser (swipe) → Vendre.
+   Éco : volume gonflé (coupe) vs pureté → €/g & réputation. Front à crédit.
+   Persistance localStorage préfixe crack_ ; SAVE_VERSION force un reset.
+   Aucune dépendance externe, aucun appel réseau.
+   ===================================================================== */
+
+const SAVE_VERSION = "1";
+if (localStorage.getItem("crack_ver") !== SAVE_VERSION) {
+  Object.keys(localStorage).filter(k => k.startsWith("crack_")).forEach(k => localStorage.removeItem(k));
+  localStorage.setItem("crack_ver", SAVE_VERSION);
+}
+
+/* ---- Constantes nommées (économie & feeling, réglables au checkpoint) ---- */
+const C = {
+  START_DEBT:   900,   // € : le front de coke pris à crédit au fournisseur
+  COKE_BATCH:    28,   // g de coke base injectés à chaque "Charger"
+  COKE_COST_G:   42,   // €/g : rachat de stock de coke (recharge la dette)
+  RETAIL_BASE:   95,   // €/g : caillou parfait de référence (prix rue UE)
+  CUT_MAX:       70,   // g : coupe max qu'on peut verser dans une cuve
+  POUR_RATE:     22,   // g/s : débit de coupe versée (maintien)
+  HEAT_RATE:     58,   // %/s : montée de température en chauffant
+  COOL_RATE:     34,   // %/s : redescente de température hors flamme
+  BURN_TEMP:     92,   // au-dessus = ça crame (perte de façon)
+  BURN_PEN:      0.55, // pénalité de façon par seconde de surchauffe
+  COOK_RATE:     30,   // %/s : avancement cuisson quand temp en zone verte
+  DRY_SPEED:     0.85, // vitesse du curseur de séchage (cycles/s)
+  REP_PULL:      0.16, // inertie de la réputation vers la qualité vendue
+  XP_PER_G:      1.4,  // XP par gramme écoulé
+  LVL_BONUS:     0.025 // +2.5 % de revenus par niveau
+};
+
+/* ---- 5 paliers d'outils : band = zone verte temp, dryWin = fenêtre séchage ---- */
+const TOOLS = [
+  { id:0, em:"🥄", nm:"Cuillère & briquet",  ds:"Cuisson de rue. Zone de chauffe étroite, séchage au pif.",
+    band:[64,82], dryWin:0.16, assist:0,   auto:false, price:0 },
+  { id:1, em:"🔥", nm:"Réchaud de camping",  ds:"Flamme stable. Zone un peu plus large, séchage plus tolérant.",
+    band:[60,84], dryWin:0.20, assist:0,   auto:false, price:260 },
+  { id:2, em:"🧪", nm:"Bec Bunsen + thermo", ds:"Tu LIS la température. Marge de manœuvre confortable.",
+    band:[57,86], dryWin:0.26, assist:0,   auto:false, price:780 },
+  { id:3, em:"♨️", nm:"Plaque régulée",      ds:"Thermostat : la flamme se tient un peu seule près de la cible.",
+    band:[54,88], dryWin:0.32, assist:0.5, auto:false, price:1900 },
+  { id:4, em:"🏭", nm:"Labo + cuisinier",    ds:"Tu embauches. La fournée se cuit et se sèche toute seule.",
+    band:[50,90], dryWin:0.42, assist:1,   auto:true,  price:5200 }
+];
+
+/* ---- Paliers de coupe : pur = peu de volume, propre ; lourd = gros volume, sale ---- */
+const CUTS = [
+  { key:"none",  nm:"Pur",        sub:"0 coupe",     potency:1.00, rate:0.0  },
+  { key:"soda",  nm:"Bicarbonate",sub:"recette",     potency:0.92, rate:1.0  },
+  { key:"levo",  nm:"Lévamisole", sub:"+volume·sale",potency:0.74, rate:1.5  },
+  { key:"benzo", nm:"Benzocaïne", sub:"+volume·propre",potency:0.86, rate:1.3 }
+];
+
+/* ---------------------------- État persistant ---------------------------- */
+const S = {
+  cash:  +(localStorage.getItem("crack_cash") || 0),
+  debt:  +(localStorage.getItem("crack_debt") ?? C.START_DEBT),
+  rep:   Math.min(100, Math.max(0, +(localStorage.getItem("crack_rep") ?? 50))),
+  level: Math.max(1, +(localStorage.getItem("crack_level") || 1)),
+  xp:    Math.max(0, +(localStorage.getItem("crack_xp") || 0)),
+  tool:  Math.max(0, +(localStorage.getItem("crack_tool") || 0)),
+  cut:   localStorage.getItem("crack_cut") || "soda",
+  sold:  +(localStorage.getItem("crack_sold") || 0)
+};
+function save() {
+  localStorage.setItem("crack_cash", String(Math.round(S.cash)));
+  localStorage.setItem("crack_debt", String(Math.round(S.debt)));
+  localStorage.setItem("crack_rep",  S.rep.toFixed(2));
+  localStorage.setItem("crack_level",String(S.level));
+  localStorage.setItem("crack_xp",   String(Math.round(S.xp)));
+  localStorage.setItem("crack_tool", String(S.tool));
+  localStorage.setItem("crack_cut",  S.cut);
+  localStorage.setItem("crack_sold", String(Math.round(S.sold)));
+}
+const tool = () => TOOLS[S.tool];
+const cutDef = () => CUTS.find(c => c.key === S.cut) || CUTS[0];
+const xpNeed = () => Math.round(40 * Math.pow(1.45, S.level - 1));
+const lvlMult = () => 1 + (S.level - 1) * C.LVL_BONUS;
+
+/* ------------------------------ Audio (synth) ----------------------------- */
+let actx = null;
+function blip(freq, dur = 0.08, type = "sine", gain = 0.06) {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.value = gain; o.connect(g); g.connect(actx.destination);
+    const t = actx.currentTime;
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.start(t); o.stop(t + dur);
+  } catch (e) {}
+}
+const sChing = () => { blip(880, .09, "triangle", .07); setTimeout(() => blip(1320, .12, "triangle", .06), 70); };
+const sCrack = () => blip(140 + Math.random() * 60, .12, "square", .08);
+const sBurn  = () => blip(90, .18, "sawtooth", .05);
+
+/* ------------------------------ Phase machine ----------------------------- */
+// phases : IDLE → COOK → DRY → BREAK → SELL
+const G = {
+  phase: "IDLE",
+  coke: 0, cut: 0,        // grammes
+  temp: 0, cook: 0,       // % température, % avancement cuisson
+  craft: 1,               // façon (0..1) — dégradée par surchauffe
+  overheat: 0,            // secondes de surchauffe cumulées
+  dryPos: 0, dryDir: 1, dryQ: 0,
+  heating: false, pouring: false,
+  rocks: [], breakProg: 0, swelled: 0,
+  steam: [], crumbs: []
+};
+function resetBatch() {
+  G.phase = "IDLE"; G.coke = 0; G.cut = 0; G.temp = 0; G.cook = 0; G.craft = 1;
+  G.overheat = 0; G.dryPos = 0; G.dryDir = 1; G.dryQ = 0;
+  G.heating = false; G.pouring = false; G.rocks = []; G.breakProg = 0; G.swelled = 0;
+  G.steam = []; G.crumbs = [];
+}
+
+/* -------------------------------- DOM refs -------------------------------- */
+const $ = id => document.getElementById(id);
+const cv = $("cv"), ctx = cv.getContext("2d");
+const elConsigne = $("consigne"), elFlash = $("flash");
+const bHeat = $("bHeat"), bPour = $("bPour"), bAct = $("bAct");
+
+function flash(txt, col = "#fff") {
+  elFlash.textContent = txt; elFlash.style.color = col; elFlash.style.opacity = "1";
+  setTimeout(() => { elFlash.style.opacity = "0"; }, 650);
+}
+
+/* -------------------------------- Économie -------------------------------- */
+function gainXP(g) {
+  S.xp += g * C.XP_PER_G;
+  while (S.xp >= xpNeed()) { S.xp -= xpNeed(); S.level++; flash("NIVEAU " + S.level, "#ffd166"); }
+}
+function sellBatch() {
+  const volume = G.coke + G.cut;                 // grammes vendables (gonflés)
+  const purity = G.coke / Math.max(1, volume);   // 0..1 : dilution
+  const craft  = G.craft * G.dryQ;               // façon : cuisson × séchage
+  const cutPot = cutDef().potency;
+  const quality = Math.max(0.05, purity * craft * cutPot);
+  const repMult = 0.55 + 0.45 * (S.rep / 100);
+  const pricePerG = C.RETAIL_BASE * quality * repMult * lvlMult();
+  const revenue = Math.round(volume * pricePerG);
+
+  // remboursement : la dette d'abord, le surplus en cash
+  let cash = revenue;
+  if (S.debt > 0) { const pay = Math.min(S.debt, cash); S.debt -= pay; cash -= pay; }
+  S.cash += cash;
+  S.sold += volume;
+
+  // réputation : tirée vers la qualité vendue (co-effet, traçable)
+  const repTarget = quality * 100;
+  S.rep = Math.min(100, Math.max(0, S.rep + (repTarget - S.rep) * C.REP_PULL));
+
+  gainXP(volume); save(); sync();
+  flash("+" + revenue + " €", "#bdf0a3"); sChing();
+  resetBatch(); updateButtons(); updateConsigne();
+}
+
+/* -------------------------------- Actions --------------------------------- */
+function actLoad() {
+  // recharge la coke à crédit (gonfle la dette), pose une fournée
+  resetBatch();
+  G.coke = C.COKE_BATCH;
+  S.debt += C.COKE_BATCH * C.COKE_COST_G;
+  G.phase = "COOK";
+  save(); sync(); blip(300, .07, "sine", .05);
+  updateButtons(); updateConsigne();
+}
+function actDry() {            // verrouille le séchage à la position du curseur
+  const win = tool().dryWin;
+  // dryPos est un triangle 0..1 ; qualité = proximité du sommet (0.5)
+  const dist = Math.abs(G.dryPos - 0.5) * 2;       // 0 au centre, 1 aux bords
+  G.dryQ = Math.max(0.15, 1 - Math.max(0, dist - win) / (1 - win));
+  G.phase = "BREAK";
+  if (G.dryQ > 0.85) { flash("SEC PILE", "#9be37d"); blip(700, .1, "triangle", .06); }
+  else if (G.dryQ < 0.4) { flash("mal séché", "#ff8a8a"); }
+  updateButtons(); updateConsigne();
+}
+function finishCook() {
+  G.heating = false; G.pouring = false;
+  G.craft = Math.max(0.1, G.craft);
+  G.phase = "DRY"; G.dryPos = 0; G.dryDir = 1;
+  blip(520, .1, "sine", .05);
+  updateButtons(); updateConsigne();
+}
+
+/* ------------------------- Boutons : état & handlers ---------------------- */
+function updateButtons() {
+  const p = G.phase, auto = tool().auto;
+  bHeat.disabled = !(p === "COOK") || auto;
+  bPour.disabled = !(p === "COOK") || (G.cut >= C.CUT_MAX);
+  bAct.disabled = false;
+  if (p === "IDLE")  { bAct.textContent = "Charger"; bAct.className = "btn go"; }
+  else if (p === "COOK") { bAct.textContent = auto ? "⏳ Auto…" : "Cuisson…"; bAct.className = "btn"; bAct.disabled = true; }
+  else if (p === "DRY")  { bAct.textContent = "✋ Sortir"; bAct.className = "btn go"; bAct.disabled = auto; }
+  else if (p === "BREAK"){ bAct.textContent = "👉 Swipe pour briser"; bAct.className = "btn"; bAct.disabled = true; }
+  else if (p === "SELL") { bAct.textContent = "💸 Vendre"; bAct.className = "btn go"; }
+}
+function updateConsigne() {
+  const map = {
+    IDLE:  "Charge la cuve (coke à crédit) →",
+    COOK:  tool().auto ? "Le cuisinier s'en occupe…" : "Maintiens 🔥, garde la temp dans le vert. 🥄 verse la coupe : ça gonfle.",
+    DRY:   tool().auto ? "Séchage auto…" : "Sèche : ✋ Sortir quand le curseur est au centre.",
+    BREAK: "Swipe en travers de la dalle pour la briser en cailloux.",
+    SELL:  "Tape 💸 Vendre. Volume gonflé vs pureté = ton arbitrage."
+  };
+  elConsigne.textContent = map[G.phase] || "";
+}
+
+bAct.addEventListener("click", () => {
+  if (G.phase === "IDLE") actLoad();
+  else if (G.phase === "DRY") actDry();
+  else if (G.phase === "SELL") sellBatch();
+});
+// chauffe & coupe : maintien (pointer down/up)
+function holdBtn(btn, on, off) {
+  const d = e => { e.preventDefault(); if (!btn.disabled) on(); };
+  const u = e => { e.preventDefault(); off(); };
+  btn.addEventListener("pointerdown", d);
+  btn.addEventListener("pointerup", u);
+  btn.addEventListener("pointerleave", u);
+  btn.addEventListener("pointercancel", u);
+}
+holdBtn(bHeat, () => { G.heating = true; }, () => { G.heating = false; });
+holdBtn(bPour, () => { G.pouring = true; }, () => { G.pouring = false; });
+
+/* --------------------------- Sélecteur de coupe --------------------------- */
+function buildCutSel() {
+  const box = $("cutsel"); box.innerHTML = "";
+  CUTS.forEach(c => {
+    const el = document.createElement("div");
+    el.className = "cutchip" + (c.key === S.cut ? " on" : "");
+    el.innerHTML = c.nm + "<small>" + c.sub + "</small>";
+    el.addEventListener("click", () => { S.cut = c.key; save(); buildCutSel(); blip(420, .05); });
+    box.appendChild(el);
+  });
+}
+
+/* -------------------------------- Boutique -------------------------------- */
+function buildShop() {
+  const list = $("toolList"); list.innerHTML = "";
+  TOOLS.forEach(t => {
+    const owned = S.tool >= t.id, current = S.tool === t.id;
+    const can = !owned && t.id === S.tool + 1 && S.cash >= t.price;
+    const row = document.createElement("div");
+    row.className = "tool" + (owned ? " owned" : "");
+    const btn = owned
+      ? "<button class='buy' disabled>" + (current ? "Équipé" : "Acquis") + "</button>"
+      : "<button class='buy' " + (can ? "" : "disabled") + " data-buy='" + t.id + "'>" + t.price + " €</button>";
+    row.innerHTML = "<div class='em'>" + t.em + "</div><div><div class='nm'>" + t.nm +
+      "</div><div class='ds'>" + t.ds + "</div></div>" + btn;
+    list.appendChild(row);
+  });
+  list.querySelectorAll("[data-buy]").forEach(b => b.addEventListener("click", () => {
+    const t = TOOLS[+b.dataset.buy];
+    if (S.cash >= t.price && S.tool + 1 === t.id) {
+      S.cash -= t.price; S.tool = t.id; save(); sync(); buildShop();
+      flash("⬆ " + t.nm, "#ffd166"); sChing();
+      if (G.phase !== "IDLE") { updateButtons(); updateConsigne(); }
+    }
+  }));
+}
+$("bShop").addEventListener("click", () => { buildShop(); $("shop").classList.add("open"); });
+$("bClose").addEventListener("click", () => $("shop").classList.remove("open"));
+
+/* ------------------------------- HUD sync --------------------------------- */
+function sync() {
+  $("hCash").textContent = Math.round(S.cash).toLocaleString("fr-FR") + " €";
+  $("hDebt").textContent = Math.round(S.debt).toLocaleString("fr-FR") + " €";
+  $("hRep").textContent  = Math.round(S.rep) + " · " + S.level;
+  $("repfill").style.width = S.rep + "%";
+}
+
+/* ============================ CANVAS : rendu ============================== */
+let W = 0, H = 0, DPR = 1;
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  const r = cv.getBoundingClientRect();
+  W = r.width; H = r.height;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener("resize", resize);
+
+// géométrie de la cuve (béchère), centrée
+function beaker() {
+  const bw = Math.min(W * 0.5, 230), bh = Math.min(H * 0.46, 280);
+  return { x: W / 2 - bw / 2, y: H * 0.30, w: bw, h: bh, cx: W / 2 };
+}
+
+function rng(seed) { let s = Math.sin(seed) * 43758.5453; return s - Math.floor(s); }
+
+function draw(dt) {
+  ctx.clearRect(0, 0, W, H);
+  const b = beaker();
+
+  // ---- flamme sous la cuve (intensité = chauffe) ----
+  if (G.phase === "COOK") {
+    const heat = G.heating || tool().auto ? 1 : 0.18;
+    for (let i = 0; i < 7; i++) {
+      const fx = b.cx + (i - 3) * 13;
+      const fl = (10 + rng(i + performance.now() * 0.004) * 26) * (0.4 + heat);
+      const g = ctx.createLinearGradient(0, b.y + b.h, 0, b.y + b.h - fl);
+      g.addColorStop(0, "rgba(255,180,40,0)");
+      g.addColorStop(0.4, G.temp > C.BURN_TEMP ? "rgba(120,200,255,.8)" : "rgba(255,150,30,.85)");
+      g.addColorStop(1, "rgba(255,90,20,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.moveTo(fx - 7, b.y + b.h);
+      ctx.quadraticCurveTo(fx, b.y + b.h - fl, fx + 7, b.y + b.h); ctx.fill();
+    }
+  }
+
+  // ---- verre de la cuve ----
+  ctx.save();
+  ctx.fillStyle = "rgba(255,255,255,.05)";
+  ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 3;
+  roundRect(b.x, b.y, b.w, b.h, 14); ctx.fill(); ctx.stroke();
+
+  // niveau de contenu : monte avec coke+cut (gonflement de la coupe visible)
+  const total = G.coke + G.cut;
+  const fillFrac = Math.min(0.92, total / (C.COKE_BATCH + C.CUT_MAX) * 1.4 + (total > 0 ? 0.12 : 0));
+  const liqH = b.h * fillFrac;
+  const ly = b.y + b.h - liqH;
+
+  if (total > 0 && (G.phase === "COOK" || G.phase === "DRY")) {
+    // liquide : teinte qui vire du laiteux (chaud) au beige (qui prend)
+    const cookN = G.cook / 100;
+    const r = 235 - cookN * 70, gg = 230 - cookN * 90, bl = 220 - cookN * 120;
+    const grad = ctx.createLinearGradient(0, ly, 0, b.y + b.h);
+    grad.addColorStop(0, "rgba(" + r + "," + gg + "," + bl + ",.95)");
+    grad.addColorStop(1, "rgba(" + (r - 25) + "," + (gg - 25) + "," + (bl - 25) + ",.98)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.rect(b.x + 4, ly, b.w - 8, liqH);
+    ctx.clip(); ctx.fillRect(b.x, ly - 4, b.w, liqH + 8);
+    // bulles de cuisson
+    if (G.phase === "COOK" && G.temp > 40) {
+      ctx.fillStyle = "rgba(255,255,255,.4)";
+      for (let i = 0; i < 8; i++) {
+        const t = (performance.now() * 0.0006 + i * 0.27) % 1;
+        const bx = b.x + 14 + rng(i) * (b.w - 28);
+        const by = b.y + b.h - 6 - t * liqH;
+        ctx.beginPath(); ctx.arc(bx, by, 2 + rng(i + 9) * 3, 0, 7); ctx.fill();
+      }
+    }
+    // roches qui se forment quand la cuisson avance (gonflées par la coupe)
+    if (cookN > 0.45) {
+      const swell = 1 + (G.cut / Math.max(1, total)) * 0.8;     // gonflement par la coupe
+      ctx.globalAlpha = Math.min(1, (cookN - 0.45) / 0.4);
+      for (let i = 0; i < 10; i++) {
+        const rx = b.x + 16 + rng(i + 1) * (b.w - 32);
+        const ry = b.y + b.h - 10 - rng(i + 5) * (liqH * 0.6);
+        rock(rx, ry, (5 + rng(i + 2) * 7) * swell, i, cookN);
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+  ctx.restore();
+
+  // ---- DALLE séchée + cailloux (phase BREAK/SELL) ----
+  if (G.phase === "BREAK" || G.phase === "SELL") {
+    drawSlab(b);
+  }
+
+  // ---- jauges ----
+  if (G.phase === "COOK") drawTempGauge(b);
+  if (G.phase === "DRY")  drawDryGauge(b);
+
+  // miettes (swipe)
+  for (let i = G.crumbs.length - 1; i >= 0; i--) {
+    const p = G.crumbs[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.4; p.life -= dt;
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = "#e8dcc4";
+    ctx.fillRect(p.x, p.y, p.s, p.s);
+    ctx.globalAlpha = 1;
+    if (p.life <= 0) G.crumbs.splice(i, 1);
+  }
+}
+
+function rock(x, y, r, seed, cook) {
+  ctx.save(); ctx.translate(x, y);
+  ctx.beginPath();
+  const n = 6;
+  for (let i = 0; i <= n; i++) {
+    const a = i / n * Math.PI * 2, rr = r * (0.7 + rng(seed * 3 + i) * 0.5);
+    const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  const tint = 215 - cook * 60;
+  ctx.fillStyle = "rgb(" + tint + "," + (tint - 18) + "," + (tint - 55) + ")";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(120,90,50,.5)"; ctx.lineWidth = 1; ctx.stroke();
+  ctx.restore();
+}
+
+function drawSlab(b) {
+  const pad = 18, sx = b.x + pad, sy = b.y + b.h * 0.32, sw = b.w - pad * 2, sh = b.h * 0.5;
+  // fissures révélées par la progression du swipe
+  ctx.save();
+  ctx.fillStyle = "#d8c9a8"; ctx.strokeStyle = "rgba(120,90,50,.6)"; ctx.lineWidth = 2;
+  if (G.breakProg < 1 && G.phase === "BREAK") {
+    roundRect(sx, sy, sw, sh, 8); ctx.fill(); ctx.stroke();
+    // hachures de fissure
+    ctx.strokeStyle = "rgba(80,55,30,.55)"; ctx.lineWidth = 1.5;
+    const cracks = Math.floor(G.breakProg * 6);
+    for (let i = 0; i < cracks; i++) {
+      ctx.beginPath();
+      ctx.moveTo(sx + sw * rng(i + 1), sy);
+      ctx.lineTo(sx + sw * rng(i + 7), sy + sh); ctx.stroke();
+    }
+  } else {
+    // cailloux finis posés
+    G.rocks.forEach(rk => rock(sx + rk.x * sw, sy + rk.y * sh, rk.r, rk.seed, 0.6));
+  }
+  ctx.restore();
+}
+
+function drawTempGauge(b) {
+  const gx = b.x - 26, gy = b.y, gh = b.h, gw = 14;
+  ctx.fillStyle = "rgba(255,255,255,.08)"; roundRect(gx, gy, gw, gh, 7); ctx.fill();
+  // zone verte (band du palier)
+  const [lo, hi] = tool().band;
+  const yHi = gy + gh * (1 - hi / 100), yLo = gy + gh * (1 - lo / 100);
+  ctx.fillStyle = "rgba(155,227,125,.4)"; ctx.fillRect(gx, yHi, gw, yLo - yHi);
+  // zone burn
+  const yBurn = gy + gh * (1 - C.BURN_TEMP / 100);
+  ctx.fillStyle = "rgba(255,90,90,.35)"; ctx.fillRect(gx, gy, gw, yBurn - gy);
+  // curseur temp
+  const yT = gy + gh * (1 - G.temp / 100);
+  ctx.fillStyle = G.temp > C.BURN_TEMP ? "#ff6a6a" : "#fff";
+  ctx.beginPath(); ctx.arc(gx + gw / 2, yT, 7, 0, 7); ctx.fill();
+  // avancement cuisson (anneau autour de la cuve, en haut)
+  ctx.fillStyle = "rgba(255,255,255,.1)"; roundRect(b.x, b.y - 16, b.w, 8, 4); ctx.fill();
+  ctx.fillStyle = "#9be37d"; roundRect(b.x, b.y - 16, b.w * G.cook / 100, 8, 4); ctx.fill();
+}
+
+function drawDryGauge(b) {
+  const gx = b.x, gy = b.y + b.h + 14, gw = b.w, gh = 14;
+  ctx.fillStyle = "rgba(255,255,255,.1)"; roundRect(gx, gy, gw, gh, 7); ctx.fill();
+  const win = tool().dryWin;
+  ctx.fillStyle = "rgba(155,227,125,.45)";
+  roundRect(gx + gw * (0.5 - win / 2), gy, gw * win, gh, 7); ctx.fill();
+  // curseur
+  const cx = gx + gw * G.dryPos;
+  ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx, gy + gh / 2, 9, 0, 7); ctx.fill();
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/* ============================ Boucle de simu ============================= */
+let last = performance.now();
+function tick(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+
+  if (G.phase === "COOK") {
+    const auto = tool().auto, assist = tool().assist;
+    // température
+    let heatOn = auto ? true : G.heating;
+    if (heatOn) G.temp += C.HEAT_RATE * dt;
+    else G.temp -= C.COOL_RATE * dt;
+    // assist : tire doucement la temp vers le milieu de la zone verte
+    if (assist > 0) {
+      const mid = (tool().band[0] + tool().band[1]) / 2;
+      G.temp += (mid - G.temp) * assist * dt * 1.6;
+    }
+    G.temp = Math.max(0, Math.min(100, G.temp));
+    // surchauffe → dégrade la façon
+    if (G.temp > C.BURN_TEMP) {
+      G.overheat += dt; G.craft = Math.max(0.1, G.craft - C.BURN_PEN * dt);
+      if (Math.random() < dt * 3) sBurn();
+    }
+    // versement de la coupe (gonfle le volume)
+    if (G.pouring && G.cut < C.CUT_MAX) {
+      G.cut = Math.min(C.CUT_MAX, G.cut + C.POUR_RATE * cutDef().rate * dt);
+    }
+    // avancement de la cuisson en zone verte
+    const [lo, hi] = tool().band;
+    if (G.temp >= lo && G.temp <= hi) G.cook += C.COOK_RATE * dt;
+    if (G.cook >= 100) { G.cook = 100; finishCook(); }
+  }
+  else if (G.phase === "DRY") {
+    G.dryPos += G.dryDir * C.DRY_SPEED * dt;
+    if (G.dryPos >= 1) { G.dryPos = 1; G.dryDir = -1; }
+    if (G.dryPos <= 0) { G.dryPos = 0; G.dryDir = 1; }
+    if (tool().auto) {  // labo : se cale tout seul au centre puis sort
+      G.dryPos += (0.5 - G.dryPos) * dt * 2;
+      if (Math.abs(G.dryPos - 0.5) < 0.02) actDry();
+    }
+  }
+
+  draw(dt);
+  requestAnimationFrame(tick);
+}
+
+/* ============================ Swipe : briser ============================= */
+let swipeLast = null;
+function onDown(e) { if (G.phase === "BREAK") { swipeLast = ptr(e); cv.setPointerCapture?.(e.pointerId); } }
+function onMove(e) {
+  if (G.phase !== "BREAK" || !swipeLast) return;
+  const p = ptr(e);
+  const dx = p.x - swipeLast.x, dy = p.y - swipeLast.y;
+  const d = Math.hypot(dx, dy);
+  if (d > 6) {
+    G.breakProg = Math.min(1, G.breakProg + d / 1400);
+    // miettes le long du geste
+    for (let i = 0; i < 2; i++) G.crumbs.push({
+      x: p.x, y: p.y, vx: (Math.random() - .5) * 3, vy: -Math.random() * 3,
+      s: 2 + Math.random() * 3, life: 0.6
+    });
+    if (Math.random() < 0.25) sCrack();
+    swipeLast = p;
+    if (G.breakProg >= 1) finishBreak();
+  }
+}
+function onUp() { swipeLast = null; }
+function ptr(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+cv.addEventListener("pointerdown", onDown, { passive: true });
+cv.addEventListener("pointermove", onMove, { passive: true });
+cv.addEventListener("pointerup", onUp, { passive: true });
+cv.addEventListener("pointercancel", onUp, { passive: true });
+
+function finishBreak() {
+  // génère les cailloux finis (taille gonflée par la part de coupe)
+  const total = G.coke + G.cut, swell = 1 + (G.cut / Math.max(1, total)) * 0.9;
+  const n = Math.round(6 + total / 9);
+  G.rocks = [];
+  for (let i = 0; i < n; i++) G.rocks.push({
+    x: 0.08 + rng(i + 1) * 0.84, y: 0.12 + rng(i + 4) * 0.72,
+    r: (5 + rng(i + 2) * 6) * swell, seed: i + 1
+  });
+  G.phase = "SELL"; sCrack(); flash("BRISÉ", "#fff");
+  updateButtons(); updateConsigne();
+}
+
+/* ================================ Boot ================================== */
+// hooks de diagnostic (utilisés par tools/shots-crack.mjs ; inertes en jeu)
+window.__phase = () => G.phase;
+window.__dry = () => G.dryPos;
+window.__temp = () => G.temp;
+buildCutSel(); sync(); updateButtons(); updateConsigne(); resize();
+requestAnimationFrame(tick);
+// reprise audio au 1er toucher
+window.addEventListener("pointerdown", () => { if (actx && actx.state === "suspended") actx.resume(); }, { once: false });
+</script>
+</body>
+</html>

@@ -1,0 +1,1181 @@
+{
+  "meta": {
+    "name": "Dico du trafic — slang multilingue",
+    "version": 2,
+    "updated": "2026-06-23",
+    "but": "Vocabulaire crédible pour l'habillage des prototypes + base de localisation (i18n). Clé par CONCEPT, puis par langue.",
+    "langues": ["fr", "en-US", "en-GB", "es", "it", "de", "nl", "pt-BR"],
+    "registres": ["courant", "cite", "rap", "verlan", "police", "regional", "prison", "chic"],
+    "registres_note": "« chic » ajouté en v2 pour le registre connaisseur/bourgeois (Snapshit : La Comtesse ≠ Kévin).",
+    "avertissement": "Argot évolutif et régional. À usage de fiction/flavour uniquement. La présentation peut brouiller/varier les termes (cf. invariant « aléatoire de présentation »). Ne décrit aucun procédé réel.",
+    "format_terme": { "term": "string", "register": "string?", "region": "string?", "note": "string?" }
+  },
+
+  "concepts": {
+    "SELL_POINT": {
+      "gloss": "Point de vente de rue où l'on coupe, conditionne et écoule la came.",
+      "category": "lieux",
+      "terms": {
+        "fr": [
+          { "term": "four", "register": "cite", "region": "Marseille", "note": "lieu où l'on « cuisine » (coupe + conditionne) ; « alimenter / livrer un four »" },
+          { "term": "charbon", "register": "cite", "note": "synonyme de four" },
+          { "term": "plan", "register": "cite" },
+          { "term": "terrain", "register": "cite" },
+          { "term": "tieks", "register": "cite", "note": "le quartier (verlan de cité)" },
+          { "term": "bendo", "register": "cite", "note": "trap/maison de vente (emprunt)" },
+          { "term": "binks", "register": "cite" },
+          { "term": "block", "register": "cite" },
+          { "term": "spot", "register": "courant" },
+          { "term": "point de vente", "register": "courant" },
+          { "term": "comptoir", "register": "chic", "note": "« l'adresse » discrète, registre connaisseur" },
+          { "term": "salon", "register": "chic" }
+        ],
+        "en-US": [
+          { "term": "trap", "register": "courant" },
+          { "term": "trap house", "register": "courant" },
+          { "term": "the block", "register": "courant" },
+          { "term": "spot", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "the line", "register": "courant", "note": "« county lines » : la ligne téléphonique qui pilote le réseau" },
+          { "term": "trap", "register": "courant" }
+        ],
+        "es": [
+          { "term": "punto de venta", "register": "courant" },
+          { "term": "narcopiso", "register": "courant", "region": "ES", "note": "appart dédié vente/conso" }
+        ],
+        "it": [
+          { "term": "piazza di spaccio", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Verkaufsplatz", "register": "courant" },
+          { "term": "Spot", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "dealpand", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "boca de fumo", "register": "courant", "region": "BR" },
+          { "term": "boca", "register": "courant" }
+        ]
+      }
+    },
+
+    "DEALER_RETAIL": {
+      "gloss": "Vendeur de rue, bas de l'échelle, qui écoule au détail sur le point.",
+      "category": "roles",
+      "terms": {
+        "fr": [
+          { "term": "charbonneur", "register": "cite", "note": "vendeur du four ; image du mineur, sale et dangereux" },
+          { "term": "charbon", "register": "cite", "note": "désigne aussi le vendeur" },
+          { "term": "jobber", "register": "cite", "note": "de l'anglais « job »" },
+          { "term": "bicraveur", "register": "cite" },
+          { "term": "shiteur", "register": "cite" }
+        ],
+        "en-US": [
+          { "term": "dealer", "register": "courant" },
+          { "term": "pusher", "register": "courant" },
+          { "term": "slinger", "register": "courant" },
+          { "term": "trapper", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "runner", "register": "courant", "note": "achemine/vend pour la line" },
+          { "term": "younger", "register": "courant", "note": "jeune recrue de bas étage" }
+        ],
+        "es": [
+          { "term": "camello", "register": "courant" },
+          { "term": "trapichero", "register": "courant" }
+        ],
+        "it": [
+          { "term": "spacciatore", "register": "courant" },
+          { "term": "pusher", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Dealer", "register": "courant" },
+          { "term": "Ticketverkäufer", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "dealer", "register": "courant" },
+          { "term": "runner", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "vapor", "register": "courant", "note": "vend directement aux usagers dans la boca" },
+          { "term": "aviãozinho", "register": "courant", "note": "petit passeur/vendeur, souvent mineur" }
+        ]
+      }
+    },
+
+    "LOOKOUT": {
+      "gloss": "Guetteur : surveille les accès et donne l'alerte (police, rivaux).",
+      "category": "roles",
+      "terms": {
+        "fr": [
+          { "term": "chouf", "register": "cite", "note": "arabe « regarde » ; « les choufs »" },
+          { "term": "choufeur", "register": "cite" },
+          { "term": "guetteur", "register": "courant" }
+        ],
+        "en-US": [
+          { "term": "lookout", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "spotter", "register": "courant" }
+        ],
+        "es": [
+          { "term": "vigía", "register": "courant" },
+          { "term": "campana", "register": "regional", "note": "« hacer la campana »" }
+        ],
+        "it": [
+          { "term": "vedetta", "register": "courant" },
+          { "term": "palo", "register": "courant", "note": "« fare il palo » = faire le guet" }
+        ],
+        "de": [
+          { "term": "Aufpasser", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "uitkijk", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "olheiro", "register": "courant" },
+          { "term": "fogueteiro", "register": "courant", "note": "alerte en tirant des fusées/feux d'artifice" }
+        ]
+      }
+    },
+
+    "POLICE_ALERT": {
+      "gloss": "Cri ou signal d'alerte lancé quand la police (ou un rival) approche.",
+      "category": "actions",
+      "terms": {
+        "fr": [
+          { "term": "arah", "register": "cite", "region": "Marseille", "note": "cri du guetteur entre les tours ; arabe « akha » = attention" },
+          { "term": "artena", "register": "cite", "region": "Paris", "note": "arabe = « laisse tomber »" },
+          { "term": "chouf les bleus", "register": "cite", "note": "« surveille la police »" }
+        ],
+        "en-US": [
+          { "term": "5-0!", "register": "courant", "note": "cri pour « la police »" },
+          { "term": "feds!", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "feds!", "register": "courant" }
+        ],
+        "es": [
+          { "term": "¡agua!", "register": "courant", "note": "cri d'alerte classique" }
+        ],
+        "it": [
+          { "term": "madama!", "register": "courant", "note": "« la police »" }
+        ],
+        "de": [
+          { "term": "Bullen!", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "wouten!", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "fogos!", "register": "courant", "note": "fusées tirées par le fogueteiro = alerte" },
+          { "term": "bote!", "register": "courant", "note": "descente policière" }
+        ]
+      }
+    },
+
+    "SUPPLIER": {
+      "gloss": "Fournisseur / grossiste / contact qui ravitaille le réseau.",
+      "category": "roles",
+      "terms": {
+        "fr": [
+          { "term": "grossiste", "register": "courant" },
+          { "term": "fourgue", "register": "cite", "note": "celui qui fournit/écoule en gros" },
+          { "term": "ravitailleur", "register": "courant" },
+          { "term": "carlouche", "register": "cite", "note": "vu en écoutes : le fournisseur/intermédiaire — usage local, à vérifier" }
+        ],
+        "en-US": [
+          { "term": "plug", "register": "courant" },
+          { "term": "connect", "register": "courant" },
+          { "term": "source", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "plug", "register": "courant" },
+          { "term": "line holder", "register": "courant", "note": "détient/pilote la county line" }
+        ],
+        "es": [
+          { "term": "proveedor", "register": "courant" }
+        ],
+        "it": [
+          { "term": "grossista", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Lieferant", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "leverancier", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "fornecedor", "register": "courant" },
+          { "term": "dono da boca", "register": "courant", "note": "patron du point de vente" }
+        ]
+      }
+    },
+
+    "STASH_KEEPER": {
+      "gloss": "Personne ou planque qui garde came/argent à l'abri du point.",
+      "category": "roles",
+      "terms": {
+        "fr": [
+          { "term": "nourrice", "register": "cite", "note": "garde came/argent chez elle" },
+          { "term": "planque", "register": "courant", "note": "lieu de stockage" }
+        ],
+        "en-US": [
+          { "term": "stash house", "register": "courant" },
+          { "term": "trap keeper", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "stash", "register": "courant" }
+        ],
+        "es": [
+          { "term": "guardería", "register": "regional", "note": "lieu de stockage" }
+        ],
+        "it": [
+          { "term": "deposito", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Bunker", "register": "courant", "note": "planque/dépôt" }
+        ],
+        "nl": [
+          { "term": "stash", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "depósito", "register": "courant" }
+        ]
+      }
+    },
+
+    "RESTOCK": {
+      "gloss": "Réapprovisionner le point en came.",
+      "category": "actions",
+      "terms": {
+        "fr": [
+          { "term": "réup", "register": "cite", "note": "réapprovisionnement" },
+          { "term": "ravitailler", "register": "courant" },
+          { "term": "alimenter le four", "register": "cite" }
+        ],
+        "en-US": [
+          { "term": "re-up", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "re-up", "register": "courant" }
+        ],
+        "es": [
+          { "term": "reponer", "register": "courant" }
+        ],
+        "it": [
+          { "term": "rifornire", "register": "courant" }
+        ],
+        "de": [
+          { "term": "nachlegen", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "bijvullen", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "abastecer", "register": "courant" }
+        ]
+      }
+    },
+
+    "CUT": {
+      "gloss": "Couper/allonger la came avec un produit de coupe (levier de qualité).",
+      "category": "actions",
+      "terms": {
+        "fr": [
+          { "term": "couper", "register": "courant" },
+          { "term": "allonger", "register": "cite" },
+          { "term": "cuisiner", "register": "cite", "note": "couper + conditionner au « four »" }
+        ],
+        "en-US": [
+          { "term": "cut", "register": "courant" },
+          { "term": "step on", "register": "courant" },
+          { "term": "whack", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "bash", "register": "courant" },
+          { "term": "cut", "register": "courant" }
+        ],
+        "es": [
+          { "term": "cortar", "register": "courant" }
+        ],
+        "it": [
+          { "term": "tagliare", "register": "courant" }
+        ],
+        "de": [
+          { "term": "strecken", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "versnijden", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "batizar", "register": "courant", "note": "litt. « baptiser » = couper" }
+        ]
+      }
+    },
+
+    "PACKAGE": {
+      "gloss": "Conditionner la came (mise en dose, emballage).",
+      "category": "actions",
+      "terms": {
+        "fr": [
+          { "term": "conditionner", "register": "courant" },
+          { "term": "sous vide", "register": "cite", "note": "emballage sous vide (vu en écoutes : cellophane, javel)" }
+        ],
+        "en-US": [
+          { "term": "bag up", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "bag up", "register": "courant" }
+        ],
+        "es": [
+          { "term": "empaquetar", "register": "courant" }
+        ],
+        "it": [
+          { "term": "confezionare", "register": "courant" }
+        ],
+        "de": [
+          { "term": "abpacken", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "inpakken", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "embalar", "register": "courant" }
+        ]
+      }
+    },
+
+    "CANNABIS_RESIN": {
+      "gloss": "Haschisch (résine de cannabis).",
+      "category": "produits",
+      "terms": {
+        "fr": [
+          { "term": "shit", "register": "courant" },
+          { "term": "teush", "register": "verlan" },
+          { "term": "chichon", "register": "courant" },
+          { "term": "marron", "register": "cite", "note": "qualité ; voir aussi « jaune », « noir »" }
+        ],
+        "en-US": [
+          { "term": "hash", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "soap bar", "register": "courant", "note": "hasch bas de gamme en barre" },
+          { "term": "hash", "register": "courant" }
+        ],
+        "es": [
+          { "term": "costo", "register": "courant" },
+          { "term": "chocolate", "register": "courant" },
+          { "term": "china", "register": "courant", "note": "petit morceau de hasch" }
+        ],
+        "it": [
+          { "term": "fumo", "register": "courant" },
+          { "term": "hashish", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Shore", "register": "courant" },
+          { "term": "Piece", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "hasj", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "haxixe", "register": "courant" }
+        ]
+      }
+    },
+
+    "CANNABIS_WEED": {
+      "gloss": "Cannabis en fleurs (herbe).",
+      "category": "produits",
+      "terms": {
+        "fr": [
+          { "term": "beuh", "register": "verlan", "note": "verlan de « herbe » ; aussi « beuher »" },
+          { "term": "weed", "register": "courant" },
+          { "term": "ganja", "register": "courant" },
+          { "term": "oinj", "register": "verlan", "note": "verlan de « joint » par extension" },
+          { "term": "frappe", "register": "cite", "note": "herbe forte / de qualité" },
+          { "term": "verte", "register": "cite" },
+          { "term": "fleur", "register": "chic", "note": "registre connaisseur" },
+          { "term": "tête", "register": "chic", "note": "« têtes » = sommités fleuries, registre connaisseur" },
+          { "term": "cuvée", "register": "chic" }
+        ],
+        "en-US": [
+          { "term": "weed", "register": "courant" },
+          { "term": "bud", "register": "courant" },
+          { "term": "green", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "draw", "register": "courant" },
+          { "term": "weed", "register": "courant" }
+        ],
+        "es": [
+          { "term": "maría", "register": "courant" },
+          { "term": "hierba", "register": "courant" }
+        ],
+        "it": [
+          { "term": "erba", "register": "courant" },
+          { "term": "maria", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Gras", "register": "courant" },
+          { "term": "Bubatz", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "wiet", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "maconha", "register": "courant" },
+          { "term": "bagulho", "register": "courant", "note": "désigne aussi « la came » en général" }
+        ]
+      }
+    },
+
+    "COCAINE": {
+      "gloss": "Cocaïne.",
+      "category": "produits",
+      "terms": {
+        "fr": [
+          { "term": "mach", "register": "cite", "note": "abrégé de « machin/mâche » (feuilles de coca)" },
+          { "term": "coke", "register": "courant" },
+          { "term": "blanche", "register": "courant" },
+          { "term": "peuf", "register": "cite" },
+          { "term": "ce-blan", "register": "verlan" }
+        ],
+        "en-US": [
+          { "term": "coke", "register": "courant" },
+          { "term": "blow", "register": "courant" },
+          { "term": "snow", "register": "courant" },
+          { "term": "white", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "charlie", "register": "courant" },
+          { "term": "white", "register": "courant" }
+        ],
+        "es": [
+          { "term": "perico", "register": "courant" },
+          { "term": "farlopa", "register": "courant" },
+          { "term": "coca", "register": "courant" }
+        ],
+        "it": [
+          { "term": "bianca", "register": "courant" },
+          { "term": "neve", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Koks", "register": "courant" },
+          { "term": "Schnee", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "coke", "register": "courant" },
+          { "term": "snuif", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "pó", "register": "courant" },
+          { "term": "farinha", "register": "courant" },
+          { "term": "branca", "register": "courant" }
+        ]
+      }
+    },
+
+    "JOINT": {
+      "gloss": "Cigarette de cannabis.",
+      "category": "produits",
+      "terms": {
+        "fr": [
+          { "term": "pétard", "register": "courant" },
+          { "term": "joint", "register": "courant" },
+          { "term": "bédo", "register": "cite" },
+          { "term": "oinj", "register": "verlan" }
+        ],
+        "en-US": [
+          { "term": "joint", "register": "courant" },
+          { "term": "blunt", "register": "courant", "note": "roulé dans une feuille de cigare" }
+        ],
+        "en-GB": [
+          { "term": "spliff", "register": "courant" },
+          { "term": "zoot", "register": "courant" }
+        ],
+        "es": [
+          { "term": "porro", "register": "courant" },
+          { "term": "canuto", "register": "courant" }
+        ],
+        "it": [
+          { "term": "canna", "register": "courant" },
+          { "term": "spinello", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Joint", "register": "courant" },
+          { "term": "Tüte", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "joint", "register": "courant" },
+          { "term": "stickie", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "baseado", "register": "courant" },
+          { "term": "beck", "register": "courant" }
+        ]
+      }
+    },
+
+    "DOSE_UNIT": {
+      "gloss": "Unité de vente au détail (dose conditionnée).",
+      "category": "unites",
+      "terms": {
+        "fr": [
+          { "term": "barrette", "register": "courant", "note": "dose de shit (~ qq g)" },
+          { "term": "pochon", "register": "cite", "note": "petit sachet" },
+          { "term": "ovale", "register": "cite", "note": "boulette conditionnée pour l'ingestion/transport" }
+        ],
+        "en-US": [
+          { "term": "dime bag", "register": "courant", "note": "sachet à 10 $" },
+          { "term": "eight-ball", "register": "courant", "note": "1/8 once ≈ 3,5 g" }
+        ],
+        "en-GB": [
+          { "term": "draw", "register": "courant", "note": "petite quantité d'herbe" },
+          { "term": "score", "register": "courant", "note": "sachet ~ £10/£20" }
+        ],
+        "es": [
+          { "term": "papelina", "register": "courant", "note": "dose en papier" },
+          { "term": "china", "register": "courant" }
+        ],
+        "it": [
+          { "term": "pippa", "register": "courant", "note": "dose ; « pippare » = sniffer" },
+          { "term": "pezzo", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Ticket", "register": "courant" },
+          { "term": "Briefchen", "register": "courant", "note": "sachet papier" }
+        ],
+        "nl": [
+          { "term": "matje", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "papelote", "register": "courant" },
+          { "term": "trouxinha", "register": "courant" },
+          { "term": "bucha", "register": "courant" }
+        ]
+      }
+    },
+
+    "HASH_BAR": {
+      "gloss": "Pain/savonnette de hasch (gros conditionnement, ~100/250 g). Lien direct Hash Slicer.",
+      "category": "unites",
+      "terms": {
+        "fr": [
+          { "term": "savonnette", "register": "courant", "note": "pain de ~250 g" },
+          { "term": "pain", "register": "courant" },
+          { "term": "plaque", "register": "courant" }
+        ],
+        "en-US": [
+          { "term": "bar", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "soap bar", "register": "courant" },
+          { "term": "nine bar", "register": "courant", "note": "9 onces ≈ 250 g" }
+        ],
+        "es": [
+          { "term": "jabón", "register": "courant", "note": "« savonnette »" },
+          { "term": "tableta", "register": "courant" }
+        ],
+        "it": [
+          { "term": "panetto", "register": "courant" },
+          { "term": "saponetta", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Platte", "register": "courant" },
+          { "term": "Riegel", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "plak", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "barra", "register": "courant" }
+        ]
+      }
+    },
+
+    "KILO": {
+      "gloss": "Gros conditionnement (kilo, lingot).",
+      "category": "unites",
+      "terms": {
+        "fr": [
+          { "term": "kil", "register": "cite" },
+          { "term": "brique", "register": "courant" },
+          { "term": "plein", "register": "cite", "note": "vu en écoutes pour un kilo complet — usage local" }
+        ],
+        "en-US": [
+          { "term": "brick", "register": "courant" },
+          { "term": "key", "register": "courant", "note": "« ki » = kilo" },
+          { "term": "bird", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "key", "register": "courant" }
+        ],
+        "es": [
+          { "term": "kilo", "register": "courant" },
+          { "term": "ladrillo", "register": "courant", "note": "« brique »" }
+        ],
+        "it": [
+          { "term": "mattone", "register": "courant", "note": "« brique »" }
+        ],
+        "de": [
+          { "term": "Platte", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "kilo", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "tijolo", "register": "courant", "note": "« brique »" }
+        ]
+      }
+    },
+
+    "MONEY": {
+      "gloss": "Argent / cash.",
+      "category": "economie",
+      "terms": {
+        "fr": [
+          { "term": "oseille", "register": "courant" },
+          { "term": "lové", "register": "cite" },
+          { "term": "biff", "register": "cite" },
+          { "term": "caillasse", "register": "cite" },
+          { "term": "sous", "register": "courant" },
+          { "term": "blé", "register": "courant" },
+          { "term": "thune", "register": "courant" },
+          { "term": "fric", "register": "courant" },
+          { "term": "moula", "register": "cite" },
+          { "term": "talbins", "register": "cite" },
+          { "term": "bifton", "register": "cite" },
+          { "term": "liquidités", "register": "chic" },
+          { "term": "espèces", "register": "chic" }
+        ],
+        "en-US": [
+          { "term": "bands", "register": "courant" },
+          { "term": "racks", "register": "courant" },
+          { "term": "guap", "register": "courant" },
+          { "term": "paper", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "P's", "register": "courant" },
+          { "term": "bands", "register": "courant" }
+        ],
+        "es": [
+          { "term": "pasta", "register": "courant" },
+          { "term": "guita", "register": "courant" }
+        ],
+        "it": [
+          { "term": "grano", "register": "courant" },
+          { "term": "money", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Para", "register": "courant" },
+          { "term": "Kohle", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "doekoe", "register": "courant" },
+          { "term": "poen", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "grana", "register": "courant" },
+          { "term": "bufunfa", "register": "courant" }
+        ]
+      }
+    },
+
+    "PRICE_UNIT": {
+      "gloss": "Unité de compte du chiffre (comptabilité du point, écoutes).",
+      "category": "economie",
+      "terms": {
+        "fr": [
+          { "term": "point", "register": "cite", "note": "unité de compte dans les écoutes (millier d'euros, selon contexte) — à vérifier" },
+          { "term": "sac", "register": "cite", "note": "liasse/somme dans les écoutes — usage local" }
+        ],
+        "en-US": [
+          { "term": "stack", "register": "courant", "note": "1 000 $" },
+          { "term": "rack", "register": "courant", "note": "1 000 $" }
+        ],
+        "en-GB": [
+          { "term": "bag", "register": "courant", "note": "1 000 £" },
+          { "term": "grand", "register": "courant", "note": "1 000 £" }
+        ],
+        "es": [
+          { "term": "talego", "register": "regional", "note": "ancienne unité d'argot (1 000 pesetas)" }
+        ],
+        "it": [
+          { "term": "sacco", "register": "regional", "note": "ancienne unité d'argot (1 000 lires)" }
+        ],
+        "de": [
+          { "term": "Riese", "register": "courant", "note": "1 000 €" }
+        ],
+        "nl": [
+          { "term": "doezoe", "register": "courant", "note": "1 000 €" }
+        ],
+        "pt-BR": [
+          { "term": "conto", "register": "courant", "note": "1 000 (reais)" }
+        ]
+      }
+    },
+
+    "CREDIT": {
+      "gloss": "Vendre/acheter à crédit (sur ardoise).",
+      "category": "economie",
+      "terms": {
+        "fr": [
+          { "term": "à crome", "register": "cite", "note": "vieil argot : à crédit" },
+          { "term": "ardoise", "register": "courant" }
+        ],
+        "en-US": [
+          { "term": "on credit", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "on tick", "register": "courant" }
+        ],
+        "es": [
+          { "term": "fiado", "register": "courant" }
+        ],
+        "it": [
+          { "term": "a credito", "register": "courant" }
+        ],
+        "de": [
+          { "term": "auf Pump", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "op de pof", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "fiado", "register": "courant" }
+        ]
+      }
+    },
+
+    "POLICE": {
+      "gloss": "Forces de l'ordre.",
+      "category": "menaces",
+      "terms": {
+        "fr": [
+          { "term": "les bleus", "register": "cite" },
+          { "term": "keufs", "register": "verlan" },
+          { "term": "condés", "register": "cite" },
+          { "term": "schmitts", "register": "cite" },
+          { "term": "la BAC", "register": "courant" }
+        ],
+        "en-US": [
+          { "term": "feds", "register": "courant" },
+          { "term": "5-0", "register": "courant" },
+          { "term": "cops", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "feds", "register": "courant" },
+          { "term": "boydem", "register": "courant" }
+        ],
+        "es": [
+          { "term": "la pasma", "register": "courant" },
+          { "term": "maderos", "register": "courant" }
+        ],
+        "it": [
+          { "term": "madama", "register": "courant" },
+          { "term": "sbirri", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Bullen", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "wouten", "register": "courant" },
+          { "term": "smerissen", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "os homi", "register": "courant" },
+          { "term": "os bico", "register": "courant" }
+        ]
+      }
+    },
+
+    "FIREARM": {
+      "gloss": "Arme à feu (souvent fusil d'assaut).",
+      "category": "violence",
+      "terms": {
+        "fr": [
+          { "term": "guitare", "register": "cite", "note": "le plus souvent une Kalachnikov (cf. SCH)" },
+          { "term": "kalach", "register": "courant" },
+          { "term": "calibre", "register": "cite" },
+          { "term": "tre-quart", "register": "cite", "note": "revolver .357" }
+        ],
+        "en-US": [
+          { "term": "strap", "register": "courant" },
+          { "term": "burner", "register": "courant" },
+          { "term": "piece", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "ting", "register": "courant" },
+          { "term": "strap", "register": "courant" }
+        ],
+        "es": [
+          { "term": "fierro", "register": "courant" },
+          { "term": "hierro", "register": "courant" }
+        ],
+        "it": [
+          { "term": "ferro", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Eisen", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "ijzer", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "ferro", "register": "courant" },
+          { "term": "berro", "register": "courant" }
+        ]
+      }
+    },
+
+    "SHOOT_KILL": {
+      "gloss": "Tirer sur / abattre (règlement de compte).",
+      "category": "violence",
+      "terms": {
+        "fr": [
+          { "term": "guitariser", "register": "rap", "note": "kalacher (SCH, « Bande organisée »)" },
+          { "term": "kalacher", "register": "cite" },
+          { "term": "rafaler", "register": "cite" },
+          { "term": "charcler", "register": "cite", "note": "vieil argot : tuer" },
+          { "term": "buter", "register": "courant" },
+          { "term": "refroidir", "register": "courant" }
+        ],
+        "en-US": [
+          { "term": "light up", "register": "courant" },
+          { "term": "body", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "merk", "register": "courant" },
+          { "term": "bun", "register": "courant", "note": "tirer (« bun him »)" }
+        ],
+        "es": [
+          { "term": "fiambrar", "register": "regional" },
+          { "term": "reventar", "register": "courant" }
+        ],
+        "it": [
+          { "term": "fare fuori", "register": "courant" }
+        ],
+        "de": [
+          { "term": "abknallen", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "omleggen", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "apagar", "register": "courant" },
+          { "term": "desovar", "register": "courant", "note": "se débarrasser d'un corps" }
+        ]
+      }
+    },
+
+    "RAID_RIVAL": {
+      "gloss": "Raid armé sur un point de deal rival.",
+      "category": "violence",
+      "terms": {
+        "fr": [
+          { "term": "fantasia", "register": "police", "note": "MOT FORGÉ PAR LA POLICE ; réf. tradition équestre maghrébine (charge en tirant)" },
+          { "term": "descente", "register": "courant" }
+        ],
+        "en-US": [
+          { "term": "drive-by", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "drive-by", "register": "courant" }
+        ],
+        "es": [
+          { "term": "ajuste de cuentas", "register": "courant", "note": "règlement de compte" }
+        ],
+        "it": [
+          { "term": "stesa", "register": "regional", "note": "Naples : raid d'intimidation à l'arme" }
+        ],
+        "de": [
+          { "term": "Überfall", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "afrekening", "register": "courant", "note": "règlement de compte" }
+        ],
+        "pt-BR": [
+          { "term": "tomada de boca", "register": "courant", "note": "prise d'un point rival" }
+        ]
+      }
+    },
+
+    "NEW_CREW": {
+      "gloss": "Nouvelle équipe arrivée sur le trafic.",
+      "category": "roles",
+      "terms": {
+        "fr": [
+          { "term": "Wakanda", "register": "police", "note": "MOT FORGÉ PAR LA POLICE ; réf. Marvel, nouvelles équipes" }
+        ],
+        "en-US": [
+          { "term": "new crew", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "new line", "register": "courant" }
+        ],
+        "es": [
+          { "term": "banda nueva", "register": "courant" }
+        ],
+        "it": [
+          { "term": "paranza", "register": "regional", "note": "Naples : jeune bande de la Camorra" }
+        ],
+        "de": [
+          { "term": "neue Crew", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "nieuwe ploeg", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "bonde", "register": "courant", "note": "groupe/équipe" }
+        ]
+      }
+    },
+
+    "CUSTOMER": {
+      "gloss": "Client / consommateur.",
+      "category": "roles",
+      "terms": {
+        "fr": [
+          { "term": "client", "register": "courant" },
+          { "term": "conso", "register": "courant" },
+          { "term": "toxico", "register": "courant" },
+          { "term": "clients", "register": "courant" },
+          { "term": "habitués", "register": "courant" },
+          { "term": "clientèle", "register": "courant" },
+          { "term": "reufs", "register": "cite", "note": "les « frères » = la clientèle du quartier" },
+          { "term": "régularos", "register": "cite" },
+          { "term": "têtes connues", "register": "cite" },
+          { "term": "fidèles", "register": "chic" },
+          { "term": "connaisseurs", "register": "chic" }
+        ],
+        "en-US": [
+          { "term": "fiend", "register": "courant" },
+          { "term": "customer", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "cat", "register": "courant", "note": "usager dépendant" }
+        ],
+        "es": [
+          { "term": "yonqui", "register": "courant", "note": "usager d'héroïne/dépendant" }
+        ],
+        "it": [
+          { "term": "tossico", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Junkie", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "junk", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "nóia", "register": "courant", "note": "usager dépendant (crack)" },
+          { "term": "usuário", "register": "courant" }
+        ]
+      }
+    },
+
+    "SAMPLE": {
+      "gloss": "Échantillon de came testé avant achat en gros.",
+      "category": "economie",
+      "terms": {
+        "fr": [
+          { "term": "échantillon", "register": "cite", "note": "vu en écoutes" },
+          { "term": "teste", "register": "cite" }
+        ],
+        "en-US": [
+          { "term": "tester", "register": "courant" },
+          { "term": "sample", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "tester", "register": "courant" }
+        ],
+        "es": [
+          { "term": "muestra", "register": "courant" }
+        ],
+        "it": [
+          { "term": "campione", "register": "courant" }
+        ],
+        "de": [
+          { "term": "Probe", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "tester", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "amostra", "register": "courant" }
+        ]
+      }
+    },
+
+    "WORK_DEAL": {
+      "gloss": "Bosser/dealer activement sur le point (le « métier »).",
+      "category": "actions",
+      "terms": {
+        "fr": [
+          { "term": "charbonner", "register": "cite", "note": "vendre/bosser dur sur le point" },
+          { "term": "bicraver", "register": "cite" }
+        ],
+        "en-US": [
+          { "term": "trapping", "register": "courant" },
+          { "term": "slinging", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "trapping", "register": "courant" },
+          { "term": "going OT", "register": "courant", "note": "« out there » : aller dealer hors de sa ville (county lines)" }
+        ],
+        "es": [
+          { "term": "trapichear", "register": "courant" }
+        ],
+        "it": [
+          { "term": "spacciare", "register": "courant" }
+        ],
+        "de": [
+          { "term": "ticken", "register": "courant", "note": "dealer (« Ticket »)" }
+        ],
+        "nl": [
+          { "term": "dealen", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "traficar", "register": "courant" }
+        ]
+      }
+    },
+
+    "QUALITY": {
+      "gloss": "Qualité de la came (levier central côté gameplay).",
+      "category": "produits",
+      "terms": {
+        "fr": [
+          { "term": "frappe", "register": "cite", "note": "came forte / de qualité (affichée sur les murs des réseaux)" },
+          { "term": "jaune / marron / noir", "register": "cite", "note": "qualités/teintes de haschisch" },
+          { "term": "ber-tu", "register": "verlan", "note": "verlan de « tube » = came de qualité, selon contexte" },
+          { "term": "qualité", "register": "courant" },
+          { "term": "matos", "register": "courant" },
+          { "term": "came", "register": "courant" },
+          { "term": "tuerie", "register": "cite" },
+          { "term": "bombe", "register": "cite" },
+          { "term": "cru", "register": "chic" },
+          { "term": "gamme", "register": "chic" },
+          { "term": "facture", "register": "chic", "note": "« belle facture » = qualité, registre connaisseur" }
+        ],
+        "en-US": [
+          { "term": "fire", "register": "courant", "note": "came de top qualité" },
+          { "term": "loud", "register": "courant", "note": "herbe très odorante/forte" },
+          { "term": "fent", "register": "courant", "note": "coupé au fentanyl (péjoratif/danger)" }
+        ],
+        "en-GB": [
+          { "term": "peng", "register": "courant", "note": "de bonne qualité" }
+        ],
+        "es": [
+          { "term": "de la buena", "register": "courant" }
+        ],
+        "it": [
+          { "term": "roba buona", "register": "courant" }
+        ],
+        "de": [
+          { "term": "gutes Zeug", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "goeie", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "parada boa", "register": "courant" }
+        ]
+      }
+    },
+
+    "QUALITY_GOOD": {
+      "gloss": "Came de bonne qualité — EXPRESSION auto-portée (article inclus) pour le gabarit Snapshit {QUALITY_GOOD} (ex. « c'est {QUALITY_GOOD} »). Pré-articulé car genres mixtes ; ne pas préfixer d'article dans le gabarit.",
+      "category": "produits",
+      "terms": {
+        "fr": [
+          { "term": "de la bonne", "register": "courant" },
+          { "term": "du bon", "register": "courant" },
+          { "term": "de la qualité", "register": "courant" },
+          { "term": "de la frappe", "register": "cite" },
+          { "term": "de la tuerie", "register": "cite" },
+          { "term": "du lourd", "register": "cite" },
+          { "term": "du haut de gamme", "register": "cite" },
+          { "term": "du propre", "register": "cite" },
+          { "term": "du grand cru", "register": "chic" },
+          { "term": "du raffiné", "register": "chic" },
+          { "term": "du premium", "register": "chic" },
+          { "term": "de la finesse", "register": "chic" }
+        ],
+        "en-US": [
+          { "term": "fire", "register": "courant" },
+          { "term": "top-shelf", "register": "courant" },
+          { "term": "the good stuff", "register": "courant" }
+        ]
+      }
+    },
+
+    "QUALITY_BAD": {
+      "gloss": "Came médiocre/coupée — EXPRESSION auto-portée (article inclus) pour le gabarit Snapshit {QUALITY_BAD} (ex. « c'est {QUALITY_BAD} »).",
+      "category": "produits",
+      "terms": {
+        "fr": [
+          { "term": "du mauvais", "register": "courant" },
+          { "term": "de la came coupée", "register": "courant" },
+          { "term": "de la moyenne", "register": "courant" },
+          { "term": "du pneu", "register": "cite" },
+          { "term": "de la merde", "register": "cite" },
+          { "term": "du sale", "register": "cite" },
+          { "term": "du plâtre", "register": "cite", "note": "came lourdement coupée" },
+          { "term": "de la coupée", "register": "cite" },
+          { "term": "du tout-venant", "register": "chic" },
+          { "term": "de la médiocrité", "register": "chic" },
+          { "term": "du frelaté", "register": "chic" },
+          { "term": "de l'indigne", "register": "chic" }
+        ],
+        "en-US": [
+          { "term": "trash", "register": "courant" },
+          { "term": "bunk", "register": "courant" },
+          { "term": "garbage", "register": "courant" }
+        ]
+      }
+    },
+
+    "TRANSPORT": {
+      "gloss": "Acheminement de la came (transport, passeurs).",
+      "category": "logistique",
+      "terms": {
+        "fr": [
+          { "term": "go fast", "register": "courant", "note": "convoi rapide d'acheminement" },
+          { "term": "mule", "register": "courant", "note": "passeur (souvent in corpore)" }
+        ],
+        "en-US": [
+          { "term": "mule", "register": "courant" },
+          { "term": "runner", "register": "courant" }
+        ],
+        "en-GB": [
+          { "term": "county lines", "register": "courant", "note": "réseau d'acheminement interurbain via jeunes runners" },
+          { "term": "plugging", "register": "courant", "note": "dissimulation corporelle" }
+        ],
+        "es": [
+          { "term": "mula", "register": "courant" },
+          { "term": "correo", "register": "courant", "note": "passeur" }
+        ],
+        "it": [
+          { "term": "corriere", "register": "courant", "note": "passeur" },
+          { "term": "ovulatore", "register": "regional", "note": "passeur in corpore (ovuli)" }
+        ],
+        "de": [
+          { "term": "Kurier", "register": "courant" }
+        ],
+        "nl": [
+          { "term": "go fast", "register": "courant" },
+          { "term": "koerier", "register": "courant" }
+        ],
+        "pt-BR": [
+          { "term": "mula", "register": "courant" },
+          { "term": "avião", "register": "courant", "note": "passeur/coursier de la boca, souvent mineur" }
+        ]
+      }
+    }
+  }
+}

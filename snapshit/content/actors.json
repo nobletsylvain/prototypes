@@ -1,0 +1,103 @@
+{
+  "_meta": {
+    "doc": "Snapshit — stories des ACTEURS d'ambiance (story bar). Décor, pas des acheteurs : aucun protag/mémoire. Pure présentation.",
+    "version": 1,
+    "updated": "2026-06-23",
+    "regles": [
+      "Clés = acteurs du moteur (Le Comptoir 🏪, Le Campus 🎓, La Ruelle 🚬, ● ARRIVAGE 🌃).",
+      "captions ≤ ~45 car. (ambiance) ; seed_comments ≤ ~80 (voix foule, gabarits {CONCEPT} ok).",
+      "Réput OPAQUE : aucun chiffre. Les acteurs colorent la nuit, ne vendent rien."
+    ]
+  },
+
+  "actors": {
+    "comptoir": {
+      "nom": "Le Comptoir",
+      "emoji": "🏪",
+      "handle": "@comptoir.h24",
+      "vibe": "le tabac du coin, façade tranquille, tout passe par là",
+      "captions": [
+        "ouvert h24 comme toujours ☕",
+        "ça passe, ça repasse",
+        "la caisse fait son bruit 💶",
+        "petit café, grande nuit ☕",
+        "on voit défiler tout le quartier",
+        "rideau à moitié baissé, on reste",
+        "clients du soir, bonsoir 🤝",
+        "ici on parle peu, on voit tout"
+      ],
+      "seed_comments": [
+        "le {SELL_POINT} commence toujours par ici 👀",
+        "discret le patron, mais il sait tout",
+        "tjs un café avant la night ☕",
+        "ça négocie même les clopes ici 🙄"
+      ]
+    },
+    "campus": {
+      "nom": "Le Campus",
+      "emoji": "🎓",
+      "handle": "@campus.afterdark",
+      "vibe": "fac la nuit, after improvisés, demande qui monte le week-end",
+      "captions": [
+        "révisions… enfin presque 📚",
+        "after improvisé ce soir 🎉",
+        "la BU ferme, la night ouvre 🌙",
+        "budget étudiant, soif d'adulte 💸",
+        "colocs en mode soirée 🎉",
+        "partiels demain, on verra",
+        "ça cherche un plan pour ce soir 👀",
+        "amphi vide, groupe plein"
+      ],
+      "seed_comments": [
+        "qqn a un plan {CANNABIS_WEED} pour la coloc ? 👀",
+        "on a vu une story, ça donne envie 🎉",
+        "budget serré, faut que ça vaille le coup",
+        "after chez moi si y'a de la {QUALITY_GOOD} 🔥"
+      ]
+    },
+    "ruelle": {
+      "nom": "La Ruelle",
+      "emoji": "🚬",
+      "handle": "@la.ruelle",
+      "vibe": "l'arrière sombre, fumée, le calme tendu avant les histoires",
+      "captions": [
+        "ça fume dans le noir 🚬",
+        "le calme avant la night",
+        "lampadaire cassé, ambiance posée",
+        "on attend, on guette 👀",
+        "silence… puis des pas",
+        "la nuit colle aux murs 🌃",
+        "ici les murs ont des oreilles",
+        "froid sec, briquet chaud 🚬"
+      ],
+      "seed_comments": [
+        "y'a du monde qui traîne sur le {SELL_POINT} ce soir 👀",
+        "ça sent les embrouilles ou j'me trompe ?",
+        "tranquille tant que personne fait le malin",
+        "on est là, on dit rien 🚬"
+      ]
+    },
+    "arrivage": {
+      "nom": "● ARRIVAGE",
+      "emoji": "🌃",
+      "handle": "@arrivage.live",
+      "vibe": "le canal live du marché : hype, drops annoncés, concurrence",
+      "captions": [
+        "● live — ça bouge 🌃",
+        "nouvel arrivage annoncé 👀",
+        "le marché s'agite ce soir 🔥",
+        "ça parle de qui a le meilleur",
+        "drops en série, ouvrez l'œil",
+        "la night démarre fort 🌃",
+        "concurrence chaude ce soir 🔥",
+        "qui sert de la {QUALITY_GOOD} ? 👀"
+      ],
+      "seed_comments": [
+        "paraît que le {SELL_POINT} d'à côté a drop aussi 👀",
+        "celui qui sert {QUALITY_BAD} se fait griller vite 🤥",
+        "moi je suis ma story de confiance 🔥",
+        "trop de hype tue la hype 🤡"
+      ]
+    }
+  }
+}

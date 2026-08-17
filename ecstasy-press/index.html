@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Ecstasy — Presse Cadencée</title>
+<style>
+  /* --- Plein ecran, pense mobile (pas de scroll, pas de zoom) --- */
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+  html, body { width:100%; height:100%; overflow:hidden; touch-action:none;
+    font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(120% 120% at 50% 0%, #241a3e 0%, #140c20 60%, #0b0712 100%); }
+  #app { position:fixed; inset:0; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+
+  /* --- HUD (overlay HTML par dessus la scene 3D) --- */
+  .hud { position:fixed; left:0; right:0; pointer-events:none; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.55); }
+
+  /* Bandeau du haut : cash / dette / chaleur / repute */
+  #topbar { top:max(10px,env(safe-area-inset-top)); left:0; right:0; display:flex; gap:8px;
+    justify-content:center; flex-wrap:wrap; padding:0 10px; pointer-events:none; }
+  .stat { background:rgba(0,0,0,.34); border:1px solid rgba(255,255,255,.14); border-radius:11px;
+    padding:5px 10px; font-size:13px; font-weight:800; backdrop-filter:blur(5px); white-space:nowrap; }
+  .stat small { display:block; font-size:9px; font-weight:700; letter-spacing:.5px; opacity:.55; }
+  #sCash { color:#9be37d; }
+  #sDebt { color:#ff9d6e; }
+  #sHeat { color:#ff7a8a; }
+  #sRep  { color:#9ab8ff; }
+
+  /* Titre de phase + sous-titre */
+  #phase { top:calc(max(10px,env(safe-area-inset-top)) + 52px); text-align:center;
+    font-size:13px; font-weight:800; letter-spacing:.6px; color:rgba(255,255,255,.85); }
+  #sub   { top:calc(max(10px,env(safe-area-inset-top)) + 70px); text-align:center;
+    font-size:12px; color:rgba(255,255,255,.55); padding:0 26px; }
+
+  /* Boutons utilitaires en haut a droite */
+  #shopbtn, #reset { position:fixed; pointer-events:auto; background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.25); color:#fff; border-radius:12px; font-weight:800;
+    backdrop-filter:blur(6px); }
+  #shopbtn { right:14px; top:calc(max(10px,env(safe-area-inset-top)) + 96px); width:46px; height:42px; font-size:18px; }
+  #reset   { left:14px;  top:calc(max(10px,env(safe-area-inset-top)) + 96px); padding:9px 12px; font-size:13px; }
+  #shopbtn:active, #reset:active { background:rgba(255,255,255,.28); }
+
+  /* Estimation live pendant le melange (la cuve) */
+  #estim { bottom:max(150px,calc(env(safe-area-inset-bottom) + 142px)); text-align:center;
+    font-size:13px; font-weight:700; color:rgba(255,255,255,.9); display:none; }
+  #estim.show { display:block; }
+  #estim b { color:#ffd166; }
+  #estim .q { color:#7df9ff; }
+
+  /* Jauge de presse cadencee */
+  #gaugelbl { bottom:max(116px,calc(env(safe-area-inset-bottom) + 110px)); text-align:center;
+    font-size:13px; font-weight:800; color:rgba(255,255,255,.9); display:none; }
+  #gaugelbl.show { display:block; }
+  #gauge { position:fixed; bottom:max(86px,calc(env(safe-area-inset-bottom) + 80px)); left:50%; transform:translateX(-50%);
+    width:78%; max-width:360px; height:24px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18);
+    border-radius:999px; overflow:hidden; pointer-events:none; display:none; box-shadow:0 4px 14px rgba(0,0,0,.4); }
+  #gauge.show { display:block; }
+  #gsweet { position:absolute; top:0; bottom:0; background:linear-gradient(90deg,rgba(125,249,255,.18),rgba(125,249,255,.6),rgba(125,249,255,.18)); }
+  #gcursor { position:absolute; top:-2px; bottom:-2px; width:5px; margin-left:-2.5px; background:#fff; border-radius:3px; box-shadow:0 0 8px rgba(255,255,255,.95); }
+  #combo { position:fixed; bottom:max(116px,calc(env(safe-area-inset-bottom) + 110px)); left:50%; transform:translateX(-50%);
+    color:#ffd166; font-weight:900; font-size:22px; pointer-events:none; display:none; text-shadow:0 2px 10px rgba(0,0,0,.6); }
+  #combo.show { display:block; }
+
+  /* Gros bouton d'action contextuel (bas) */
+  #act { position:fixed; bottom:max(30px,calc(env(safe-area-inset-bottom) + 22px)); left:50%; transform:translateX(-50%);
+    pointer-events:auto; background:#7df9ff; border:none; color:#06222a; font-weight:900; font-size:17px;
+    padding:14px 30px; border-radius:16px; box-shadow:0 6px 18px rgba(125,249,255,.34); display:none; }
+  #act.show { display:block; }
+  #act:active { transform:translateX(-50%) scale(.97); }
+  #act.alt { background:#ffd166; color:#2a1f00; box-shadow:0 6px 18px rgba(255,209,102,.34); }
+  #act.warn { background:#ff7a8a; color:#2a0008; box-shadow:0 6px 18px rgba(255,122,138,.34); }
+
+  /* Vider la cuve : rattrape un sur-versage de liant (la coupe reste une décision réversible) */
+  #emptyvat { position:fixed; bottom:max(86px,calc(env(safe-area-inset-bottom) + 80px)); left:50%; transform:translateX(-50%);
+    pointer-events:auto; display:none; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.25);
+    color:rgba(255,255,255,.85); font-weight:700; font-size:13px; padding:8px 16px; border-radius:12px; backdrop-filter:blur(5px); }
+  #emptyvat.show { display:block; }
+  #emptyvat:active { background:rgba(255,255,255,.24); }
+
+  /* Toast central */
+  #toast { top:40%; text-align:center; font-size:24px; font-weight:900; opacity:0;
+    transition:opacity .25s, transform .25s; transform:translateY(8px); }
+  #toast.show { opacity:1; transform:translateY(0); }
+
+  /* Etiquettes flottantes (compteur de pilules pendant le tri) */
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
+  .flab { position:absolute; transform:translate(-50%,-50%); white-space:nowrap; font-weight:900; font-size:13px;
+    padding:2px 8px; border-radius:9px; background:rgba(0,0,0,.6); animation:pop .22s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes pop { from { transform:translate(-50%,-50%) scale(.4); opacity:0; } to { transform:translate(-50%,-50%) scale(1); opacity:1; } }
+
+  /* --- Boutique (5 niveaux d'outils) --- */
+  #shop { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); z-index:6; }
+  #shop.show { display:flex; }
+  #shopinner { width:90%; max-width:400px; max-height:78vh; overflow:auto; background:#1a1230;
+    border:1px solid rgba(255,255,255,.15); border-radius:16px; padding:16px; color:#fff; }
+  #shophead { font-weight:900; font-size:18px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center; }
+  #shopsub { font-size:12px; color:rgba(255,255,255,.5); margin-bottom:12px; }
+  .titem { border:1px solid rgba(255,255,255,.14); border-radius:13px; padding:11px 12px; margin-bottom:9px; background:rgba(255,255,255,.04); }
+  .titem.on  { border-color:rgba(125,249,255,.6); background:rgba(125,249,255,.08); }
+  .titem.lock { opacity:.7; }
+  .titem .tn { font-weight:800; font-size:15px; }
+  .titem .td { font-size:11.5px; color:rgba(255,255,255,.6); margin:3px 0 8px; line-height:1.35; }
+  .titem .trow { display:flex; align-items:center; gap:8px; }
+  .titem .tbuy { pointer-events:auto; background:#7df9ff; border:none; color:#06222a; font-weight:900; font-size:13px;
+    padding:8px 14px; border-radius:10px; }
+  .titem .tbuy:disabled { background:rgba(255,255,255,.14); color:rgba(255,255,255,.4); }
+  .titem .ttag { font-size:11px; font-weight:800; color:#9be37d; }
+  #shopclose { pointer-events:auto; width:100%; margin-top:6px; background:rgba(255,255,255,.14);
+    border:1px solid rgba(255,255,255,.25); color:#fff; font-weight:800; font-size:15px; padding:11px; border-radius:12px; }
+  #shopclose:active { background:rgba(255,255,255,.28); }
+
+  /* --- Rapport de fin de tour (nomme la CAUSE de chaque consequence) --- */
+  #report { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.6); z-index:7; }
+  #report.show { display:flex; }
+  #repinner { width:90%; max-width:400px; max-height:80vh; overflow:auto; background:#1a1230;
+    border:1px solid rgba(255,255,255,.15); border-radius:16px; padding:18px; color:#fff; }
+  #rephead { font-weight:900; font-size:19px; margin-bottom:12px; }
+  .repline { display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-top:1px solid rgba(255,255,255,.08); }
+  .repline:first-of-type { border-top:none; }
+  .repline .ri { font-size:18px; flex:none; width:24px; text-align:center; }
+  .repline .rt { font-size:13.5px; font-weight:800; }
+  .repline .rc { font-size:11.5px; color:rgba(255,255,255,.55); margin-top:2px; }
+  .repline .rv { margin-left:auto; font-weight:900; font-size:14px; white-space:nowrap; }
+  .rv.good { color:#9be37d; } .rv.bad { color:#ff7a8a; } .rv.neu { color:#9ab8ff; }
+  #repnext { pointer-events:auto; width:100%; margin-top:14px; background:#7df9ff; border:none; color:#06222a;
+    font-weight:900; font-size:16px; padding:13px; border-radius:13px; }
+  #repnext:active { background:#5fe6f0; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- Bandeau d'etat -->
+<div id="topbar" class="hud">
+  <div class="stat" id="sCash"><small>CASH</small>0 €</div>
+  <div class="stat" id="sDebt"><small>DETTE</small>0 €</div>
+  <div class="stat" id="sHeat"><small>CHALEUR RUE</small>0</div>
+  <div class="stat" id="sRep"><small>RÉPUTATION</small>—</div>
+</div>
+
+<div id="phase" class="hud">CUVE</div>
+<div id="sub" class="hud">Charge la cuve pour démarrer un lot.</div>
+
+<button id="reset">🔄 Reset</button>
+<button id="shopbtn">🛒</button>
+
+<div id="estim" class="hud"></div>
+<button id="emptyvat">↺ Vider la cuve</button>
+<div id="gaugelbl" class="hud">Tape dans le bleu, en rythme</div>
+<div id="gauge"><div id="gsweet"></div><div id="gcursor"></div></div>
+<div id="combo" class="hud"></div>
+<button id="act">Action</button>
+<div id="toast" class="hud"></div>
+<div id="labels"></div>
+
+<!-- Boutique des 5 niveaux d'outils -->
+<div id="shop">
+  <div id="shopinner">
+    <div id="shophead"><span>🛠️ Atelier</span><span id="shopcash"></span></div>
+    <div id="shopsub">5 niveaux d'outils : presse manuelle → ligne externalisée + embauche.</div>
+    <div id="shopitems"></div>
+    <button id="shopclose">Fermer</button>
+  </div>
+</div>
+
+<!-- Rapport de fin de lot -->
+<div id="report">
+  <div id="repinner">
+    <div id="rephead">📋 Rapport du lot</div>
+    <div id="replines"></div>
+    <button id="repnext">Lot suivant →</button>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+"use strict";
+import * as THREE from "three";
+
+/* =========================================================================
+   ECSTASY — « PRESSE CADENCÉE » (core loop CrimWorld)
+   -------------------------------------------------------------------------
+   Boucle : CUVE (coupe au liant) -> PRESSE (rythme) -> TRI (drag+comptage)
+            -> VENTE -> RAPPORT (nomme la cause de chaque consequence).
+
+   INVARIANTS (non negociables) :
+   R1  Zero aleatoire sur l'ETAT/les CONSEQUENCES. Toute consequence remonte
+       a une decision joueur (taux de liant, precision rythmique, embauche) et
+       porte une `cause` lisible. Seul l'aleatoire de PRESENTATION est tolere
+       (scintillement des pilules, brouillage de la reputation opaque).
+   R2  La QUALITE est le levier unique. `sellThrough` (volume ecoule) et
+       `heatRue` (chaleur de rue) sont deux CO-EFFETS PARALLELES de la qualite,
+       jamais une chaine. On ne calcule JAMAIS la chaleur depuis les ventes.
+
+   Le coeur de simulation (constantes + fonctions pures) est en haut, isole,
+   testable en console via window.ecsta. L'UI 3D vient apres.
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   0) CONSTANTES NOMMEES (placeholders — reglage humain au checkpoint d'equilibre)
+   ------------------------------------------------------------------------- */
+const SAVE = "ecsta_";
+const SAVE_VERSION = "2";              // bumper pour forcer un reset propre (rééquilibrage R1/R2)
+
+const MASSE_PILULE_G   = 0.30;         // masse d'une pilule pressee
+const LIANT_MAX        = 0.60;         // plafond de coupe (60% liant)
+const PILL_PRICE       = 8;            // € par pilule ecoulee
+const DECHET_PRICE     = 2;            // € par pilule malformee revendue aux schlags (reward reduit, pas une perte seche)
+const PRIX_MDMA_GROS_G = 5;            // €/g de MDMA en gros (achat a credit)
+const PACK_MDMA_G      = 500;          // gramme par reappro
+
+const HEAT_SEUIL_QUAL  = 0.55;         // sous cette qualite, la rue parle
+const HEAT_GAIN        = 150;          // pente de la chaleur quand qualite < seuil
+const HEAT_DECAY       = 0.90;         // la rue oublie un peu chaque lot (effet de TEMPS, pas une consequence)
+const HEAT_SAISIE      = 100;          // seuil de saisie (consequence deterministe, tracable)
+
+const DEMANDE_PENTE    = 1.25;         // sensibilite du sell-through a la qualite
+const REPUT_INERTIE    = 0.20;         // vitesse de derive de la reputation conso
+const REPUT_INIT       = 0.50;         // reputation de depart
+
+const HORLOGE_MENACE   = 3;            // lots de retard de dette avant menace fournisseur
+const REMBOURSE_AUTO   = 0.5;          // part du cash affectee au remboursement a chaque vente
+
+/* Les 5 niveaux d'outils.
+   - taps/vit/vert : confort du geste rythmique (tiers manuels). proto-R2 : chaque
+     palier ALLEGE la presse — MOINS de taps, fenetre PLUS large, pas plus rapide —
+     jusqu'a l'automatiser (T4) puis l'externaliser (T5). Le rythme ne change RIEN
+     a l'economie (proto-R1) : c'est du ressenti, pas un test d'adresse.
+   - neglige : liant ajoute par l'employe (DETERMINISTE, accepte a l'embauche -> R1).
+   - expo : surface de chaleur ajoutee par la delegation (exposition des points).  */
+const TIERS = [
+  { n:1, nom:"Presse manuelle",            desc:"Le geste, rien que le geste. 8 frappes, fenetre déjà large.",
+    taps:8, vit:1.5, vert:0.22, charge:40,  auto:false, neglige:0,    expo:0,    prix:0 },
+  { n:2, nom:"Presse a levier",            desc:"Moins de frappes, fenêtre plus large : le geste s'allège.",
+    taps:5, vit:1.4, vert:0.32, charge:65,  auto:false, neglige:0,    expo:0,    prix:900 },
+  { n:3, nom:"Presse pneumatique",         desc:"Grosse capacité, geste quasi trivial (3 frappes très tolérantes).",
+    taps:3, vit:1.3, vert:0.44, charge:95,  auto:false, neglige:0,    expo:0,    prix:2600 },
+  { n:4, nom:"Mini-ligne semi-auto",       desc:"Pressage automatique : plus rien à taper. Tu supervises et tu tries.",
+    taps:0, vit:0,   vert:0,    charge:150, auto:true,  neglige:0,    expo:0.05, prix:6000 },
+  { n:5, nom:"Ligne externalisee + embauche", desc:"Un opérateur tient la ligne. Gros débit — mais il coupe un peu, et il t'expose.",
+    taps:0, vit:0,   vert:0,    charge:260, auto:true,  neglige:0.08, expo:0.15, prix:14000 },
+];
+
+/* -------------------------------------------------------------------------
+   1) SIMULATION PURE (aucune dependance a l'UI, testable en console)
+   ------------------------------------------------------------------------- */
+
+// Petit objet "consequence" porteur d'une CAUSE lisible (contrat de donnees).
+function conseq(code, icon, label, cause, valeur, ton) {
+  return { code, icon, label, cause, valeur, ton: ton || "neu" };
+}
+
+// La QUALITE et le NOMBRE de pilules ne dependent QUE de la COUPE (decision de
+// cuve : charge + taux de liant). Le rythme de presse n'entre PAS dans ce calcul :
+// proto-R1 — le mini-jeu n'est pas un test d'adresse, donc l'adresse ne change
+// NI l'economie NI le rendement (ni bonus, ni malus). C'est du ressenti pur.
+// Zero random sur l'etat (CrimWorld-R1).
+//   tauxLiant in [0, LIANT_MAX] : decision de cuve (cupidite vs prudence)
+function calculerLot(chargeMdmaG, tauxLiant) {
+  tauxLiant = Math.max(0, Math.min(LIANT_MAX, tauxLiant));
+  const puretePate  = 1 - tauxLiant;                            // liant ↑ => purete ↓
+  const masseTotale = chargeMdmaG / Math.max(puretePate, 0.01); // liant ↑ => masse ↑
+  const nbPilules   = Math.floor(masseTotale / MASSE_PILULE_G); // => plus de pilules
+  const qualite     = puretePate;                               // ← LEVIER UNIQUE (la coupe)
+  return {
+    nbPilules, qualite, tauxLiant, puretePate,
+    causeCoupe: "Coupe à " + Math.round(tauxLiant * 100) + "% de liant",
+  };
+}
+
+// Part de pilules malformees : DETERMINISTE depuis la coupe (jamais un tirage).
+function ratioMalformees(tauxLiant) {
+  return Math.max(0, Math.min(0.30, tauxLiant * 0.5));
+}
+
+// R2 : deux co-effets PARALLELES de la qualite. On ne lit JAMAIS l'un depuis l'autre.
+function vendre(lot, reput) {
+  const q = lot.qualite;
+  const out = [];
+
+  // La coupe produit une part de pilules malformees (DETERMINISTE depuis le taux).
+  const malformes = Math.round(lot.nbPilules * ratioMalformees(lot.tauxLiant));
+  const bonnes    = lot.nbPilules - malformes;
+
+  // --- Co-effet A : volume ecoule = f(qualite, reputation). Ne lit PAS la chaleur. ---
+  const sellThrough = Math.max(0, Math.min(1,
+    Math.pow(q, 1 / DEMANDE_PENTE) * (0.5 + 0.5 * reput)));
+  const vendues = Math.floor(bonnes * sellThrough);
+  const revenu  = Math.round(vendues * PILL_PRICE);
+  out.push(conseq("VENTE", "💶",
+    "Écoulé " + vendues + "/" + bonnes + " bonnes pilules  (+" + revenu + " €)",
+    "Sell-through " + Math.round(sellThrough * 100) + "% — qualité " + Math.round(q * 100) + "%",
+    revenu, "good"));
+
+  // Malformees revendues aux schlags : reward REDUIT (proto-R1), jamais une perte seche.
+  const revDechet = Math.round(malformes * DECHET_PRICE);
+  if (malformes > 0) out.push(conseq("DECHET", "🗑️",
+    malformes + " malformées bradées aux schlags  (+" + revDechet + " €)",
+    lot.causeCoupe + " → " + Math.round(ratioMalformees(lot.tauxLiant) * 100) + "% de casse", revDechet, "neu"));
+
+  // --- Co-effet B : chaleur de rue = f(qualite) UNIQUEMENT. Ne lit PAS les ventes. ---
+  // ⚠️ INTERDIT (R2) : tout terme dependant de (bonnes - vendues), du revenu ou du volume.
+  let heat = 0;
+  if (q < HEAT_SEUIL_QUAL) {
+    heat = Math.round((HEAT_SEUIL_QUAL - q) * HEAT_GAIN);
+    out.push(conseq("HEAT", "🔥",
+      "Chaleur de rue +" + heat + " (pilules trop coupées, bad trips)",
+      lot.causeCoupe + " → produit peu cristallin", heat, "bad"));
+  }
+
+  return { sellThrough, vendues, revenu, revDechet, malformes, bonnes, heat,
+    revTotal: revenu + revDechet, conseqs: out };
+}
+
+// Reputation conso : opaque, inertielle — la MEMOIRE des coupes passees (la trace R1).
+function majReputation(reput, qualiteLivree) {
+  return Math.max(0, Math.min(1, reput + (qualiteLivree - reput) * REPUT_INERTIE));
+}
+
+// Expose la simulation pour inspection/test en console (sim d'abord).
+window.ecsta = { calculerLot, ratioMalformees, vendre, majReputation,
+  TIERS, MASSE_PILULE_G, HEAT_SEUIL_QUAL };
+
+/* -------------------------------------------------------------------------
+   2) ETAT PERSISTANT (localStorage prefixe ecsta_*)
+   ------------------------------------------------------------------------- */
+if (localStorage.getItem(SAVE + "ver") !== SAVE_VERSION) {
+  ["cash","debt","clock","heat","rep","mdma","tier"].forEach(k => localStorage.removeItem(SAVE + k));
+  localStorage.setItem(SAVE + "ver", SAVE_VERSION);
+}
+const S = {
+  cash : +(localStorage.getItem(SAVE + "cash")  || 0),
+  debt : +(localStorage.getItem(SAVE + "debt")  || 0),
+  clock: +(localStorage.getItem(SAVE + "clock") || 0),   // lots de retard de dette
+  heat : +(localStorage.getItem(SAVE + "heat")  || 0),
+  rep  : localStorage.getItem(SAVE + "rep") != null ? +localStorage.getItem(SAVE + "rep") : REPUT_INIT,
+  mdma : localStorage.getItem(SAVE + "mdma") != null ? +localStorage.getItem(SAVE + "mdma") : 200, // stock de depart
+  tier : Math.max(1, +(localStorage.getItem(SAVE + "tier") || 1)),
+};
+function save() {
+  localStorage.setItem(SAVE + "cash",  String(S.cash));
+  localStorage.setItem(SAVE + "debt",  String(S.debt));
+  localStorage.setItem(SAVE + "clock", String(S.clock));
+  localStorage.setItem(SAVE + "heat",  String(S.heat));
+  localStorage.setItem(SAVE + "rep",   String(S.rep));
+  localStorage.setItem(SAVE + "mdma",  String(S.mdma));
+  localStorage.setItem(SAVE + "tier",  String(S.tier));
+}
+function tier() { return TIERS[S.tier - 1]; }
+
+/* -------------------------------------------------------------------------
+   3) SCENE 3D
+   ------------------------------------------------------------------------- */
+const app = document.getElementById("app");
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+renderer.setClearColor(0x000000, 0);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
+const VIEW_TARGET = new THREE.Vector3(0, 0.2, 0.2);
+const VIEW_DIR    = new THREE.Vector3(0.0, 0.62, 0.78).normalize();
+const VIEW_RADIUS = 3.5;
+const camPos = new THREE.Vector3();
+function fitView() {
+  const vFov = camera.fov * Math.PI / 180;
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  const fov  = Math.min(vFov, hFov);
+  const dist = (VIEW_RADIUS / Math.sin(fov / 2)) * 1.02;
+  camPos.copy(VIEW_TARGET).addScaledVector(VIEW_DIR, dist);
+  camera.position.copy(camPos);
+  camera.lookAt(VIEW_TARGET);
+}
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  fitView();
+}
+window.addEventListener("resize", resize);
+
+// Lumieres
+scene.add(new THREE.HemisphereLight(0xeae0ff, 0x241a33, 0.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.25);
+sun.position.set(4, 9, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.bias = -0.0005;
+sun.shadow.camera.left = -4; sun.shadow.camera.right = 4;
+sun.shadow.camera.top = 4; sun.shadow.camera.bottom = -4;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x9ab8ff, 0.35);
+fill.position.set(-5, 3, 2); scene.add(fill);
+
+// Plan de travail
+const board = new THREE.Mesh(
+  new THREE.BoxGeometry(5.2, 0.3, 3.4),
+  new THREE.MeshStandardMaterial({ color: 0x2c2440, roughness: 0.85, metalness: 0.1 }));
+board.position.y = -0.15; board.receiveShadow = true; scene.add(board);
+
+// --- La cuve de melange (gauche) ---
+const vat = new THREE.Group(); vat.position.set(-1.55, 0, 0.1); scene.add(vat);
+const vatWall = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.62, 0.55, 0.9, 36, 1, true),
+  new THREE.MeshStandardMaterial({ color: 0xb9c2d6, roughness: 0.35, metalness: 0.7, side: THREE.DoubleSide }));
+vatWall.position.y = 0.45; vatWall.castShadow = true; vat.add(vatWall);
+const vatBase = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.05, 36),
+  new THREE.MeshStandardMaterial({ color: 0x8a93a8, roughness: 0.5, metalness: 0.6 }));
+vatBase.position.y = 0.02; vat.add(vatBase);
+// La pate dans la cuve : couleur = purete (cristallin -> craie selon le liant)
+const pasteMat = new THREE.MeshStandardMaterial({ color: 0x7df9ff, roughness: 0.5, metalness: 0.2, emissive: 0x113844, emissiveIntensity: 0.4 });
+const paste = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.5, 1, 36), pasteMat);
+paste.position.y = 0.05; paste.scale.y = 0.001; vat.add(paste);
+
+// --- La presse (centre) ---
+const press = new THREE.Group(); press.position.set(0.2, 0, 0); scene.add(press);
+const postMat = new THREE.MeshStandardMaterial({ color: 0x4a4660, roughness: 0.5, metalness: 0.6 });
+for (const sx of [-0.5, 0.5]) {
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.5, 0.12), postMat);
+  post.position.set(sx, 0.75, -0.35); post.castShadow = true; press.add(post);
+}
+const crossbar = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.16, 0.3), postMat);
+crossbar.position.set(0, 1.45, -0.35); press.add(crossbar);
+const plunger = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.5),
+  new THREE.MeshStandardMaterial({ color: 0x9aa0c0, roughness: 0.35, metalness: 0.75 }));
+plunger.position.set(0, 1.0, -0.1); plunger.castShadow = true; press.add(plunger);
+const die = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.12, 28),
+  new THREE.MeshStandardMaterial({ color: 0x35304a, roughness: 0.6, metalness: 0.5 }));
+die.position.set(0, 0.06, 0.0); press.add(die);
+let plungerRest = 1.0, plungerY = 1.0;
+
+// --- Le plateau de tri (devant) + deux bacs ---
+const tray = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.08, 1.0),
+  new THREE.MeshStandardMaterial({ color: 0x241d38, roughness: 0.8 }));
+tray.position.set(0.1, 0.02, 1.15); tray.receiveShadow = true; scene.add(tray);
+function makeBin(x, col) {
+  const b = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.32, 0.55),
+    new THREE.MeshStandardMaterial({ color: col, roughness: 0.6, metalness: 0.3 }));
+  b.position.set(x, 0.16, 1.55); b.castShadow = true; scene.add(b); return b;
+}
+const binStock = makeBin(-1.45, 0x2f6b3a);   // STOCK (vert)
+const binWaste = makeBin(1.65, 0x6b4a2f);    // DECHETS (brun)
+
+// Materiaux pilules : cristalline (qualite haute) -> crayeuse (qualite basse)
+function pillColor(q) {
+  // bleu cristallin (q=1) -> blanc craie/gris (q=0). Presentation seulement.
+  const c1 = new THREE.Color(0x7df9ff), c0 = new THREE.Color(0xcfcad8);
+  return c0.clone().lerp(c1, q);
+}
+const pillGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.07, 18);
+
+// -------------------------------------------------------------------------
+// 4) HUD refs
+// -------------------------------------------------------------------------
+const el = renderer.domElement;
+const $ = id => document.getElementById(id);
+const ui = {
+  cash:$("sCash"), debt:$("sDebt"), heat:$("sHeat"), rep:$("sRep"),
+  phase:$("phase"), sub:$("sub"), estim:$("estim"),
+  gauge:$("gauge"), gsweet:$("gsweet"), gcursor:$("gcursor"), gaugelbl:$("gaugelbl"),
+  combo:$("combo"), act:$("act"), toast:$("toast"), labels:$("labels"),
+};
+function setStats() {
+  ui.cash.innerHTML = "<small>CASH</small>" + Math.round(S.cash) + " €";
+  ui.debt.innerHTML = "<small>DETTE" + (S.clock >= HORLOGE_MENACE ? " ⚠️" : "") + "</small>" + Math.round(S.debt) + " €";
+  ui.heat.innerHTML = "<small>CHALEUR RUE</small>" + Math.round(S.heat);
+  // Reputation OPAQUE : on brouille l'affichage (aleatoire de PRESENTATION, autorise).
+  const blur = Math.round(S.rep * 100 + (Math.random() * 6 - 3));
+  const word = S.rep > 0.7 ? "solide" : S.rep > 0.45 ? "correcte" : S.rep > 0.25 ? "fragile" : "grillée";
+  ui.rep.innerHTML = "<small>RÉPUTATION</small>" + word + " ~" + Math.max(0, Math.min(99, blur)) + "%";
+}
+function toast(msg, ms) {
+  ui.toast.textContent = msg; ui.toast.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => ui.toast.classList.remove("show"), ms || 1100);
+}
+function showAct(label, cls) {
+  ui.act.textContent = label; ui.act.className = "show" + (cls ? " " + cls : "");
+}
+function hideAct() { ui.act.className = ""; }
+
+// Etiquette flottante (ex. "+100" en briques pendant le tri)
+function floatLabel(x3, y3, z3, text, color) {
+  const v = new THREE.Vector3(x3, y3, z3).project(camera);
+  const sx = (v.x * 0.5 + 0.5) * window.innerWidth;
+  const sy = (-v.y * 0.5 + 0.5) * window.innerHeight;
+  const d = document.createElement("div");
+  d.className = "flab"; d.textContent = text; d.style.color = color || "#fff";
+  d.style.left = sx + "px"; d.style.top = sy + "px";
+  ui.labels.appendChild(d);
+  requestAnimationFrame(() => { d.style.transition = "transform .6s, opacity .6s"; d.style.transform = "translate(-50%,-150%)"; d.style.opacity = "0"; });
+  setTimeout(() => d.remove(), 650);
+}
+
+/* -------------------------------------------------------------------------
+   5) MACHINE A ETATS DU LOT  (CUVE -> PRESSE -> TRI -> RAPPORT)
+   ------------------------------------------------------------------------- */
+let phase = "CUVE";
+const lot = {
+  tauxLiant: 0, pressTaps: 0, pressNeed: 0,
+  data: null, pills: [], swept: 0,
+};
+
+function setPhase(p, title, sub) {
+  phase = p; ui.phase.textContent = title; ui.sub.textContent = sub;
+}
+
+// --- Pate : maj du visuel cuve selon remplissage + purete ---
+function refreshPaste(fill) {
+  paste.scale.y = Math.max(0.001, fill * 0.86);
+  paste.position.y = 0.05 + paste.scale.y * 0.5;
+  const q = 1 - lot.tauxLiant;
+  pasteMat.color.copy(pillColor(q));
+  pasteMat.emissive.copy(pillColor(q)).multiplyScalar(0.25 * q);
+}
+
+// ====== PHASE CUVE ======
+function enterCuve() {
+  setPhase("CUVE", "CUVE — coupe", "Maintiens sur la cuve pour verser le liant. Plus de liant = plus de pilules, moins cristallines.");
+  lot.tauxLiant = 0; lot.pressTaps = 0; lot.data = null;
+  clearPills();
+  const t = tier();
+  $("emptyvat").classList.remove("show");        // rien à vider tant qu'on n'a pas versé
+  if (S.mdma < t.charge) {
+    setPhase("CUVE", "CUVE — réappro", "Stock MDMA insuffisant pour cette presse.");
+    ui.estim.classList.remove("show");
+    showAct("📦 Réappro " + PACK_MDMA_G + " g  (+" + (PACK_MDMA_G * PRIX_MDMA_GROS_G) + " € dette)", "alt");
+    return;
+  }
+  refreshPaste(0.5);
+  updateEstim();
+  ui.estim.classList.add("show");
+  showAct("Presser →");
+}
+let pouring = false;
+function updateEstim() {
+  const t = tier();
+  const taux = effectiveTaux();
+  const d = calculerLot(t.charge, taux); // le lot ne depend que de la coupe
+  ui.estim.innerHTML = "Liant <b>" + Math.round(taux * 100) + "%</b> · ~<b>" + d.nbPilules +
+    "</b> pilules · cristallinité <span class='q'>" + Math.round(d.puretePate * 100) + "%</span>" +
+    (taux > 1 - HEAT_SEUIL_QUAL ? " · <span style='color:#ff7a8a'>⚠ sous la ligne de qualité</span>" : "");
+  $("emptyvat").classList.toggle("show", lot.tauxLiant > 0.001); // versage rattrapable (proto-R1)
+}
+// le liant effectif inclut la negligence de l'employe (tier 5) — deterministe (R1)
+function effectiveTaux() {
+  return Math.min(LIANT_MAX, lot.tauxLiant + tier().neglige);
+}
+
+// ====== PHASE PRESSE ======
+let gaugePos = 0, gaugeDir = 1, gaugeSweetMid = 0.5;
+function enterPresse() {
+  const t = tier();
+  $("emptyvat").classList.remove("show");
+  lot.pressTaps = 0;
+  if (t.auto) {
+    // Tiers automatises : plus rien a taper, meme rendement (proto-R2). Zero random.
+    setPhase("PRESSE", "PRESSE — auto", t.nom + " : la ligne tourne…");
+    ui.estim.classList.remove("show"); hideAct();
+    let n = 0;
+    const iv = setInterval(() => {
+      pulsePlunger();
+      if (++n >= 6) { clearInterval(iv); finishPresse(); }
+    }, 230);
+    return;
+  }
+  // Tiers manuels : geste rythmique de RESSENTI (n'influe pas sur l'economie).
+  lot.pressNeed = t.taps;
+  setPhase("PRESSE", "PRESSE — rythme", "Tape dans le bleu au passage du curseur (" + t.taps + "×). Pur plaisir du geste : le rythme ne change rien au lot.");
+  ui.estim.classList.remove("show");
+  gaugeSweetMid = 0.5;
+  ui.gsweet.style.width = (t.vert * 100) + "%";
+  ui.gauge.classList.add("show"); ui.gaugelbl.classList.add("show");
+  ui.combo.classList.add("show"); ui.combo.textContent = "0 / " + t.taps;
+  hideAct();
+}
+function pulsePlunger() { plungerY = 0.42; } // descend; remonte dans la loop
+function tapPress() {
+  const t = tier();
+  // Proximite au centre du bleu : sert UNIQUEMENT au feedback visuel (PRESENTATION).
+  // Aucun effet economique — proto-R1 : ce n'est pas un test d'adresse.
+  const half = t.vert / 2;
+  const hit = Math.max(0, 1 - Math.abs(gaugePos - gaugeSweetMid) / half);
+  lot.pressTaps++;
+  pulsePlunger();
+  // Feedback de ressenti pur : jolie ou neutre, jamais un malus.
+  if (hit > 0.66) toast("clac !", 450);
+  else toast("clac", 380);
+  ui.combo.textContent = lot.pressTaps + " / " + t.taps;
+  // deplace legerement le bleu pour garder le rythme vivant (PRESENTATION)
+  gaugeSweetMid = 0.22 + Math.random() * 0.56;
+  ui.gsweet.style.left = (gaugeSweetMid * 100 - t.vert * 50) + "%";
+  if (lot.pressTaps >= t.taps) finishPresse();
+}
+function finishPresse() {
+  ui.gauge.classList.remove("show"); ui.gaugelbl.classList.remove("show"); ui.combo.classList.remove("show");
+  plungerY = plungerRest;
+  const t = tier();
+  S.mdma = Math.max(0, S.mdma - t.charge);        // consomme la charge MDMA
+  lot.data = calculerLot(t.charge, effectiveTaux()); // le lot ne depend QUE de la coupe
+  spawnPills(lot.data);
+  setStats(); save();
+  enterTri();
+}
+
+// ====== PHASE TRI (drag + comptage) ======
+function clearPills() {
+  for (const p of lot.pills) scene.remove(p.mesh);
+  lot.pills = []; lot.swept = 0;
+}
+function spawnPills(d) {
+  clearPills();
+  // On represente le lot par un echantillon visuel (max ~44 pilules) ; le NOMBRE
+  // economique reste d.nbPilules. La part malformee visuelle = ratio deterministe.
+  const VIS = Math.min(44, d.nbPilules);
+  const nBad = Math.round(VIS * ratioMalformees(d.tauxLiant));
+  const q = d.qualite;
+  for (let i = 0; i < VIS; i++) {
+    const bad = i < nBad;
+    const m = new THREE.Mesh(pillGeo, new THREE.MeshStandardMaterial({
+      color: pillColor(bad ? Math.max(0, q - 0.4) : q),
+      roughness: bad ? 0.95 : 0.4, metalness: 0.05,
+      emissive: pillColor(q).multiplyScalar(bad ? 0.0 : 0.12 * q),
+    }));
+    // grille sur le plateau
+    const cols = 11;
+    const cx = (i % cols - (cols - 1) / 2) * 0.235;
+    const cz = Math.floor(i / cols) * 0.22 - 0.33;
+    m.position.set(0.1 + cx, 0.12, 1.05 + cz);
+    m.rotation.y = Math.random() * Math.PI;            // PRESENTATION
+    if (bad) m.rotation.z = 0.5 + Math.random() * 0.3; // malformee : penchee
+    m.castShadow = true; scene.add(m);
+    lot.pills.push({ mesh:m, bad, routed:false, x0:m.position.x });
+  }
+}
+function enterTri() {
+  setPhase("TRI", "TRI — raclette", "Glisse le doigt de gauche à droite sur le plateau : les bonnes filent au STOCK, les ratées au DÉCHET.");
+  // les pilules malformees iront aux DECHETS automatiquement selon leur flag (deterministe)
+  showAct("Tout balayer ✓", "alt");
+}
+// Balaye toutes les pilules dont x < sweepX (raclette qui suit le doigt)
+let bricks = 0;
+function sweepTo(sweepX) {
+  for (const p of lot.pills) {
+    if (p.routed || p.x0 > sweepX) continue;
+    p.routed = true; lot.swept++;
+    const target = p.bad ? binWaste.position : binStock.position;
+    animatePill(p.mesh, target);
+    if (!p.bad) {
+      // comptage en briques de 100 (sur le NOMBRE economique, pas l'echantillon)
+      const per = Math.max(1, Math.round(lot.data.nbPilules / lot.pills.filter(z => !z.bad).length));
+      bricks += per;
+      while (bricks >= 100) { bricks -= 100; floatLabel(binStock.position.x, 0.6, binStock.position.z, "brique +100", "#9be37d"); }
+    }
+  }
+  if (lot.swept >= lot.pills.length) finishTri();
+}
+function animatePill(mesh, target) {
+  const from = mesh.position.clone();
+  const t0 = performance.now();
+  (function fly() {
+    const k = Math.min(1, (performance.now() - t0) / 280);
+    mesh.position.lerpVectors(from, target, k);
+    mesh.position.y = from.y + Math.sin(k * Math.PI) * 0.5 + (target.y - from.y) * k;
+    mesh.rotation.x += 0.3;
+    if (k < 1) requestAnimationFrame(fly); else mesh.visible = false;
+  })();
+}
+function finishTri() {
+  bricks = 0;
+  setTimeout(resolveLot, 350);
+}
+
+/* -------------------------------------------------------------------------
+   6) RESOLUTION + RAPPORT (nomme la CAUSE de chaque consequence)
+   ------------------------------------------------------------------------- */
+function resolveLot() {
+  const d = lot.data;
+  const lines = [];
+
+  // Co-effets paralleles de la qualite (R2).
+  const sale = vendre(d, S.rep);
+  S.cash += sale.revTotal;          // ventes + revente des malformees aux schlags
+  lines.push(...sale.conseqs);
+
+  // Chaleur : decroissance de TEMPS puis ajout du co-effet qualite + exposition (delegation).
+  S.heat = Math.round(S.heat * HEAT_DECAY + sale.heat);
+  const t = tier();
+  if (t.expo > 0) {
+    const ex = Math.round(t.expo * 40);
+    S.heat += ex;
+    lines.push(conseq("EXPO", "📡", "Exposition +" + ex + " (délégation)",
+      t.nom + " : tu n'es plus seul sur la ligne", ex, "bad"));
+  }
+
+  // Remboursement automatique d'une part du cash vers la dette.
+  if (S.debt > 0 && S.cash > 0) {
+    const pay = Math.min(S.debt, Math.round(S.cash * REMBOURSE_AUTO));
+    S.debt -= pay; S.cash -= pay;
+    if (pay > 0) lines.push(conseq("REMB", "🏦", "Remboursement −" + pay + " € au fournisseur",
+      "Solde de dette : " + Math.round(S.debt) + " €", pay, "neu"));
+  }
+  // Horloge de dette : retard => menace du fournisseur (cause tracable).
+  if (S.debt > 0) {
+    S.clock++;
+    if (S.clock >= HORLOGE_MENACE) {
+      lines.push(conseq("FOURN", "☎️", "Le fournisseur s'impatiente",
+        "Dette non soldée depuis " + S.clock + " lots", 0, "bad"));
+    }
+  } else { S.clock = 0; }
+
+  // Reputation conso : memoire opaque des coupes (la trace).
+  const before = S.rep;
+  S.rep = majReputation(S.rep, d.qualite);
+  const drep = Math.round((S.rep - before) * 100);
+  lines.push(conseq("REP", "🫥",
+    (drep >= 0 ? "Réputation conso +" : "Réputation conso ") + drep + " pts",
+    "La rue se souvient de la qualité livrée (" + Math.round(d.qualite * 100) + "%)", drep, drep >= 0 ? "good" : "bad"));
+
+  // SAISIE : consequence deterministe au seuil de chaleur (tracable aux coupes passees).
+  let busted = false;
+  if (S.heat >= HEAT_SAISIE) {
+    busted = true;
+    const perte = Math.round(S.cash * 0.5 + S.mdma * PRIX_MDMA_GROS_G * 0.5);
+    S.cash = Math.round(S.cash * 0.5);
+    S.mdma = Math.round(S.mdma * 0.5);
+    S.heat = 40;
+    lines.unshift(conseq("SAISIE", "🚨", "SAISIE — perte ~" + perte + " € + stock",
+      "Chaleur de rue ≥ " + HEAT_SAISIE + " : tes coupes ont fini par parler", perte, "bad"));
+  }
+
+  setStats(); save();
+  showReport(lines, d, busted);
+}
+
+function showReport(lines, d, busted) {
+  setPhase("RAPPORT", "RAPPORT", "Chaque conséquence remonte à une décision.");
+  hideAct();
+  const box = $("replines"); box.innerHTML = "";
+  // En-tete recap qualite
+  const head = document.createElement("div"); head.className = "repline";
+  head.innerHTML = "<div class='ri'>💊</div><div><div class='rt'>" + d.nbPilules +
+    " pilules · qualité " + Math.round(d.qualite * 100) + "%</div>" +
+    "<div class='rc'>" + d.causeCoupe + " — la coupe seule fixe qualité &amp; volume</div></div>";
+  box.appendChild(head);
+  for (const c of lines) {
+    const row = document.createElement("div"); row.className = "repline";
+    row.innerHTML = "<div class='ri'>" + c.icon + "</div>" +
+      "<div><div class='rt'>" + c.label + "</div><div class='rc'>↳ " + c.cause + "</div></div>" +
+      "<div class='rv " + c.ton + "'>" + (c.code === "VENTE" ? "+" + c.valeur + "€" :
+        c.code === "REMB" ? "−" + c.valeur + "€" :
+        c.code === "HEAT" || c.code === "EXPO" ? "🔥" + c.valeur :
+        c.code === "REP" ? (c.valeur >= 0 ? "+" : "") + c.valeur :
+        c.code === "SAISIE" ? "−" + c.valeur + "€" : "") + "</div>";
+    box.appendChild(row);
+  }
+  $("rephead").textContent = busted ? "🚨 Lot soldé sous saisie" : "📋 Rapport du lot";
+  $("report").classList.add("show");
+}
+$("repnext").addEventListener("click", () => {
+  $("report").classList.remove("show");
+  enterCuve();
+});
+
+/* -------------------------------------------------------------------------
+   7) BOUTIQUE — 5 niveaux d'outils
+   ------------------------------------------------------------------------- */
+function renderShop() {
+  $("shopcash").textContent = Math.round(S.cash) + " €";
+  const box = $("shopitems"); box.innerHTML = "";
+  TIERS.forEach((t, i) => {
+    const owned = S.tier >= t.n;
+    const isNext = S.tier === t.n - 1;
+    const div = document.createElement("div");
+    div.className = "titem" + (S.tier === t.n ? " on" : "") + (!owned && !isNext ? " lock" : "");
+    let btn;
+    if (owned) btn = "<span class='ttag'>" + (S.tier === t.n ? "✓ en service" : "✓ acquis") + "</span>";
+    else if (isNext) btn = "<button class='tbuy' data-buy='" + t.n + "'" + (S.cash < t.prix ? " disabled" : "") + ">Acheter " + t.prix + " €</button>";
+    else btn = "<span class='ttag' style='color:rgba(255,255,255,.4)'>🔒 niveau " + (t.n - 1) + " requis</span>";
+    div.innerHTML = "<div class='tn'>Niv." + t.n + " — " + t.nom + "</div>" +
+      "<div class='td'>" + t.desc + "<br>charge " + t.charge + " g/lot" +
+      (t.auto ? " · auto (zéro frappe)" : " · " + t.taps + " frappes, fenêtre " + Math.round(t.vert * 100) + "%") +
+      (t.neglige ? " · liant +" + Math.round(t.neglige * 100) + "%" : "") +
+      (t.expo ? " · exposition +" + Math.round(t.expo * 100) + "%" : "") + "</div>" +
+      "<div class='trow'>" + btn + "</div>";
+    box.appendChild(div);
+  });
+  box.querySelectorAll("[data-buy]").forEach(b => b.addEventListener("click", () => {
+    const n = +b.getAttribute("data-buy"); const t = TIERS[n - 1];
+    if (S.cash >= t.prix && S.tier === n - 1) {
+      S.cash -= t.prix; S.tier = n; setStats(); save(); renderShop();
+      toast("⬆️ " + t.nom);
+    }
+  }));
+}
+$("shopbtn").addEventListener("click", () => { renderShop(); $("shop").classList.add("show"); });
+$("shopclose").addEventListener("click", () => {
+  $("shop").classList.remove("show");
+  if (phase === "CUVE") enterCuve(); // si on vient de debloquer une presse plus grosse
+});
+
+/* -------------------------------------------------------------------------
+   8) BOUTON D'ACTION CONTEXTUEL + RESET
+   ------------------------------------------------------------------------- */
+ui.act.addEventListener("click", () => {
+  if (phase === "CUVE") {
+    const t = tier();
+    if (S.mdma < t.charge) {                 // reappro
+      S.mdma += PACK_MDMA_G; S.debt += PACK_MDMA_G * PRIX_MDMA_GROS_G; S.clock = 0;
+      setStats(); save(); enterCuve();
+      toast("📦 +" + PACK_MDMA_G + " g MDMA");
+    } else {
+      enterPresse();                          // « Presser → »
+    }
+  } else if (phase === "TRI") {
+    // bouton de secours : balaye tout
+    sweepTo(99);
+  }
+});
+// Vider la cuve : annule le versage de liant (la coupe reste réversible avant pressage).
+$("emptyvat").addEventListener("click", () => {
+  if (phase !== "CUVE") return;
+  lot.tauxLiant = 0; refreshPaste(0.5); updateEstim();
+  toast("cuve vidée", 600);
+});
+$("reset").addEventListener("click", () => {
+  if (!confirm("Remettre l'atelier à zéro ?")) return;
+  ["cash","debt","clock","heat","rep","mdma","tier"].forEach(k => localStorage.removeItem(SAVE + k));
+  location.reload();
+});
+
+/* -------------------------------------------------------------------------
+   9) ENTREES POINTEUR  (pour selon la phase)
+   ------------------------------------------------------------------------- */
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const trayPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.12);
+function pointerWorldX(ev) {
+  const r = el.getBoundingClientRect();
+  ndc.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
+  ndc.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
+  ray.setFromCamera(ndc, camera);
+  const hit = new THREE.Vector3();
+  ray.ray.intersectPlane(trayPlane, hit);
+  return hit ? hit.x : null;
+}
+let dragging = false;
+el.addEventListener("pointerdown", (ev) => {
+  if (phase === "CUVE" && S.mdma >= tier().charge) {
+    pouring = true;                            // maintien = verse le liant
+  } else if (phase === "PRESSE" && !tier().auto) {
+    tapPress();                                // tap rythme
+  } else if (phase === "TRI") {
+    dragging = true; const x = pointerWorldX(ev); if (x != null) sweepTo(x);
+  }
+}, { passive:false });
+el.addEventListener("pointermove", (ev) => {
+  if (phase === "TRI" && dragging) { const x = pointerWorldX(ev); if (x != null) sweepTo(x); }
+}, { passive:false });
+function endPointer() { pouring = false; dragging = false; }
+el.addEventListener("pointerup", endPointer);
+el.addEventListener("pointercancel", endPointer);
+
+/* -------------------------------------------------------------------------
+   10) BOUCLE DE RENDU
+   ------------------------------------------------------------------------- */
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+
+  // Verse le liant pendant le maintien (CUVE)
+  if (phase === "CUVE" && pouring) {
+    lot.tauxLiant = Math.min(LIANT_MAX, lot.tauxLiant + dt * 0.22);
+    refreshPaste(0.5 + lot.tauxLiant * 0.55);
+    updateEstim();
+  }
+
+  // Curseur de la jauge (PRESSE manuelle) : va-et-vient regulier (PRESENTATION)
+  if (phase === "PRESSE" && !tier().auto) {
+    gaugePos += gaugeDir * tier().vit * dt;
+    if (gaugePos > 1) { gaugePos = 1; gaugeDir = -1; }
+    if (gaugePos < 0) { gaugePos = 0; gaugeDir = 1; }
+    ui.gcursor.style.left = (gaugePos * 100) + "%";
+  }
+
+  // Le piston revient a sa position de repos en douceur
+  plungerY += (plungerRest - plungerY) * Math.min(1, dt * 9);
+  plunger.position.y = plungerY;
+
+  setStats._t = (setStats._t || 0) + dt;
+  if (setStats._t > 0.4) { setStats._t = 0; if (phase !== "RAPPORT") setStats(); } // rafraichit la reput brouillee
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+
+/* -------------------------------------------------------------------------
+   11) DEMARRAGE
+   ------------------------------------------------------------------------- */
+resize();
+setStats();
+enterCuve();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

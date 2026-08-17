@@ -276,32 +276,70 @@ fill.position.set(-5, 3, 6);
 scene.add(fill);
 
 /* -------------------------------------------------------------------------
-   3) TEXTURES PROCEDURALES (grain) — aucun fichier externe
+   3) TEXTURES PROCEDURALES (résine pressée) — aucun fichier externe
+   Grain multi-échelle (marbrures douces + grain fin + impuretés) + un bump map
+   partagé pour donner du relief à la résine (elle accroche la lumière).
    ------------------------------------------------------------------------- */
+const _cl = (v) => Math.max(0, Math.min(255, v | 0));
 function grainTex(r, g, b, contrast, spots) {
-  const c = document.createElement("canvas"); c.width = c.height = 96;
+  const S = 256;
+  const c = document.createElement("canvas"); c.width = c.height = S;
   const x = c.getContext("2d");
-  const img = x.createImageData(96, 96);
-  for (let i = 0; i < img.data.length; i += 4) {
+  x.fillStyle = "rgb(" + r + "," + g + "," + b + ")"; x.fillRect(0, 0, S, S);
+  // Marbrures : taches douces plus claires/sombres (pressage irrégulier).
+  for (let i = 0; i < 24; i++) {
+    const rx = Math.random() * S, ry = Math.random() * S, rad = S * (0.06 + Math.random() * 0.16);
+    const d = (Math.random() - 0.5) * contrast * 1.05;
+    const rgb = _cl(r + d) + "," + _cl(g + d) + "," + _cl(b + d * 0.9);
+    const grd = x.createRadialGradient(rx, ry, 0, rx, ry, rad);
+    grd.addColorStop(0, "rgba(" + rgb + ",0.42)");
+    grd.addColorStop(1, "rgba(" + rgb + ",0)");
+    x.fillStyle = grd; x.fillRect(0, 0, S, S);
+  }
+  // Grain fin : bruit par pixel (résine sablée).
+  const img = x.getImageData(0, 0, S, S), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
     const n = (Math.random() - 0.5) * contrast;
-    img.data[i]   = Math.max(0, Math.min(255, r + n));
-    img.data[i+1] = Math.max(0, Math.min(255, g + n));
-    img.data[i+2] = Math.max(0, Math.min(255, b + n));
-    img.data[i+3] = 255;
+    d[i] = _cl(d[i] + n); d[i+1] = _cl(d[i+1] + n); d[i+2] = _cl(d[i+2] + n);
   }
   x.putImageData(img, 0, 0);
+  // Impuretés : petits points sombres pressés.
   for (let k = 0; k < spots; k++) {
-    x.fillStyle = "rgba(0,0,0," + (Math.random() * 0.18) + ")";
-    x.fillRect(Math.random() * 96, Math.random() * 96, Math.random() * 3 + 1, Math.random() * 3 + 1);
+    x.fillStyle = "rgba(20,12,6," + (Math.random() * 0.22) + ")";
+    x.beginPath(); x.arc(Math.random() * S, Math.random() * S, Math.random() * 1.6 + 0.5, 0, 6.283); x.fill();
   }
   const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 2);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1.6, 1.6);
+  t.anisotropy = 4;
   return t;
 }
+// Bump map partagé : micro-relief de la résine pressée (gris 128 = niveau moyen).
+const resinBump = (() => {
+  const S = 256;
+  const c = document.createElement("canvas"); c.width = c.height = S;
+  const x = c.getContext("2d");
+  x.fillStyle = "#808080"; x.fillRect(0, 0, S, S);
+  for (let i = 0; i < 50; i++) {                       // bosses/creux pressés
+    const rx = Math.random() * S, ry = Math.random() * S, rad = S * (0.03 + Math.random() * 0.1);
+    const v = Math.random() < 0.5 ? 0 : 255, a = 0.1 + Math.random() * 0.22;
+    const grd = x.createRadialGradient(rx, ry, 0, rx, ry, rad);
+    grd.addColorStop(0, "rgba(" + v + "," + v + "," + v + "," + a + ")");
+    grd.addColorStop(1, "rgba(" + v + "," + v + "," + v + ",0)");
+    x.fillStyle = grd; x.fillRect(0, 0, S, S);
+  }
+  const img = x.getImageData(0, 0, S, S), d = img.data; // grain fin
+  for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * 60; d[i] = d[i+1] = d[i+2] = _cl(d[i] + n); }
+  x.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1.6, 1.6);
+  return t;
+})();
 // Résine pressée (look Hash Slicer) : peau brun très foncé lustrée + face coupée
-// blonde mate (mie).
-const matCrust  = new THREE.MeshStandardMaterial({ map: grainTex(46, 31, 18, 40, 230), roughness: 0.4, metalness: 0.3 });
-const matSponge = new THREE.MeshStandardMaterial({ map: grainTex(190, 162, 110, 40, 90), roughness: 0.92 });
+// blonde mate (mie). Bump map -> micro-relief qui accroche la lumière.
+const matCrust  = new THREE.MeshStandardMaterial({ map: grainTex(46, 31, 18, 36, 220),
+  bumpMap: resinBump, bumpScale: 0.45, roughness: 0.46, metalness: 0.26 });
+const matSponge = new THREE.MeshStandardMaterial({ map: grainTex(192, 164, 112, 34, 80),
+  bumpMap: resinBump, bumpScale: 0.6, roughness: 0.95 });
 
 // --- Barrette à coins arrondis (résine pressée) : rectangle arrondi extrudé +
 // léger biseau. 2 groupes de matériaux -> [face coupée (blonde), flancs (croûte)]. ---
@@ -571,6 +609,7 @@ function updateCrumbs(dt) {
 const flyers = [];
 function flyBarrette(fromX, fromZ, grams, q) {
   const m = new THREE.Mesh(slabGeo, [matSponge, matCrust]);   // même bâton arrondi que le stock
+  m.scale.setScalar(Math.max(0.7, Math.min(1.5, Math.cbrt(grams / 10))));   // taille ∝ ∛grammage
   m.position.set(fromX, 0.4, fromZ); m.castShadow = true;
   scene.add(m);
   flyers.push({ mesh: m, grams, q, t: 0 });
@@ -865,10 +904,17 @@ function setFmt(f) {
    ------------------------------------------------------------------------- */
 const ENDS = 2;
 const wrapS = { i: 0, melt: 0, holding: false, sealed: false, seals: [], sizzleT: 0 };
+// Taille du pochon selon le format : volume ∝ grammage -> dimension ∝ ∛g (réf 10 g = 1).
+// L'épaisseur grossit un peu plus que la longueur (gros format = barre trapue, pas un long bâton).
+function applyPackSize() {
+  const f = PACK_FORMATS.find(x => x.id === packFmt) || { g: 10 };
+  const s = Math.max(0.72, Math.min(1.95, Math.cbrt(f.g / 10)));
+  packSlab.scale.set(1 + (s - 1) * 0.7, s * 1.08, s * 1.08);
+}
 function gotoWrap() {
   setPhase("wrap");
   wrapS.i = 0; wrapS.melt = 0; wrapS.holding = false; wrapS.sealed = false; wrapS.seals = []; wrapS.sizzleT = 0;
-  packSlab.scale.set(1, 1, 1); packSlab.rotation.set(0, 0, 0); packSlab.position.y = 0.5;
+  packSlab.rotation.set(0, 0, 0); packSlab.position.y = 0.5; applyPackSize();
   briquetFlame.visible = false;
   for (const e of ends) {                              // bouts de cellophane "neufs"
     e.sealing = false; e.sealT = 0; e.mesh.visible = true; e.mesh.scale.set(1, 1, 1);
@@ -904,7 +950,7 @@ function renderPackGrid() {
     b.dataset.fmt = f.id;
     b.disabled = stock.g < f.g;
     b.innerHTML = '<div class="fn">' + f.emoji + " " + f.name + '</div><div class="fp">~' + unit + " €</div>";
-    b.addEventListener("click", () => { packFmt = f.id; localStorage.setItem("gs_packfmt", f.id); setPackButtons(); refreshWrapCard(); });
+    b.addEventListener("click", () => { packFmt = f.id; localStorage.setItem("gs_packfmt", f.id); setPackButtons(); refreshWrapCard(); applyPackSize(); });
     ui.packgrid.appendChild(b);
   }
 }

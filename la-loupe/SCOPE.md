@@ -11,6 +11,8 @@
 - Front d’ouverture Karim : +100 g à crédit, cash tôt moins cher
 - **Hit planque** = f(stock, valeur) → chaleur douce en fin de soirée si brûlant
 - Hors P0 (plus tard) : chouff, onion/crypto, multi-PDV, soldats, nourrices
+- **Design de la suite (P1+)** : voir `SHELTER.md` — « Le Bloc » (four, équipe,
+  jauges police, rivalités, la Chute)
 
 ---
 

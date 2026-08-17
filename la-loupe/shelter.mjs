@@ -2,6 +2,16 @@
    P0 : carte Quartier Nord · 1 planque · 1 PDV · dette front · hit planque.
    Pas de police / soldats / onion — ça vient après. */
 
+/* La dette Karim est EN SOMMEIL, pas supprimée.
+   Pourquoi : `repayDebt` exige du PROPRE (S.cash), et la trieuse liquide→propre est
+   coupée (SORTER_ENABLED=false dans index.html). S.cash n'a donc aucune source in-game.
+   Une dette armée serait donc IMPAYABLE, et `nightTick` la fait enfler indéfiniment
+   (+8 chaleur, −6 standing, ×1,15 tous les 2 jours) : une boucle de punition sans
+   sortie, c'est-à-dire R1 violé de la pire façon.
+   Ce drapeau bloque l'ARMEMENT et l'ESCALADE sans effacer debtDue/debtDueDay : le jour
+   où le propre retrouve une source, on repasse à true et l'état repart où il en était. */
+export const FRONT_ENABLED = false;
+
 /** Pins en % de la carte (x,y = centre du pin). Calés sur le fond quartier-nord. */
 export const PINS = {
   planque: {
@@ -17,6 +27,38 @@ export const PINS = {
     kind: "pdv",
     title: "Le corner",
     blurb: "Le spot que Karim t'a filé. Tu vitrines ici — les clients arrivent en DM.",
+  },
+  /* Chez Karim. Avant que l'Appro s'ouvre, c'est la SEULE source de matière (arbitrage
+     Sylvain, 2026-07-28). Il n'est pas un menu déguisé : il vend plus cher que le marché
+     — c'est le prix de ne pas avoir encore les contacts — et c'est en le faisant tourner
+     qu'on les obtient. */
+  karim: {
+    id: "karim",
+    x: 26, y: 30,
+    kind: "karim",
+    title: "Chez Karim",
+    blurb: "Arrière-boutique, rideau à moitié tiré. C'est lui qui t'a lancé — et pour l'instant, c'est lui qui te fournit.",
+  },
+  /* Chez Tata Yamina. La VANNE du liquide (arbitrage Sylvain, 2026-07-28, après un
+     playtest : « aucune option de retirer l'argent du corner, ou de le cacher chez une
+     nourrice »).
+
+     Le diagnostic mesuré : tous les puits du jeu étaient des STOCKS. Les upgrades sont
+     plafonnés (7 900 réellement achetables — `scooter` et `counter` ne sont dans aucune
+     ligne de boutique), le pain déplace la pression vers la planque au lieu de la
+     supprimer, la paie des chouffes plafonne à 180/soir, et la trieuse est coupée. Une
+     fois les upgrades au max, plus rien ne consommait un revenu net de 400 à 1 100 par
+     soirée : le liquide ne pouvait plus que monter, et au-dessus de 450 il chauffe à
+     +40/min pour un seuil de descente à 95.
+
+     Elle GARDE, elle ne blanchit pas : pas de seconde monnaie, rien de nouveau à
+     apprendre. Et tant qu'elle garde, le compteur tourne. */
+  nourrice: {
+    id: "nourrice",
+    x: 36, y: 52,
+    kind: "nourrice",
+    title: "Chez Tata Yamina",
+    blurb: "R+2, l'étage sous le tien. Elle garde. Elle ne demande rien, elle ne rend pas de comptes — mais elle se paie.",
   },
   rival: {
     id: "rival",
@@ -42,13 +84,54 @@ export const SUPPLIER = {
   /** Front d'ouverture : 100 g, à rembourser. */
   frontG: 100,
   frontQ: 55,
-  /** Prix cash si tu solde avant l'échéance. */
-  cashPrice: 200,
-  /** Prix crédit / si tu attends l'échéance. */
-  creditPrice: 280,
-  /** Jours pour rembourser (J1 = jour du front). */
+  /** Prix unique du front, en propre. Pas de rabais « cash tôt ». */
+  price: 280,
+  /** Jours pour rembourser Karim (J1 = jour du front). */
   dueDays: 4,
+  /* Ce qu'il vend, en LIQUIDE, avant que l'Appro s'ouvre. Même gabarit que le front :
+     100 g à q55. Son prix (`price`) est celui du front — 280 pour 100 g, contre 200 au
+     marché : +40 %. Ce n'est pas une punition, c'est ce que coûte de n'avoir qu'un seul
+     fournisseur (R9 — la friction se paie au niveau système, pas au geste). */
+  buyG: 100,
+  buyQ: 55,
+  /** Achats chez lui avant qu'il te passe le contact et que l'Appro s'ouvre. [PLACEHOLDER] */
+  unlockAfter: 3,
 };
+
+/* La pension de la nourrice : ce qu'elle prélève CHAQUE SOIRÉE, proportionnellement à ce
+   qu'elle garde. Arbitrage Sylvain : un pourcentage franc, pas une somme fixe.
+
+   Pourquoi un pourcentage — mesuré, pas supposé. Une somme fixe ne borne rien : à 100 par
+   soirée, un joueur qui fait 400/soirée finit par cacher 9 000 (et la pension lui coûte
+   25 % de sa soirée), tandis qu'un joueur à 3 000/soirée cache 87 000 pour 3 %. Le fixe
+   fait donc mal quand on n'a pas les moyens et ne fait plus rien quand le liquide devient
+   un vrai problème — c'est exactement le défaut des upgrades plafonnés : un stock que le
+   jeu dépasse.
+
+   Le pourcentage, lui, a un point d'équilibre : la garde se stabilise à `1/taux` fois le
+   net d'une soirée, soit 10× à 10 %. « Tu ne peux cacher que dix fois ce que tu gagnes en
+   une soirée — pour cacher plus, produis plus. » Le puits n'est plus un stock à vider une
+   fois, c'est un débit indexé sur la performance du joueur, sans aucun rubber-band : rien
+   n'est calculé sur ses soirées passées, c'est juste un taux.
+
+   Et il ne baisse JAMAIS avec la progression : aucun palier, aucune capacité à acheter.
+   Un puits qui se rend moins cher en avançant redevient un stock. */
+export const NOURRICE_PENSION = 0.10;   // [PLACEHOLDER équilibrage — arbitré à 10 % le 2026-07-28]
+
+/** Ce que la nourrice prélève ce soir, arrondi. */
+export function pensionDue(S) {
+  const g = (S.shelter && S.shelter.nourrice && S.shelter.nourrice.garde) || 0;
+  return g > 0 ? Math.max(1, Math.round(g * NOURRICE_PENSION)) : 0;
+}
+
+/** L'Appro est-elle ouverte ? Avant, tout passe par Karim. */
+export function approOuverte(S) {
+  return (S.karimBuys || 0) >= SUPPLIER.unlockAfter;
+}
+/** Ce qu'il reste à lui acheter avant le contact (0 = c'est ouvert). */
+export function approReste(S) {
+  return Math.max(0, SUPPLIER.unlockAfter - (S.karimBuys || 0));
+}
 
 /** Hit planque : 0–100, déterministe.
     Monte avec grammes stockés et « valeur » (qualité × g). Cap planque saturée = plus chaud. */
@@ -71,7 +154,11 @@ export function stockG(S) {
 
 export function shelterDefaults() {
   return {
-    introSeen: false,
+    // On démarre directement dans la core loop (indépendant) : on coupe notre plaquette,
+    // on écoule au corner (négo), on garde la marge, on rachète. Pas de tuto, pas de Phase A.
+    // ("phase" conservé pour un éventuel palier futur ; "B" = la boucle de base.)
+    phase: "B",
+    introSeen: true,
     frontActive: false,
     debtDue: 0,       // montant restant à payer
     debtDueDay: 0,    // jour d'échéance
@@ -79,11 +166,43 @@ export function shelterDefaults() {
     paidOff: false,
     selectedPin: null,
     mapTipSeen: false,
+    /* Les corners sont PLURIELS depuis le début, même quand il n'y en a qu'un.
+       Le jeu n'en connaissait qu'un seul (`shelter.pdv`), ce qui rendait impossible
+       tout ce qui suit : une sacoche qui tourne entre deux points, un charbonneur qui
+       tient l'un pendant que tu es à l'autre, et le choix « lequel je ravitaille, lequel
+       j'encaisse ce soir ». Avec un point de vente unique, une rotation n'est pas une
+       rotation, c'est une navette. */
+    corners: { pdv: cornerDefaults() },
+    cornerId: "pdv",          // celui qu'on regarde
+    nourrice: { garde: 0, vue: false },   // ce qu'elle garde ; `vue` = elle s'est présentée
   };
+}
+
+/** L'état d'UN corner. `combo` = chaîne de deals JUSTE de la soirée, remis à 1 à la clôture. */
+/* Les compteurs de la soirée EN COURS, par corner. Remis à zéro à la clôture.
+   Pourquoi ici et pas déduits du journal : le journal est plafonné à 50 entrées, donc
+   ses totaux seraient faux dès qu'une soirée dépasse 50 événements — et une soirée en
+   dépasse. Un bilan qui ne boucle pas est un mensonge : il vaut mieux compter à la
+   source, là où le montant est déjà en main, que reconstituer après coup. */
+export function soirDefaults() {
+  return { eur: 0, g: 0, tips: 0, servis: 0,
+    perdu: { rupture: 0, ruptureEur: 0, impat: 0, impatEur: 0, walk: 0, walkEur: 0 },
+    descente: { n: 0, eur: 0 },
+    // ardoises emportées et jamais réglées : du manque à gagner, comme la descente —
+    // la marchandise est partie, le liquide n'est jamais entré
+    impaye: { n: 0, eur: 0 } };
+}
+export function cornerDefaults(over) {
+  return { res: 30, bac: 0, advQ: 0, prix: 10, chouffes: 0,
+    tampon: {}, tamponQ: 0, queue: [], ledger: [], qacc: 0, serveAcc: 0, seq: 0, combo: 1,
+    charbonneur: null,        // qui le tient quand tu n'y es pas (null = personne)
+    soir: soirDefaults(),     // compteurs de la soirée en cours (cf. soirDefaults)
+    ...(over || {}) };
 }
 
 /** Boot d'ouverture : Karim te file 100 g à crédit. Une seule fois. */
 export function grantOpeningFront(S) {
+  if (!FRONT_ENABLED) return { ok: false, reason: "front en sommeil (pas de circuit de remboursement)" };
   if (S.shelter?.frontActive || S.shelter?.paidOff || (S.pains && S.pains.length)) {
     return { ok: false, reason: "déjà lancé" };
   }
@@ -91,38 +210,32 @@ export function grantOpeningFront(S) {
   S.pains = [{ g: SUPPLIER.frontG, q: SUPPLIER.frontQ }];
   S.painSel = 0;
   S.shelter.frontActive = true;
-  S.shelter.debtDue = SUPPLIER.creditPrice;
+  S.shelter.debtDue = SUPPLIER.price;
   S.shelter.debtDueDay = (S.day || 1) + SUPPLIER.dueDays - 1;
   S.shelter.debtMode = "credit";
   S.shelter.introSeen = true;
   return {
     ok: true,
-    msg: `${SUPPLIER.name} · +${SUPPLIER.frontG} g · rembourse ${SUPPLIER.creditPrice} avant J${S.shelter.debtDueDay} (cash tôt = ${SUPPLIER.cashPrice}).`,
+    msg: `${SUPPLIER.name} · +${SUPPLIER.frontG} g · rembourse ${SUPPLIER.price} propre avant J${S.shelter.debtDueDay}.`,
   };
 }
 
 /** Solde la dette en propre uniquement (Karim refuse le liquide non trié).
-    early = avant échéance → tarif cash ; sinon tarif crédit. */
+    Prix unique (280) ; pas de rabais avant l'échéance. */
 export function repayDebt(S) {
   if (!S.shelter?.frontActive || S.shelter.debtDue <= 0) {
     return { ok: false, reason: "Rien à rembourser." };
   }
-  const early = (S.day || 1) < S.shelter.debtDueDay;
-  const price = early ? SUPPLIER.cashPrice : S.shelter.debtDue;
+  const price = S.shelter.debtDue;
   if (S.cash < price) {
-    return {
-      ok: false,
-      reason: early
-        ? `Il te faut ${price} propre (tarif cash). Trie tes liasses.`
-        : `Il te faut ${price} propre.`,
-    };
+    return { ok: false, reason: `Il te faut ${price} propre. Trie tes liasses.` };
   }
   S.cash -= price;
   S.shelter.frontActive = false;
   S.shelter.debtDue = 0;
   S.shelter.paidOff = true;
   S.shelter.debtMode = null;
-  return { ok: true, paid: price, early };
+  return { ok: true, paid: price };
 }
 
 /** Tick de fin de soirée : rappel dette + hit planque → chaleur douce. */
@@ -135,10 +248,13 @@ export function nightTick(S, planqueCap) {
     S.heat = clamp((S.heat || 0) + add, 0, 100);
     cons.push({ t: `Planque chaude (${hit})`, c: `+${add} chaleur ↩ stock ${Math.round(stockG(S))} g` });
   }
-  if (S.shelter?.frontActive) {
+  // FRONT_ENABLED : coupe aussi l'escalade sur les saves déjà porteurs d'une dette
+  // armée par une version antérieure (la migration `{...shelterDefaults(), ...S.shelter}`
+  // la fait survivre). L'état est conservé, il cesse simplement d'enfler.
+  if (FRONT_ENABLED && S.shelter?.frontActive) {
     const left = S.shelter.debtDueDay - (S.day || 1);
     if (left === 1) {
-      cons.push({ t: `${SUPPLIER.name} te rappelle`, c: `Échéance demain · ${S.shelter.debtDue} (cash tôt encore dispo aujourd'hui)` });
+      cons.push({ t: `${SUPPLIER.name} te rappelle`, c: `Échéance demain · ${S.shelter.debtDue} propre` });
     } else if (left <= 0) {
       // pénalité soft : +chaleur + standing −, dette gonfle un cran
       S.heat = clamp((S.heat || 0) + 8, 0, 100);
@@ -160,15 +276,14 @@ export function hitLabel(h) {
 }
 
 export function debtStrip(S) {
-  if (!S.shelter?.frontActive) return null;
+  // en sommeil : on n'affiche pas une dette que le joueur n'a aucun moyen de solder
+  if (!FRONT_ENABLED || !S.shelter?.frontActive) return null;
   const left = S.shelter.debtDueDay - (S.day || 1);
   return {
     name: SUPPLIER.name,
     due: S.shelter.debtDue,
-    cashEarly: SUPPLIER.cashPrice,
     day: S.shelter.debtDueDay,
     left,
-    canEarly: left > 0,
   };
 }
 

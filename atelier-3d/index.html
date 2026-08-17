@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Atelier 3D</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+  html, body { width:100%; height:100%; overflow:hidden; touch-action:none;
+    font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(120% 120% at 50% 0%, #26202f 0%, #14101b 60%, #0b0810 100%); }
+  #app { position:fixed; inset:0; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+
+  .hud { position:fixed; pointer-events:none; color:#fff; text-shadow:0 2px 10px rgba(0,0,0,.55); z-index:3; }
+
+  /* Nom du poste courant (compact, pour dégager la scène) */
+  #station { top:max(14px,env(safe-area-inset-top)); left:0; right:0; text-align:center; }
+  #station .idx { font-size:10px; font-weight:700; letter-spacing:.16em; text-transform:uppercase;
+    color:rgba(255,255,255,.45); }
+  #station .name { font-size:19px; font-weight:800; letter-spacing:.3px; margin-top:1px; }
+
+  /* Stock de barrettes produites (compteur global) */
+  #stock { top:max(20px,env(safe-area-inset-top)); right:16px; font-weight:800; font-size:15px;
+    color:#e8c46b; background:rgba(232,196,107,.12); border:1px solid rgba(232,196,107,.4);
+    padding:5px 11px; border-radius:999px; }
+
+  /* Indicateur de position (points) */
+  #dots { left:0; right:0; bottom:max(30px,calc(env(safe-area-inset-bottom) + 20px));
+    display:flex; gap:9px; justify-content:center; }
+  #dots .dot { width:8px; height:8px; border-radius:999px; background:rgba(255,255,255,.22);
+    transition:background .2s, transform .2s; }
+  #dots .dot.on { background:#e8c46b; transform:scale(1.35); }
+
+  /* Indice de geste */
+  #hint { left:0; right:0; bottom:max(60px,calc(env(safe-area-inset-bottom) + 50px)); text-align:center;
+    font-size:12px; font-weight:600; color:rgba(255,255,255,.4); transition:opacity .4s; }
+
+  /* Coupe au feeling : barre de PRESSION (se remplit tant qu'on maintient) */
+  #pressbar { position:fixed; bottom:max(94px,calc(env(safe-area-inset-bottom) + 84px)); left:50%;
+    transform:translateX(-50%); width:66%; max-width:320px; height:20px; background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.18); border-radius:999px; overflow:hidden; pointer-events:none;
+    display:none; box-shadow:0 4px 14px rgba(0,0,0,.4); z-index:3; }
+  #pressbar.show { display:block; }
+  #pressfill { position:absolute; top:0; bottom:0; left:0; width:0%;
+    background:linear-gradient(90deg,#ff9f6b,#ff5e1a); transition:width .04s linear; }
+  #presslbl { position:fixed; bottom:max(120px,calc(env(safe-area-inset-bottom) + 110px)); left:50%;
+    transform:translateX(-50%); font-size:13px; font-weight:700; color:rgba(255,255,255,.85);
+    text-shadow:0 2px 8px rgba(0,0,0,.6); pointer-events:none; display:none; white-space:nowrap; z-index:3; }
+  #presslbl.show { display:block; }
+
+  /* Conditionnement : chip « emballés » + UI d'emballage */
+  #packed { top:calc(max(20px,env(safe-area-inset-top)) + 34px); right:16px; font-weight:800; font-size:15px;
+    color:#bfe3ff; background:rgba(122,180,255,.12); border:1px solid rgba(122,180,255,.4);
+    padding:5px 11px; border-radius:999px; }
+  #wraptext { position:fixed; bottom:max(120px,calc(env(safe-area-inset-bottom) + 110px)); left:50%;
+    transform:translateX(-50%); font-size:13px; font-weight:700; color:rgba(255,255,255,.85);
+    text-shadow:0 2px 8px rgba(0,0,0,.6); pointer-events:none; display:none; white-space:nowrap; z-index:3; }
+  #wraptext.show { display:block; }
+  #wrapbar { position:fixed; bottom:max(94px,calc(env(safe-area-inset-bottom) + 84px)); left:50%;
+    transform:translateX(-50%); width:66%; max-width:320px; height:20px; background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.18); border-radius:999px; overflow:hidden; pointer-events:none;
+    display:none; box-shadow:0 4px 14px rgba(0,0,0,.4); z-index:3; }
+  #wrapbar.show { display:block; }
+  #wrapfill { position:absolute; top:0; bottom:0; left:0; width:0%;
+    background:linear-gradient(90deg,#7df9ff,#9be37d); transition:width .05s linear; }
+  #seal { position:fixed; bottom:max(88px,calc(env(safe-area-inset-bottom) + 78px)); left:50%;
+    transform:translateX(-50%); display:none; pointer-events:auto; background:#ff7a3c; border:none;
+    color:#fff; font-weight:800; font-size:16px; padding:12px 24px; border-radius:14px;
+    box-shadow:0 4px 14px rgba(255,122,60,.4); z-index:4; }
+  #seal.show { display:block; }
+  #seal:active { background:#ff5e1a; }
+
+  /* Toast d'interaction */
+  #toast { top:44%; left:0; right:0; text-align:center; font-size:19px; font-weight:800; padding:0 24px;
+    opacity:0; transform:translateY(8px); transition:opacity .22s, transform .22s; color:#ffe6a6; }
+  #toast.show { opacity:1; transform:translateY(0); }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="station" class="hud">
+    <div class="idx" id="stIdx">Poste 1 / 5</div>
+    <div class="name" id="stName">—</div>
+  </div>
+  <div id="stock" class="hud">🔪 0</div>
+  <div id="packed" class="hud">📦 0</div>
+  <div id="presslbl" class="hud">Maintiens pour couper</div>
+  <div id="pressbar" class="hud"><div id="pressfill"></div></div>
+  <div id="wraptext" class="hud">Glisse ⬆️ pour emballer</div>
+  <div id="wrapbar" class="hud"><div id="wrapfill"></div></div>
+  <button id="seal">🔥 Sceller</button>
+  <div id="hint" class="hud">← glisse pour circuler dans l'atelier →</div>
+  <div id="toast" class="hud"></div>
+  <div id="dots" class="hud"></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from "three";
+
+/* =========================================================================
+   Atelier 3D — rail de postes, chaîne Coupe → Stock → Conditionnement
+   -------------------------------------------------------------------------
+   Navigation : la caméra glisse sur un RAIL devant des postes posés côte à
+   côte dans l'ordre de production. Le swipe horizontal circule (pager, un
+   poste à la fois) ; en portrait on voit un poste à la fois.
+
+   La chaîne est PHYSIQUE et répartie. Le STOCK est un BAC de barrettes :
+     - COUPE : maintien immobile → la lame s'enfonce → une barrette se détache
+       et vient s'accumuler dans le bac de STOCK (compteur 🔪).
+     - CONDITIONNEMENT : bac d'entrée = ce même stock. On prend une barrette
+       (tap), on l'ENROULE au drag vertical (cellophane), on la SCELLE (🔥) ;
+       elle part en SACHET dans le bac de sortie (compteur 📦), pour la Vente.
+
+   Gestes, sans conflit (horizontal = toujours la nav) :
+     - drag HORIZONTAL     → circulation (annule pression/emballage en cours)
+     - MAINTIEN (immobile)  → couper (poste Coupe)
+     - drag VERTICAL        → enrouler (poste Conditionnement)
+     - TAP                  → interaction du poste (prendre une barrette,
+                              recharger la savonnette, etc.)
+   ========================================================================= */
+
+// --- Persistance (préfixe unique atelier3d_) -----------------------------
+const SAVE_VERSION = 3;                 // bump : stock (barrettes) + emballés (sachets)
+const LS_VER = "atelier3d_ver";
+const LS_POS = "atelier3d_station";
+const LS_STOCK = "atelier3d_stock";
+const LS_PACKED = "atelier3d_packed";
+if (localStorage.getItem(LS_VER) !== String(SAVE_VERSION)) {
+  localStorage.setItem(LS_VER, String(SAVE_VERSION));
+  localStorage.removeItem(LS_POS);
+  localStorage.removeItem(LS_STOCK);
+  localStorage.removeItem(LS_PACKED);
+}
+
+// --- Définition du rail (data-driven : la chaîne de production) -----------
+const SPACING = 4.2;            // distance entre deux postes sur le rail (unités monde)
+const COUPE_IDX = 1;           // index du poste Coupe dans STATIONS
+const COND_IDX  = 3;           // index du poste Conditionnement dans STATIONS
+const PILE_CAP  = 18;          // barrettes/sachets affichés au max dans un bac (compte exact à part)
+const STATIONS = [
+  { name: "Achat",          color: 0x6d8ac0, prop: 0x9db6e0 },
+  { name: "Coupe",          color: 0xc06d6d, prop: 0xe09d9d },
+  { name: "Dosage",         color: 0x6dc08a, prop: 0x9de0b6 },
+  { name: "Conditionnement",color: 0xc0a86d, prop: 0xe0cf9d },
+  { name: "Vente",          color: 0x9a6dc0, prop: 0xc39de0 },
+];
+
+// --- Scène ----------------------------------------------------------------
+const app = document.getElementById("app");
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x14101b);
+scene.fog = new THREE.Fog(0x14101b, 10, 26);
+
+// POV de travail : plus près et en légère plongée sur le plan de travail,
+// pour que la savonnette occupe la scène (le panneau 3D redondant est retiré).
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
+const CAM_Y = 3.7, CAM_Z = 2.55, LOOK_Y = 0.85;
+
+// Lumières
+scene.add(new THREE.HemisphereLight(0xcfd6ff, 0x201a2b, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+sun.position.set(3, 8, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -30; sun.shadow.camera.right = 30;
+sun.shadow.camera.top = 12;   sun.shadow.camera.bottom = -4;
+scene.add(sun);
+
+// Sol continu (renforce le « un seul atelier »)
+const railLength = (STATIONS.length - 1) * SPACING;
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(railLength + 16, 22),
+  new THREE.MeshStandardMaterial({ color:0x2a2436, roughness:0.95 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.position.set(railLength / 2, 0, -1);
+floor.receiveShadow = true;
+scene.add(floor);
+
+// Mur de fond
+const wall = new THREE.Mesh(
+  new THREE.PlaneGeometry(railLength + 16, 9),
+  new THREE.MeshStandardMaterial({ color:0x211b2c, roughness:1 })
+);
+wall.position.set(railLength / 2, 4.5, -3.2);
+wall.receiveShadow = true;
+scene.add(wall);
+
+/* =========================================================================
+   POSTE COUPE — la savonnette (prisme) + la lame, repris de Hash Slicer v2
+   ========================================================================= */
+// Dimensions de la savonnette (unités monde), à l'échelle de l'établi.
+const LOAF_L = 1.7;             // longueur max (axe X local, du talon x=0 au bord droit)
+const LOAF_W = 0.55;            // largeur (axe Z)
+const LOAF_H = 0.34;            // épaisseur (axe Y)
+const PER_LEN = 100;            // grammes par unité de longueur (poids = épaisseur * PER_LEN)
+const LOAF_FULL_G = 150;        // savonnette pleine (g)
+const BAR_G = 8;                // barrette découpée à chaque coupe (g) — un poil plus fine
+const PRESS_TIME = 0.6;         // s de maintien pour enfoncer la lame et couper
+const R0 = Math.min(LOAF_L, LOAF_FULL_G / PER_LEN);  // longueur initiale
+
+// Textures procédurales (grain résine / mie) — présentation, repris de v2.
+function grainTex(r, g, b, contrast, spots) {
+  const S = 256, c = document.createElement("canvas"); c.width = c.height = S;
+  const x = c.getContext("2d"); const cl = (v) => Math.max(0, Math.min(255, v));
+  const img = x.createImageData(S, S);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * contrast;
+    img.data[i] = cl(r + n); img.data[i+1] = cl(g + n); img.data[i+2] = cl(b + n); img.data[i+3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  for (let k = 0; k < spots; k++) {
+    x.fillStyle = "rgba(0,0,0," + (Math.random() * 0.2) + ")";
+    x.fillRect(Math.random() * S, Math.random() * S, Math.random() * 4 + 1, Math.random() * 4 + 1);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 2);
+  return t;
+}
+function bumpTex() {
+  const S = 256, c = document.createElement("canvas"); c.width = c.height = S;
+  const x = c.getContext("2d"); const img = x.createImageData(S, S);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 128 + (Math.random() - 0.5) * 120; img.data[i] = img.data[i+1] = img.data[i+2] = v; img.data[i+3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3);
+  return t;
+}
+const _bump = bumpTex();
+// crust = peau pressée brun foncé ; pale = dessous ; sponge = faces coupées (mie blonde).
+const matCrust  = new THREE.MeshStandardMaterial({ map: grainTex(46, 31, 18, 52, 260), bumpMap: _bump, bumpScale: 0.05, roughness: 0.6, metalness: 0.12, side: THREE.DoubleSide });
+const matPale   = new THREE.MeshStandardMaterial({ map: grainTex(96, 74, 46, 38, 140), bumpMap: _bump, bumpScale: 0.035, roughness: 0.85, side: THREE.DoubleSide });
+const matSponge = new THREE.MeshStandardMaterial({ map: grainTex(196, 168, 116, 52, 130), bumpMap: _bump, bumpScale: 0.055, roughness: 0.97, side: THREE.DoubleSide });
+const loafMats  = [matCrust, matPale, matSponge];
+
+// Prisme droit x[xL..xR] z[±W/2] y[0..H], dessus chanfreiné (repris de v2).
+function makePrism(aNeg, aPos, bNeg, bPos) {
+  const xL = (aNeg + aPos) / 2, xR = (bNeg + bPos) / 2;
+  const zN = -LOAF_W / 2, zP = LOAF_W / 2, H = LOAF_H;
+  const dx = Math.max(0.0001, xR - xL);
+  // Chanfrein généreux → arêtes bien arrondies, aspect artisanal (moins « boîte »).
+  const bv = Math.min(0.10, dx * 0.45, LOAF_W * 0.18, H * 0.48);
+  const A=[xL,0,zN], B=[xR,0,zN], C=[xR,0,zP], D=[xL,0,zP];
+  const Ap=[xL,H-bv,zN], Bp=[xR,H-bv,zN], Cp=[xR,H-bv,zP], Dp=[xL,H-bv,zP];
+  const At=[xL+bv,H,zN+bv], Bt=[xR-bv,H,zN+bv], Ct=[xR-bv,H,zP-bv], Dt=[xL+bv,H,zP-bv];
+  const pos = [], uv = [], grp = [];
+  const quad = (mat, p0, p1, p2, p3) => {
+    const s = pos.length / 3;
+    pos.push(...p0,...p1,...p2,  ...p0,...p2,...p3);
+    uv.push(0,0, 1,0, 1,1,  0,0, 1,1, 0,1);
+    grp.push([s, 6, mat]);                       // 0=crust 1=pale 2=sponge
+  };
+  quad(1, A, B, C, D);              // dessous
+  quad(0, A, Ap, Bp, B);           // côté z-
+  quad(0, C, Cp, Dp, D);           // côté z+
+  quad(2, D, Dp, Ap, A);           // bout gauche (coupe)
+  quad(2, B, Bp, Cp, C);           // bout droit (coupe)
+  quad(0, Ap, At, Bt, Bp);         // chanfreins
+  quad(0, Bp, Bt, Ct, Cp);
+  quad(0, Cp, Ct, Dt, Dp);
+  quad(0, Dp, Dt, At, Ap);
+  quad(0, At, Bt, Ct, Dt);         // dessus
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  for (const [s, c, m] of grp) g.addGroup(s, c, m);
+  g.computeVertexNormals();
+  return g;
+}
+
+// État de la coupe / de la chaîne
+let rightNeg = R0, rightPos = R0;    // bord droit (frontière de coupe), talon fixe à x=0
+let slices = [];                     // barrettes détachées (physique de chute)
+let over = false;                    // savonnette finie ?
+let bladeChop = 0;                   // rebond de la lame après une coupe
+let stock  = Math.max(0, +(localStorage.getItem(LS_STOCK)  || 0));   // barrettes prêtes
+let packed = Math.max(0, +(localStorage.getItem(LS_PACKED) || 0));   // sachets emballés
+
+// Ces objets sont peuplés dans la boucle de construction des postes.
+let coupeRig = null, cakeMesh = null, bladeMesh = null;
+let coupeStockPile = null, condInPile = null, condOutPile = null, condGroup = null;
+
+function rebuildLoaf() {
+  cakeMesh.geometry.dispose();
+  cakeMesh.geometry = makePrism(0, 0, rightNeg, rightPos);
+  cakeMesh.visible = Math.max(rightNeg, rightPos) > 0.03;
+}
+
+/* -------------------------------------------------------------------------
+   Fabriques partagées : bac (caisse ouverte) + pile de barrettes/sachets.
+   Le stock est un BAC de barrettes qui se remplit (repris de Hash Slicer v2).
+   ------------------------------------------------------------------------- */
+const slabGeo = new THREE.BoxGeometry(0.13, 0.07, 0.22);   // barrette miniature (piles de stock)
+
+// Paquet fini = PAPILLOTE : brique brune sous plastique OPAQUE, bouts torsadés.
+const wrapBodyMat = new THREE.MeshStandardMaterial({ color:0x6f5733, roughness:0.34, metalness:0.14 });
+const plasticMat  = new THREE.MeshStandardMaterial({ color:0xded7c2, roughness:0.16, metalness:0.18, transparent:true, opacity:0.85, side:THREE.DoubleSide });
+const twistGeo    = new THREE.ConeGeometry(0.045, 0.06, 6);    // bout torsadé (pile de sortie)
+const twistGeoBig = new THREE.ConeGeometry(0.09, 0.14, 6);     // bout torsadé (barrette présentée)
+function makePapillote() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.075, 0.18), wrapBodyMat); body.castShadow = true; g.add(body);
+  const eL = new THREE.Mesh(twistGeo, plasticMat); eL.castShadow = true; eL.rotation.z =  Math.PI / 2; eL.position.x = -0.085; g.add(eL);
+  const eR = new THREE.Mesh(twistGeo, plasticMat); eR.castShadow = true; eR.rotation.z = -Math.PI / 2; eR.position.x =  0.085; g.add(eR);
+  return g;
+}
+
+function makeBin(w, d, h, color) {
+  const grp = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color, roughness:0.7, metalness:0.08, side:THREE.DoubleSide });
+  const th = 0.04;
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(w, th, d), mat); floor.position.y = th/2; floor.receiveShadow = true; grp.add(floor);
+  const wLR = (x) => { const m = new THREE.Mesh(new THREE.BoxGeometry(th, h, d), mat); m.position.set(x, h/2, 0); m.castShadow = true; grp.add(m); };
+  const wFB = (z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, th), mat); m.position.set(0, h/2, z); m.castShadow = true; grp.add(m); };
+  wLR(-w/2); wLR(w/2); wFB(-d/2); wFB(d/2);
+  return grp;
+}
+
+// Pile d'objets rangés en grille, empilés par couches ; visibilité = compte.
+// `factory()` fabrique chaque élément (barrette pour le stock, papillote en sortie).
+function makePile(cols, max, factory) {
+  const g = new THREE.Group();
+  for (let i = 0; i < max; i++) {
+    const m = factory();
+    const perLayer = cols * 2, layer = Math.floor(i / perLayer), idx = i % perLayer, col = idx % cols, row = Math.floor(idx / cols);
+    m.position.set(-((cols - 1) * 0.17) / 2 + col * 0.17, 0.06 + layer * 0.095, -0.13 + row * 0.26);
+    m.rotation.y = (Math.random() - 0.5) * 0.4; if (m.isMesh) m.castShadow = true; m.visible = false; g.add(m);
+  }
+  return g;
+}
+function showPile(g, n) { for (let i = 0; i < g.children.length; i++) g.children[i].visible = i < n; }
+
+// --- Construction des postes ---------------------------------------------
+const props = [];       // props placeholder (rotation d'ambiance) des postes non-Coupe
+const stationGroups = [];
+STATIONS.forEach((st, i) => {
+  const grp = new THREE.Group();
+  grp.position.x = i * SPACING;
+
+  // Établi — profond, pour que le plan de travail remplisse l'arrière-plan
+  // en vue plongée (au lieu du mur sombre).
+  const bench = new THREE.Mesh(
+    new THREE.BoxGeometry(2.6, 0.9, 3.3),
+    new THREE.MeshStandardMaterial({ color:st.color, roughness:0.7, metalness:0.05 })
+  );
+  bench.position.set(0, 0.45, -0.7);
+  bench.castShadow = true; bench.receiveShadow = true;
+  grp.add(bench);
+
+  // Plateau (surface de travail, dessus à y≈1.02)
+  const top = new THREE.Mesh(
+    new THREE.BoxGeometry(2.75, 0.12, 3.45),
+    new THREE.MeshStandardMaterial({ color:0xece7f2, roughness:0.5 })
+  );
+  top.position.set(0, 0.96, -0.7); top.castShadow = true; top.receiveShadow = true;
+  grp.add(top);
+
+  if (i === COUPE_IDX) {
+    // --- Poste Coupe : la savonnette + la lame ---
+    coupeRig = new THREE.Group();
+    coupeRig.position.set(-R0 / 2, 1.02, 0);   // pose la savonnette sur le plateau, ~centrée
+    grp.add(coupeRig);
+
+    cakeMesh = new THREE.Mesh(makePrism(0, 0, rightNeg, rightPos), loafMats);
+    cakeMesh.castShadow = true; cakeMesh.receiveShadow = true;
+    coupeRig.add(cakeMesh);
+
+    // Lame (compacte, à l'échelle de la savonnette)
+    const steel = new THREE.MeshStandardMaterial({ color:0xd7dee6, metalness:0.9, roughness:0.18 });
+    const bladeLen = LOAF_W + 0.22;
+    bladeMesh = new THREE.Group();
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.30, bladeLen), steel);   edge.position.y = 0.16;
+    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, bladeLen), steel);  spine.position.y = 0.33;
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.12, bladeLen * 0.42),
+      new THREE.MeshStandardMaterial({ color:0x1d1410, roughness:0.6 }));              handle.position.y = 0.42;
+    for (const m of [edge, spine, handle]) { m.castShadow = true; bladeMesh.add(m); }
+    bladeMesh.visible = false;
+    coupeRig.add(bladeMesh);
+
+    // Bac de STOCK : les barrettes coupées viennent s'y accumuler (à droite du pain).
+    const sbin = makeBin(0.66, 0.62, 0.16, 0x2f2619);
+    sbin.position.set(0.6, 1.02, 0.82);
+    coupeStockPile = makePile(3, PILE_CAP, () => new THREE.Mesh(slabGeo, matCrust));
+    sbin.add(coupeStockPile);
+    grp.add(sbin);
+  } else if (i === COND_IDX) {
+    // --- Poste Conditionnement : bac d'entrée (stock) → emballage → bac de sortie (sachets) ---
+    condGroup = grp;
+    const inBin = makeBin(0.66, 0.62, 0.16, 0x2f2619);
+    inBin.position.set(-0.62, 1.02, 0.42);
+    condInPile = makePile(3, PILE_CAP, () => new THREE.Mesh(slabGeo, matCrust));
+    inBin.add(condInPile);
+    grp.add(inBin);
+
+    const outBin = makeBin(0.66, 0.62, 0.16, 0x243247);
+    outBin.position.set(0.62, 1.02, 0.42);
+    condOutPile = makePile(3, PILE_CAP, makePapillote);
+    outBin.add(condOutPile);
+    grp.add(outBin);
+    // (le geste d'emballage fait monter une barrette entre les deux bacs : voir startWrap)
+  } else {
+    // Prop placeholder (l'activité viendra le remplacer)
+    const prop = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.42, 0),
+      new THREE.MeshStandardMaterial({ color:st.prop, roughness:0.35, metalness:0.15 })
+    );
+    prop.position.set(0, 1.42, 0); prop.castShadow = true;
+    prop.userData.spin = 0.4 + i * 0.08;
+    grp.add(prop);
+    props.push(prop);
+  }
+
+  scene.add(grp);
+  stationGroups.push(grp);
+});
+
+/* -------------------------------------------------------------------------
+   Coupe : détacher une barrette, physique de chute, pression, lame
+   ------------------------------------------------------------------------- */
+function haptic(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch (_) {} }
+
+// Détache une barrette [cut .. bord droit] et la fait tomber sur le plateau.
+function spawnBarrette(cutNeg, cutPos) {
+  const geo = makePrism(cutNeg, cutPos, rightNeg, rightPos);
+  geo.computeBoundingBox();
+  const c = new THREE.Vector3(); geo.boundingBox.getCenter(c);
+  geo.translate(-c.x, -c.y, -c.z); geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, loafMats);
+  mesh.castShadow = true; mesh.position.copy(c);
+  coupeRig.add(mesh);
+  slices.push({
+    mesh,
+    vx: 0.4 + Math.random() * 0.35, vy: 1.3 + Math.random() * 0.7, vz: 0.25 + Math.random() * 0.3,
+    vrx: 1.4 + Math.random() * 1.4, vrz: (Math.random() - 0.5) * 2.2,
+    rest: 0.12 + geo.boundingSphere.radius * 0.15, settled: false,
+  });
+  rightNeg = cutNeg; rightPos = cutPos;
+  rebuildLoaf();
+  // Sécurité : borne le nombre de tranches en vol.
+  while (slices.length > 24) { const s = slices.shift(); coupeRig.remove(s.mesh); s.mesh.geometry.dispose(); }
+}
+
+// Cible (repère coupeRig) vers laquelle une barrette settlée « rentre » dans le bac de stock.
+const BIN_TARGET = new THREE.Vector3(0.6 - (-R0 / 2), 0.14, 0.82);
+
+// Le stock est le même à la Coupe (bac de sortie) et au Conditionnement (bac d'entrée).
+function refreshStockBins() {
+  const n = Math.min(stock, PILE_CAP);
+  if (coupeStockPile) showPile(coupeStockPile, n);
+  if (condInPile) showPile(condInPile, n);
+}
+function refreshOutput() { if (condOutPile) showPile(condOutPile, Math.min(packed, PILE_CAP)); }
+
+// Coupe au feeling : déclenchée à pleine pression.
+function pressCut() {
+  if (over) return;
+  const thick = BAR_G / PER_LEN;
+  let cn = rightNeg - thick, cp = rightPos - thick;
+  if (cn < 0.001 && cp < 0.001) { cn = 0; cp = 0; }   // talon -> inclus
+  cn = Math.max(0, cn); cp = Math.max(0, cp);
+  bladeChop = 1;
+  spawnBarrette(cn, cp);
+  setStock(stock + 1);
+  haptic(40);
+  if (Math.max(rightNeg, rightPos) < 0.05) {
+    over = true;
+    toast("Savonnette finie 🎉");
+  }
+}
+
+function updateSlices(dt) {
+  const g = 11;
+  for (let i = slices.length - 1; i >= 0; i--) {
+    const sl = slices[i];
+    if (sl.collect) {                          // rentre dans le bac de stock (puis disparaît)
+      sl.mesh.position.lerp(BIN_TARGET, Math.min(1, dt * 6));
+      sl.mesh.rotation.y += dt * 9;
+      sl.mesh.scale.multiplyScalar(1 - Math.min(0.85, dt * 3.4));
+      if (sl.mesh.scale.x < 0.18) { coupeRig.remove(sl.mesh); sl.mesh.geometry.dispose(); slices.splice(i, 1); }
+      continue;
+    }
+    if (sl.settled) {                          // petit repos, puis collecte vers le bac
+      sl.restT = (sl.restT || 0) + dt;
+      if (sl.restT > 0.22) sl.collect = true;
+      continue;
+    }
+    sl.vy -= g * dt;
+    sl.mesh.position.x += sl.vx * dt;
+    sl.mesh.position.y += sl.vy * dt;
+    sl.mesh.position.z += sl.vz * dt;
+    sl.mesh.rotation.x += sl.vrx * dt;
+    sl.mesh.rotation.z += sl.vrz * dt;
+    if (sl.mesh.position.y < sl.rest) {
+      sl.mesh.position.y = sl.rest;
+      sl.vy *= -0.32; sl.vx *= 0.6; sl.vz *= 0.6; sl.vrx *= 0.4; sl.vrz *= 0.4;
+      if (Math.abs(sl.vy) < 0.5) { sl.vy = 0; sl.settled = true; }
+    }
+  }
+}
+
+// Position + enfoncement de la lame au-dessus de la prochaine ligne de coupe.
+function updateKnife(dt) {
+  const show = atCoupe() && !over;
+  bladeMesh.visible = show;
+  const right = (rightNeg + rightPos) / 2;
+  const cutX = Math.max(0, right - BAR_G / PER_LEN);
+  let y = LOAF_H + 0.10 - (pressing ? (pressT / PRESS_TIME) * 0.5 : 0);
+  if (bladeChop > 0) {
+    bladeChop = Math.max(0, bladeChop - dt * 4.5);
+    y = LOAF_H + 0.10 - Math.sin(Math.min(1, 1 - bladeChop) * Math.PI) * 0.32;
+  }
+  bladeMesh.position.set(cutX, y, 0);
+}
+
+// Recharge une savonnette neuve (gratuit — la matière viendra du poste Achat).
+function loadLoaf() {
+  for (const s of slices) { coupeRig.remove(s.mesh); s.mesh.geometry.dispose(); }
+  slices = [];
+  rightNeg = rightPos = R0; over = false;
+  rebuildLoaf();
+}
+
+// --- État du rail ---------------------------------------------------------
+let rail = 0;                 // position caméra en unités « poste » (float)
+let target = 0;               // cible de snap
+let dragging = false;
+let velocity = 0;            // vitesse (unités/frame) pour l'inertie du flick
+
+// Restaurer le dernier poste visité
+const saved = parseInt(localStorage.getItem(LS_POS) || "0", 10);
+if (Number.isFinite(saved) && saved >= 0 && saved < STATIONS.length) {
+  rail = target = saved;
+}
+
+const clampIdx = (v) => Math.max(0, Math.min(STATIONS.length - 1, v));
+// Vrai quand la caméra est calée sur le poste Coupe (snap atteint).
+const atCoupe = () => target === COUPE_IDX && Math.abs(rail - COUPE_IDX) < 0.08;
+
+function applyCamera() {
+  const x = rail * SPACING;
+  camera.position.set(x, CAM_Y, CAM_Z);
+  camera.lookAt(x, LOOK_Y, 0);
+}
+
+// --- HUD ------------------------------------------------------------------
+const stIdxEl = document.getElementById("stIdx");
+const stNameEl = document.getElementById("stName");
+const stockEl = document.getElementById("stock");
+const packedEl = document.getElementById("packed");
+const hintEl = document.getElementById("hint");
+const toastEl = document.getElementById("toast");
+const dotsEl = document.getElementById("dots");
+const pressbarEl = document.getElementById("pressbar");
+const pressfillEl = document.getElementById("pressfill");
+const presslblEl = document.getElementById("presslbl");
+const wraptextEl = document.getElementById("wraptext");
+const wrapbarEl = document.getElementById("wrapbar");
+const wrapfillEl = document.getElementById("wrapfill");
+const sealEl = document.getElementById("seal");
+STATIONS.forEach(() => {
+  const d = document.createElement("div"); d.className = "dot"; dotsEl.appendChild(d);
+});
+const dotEls = [...dotsEl.children];
+
+function setStock(v) {
+  stock = Math.max(0, v);
+  localStorage.setItem(LS_STOCK, String(stock));
+  stockEl.textContent = "🔪 " + stock;
+  refreshStockBins();
+}
+function setPacked(v) {
+  packed = Math.max(0, v);
+  localStorage.setItem(LS_PACKED, String(packed));
+  packedEl.textContent = "📦 " + packed;
+  refreshOutput();
+}
+setStock(stock);
+setPacked(packed);
+
+/* -------------------------------------------------------------------------
+   Conditionnement — emballage « façon v2 », geste adapté à la nav :
+   prendre une barrette (tap) → ENROULER au drag VERTICAL (barre) → SCELLER
+   (bouton 🔥). L'horizontal reste la circulation ; s'y mettre annule l'emballage.
+   ------------------------------------------------------------------------- */
+const wrap = { active:false, phase:"", pct:0, mesh:null, film:null, twists:null };
+const WRAP_K = 0.34;    // % d'emballage par pixel de glissement vertical
+const atCond = () => target === COND_IDX && Math.abs(rail - COND_IDX) < 0.08;
+
+function flame() {
+  const f = document.createElement("div");
+  f.textContent = "🔥";
+  f.style.cssText = "position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);font-size:60px;pointer-events:none;z-index:5;transition:opacity .5s,transform .5s;";
+  document.body.appendChild(f);
+  requestAnimationFrame(() => { f.style.opacity = "0"; f.style.transform = "translate(-50%,-90%) scale(1.5)"; });
+  setTimeout(() => f.remove(), 520);
+}
+
+function startWrap() {
+  if (wrap.active || stock <= 0 || !condGroup) return;
+  setStock(stock - 1);                                  // prend une barrette du stock
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.14, 0.26), matCrust);
+  mesh.castShadow = true; mesh.position.set(0.0, 1.5, 0.55);
+  const filmMat = new THREE.MeshStandardMaterial({ color:0xdff3ff, transparent:true, opacity:0.32, roughness:0.06, metalness:0.3, side:THREE.DoubleSide });
+  const film = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.14, 0.26), filmMat);
+  film.scale.setScalar(1.3); mesh.add(film);
+  condGroup.add(mesh);
+  wrap.active = true; wrap.phase = "enroule"; wrap.pct = 0; wrap.mesh = mesh; wrap.film = film;
+  wraptextEl.textContent = "Glisse ⬆️ pour enrouler"; wraptextEl.classList.add("show");
+  wrapbarEl.classList.add("show"); wrapfillEl.style.width = "0%"; sealEl.classList.remove("show");
+}
+function enterSeal() {
+  wrap.phase = "seal";
+  // le film devient un plastique OPAQUE (plus de transparent) et se resserre
+  if (wrap.film) {
+    // plastique translucide « laiteux » : on voit le brun du hash à travers,
+    // mais ce n'est plus une cellophane transparente.
+    wrap.film.material.color.set(0xe6dfca); wrap.film.material.opacity = 0.6;
+    wrap.film.material.roughness = 0.14; wrap.film.material.metalness = 0.18;
+    wrap.film.scale.set(1.05, 1.1, 1.05);
+  }
+  // bouts torsadés → papillote
+  if (wrap.mesh && !wrap.twists) {
+    const s = (wrap.mesh.geometry.parameters.width || 0.5) * 0.5;
+    const tL = new THREE.Mesh(twistGeoBig, plasticMat); tL.rotation.z =  Math.PI / 2; tL.position.x = -s - 0.03; tL.castShadow = true;
+    const tR = new THREE.Mesh(twistGeoBig, plasticMat); tR.rotation.z = -Math.PI / 2; tR.position.x =  s + 0.03; tR.castShadow = true;
+    wrap.mesh.add(tL); wrap.mesh.add(tR); wrap.twists = [tL, tR];
+  }
+  wraptextEl.classList.remove("show");   // le bouton 🔥 se suffit
+  wrapbarEl.classList.remove("show"); sealEl.classList.add("show");
+}
+function sealWrap() {
+  if (!wrap.active || wrap.phase !== "seal") return;
+  flame(); haptic(30);
+  setPacked(packed + 1);        // le sachet part dans le bac de sortie
+  cleanupWrap();
+  toast("Emballé 📦");
+}
+function abortWrap() {
+  if (!wrap.active) return;
+  setStock(stock + 1);          // on rend la barrette au stock
+  cleanupWrap();
+}
+function cleanupWrap() {
+  if (wrap.mesh) {
+    condGroup.remove(wrap.mesh); wrap.mesh.geometry.dispose();
+    if (wrap.film) { wrap.film.geometry.dispose(); wrap.film.material.dispose(); }
+  }
+  wrap.active = false; wrap.phase = ""; wrap.pct = 0; wrap.mesh = null; wrap.film = null; wrap.twists = null;
+  wraptextEl.classList.remove("show"); wrapbarEl.classList.remove("show"); sealEl.classList.remove("show");
+}
+sealEl.addEventListener("click", sealWrap);
+
+let hudIdx = -1;
+function refreshHud() {
+  const idx = clampIdx(Math.round(rail));
+  if (idx === hudIdx) return;
+  hudIdx = idx;
+  stIdxEl.textContent = `Poste ${idx + 1} / ${STATIONS.length}`;
+  stNameEl.textContent = STATIONS[idx].name;
+  dotEls.forEach((d, i) => d.classList.toggle("on", i === idx));
+  hintEl.textContent = (idx === COUPE_IDX)
+    ? "maintiens sur la planche pour couper une barrette"
+    : (idx === COND_IDX)
+    ? "tape pour prendre une barrette, glisse ⬆️ pour l'emballer"
+    : "← glisse pour circuler dans l'atelier →";
+  hintEl.style.opacity = "1";
+}
+
+let toastT = 0;
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  toastT = 1.4;
+}
+
+// --- Gestes (Pointer Events : souris + tactile unifiés) -------------------
+let pid = null, startX = 0, startY = 0, lastX = 0, lastY = 0, railAtStart = 0;
+let moved = false;
+let holding = false;        // candidat maintien (pointeur baissé, poste Coupe)
+let pressing = false;       // pression en cours
+let pressT = 0;             // avancement de la pression (s)
+let cutConsumed = false;    // une coupe par maintien : re-taper pour la suivante
+const Wpx = () => window.innerWidth;
+// ~55 % de largeur d'écran glissée = un poste
+const railPerPx = () => 1 / (Wpx() * 0.55);
+
+app.addEventListener("pointerdown", (e) => {
+  if (pid !== null) return;
+  pid = e.pointerId;
+  app.setPointerCapture(pid);
+  startX = lastX = e.clientX; startY = lastY = e.clientY;
+  railAtStart = rail;
+  dragging = true; moved = false; velocity = 0;
+  holding = atCoupe(); cutConsumed = false;
+  if (hintEl) hintEl.style.opacity = "0";
+});
+
+app.addEventListener("pointermove", (e) => {
+  if (e.pointerId !== pid) return;
+  const dxT = e.clientX - startX, dyT = e.clientY - startY;
+
+  // Conditionnement : tant qu'un emballage est en cours (enroule OU seal), le geste
+  // lui appartient — sinon, une fois à 100 %, les derniers pixels du drag partaient
+  // en navigation et scrollaient la scène avant qu'on puisse sceller. Seul un
+  // glissement horizontal FRANC abandonne l'emballage.
+  if (wrap.active) {
+    if (Math.abs(dxT) > Math.abs(dyT) && Math.abs(dxT) > 40) {
+      abortWrap();                         // parti franchement à l'horizontale → nav
+      moved = true;
+    } else {
+      if (wrap.phase === "enroule") {
+        const dyStep = e.clientY - lastY;  // enrouler avec la distance parcourue (haut ou bas)
+        wrap.pct = Math.min(100, wrap.pct + Math.abs(dyStep) * WRAP_K);
+        if (wrap.mesh) wrap.mesh.rotation.x -= dyStep * 0.03;   // la barrette roule dans le film
+        wrapfillEl.style.width = wrap.pct + "%";
+        if (wrap.pct >= 100) enterSeal();
+      }
+      // phase "seal" : geste consommé (le scellage se fait au bouton 🔥)
+      lastX = e.clientX; lastY = e.clientY;
+      return;                              // pas de navigation tant qu'on emballe
+    }
+  }
+
+  const dx = e.clientX - startX;
+  if (Math.abs(dx) > 6 || Math.abs(dyT) > 6) moved = true;
+  if (moved) holding = false;              // dès qu'on glisse, c'est de la nav, pas une coupe
+  // glisser vers la gauche (dx<0) → avancer dans l'atelier (rail augmente).
+  // Borné à ±1 poste depuis l'origine : ressenti « pager », un poste à la fois.
+  const base = Math.round(railAtStart);
+  const raw = railAtStart - dx * railPerPx();
+  rail = clampIdx(Math.max(base - 1, Math.min(base + 1, raw)));
+  velocity = -(e.clientX - lastX) * railPerPx();
+  lastX = e.clientX; lastY = e.clientY;
+});
+
+function resetPress() { holding = false; pressing = false; pressT = 0; cutConsumed = false; }
+
+function endDrag(e) {
+  if (e.pointerId !== pid) return;
+  dragging = false;
+  try { app.releasePointerCapture(pid); } catch (_) {}
+  pid = null;
+
+  if (!moved) {
+    // TAP (pas de glissement) = interaction du poste
+    const idx = clampIdx(Math.round(rail));
+    if (idx === COUPE_IDX) {
+      if (over) { loadLoaf(); toast("Nouvelle savonnette"); }   // sinon : la coupe se fait au maintien
+    } else if (idx === COND_IDX) {
+      if (!wrap.active) {                                       // prend une barrette du stock à emballer
+        if (stock > 0) startWrap();
+        else toast("Stock vide — va couper des barrettes");
+      }
+      // en cours d'emballage : le tap ne fait rien (enrouler = glisser, sceller = bouton 🔥)
+    } else {
+      toast(`${STATIONS[idx].name} — activité à venir`);
+    }
+    resetPress();
+    return;
+  }
+  // Pager : un swipe déplace d'AU PLUS un poste. Direction par flick ou drag franc.
+  const base = Math.round(railAtStart);
+  const dragged = rail - base;
+  let step = 0;
+  if (Math.abs(velocity) > 0.02) step = Math.sign(velocity);
+  else if (Math.abs(dragged) > 0.28) step = Math.sign(dragged);
+  target = clampIdx(base + step);
+  localStorage.setItem(LS_POS, String(target));
+  resetPress();
+}
+app.addEventListener("pointerup", endDrag);
+app.addEventListener("pointercancel", endDrag);
+
+// --- Boucle de rendu ------------------------------------------------------
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener("resize", resize);
+resize();
+
+let lastT = performance.now();
+function tick(now) {
+  const dt = Math.min((now - lastT) / 1000, 0.05); lastT = now;
+
+  if (!dragging) {
+    // Ressort vers la cible (snap doux)
+    rail += (target - rail) * Math.min(1, dt * 10);
+    if (Math.abs(target - rail) < 0.0005) rail = target;
+  }
+
+  applyCamera();
+  refreshHud();
+
+  // Si on quitte le poste Conditionnement en cours d'emballage, on abandonne.
+  if (wrap.active && !atCond()) abortWrap();
+
+  // Pression : se construit tant qu'on maintient immobile au poste Coupe.
+  pressing = holding && pid !== null && !moved && atCoupe() && !over && !cutConsumed;
+  if (pressing) {
+    pressT += dt;
+    if (pressT >= PRESS_TIME) { pressCut(); pressT = 0; cutConsumed = true; pressing = false; }
+  } else if (!holding) {
+    pressT = 0;
+  }
+  const showPress = atCoupe() && !over;
+  presslblEl.classList.toggle("show", showPress);
+  pressbarEl.classList.toggle("show", showPress && pressing);
+  pressfillEl.style.width = (pressing ? Math.min(100, (pressT / PRESS_TIME) * 100) : 0) + "%";
+
+  updateSlices(dt);
+  updateKnife(dt);
+
+  // Anim d'ambiance : les props placeholder tournent doucement.
+  for (const prop of props) prop.rotation.y += dt * (prop.userData.spin || 0.4);
+
+  if (toastT > 0) {
+    toastT -= dt;
+    if (toastT <= 0) toastEl.classList.remove("show");
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

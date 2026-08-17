@@ -1,0 +1,531 @@
+{
+  "_meta": {
+    "doc": "Snapshit — la TROUPE (voix nommées récurrentes). Contrat : snapshit/ARCHETYPES_AND_USER_DATA.md",
+    "version": 1,
+    "updated": "2026-06-23",
+    "rappels": [
+      "id == protag moteur. Réutiliser les 6 id câblés (accro/comtesse/kevin/sami/petit/ancien). Les faces en plus sont COSMÉTIQUES : protag 'client' (genuine) ou 'flake', AUCUN id moteur nouveau.",
+      "Réput OPAQUE : zéro chiffre de cote/followers dans le texte ; la cote vit dans le ton (chaleureux/neutre/mefi/hostile).",
+      "Le texte ne décide rien : pool piochable, aucune logique encodée.",
+      "Gabarits {CONCEPT} : SELL_POINT/CUSTOMER/CANNABIS_WEED (termes BARES → article dans le gabarit), QUALITY_GOOD/QUALITY_BAD (expressions auto-portées), MONEY. {QTY}/{DELAI} = placeholders moteur.",
+      "Mémoire = continuité : variantes 'callback' pour accro (streak), comtesse (départ/retour premium), kevin (3e bradage)."
+    ],
+    "schema_lines": {
+      "dm_open": "ouverture de DM (contient {QTY}). genuine: par ton ; accro: par palier de streak ; comtesse/lowball/flake: liste plate.",
+      "action_reply": "réponse à l'action joueur (sell/refuse/brade/brade_escalade/rdv/block). Réplique entrante du PNJ.",
+      "reup_reply": "réponse à une relance carnet (buy/decline/annoyed/mute), cohérente avec REUP_BASE.",
+      "story_comment": "commentaire qui tombe sur une story, par contexte×ton (sous-ensemble pertinent au perso)."
+    }
+  },
+
+  "troupe": [
+    {
+      "id": "accro",
+      "pseudo": "L'accro",
+      "handle": "@h24.jamais.0",
+      "avatar": { "emoji": "😵", "image_prompt": "gros plan flou et cramé d'une silhouette sous néon jaune sale, yeux hors champ, grain nuit, halo #FFFC00, anonyme" },
+      "tag": "ACCRO",
+      "archetype": "accro",
+      "kind_default": "genuine",
+      "pref": "any",
+      "description": "Toujours là, quoi qu'il arrive. Sa came le rend plus accro — la blague noire de la fidélité aveugle.",
+      "registre": ["cite", "urgence"],
+      "emoji_signature": ["😵", "🙏", "😰"],
+      "relation_init": "chaleureux",
+      "memory_note": "son manque (accroStreak) : sa demande escalade chaque jour ; plancher toujours présent (REUP_BASE 1).",
+      "lines": {
+        "dm_open": {
+          "calme": ["wesh je prends {QTY} 🙏", "dispo ? {QTY} stp", "yo {QTY} pour moi le sang"],
+          "relance": ["re c'est encore moi 😅 {QTY} comme d'hab", "tjs là ? je reprends {QTY}", "vite fait {QTY}, j'tremercie 🙏"],
+          "desespere": ["jpeux plus dormir, file {QTY} stp 😵", "reup je t'en supplie {QTY} 😰", "comme d'hab mais double, {QTY}", "réponds vite, {QTY}, j'suis en vrac"]
+        },
+        "action_reply": {
+          "sell": ["ahh merci tu me sauves 🙏", "t'es le seul vrai, à demain 😵", "reçu, je revis là"],
+          "refuse": ["non non me fais pas ça 😰", "stp juste cette fois 🙏", "ok… j'reviens demain alors"]
+        },
+        "reup_reply": {
+          "buy": ["carré je prends direct 🙏", "t'as bien fait de penser à moi 😵", "oui oui toujours partant"],
+          "decline": ["même là j'hésite à dire non… ok demain", "pas ce soir mais garde-moi 🙏"]
+        },
+        "story_comment": {
+          "ambiant": { "neutre": ["dis-moi que t'as encore du stock 🙏", "j'guette ta story toute la nuit 😵"], "mefi": ["t'es ouvert ou pas là ?? 😰"] },
+          "qualite_haute": { "chaleureux": ["enfin de la {QUALITY_GOOD} 😮‍💨 j'fonce"] }
+        }
+      },
+      "history": [
+        "il y a 6j — a repris à 3h du mat, encore",
+        "il y a 4j — « comme d'hab » (×2 dans la nuit)",
+        "il y a 2j — t'a DM avant même ton drop",
+        "hier — a doublé la dose"
+      ],
+      "snaps": [
+        { "emoji": "🌙", "cap": "encore réveillé" },
+        { "emoji": "⏰", "cap": "tard, ça répond ?" },
+        { "emoji": "🚬", "cap": "la dernière, promis" },
+        { "emoji": "📱", "cap": "tu réponds ?" },
+        { "emoji": "💤", "cap": "pas dormi" }
+      ]
+    },
+    {
+      "id": "comtesse",
+      "pseudo": "La Comtesse",
+      "handle": "@la.comtesse",
+      "avatar": { "emoji": "👑", "image_prompt": "détail luxe froid : gant de soie sombre, bague, verre à pied, fond noir, unique reflet néon #FFFC00, aucun visage" },
+      "tag": "CONNAISSEUR",
+      "archetype": "connaisseur",
+      "kind_default": "genuine",
+      "pref": "premium",
+      "description": "Bourgeoise-connaisseuse. Ne prend que le meilleur, paie le prix fort — mais ne pardonne pas la came médiocre.",
+      "registre": ["chic", "connaisseur"],
+      "emoji_signature": ["👑", "🥂", "🚪"],
+      "relation_init": "neutre",
+      "memory_note": "tes promesses premium : trahie → 'partie' (te lâche) ; premium promis ET tenu → 'fan' (revient, paie ~×1.6).",
+      "lines": {
+        "dm_open": ["du haut de gamme uniquement, {QTY} 👑", "je ne prends que le meilleur. {QTY}, au prix qu'il faut.", "fais-moi honneur — {QTY} de premium 🥂", "j'espère de la {QUALITY_GOOD} véritable. {QTY}."],
+        "action_reply": {
+          "sell": ["voilà qui est correct 👑", "parfait. on se comprend 🥂", "c'est ce que j'attends de toi."],
+          "refuse": ["dommage. je sais où l'on me sert mieux.", "tant pis. la qualité a ses adresses 🚪"]
+        },
+        "reup_reply": {
+          "buy": ["si c'est du premium, je prends 👑", "soit. fais voir ce que tu as de meilleur 🥂"],
+          "decline": ["pas avant que tu m'aies prouvé ton goût.", "je m'abstiens. déçue la dernière fois."]
+        },
+        "story_comment": {
+          "promesse_tenue": { "chaleureux": ["il avait dit premium, c'était premium ✅👑", "enfin du sérieux. validé 👑✨", "quand il annonce, il assure 🥂"] },
+          "qualite_haute": { "chaleureux": ["alors ÇA, c'est de la tenue 👑", "raffiné. on respire 😮‍💨"] },
+          "cry_wolf": { "hostile": ["je te croyais du goût. déçue 🚪👑", "premium promis, sale livré. on ne me la fait pas deux fois."] }
+        },
+        "memory_callbacks": {
+          "depart": ["je m'en vais — et le prix fort avec moi 🚪👑", "tu as gâché ma confiance. adieu."],
+          "retour": ["bon… tu te rattrapes. je reviens 👑", "premium tenu. je repasserai commande."]
+        }
+      },
+      "history": [
+        "il y a 9j — a acheté ton premium, l'a salué publiquement",
+        "il y a 5j — a snobé un drop 'normal'",
+        "il y a 3j — promesse premium trahie → est partie 🚪",
+        "retour conditionné à un premium tenu"
+      ],
+      "snaps": [
+        { "emoji": "🚪", "cap": "déçue, je m'en vais" },
+        { "emoji": "🥂", "cap": "un cru d'exception" },
+        { "emoji": "👑", "cap": "rien que le haut" },
+        { "emoji": "💎", "cap": "le goût a un prix" }
+      ]
+    },
+    {
+      "id": "kevin",
+      "pseudo": "Kévin",
+      "handle": "@kev.du.91",
+      "avatar": { "emoji": "🧃", "image_prompt": "bling cheap : fausse chaîne dorée sur survêt, capuche, fond parking sombre, accent #FFFC00, visage hors cadre" },
+      "tag": "LOWBALLER",
+      "archetype": "lowballer",
+      "kind_default": "lowball",
+      "pref": "any",
+      "description": "Négocie même l'air qu'il respire. Veut du gros volume au rabais — et ramène sa clique.",
+      "registre": ["cite", "radin"],
+      "emoji_signature": ["👀", "🤝", "😏"],
+      "relation_init": "mefi",
+      "memory_note": "combien de fois tu l'as bradé (protagBrade.kevin) : au 3e bradage il ramène toute l'équipe (mauvais public).",
+      "lines": {
+        "dm_open": ["{QTY} mais tu me fais un prix 👀", "gros volume {QTY}, lâche -40% sinon je vais ailleurs", "{QTY} cash là maintenant si tu casses le prix", "aller fais un effort, {QTY} d'un coup 🤝", "à ce prix non. {QTY} si tu baisses 😏"],
+        "action_reply": {
+          "brade": ["ahah merci bg 😏 je ramène les reufs", "vu, à ce prix je reviens 🤝", "tranquille, je te ramène du monde"],
+          "brade_escalade": ["ahah encore toi le pigeon 😏 j'ramène TOUTE l'équipe", "3e fois ! tu casses toujours 😏 je dis à tout le quartier", "t'es trop bon poire, on débarque en bande"],
+          "refuse": ["pff radin va 🙄", "ok garde ta came alors", "tu perds un gros client là 👀"]
+        },
+        "reup_reply": {
+          "decline": ["au prix normal ? non merci 🙄", "rappelle-moi quand tu brades 😏"],
+          "annoyed": ["tu spammes là, baisse d'abord 🙄"]
+        },
+        "story_comment": {
+          "mauvais_public": { "hostile": ["full lowballers ce soir, ça négocie pour trois fois rien 😏", "j'ai ramené les reufs, on casse les prix 🤝"], "mefi": ["y'a moyen de gratter là non ? 👀"] },
+          "drop": { "mefi": ["beau drop mais tu lâches combien ? 👀"] }
+        }
+      },
+      "history": [
+        "il y a 7j — a négocié -40%, t'a remercié, est revenu",
+        "il y a 4j — 2e bradage, a ramené 'un pote'",
+        "il y a 2j — story : 'le plug casse les prix 😏'",
+        "menace au 3e bradage : ramène toute l'équipe"
+      ],
+      "snaps": [
+        { "emoji": "🤝", "cap": "j'ramène l'équipe" },
+        { "emoji": "🏷️", "cap": "le plug casse les prix" },
+        { "emoji": "💸", "cap": "fais un effort" },
+        { "emoji": "👀", "cap": "ça gratte où ?" },
+        { "emoji": "🛒", "cap": "gros volume only" }
+      ]
+    },
+    {
+      "id": "sami",
+      "pseudo": "Sami",
+      "handle": "@sami.tjs.la",
+      "avatar": { "emoji": "🧢", "image_prompt": "casquette baissée de dos, sweat sombre, lampadaire orangé, léger accent #FFFC00, anonyme fiable" },
+      "tag": "CLIENT FIDÈLE",
+      "archetype": "regular",
+      "kind_default": "genuine",
+      "pref": "any",
+      "description": "Le régulier fiable. Pas de drame, pas de négo : il prend, il paie, il revient.",
+      "registre": ["courant", "cite"],
+      "emoji_signature": ["🧢", "🤝", "🙏"],
+      "relation_init": "chaleureux",
+      "memory_note": "",
+      "lines": {
+        "dm_open": {
+          "chaleureux": ["comme d'hab frérot, {QTY} 🤝", "tjs fidèle, {QTY} pour moi 🧢", "yo le sang, {QTY} ce soir 🙏"],
+          "neutre": ["salut, dispo ? {QTY}", "{QTY} comme la dernière fois", "tu peux ce soir ? {QTY}"],
+          "mefi": ["{QTY} si c'est la même qualité qu'avant", "toujours du sérieux ? {QTY}"]
+        },
+        "action_reply": {
+          "sell": ["nickel, à la prochaine 🤝", "comme toujours, merci 🧢", "tu gères, je repasse"],
+          "refuse": ["ah ok, pas grave 🙏", "noté, je reviens"]
+        },
+        "reup_reply": {
+          "buy": ["ah carré, comme d'hab 🙏", "bien vu, je prends 🤝", "tjs partant pour du sérieux 🧢"],
+          "decline": ["pas ce soir, mais garde-moi au chaud 🙏"]
+        },
+        "story_comment": {
+          "ambiant": { "chaleureux": ["le {SELL_POINT} tourne propre, validé 🤝", "on sait où trouver du sérieux 🧢"], "neutre": ["rien à dire, ça tient"] },
+          "qualite_haute": { "chaleureux": ["propre comme toujours ✅"] }
+        }
+      },
+      "history": [
+        "il y a 8j — achat tranquille, RAS",
+        "il y a 5j — revenu, même quantité",
+        "il y a 2j — a liké ta vitrine",
+        "hier — 'à la prochaine 🤝'"
+      ],
+      "snaps": [
+        { "emoji": "🤝", "cap": "à la prochaine" },
+        { "emoji": "✅", "cap": "que du sérieux" },
+        { "emoji": "🧢", "cap": "comme d'hab" },
+        { "emoji": "🌃", "cap": "nuit calme" }
+      ]
+    },
+    {
+      "id": "petit",
+      "pseudo": "Le petit du 4",
+      "handle": "@ptit.du.4",
+      "avatar": { "emoji": "🧒", "image_prompt": "silhouette d'ado de dos en trottinette, hall d'immeuble sombre, néon #FFFC00, visage non visible, anonyme" },
+      "tag": "CURIEUX",
+      "archetype": "jeune",
+      "kind_default": "genuine",
+      "pref": "any",
+      "description": "Le jeune curieux du bâtiment 4. Naïf, impressionnable, pose mille questions.",
+      "registre": ["cite", "jeune"],
+      "emoji_signature": ["🧒", "👀", "😮"],
+      "relation_init": "neutre",
+      "memory_note": "",
+      "lines": {
+        "dm_open": {
+          "neutre": ["euh c'est toi qu'on dit ? je prends {QTY} 👀", "première fois… {QTY} ça marche ?", "on m'a dit de te voir, {QTY} 😮"],
+          "chaleureux": ["trop bien t'es chaud 🔥 {QTY} stp", "les grands parlent que de toi, {QTY} 👀"],
+          "mefi": ["c'est chaud les flics par ici ? {QTY} qd même"]
+        },
+        "action_reply": {
+          "sell": ["merci frérot t'es une légende 😮", "trop bien, j'reviens promis 👀"],
+          "refuse": ["ah… c'est parce que je suis petit ? 🥲", "ok ok pas de souci"]
+        },
+        "reup_reply": {
+          "buy": ["ah ouais je teste, {QTY} 👀", "vas-y je prends, t'es sympa 😮"],
+          "decline": ["j'ai pas trop les {MONEY} là 🥲"]
+        },
+        "story_comment": {
+          "ambiant": { "neutre": ["c'est quoi le {SELL_POINT} dont tout le monde parle 👀", "ça a l'air sérieux ton truc 😮"] },
+          "drop": { "chaleureux": ["wallah ça donne envie ce drop 🔥"] }
+        }
+      },
+      "history": [
+        "il y a 5j — premier achat, hyper impressionné",
+        "il y a 3j — a posé 10 questions en DM",
+        "hier — a montré ta story aux copains 👀"
+      ],
+      "snaps": [
+        { "emoji": "📲", "cap": "montré aux potes" },
+        { "emoji": "❓", "cap": "trop de questions" },
+        { "emoji": "👟", "cap": "première fois" },
+        { "emoji": "🛴", "cap": "le ptit du block" }
+      ]
+    },
+    {
+      "id": "ancien",
+      "pseudo": "L'ancien",
+      "handle": "@l.ancien.bdp",
+      "avatar": { "emoji": "🚬", "image_prompt": "fumée de cigarette devant fenêtre voilée, ton sépia désaturé, faible reflet #FFFC00, dos voûté anonyme" },
+      "tag": "ANCIEN",
+      "archetype": "ancien",
+      "kind_default": "genuine",
+      "pref": "any",
+      "description": "Le vieux routier. Sec, désabusé, a tout vu. Distant mais relançable.",
+      "registre": ["courant", "ancien"],
+      "emoji_signature": ["🚬", "🥃", "😐"],
+      "relation_init": "neutre",
+      "memory_note": "",
+      "lines": {
+        "dm_open": {
+          "neutre": ["{QTY}. comme avant. pas de blabla 🚬", "toujours debout toi ? {QTY}.", "fais simple. {QTY}."],
+          "mefi": ["j'ai connu mieux. {QTY} si c'est propre.", "prouve-moi que ça vaut. {QTY}."],
+          "chaleureux": ["tu tiens la route gamin. {QTY} 🚬"]
+        },
+        "action_reply": {
+          "sell": ["ça ira. 🚬", "correct. salut.", "au moins toi tu sais faire."],
+          "refuse": ["mouais. comme les autres. 😐", "tant pis. j'ai vu pire."]
+        },
+        "reup_reply": {
+          "buy": ["bon. une dernière fois. 🚬", "soit. mais déçois-moi pas."],
+          "decline": ["non. j'ai plus l'âge des reups 😐", "bof. pas ce soir gamin."],
+          "annoyed": ["lâche-moi un peu veux-tu 😐"]
+        },
+        "story_comment": {
+          "ambiant": { "neutre": ["ça a changé le quartier… 🚬", "de mon temps c'était autre chose"], "mefi": ["j'attends de voir avant de causer"] },
+          "qualite_basse": { "mefi": ["coupé. je reconnais le goût du {QUALITY_BAD} 🚬"] }
+        }
+      },
+      "history": [
+        "il y a 12j — achat, deux mots, parti",
+        "il y a 6j — 'c'était mieux avant' en story",
+        "hier — a décliné une relance, sec"
+      ],
+      "snaps": [
+        { "emoji": "🚬", "cap": "pas le temps" },
+        { "emoji": "🌫️", "cap": "le quartier a changé" },
+        { "emoji": "🥃", "cap": "c'était mieux avant" },
+        { "emoji": "📻", "cap": "à l'ancienne" }
+      ]
+    },
+
+    {
+      "id": "client",
+      "pseudo": "Dris",
+      "handle": "@dris.mrs",
+      "avatar": { "emoji": "🧤", "image_prompt": "mains gantées tenant un téléphone, capuche sombre, ruelle néon #FFFC00, sans visage" },
+      "tag": "CLIENT FIDÈLE",
+      "archetype": "regular",
+      "kind_default": "genuine",
+      "pref": "any",
+      "description": "Habitué discret, ponctuel, jamais un mot de trop.",
+      "registre": ["courant", "cite"],
+      "emoji_signature": ["🧤", "🤝"],
+      "relation_init": "neutre",
+      "memory_note": "",
+      "lines": {
+        "dm_open": { "neutre": ["salut, {QTY} comme d'hab", "dispo ? {QTY} 🤝"], "chaleureux": ["fidèle au poste, {QTY} 🤝"] },
+        "action_reply": { "sell": ["nickel 🤝", "merci, à plus"], "refuse": ["ok pas grave"] },
+        "reup_reply": { "buy": ["ouais vas-y {QTY} 🤝"], "decline": ["pas ce soir"] }
+      },
+      "history": ["il y a 6j — achat ponctuel", "il y a 2j — revenu sans négocier"],
+      "snaps": [
+        { "emoji": "🤝", "cap": "comme convenu" },
+        { "emoji": "🧤", "cap": "discret" },
+        { "emoji": "🌃", "cap": "même heure" }
+      ]
+    },
+    {
+      "id": "client",
+      "pseudo": "Yanis",
+      "handle": "@yanis.91",
+      "avatar": { "emoji": "🛵", "image_prompt": "scooter de nuit flou de mouvement, casque intégral, traînées néon #FFFC00, anonyme" },
+      "tag": "CLIENT FIDÈLE",
+      "archetype": "regular",
+      "kind_default": "genuine",
+      "pref": "any",
+      "description": "Toujours pressé, livreur dans l'âme. Veut vite, paie vite.",
+      "registre": ["cite", "jeune"],
+      "emoji_signature": ["🛵", "⚡"],
+      "relation_init": "neutre",
+      "memory_note": "",
+      "lines": {
+        "dm_open": { "neutre": ["vite {QTY}, j'suis en bas ⚡", "dispo là maintenant ? {QTY} 🛵"], "mefi": ["{QTY} mais ça doit être rapide"] },
+        "action_reply": { "sell": ["go merci ⚡", "déjà reparti 🛵"], "refuse": ["pas le temps d'attendre alors"] },
+        "reup_reply": { "buy": ["ouais mais vite {QTY} ⚡"], "decline": ["là j'peux pas, en course"] }
+      },
+      "history": ["il y a 5j — achat éclair", "hier — passé sans s'arrêter"],
+      "snaps": [
+        { "emoji": "⚡", "cap": "vite fait" },
+        { "emoji": "🛵", "cap": "j'suis en bas" },
+        { "emoji": "🌃", "cap": "tournée de nuit" }
+      ]
+    },
+    {
+      "id": "client",
+      "pseudo": "Mauricette",
+      "handle": "@mamie.maurice",
+      "avatar": { "emoji": "🐈", "image_prompt": "chat sur un rebord de fenêtre, rideau tiré, lumière chaude tamisée, discret accent #FFFC00, aucune personne" },
+      "tag": "CURIEUX",
+      "archetype": "regular",
+      "kind_default": "genuine",
+      "pref": "any",
+      "description": "La discrète du 3e. Personne ne se méfie d'elle. Commande 'pour ses douleurs'.",
+      "registre": ["courant", "vieux"],
+      "emoji_signature": ["🐈", "☕"],
+      "relation_init": "chaleureux",
+      "memory_note": "",
+      "lines": {
+        "dm_open": { "chaleureux": ["bonsoir jeune homme, {QTY} pour mes douleurs ☕", "c'est encore moi du 3e, {QTY} 🐈"], "neutre": ["vous avez ce qu'il faut ? {QTY}"] },
+        "action_reply": { "sell": ["merci mon grand, tenez la monnaie ☕", "vous êtes un amour 🐈"], "refuse": ["oh… ce sera pour une autre fois"] },
+        "reup_reply": { "buy": ["volontiers, {QTY} mon grand ☕"], "decline": ["pas aujourd'hui, mes jambes vont mieux 🐈"] }
+      },
+      "history": ["il y a 10j — 'pour ses douleurs'", "il y a 3j — a apporté des gâteaux"],
+      "snaps": [
+        { "emoji": "🍰", "cap": "des gâteaux pour toi" },
+        { "emoji": "☕", "cap": "pour mes douleurs" },
+        { "emoji": "🐈", "cap": "le chat et moi" }
+      ]
+    },
+    {
+      "id": "client",
+      "pseudo": "Le Campus",
+      "handle": "@campus.afterdark",
+      "avatar": { "emoji": "🎓", "image_prompt": "amphi vide la nuit, néons éteints sauf un, sac à dos posé, accent #FFFC00, personne visible" },
+      "tag": "TOURISTE",
+      "archetype": "curieux",
+      "kind_default": "genuine",
+      "pref": "any",
+      "description": "Étudiant en mode after. Vient par le buzz, repart au petit matin.",
+      "registre": ["jeune", "courant"],
+      "emoji_signature": ["🎓", "🎉"],
+      "relation_init": "neutre",
+      "memory_note": "",
+      "lines": {
+        "dm_open": { "chaleureux": ["soirée ce soir, {QTY} pour la coloc 🎉", "on a vu ta story, {QTY} 🎓"], "neutre": ["dispo pour {QTY} ? after prévu"] },
+        "action_reply": { "sell": ["merci, ça va être chaud 🎉", "top, on revient peut-être 🎓"], "refuse": ["ah mince, on demandera ailleurs"] },
+        "reup_reply": { "buy": ["allez {QTY}, y'a soirée 🎉"], "decline": ["révisions là, une autre fois 🎓"] }
+      },
+      "history": ["il y a 4j — première via story", "hier — soirée, gros panier"],
+      "snaps": [
+        { "emoji": "🎉", "cap": "soirée ce soir" },
+        { "emoji": "🎓", "cap": "after improvisé" },
+        { "emoji": "📲", "cap": "vu ta story" }
+      ]
+    },
+    {
+      "id": "client",
+      "pseudo": "Nadia",
+      "handle": "@nadia.nuit",
+      "avatar": { "emoji": "💅", "image_prompt": "ongles laqués sur volant de nuit, ville floue, reflets néon #FFFC00, visage hors champ" },
+      "tag": "CLIENT FIDÈLE",
+      "archetype": "regular",
+      "kind_default": "genuine",
+      "pref": "any",
+      "description": "Noctambule régulière, connaît tout le monde, jamais un drame.",
+      "registre": ["courant", "cite"],
+      "emoji_signature": ["💅", "🌙"],
+      "relation_init": "chaleureux",
+      "memory_note": "",
+      "lines": {
+        "dm_open": { "chaleureux": ["coucou toi, {QTY} pour la night 🌙", "fidèle comme la lune, {QTY} 💅"], "neutre": ["dispo ? {QTY} ce soir"] },
+        "action_reply": { "sell": ["merci chou, bonne night 🌙", "tjs un plaisir 💅"], "refuse": ["pas grave, bisous 💅"] },
+        "reup_reply": { "buy": ["allez {QTY}, c'est la night 🌙"], "decline": ["calme ce soir, une autre fois 💅"] }
+      },
+      "history": ["il y a 7j — habituée des nuits", "il y a 2j — a partagé ta story"],
+      "snaps": [
+        { "emoji": "📲", "cap": "j'ai partagé ta story" },
+        { "emoji": "🌙", "cap": "la night appelle" },
+        { "emoji": "💅", "cap": "fidèle, toujours" }
+      ]
+    },
+    {
+      "id": "client",
+      "pseudo": "Le Comptoir",
+      "handle": "@comptoir.h24",
+      "avatar": { "emoji": "🏪", "image_prompt": "devanture de tabac la nuit, rideau métallique à demi baissé, néon #FFFC00, aucun visage" },
+      "tag": "ANCIEN",
+      "archetype": "regular",
+      "kind_default": "genuine",
+      "pref": "any",
+      "description": "Le gérant du tabac d'à côté. Discret, professionnel, ne mélange pas tout.",
+      "registre": ["courant"],
+      "emoji_signature": ["🏪", "🤝"],
+      "relation_init": "neutre",
+      "memory_note": "",
+      "lines": {
+        "dm_open": { "neutre": ["bonsoir, {QTY} discret comme d'habitude", "même arrangement ? {QTY} 🤝"], "mefi": ["restons propres. {QTY}, sans bruit."] },
+        "action_reply": { "sell": ["parfait, à charge de revanche 🤝", "discret et net, merci"], "refuse": ["entendu, pas d'histoires"] },
+        "reup_reply": { "buy": ["oui, {QTY}, discrètement 🤝"], "decline": ["pas le moment, trop de passage"] }
+      },
+      "history": ["il y a 9j — arrangement discret", "il y a 4j — a renvoyé un client vers toi"],
+      "snaps": [
+        { "emoji": "🤝", "cap": "je t'envoie du monde" },
+        { "emoji": "🏪", "cap": "ouvert tard" },
+        { "emoji": "💶", "cap": "discret et net" }
+      ]
+    },
+    {
+      "id": "client",
+      "pseudo": "Sofiane",
+      "handle": "@sof.boxe",
+      "avatar": { "emoji": "🥊", "image_prompt": "gant de boxe accroché, salle sombre, projecteur unique, accent #FFFC00, personne dans le cadre" },
+      "tag": "CLIENT FIDÈLE",
+      "archetype": "regular",
+      "kind_default": "genuine",
+      "pref": "any",
+      "description": "Sportif du quartier, droit dans ses bottes. Achète peu mais sûr.",
+      "registre": ["cite", "courant"],
+      "emoji_signature": ["🥊", "💪"],
+      "relation_init": "neutre",
+      "memory_note": "",
+      "lines": {
+        "dm_open": { "neutre": ["{QTY}, propre, pas de coupe 💪", "dispo ? {QTY} pour décompresser"], "chaleureux": ["respect frérot, {QTY} 🥊"] },
+        "action_reply": { "sell": ["respect 🥊", "carré, merci 💪"], "refuse": ["ok, no soucis"] },
+        "reup_reply": { "buy": ["allez {QTY} 💪"], "decline": ["en cut là, pas ce soir 🥊"] }
+      },
+      "history": ["il y a 6j — petit achat sûr", "hier — a liké, sans commenter"],
+      "snaps": [
+        { "emoji": "💪", "cap": "récup' méritée" },
+        { "emoji": "🥊", "cap": "propre only" },
+        { "emoji": "🏋️", "cap": "après l'entraînement" }
+      ]
+    },
+    {
+      "id": "flake",
+      "pseudo": "Kayliah",
+      "handle": "@kay.lossa",
+      "avatar": { "emoji": "🦗", "image_prompt": "chaise vide sous un lampadaire, brume, point de rendez-vous désert, accent #FFFC00, personne" },
+      "tag": "FLAKE",
+      "archetype": "flake",
+      "kind_default": "flake",
+      "pref": "any",
+      "description": "Pose un RDV, ne vient jamais. Disparaît, réapparaît, redisparaît.",
+      "registre": ["jeune"],
+      "emoji_signature": ["🦗", "⌛"],
+      "relation_init": "neutre",
+      "memory_note": "",
+      "lines": {
+        "dm_open": ["allô ?? tjs là ?", "euh je sais pas encore… {QTY} ptet", "tu réponds vite au moins ? ⌛", "faut que je vois avec une pote, attends…"],
+        "action_reply": { "rdv": ["ouais ouais à 23h…", "j'arrive j'arrive ⌛"], "block": ["bah quoi ?? 🦗"] }
+      },
+      "history": ["il y a 5j — RDV posé, jamais venue", "il y a 2j — 'promis cette fois' (non)"],
+      "snaps": [
+        { "emoji": "⌛", "cap": "promis cette fois" },
+        { "emoji": "🦗", "cap": "désolée, j'ai zappé" },
+        { "emoji": "📵", "cap": "vu sans suite" }
+      ]
+    },
+    {
+      "id": "flake",
+      "pseudo": "Le fantôme du 12",
+      "handle": "@jvi3ns.dm1n",
+      "avatar": { "emoji": "👻", "image_prompt": "couloir d'immeuble vide, porte entrouverte, lumière vacillante, accent #FFFC00, aucune présence nette" },
+      "tag": "FLAKE",
+      "archetype": "flake",
+      "kind_default": "flake",
+      "pref": "any",
+      "description": "Le roi du 'j'arrive dans 5 min'. On ne l'a jamais vu en vrai.",
+      "registre": ["cite", "jeune"],
+      "emoji_signature": ["👻", "⌛"],
+      "relation_init": "mefi",
+      "memory_note": "",
+      "lines": {
+        "dm_open": ["j'arrive dans 5 min frérot ⌛", "garde-moi {QTY}, je passe… ptet", "t'es où ? bouge pas 👻", "2 min juré (×4)"],
+        "action_reply": { "rdv": ["bouge pas j'arrive 👻", "ya un imprévu, demain ?"], "block": ["mais attends frè—👻"] }
+      },
+      "history": ["il y a 8j — '5 min', jamais venu", "il y a 3j — RDV fantôme #4"],
+      "snaps": [
+        { "emoji": "⌛", "cap": "deux min juré" },
+        { "emoji": "👻", "cap": "t'es où ? bouge pas" },
+        { "emoji": "🌫️", "cap": "jamais vu en vrai" }
+      ]
+    }
+  ]
+}

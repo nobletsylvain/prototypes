@@ -197,48 +197,90 @@ const ICO_V = [[-1, ICO_T, 0], [1, ICO_T, 0], [-1, -ICO_T, 0], [1, -ICO_T, 0],
   [ICO_T, 0, -1], [ICO_T, 0, 1], [-ICO_T, 0, -1], [-ICO_T, 0, 1]];
 const ICO_F = [[0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],[1,5,9],[5,11,4],[11,10,2],
   [10,7,6],[7,1,8],[3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],[4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]];
-function makeNugSprite(mid) {
-  const S = 96, cnv = document.createElement("canvas"); cnv.width = cnv.height = S;
+// Géodésique : icosaèdre subdivisé 1× (≈80 facettes) -> bud plus rond/dense (volume).
+const GEO = (function () {
+  const verts = ICO_V.map(v => { const n = Math.hypot(v[0], v[1], v[2]); return [v[0]/n, v[1]/n, v[2]/n]; });
+  const mid = {}, faces = [];
+  function mp(i, j) {
+    const key = i < j ? i + "_" + j : j + "_" + i;
+    if (mid[key] != null) return mid[key];
+    const a = verts[i], b = verts[j], n = Math.hypot(a[0]+b[0], a[1]+b[1], a[2]+b[2]) || 1;
+    verts.push([(a[0]+b[0])/n, (a[1]+b[1])/n, (a[2]+b[2])/n]);
+    return mid[key] = verts.length - 1;
+  }
+  for (const f of ICO_F) {
+    const ab = mp(f[0], f[1]), bc = mp(f[1], f[2]), ca = mp(f[2], f[0]);
+    faces.push([f[0], ab, ca], [f[1], bc, ab], [f[2], ca, bc], [ab, bc, ca]);
+  }
+  return { verts, faces };
+})();
+function makeNugSprite(mid, pistil) {
+  const S = 128, cnv = document.createElement("canvas"); cnv.width = cnv.height = S;
   const g = cnv.getContext("2d"); g.lineJoin = "round";
   const rx = Math.random() * 6.28, ry = Math.random() * 6.28, rz = Math.random() * 6.28;
   const cX = Math.cos(rx), sX = Math.sin(rx), cY = Math.cos(ry), sY = Math.sin(ry), cZ = Math.cos(rz), sZ = Math.sin(rz);
-  const verts = ICO_V.map(v => {
-    const f = 0.78 + Math.random() * 0.44;                  // bosselage (cf. makeNugGeo de green-front)
-    let x = v[0] * f, y = v[1] * f, z = v[2] * f, t;
-    t = y * cX - z * sX; z = y * sX + z * cX; y = t;        // rot X
-    t = x * cY + z * sY; z = -x * sY + z * cY; x = t;        // rot Y
-    t = x * cZ - y * sZ; y = x * sZ + y * cZ; x = t;         // rot Z
+  const def = GEO.verts.map(() => 0.86 + Math.random() * 0.28);   // bosselage par sommet (organique)
+  const verts = GEO.verts.map((v, i) => {
+    const f = def[i]; let x = v[0]*f, y = v[1]*f, z = v[2]*f, t;
+    t = y*cX - z*sX; z = y*sX + z*cX; y = t;
+    t = x*cY + z*sY; z = -x*sY + z*cY; x = t;
+    t = x*cZ - y*sZ; y = x*sZ + y*cZ; x = t;
     return [x, y, z];
   });
-  const scale = S * 0.2, cx = S / 2, cy = S / 2;
-  const lx = -0.4, ly = 0.72, lz = 0.78, ll = Math.hypot(lx, ly, lz);
-  g.fillStyle = "rgba(0,0,0,.16)";                          // ombre douce dessous
-  g.beginPath(); g.ellipse(cx, cy + S * 0.32, S * 0.26, S * 0.1, 0, 0, 7); g.fill();
-  const faces = ICO_F.map(f => {
+  const scale = S * 0.3, cx = S / 2, cy = S / 2;
+  const lx = -0.38, ly = 0.66, lz = 0.66, ll = Math.hypot(lx, ly, lz);
+  g.fillStyle = "rgba(0,0,0,.2)";                            // ombre portée douce
+  g.beginPath(); g.ellipse(cx, cy + S * 0.34, S * 0.32, S * 0.12, 0, 0, 7); g.fill();
+  const faces = GEO.faces.map(f => {
     const a = verts[f[0]], b = verts[f[1]], c = verts[f[2]];
     const ux = b[0]-a[0], uy = b[1]-a[1], uz = b[2]-a[2], vx = c[0]-a[0], vy = c[1]-a[1], vz = c[2]-a[2];
     let nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx; const nl = Math.hypot(nx, ny, nz) || 1;
-    const sh = Math.max(0, (nx*lx + ny*ly + nz*lz) / (nl * ll));   // ombrage plat (lambert)
-    return { a, b, c, zc: (a[2]+b[2]+c[2]) / 3, sh };
-  }).sort((p, q) => p.zc - q.zc);                           // peintre : du fond vers l'avant
+    return { a, b, c, zc: (a[2]+b[2]+c[2]) / 3, sh: (nx*lx + ny*ly + nz*lz) / (nl * ll) };
+  }).sort((p, q) => p.zc - q.zc);                           // peintre : fond -> avant
   for (const f of faces) {
-    const k = 0.42 + 0.8 * f.sh, j = (Math.random() - 0.5) * 14;   // + grain léger par facette
+    const k = 0.34 + 0.78 * Math.max(0, f.sh), j = (Math.random() - 0.5) * 12;   // ambiant + clé + grain
     const r = Math.max(0, Math.min(255, mid[0]*k + j)) | 0;
     const gg = Math.max(0, Math.min(255, mid[1]*k + j)) | 0;
     const bb = Math.max(0, Math.min(255, mid[2]*k + j)) | 0;
     g.fillStyle = "rgb(" + r + "," + gg + "," + bb + ")";
-    g.strokeStyle = "rgba(18,36,16,.28)"; g.lineWidth = 0.6;
+    g.strokeStyle = "rgba(18,36,16,.16)"; g.lineWidth = 0.5;
     g.beginPath();
     g.moveTo(cx + f.a[0]*scale, cy - f.a[1]*scale);
     g.lineTo(cx + f.b[0]*scale, cy - f.b[1]*scale);
     g.lineTo(cx + f.c[0]*scale, cy - f.c[1]*scale);
     g.closePath(); g.fill(); g.stroke();
   }
+  // reflet givré côté lumière (sheen)
+  const sg = g.createRadialGradient(cx - S*0.12, cy - S*0.15, 2, cx - S*0.12, cy - S*0.15, S*0.36);
+  sg.addColorStop(0, "rgba(235,255,225,.26)"); sg.addColorStop(1, "rgba(235,255,225,0)");
+  g.fillStyle = sg; g.beginPath(); g.arc(cx, cy, S*0.42, 0, 7); g.fill();
+  // givre (trichomes) : points clairs
+  for (let i = 0; i < 58; i++) {
+    const a = Math.random() * 6.28, rr = Math.sqrt(Math.random()) * S * 0.34;
+    g.fillStyle = "rgba(232,255,224," + (0.12 + Math.random() * 0.3) + ")";
+    g.beginPath(); g.arc(cx + Math.cos(a)*rr, cy + Math.sin(a)*rr*0.92 - S*0.03, 0.6 + Math.random()*1.2, 0, 7); g.fill();
+  }
+  // pistils ambrés
+  g.strokeStyle = "rgba(" + (pistil || "201,138,58") + ",.8)"; g.lineWidth = 1.1; g.lineCap = "round";
+  for (let i = 0; i < 5; i++) {
+    const a = Math.random() * 6.28, r0 = S*0.06, r1 = S*0.16 + Math.random() * S*0.12;
+    const x0 = cx + Math.cos(a)*r0, y0 = cy + Math.sin(a)*r0, x1 = cx + Math.cos(a)*r1, y1 = cy + Math.sin(a)*r1;
+    g.beginPath(); g.moveTo(x0, y0);
+    g.quadraticCurveTo((x0+x1)/2 + (Math.random()-0.5)*8, (y0+y1)/2 + (Math.random()-0.5)*8, x1, y1);
+    g.stroke();
+  }
   return cnv;
 }
-const NUG_MID = { fresh: [92, 156, 70], A: [98, 166, 76], B: [120, 140, 78], trim: [134, 122, 86] };
-function nugSet(mid, n) { const a = []; for (let i = 0; i < n; i++) a.push(makeNugSprite(mid)); return a; }
-const BUDS = { fresh: nugSet(NUG_MID.fresh, 7), A: nugSet(NUG_MID.A, 7), B: nugSet(NUG_MID.B, 6), trim: nugSet(NUG_MID.trim, 6) };
+// Variétés : chacune sa couleur + son %THC (= sa qualité). La récolte en mélange plusieurs.
+const VARIETIES = [
+  { id: "kush",   name: "OG Kush",     mid: [96, 152, 72],   pistil: "201,138,58",  thc: 18 },  // vert classique
+  { id: "purple", name: "Purple Kush", mid: [124, 100, 160], pistil: "176,128,202", thc: 22 },  // violet premium
+  { id: "amber",  name: "Amber Haze",  mid: [158, 150, 64],  pistil: "216,140,40",  thc: 16 },  // ambré
+  { id: "frost",  name: "White Frost", mid: [150, 172, 142], pistil: "196,166,96",  thc: 25 },  // givré premium
+];
+function nugSet(mid, pistil, n) { const a = []; for (let i = 0; i < n; i++) a.push(makeNugSprite(mid, pistil)); return a; }
+const BUDS = {}, VAR_BY_ID = {};
+for (const v of VARIETIES) { BUDS[v.id] = nugSet(v.mid, v.pistil, 6); VAR_BY_ID[v.id] = v; }
 
 /* -------------------------------------------------------------------------
    UI refs + harnais (menu / partie / résultat)
@@ -362,13 +404,17 @@ function drawBin(c, bin, edge) {
   c.lineWidth = 2; c.strokeStyle = edge; c.stroke();
   c.fillStyle = edge; c.font = fontPx(12, 800); c.textAlign = "center"; c.fillText(bin.label, bin.x, y - 6);
 }
+const LEAF_TONES = ["#5c7d36", "#6f9243", "#52732f"];      // feuilles à sucre, quelques tons
 function drawWasteLeaf(c, lf) {
-  const ux = Math.cos(lf.ang), uy = Math.sin(lf.ang), px = -uy, py = ux, w = lf.len * 0.3;
+  const ux = Math.cos(lf.ang), uy = Math.sin(lf.ang), px = -uy, py = ux, w = lf.len * 0.26;
   const tx = lf.x + ux * lf.len, ty = lf.y + uy * lf.len;
+  const mx = lf.x + ux * lf.len * 0.5, my = lf.y + uy * lf.len * 0.5;
   c.beginPath(); c.moveTo(lf.x + px * w, lf.y + py * w);
-  c.quadraticCurveTo(lf.x + ux * lf.len * 0.5 + px * w * 1.3, lf.y + uy * lf.len * 0.5 + py * w * 1.3, tx, ty);
-  c.quadraticCurveTo(lf.x + ux * lf.len * 0.5 - px * w * 1.3, lf.y + uy * lf.len * 0.5 - py * w * 1.3, lf.x - px * w, lf.y - py * w);
-  c.closePath(); c.fillStyle = "#4e6b2e"; c.fill();
+  c.quadraticCurveTo(mx + px * w * 1.3, my + py * w * 1.3, tx, ty);
+  c.quadraticCurveTo(mx - px * w * 1.3, my - py * w * 1.3, lf.x - px * w, lf.y - py * w);
+  c.closePath(); c.fillStyle = LEAF_TONES[lf.tone || 0]; c.fill();
+  c.strokeStyle = "rgba(38,54,22,.45)"; c.lineWidth = 1;                       // nervure centrale
+  c.beginPath(); c.moveTo(lf.x, lf.y); c.lineTo(tx, ty); c.stroke();
 }
 const G1 = {
   id: "buck", name: "Effeuillage", emoji: "🌿", unit: "%", timed: false,
@@ -378,8 +424,8 @@ G1.start = function () {
   this.over = false; this.dragging = false; this.prev = null;
   // récolte libre : pas de timer
   this.buds = []; this.branches = []; this.leaves = [];
-  this.pileT = []; this.pileD = [];
-  this.tAssigned = 0; this.dAssigned = 0; this.tetesMass = 0; this.totalMass = 0; this.feuillesMass = 0;
+  this.pileT = [];
+  this.tAssigned = 0; this.dAssigned = 0; this.tetesMass = 0; this.totalMass = 0; this.feuillesMass = 0; this.thcMass = 0;
   this.binT = { x: W * 0.28, y: H * 0.85, w: W * 0.4, h: H * 0.11, label: "🌿 Têtes" };
   this.binD = { x: W * 0.74, y: H * 0.85, w: W * 0.34, h: H * 0.11, label: "🍂 Feuilles" };
   this.lineY = H * 0.12;
@@ -391,20 +437,28 @@ G1.start = function () {
     const pts = [];
     for (let s = 0; s <= steps; s++) { const u = s / steps; pts.push({ x: ax + drift * u + Math.sin(u * 3 + bi) * 5, y: this.lineY + len * u }); }
     const leafFrac = 0.08 + Math.random() * 0.1;           // part feuille/trim de CETTE branche (8-18 %)
-    this.branches.push({ pts, leafFrac });
-    const k = 8 + Math.floor(Math.random() * 3);            // ≥ double : 8-10 têtes par branche
+    const variety = VARIETIES[Math.floor(Math.random() * VARIETIES.length)];   // 1 variété par branche
+    this.branches.push({ pts, leafFrac, variety: variety.id });
+    const k = 20 + Math.floor(Math.random() * 5);          // COLA dense : 20-24 têtes qui se chevauchent
     for (let j = 0; j < k; j++) {
-      const u = 0.1 + 0.86 * (j / (k - 1));
+      const u = 0.05 + 0.95 * (j / (k - 1));               // du haut de la tige -> pointe
       const idx = u * steps, i0 = Math.min(steps - 1, Math.floor(idx)), f = idx - i0;
       const p0 = pts[i0], p1 = pts[i0 + 1];
       const sx = p0.x + (p1.x - p0.x) * f, sy = p0.y + (p1.y - p0.y) * f;
-      const side = j % 2 ? 1 : -1, r = 9 + Math.random() * 13;
-      this.buds.push({ x: sx + side * (5 + Math.random() * 7), y: sy + (Math.random() - 0.5) * 6,
-        r, leafFrac, on: true, pop: 0, landed: false, tx: 0, ty: 0,
-        spr: Math.floor(Math.random() * BUDS.fresh.length), rot: Math.random() * 6.28 });
+      const taper = 1.2 + (1 - u) * 0.15;                  // volume quasi constant, à peine plus gros en haut
+      const r = (13 + Math.random() * 6) * taper;               // têtes plus grosses (volume)
+      const off = (Math.random() - 0.5) * 26;                   // colonne d'épaisseur constante (peu effilée en bas)
+      this.buds.push({ x: sx + off, y: sy + (Math.random() - 0.5) * 4,
+        r, leafFrac, variety: variety.id, thc: variety.thc, on: true, pop: 0, landed: false, tx: 0, ty: 0,
+        spr: Math.floor(Math.random() * BUDS[variety.id].length), rot: Math.random() * 6.28 });
       this.totalMass += r;
-      if (Math.random() < 0.7) this.leaves.push({ x: sx - side * (5 + Math.random() * 6), y: sy + (Math.random() - 0.5) * 8,
-        ang: (side > 0 ? 0.5 : Math.PI - 0.5) + (Math.random() - 0.5) * 0.7, len: 9 + Math.random() * 7 });
+      if (Math.random() < 0.34) {                          // feuilles à sucre qui dépassent par-ci par-là
+        const side = Math.random() < 0.5 ? 1 : -1;
+        this.leaves.push({ x: sx, y: sy + (Math.random() - 0.5) * 6,
+          ang: (side > 0 ? 0 : Math.PI) + (Math.random() - 0.5) * 1.3,     // éventail vers l'extérieur de la colonne
+          len: 24 + Math.random() * 20, tone: Math.floor(Math.random() * 3),
+          on: true, pop: 0, landed: false, tx: 0, ty: 0, spin: (Math.random() - 0.5) * 1.6 });
+      }
     }
   }
   // (le trim collecté est calculé par branche au détachement, cf. G1.strip)
@@ -419,9 +473,17 @@ G1.strip = function (a, b) {
       const s = slotPos(this.binT, this.tAssigned++, 7);
       bud.tx = s.x; bud.ty = s.y;
       this.tetesMass += bud.r;
+      this.thcMass += bud.r * bud.thc;                            // qualité pondérée par la masse
       this.feuillesMass += bud.r * bud.leafFrac;                  // trim (part variable de la branche) -> bac feuilles
-      while (this.pileD.length * 4 < this.feuillesMass) this.pileD.push(slotPos(this.binD, this.pileD.length, 9));
       playSnip();
+    }
+  }
+  for (const lf of this.leaves) {                                 // les feuilles tombent avec le geste -> bac feuilles
+    if (!lf.on) continue;
+    if (distSeg(lf.x, lf.y, a.x, a.y, b.x, b.y) < 22) {
+      lf.on = false; lf.pop = 1;
+      const s = slotPos(this.binD, this.dAssigned++, 9);
+      lf.tx = s.x; lf.ty = s.y;
     }
   }
 };
@@ -437,9 +499,18 @@ G1.update = function (dt) {
       bud.x += (bud.tx - bud.x) * Math.min(1, dt * 8);
       bud.y += (bud.ty - bud.y) * Math.min(1, dt * 8);
       if (Math.abs(bud.x - bud.tx) < 3 && Math.abs(bud.y - bud.ty) < 3) {
-        bud.landed = true; this.pileT.push({ x: bud.tx, y: bud.ty, spr: bud.spr, r: bud.r });
+        bud.landed = true; this.pileT.push({ x: bud.tx, y: bud.ty, spr: bud.spr, r: bud.r, variety: bud.variety });
       }
     }
+  }
+  for (const lf of this.leaves) {                          // feuilles qui tombent dans le bac
+    if (lf.on || lf.landed) continue;
+    lf.pop = Math.max(0, lf.pop - dt * 1.8);
+    lf.x += (lf.tx - lf.x) * Math.min(1, dt * 7);
+    lf.y += (lf.ty - lf.y) * Math.min(1, dt * 7);
+    lf.len += (12 - lf.len) * Math.min(1, dt * 7);         // rapetisse en tombant
+    lf.ang += lf.spin * dt * 3;                            // virevolte
+    if (Math.abs(lf.x - lf.tx) < 3 && Math.abs(lf.y - lf.ty) < 3) lf.landed = true;
   }
   if (onCount === 0) this.finish();
 };
@@ -453,27 +524,29 @@ G1.draw = function (c) {
     c.stroke();
     c.fillStyle = "#586a2c"; c.beginPath(); c.arc(br.pts[0].x, br.pts[0].y, 3.5, 0, 7); c.fill();
   }
-  for (const lf of this.leaves) drawWasteLeaf(c, lf);        // feuilles (déchet visuel)
-  for (const bud of this.buds) { if (bud.on) drawSprite(c, BUDS.fresh[bud.spr], bud.x, bud.y, bud.r * 2.4, bud.rot); }  // têtes attachées
+  for (const lf of this.leaves) { if (lf.on) drawWasteLeaf(c, lf); }   // feuilles encore sur la branche (derrière les têtes)
+  for (const bud of this.buds) { if (bud.on) drawSprite(c, BUDS[bud.variety][bud.spr], bud.x, bud.y, bud.r * 3.1, bud.rot); }  // têtes attachées
   for (const bud of this.buds) {                            // têtes en vol vers le bac
     if (bud.on || bud.landed) continue;
-    drawSprite(c, BUDS.fresh[bud.spr], bud.x, bud.y, bud.r * 2.4 * (0.75 + bud.pop * 0.35), bud.rot + (1 - bud.pop) * 3);
+    drawSprite(c, BUDS[bud.variety][bud.spr], bud.x, bud.y, bud.r * 3.1 * (0.75 + bud.pop * 0.35), bud.rot + (1 - bud.pop) * 3);
   }
+  for (const lf of this.leaves) { if (!lf.on && !lf.landed) drawWasteLeaf(c, lf); }   // feuilles en vol vers le bac
   drawBin(c, this.binT, "#7ad17a"); drawBin(c, this.binD, "#caa15f");   // bacs
-  for (const it of this.pileT) drawSprite(c, BUDS.fresh[it.spr], it.x, it.y, it.r * 1.7, 0);   // pile de têtes
-  c.fillStyle = "#8a7440";
-  for (const it of this.pileD) { c.beginPath(); c.arc(it.x, it.y, 3, 0, 7); c.fill(); }          // pile de feuilles
+  for (const it of this.pileT) drawSprite(c, BUDS[it.variety][it.spr], it.x, it.y, it.r * 2.0, 0);   // pile de têtes
+  for (const lf of this.leaves) { if (lf.landed) drawWasteLeaf(c, lf); }   // feuilles posées : remplissent le bac
 };
 G1.hud = function () { return "🌿 Rendement <b>" + Math.round(this.yieldPct() * 100) + "%</b> · 🍂 " + Math.round(this.feuillesMass) + " g trim"; };
 G1.finish = function () {
   if (this.over) return;
   const y = Math.round(this.yieldPct() * 100), left = this.buds.filter(b => b.on).length;
   const flower = Math.round(this.tetesMass), trim = Math.round(this.feuillesMass);
-  try { localStorage.setItem("gf3_seed", JSON.stringify({ flower, trim, thc: 18 })); } catch (e) {}   // -> coupe (v3)
+  const avgThc = this.tetesMass > 0 ? this.thcMass / this.tetesMass : 18;        // qualité moyenne (variétés)
+  try { localStorage.setItem("gf3_seed", JSON.stringify({ flower, trim, thc: +avgThc.toFixed(1) })); } catch (e) {}   // -> coupe (v3)
   const tip = left === 0 ? "Récolte complète. 🌿" : left + " tête(s) laissée(s) sur les branches.";
   endRound(this,
     '<div class="big">Rendement <b style="color:#9be37d">' + y + '%</b></div>' +
     '<div class="row"><span>🌿 Fleur récoltée</span><b>' + flower + ' g</b></div>' +
+    '<div class="row"><span>💎 Qualité moyenne</span><b>' + avgThc.toFixed(1) + ' % THC</b></div>' +
     '<div class="row"><span>🍂 Trim (pour diluer)</span><b>' + trim + ' g</b></div>' +
     '<div class="tip">' + tip + '</div>' +
     '<a class="contbtn" href="../green-front-v3/index.html">Continuer → Coupe ▸</a>', y);

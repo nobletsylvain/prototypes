@@ -1,2 +1,7 @@
 tools/node_modules/
 tools/shots/
+
+# Brouillons jetables des agents de chasse (`_*.mjs` dans tools/).
+# Un `git add -A` en avait committé un par accident : ces scripts sont des sondes
+# d'instrumentation, ils ne survivent pas à la session qui les crée.
+tools/_*.mjs
