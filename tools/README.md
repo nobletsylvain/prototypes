@@ -26,6 +26,37 @@ Les PNG sont écrits dans `tools/shots/` (ignoré par git) :
 - WebGL tourne en logiciel (SwiftShader) → l'éclairage/les ombres sont un peu
   plus plats que sur un vrai GPU / iPhone, mais la composition est fidèle.
 
+## La Colline Creuse (proto sans WebGL)
+
+`colline-creuse/` est en SVG pur, sans CDN : trois scripts dédiés, tous
+hors-ligne (toute requête réseau fait échouer la capture, c'est voulu).
+
+```bash
+node shots-colline.mjs          # captures : coupe, salle, soupçon, panneaux
+node shots-colline.mjs --full   # + la feuille entière, en une image
+node test-colline.mjs           # 4 tests : persistance, objectif, délestage, tenue
+node sim-colline.mjs            # équilibrage : 4 stratégies jouées 15 min
+node sim-colline.mjs equilibre 30
+```
+
+`sim-colline.mjs` et `test-colline.mjs` pilotent le jeu par la **sonde
+`?debug`** : la page expose alors `window.CC` (état, `step()`, actions,
+bilans). Sans ce paramètre, rien n'est exposé. C'est ce qui permet de jouer
+30 minutes en deux secondes et de lire la trajectoire des stocks, du soupçon
+et du moral — au lieu d'équilibrer à l'intuition.
+
+## La Colline Creuse v2 (bac à sable)
+
+```bash
+node test-colline2.mjs   # graine · persistance · creusement · déblais · tenue
+node dig-colline2.mjs    # simule de VRAIS drags au doigt (mouse down/move/up)
+node shots-colline2.mjs  # captures
+```
+
+`dig-colline2.mjs` est le seul moyen fiable de vérifier le creusement au doigt
+sans téléphone : il convertit des coordonnées de cellules en pixels écran et
+rejoue le geste complet, aperçu compris.
+
 ## Mettre à jour Three.js vendoré
 
 Si la version dans l'import-map de `index.html` change, remplacer

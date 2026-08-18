@@ -1,0 +1,2831 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>La Colline Creuse v2 — bac à sable</title>
+<style>
+  /* ------------------------------------------------------------------
+     LA COLLINE CREUSE — colonie souterraine cachée sous une colline.
+     Tout est dessiné au stylo bille : les traits sont générés en SVG avec
+     un bruit seedé (même partie = même tremblement de main). Zéro asset,
+     zéro dépendance, zéro requête réseau.
+     ------------------------------------------------------------------ */
+  :root {
+    --paper:#efeadd;
+    --ink:#33409a;                      /* bille bleue */
+    --ink-soft:rgba(51,64,154,.55);
+    --ink-faint:rgba(51,64,154,.26);
+    --red:#b4453c;                      /* bille rouge : alertes */
+    --green:#3f7a4a;
+    --hand: "Bradley Hand","Noteworthy","Chalkboard SE","Marker Felt","Segoe Print",
+            "Ink Free","Comic Sans MS",-apple-system,"Segoe UI",Roboto,sans-serif;
+    --sans: -apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overscroll-behavior:none; }
+  body {
+    background:var(--paper); color:var(--ink);
+    font-family:var(--hand); font-size:15px; line-height:1.35;
+    -webkit-font-smoothing:antialiased; user-select:none; -webkit-user-select:none;
+  }
+  button { font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
+
+  /* grain de papier : une tuile de bruit répétée par-dessus toute l'interface */
+  body::after {
+    content:""; position:fixed; inset:0; z-index:20; pointer-events:none;
+    mix-blend-mode:multiply; opacity:.45;
+    background-image:url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'>\
+<filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/>\
+<feColorMatrix type='saturate' values='0'/></filter>\
+<rect width='140' height='140' filter='url(%23n)' opacity='0.26'/></svg>");
+    background-size:140px 140px;
+  }
+
+  #app {
+    position:fixed; top:0; bottom:0; left:50%; transform:translateX(-50%);
+    width:100%; max-width:430px; display:flex; flex-direction:column; z-index:1;
+  }
+
+  /* ---------------- bandeau du haut ---------------- */
+  #hud { flex:none; padding:max(6px, env(safe-area-inset-top)) 10px 5px; }
+  #hudtop { display:flex; align-items:baseline; gap:7px; padding:0 2px 3px; }
+  #title { font-size:15px; font-weight:700; letter-spacing:.2px; }
+  #daylbl { font-size:12px; color:var(--ink-soft); }
+  #cashlbl { font-family:var(--sans); font-size:12px; font-weight:700; }
+  #speed { margin-left:auto; display:flex; gap:4px; }
+  #speed button {
+    font-family:var(--sans); font-size:11px; font-weight:800; padding:2px 8px;
+    border:1.5px solid var(--ink-faint); border-radius:9px; color:var(--ink-soft);
+  }
+  #speed button.on { color:var(--paper); background:var(--ink); border-color:var(--ink); }
+
+  .gauges { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; }
+  .g { padding:2px 2px 3px; border-radius:8px; text-align:center; }
+  .g svg { display:block; height:16px; margin:0 auto; }
+  .g .gv { font-family:var(--sans); font-size:12.5px; font-weight:800; letter-spacing:-.3px; }
+  .g .gd { font-family:var(--sans); font-size:9px; color:var(--ink-soft); }
+  .g.warn { background:rgba(180,69,60,.1); }
+  .g.warn .gv, .g.warn .gd { color:var(--red); }
+  .g.hide { display:none; }
+  @keyframes pop { 0%{transform:scale(1)} 40%{transform:scale(1.25)} 100%{transform:scale(1)} }
+  .g.pop .gv { display:inline-block; animation:pop .3s ease-out; }
+
+  #heatwrap { margin-top:4px; padding:0 2px; }
+  #heatbar {
+    cursor:pointer; position:relative; height:14px; border:1.5px solid var(--ink-faint);
+    border-radius:7px; overflow:hidden; background:rgba(255,255,255,.4);
+  }
+  #heatfill {
+    position:absolute; inset:0 auto 0 0; width:0%;
+    background:repeating-linear-gradient(115deg, var(--ink-soft) 0 3px, transparent 3px 6px);
+    transition:width .35s linear;
+  }
+  #heatfill.hot { background:repeating-linear-gradient(115deg, rgba(180,69,60,.8) 0 3px, transparent 3px 6px); }
+  #heatlbl {
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:var(--sans); font-size:9.5px; font-weight:800; letter-spacing:.4px;
+  }
+  #heatarrow { position:absolute; right:5px; top:0; bottom:0; display:flex; align-items:center;
+    font-family:var(--sans); font-size:9px; font-weight:800; }
+
+  /* ---------------- la coupe ---------------- */
+  #stage { flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; position:relative; }
+  #scene { display:block; width:100%; height:auto; }
+  #scene text { font-family:var(--hand); fill:var(--ink); }
+  #scene .rlbl { font-size:13px; font-weight:700; }
+  #scene .rsub { font-size:9.5px; font-family:var(--sans); fill:var(--ink-soft); }
+  #scene .rbig { font-size:11px; font-family:var(--sans); font-weight:700; }
+  #scene .room, #scene .slot { cursor:pointer; }
+  #scene .slot text { fill:var(--ink-soft); }
+
+  /* ---------------- barre du bas ---------------- */
+  #dock {
+    flex:none; display:grid; grid-template-columns:repeat(4,1fr); gap:6px;
+    padding:5px 10px max(6px, env(safe-area-inset-bottom));
+  }
+  #dock button {
+    position:relative; display:flex; flex-direction:column; align-items:center; gap:0;
+    padding:4px 2px 2px; border-radius:11px;
+  }
+  #dock button svg { height:20px; }
+  #dock button span { font-family:var(--sans); font-size:9.5px; font-weight:700; letter-spacing:.1px; }
+  #dock button.on { background:rgba(51,64,154,.12); }
+  #dock button.alarm { background:rgba(180,69,60,.16); }
+  #dock .badge {
+    position:absolute; top:0; right:14px;
+    font-family:var(--sans); font-size:9px; font-weight:800; color:var(--paper);
+    background:var(--red); border-radius:8px; padding:0 4px; min-width:14px; text-align:center;
+  }
+
+  /* ---------------- mode creusement ---------------- */
+  #stage.creuse { touch-action:none; cursor:crosshair; }
+  #stage.creuse::after {
+    content:""; position:absolute; inset:0; pointer-events:none;
+    box-shadow:inset 0 0 0 2px rgba(51,64,154,.35);
+  }
+  #digbar {
+    position:fixed; left:50%; transform:translateX(-50%) translateY(16px);
+    bottom:calc(58px + env(safe-area-inset-bottom)); z-index:8;
+    width:100%; max-width:414px; padding:0 8px;
+    opacity:0; visibility:hidden; transition:opacity .18s, transform .18s;
+    display:flex; align-items:center; gap:8px;
+  }
+  #digbar.show { opacity:1; visibility:visible; transform:translateX(-50%) translateY(0); }
+  #digbar .dt {
+    flex:1; background:var(--paper); border:2px solid var(--ink); border-radius:12px;
+    padding:7px 11px; font-family:var(--sans); font-size:12px; font-weight:700; line-height:1.35;
+    box-shadow:0 3px 12px rgba(40,40,60,.16);
+  }
+  #digbar .ds { font-weight:600; color:var(--ink-soft); }
+  #digbar .no { color:var(--red); }
+  #digbar button { background:var(--paper); }
+
+  /* ---------------- bandeau d'alerte (survol) ---------------- */
+  #alert {
+    position:fixed; left:50%; transform:translateX(-50%) translateY(24px);
+    bottom:calc(58px + env(safe-area-inset-bottom)); z-index:7;
+    width:100%; max-width:410px; padding:0 10px;
+    opacity:0; visibility:hidden; transition:transform .25s ease-out, opacity .2s;
+  }
+  #alert.show { transform:translateX(-50%) translateY(0); opacity:1; visibility:visible; }
+  #alertin {
+    background:var(--red); color:var(--paper); border-radius:12px; padding:8px 12px;
+    display:flex; align-items:center; gap:10px; box-shadow:0 4px 14px rgba(120,40,35,.3);
+  }
+  #alertin .at { flex:1; font-family:var(--sans); font-size:12px; font-weight:700; line-height:1.25; }
+  #alertin .ac { font-family:var(--sans); font-size:19px; font-weight:800; font-variant-numeric:tabular-nums; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-2px)} 75%{transform:translateX(2px)} }
+  #alertin.urgent { animation:shake .35s infinite; }
+
+  /* ---------------- panneau coulissant ---------------- */
+  #sheet {
+    position:fixed; left:50%; transform:translateX(-50%) translateY(101%); bottom:0; z-index:13;
+    width:100%; max-width:430px; max-height:82%; display:flex; flex-direction:column;
+    background:var(--paper); border-top:2.5px solid var(--ink);
+    border-radius:16px 16px 0 0; box-shadow:0 -8px 24px rgba(40,40,60,.18);
+    transition:transform .24s cubic-bezier(.3,.8,.4,1);
+    padding-bottom:max(10px, env(safe-area-inset-bottom));
+  }
+  #sheet.show { transform:translateX(-50%) translateY(0); }
+  #sheethead { display:flex; align-items:baseline; gap:8px; padding:11px 14px 5px; flex:none; }
+  #sheettitle { font-size:17px; font-weight:700; }
+  #sheetsub { font-family:var(--sans); font-size:11px; color:var(--ink-soft); }
+  #sheetclose { margin-left:auto; font-size:19px; line-height:1; padding:0 6px; color:var(--ink-soft); }
+  #sheetbody { overflow-y:auto; padding:0 14px 12px; }
+
+  .row { display:flex; align-items:center; gap:9px; padding:8px 0; border-bottom:1.5px dotted var(--ink-faint); }
+  .row:last-child { border-bottom:none; }
+  .row .rtxt { flex:1; min-width:0; }
+  .row .rn { font-size:15px; font-weight:700; }
+  .row .rd { font-family:var(--sans); font-size:11px; color:var(--ink-soft); line-height:1.3; }
+  .row .rd b { color:var(--ink); font-weight:700; }
+  .row .rd .no { color:var(--red); font-weight:700; }
+  .row.off { opacity:.45; }
+  .row .ricon { flex:none; width:26px; text-align:center; }
+
+  .btn { font-family:var(--sans); font-size:12px; font-weight:700; white-space:nowrap;
+    padding:7px 11px; border:2px solid var(--ink); border-radius:11px; }
+  .btn:active { transform:translateY(1px); }
+  .btn.pri { background:var(--ink); color:var(--paper); }
+  .btn.bad { border-color:var(--red); color:var(--red); }
+  .btn.ok { border-color:var(--green); color:var(--green); }
+  .btn[disabled] { opacity:.32; }
+  .btn.sm { padding:4px 8px; font-size:11px; border-width:1.5px; }
+  .btn.wide { width:100%; text-align:center; margin-top:8px; }
+
+  .hint { font-family:var(--sans); font-size:11.5px; color:var(--ink-soft); padding:7px 0 2px; line-height:1.4; }
+  .hint b { color:var(--ink); }
+  .seg { display:flex; gap:5px; padding:6px 0 2px; flex-wrap:wrap; }
+  .seg button { font-family:var(--sans); font-size:11px; font-weight:700; padding:4px 9px;
+    border:1.5px solid var(--ink-faint); border-radius:9px; color:var(--ink-soft); }
+  .seg button.on { background:var(--ink); color:var(--paper); border-color:var(--ink); }
+  .tag { display:inline-block; white-space:nowrap; font-family:var(--sans); font-size:9.5px;
+    font-weight:800; letter-spacing:.3px; padding:1px 6px; border-radius:7px;
+    border:1.5px solid var(--ink-faint); color:var(--ink-soft); vertical-align:2px; }
+  .tag.sig { border-color:rgba(180,69,60,.5); color:var(--red); }
+  .tag.good { border-color:rgba(63,122,74,.5); color:var(--green); }
+
+  /* ---------------- carte d'évènement ---------------- */
+  #modal { position:fixed; inset:0; z-index:15; display:none; align-items:center;
+    justify-content:center; padding:16px; background:rgba(60,58,50,.4); }
+  #modal.show { display:flex; }
+  #card {
+    width:100%; max-width:400px; max-height:88%; overflow-y:auto;
+    background:var(--paper); border:2.5px solid var(--ink); border-radius:5px;
+    padding:15px 15px 13px; box-shadow:4px 5px 0 rgba(51,64,154,.16);
+  }
+  #card .kicker { font-family:var(--sans); font-size:10px; font-weight:800; letter-spacing:1.3px;
+    text-transform:uppercase; color:var(--red); margin-bottom:3px; }
+  #card h2 { font-size:19px; margin-bottom:5px; line-height:1.15; }
+  #card p { font-size:14.5px; line-height:1.45; margin-bottom:11px; }
+  #card .opts { display:flex; flex-direction:column; gap:7px; }
+  #card .opt { display:block; width:100%; text-align:left; padding:9px 11px;
+    border:2px solid var(--ink); border-radius:10px; }
+  #card .opt:active { background:rgba(51,64,154,.08); }
+  #card .opt .o1 { font-size:14.5px; font-weight:700; }
+  #card .opt .o2 { font-family:var(--sans); font-size:11px; color:var(--ink-soft); margin-top:1px; line-height:1.3; }
+  #card .opt[disabled] { opacity:.4; }
+
+  /* ---------------- toasts ---------------- */
+  #toasts { position:fixed; left:0; right:0; bottom:calc(112px + env(safe-area-inset-bottom));
+    z-index:11; display:flex; flex-direction:column; align-items:center; gap:4px;
+    pointer-events:none; padding:0 14px; }
+  .toast { font-family:var(--sans); font-size:12px; font-weight:700; text-align:center;
+    background:var(--ink); color:var(--paper); padding:6px 12px; border-radius:13px;
+    box-shadow:0 3px 10px rgba(40,40,60,.22); animation:tin .22s ease-out; max-width:100%; }
+  .toast.bad { background:var(--red); }
+  .toast.good { background:var(--green); }
+  @keyframes tin { from { opacity:0; transform:translateY(8px); } }
+
+  /* silence radio : la colline s'éteint */
+  #blackout { position:fixed; inset:0; z-index:4; pointer-events:none; opacity:0;
+    background:radial-gradient(115% 85% at 50% 34%, rgba(22,24,44,0) 0%, rgba(22,24,44,.5) 100%);
+    transition:opacity .6s; }
+  #blackout.on { opacity:1; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header id="hud">
+    <div id="hudtop">
+      <div id="title">La Colline Creuse</div>
+      <div id="daylbl">jour 1</div>
+      <div id="cashlbl"></div>
+      <div id="speed">
+        <button data-sp="0" aria-label="pause">II</button>
+        <button data-sp="1" class="on">▶</button>
+        <button data-sp="3">▶▶</button>
+      </div>
+    </div>
+    <div class="gauges" id="gauges"></div>
+    <div id="heatwrap">
+      <div id="heatbar">
+        <div id="heatfill"></div>
+        <div id="heatlbl">DEHORS, ON NE SAIT RIEN</div>
+        <div id="heatarrow"></div>
+      </div>
+    </div>
+  </header>
+
+  <div id="stage"><svg id="scene" xmlns="http://www.w3.org/2000/svg"></svg></div>
+
+  <nav id="dock"></nav>
+</div>
+
+<div id="digbar"></div>
+<div id="blackout"></div>
+<div id="alert"><div id="alertin"><div class="at"></div><div class="ac"></div></div></div>
+<div id="toasts"></div>
+
+<div id="sheet">
+  <div id="sheethead">
+    <div id="sheettitle"></div><div id="sheetsub"></div>
+    <button id="sheetclose">✕</button>
+  </div>
+  <div id="sheetbody"></div>
+</div>
+
+<div id="modal"><div id="card"></div></div>
+
+<script type="module">
+"use strict";
+
+/* =====================================================================
+   0. OUTILS — hasard seedé, tracé "stylo bille"
+   ===================================================================== */
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const R = (seed) => mulberry32(seed);
+const rnd = Math.random;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const pick = (arr) => arr[(rnd() * arr.length) | 0];
+const fmt = (v) => (Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10);
+const sign = (v) => (v > 0 ? "+" : "") + fmt(v);
+
+// Points bruités le long d'un segment : le tremblement du poignet.
+function wobble(x1, y1, x2, y2, r, amp = 1.1, step = 20) {
+  const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
+  const n = Math.max(2, Math.round(len / step));
+  const nx = -dy / len, ny = dx / len, pts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, a = (i === 0 || i === n) ? amp * .2 : amp;
+    const o = (r() * 2 - 1) * a;
+    pts.push([x1 + dx * t + nx * o, y1 + dy * t + ny * o]);
+  }
+  return pts;
+}
+
+function toPath(pts, close) {
+  if (pts.length < 2) return "";
+  const f = (v) => Math.round(v * 10) / 10;
+  let d = `M${f(pts[0][0])} ${f(pts[0][1])}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const [x, y] = pts[i], [x2, y2] = pts[i + 1];
+    d += `Q${f(x)} ${f(y)} ${f((x + x2) / 2)} ${f((y + y2) / 2)}`;
+  }
+  const l = pts[pts.length - 1];
+  d += `L${f(l[0])} ${f(l[1])}`;
+  return close ? d + "Z" : d;
+}
+
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) {
+  const n = document.createElementNS(NS, tag);
+  if (attrs) for (const k in attrs) if (attrs[k] != null) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+
+function penLine(g, x1, y1, x2, y2, o = {}) {
+  const r = R(o.seed || 1), w = o.w ?? 1.6, col = o.col || "#33409a", amp = o.amp ?? 1;
+  el("path", { d: toPath(wobble(x1, y1, x2, y2, r, amp, o.step || 20)), fill: "none",
+    stroke: col, "stroke-width": w, "stroke-linecap": "round", opacity: o.op ?? .92 }, g);
+  if (o.double !== false) {
+    el("path", { d: toPath(wobble(x1, y1, x2, y2, r, amp * .8, o.step || 20)), fill: "none",
+      stroke: col, "stroke-width": w * .7, "stroke-linecap": "round", opacity: (o.op ?? .92) * .45 }, g);
+  }
+}
+
+function penRect(g, x, y, w, h, o = {}) {
+  const s = o.seed || 1, ov = o.over ?? 1.5;
+  penLine(g, x - ov, y, x + w + ov, y, { ...o, seed: s + 1 });
+  penLine(g, x + w, y - ov, x + w, y + h + ov, { ...o, seed: s + 2 });
+  penLine(g, x + w + ov, y + h, x - ov, y + h, { ...o, seed: s + 3 });
+  penLine(g, x, y + h + ov, x, y - ov, { ...o, seed: s + 4 });
+}
+
+function penCircle(g, cx, cy, rad, o = {}) {
+  const r = R(o.seed || 7), pts = [], n = Math.max(10, Math.round(rad * 1.6)), amp = o.amp ?? .8;
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * Math.PI * 2 + (o.rot || 0);
+    const rr = rad + (r() * 2 - 1) * amp;
+    pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]);
+  }
+  pts.push(pts[1]);
+  el("path", { d: toPath(pts), fill: o.fill || "none", stroke: o.col || "#33409a",
+    "stroke-width": o.w ?? 1.6, "stroke-linecap": "round", opacity: o.op ?? .92 }, g);
+}
+
+function penHatch(g, x, y, w, h, o = {}) {
+  const gap = o.gap || 9, slope = o.slope ?? .55, col = o.col || "rgba(51,64,154,.26)";
+  for (let i = -h; i < w; i += gap) {
+    const x1 = x + i, y1 = y + h, x2 = x + i + h * slope, y2 = y;
+    const cx1 = Math.max(x, Math.min(x + w, x1)), cx2 = Math.max(x, Math.min(x + w, x2));
+    if (cx2 - cx1 < 1.5) continue;
+    const t1 = (cx1 - x1) / ((x2 - x1) || 1), t2 = (cx2 - x1) / ((x2 - x1) || 1);
+    penLine(g, cx1, y1 + (y2 - y1) * t1, cx2, y1 + (y2 - y1) * t2,
+      { seed: (o.seed || 11) + i * 7, w: o.w ?? .9, amp: .6, col, op: o.op ?? .5, double: false, step: 26 });
+  }
+}
+
+// Bonhomme bâton. Les membres sont dessinés en TROIS poses superposées
+// (pas gauche / pas droit / repos) : la marche se joue en changeant laquelle
+// est visible, sans jamais redessiner un trait.
+function membres(parent, s, col, w, seed, ph) {
+  const arm = Math.sin(ph) * 3.4 * s, leg = Math.sin(ph) * 4.4 * s;
+  penLine(parent, 0, -12.5 * s, -6.4 * s, -6.5 * s + arm, { seed: seed + 2, w, amp: .5, col, step: 14 });
+  penLine(parent, 0, -12.5 * s, 6.4 * s, -6.5 * s - arm, { seed: seed + 3, w, amp: .5, col, step: 14 });
+  penLine(parent, 0, -4 * s, -4.6 * s + leg, 6 * s, { seed: seed + 4, w, amp: .5, col, step: 14 });
+  penLine(parent, 0, -4 * s, 4.6 * s - leg, 6 * s, { seed: seed + 5, w, amp: .5, col, step: 14 });
+}
+
+function stickman(g, o = {}) {
+  const s = o.s || 1, col = o.col || "#33409a", w = (o.w ?? 1.7) * s, seed = o.seed || 1;
+  const gg = el("g", {}, g);
+  penCircle(gg, 0, -20 * s, 4.6 * s, { seed, w, amp: .55, col });
+  penLine(gg, 0, -15.4 * s, 0, -4 * s, { seed: seed + 1, w, amp: .5, col, step: 14 });
+  if (o.statique) { membres(gg, s, col, w, seed, o.phase || 0); return gg; }
+  const poses = [];
+  for (const ph of [1.15, -1.15, 0]) {
+    const p = el("g", {}, gg);
+    membres(p, s, col, w, seed + (ph > 0 ? 0 : ph < 0 ? 40 : 80), ph);
+    poses.push(p);
+  }
+  gg._poses = poses;
+  poses[0].style.display = "none"; poses[1].style.display = "none";
+  return gg;
+}
+
+/* Petits pictos dessinés au stylo (aucune police d'icônes). */
+function icon(kind, size = 22) {
+  const s = document.createElementNS(NS, "svg");
+  s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("width", size); s.setAttribute("height", size);
+  const g = el("g", {}, s), o = { w: 1.6, amp: .5, step: 16 };
+  if (kind === "energie") {
+    penLine(g, 14, 3, 7, 13, { ...o, seed: 2 }); penLine(g, 7, 13, 12.5, 13, { ...o, seed: 3 });
+    penLine(g, 12.5, 13, 9, 21, { ...o, seed: 4 }); penLine(g, 9, 21, 17, 10, { ...o, seed: 5 });
+    penLine(g, 17, 10, 11.5, 10, { ...o, seed: 6 }); penLine(g, 11.5, 10, 14, 3, { ...o, seed: 7 });
+  } else if (kind === "air") {
+    for (let i = 0; i < 3; i++) {
+      const y = 7 + i * 5;
+      penLine(g, 3, y, 15, y - 1.5, { ...o, seed: 10 + i, amp: 1.1, step: 7 });
+      penCircle(g, 17.5, y - 2.2, 2.6, { seed: 20 + i, w: 1.4, amp: .4 });
+    }
+  } else if (kind === "eau") {
+    const pts = [[12, 3], [18, 12], [17, 17], [12, 20], [7, 17], [6, 12], [12, 3]];
+    const r = R(31); let d = "";
+    for (let i = 0; i < pts.length - 1; i++) {
+      const seg = wobble(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], r, .5, 9);
+      d += (i ? "" : "M" + seg[0][0].toFixed(1) + " " + seg[0][1].toFixed(1)) +
+           seg.slice(1).map((p) => `L${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join("");
+    }
+    el("path", { d, fill: "none", stroke: "#33409a", "stroke-width": 1.6, "stroke-linejoin": "round" }, g);
+  } else if (kind === "vivres") {
+    penCircle(g, 12, 14, 6.5, { seed: 41, w: 1.6, amp: .5 });
+    penLine(g, 12, 7.5, 12, 3.5, { ...o, seed: 42 });
+    penLine(g, 12, 5.5, 16.5, 3, { ...o, seed: 43 });
+    penLine(g, 5.5, 14, 18.5, 14, { ...o, seed: 44, op: .5, w: 1.1, double: false });
+  } else if (kind === "matos") {
+    penCircle(g, 8, 8, 4, { seed: 51, w: 1.7, amp: .45 });
+    penLine(g, 10.5, 11, 20, 20.5, { ...o, seed: 52, w: 2.1 });
+    penLine(g, 4.6, 5.2, 11.4, 10.8, { ...o, seed: 53, w: 1.3, op: .5, double: false });
+  } else if (kind === "colon") {
+    const gg = el("g", { transform: "translate(12 20) scale(.9)" }, g);
+    stickman(gg, { s: .85, seed: 61, w: 1.8, statique: true, phase: .5 });
+  } else if (kind === "creuser") {
+    penLine(g, 4, 20, 15, 8, { ...o, seed: 71, w: 2 });
+    penLine(g, 11, 4, 21, 11, { ...o, seed: 72, w: 1.7 });
+    penLine(g, 11, 4, 13, 12, { ...o, seed: 73, w: 1.5 });
+    penLine(g, 21, 11, 14, 12.5, { ...o, seed: 74, w: 1.5 });
+  } else if (kind === "dehors") {
+    penCircle(g, 12, 12, 8.5, { seed: 81, w: 1.7, amp: .5 });
+    penLine(g, 3.5, 12, 20.5, 12, { ...o, seed: 82, w: 1.2, op: .6, double: false });
+    penLine(g, 12, 3.5, 12, 20.5, { ...o, seed: 83, w: 1.2, op: .6, double: false });
+    penCircle(g, 12, 12, 4.4, { seed: 84, w: 1.2, amp: .4, op: .6 });
+  } else if (kind === "silence") {
+    penCircle(g, 12, 12, 8.5, { seed: 91, w: 1.7, amp: .5 });
+    penLine(g, 6, 6, 18, 18, { ...o, seed: 92, w: 2 });
+    penLine(g, 12, 5, 12, 10, { ...o, seed: 93, w: 1.4, op: .6 });
+  } else if (kind === "deblais") {
+    penLine(g, 2, 19, 12, 6, { ...o, seed: 111 });
+    penLine(g, 12, 6, 22, 19, { ...o, seed: 112 });
+    penLine(g, 2, 19, 22, 19, { ...o, seed: 113 });
+    penLine(g, 7, 14, 12, 11, { ...o, seed: 114, w: 1, op: .5, double: false });
+    penLine(g, 13, 12, 18, 16, { ...o, seed: 115, w: 1, op: .5, double: false });
+  } else if (kind === "moral") {
+    penCircle(g, 12, 12, 8, { seed: 95, w: 1.6, amp: .5 });
+    penCircle(g, 9, 10, .9, { seed: 96, w: 1.4, amp: .2 });
+    penCircle(g, 15, 10, .9, { seed: 97, w: 1.4, amp: .2 });
+    penLine(g, 8, 15, 16, 15, { ...o, seed: 98, w: 1.4, amp: 1.4, step: 4 });
+  }
+  return s;
+}
+
+/* =====================================================================
+   1. LA COLLINE — grille, génération procédurale du sous-sol
+   ===================================================================== */
+
+const W = 390;                 // largeur de la feuille
+const CELL = 13;               // côté d'une cellule de la grille (unités SVG)
+const GW = 30;                 // colonnes (30 × 13 = 390)
+const GH = 108;                // rangées (jusqu'à ~1400 : le fond de la colline)
+const key = (c, r) => r * GW + c;
+const cx0 = (c) => c * CELL, cy0 = (r) => r * CELL;
+
+// Les couches, de la surface vers le bas. `dur` multiplie le temps, le coût
+// d'étayage et les déblais ; `ep` est l'épaisseur nominale en rangées.
+const COUCHES = [
+  { cle: "terre",   nom: "Terre végétale", ep: 2,  dur: 0.7, hach: 0,
+    d: "Ça se creuse à la main. Ça se voit aussi de très loin." },
+  { cle: "limon",   nom: "Limon",          ep: 5,  dur: 1.0, hach: 1,
+    d: "Facile, mais il faut étayer : ça coule." },
+  { cle: "argile",  nom: "Argile",         ep: 9,  dur: 1.4, hach: 2,
+    d: "Lourd, collant, étanche. La roche commence." },
+  { cle: "calcaire",nom: "Calcaire",       ep: 17, dur: 2.0, hach: 3,
+    d: "Ça tient tout seul. C'est là qu'on fait les belles salles." },
+  { cle: "marne",   nom: "Marne",          ep: 22, dur: 2.6, hach: 4,
+    d: "Dur, feuilleté. Long à percer." },
+  { cle: "granite", nom: "Granite",        ep: 99, dur: 4.2, hach: 5,
+    d: "Le socle. On y va au burin, et on n'y entend plus rien du dehors." },
+];
+const COUCHE = (i) => COUCHES[Math.min(i, COUCHES.length - 1)];
+
+// Accidents : ce qui rend chaque colline différente.
+const ACCIDENTS = {
+  cavite:   { nom: "Cavité",           d: "Un vide naturel. Rien à creuser, rien à évacuer." },
+  galerie:  { nom: "Ancienne galerie", d: "Une carrière oubliée. Déjà creusée — et déjà connue de quelqu'un." },
+  filon:    { nom: "Décharge enfouie", d: "De la ferraille, des bidons, un vieux tracteur. Du matos." },
+  nappe:    { nom: "Nappe",            d: "L'eau. On peut y puiser — ou s'y noyer." },
+  bloc:     { nom: "Bloc erratique",   d: "Un rocher que la colline n'a pas digéré. Très long à percer." },
+};
+
+let TERRE = null;              // Uint8Array : couche de chaque cellule
+let ACC = null;                // Map cellule -> clé d'accident
+let SOL = null;                // rangée de surface par colonne
+let PROFIL = null;             // y du terrain par colonne (unités SVG)
+
+// Génère la colline à partir de la graine. Déterministe : même graine, même
+// colline, mêmes accidents — c'est ce qui rend une partie racontable.
+function genererColline(graine) {
+  const r = R(graine);
+  TERRE = new Uint8Array(GW * GH);
+  ACC = new Map();
+  SOL = new Int16Array(GW);
+  PROFIL = new Float32Array(GW);
+
+  // profil : une bosse principale décalée + deux harmoniques + du bruit doux
+  const sommetC = 8 + r() * 14;                 // où culmine la colline
+  const hauteur = 62 + r() * 46;                // dénivelé total
+  const largeur = 9 + r() * 7;
+  const ph1 = r() * 6.28, ph2 = r() * 6.28;
+  const baseY = 268 + r() * 16;
+  for (let c = 0; c < GW; c++) {
+    const t = (c - sommetC) / largeur;
+    const bosse = Math.exp(-t * t * 0.55);
+    const ondul = 7 * Math.sin(c * 0.42 + ph1) + 4 * Math.sin(c * 0.93 + ph2);
+    const y = baseY - hauteur * bosse + ondul;
+    PROFIL[c] = clamp(y, 150, 300);
+    SOL[c] = Math.max(1, Math.round(PROFIL[c] / CELL));
+  }
+  // lissage : une colline dessinée au stylo n'a pas de dents
+  for (let p = 0; p < 2; p++) {
+    const cp = Float32Array.from(PROFIL);
+    for (let c = 1; c < GW - 1; c++) PROFIL[c] = (cp[c - 1] + cp[c] * 2 + cp[c + 1]) / 4;
+  }
+  for (let c = 0; c < GW; c++) SOL[c] = Math.max(1, Math.round(PROFIL[c] / CELL));
+
+  // couches : mesurées SOUS la surface, donc elles épousent le relief
+  // bruit spatialement corrélé : une limite de couche ondule, elle ne vibre pas
+  let bruit = [];
+  for (let c = 0; c < GW; c++) bruit.push((r() * 2 - 1) * 4.5);
+  for (let p = 0; p < 4; p++) {
+    const cp = bruit.slice();
+    for (let c = 0; c < GW; c++) {
+      const a = cp[Math.max(0, c - 1)], b = cp[c], d = cp[Math.min(GW - 1, c + 1)];
+      bruit[c] = (a + b * 2 + d) / 4;
+    }
+  }
+  for (let c = 0; c < GW; c++) {
+    let seuil = 0, i = 0;
+    const bornes = [];
+    for (const co of COUCHES) { seuil += co.ep; bornes.push(seuil + bruit[c] * (1 + i * .12)); i++; }
+    for (let rr = 0; rr < GH; rr++) {
+      const prof = rr - SOL[c];
+      if (prof < 0) { TERRE[key(c, rr)] = 255; continue; }   // 255 = ciel
+      let k = 0;
+      while (k < bornes.length - 1 && prof >= bornes[k]) k++;
+      TERRE[key(c, rr)] = k;
+    }
+  }
+
+  // nappe phréatique : une ligne ondulée, plutôt profonde
+  const nappeBase = 34 + r() * 14;
+  for (let c = 0; c < GW; c++) {
+    const rr = SOL[c] + Math.round(nappeBase + 3 * Math.sin(c * 0.5 + ph1));
+    for (let k = 0; k < 2; k++) if (rr + k < GH) ACC.set(key(c, rr + k), "nappe");
+  }
+
+  // cavités, décharges, blocs : des taches placées au hasard mais jamais
+  // dans les deux premières rangées (sinon elles se verraient d'en haut)
+  const tache = (kind, n, minProf, maxProf, taille) => {
+    for (let i = 0; i < n; i++) {
+      const c0 = 1 + Math.floor(r() * (GW - 2));
+      const p = minProf + Math.floor(r() * (maxProf - minProf));
+      const r0 = SOL[c0] + p;
+      const w = 1 + Math.floor(r() * taille), h = 1 + Math.floor(r() * taille);
+      for (let c = c0; c < Math.min(GW, c0 + w); c++) {
+        for (let rr = r0; rr < Math.min(GH, r0 + h); rr++) {
+          if (rr - SOL[c] < 2) continue;
+          ACC.set(key(c, rr), kind);
+        }
+      }
+    }
+  };
+  tache("cavite", 2 + Math.floor(r() * 3), 8, 46, 3);
+  tache("filon", 2 + Math.floor(r() * 2), 3, 20, 2);
+  tache("bloc", 3 + Math.floor(r() * 4), 4, 40, 2);
+
+  // une ancienne carrière : une galerie horizontale, déjà creusée
+  if (r() < .75) {
+    const rr = SOL[3] + 10 + Math.floor(r() * 16);
+    const c0 = 1 + Math.floor(r() * 6), len = 6 + Math.floor(r() * 10);
+    for (let c = c0; c < Math.min(GW - 1, c0 + len); c++) {
+      for (let k = 0; k < 2; k++) ACC.set(key(c, rr + k), "galerie");
+    }
+  }
+}
+
+const dansGrille = (c, r) => c >= 0 && c < GW && r >= 0 && r < GH;
+const estCiel = (c, r) => !dansGrille(c, r) || TERRE[key(c, r)] === 255;
+const accidentDe = (c, r) => ACC.get(key(c, r));
+
+// Ce que coûte UNE cellule : dureté effective (les accidents changent tout).
+function durete(c, r) {
+  if (estCiel(c, r)) return 0;
+  const a = accidentDe(c, r);
+  if (a === "cavite" || a === "galerie") return 0.15;   // c'est déjà vide
+  if (a === "bloc") return 6.5;
+  const d = COUCHE(TERRE[key(c, r)]).dur;
+  return a === "nappe" ? d * 1.5 : d;
+}
+
+// Épaisseur de roche au-dessus d'un point : c'est ELLE qui étouffe.
+function couverture(c, r) {
+  return Math.max(0, (r - SOL[c]) * CELL);
+}
+
+// Le terrain interpolé, pour dessiner et pour poser les choses en surface.
+function hillY(x) {
+  const c = clamp(x / CELL, 0, GW - 1.001);
+  const i = Math.floor(c), f = c - i;
+  return PROFIL[i] * (1 - f) + PROFIL[Math.min(GW - 1, i + 1)] * f;
+}
+
+/* =====================================================================
+   2. LE JEU — équilibrage, aménagements, traits, village
+   ===================================================================== */
+
+const SAVE_KEY = "colline2_save";
+const SAVE_VERSION = 1;
+
+const BAL = {
+  jourSec: 50,
+  vivresParColon: 0.85,
+  eauParColon: 0.95,
+  airParColon: 2.0,
+  airParProfondeur: 0.006,      // par unité de couverture moyenne, par colon
+  airTrappe: 17,
+  capBase: { vivres: 60, eau: 60, matos: 90 },
+
+  // creuser : tout est au volume, multiplié par la dureté de la roche
+  matosParCell: 0.55,           // étais, planches, rails
+  secParCell: 1.05,             // durée du chantier
+  deblaisParCell: 1,            // ce qu'il faut sortir de la colline
+  portee: 5,                    // largeur max sans pilier (en cellules)
+
+  // secret
+  expoRef: 160,                 // à cette épaisseur de roche, on est à moitié discret
+  sigParColon: 0.25,
+  sigParDeblai: 0.055,          // le tas de déblais est LE truc qui fait repérer
+  toleranceBase: 9,
+  soupconMontee: 0.02,
+  soupconOubli: 0.05,
+
+  moralRepos: 3.0, moralFaim: -7, moralSoif: -6, moralAsphyxie: -9, moralNoir: -4,
+};
+
+// Ce qu'on peut installer dans un espace creusé. `minC` = cellules minimum,
+// et la TAILLE de l'espace décide de la capacité : creuser grand est un choix.
+const FONCTIONS = {
+  galerie:  { nom: "Galerie", court: "Galerie", cout: 0, minC: 1, sig: .15, libre: true,
+    desc: "Un boyau. Ça ne produit rien, ça relie.", effet: "passage" },
+  dortoir:  { nom: "Dortoir", court: "Dortoir", cout: 10, minC: 4, sig: .4,
+    desc: "Des chalits contre la paroi. Sans lit, personne ne reste.",
+    effet: "1,1 place par cellule" },
+  groupe:   { nom: "Groupe électrogène", court: "Groupe", cout: 20, minC: 4, sig: 6.5, postesMax: 3,
+    prodPoste: { energie: 7.5 },
+    desc: "Il tourne, il tousse, il pue le gasoil. On l'entend du chemin.",
+    effet: "+7,5 énergie/min par poste · très bruyant" },
+  forage:   { nom: "Forage", court: "Forage", cout: 22, minC: 3, sig: .8, postesMax: 2,
+    prodPoste: { eau: 5 }, conso: { energie: 3 },
+    desc: "On descend chercher l'eau. Deux fois plus si on tape dans la nappe.",
+    effet: "+5 eau/min par poste · ×2,4 sur la nappe" },
+  serre:    { nom: "Serre", court: "Serre", cout: 26, minC: 6, sig: 4.5, postesMax: 3,
+    prodPoste: { vivres: 5 }, conso: { energie: 7, eau: 5 },
+    desc: "Des lampes, de la chaleur. De quoi manger — et une belle tache sur une thermique.",
+    effet: "+5 vivres/min par poste · chauffe" },
+  ventil:   { nom: "Ventilation", court: "Ventil.", cout: 20, minC: 3, sig: 3, postesMax: 2,
+    prodPoste: { air: 15 }, conso: { energie: 4 },
+    desc: "Sans elle, on ne descend pas. Sa bouche crache de l'air tiède dans les fougères.",
+    effet: "+15 air/min par poste" },
+  atelier:  { nom: "Atelier", court: "Atelier", cout: 22, minC: 4, sig: 2, postesMax: 3,
+    prodPoste: { matos: 2.2 }, conso: { energie: 4 },
+    desc: "On récupère, on ressoude, on refait.",
+    effet: "+2,2 matos/min par poste" },
+  reserve:  { nom: "Réserve", court: "Réserve", cout: 12, minC: 3, sig: .2,
+    desc: "Des étagères, des bidons, des caisses.",
+    effet: "+10 de capacité par cellule" },
+  commune:  { nom: "Salle commune", court: "Commune", cout: 18, minC: 5, sig: 1,
+    conso: { energie: 2 },
+    desc: "Une table, une lampe, du bruit humain. C'est ce qui fait qu'on ne remonte pas.",
+    effet: "+moral, d'autant plus qu'elle est grande" },
+  ecoute:   { nom: "Poste d'écoute", court: "Écoute", cout: 30, minC: 3, sig: 1.2, postesMax: 1,
+    conso: { energie: 3 },
+    desc: "Une antenne dans un arbre. On entend venir les moteurs.",
+    effet: "préavis doublé sur les survols" },
+  geo:      { nom: "Pile géothermique", court: "Géo", cout: 60, minC: 4, sig: .5, postesMax: 2,
+    couvMin: 340, prodPoste: { energie: 12 },
+    desc: "La chaleur de la roche. Cher, lent, parfaitement muet.",
+    effet: "+12 énergie/min par poste · exige 340 de couverture" },
+  pc:       { nom: "Poste de commandement", court: "PC", cout: 30, minC: 3, sig: 1.5, postesMax: 1,
+    conso: { energie: 3 },
+    desc: "Des cartes, un cahier, un téléphone qui ne sonne jamais.",
+    effet: "+1 équipe en opération" },
+};
+const FONC = (k) => FONCTIONS[k] || FONCTIONS.galerie;
+
+const REGIMES = [
+  { nom: "Éteinte", court: "off", prod: 0, sig: 0, moral: 0, d: "à l'arrêt, muette" },
+  { nom: "Au ralenti", court: "ralenti", prod: .7, sig: .5, moral: 0,
+    d: "on lève le pied : −30 % de production, moitié moins visible" },
+  { nom: "Normal", court: "normal", prod: 1, sig: 1, moral: 0, d: "le régime de tous les jours" },
+  { nom: "Poussée", court: "poussée", prod: 1.4, sig: 1.7, moral: -1.6,
+    d: "+40 % de production, ça s'entend, et ça use les gens" },
+];
+
+// Les traits font les histoires. Chacun a un effet chiffré ET une conséquence
+// qui peut tomber dans le journal.
+const TRAITS = {
+  taupe:        { nom: "Taupe", bon: true, d: "Creuse 30 % plus vite. Se sent mieux en profondeur.", creuse: 1.3, profOk: 1 },
+  mineur:       { nom: "Ancien mineur", bon: true, d: "Étaye avec deux fois moins de bois.", etai: .55 },
+  claustro:     { nom: "Claustrophobe", bon: false, d: "Le moral tombe plus vite à mesure qu'on descend.", profOk: -1 },
+  insomniaque:  { nom: "Insomniaque", bon: false, d: "Récupère mal : moral −1,2/min.", moral: -1.2 },
+  bavard:       { nom: "Bavard", bon: false, d: "En opération, il parle : +40 % de signature de sortie.", parle: 1.4 },
+  discret:      { nom: "Discret", bon: true, d: "En opération, on ne le voit pas : −35 % de signature.", parle: .65 },
+  costaud:      { nom: "Costaud", bon: true, d: "Évacue les déblais deux fois plus vite.", deblai: 2 },
+  recherche:    { nom: "Recherché", bon: false, d: "La gendarmerie a sa photo : +1,2 de signature en permanence.", sig: 1.2 },
+  bricoleur:    { nom: "Bricoleur", bon: true, d: "Répare seul : les pannes se résorbent toutes seules.", repare: true },
+  meneur:       { nom: "Meneur", bon: true, d: "+1,2 de moral pour tout le monde.", meneurs: 1.2 },
+  rancunier:    { nom: "Rancunier", bon: false, d: "N'oublie rien : chaque personne perdue lui coûte 18 de moral, et il ne s'en remet pas vite.", rancune: 18 },
+  gourmand:     { nom: "Gros mangeur", bon: false, d: "Mange 60 % de plus.", faim: 1.6 },
+};
+const TRAIT_KEYS = Object.keys(TRAITS);
+
+const TALENTS = {
+  mecano:  { nom: "Mécano",      salles: ["groupe", "ventil", "geo"] },
+  fouille: { nom: "Fouilleur",   salles: ["forage", "atelier"] },
+  cultiv:  { nom: "Cultivateur", salles: ["serre"] },
+  guet:    { nom: "Guetteur",    salles: ["ecoute", "pc"] },
+  cuisto:  { nom: "Cuisinier",   salles: ["commune", "reserve"] },
+};
+const TALENT_KEYS = Object.keys(TALENTS);
+
+const PRENOMS = ["Momo", "Aïcha", "Vince", "Sarah", "Dédé", "Nadia", "Lucien", "Fatou", "Bruno",
+  "Élise", "Kamel", "Josette", "Yann", "Mireille", "Sofiane", "Gérard", "Leïla", "Marcel",
+  "Chantal", "Ibrahim", "Odile", "Titi", "Zora", "René", "Manon", "Hakim", "Colette",
+  "Ludo", "Paulette", "Samir", "Bernadette", "Jojo", "Farida", "Roland", "Nine"];
+
+const ORIGINES = ["a fermé son garage", "sortait de six mois dedans", "a perdu la ferme",
+  "ne dit pas d'où il vient", "a suivi quelqu'un", "dormait dans sa voiture",
+  "a démissionné un lundi", "s'est fait virer du chantier", "cherchait juste un endroit calme",
+  "a répondu à une annonce qui n'existait pas", "est arrivé avec un chien", "n'a rien expliqué"];
+
+// --- le village de surface -------------------------------------------------
+const TAILLES = [
+  { cle: "hameau", nom: "hameau", pop: [12, 40], tol: 5, evt: .7, marche: .6, recrue: .5,
+    d: "Quatre maisons et un calvaire. Personne ne passe — mais tout le monde se connaît." },
+  { cle: "village", nom: "village", pop: [180, 600], tol: 9, evt: 1, marche: 1, recrue: 1,
+    d: "Une mairie, une épicerie, un bar. On peut y acheter sans qu'on en parle trop." },
+  { cle: "bourg", nom: "bourg", pop: [1400, 3500], tol: 14, evt: 1.25, marche: 1.5, recrue: 1.6,
+    d: "Un marché le mercredi, une gendarmerie, du passage. On s'y fond — et on s'y fait voir." },
+  { cle: "ville", nom: "petite ville", pop: [6000, 18000], tol: 19, evt: 1.5, marche: 2.1, recrue: 2.4,
+    d: "Assez grande pour qu'on n'y remarque personne. Assez grande pour qu'il s'y trouve toujours un curieux." },
+];
+
+// Toponymie : trois façons de faire un nom qui sonne juste, jamais mélangées.
+const TOPO_SAINTS = ["Genest", "Aubry", "Roch", "Colombe", "Preuil", "Marcel", "Vrain", "Aigne"];
+const TOPO_FEM = ["Chapelle", "Bruyère", "Combe", "Roche", "Fontaine", "Grange", "Vallée"];
+const TOPO_MASC = ["Bois", "Val", "Puy", "Chêne", "Moulin", "Vieux-Four"];
+const TOPO_STEM = ["Mont", "Vau", "Font", "Roche", "Champ", "Bois", "Ser"];
+const TOPO_SUF = ["faucon", "combe", "aigu", "-sur-Aume", "-les-Fosses", "enay", "-le-Vieux",
+  "ecourt", "eneuve", "-d'Argent"];
+
+const FACADES = {
+  aucune:   { nom: "Rien du tout", cout: 0, upkeep: 0, tol: 0, cash: 0,
+    d: "Des ronces, un grillage tombé. Personne n'a de raison de monter — ni de vous croire." },
+  rucher:   { nom: "Rucher", cout: 26, upkeep: .4, tol: 5, cash: 1.6,
+    d: "Vingt ruches sur le versant sud. Ça justifie qu'on monte et qu'on redescende." },
+  scierie:  { nom: "Scierie", cout: 62, upkeep: 1.2, tol: 11, cash: 3.4,
+    d: "Le bruit d'une scie couvre à peu près tout. Et un camion qui monte, c'est normal." },
+  fouilles: { nom: "Chantier de fouilles", cout: 130, upkeep: 2.4, tol: 19, cash: 5.2,
+    d: "Un permis, deux étudiants, une bâche. On sort de la terre par camions, au grand jour." },
+};
+const FACADE_ORDRE = ["aucune", "rucher", "scierie", "fouilles"];
+
+// Où mettre la terre qu'on sort de la colline. C'est ça qui fait repérer.
+const EVACUATIONS = {
+  tas:      { nom: "Le tas derrière la grange", sec: 0, cash: 0, d: "Gratuit, immédiat — et ça grossit à vue d'œil." },
+  cavite:   { nom: "Reboucher une cavité", sec: 14, cash: 0, besoin: "cavite",
+    d: "On la fait disparaître dans la colline. Personne ne verra rien." },
+  epandage: { nom: "Épandre de nuit", sec: 40, cash: 0, equipe: 1,
+    d: "Un peu partout dans le bois, à la brouette, avant l'aube." },
+  remblai:  { nom: "Vendre comme remblai", sec: 22, cash: .22, facade: true, equipe: 1,
+    d: "Le chantier d'à côté en cherche. Ça rapporte — et ça se remarque." },
+};
+
+const OPS = {
+  ferraille: { nom: "Aller à la ferraille", sec: 45, equipe: 1, sig: 5, risque: .06,
+    gain: "35–55 matos", d: "Une casse, une décharge, un hangar mal fermé." },
+  vivres:    { nom: "Vider un dépôt", sec: 60, equipe: 2, sig: 11, risque: .14,
+    gain: "45–70 vivres", d: "Un entrepôt en bord de nationale. Gros volume, gros risque." },
+  recrue:    { nom: "Chercher du monde", sec: 75, equipe: 1, sig: 7, risque: .09,
+    gain: "1 colon", d: "Il y a toujours quelqu'un qui n'a plus rien à perdre." },
+  brouiller: { nom: "Brouiller les pistes", sec: 55, equipe: 2, sig: -1, risque: .11,
+    gain: "−18 soupçon", d: "Fausses traces, faux rendez-vous, une rumeur lancée au bon comptoir." },
+};
+
+/* =====================================================================
+   3. ÉTAT
+   ===================================================================== */
+
+let S = null;
+
+function nomVillage(r) {
+  const p = r();
+  const tire = (a) => a[(r() * a.length) | 0];
+  if (p < .3) return "Saint-" + tire(TOPO_SAINTS);
+  if (p < .5) return "La " + tire(TOPO_FEM);
+  if (p < .62) return "Le " + tire(TOPO_MASC);
+  return tire(TOPO_STEM) + tire(TOPO_SUF);
+}
+
+function nouveauColon(r, id, nom) {
+  const nb = r() < .35 ? 3 : 2;
+  const traits = [];
+  const pool = TRAIT_KEYS.slice();
+  for (let i = 0; i < nb && pool.length; i++) traits.push(pool.splice((r() * pool.length) | 0, 1)[0]);
+  return {
+    id, nom, age: 19 + Math.floor(r() * 42),
+    origine: ORIGINES[(r() * ORIGINES.length) | 0],
+    talent: TALENT_KEYS[(r() * TALENT_KEYS.length) | 0],
+    traits, room: null, moral: 62 + Math.floor(r() * 16), x: .5, dir: 1, bout: 0,
+  };
+}
+
+function nouvellePartie(graine) {
+  const g = graine || (1 + Math.floor(Math.random() * 999999));
+  genererColline(g);
+  const r = R(g ^ 0x5f3a);
+
+  const t = TAILLES[(r() * TAILLES.length) | 0];
+  const village = { nom: nomVillage(r), taille: t.cle,
+    pop: t.pop[0] + Math.floor(r() * (t.pop[1] - t.pop[0])) };
+
+  // l'entrée : un puits vertical sous le point le plus haut, et une première
+  // salle déjà creusée — c'est de là que part la colline du dessin
+  let cSom = 0;
+  for (let c = 1; c < GW - 1; c++) if (PROFIL[c] < PROFIL[cSom]) cSom = c;
+  cSom = clamp(cSom, 3, GW - 5);
+  const rSol = SOL[cSom];
+  const exc = [
+    { id: 1, c: cSom, r: rSol, w: 2, h: 5, t: 0, key: "galerie", reg: 2 },
+    { id: 2, c: cSom - 3, r: rSol + 5, w: 4, h: 2, t: 0, key: "dortoir", reg: 2 },
+  ];
+
+  const colons = [];
+  for (let i = 0; i < 3; i++) {
+    const c = nouveauColon(r, i + 1, PRENOMS[(r() * PRENOMS.length) | 0]);
+    c.room = 2;
+    colons.push(c);
+  }
+  colons[0].nom = "Momo";
+
+  return {
+    ver: SAVE_VERSION, graine: g,
+    t: 0, jour: 1, speed: 1, gameover: null,
+    res: { energie: 0, air: 0, eau: 30, vivres: 30, matos: 70, cash: 14 },
+    tas: 0,                       // déblais empilés en surface (visibles !)
+    soupcon: 4,
+    exc, nextExc: 3, nextColon: 4, colons,
+    village, facade: "aucune",
+    ops: [], evac: null,
+    silence: 0, alerte: null, evtCd: 40, opsSlots: 1,
+    vus: {}, log: [], jalons: [],
+  };
+}
+
+function sauver() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* privé */ } }
+function charger() {
+  try {
+    const d = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
+    if (!d || d.ver !== SAVE_VERSION || !d.graine) return null;
+    genererColline(d.graine);         // la colline se régénère depuis la graine
+    return d;
+  } catch (e) { return null; }
+}
+
+/* =====================================================================
+   4. CALCULS DÉRIVÉS
+   ===================================================================== */
+
+let _creuse = null;               // cellules réellement ouvertes (chantier fini)
+let _ouvert = null;                // + les chantiers en cours (le front de taille)
+
+function majCreuse() {
+  _creuse = new Set(); _ouvert = new Set();
+  for (const e of S.exc) {
+    for (let c = e.c; c < e.c + e.w; c++)
+      for (let r = e.r; r < e.r + e.h; r++) {
+        _ouvert.add(key(c, r));
+        if (e.t <= 0) _creuse.add(key(c, r));
+      }
+  }
+}
+const creuse = () => (_creuse || (majCreuse(), _creuse));
+const ouvert = () => (_ouvert || (majCreuse(), _ouvert));
+const estCreuse = (c, r) => creuse().has(key(c, r));
+const estOuvert = (c, r) => ouvert().has(key(c, r));
+
+const aire = (e) => e.w * e.h;
+const excById = (id) => S.exc.find((e) => e.id === id);
+const occupants = (id) => S.colons.filter((c) => c.room === id && !c.dehors);
+const librables = () => S.colons.filter((c) => !c.dehors);
+const aTrait = (c, t) => c.traits && c.traits.includes(t);
+
+// Épaisseur de roche au-dessus d'un espace : moyenne sur sa largeur.
+function couvertureExc(e) {
+  let s = 0;
+  for (let c = e.c; c < e.c + e.w; c++) s += Math.max(0, (e.r - SOL[Math.min(GW - 1, c)]) * CELL);
+  return s / e.w;
+}
+const EXPO = (couv) => clamp(1.7 / (1 + couv / BAL.expoRef), .25, 1.7);
+
+function postesMax(e) {
+  const f = FONC(e.key);
+  if (!f.postesMax) return 0;
+  return clamp(Math.floor(aire(e) / 4), 1, f.postesMax);
+}
+
+function placesLits() {
+  let n = 2;
+  for (const e of S.exc) if (e.key === "dortoir" && !e.t) n += Math.floor(aire(e) * 1.1);
+  return n;
+}
+
+function capacites() {
+  let bonus = 0;
+  for (const e of S.exc) if (e.key === "reserve" && !e.t) bonus += aire(e) * 10;
+  return { vivres: BAL.capBase.vivres + bonus, eau: BAL.capBase.eau + bonus,
+           matos: BAL.capBase.matos + bonus };
+}
+
+// Postes réellement tenus, en équivalents-postes (talent × moral × régime).
+function postesEff(e) {
+  if (e.t > 0 || !e.reg || S.silence > 0 || e.coupee) return 0;
+  const f = FONC(e.key);
+  const mult = (e.panne ? .5 : 1) * REGIMES[e.reg].prod;
+  if (!f.postesMax) return mult;
+  const occ = occupants(e.id).slice(0, postesMax(e));
+  let q = 0;
+  for (const c of occ) {
+    const bon = TALENTS[c.talent].salles.includes(e.key);
+    q += (bon ? 1 : .65) * (.55 + .45 * (c.moral / 100));
+  }
+  return q * mult;
+}
+
+// Le forage rend beaucoup plus s'il touche la nappe : trouver l'eau est un
+// vrai moment de la partie, pas une case à cocher.
+function surNappe(e) {
+  for (let c = e.c; c < e.c + e.w; c++)
+    for (let r = e.r; r < e.r + e.h + 1; r++)
+      if (accidentDe(c, r) === "nappe") return true;
+  return false;
+}
+
+function prodDe(e, res) {
+  const f = FONC(e.key);
+  if (!f.prodPoste || !f.prodPoste[res]) return 0;
+  let p = f.prodPoste[res] * postesEff(e);
+  if (e.key === "forage" && res === "eau" && surNappe(e)) p *= 2.4;
+  return p;
+}
+
+const ORDRE_CIRCUIT = ["forage", "ventil", "serre", "dortoir", "commune", "atelier",
+                       "ecoute", "pc", "galerie", "reserve"];
+
+function majCircuit() {
+  let prod = 0;
+  for (const e of S.exc) {
+    if (FONC(e.key).prodPoste?.energie) { e.coupee = false; prod += prodDe(e, "energie"); }
+  }
+  const conso = S.exc.filter((e) => FONC(e.key).conso?.energie);
+  conso.sort((a, b) => ORDRE_CIRCUIT.indexOf(a.key) - ORDRE_CIRCUIT.indexOf(b.key));
+  let reste = prod, dem = 0, coupees = 0, apanne = false;
+  for (const e of conso) {
+    const c = FONC(e.key).conso.energie;
+    if (e.t > 0 || !e.reg || S.silence > 0) { e.coupee = false; continue; }
+    dem += c;
+    if (!apanne && reste >= c) { reste -= c; e.coupee = false; }
+    else { apanne = true; e.coupee = true; coupees++; }
+  }
+  return { prod, dem, servi: prod - reste, coupees };
+}
+
+function bilanEnergie() {
+  const b = majCircuit();
+  return { ...b, taux: b.dem > 0 ? clamp(b.servi / b.dem, 0, 1) : 1 };
+}
+
+function profondeurMoyenne() {
+  const av = S.colons.filter((c) => !c.dehors && c.room);
+  if (!av.length) return 0;
+  let s = 0;
+  for (const c of av) { const e = excById(c.room); s += e ? couvertureExc(e) : 0; }
+  return s / av.length;
+}
+
+function bilanAir() {
+  let prod = BAL.airTrappe;
+  for (const e of S.exc) prod += prodDe(e, "air");
+  const n = librables().length;
+  const dem = n * (BAL.airParColon + BAL.airParProfondeur * profondeurMoyenne());
+  return { prod, dem, taux: dem > 0 ? clamp(prod / dem, 0, 1) : 1 };
+}
+
+function prodNette(res) {
+  let p = 0;
+  for (const e of S.exc) {
+    p += prodDe(e, res);
+    const co = FONC(e.key).conso?.[res];
+    if (co && !e.t && e.reg && S.silence <= 0 && !e.coupee) p -= co;
+  }
+  for (const c of librables()) {
+    const f = aTrait(c, "gourmand") ? 1.6 : 1;
+    if (res === "vivres") p -= BAL.vivresParColon * f;
+    if (res === "eau") p -= BAL.eauParColon;
+  }
+  return p;
+}
+
+// Ce que la colline laisse voir, poste par poste.
+function signatureDetail() {
+  const lignes = [];
+  for (const e of S.exc) {
+    const f = FONC(e.key);
+    if (e.t > 0) {
+      lignes.push({ t: "Chantier", v: 7 * EXPO(couvertureExc(e)), n: "le bruit des travaux" });
+      continue;
+    }
+    if (!f.sig || !e.reg || S.silence > 0 || e.coupee) continue;
+    const couv = couvertureExc(e);
+    let v = f.sig * EXPO(couv) * REGIMES[e.reg].sig;
+    if (f.postesMax) v *= (.35 + .65 * clamp(postesEff(e) / Math.max(1, postesMax(e)), 0, 1.4));
+    const notes = [Math.round(couv) + " de roche au-dessus · ×" + fmt(EXPO(couv))];
+    if (e.reg !== 2) notes.push(REGIMES[e.reg].court);
+    if (e.panne) { v *= 1.7; notes.push("en panne"); }
+    if (e.marquee) { v *= 1.6; notes.push("repérée"); }
+    if (v > .05) lignes.push({ t: f.nom, v, n: notes.join(" · ") });
+  }
+  if (S.tas > 0) lignes.push({ t: "Le tas de déblais", v: S.tas * BAL.sigParDeblai,
+    n: Math.round(S.tas) + " m³ de terre fraîche en surface" });
+  const nc = librables().length;
+  if (nc) lignes.push({ t: nc + " personnes", v: nc * BAL.sigParColon, n: "des allées et venues" });
+  for (const c of S.colons) if (aTrait(c, "recherche")) lignes.push({ t: c.nom, v: 1.2, n: "sa photo est en gendarmerie" });
+  for (const o of S.ops) {
+    let v = OPS[o.key].sig;
+    for (const id of o.equipe) {
+      const c = S.colons.find((x) => x.id === id);
+      if (c && aTrait(c, "bavard")) v *= 1.4;
+      if (c && aTrait(c, "discret")) v *= .65;
+    }
+    lignes.push({ t: OPS[o.key].nom, v, n: "équipe dehors" });
+  }
+  let total = lignes.reduce((a, x) => a + x.v, 0);
+  lignes.sort((a, b) => b.v - a.v);
+  return { total: Math.max(0, total), lignes };
+}
+function signature() { return signatureDetail().total; }
+
+function tolerance() {
+  const t = TAILLES.find((x) => x.cle === S.village.taille);
+  return BAL.toleranceBase + t.tol + FACADES[S.facade].tol;
+}
+
+function paliers() {
+  const s = S.soupcon;
+  if (s < 25) return { lbl: "DEHORS, ON NE SAIT RIEN", n: 0 };
+  if (s < 50) return { lbl: "UNE RUMEUR AU VILLAGE", n: 1 };
+  if (s < 72) return { lbl: "ON REGARDE LA COLLINE", n: 2 };
+  if (s < 90) return { lbl: "ILS SAVENT QU'IL Y A QUELQUE CHOSE", n: 3 };
+  return { lbl: "ILS ARRIVENT", n: 4 };
+}
+
+/* =====================================================================
+   5. SIMULATION
+   ===================================================================== */
+
+function step(dt) {
+  if (S.gameover) return;
+  S.t += dt;
+  const jour = 1 + Math.floor(S.t / BAL.jourSec);
+  if (jour !== S.jour) { S.jour = jour; journal("— jour " + S.jour + " —"); }
+
+  // chantiers de creusement
+  for (const e of S.exc) {
+    if (e.t > 0) {
+      let v = dt;
+      for (const c of occupants(e.id)) if (aTrait(c, "taupe")) v *= 1.3;
+      e.t -= v;
+      if (e.t <= 0) {
+        e.t = 0; _creuse = null; _ouvert = null; dirty = true;
+        if (e.filon) { S.res.matos = Math.min(capacites().matos, S.res.matos + e.filon);
+          toast("Dans la paroi : " + e.filon + " matos de ferraille.", "good"); e.filon = 0; }
+        toast("Creusé.", "good"); sfx("done");
+      }
+    }
+  }
+
+  // évacuation des déblais en cours
+  if (S.evac) {
+    S.evac.reste -= dt;
+    if (S.evac.reste <= 0) finirEvac();
+  }
+
+  if (S.silence > 0) {
+    S.silence -= dt;
+    if (S.silence <= 0) { S.silence = 0; document.getElementById("blackout").classList.remove("on");
+      toast("On rallume."); dirty = true; }
+  }
+
+  const be = bilanEnergie();
+  const cap = capacites();
+  for (const res of ["eau", "vivres", "matos"]) {
+    S.res[res] = clamp(S.res[res] + (prodNette(res) * dt) / 60, 0, cap[res]);
+  }
+  const f = FACADES[S.facade];
+  S.res.cash = Math.max(0, S.res.cash + ((f.cash - f.upkeep) * dt) / 60);
+
+  const ba = bilanAir();
+  S.res.air = ba.prod; S.res.energie = be.prod;
+
+  // moral : les traits font la différence, et la profondeur pèse
+  let meneurs = 0, commune = 0;
+  for (const c of S.colons) if (!c.dehors && aTrait(c, "meneur")) meneurs += 1.2;
+  for (const e of S.exc) if (e.key === "commune" && !e.t && e.reg && !e.coupee) commune += 1.4 + aire(e) * .12;
+  const lits = placesLits(), trop = librables().length > lits;
+  for (const c of S.colons) {
+    if (c.dehors) continue;
+    let dm = BAL.moralRepos + meneurs + commune;
+    if (S.res.vivres <= 0) dm += BAL.moralFaim;
+    if (S.res.eau <= 0) dm += BAL.moralSoif;
+    if (ba.taux < .85) dm += BAL.moralAsphyxie * (1 - ba.taux);
+    if (S.silence > 0) dm += BAL.moralNoir;
+    if (trop) dm -= 3;
+    if (aTrait(c, "insomniaque")) dm -= 1.2;
+    const e = c.room ? excById(c.room) : null;
+    if (e) {
+      const couv = couvertureExc(e);
+      if (aTrait(c, "claustro")) dm -= couv / 220;
+      if (aTrait(c, "taupe")) dm += couv / 420;
+      if (e.reg === 3) dm += REGIMES[3].moral;
+    }
+    c.moral = clamp(c.moral + (dm * dt) / 60, 0, 100);
+  }
+
+  // à bout : on est prévenu, puis il remonte — et il parle
+  for (const c of S.colons) {
+    if (c.dehors) continue;
+    if (c.moral <= 1) {
+      const avant = c.bout || 0;
+      c.bout = avant + dt;
+      if (avant < 1 && c.bout >= 1) { toast(c.nom + " parle de remonter.", "bad"); journal(c.nom + " est à bout."); }
+    } else if (c.moral > 12) c.bout = 0;
+  }
+  for (const c of [...S.colons]) {
+    if (!c.dehors && (c.bout || 0) >= 25) {
+      S.colons = S.colons.filter((x) => x.id !== c.id);
+      deuil(c);
+      const bav = aTrait(c, "bavard") ? 15 : 9;
+      S.soupcon = clamp(S.soupcon + bav, 0, 100);
+      toast(c.nom + " a repris le chemin. Il parlera.", "bad");
+      journal(c.nom + " est parti (moral à zéro). +" + bav + " de soupçon.");
+      dirty = true;
+    }
+  }
+
+  // les bricoleurs réparent tout seuls
+  for (const e of S.exc) {
+    if (!e.panne) continue;
+    if (occupants(e.id).some((c) => aTrait(c, "bricoleur")) && Math.random() < dt * .02) {
+      e.panne = false; journal("Réparé sans rien demander à personne."); dirty = true;
+    }
+  }
+
+  if (!S.vus.sortie && S.res.matos < 12 && !S.ops.length && S.t > 45) {
+    S.vus.sortie = true;
+    toast("Plus de matos. Rien ne tombe du ciel : il faut sortir (Dehors).", "bad");
+  }
+
+  const sig = signature(), tol = tolerance();
+  if (sig > tol) S.soupcon += (sig - tol) * BAL.soupconMontee * dt;
+  else S.soupcon -= BAL.soupconOubli * dt * (1 + (tol - sig) / 20);
+  S.soupcon = clamp(S.soupcon, 0, 100);
+  if (S.soupcon >= 100) return finPartie("descente");
+  if (!S.colons.length) return finPartie("vide");
+
+  for (const o of [...S.ops]) { o.reste -= dt; if (o.reste <= 0) resoudreOp(o); }
+  if (S.alerte) { S.alerte.reste -= dt; if (S.alerte.reste <= 0) resoudreAlerte(); }
+
+  S.evtCd -= dt;
+  if (S.evtCd <= 0 && !S.alerte && !modalOuverte) tirerEvenement();
+
+  majJalons();
+}
+
+// Pas de victoire : des jalons, qui se posent dans le cahier quand ils tombent.
+const JALONS = [
+  { cle: "eau", t: "L'eau", d: "Un forage sur la nappe : la colline boit toute seule.",
+    ok: () => S.exc.some((e) => e.key === "forage" && !e.t && surNappe(e)) },
+  { cle: "dix", t: "Dix", d: "Dix personnes vivent sous la colline.",
+    ok: () => librables().length >= 10 },
+  { cle: "fond", t: "Le fond", d: "Une salle à plus de 400 de roche au-dessus de la tête.",
+    ok: () => S.exc.some((e) => !e.t && e.key !== "galerie" && couvertureExc(e) >= 400) },
+  { cle: "muet", t: "Muet", d: "Toute l'énergie vient de la géothermie : plus un bruit.",
+    ok: () => S.exc.some((e) => e.key === "geo" && !e.t) &&
+              !S.exc.some((e) => e.key === "groupe" && !e.t && e.reg) },
+  { cle: "propre", t: "Rien qui dépasse", d: "Plus un mètre cube de terre en surface, et la colline tourne.",
+    ok: () => S.tas <= 0 && S.exc.filter((e) => !e.t).length >= 8 },
+  { cle: "autonome", t: "L'autonomie", d: "Eau, vivres, air, énergie : tout est produit ici.",
+    ok: () => { const e = bilanEnergie(), a = bilanAir();
+      return e.prod >= e.dem && a.prod >= a.dem && prodNette("eau") >= 0 && prodNette("vivres") >= 0
+        && librables().length >= 6; } },
+  { cle: "oubli", t: "L'oubli", d: "Le soupçon est retombé sous 5 alors qu'on est plus de huit.",
+    ok: () => S.soupcon < 5 && librables().length >= 8 },
+];
+
+function majJalons() {
+  for (const j of JALONS) {
+    if (S.jalons.includes(j.cle)) continue;
+    if (j.ok()) {
+      S.jalons.push(j.cle);
+      journal("JALON — " + j.t + " : " + j.d);
+      toast("Jalon : " + j.t, "good");
+      sfx("win");
+    }
+  }
+}
+
+function finPartie(cause) {
+  S.gameover = cause;
+  S.speed = 0; majVitesse();
+  const jours = S.jour, n = librables().length;
+  const txt = cause === "descente"
+    ? { k: "C'est fini", t: "Ils ont trouvé la trappe",
+        p: "Jour " + jours + ". Deux fourgons au petit matin, un chien, une disqueuse. " + n +
+           " personnes sont sorties les mains sur la tête. La colline redevient une colline." }
+    : { k: "C'est fini", t: "Il n'y a plus personne",
+        p: "Jour " + jours + ". La dernière lampe s'éteint toute seule au fond du puits. " +
+           "Personne ne saura jamais qu'il y avait quelqu'un ici." };
+  carte(txt.k, txt.t, txt.p + "\n\nJalons posés : " +
+    (S.jalons.length ? S.jalons.map((k) => JALONS.find((j) => j.cle === k).t).join(", ") : "aucun"),
+    [{ n: "Une autre colline", d: "Nouvelle graine, nouveau sous-sol.", f: () => recommencer() }]);
+  sfx("bad");
+}
+
+function recommencer(graine) {
+  localStorage.removeItem(SAVE_KEY);
+  S = nouvellePartie(graine);
+  _creuse = null;
+  fermerCarte(); fermerSheet();
+  dirty = true; majTout();
+}
+
+/* =====================================================================
+   6. ACTIONS — creuser, aménager, évacuer
+   ===================================================================== */
+
+// Ce que coûterait ce rectangle : c'est CE calcul qui s'affiche sous le doigt.
+function apercuCreuse(c0, r0, w, h) {
+  const a = { ok: false, raison: "", matos: 0, sec: 0, deblais: 0, filon: 0,
+              couv: 0, nappe: false, cells: 0, nouveau: 0 };
+  if (w < 1 || h < 1) { a.raison = "Trop petit."; return a; }
+  if (w > BAL.portee) { a.raison = "Trop large sans pilier : " + BAL.portee + " cellules au maximum."; return a; }
+  if (h > 5) { a.raison = "Trop haut : 5 cellules au maximum."; return a; }
+  let touche = false;
+  for (let c = c0; c < c0 + w; c++) {
+    for (let r = r0; r < r0 + h; r++) {
+      if (!dansGrille(c, r)) { a.raison = "Hors de la colline."; return a; }
+      if (estCiel(c, r)) { a.raison = "C'est le ciel : on creuse dans la terre."; return a; }
+      if (estOuvert(c, r)) { a.raison = "C'est déjà creusé."; return a; }
+      const dur = durete(c, r);
+      const acc = accidentDe(c, r);
+      a.cells++;
+      a.matos += dur * BAL.matosParCell;
+      a.sec += dur * BAL.secParCell;
+      a.deblais += (acc === "cavite" || acc === "galerie") ? .2 : BAL.deblaisParCell;
+      if (acc === "filon") a.filon += 9;
+      if (acc === "nappe") a.nappe = true;
+    }
+  }
+  // il faut que ça touche ce qui existe déjà, ou la surface au sommet
+  for (let c = c0 - 1; c <= c0 + w; c++) {
+    for (let r = r0 - 1; r <= r0 + h; r++) {
+      if ((c < c0 || c >= c0 + w) && (r < r0 || r >= r0 + h)) continue;   // pas les coins
+      if (estOuvert(c, r)) touche = true;
+    }
+  }
+  if (!touche) { a.raison = "Il faut partir de ce qui est déjà creusé."; return a; }
+  a.matos = Math.ceil(a.matos); a.sec = Math.round(a.sec * 10) / 10;
+  a.deblais = Math.round(a.deblais);
+  let s = 0;
+  for (let c = c0; c < c0 + w; c++) s += Math.max(0, (r0 - SOL[Math.min(GW - 1, c)]) * CELL);
+  a.couv = s / w;
+  if (S.res.matos < a.matos) { a.raison = "Il faut " + a.matos + " matos d'étais."; return a; }
+  a.ok = true;
+  return a;
+}
+
+function creuser(c0, r0, w, h) {
+  const a = apercuCreuse(c0, r0, w, h);
+  if (!a.ok) { toast(a.raison, "bad"); sfx("bad"); return false; }
+  let etai = 1;
+  for (const c of librables()) if (aTrait(c, "mineur")) etai = Math.min(etai, .55);
+  S.res.matos -= Math.ceil(a.matos * etai);
+  S.tas += a.deblais;
+  S.exc.push({ id: S.nextExc++, c: c0, r: r0, w, h, t: a.sec, key: "galerie", reg: 2,
+               filon: a.filon });
+  _creuse = null; _ouvert = null;
+  journal("On ouvre " + w + "×" + h + " à " + Math.round(a.couv) + " de profondeur (" +
+    a.deblais + " m³ de déblais).");
+  toast("On creuse. " + a.deblais + " m³ à sortir.", "");
+  sfx("dig");
+  dirty = true; majTout();
+  return true;
+}
+
+function reboucher(e) {
+  if (S.exc.length <= 1) { toast("Il faut bien garder une entrée.", "bad"); return; }
+  for (const c of S.colons) if (c.room === e.id) c.room = null;
+  S.exc = S.exc.filter((x) => x.id !== e.id);
+  S.res.matos = Math.min(capacites().matos, S.res.matos + Math.round(FONC(e.key).cout * .5));
+  S.tas = Math.max(0, S.tas - aire(e) * .5);      // on remet la terre d'où elle vient
+  journal("Rebouché : " + FONC(e.key).nom + ".");
+  toast("On remblaie. Il n'y a plus rien à voir.");
+  _creuse = null; _ouvert = null; sfx("dig"); fermerSheet(); dirty = true; majTout();
+}
+
+function amenager(e, k) {
+  const f = FONCTIONS[k];
+  if (!f) return;
+  if (aire(e) < f.minC) { toast("Trop petit : il faut " + f.minC + " cellules.", "bad"); return; }
+  if (f.couvMin && couvertureExc(e) < f.couvMin) {
+    toast("Trop près de la surface : il faut " + f.couvMin + " de roche au-dessus.", "bad"); return;
+  }
+  if (S.res.matos < f.cout) { toast("Il faut " + f.cout + " matos.", "bad"); return; }
+  S.res.matos -= f.cout;
+  e.key = k; e.reg = 2;
+  journal(f.nom + " installée (" + aire(e) + " cellules).");
+  toast(f.nom + " installée.", "good");
+  sfx("done"); fermerSheet(); dirty = true; majTout();
+}
+
+// --- les déblais : où met-on la terre ? -----------------------------------
+function lancerEvac(mode) {
+  const m = EVACUATIONS[mode];
+  if (S.evac) { toast("Une évacuation est déjà en cours.", "bad"); return; }
+  if (S.tas <= 0) { toast("Il n'y a rien à évacuer.", "bad"); return; }
+  if (m.facade && S.facade === "aucune") { toast("Sans façade, personne ne vous achètera de la terre.", "bad"); return; }
+  if (m.besoin === "cavite" && !cavitesLibres()) { toast("Aucune cavité connue à reboucher.", "bad"); return; }
+  if (m.equipe && librables().length <= m.equipe) { toast("Il faut laisser quelqu'un ici.", "bad"); return; }
+  const qte = Math.min(S.tas, 30);
+  if (mode === "tas") { toast("C'est déjà là, en tas, derrière la grange.", "bad"); return; }
+  S.evac = { mode, qte, reste: m.sec, total: m.sec };
+  journal("Évacuation : " + m.nom.toLowerCase() + " (" + Math.round(qte) + " m³).");
+  toast(m.nom + "…"); sfx("tap"); fermerSheet(); majTout();
+}
+
+function cavitesLibres() {
+  let n = 0;
+  for (const [k, v] of ACC) if (v === "cavite" && !creuse().has(k)) n++;
+  return Math.floor(n / 6);
+}
+
+function finirEvac() {
+  const { mode, qte } = S.evac;
+  const m = EVACUATIONS[mode];
+  S.evac = null;
+  let v = qte;
+  for (const c of librables()) if (aTrait(c, "costaud")) { v *= 1.4; break; }
+  S.tas = Math.max(0, S.tas - v);
+  if (m.cash) {
+    const g = Math.round(v * m.cash * 10) / 10;
+    S.res.cash += g;
+    toast(Math.round(v) + " m³ vendus — +" + g + " €", "good");
+    S.soupcon = clamp(S.soupcon + 2, 0, 100);
+  } else {
+    toast(Math.round(v) + " m³ de terre ont disparu.", "good");
+  }
+  journal(m.nom + " : " + Math.round(v) + " m³.");
+  sfx("good"); dirty = true; majTout();
+}
+
+function affecter(colonId, excId) {
+  const c = S.colons.find((x) => x.id === colonId);
+  if (!c || c.dehors) return;
+  const e = excId ? excById(excId) : null;
+  if (e && postesMax(e) && occupants(e.id).length >= postesMax(e) && c.room !== e.id) {
+    toast("Plus de poste libre ici.", "bad"); return;
+  }
+  c.room = excId || null;
+  c.x = .2 + Math.random() * .6;
+  dirty = true; majTout(); sfx("tap");
+}
+
+function basculerSilence(sec) {
+  if (S.silence > 0) { S.silence = 0; document.getElementById("blackout").classList.remove("on"); toast("On rallume."); }
+  else {
+    S.silence = sec || 22;
+    document.getElementById("blackout").classList.add("on");
+    toast("Silence radio. Tout s'éteint."); sfx("off");
+    if (S.alerte) S.alerte.coupe = true;
+  }
+  dirty = true; majTout();
+}
+
+function lancerOp(k) {
+  const o = OPS[k];
+  if (S.ops.length >= S.opsSlots) { toast("Pas d'équipe disponible.", "bad"); return; }
+  const dispo = S.colons.filter((c) => !c.dehors);
+  if (dispo.length - o.equipe < 1) { toast("Il faut laisser quelqu'un ici.", "bad"); return; }
+  const equipe = dispo.slice().sort((a, b) => b.moral - a.moral).slice(0, o.equipe);
+  for (const c of equipe) { c.dehors = true; c.room = null; }
+  S.ops.push({ key: k, reste: o.sec, equipe: equipe.map((c) => c.id) });
+  journal("Sortie : " + o.nom + " (" + equipe.map((c) => c.nom).join(", ") + ")");
+  toast("Ils sortent par le puits.");
+  fermerSheet(); dirty = true; majTout(); sfx("tap");
+}
+
+function resoudreOp(o) {
+  S.ops = S.ops.filter((x) => x !== o);
+  const d = OPS[o.key];
+  const equipe = o.equipe.map((id) => S.colons.find((c) => c.id === id)).filter(Boolean);
+  for (const c of equipe) { c.dehors = false; c.moral = clamp(c.moral - 6, 0, 100); }
+  const rate = Math.random() < d.risque * (1 + S.soupcon / 140);
+  if (rate && equipe[0]) {
+    const perdu = equipe[0];
+    S.colons = S.colons.filter((c) => c.id !== perdu.id);
+    deuil(perdu);
+    S.soupcon = clamp(S.soupcon + 14, 0, 100);
+    toast(perdu.nom + " ne rentre pas. Ils l'ont eu.", "bad");
+    journal(perdu.nom + " est tombé pendant : " + d.nom);
+    sfx("bad");
+  } else {
+    const cap = capacites();
+    if (o.key === "ferraille") { const g = 35 + Math.floor(Math.random() * 21);
+      S.res.matos = Math.min(cap.matos, S.res.matos + g); toast("Retour : +" + g + " matos", "good"); }
+    else if (o.key === "vivres") { const g = 45 + Math.floor(Math.random() * 26);
+      S.res.vivres = Math.min(cap.vivres, S.res.vivres + g); toast("Retour : +" + g + " vivres", "good"); }
+    else if (o.key === "recrue") ajouterColon();
+    else if (o.key === "brouiller") { S.soupcon = clamp(S.soupcon - 18, 0, 100);
+      toast("Les pistes sont brouillées.", "good"); }
+    sfx("good");
+  }
+  dirty = true; majTout();
+}
+
+// Perdre quelqu'un pèse sur ceux qui restent — et beaucoup plus sur un rancunier.
+function deuil(parti) {
+  for (const c of S.colons) {
+    const r = TRAITS[c.traits.find((k) => TRAITS[k].rancune) || ""];
+    const perte = r ? r.rancune : 5;
+    c.moral = clamp(c.moral - perte, 0, 100);
+    if (r) journal(c.nom + " n'a pas digéré le départ de " + parti.nom + ".");
+  }
+}
+
+function ajouterColon(nom) {
+  if (librables().length >= placesLits()) { toast("Pas de lit libre : il faut un dortoir.", "bad"); return null; }
+  const pris = S.colons.map((c) => c.nom);
+  const dispo = PRENOMS.filter((p) => !pris.includes(p));
+  const r = R((S.graine + S.nextColon * 7919) | 0);
+  const c = nouveauColon(r, S.nextColon++, nom || (dispo.length ? dispo[(r() * dispo.length) | 0] : "N°" + S.nextColon));
+  S.colons.push(c);
+  const t = c.traits.map((k) => TRAITS[k].nom).join(", ");
+  toast(c.nom + " descend. " + t + ".", "good");
+  journal(c.nom + ", " + c.age + " ans, " + c.origine + ". " + t + ".");
+  dirty = true;
+  return c;
+}
+
+function poserFacade(k) {
+  const f = FACADES[k];
+  if (S.res.matos < f.cout) { toast("Pas assez de matos.", "bad"); return; }
+  S.res.matos -= f.cout; S.facade = k;
+  journal("Façade : " + f.nom + " à " + S.village.nom + ".");
+  toast("Dehors, on raconte : " + f.nom.toLowerCase() + ".", "good");
+  fermerSheet(); dirty = true; majTout(); sfx("good");
+}
+
+function acheter(quoi) {
+  const t = TAILLES.find((x) => x.cle === S.village.taille);
+  const prix = Math.round({ vivres: 14, eau: 10, matos: 20 }[quoi] / t.marche);
+  const qte = { vivres: 30, eau: 30, matos: 25 }[quoi];
+  if (S.facade === "aucune") { toast("Sans façade, on ne peut rien acheter au village.", "bad"); return; }
+  if (S.res.cash < prix) { toast("Pas assez de liquide.", "bad"); return; }
+  S.res.cash -= prix;
+  S.res[quoi] = Math.min(capacites()[quoi], S.res[quoi] + qte);
+  S.soupcon = clamp(S.soupcon + 1.5, 0, 100);
+  toast("+" + qte + " " + quoi + " (livré au bas du chemin)", "good");
+  dirty = true; majTout(); sfx("tap");
+}
+
+/* =====================================================================
+   7. ÉVÈNEMENTS — le narrateur regarde l'état de la colline
+   ===================================================================== */
+
+function journal(txt) {
+  S.log.unshift("j" + S.jour + " · " + txt);
+  if (S.log.length > 60) S.log.pop();
+}
+
+const salleAu = (k) => S.exc.find((e) => e.key === k && !e.t);
+const libreQuelquUn = () => S.colons.some((c) => !c.dehors && !c.room);
+
+const EVENTS = [
+  {
+    cle: "survol", poids: (p) => (p >= 1 ? 3 + p : .4),
+    run: () => {
+      const ec = salleAu("ecoute");
+      const veille = ec && occupants(ec.id).length && !ec.coupee;
+      const base = 12 + Math.floor(Math.random() * 6);
+      S.alerte = { reste: veille ? base * 2 : base, total: veille ? base * 2 : base, coupe: false };
+      toast(veille ? "Poste d'écoute : un moteur, plein sud." : "Un bourdonnement au-dessus de la colline.", "bad");
+      sfx("alarm");
+    },
+  },
+  {
+    cle: "deblais", poids: () => (S.tas > 45 ? 3.5 : S.tas > 20 ? 1.2 : 0),
+    run: () => carte("Depuis le chemin", "« C'est quoi, tout ce tas de terre ? »",
+      "Le tas derrière la grange fait maintenant " + Math.round(S.tas) + " m³. De la terre fraîche, jaune, " +
+      "qui n'a rien à faire là. Quelqu'un s'est arrêté pour regarder.",
+      [
+        { n: "« On refait le chemin. »", d: "Il faut une façade pour que ça tienne debout.",
+          ok: () => S.facade !== "aucune",
+          f: () => { S.soupcon = clamp(S.soupcon - 3, 0, 100); toast("Ça passe. Cette fois."); } },
+        { n: "Bâcher le tas", d: "−6 matos. Ça cache la couleur, pas le volume.",
+          ok: () => S.res.matos >= 6,
+          f: () => { S.res.matos -= 6; S.tas *= .8; toast("Sous la bâche, ça se voit moins."); } },
+        { n: "Ne rien dire", d: "Il repart en regardant par-dessus son épaule.",
+          f: () => { S.soupcon = clamp(S.soupcon + 8 + S.tas * .1, 0, 100); toast("Il a compté les brouettes.", "bad"); } },
+      ]),
+  },
+  {
+    cle: "eboulement", poids: () => (S.exc.some((e) => e.w >= BAL.portee && !e.t) ? 1.6 : .2),
+    cond: () => S.exc.some((e) => !e.t && e.key !== "galerie"),
+    run: () => {
+      const larges = S.exc.filter((e) => !e.t && e.w >= 4);
+      const e = larges.length ? larges[(Math.random() * larges.length) | 0]
+                              : S.exc[(Math.random() * S.exc.length) | 0];
+      carte("Dans la roche", "Ça a bougé",
+        "Un craquement sec dans " + FONC(e.key).nom.toLowerCase() + ", puis de la poussière. " +
+        "Le ciel de la salle a joué. Elle fait " + e.w + " cellules de large : c'est beaucoup sans pilier.",
+        [
+          { n: "Étayer tout de suite", d: "−14 matos.", ok: () => S.res.matos >= 14,
+            f: () => { S.res.matos -= 14; toast("Deux poteaux, une entretoise. Ça tiendra.", "good"); } },
+          { n: "Reboucher la salle", d: "On récupère la moitié et on n'en parle plus.",
+            f: () => reboucher(e) },
+          { n: "Continuer comme ça", d: "Un colon peut se faire prendre dessous.",
+            f: () => {
+              if (Math.random() < .45) {
+                const occ = occupants(e.id);
+                if (occ.length) { const c = occ[0]; c.moral = clamp(c.moral - 45, 0, 100);
+                  toast(c.nom + " est resté deux heures sous les gravats.", "bad");
+                  journal(c.nom + " a été enseveli dans " + FONC(e.key).nom.toLowerCase() + "."); }
+                else toast("La salle s'est affaissée. Personne dedans, par chance.", "bad");
+                e.panne = true;
+              } else toast("Rien n'est tombé. Pour l'instant.");
+            } },
+        ]);
+    },
+  },
+  {
+    cle: "randonneur", poids: (p) => (p >= 1 ? 2 : 1),
+    run: () => carte("Sur le chemin", "Un promeneur monte",
+      "Il a quitté le sentier. Dans dix minutes il sera sur la dalle du puits, et il verra que l'herbe est écrasée.",
+      [
+        { n: "Envoyer quelqu'un le remettre sur le sentier", d: "Il faut un colon sans affectation.",
+          ok: libreQuelquUn,
+          f: () => { S.soupcon = clamp(S.soupcon - 2, 0, 100); toast("« Le sentier ? C'est en bas à droite. »", "good"); } },
+        { n: "Recouvrir l'entrée de branches", d: "−8 matos, tout de suite.",
+          ok: () => S.res.matos >= 8,
+          f: () => { S.res.matos -= 8; S.soupcon = clamp(S.soupcon - 4, 0, 100); toast("La dalle disparaît sous les fougères.", "good"); } },
+        { n: "Attendre qu'il passe", d: "Il regardera peut-être ailleurs.",
+          f: () => { const m = Math.random() < .5; S.soupcon = clamp(S.soupcon + (m ? 11 : 2), 0, 100);
+            toast(m ? "Il a photographié la dalle." : "Il est passé sans lever les yeux.", m ? "bad" : ""); } },
+      ]),
+  },
+  {
+    cle: "visiteur", poids: (p) => (p >= 1 ? 1.6 : .7),
+    run: () => carte("Quelqu'un frappe", "Il a trouvé l'entrée",
+      "Un type maigre, sac au dos, qui dort dehors depuis des semaines. Il a soulevé la dalle et il attend, " +
+      "en bas de l'échelle. Il a vu la lumière.",
+      [
+        { n: "Le faire descendre", d: "+1 colon. Au village, on remarquera qu'il a disparu.",
+          f: () => { const c = ajouterColon(); if (c) S.soupcon = clamp(S.soupcon + 6, 0, 100); } },
+        { n: "Le renvoyer", d: "Il redescend à " + (S ? S.village.nom : "") + " avec une histoire.",
+          f: () => { S.soupcon = clamp(S.soupcon + 13, 0, 100); toast("Il racontera. Ils racontent toujours.", "bad"); } },
+        { n: "Le garder quelques jours", d: "Le temps que ça passe. Personne n'aime ça ici : −12 moral pour tous.",
+          f: () => { for (const c of S.colons) c.moral = clamp(c.moral - 12, 0, 100);
+            journal("On a gardé quelqu'un enfermé au fond du puits.");
+            toast("La dalle reste fermée de l'intérieur.", "bad"); } },
+      ]),
+  },
+  {
+    cle: "panne", poids: () => 1.4,
+    cond: () => !!salleAu("groupe"),
+    run: () => carte("Dans la machinerie", "Le groupe tousse",
+      "Une courroie, de la limaille, une odeur de brûlé. Il tourne encore, mais il donne la moitié — " +
+      "et il fait deux fois plus de bruit.",
+      [
+        { n: "Réparer maintenant", d: "−14 matos.", ok: () => S.res.matos >= 14,
+          f: () => { S.res.matos -= 14; toast("Réparé. Il ronronne à nouveau.", "good"); } },
+        { n: "Laisser tourner comme ça", d: "Moitié moins d'énergie, et ça s'entend de plus loin.",
+          f: () => { const g = salleAu("groupe"); if (g) g.panne = true;
+            journal("Le groupe tourne en panne."); toast("Il tousse, mais il tourne.", "bad"); } },
+      ]),
+  },
+  {
+    cle: "venue", poids: () => (S.exc.some((e) => e.t > 0) ? 1.4 : 0),
+    run: () => {
+      const e = S.exc.find((x) => x.t > 0);
+      const nappe = e && surNappe(e);
+      if (nappe) {
+        carte("Au fond du chantier", "L'eau monte",
+          "La pioche a percé quelque chose. L'eau arrive par le sol, froide, et elle ne s'arrête pas.",
+          [
+            { n: "Colmater et continuer", d: "−10 matos, le chantier prend 12 s de plus.",
+              ok: () => S.res.matos >= 10,
+              f: () => { S.res.matos -= 10; e.t += 12; toast("Colmaté. On continue."); } },
+            { n: "Laisser venir et capter", d: "C'est la nappe : de l'eau pour longtemps.",
+              f: () => { S.res.eau = Math.min(capacites().eau, S.res.eau + 45);
+                journal("La nappe a été percée. +45 eau.");
+                toast("La nappe. +45 eau — un forage ici rendra le double.", "good"); } },
+          ]);
+      } else {
+        const g = 18 + Math.floor(Math.random() * 20);
+        S.res.matos = Math.min(capacites().matos, S.res.matos + g);
+        toast("Dans la paroi : une ancienne décharge. +" + g + " matos", "good");
+        journal("Vieille décharge trouvée en creusant. +" + g + " matos.");
+        sfx("good");
+      }
+    },
+  },
+  {
+    cle: "inspection", poids: (p) => (S.facade === "aucune" ? 0 : 1 + p * .5),
+    run: () => carte("Contrôle", "Ils viennent voir la façade",
+      "Une camionnette blanche s'arrête en bas du chemin. Papiers, registre, deux questions polies " +
+      "sur ce que vous faites de vos journées.",
+      [
+        { n: "Faire visiter, tout est en règle", d: "Il faut un colon sans affectation pour jouer le rôle.",
+          ok: libreQuelquUn,
+          f: () => { S.soupcon = clamp(S.soupcon - 12, 0, 100); toast("« Bonne continuation. »", "good"); } },
+        { n: "Glisser un billet", d: "−18 liquide.", ok: () => S.res.cash >= 18,
+          f: () => { S.res.cash -= 18; S.soupcon = clamp(S.soupcon - 7, 0, 100); toast("Ça s'est réglé sur le capot.", "good"); } },
+        { n: "Ne pas ouvrir", d: "Ils reviendront, et pas seuls.",
+          f: () => { S.soupcon = clamp(S.soupcon + 16, 0, 100); toast("Ils ont noté la plaque.", "bad"); } },
+      ]),
+  },
+  {
+    cle: "rumeur", poids: (p) => (p >= 2 ? 2 : .5),
+    run: () => {
+      S.soupcon = clamp(S.soupcon + 5, 0, 100);
+      toast("Au café de " + S.village.nom + ", on parle d'une lumière sur la colline.", "bad");
+      journal("Rumeur à " + S.village.nom + ".");
+    },
+  },
+];
+
+// Le narrateur : il pèse chaque évènement contre l'état réel de la colonie,
+// et il souffle quand ça vient d'aller mal (pas de double peine).
+function tirerEvenement() {
+  const p = paliers().n;
+  const t = TAILLES.find((x) => x.cle === S.village.taille);
+  const dispo = EVENTS.filter((e) => (!e.cond || e.cond()) && e.poids(p) > 0);
+  const total = dispo.reduce((a, e) => a + e.poids(p), 0);
+  let x = Math.random() * total;
+  for (const e of dispo) { x -= e.poids(p); if (x <= 0) { S.dernierEvt = e.cle; e.run(); break; } }
+  const moral = S.colons.reduce((a, c) => a + c.moral, 0) / (S.colons.length || 1);
+  const repit = moral < 35 || S.res.vivres <= 0 ? 1.5 : 1;      // on n'achève pas un mourant
+  S.evtCd = (30 + Math.random() * 26 - p * 3) * repit / t.evt;
+  dirty = true; majTout();
+}
+
+function resoudreAlerte() {
+  const a = S.alerte; S.alerte = null;
+  document.getElementById("alert").classList.remove("show");
+  if (S.silence > 0 || a.coupe) {
+    S.soupcon = clamp(S.soupcon - 9, 0, 100);
+    toast("Le bruit s'éloigne. Ils n'ont rien vu.", "good");
+    journal("Survol : rien à voir, tout était éteint.");
+    sfx("good");
+  } else {
+    const vu = 8 + signature() * .6;
+    S.soupcon = clamp(S.soupcon + vu, 0, 100);
+    const cand = S.exc.filter((e) => !e.marquee && !e.t && !e.coupee && e.reg &&
+      FONC(e.key).sig * EXPO(couvertureExc(e)) > 2);
+    cand.sort((x, y) => FONC(y.key).sig * EXPO(couvertureExc(y)) - FONC(x.key).sig * EXPO(couvertureExc(x)));
+    if (cand[0]) {
+      cand[0].marquee = true;
+      journal(FONC(cand[0].key).nom + " a été repérée d'en haut.");
+      toast("Il est passé au-dessus. " + FONC(cand[0].key).nom + " est repérée.", "bad");
+    } else toast("Il est passé au-dessus. +" + Math.round(vu) + " soupçon", "bad");
+    sfx("bad");
+  }
+  dirty = true; majTout();
+}
+
+/* =====================================================================
+   8. SON (WebAudio, aucune ressource externe)
+   ===================================================================== */
+
+let AC = null, muted = false;
+function ac() {
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { muted = true; } }
+  if (AC && AC.state === "suspended") AC.resume();
+  return AC;
+}
+function beep(f, dur, type = "sine", gain = .05, slide = 0) {
+  if (muted) return;
+  const c = ac(); if (!c) return;
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, c.currentTime);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, f + slide), c.currentTime + dur);
+  g.gain.setValueAtTime(gain, c.currentTime);
+  g.gain.exponentialRampToValueAtTime(.0001, c.currentTime + dur);
+  o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + dur);
+}
+function noise(dur, gain = .05) {
+  if (muted) return;
+  const c = ac(); if (!c) return;
+  const n = Math.floor(c.sampleRate * dur), b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const s = c.createBufferSource(), g = c.createGain();
+  s.buffer = b; g.gain.value = gain; s.connect(g); g.connect(c.destination); s.start();
+}
+function sfx(k) {
+  switch (k) {
+    case "tap": beep(520, .05, "square", .03); break;
+    case "dig": noise(.35, .07); break;
+    case "done": beep(430, .09, "triangle", .05); setTimeout(() => beep(640, .12, "triangle", .05), 90); break;
+    case "good": beep(600, .08, "sine", .05); setTimeout(() => beep(880, .12, "sine", .045), 80); break;
+    case "bad": beep(200, .28, "sawtooth", .05, -80); break;
+    case "alarm": beep(880, .14, "square", .05); setTimeout(() => beep(660, .2, "square", .05), 160); break;
+    case "off": beep(300, .4, "sine", .05, -240); break;
+    case "win": [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => beep(f, .18, "triangle", .05), i * 130)); break;
+  }
+}
+
+/* =====================================================================
+   9. RENDU — la coupe, les couches, le contour de ce qu'on a creusé
+   ===================================================================== */
+
+const scene = document.getElementById("scene");
+const stage = document.getElementById("stage");
+let dirty = true;
+let menMap = new Map();
+let _revele = null;
+
+// On ne voit du sous-sol que ce qu'on a approché : les couches se lisent de
+// loin (c'est de la géologie), les accidents se découvrent à la pioche.
+function majRevele() {
+  _revele = new Set();
+  for (const k of creuse()) {
+    const r0 = Math.floor(k / GW), c0 = k % GW;
+    for (let c = c0 - 2; c <= c0 + 2; c++)
+      for (let r = r0 - 2; r <= r0 + 2; r++)
+        if (dansGrille(c, r)) _revele.add(key(c, r));
+  }
+}
+const revele = (c, r) => (_revele || (majRevele(), _revele)).has(key(c, r));
+
+function sceneHeight() {
+  let bas = 0;
+  for (const e of S.exc) bas = Math.max(bas, (e.r + e.h) * CELL);
+  return Math.max(bas + 90, 820);
+}
+
+// --- le ciel et la colline -------------------------------------------------
+function drawSky(g) {
+  const sun = el("g", {}, g);
+  penCircle(sun, 50, 52, 24, { seed: 3, amp: 1.2, w: 1.7 });
+  const r = R(5);
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 + .25, r0 = 30 + r() * 3, r1 = r0 + 9 + r() * 7;
+    penLine(sun, 50 + Math.cos(a) * r0, 52 + Math.sin(a) * r0,
+      50 + Math.cos(a) * r1, 52 + Math.sin(a) * r1, { seed: 20 + i, w: 1.5, amp: .5, double: false });
+  }
+}
+
+// La ligne de terrain, tirée du profil généré.
+function profilPath(off = 0) {
+  const r = R(S.graine ^ 0x1234), pts = [];
+  for (let c = 0; c < GW; c++) {
+    const x = c * CELL + CELL / 2;
+    pts.push([x, PROFIL[c] + off + (r() * 2 - 1) * 1.2]);
+  }
+  pts.unshift([-8, PROFIL[0] + off]);
+  pts.push([W + 8, PROFIL[GW - 1] + off]);
+  return toPath(pts);
+}
+
+// Les motifs de couche : une tuile dessinée au stylo, répétée. C'est ce qui
+// permet de remplir toute la colline sans exploser le nombre de tracés.
+function defsMotifs(defs) {
+  const T = 26;
+  COUCHES.forEach((co, i) => {
+    const p = el("pattern", { id: "pat" + i, width: T, height: T,
+      patternUnits: "userSpaceOnUse", patternTransform: "rotate(" + (i * 7 - 10) + ")" }, defs);
+    const o = { w: .85, amp: .5, op: .34, double: false, step: 20 };
+    if (i === 0) { for (let k = 0; k < 5; k++) penCircle(p, 4 + (k * 7) % T, 5 + (k * 11) % T, .9, { seed: 10 + k, w: .9, op: .3, amp: .2 }); }
+    else if (i === 1) { for (let k = 0; k < 4; k++) penLine(p, 2, 5 + k * 7, 9 + (k % 2) * 6, 5 + k * 7, { ...o, seed: 20 + k }); }
+    else if (i === 2) { for (let k = 0; k < 3; k++) penLine(p, -2 + k * 9, T, 8 + k * 9, 0, { ...o, seed: 30 + k }); }
+    else if (i === 3) {
+      for (let k = 0; k < 3; k++) penLine(p, 0, 4 + k * 9, T, 4 + k * 9, { ...o, seed: 40 + k, op: .28 });
+      for (let k = 0; k < 2; k++) penLine(p, 6 + k * 13, 4, 6 + k * 13, 13, { ...o, seed: 45 + k, op: .28 });
+    } else if (i === 4) {
+      for (let k = 0; k < 4; k++) penLine(p, -2 + k * 8, 0, 6 + k * 8, T, { ...o, seed: 50 + k, op: .3 });
+    } else {
+      for (let k = 0; k < 3; k++) penLine(p, -2 + k * 9, 0, 8 + k * 9, T, { ...o, seed: 60 + k, op: .32 });
+      for (let k = 0; k < 3; k++) penLine(p, 0, -2 + k * 9, T, 8 + k * 9, { ...o, seed: 70 + k, op: .32 });
+    }
+  });
+}
+
+// Chaque couche est une bande dont le haut et le bas suivent le relief.
+function drawCouches(g, H) {
+  const bornes = [];
+  for (let i = 0; i <= COUCHES.length; i++) {
+    const ligne = [];
+    for (let c = 0; c < GW; c++) {
+      // première rangée appartenant à la couche i (ou plus profonde)
+      let y = null;
+      for (let r2 = SOL[c]; r2 < GH; r2++) if (TERRE[key(c, r2)] >= i) { y = r2 * CELL; break; }
+      ligne.push([c * CELL + CELL / 2, y === null ? H : y]);
+    }
+    ligne.unshift([-8, ligne[0][1]]);
+    ligne.push([W + 8, ligne[ligne.length - 1][1]]);
+    bornes.push(ligne);
+  }
+  for (let i = 0; i < COUCHES.length; i++) {
+    const haut = bornes[i], bas = bornes[i + 1] || null;
+    const d = toPath(haut) + (bas ? toPath(bas.slice().reverse()).replace(/^M/, "L") : `L${W + 8} ${H + 10}L-8 ${H + 10}`) + "Z";
+    el("path", { d, fill: "url(#pat" + i + ")", stroke: "none" }, g);
+    el("path", { d, fill: "rgba(51,64,154,.035)", stroke: "none" }, g);
+    if (i > 0) el("path", { d: toPath(haut), fill: "none", stroke: "rgba(51,64,154,.3)",
+      "stroke-width": 1.1, "stroke-linecap": "round" }, g);
+  }
+}
+
+// Les accidents : dessinés seulement là où on est passé assez près.
+function drawAccidents(g) {
+  const vus = new Map();
+  for (const [k, v] of ACC) {
+    const r0 = Math.floor(k / GW), c0 = k % GW;
+    if (!revele(c0, r0)) continue;
+    if (!vus.has(v)) vus.set(v, []);
+    vus.get(v).push([c0, r0]);
+  }
+  for (const [kind, cells] of vus) {
+    for (const [c, r] of cells) {
+      const x = c * CELL, y = r * CELL;
+      if (kind === "nappe") {
+        for (let i = 0; i < 2; i++)
+          penLine(g, x, y + 4 + i * 5, x + CELL, y + 3 + i * 5,
+            { seed: 900 + c * 7 + r + i, w: 1.2, amp: 1.5, op: .5, double: false, step: 5 });
+      } else if (kind === "cavite" || kind === "galerie") {
+        el("rect", { x, y, width: CELL, height: CELL, fill: "rgba(255,255,255,.42)" }, g);
+        if (kind === "galerie" && !estCreuse(c, r - 1))
+          penLine(g, x, y, x + CELL, y, { seed: 950 + c + r, w: 1.2, amp: .6, op: .45, double: false });
+      } else if (kind === "filon") {
+        const rr = R(c * 31 + r);
+        for (let i = 0; i < 3; i++)
+          penLine(g, x + 2 + rr() * 8, y + 2 + rr() * 8, x + 3 + rr() * 9, y + 3 + rr() * 8,
+            { seed: 980 + c * 5 + r + i, w: 1.4, amp: .8, op: .55, double: false, step: 6 });
+      } else if (kind === "bloc") {
+        penCircle(g, x + CELL / 2, y + CELL / 2, CELL * .42,
+          { seed: 1000 + c * 13 + r, w: 1.5, amp: 1.4, op: .5 });
+      }
+    }
+  }
+}
+
+// --- le contour de l'excavation : un seul trait de stylo -------------------
+// On collecte les arêtes entre creusé et non-creusé, on les chaîne en boucles,
+// puis on trace chaque boucle d'un geste.
+function contours() {
+  const edges = new Map();
+  const add = (x1, y1, x2, y2) => edges.set(x1 + "," + y1, [x2, y2]);
+  for (const k of creuse()) {
+    const r = Math.floor(k / GW), c = k % GW;
+    if (!estCreuse(c, r - 1)) add(c, r, c + 1, r);
+    if (!estCreuse(c + 1, r)) add(c + 1, r, c + 1, r + 1);
+    if (!estCreuse(c, r + 1)) add(c + 1, r + 1, c, r + 1);
+    if (!estCreuse(c - 1, r)) add(c, r + 1, c, r);
+  }
+  const boucles = [];
+  const vus = new Set();
+  for (const dep of edges.keys()) {
+    if (vus.has(dep)) continue;
+    const pts = [];
+    let cur = dep, garde = 0;
+    while (cur && !vus.has(cur) && garde++ < 4000) {
+      vus.add(cur);
+      const [x, y] = cur.split(",").map(Number);
+      pts.push([x, y]);
+      const nx = edges.get(cur);
+      if (!nx) break;
+      cur = nx[0] + "," + nx[1];
+    }
+    if (pts.length > 3) boucles.push(pts);
+  }
+  return boucles;
+}
+
+function drawExcavation(g) {
+  // le vide : du papier blanc
+  for (const k of creuse()) {
+    const r = Math.floor(k / GW), c = k % GW;
+    el("rect", { x: c * CELL - .4, y: r * CELL - .4, width: CELL + .8, height: CELL + .8,
+      fill: "#f6f3ea" }, g);
+  }
+  // le trait
+  const seedBase = 2000;
+  let n = 0;
+  for (const b of contours()) {
+    const pts = [];
+    for (let i = 0; i < b.length; i++) {
+      const [px, py] = b[i];
+      pts.push([px * CELL, py * CELL]);
+    }
+    pts.push(pts[0]);
+    const r = R(seedBase + n * 17);
+    const w = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const seg = wobble(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], r, .9, 11);
+      w.push(...(i ? seg.slice(1) : seg));
+    }
+    const d = toPath(w) + "Z";
+    el("path", { d, fill: "none", stroke: "#33409a", "stroke-width": 2, "stroke-linecap": "round",
+      "stroke-linejoin": "round", opacity: .95 }, g);
+    el("path", { d, fill: "none", stroke: "#33409a", "stroke-width": 1.1, "stroke-linecap": "round",
+      opacity: .4, transform: "translate(.9 1.2)" }, g);
+    n++;
+  }
+}
+
+// --- les salles ------------------------------------------------------------
+function drawSalles(g) {
+  for (const e of S.exc) {
+    const f = FONC(e.key);
+    const x = e.c * CELL, y = e.r * CELL, w = e.w * CELL, h = e.h * CELL;
+    const gg = el("g", { class: "room", "data-id": e.id }, g);
+    el("rect", { x, y, width: w, height: h, fill: "transparent" }, gg);
+
+    if (e.t > 0) {
+      penHatch(gg, x, y, w, h, { seed: 600 + e.id, gap: 11, op: .4 });
+      const t = el("text", { x: x + 4, y: y + 13, class: "rsub" }, gg);
+      t.textContent = "chantier " + Math.ceil(e.t) + " s";
+      continue;
+    }
+    if (e.key === "galerie") continue;
+
+    const eteinte = !e.reg || S.silence > 0 || e.coupee;
+    // le nom doit tenir dans la salle : au-delà de 3 cellules de large on
+    // écrit le nom complet, sinon la forme courte
+    const t = el("text", { x: x + 4, y: y + 13, class: "rlbl" }, gg);
+    t.textContent = e.w >= 4 ? f.nom : (f.court || f.nom);
+    if (e.w <= 2) t.setAttribute("font-size", "10.5");
+    const sub = el("text", { x: x + 4, y: y + 25, class: "rsub" }, gg);
+    const pm = postesMax(e);
+    sub.textContent = eteinte ? (S.silence > 0 ? "éteinte (silence)" : e.coupee ? "plus de courant" : "éteinte")
+      : pm ? occupants(e.id).length + "/" + pm + " · " + Math.round(postesEff(e) * 100 / Math.max(1, pm)) + " %"
+      : (e.reg !== 2 ? REGIMES[e.reg].court : "");
+    if (eteinte) el("rect", { x, y, width: w, height: h, fill: "rgba(51,64,154,.13)" }, gg);
+    if (e.panne) { const p = el("text", { x: x + w - 4, y: y + 13, class: "rsub", "text-anchor": "end" }, gg);
+      p.setAttribute("fill", "#b4453c"); p.textContent = "panne"; }
+    if (e.marquee) {
+      penCircle(gg, x + w / 2, y + h / 2, Math.max(w, h) * .58,
+        { seed: 1500 + e.id, w: 2, amp: 2.6, col: "#b4453c", op: .75, rot: .3 });
+    }
+    // les piliers d'une salle large : on les voit, ça rassure
+    if (e.w >= 4) {
+      for (let i = 1; i < Math.floor(e.w / 3) + 1; i++) {
+        const px = x + i * 3 * CELL - CELL * .4;
+        penLine(gg, px, y + 3, px, y + h - 3, { seed: 1600 + e.id * 7 + i, w: 1.6, amp: .5, op: .38 });
+      }
+    }
+    // signature qui monte
+    const sg = f.sig * EXPO(couvertureExc(e)) * (eteinte ? 0 : REGIMES[e.reg].sig);
+    if (sg > 2) {
+      for (let i = 0; i < 3; i++)
+        penLine(gg, x + w / 2 - 8 - i * 2, y - 3 - i * 5, x + w / 2 + 8 + i * 2, y - 5 - i * 5,
+          { seed: 700 + e.id * 9 + i, w: 1.1, amp: 1.3, op: .3 + i * .06, double: false, step: 6, col: "#b4453c" });
+    }
+  }
+}
+
+// --- la surface : le tas de déblais, le village, la façade -----------------
+function drawSurface(g) {
+  // l'entrée : une dalle et un montant au sommet du premier puits
+  const e0 = S.exc[0];
+  if (e0) {
+    const x = e0.c * CELL, ys = PROFIL[Math.min(GW - 1, e0.c)];
+    penLine(g, x - 6, ys - 1, x + e0.w * CELL + 6, ys - 3, { seed: 1700, w: 2, amp: .6 });
+    penLine(g, x - 4, ys - 2, x + 6, ys - 13, { seed: 1702, w: 1.6, amp: .5 });
+  }
+
+  // LE TAS : il grandit, et c'est lui qu'on voit du chemin
+  if (S.tas > .5) {
+    const bx = clamp((S.exc[0] ? S.exc[0].c * CELL : 200) + 58, 40, W - 60);
+    const by = hillY(bx);
+    const rr = Math.min(46, 7 + Math.sqrt(S.tas) * 4.2);
+    const pts = [];
+    const r = R(1800);
+    for (let i = 0; i <= 16; i++) {
+      const t = i / 16, a = Math.PI * (1 - t);
+      pts.push([bx + Math.cos(a) * rr, by - Math.sin(a) * rr * .62 + (r() * 2 - 1) * 1.4]);
+    }
+    el("path", { d: toPath(pts), fill: "rgba(180,69,60,.07)", stroke: "#b4453c",
+      "stroke-width": 1.7, opacity: .8 }, g);
+    for (let i = 0; i < 4; i++) {
+      const t = .2 + i * .18;
+      penLine(g, bx - rr + rr * 2 * t, by, bx - rr + rr * 2 * t + 4, by - rr * .3,
+        { seed: 1810 + i, w: 1, amp: .6, op: .35, double: false, col: "#b4453c", step: 10 });
+    }
+    const lb = el("text", { x: bx, y: by + 12, class: "rsub", "text-anchor": "middle" }, g);
+    lb.setAttribute("fill", "#b4453c");
+    lb.textContent = Math.round(S.tas) + " m³";
+  }
+
+  // le village, en bas de pente
+  const vx = clamp(PROFIL[2] < PROFIL[GW - 3] ? W - 62 : 62, 62, W - 62);
+  const vy = hillY(vx);
+  const gv = el("g", {}, g);
+  const t = TAILLES.find((x) => x.cle === S.village.taille);
+  const nMaisons = { hameau: 2, village: 3, bourg: 4, ville: 5 }[S.village.taille];
+  for (let i = 0; i < nMaisons; i++) {
+    const mx = vx - 26 + i * 14, my = vy + 16 + (i % 2) * 5;
+    penRect(gv, mx, my - 11, 11, 11, { seed: 1900 + i * 5, w: 1.3, amp: .5, over: .8 });
+    penLine(gv, mx - 2, my - 11, mx + 5.5, my - 17, { seed: 1905 + i, w: 1.3, amp: .4 });
+    penLine(gv, mx + 13, my - 11, mx + 5.5, my - 17, { seed: 1908 + i, w: 1.3, amp: .4 });
+  }
+  if (nMaisons >= 3) {
+    penLine(gv, vx + 30, vy + 20, vx + 30, vy - 6, { seed: 1920, w: 1.5, amp: .5 });
+    penLine(gv, vx + 26, vy - 6, vx + 34, vy - 6, { seed: 1922, w: 1.4, amp: .4 });
+    penLine(gv, vx + 30, vy - 6, vx + 30, vy - 12, { seed: 1924, w: 1.3, amp: .4 });
+  }
+  const nv = el("text", { x: clamp(vx + 4, 58, W - 58), y: vy + 32, class: "rsub",
+    "text-anchor": "middle" }, gv);
+  nv.textContent = S.village.nom + " · " + S.village.pop + " hab.";
+
+  if (S.facade !== "aucune") drawFacade(g);
+}
+
+function drawFacade(g) {
+  const x = clamp((S.exc[0] ? S.exc[0].c * CELL : 200) - 62, 30, W - 40);
+  const y = hillY(x) - 2, f = S.facade, gg = el("g", {}, g);
+  if (f === "rucher") {
+    for (let i = 0; i < 3; i++) {
+      const bx = x - 16 + i * 15, by = y - 3 - i * 3;
+      penRect(gg, bx, by - 11, 11, 11, { seed: 900 + i * 5, w: 1.3, amp: .5, over: .8 });
+      penLine(gg, bx, by - 7, bx + 11, by - 7, { seed: 905 + i, w: 1, amp: .3, op: .5, double: false });
+    }
+  } else if (f === "scierie") {
+    penRect(gg, x - 22, y - 26, 44, 26, { seed: 920, w: 1.5, amp: .6 });
+    penLine(gg, x - 26, y - 26, x, y - 38, { seed: 924, w: 1.5, amp: .6 });
+    penLine(gg, x + 26, y - 26, x, y - 38, { seed: 926, w: 1.5, amp: .6 });
+  } else {
+    penRect(gg, x - 21, y - 19, 42, 19, { seed: 940, w: 1.4, amp: .6 });
+    penLine(gg, x - 25, y - 19, x + 25, y - 23, { seed: 944, w: 1.5, amp: .7 });
+  }
+  const t = el("text", { x, y: y + 12, class: "rsub", "text-anchor": "middle" }, gg);
+  t.textContent = FACADES[f].nom;
+}
+
+// --- assemblage ------------------------------------------------------------
+function renderScene() {
+  const H = sceneHeight();
+  scene.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  scene.setAttribute("width", W); scene.setAttribute("height", H);
+  scene.setAttribute("preserveAspectRatio", "xMidYMin meet");
+  scene.textContent = "";
+  menMap = new Map(); _revele = null;
+
+  const defs = el("defs", {}, scene);
+  defsMotifs(defs);
+  const clip = el("clipPath", { id: "clip-terre" }, defs);
+  el("path", { d: profilPath() + `L${W + 8} ${H + 10}L-8 ${H + 10}Z` }, clip);
+
+  drawSky(scene);
+  const terre = el("g", { "clip-path": "url(#clip-terre)" }, scene);
+  drawCouches(terre, H);
+  drawAccidents(terre);
+  drawExcavation(terre);
+
+  el("path", { d: profilPath(), fill: "none", stroke: "#33409a", "stroke-width": 2.1,
+    "stroke-linecap": "round", opacity: .95 }, scene);
+  el("path", { d: profilPath(1.8), fill: "none", stroke: "#33409a", "stroke-width": 1.1,
+    "stroke-linecap": "round", opacity: .32 }, scene);
+
+  drawSurface(scene);
+  drawSalles(scene);
+
+  const gm = el("g", { id: "men" }, scene);
+  for (const c of S.colons) menMap.set(c.id, stickman(gm, { s: .72, seed: 600 + c.id * 13 }));
+
+  el("g", { id: "apercu" }, scene);
+  dirty = false;
+}
+
+let animT = 0;
+function animerColons(dt) {
+  animT += dt;
+  for (const c of S.colons) {
+    const g = menMap.get(c.id);
+    if (!g) continue;
+    let x, y, marche = true, cad = 3.4;
+    if (c.dehors) {
+      const op = S.ops.find((o) => o.equipe.includes(c.id));
+      const prog = op ? 1 - op.reste / OPS[op.key].sec : .5;
+      const px = clamp(30 + prog * (W - 60), 10, W - 10);
+      x = px; y = hillY(px) - 1; cad = 4.5;
+    } else if (c.room && excById(c.room)) {
+      const e = excById(c.room);
+      c.x += c.dir * dt * .055 * (.6 + c.moral / 200);
+      if (c.x > 1) { c.x = 1; c.dir = -1; } else if (c.x < 0) { c.x = 0; c.dir = 1; }
+      x = e.c * CELL + 7 + c.x * Math.max(2, e.w * CELL - 14);
+      y = (e.r + e.h) * CELL - 3;
+      marche = e.t > 0 || postesEff(e) > 0 || !FONC(e.key).postesMax;
+    } else {
+      const e0 = S.exc[0];
+      const idx = S.colons.filter((z) => !z.room && !z.dehors).indexOf(c);
+      x = (e0 ? e0.c * CELL + 6 : 190) + (idx % 3) * 8;
+      y = (e0 ? (e0.r + e0.h) * CELL - 3 : 400);
+      marche = false;
+    }
+    g.setAttribute("opacity", 1);
+    g.setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${c.dir < 0 ? -1 : 1} 1)`);
+    if (g._poses) {
+      const pas = marche ? (Math.floor(animT * cad + c.id) % 2) : 2;
+      for (let i = 0; i < 3; i++) g._poses[i].style.display = (i === pas ? "" : "none");
+    }
+  }
+}
+
+/* =====================================================================
+   10. HUD
+   ===================================================================== */
+
+const gaugesEl = document.getElementById("gauges");
+let gaugeNodes = {};
+const GAUGES = [
+  { k: "energie", ico: "energie" }, { k: "air", ico: "air" }, { k: "eau", ico: "eau" },
+  { k: "vivres", ico: "vivres" }, { k: "matos", ico: "matos" }, { k: "tas", ico: "deblais" },
+];
+
+function construireHud() {
+  gaugesEl.textContent = "";
+  gaugeNodes = {};
+  for (const g of GAUGES) {
+    const d = document.createElement("div");
+    d.className = "g";
+    d.appendChild(icon(g.ico, 19));
+    const v = document.createElement("div"); v.className = "gv";
+    const s = document.createElement("div"); s.className = "gd";
+    d.appendChild(v); d.appendChild(s);
+    if (g.k === "tas") d.onclick = () => { ac(); panneauDeblais(); sfx("tap"); };
+    gaugesEl.appendChild(d);
+    gaugeNodes[g.k] = { box: d, v, s };
+  }
+}
+
+let lastVals = {};
+function majHud() {
+  document.getElementById("daylbl").textContent = "jour " + S.jour;
+  document.getElementById("cashlbl").textContent = S.facade !== "aucune" ? Math.floor(S.res.cash) + " €" : "";
+
+  const be = bilanEnergie(), ba = bilanAir();
+  for (const g of GAUGES) {
+    const n = gaugeNodes[g.k];
+    let val, sub, warn = false;
+    if (g.k === "energie") {
+      val = Math.round(be.prod) + "/" + Math.round(be.dem);
+      sub = be.coupees ? be.coupees + " coupée" + (be.coupees > 1 ? "s" : "") : "énergie";
+      warn = be.coupees > 0;
+    } else if (g.k === "air") {
+      val = Math.round(ba.prod) + "/" + Math.round(ba.dem);
+      sub = ba.taux >= 1 ? "air" : "ça manque";
+      warn = ba.taux < .95;
+    } else if (g.k === "tas") {
+      val = Math.round(S.tas);
+      sub = S.evac ? "évac. " + Math.ceil(S.evac.reste) + " s" : "déblais m³";
+      warn = S.tas > 30;
+    } else {
+      const p = prodNette(g.k);
+      val = Math.floor(S.res[g.k]);
+      sub = g.k === "matos" ? "matos" : sign(p) + "/min";
+      warn = g.k !== "matos" && S.res[g.k] < 8 && p < 0;
+    }
+    if (n.v.textContent !== String(val)) {
+      n.v.textContent = val;
+      if (lastVals[g.k] !== undefined && lastVals[g.k] !== val) {
+        n.box.classList.remove("pop"); void n.box.offsetWidth; n.box.classList.add("pop");
+      }
+      lastVals[g.k] = val;
+    }
+    n.s.textContent = sub;
+    n.box.classList.toggle("warn", warn);
+  }
+
+  const p = paliers();
+  const fill = document.getElementById("heatfill");
+  fill.style.width = S.soupcon + "%";
+  fill.classList.toggle("hot", p.n >= 2);
+  document.getElementById("heatlbl").textContent = p.lbl;
+  const sig = signature(), tol = tolerance();
+  const fl = document.getElementById("heatarrow");
+  fl.textContent = sig > tol ? "▲ " + fmt(sig) : "▼ " + fmt(sig);
+  fl.style.color = sig > tol ? "var(--red)" : "var(--green)";
+
+  const a = document.getElementById("alert");
+  if (S.alerte) {
+    a.classList.add("show");
+    a.querySelector(".at").textContent = S.silence > 0 || S.alerte.coupe
+      ? "Tout est éteint. Attendez qu'il passe." : "Un appareil approche. COUPEZ TOUT.";
+    a.querySelector(".ac").textContent = Math.ceil(S.alerte.reste);
+    a.querySelector("#alertin").classList.toggle("urgent", S.alerte.reste < 6 && !(S.silence > 0 || S.alerte.coupe));
+  } else a.classList.remove("show");
+
+  const db = document.querySelector('#dock button[data-tab="silence"]');
+  if (db) {
+    db.classList.toggle("on", S.silence > 0);
+    db.classList.toggle("alarm", !!S.alerte && S.silence <= 0);
+    db.querySelector("span").textContent = S.silence > 0 ? Math.ceil(S.silence) + " s" : "Silence";
+  }
+  const cb = document.querySelector('#dock button[data-tab="creuser"]');
+  if (cb) cb.classList.toggle("on", modeCreuse);
+}
+
+/* =====================================================================
+   11. PANNEAUX
+   ===================================================================== */
+
+const sheet = document.getElementById("sheet");
+const sheetBody = document.getElementById("sheetbody");
+let tabOuvert = null;
+
+function ouvrirSheet(titre, sous) {
+  document.getElementById("sheettitle").textContent = titre;
+  document.getElementById("sheetsub").textContent = sous || "";
+  sheet.classList.add("show");
+}
+function fermerSheet() {
+  sheet.classList.remove("show"); tabOuvert = null;
+  for (const b of document.querySelectorAll("#dock button")) if (b.dataset.tab !== "creuser") b.classList.remove("on");
+  majHud();
+}
+
+function ligne(parent, { nom, desc, tags, btn, onBtn, dis, off, ico }) {
+  const r = document.createElement("div");
+  r.className = "row" + (off ? " off" : "");
+  if (ico) { const i = document.createElement("div"); i.className = "ricon"; i.appendChild(icon(ico, 22)); r.appendChild(i); }
+  const t = document.createElement("div"); t.className = "rtxt";
+  const n = document.createElement("div"); n.className = "rn"; n.textContent = nom;
+  if (tags) for (const tg of tags) {
+    const s = document.createElement("span");
+    s.className = "tag " + (tg.k || ""); s.textContent = tg.t; s.style.marginLeft = "6px";
+    n.appendChild(s);
+  }
+  t.appendChild(n);
+  if (desc) { const d = document.createElement("div"); d.className = "rd"; d.innerHTML = desc; t.appendChild(d); }
+  r.appendChild(t);
+  if (btn) {
+    const b = document.createElement("button");
+    b.className = "btn sm" + (dis ? "" : " pri"); b.textContent = btn; b.disabled = !!dis;
+    b.onclick = onBtn; r.appendChild(b);
+  }
+  parent.appendChild(r);
+  return r;
+}
+const titre = (p, t) => { const d = document.createElement("div"); d.className = "rn";
+  d.style.marginTop = "11px"; d.textContent = t; p.appendChild(d); return d; };
+const aide = (p, html) => { const d = document.createElement("div"); d.className = "hint";
+  d.innerHTML = html; p.appendChild(d); return d; };
+
+// --- un espace creusé ------------------------------------------------------
+function panneauSalle(e) {
+  const f = FONC(e.key);
+  tabOuvert = "salle";
+  const couv = couvertureExc(e);
+  ouvrirSheet(f.nom, aire(e) + " cellules · " + Math.round(couv) + " de roche au-dessus");
+  sheetBody.textContent = "";
+
+  if (e.t > 0) { aide(sheetBody, "Chantier en cours — encore <b>" + Math.ceil(e.t) + " s</b>."); return; }
+
+  aide(sheetBody, f.desc + "<br><b>" + f.effet + "</b> · exposition <b>×" + fmt(EXPO(couv)) + "</b>" +
+    (e.key === "forage" ? (surNappe(e) ? " · <b style='color:var(--green)'>sur la nappe</b>" : " · pas sur la nappe") : ""));
+
+  if (e.key === "galerie") {
+    titre(sheetBody, "Aménager");
+    aide(sheetBody, "Cet espace fait <b>" + aire(e) + " cellules</b>. La taille décide de la capacité : " +
+      "un poste par tranche de 4 cellules.");
+    for (const k of Object.keys(FONCTIONS)) {
+      const g = FONCTIONS[k];
+      if (g.libre) continue;
+      const petit = aire(e) < g.minC;
+      const hautain = g.couvMin && couv < g.couvMin;
+      const cher = S.res.matos < g.cout;
+      let d = g.desc + "<br><b>" + g.effet + "</b>";
+      if (petit) d += "<br><span class='no'>Il faut " + g.minC + " cellules (il y en a " + aire(e) + ").</span>";
+      if (hautain) d += "<br><span class='no'>Il faut " + g.couvMin + " de roche au-dessus.</span>";
+      const tags = [{ t: g.sig >= 4 ? "bruyante" : g.sig >= 1.5 ? "discrète" : "muette",
+                      k: g.sig >= 4 ? "sig" : "good" }];
+      if (g.postesMax) tags.push({ t: clamp(Math.floor(aire(e) / 4), 1, g.postesMax) + " poste(s) ici" });
+      ligne(sheetBody, { nom: g.nom, desc: d, tags, ico: "matos",
+        btn: g.cout + " matos", dis: petit || hautain || cher, off: petit || hautain || cher,
+        onBtn: () => amenager(e, k) });
+    }
+  } else {
+    const pm = postesMax(e);
+    if (pm) {
+      titre(sheetBody, "Postes " + occupants(e.id).length + "/" + pm);
+      aide(sheetBody, "Un colon dont c'est le métier produit à 100 %, un autre à 65 %.");
+      for (const c of S.colons) {
+        if (c.dehors) continue;
+        const ici = c.room === e.id;
+        const bon = TALENTS[c.talent].salles.includes(e.key);
+        ligne(sheetBody, {
+          nom: c.nom, ico: "colon",
+          tags: [{ t: TALENTS[c.talent].nom, k: bon ? "good" : "" }],
+          desc: "moral " + Math.round(c.moral) + " %" +
+            (ici ? " · en poste ici" : c.room ? " · " + FONC(excById(c.room)?.key).nom : " · sans affectation"),
+          btn: ici ? "retirer" : "affecter", dis: !ici && occupants(e.id).length >= pm,
+          onBtn: () => { affecter(c.id, ici ? null : e.id); panneauSalle(e); },
+        });
+      }
+    }
+    if (f.prodPoste || f.conso) {
+      titre(sheetBody, "Régime");
+      const seg = document.createElement("div"); seg.className = "seg";
+      REGIMES.forEach((rg, i) => {
+        const b = document.createElement("button");
+        b.textContent = rg.nom;
+        if (e.reg === i) b.classList.add("on");
+        b.onclick = () => { e.reg = i; dirty = true; majTout(); panneauSalle(e); sfx("tap"); };
+        seg.appendChild(b);
+      });
+      sheetBody.appendChild(seg);
+      aide(sheetBody, REGIMES[e.reg].d + "<br>signature à ce régime : <b>" +
+        fmt(f.sig * EXPO(couv) * REGIMES[e.reg].sig * (e.marquee ? 1.6 : 1) * (e.panne ? 1.7 : 1)) + "</b>");
+    }
+    if (e.panne) {
+      const b = document.createElement("button");
+      b.className = "btn wide ok"; b.textContent = "Réparer (14 matos)";
+      b.disabled = S.res.matos < 14;
+      b.onclick = () => { S.res.matos -= 14; e.panne = false; toast("Réparé.", "good");
+        sfx("done"); dirty = true; majTout(); panneauSalle(e); };
+      sheetBody.appendChild(b);
+    }
+  }
+
+  const b = document.createElement("button");
+  b.className = "btn wide bad";
+  b.textContent = "Reboucher";
+  b.onclick = () => reboucher(e);
+  sheetBody.appendChild(b);
+  if (e.marquee) aide(sheetBody, "<b style='color:var(--red)'>Repérée d'en haut.</b> " +
+    "Ils savent où elle est : 60 % plus visible, définitivement. La reboucher est le seul moyen de l'effacer.");
+}
+
+// --- les déblais -----------------------------------------------------------
+function panneauDeblais() {
+  tabOuvert = "deblais";
+  ouvrirSheet("Les déblais", Math.round(S.tas) + " m³ en surface");
+  sheetBody.textContent = "";
+  aide(sheetBody, "Tout ce qu'on sort de la colline finit quelque part. Le tas derrière la grange " +
+    "pèse <b>" + fmt(S.tas * BAL.sigParDeblai) + "</b> de signature à lui tout seul — " +
+    "c'est de la terre fraîche, et ça se voit de loin.");
+  if (S.evac) {
+    aide(sheetBody, "<b>" + EVACUATIONS[S.evac.mode].nom + "</b> en cours — encore " +
+      Math.ceil(S.evac.reste) + " s.");
+    return;
+  }
+  const cav = cavitesLibres();
+  for (const k of Object.keys(EVACUATIONS)) {
+    const m = EVACUATIONS[k];
+    if (k === "tas") continue;
+    let d = m.d;
+    const tags = [{ t: m.sec + " s" }];
+    if (m.cash) tags.push({ t: "+" + Math.round(Math.min(S.tas, 30) * m.cash) + " €", k: "good" });
+    if (m.equipe) tags.push({ t: m.equipe + " colon" });
+    let dis = S.tas <= 0;
+    if (m.besoin === "cavite") { if (!cav) { d += "<br><span class='no'>Aucune cavité connue.</span>"; dis = true; }
+      else tags.push({ t: cav + " cavité(s)", k: "good" }); }
+    if (m.facade && S.facade === "aucune") { d += "<br><span class='no'>Il faut une façade.</span>"; dis = true; }
+    ligne(sheetBody, { nom: m.nom, desc: d, tags, btn: "y aller", dis, off: dis,
+      onBtn: () => lancerEvac(k) });
+  }
+}
+
+// --- ce qui se voit --------------------------------------------------------
+function panneauSoupcon() {
+  tabOuvert = "soupcon";
+  const d = signatureDetail(), tol = tolerance(), p = paliers();
+  ouvrirSheet("Ce qui se voit", "soupçon " + Math.round(S.soupcon) + " / 100 · " + p.lbl.toLowerCase());
+  sheetBody.textContent = "";
+  aide(sheetBody, "La colline laisse voir <b>" + fmt(d.total) + "</b> par minute. " +
+    S.village.nom + " (" + TAILLES.find((x) => x.cle === S.village.taille).nom + ") en tolère <b>" +
+    fmt(tol) + "</b>, façade comprise.<br>" +
+    (d.total > tol
+      ? "<span style='color:var(--red)'>Au-dessus : le soupçon monte de " + fmt((d.total - tol) * BAL.soupconMontee * 60) + " par minute.</span>"
+      : "<span style='color:var(--green)'>En dessous : le soupçon retombe.</span>"));
+  for (const l of d.lignes) ligne(sheetBody, { nom: l.t, desc: l.n, btn: (l.v > 0 ? "+" : "") + fmt(l.v), dis: true });
+  aide(sheetBody, "<b>Pour se faire oublier :</b> creuser plus profond (l'exposition tombe avec la " +
+    "roche au-dessus), évacuer le tas de déblais, poser une façade, mettre une salle au ralenti, " +
+    "ou envoyer une équipe brouiller les pistes.");
+}
+
+// --- colons ----------------------------------------------------------------
+function panneauColons() {
+  tabOuvert = "colons";
+  ouvrirSheet("La colonie", librables().length + "/" + placesLits() + " places");
+  sheetBody.textContent = "";
+  aide(sheetBody, "Sans lit, le moral tombe. À zéro, ils remontent — et ils parlent.");
+  const salles = S.exc.filter((e) => postesMax(e) && !e.t);
+  for (const c of S.colons) {
+    const row = document.createElement("div"); row.className = "row";
+    const i = document.createElement("div"); i.className = "ricon"; i.appendChild(icon("colon", 24)); row.appendChild(i);
+    const t = document.createElement("div"); t.className = "rtxt";
+    const n = document.createElement("div"); n.className = "rn"; n.textContent = c.nom;
+    const tg = document.createElement("span"); tg.className = "tag"; tg.textContent = TALENTS[c.talent].nom;
+    tg.style.marginLeft = "6px"; n.appendChild(tg);
+    for (const k of c.traits) {
+      const s = document.createElement("span");
+      s.className = "tag " + (TRAITS[k].bon ? "good" : "sig");
+      s.textContent = TRAITS[k].nom; s.style.marginLeft = "4px"; n.appendChild(s);
+    }
+    t.appendChild(n);
+    const d = document.createElement("div"); d.className = "rd";
+    d.innerHTML = c.age + " ans, " + c.origine + ".<br>" +
+      (c.dehors ? "<b>en opération dehors</b>"
+        : "moral <b>" + Math.round(c.moral) + " %</b> · " +
+          (c.room && excById(c.room) ? FONC(excById(c.room).key).nom : "sans affectation"));
+    t.appendChild(d);
+    row.appendChild(t);
+    if (!c.dehors) {
+      const sel = document.createElement("select");
+      sel.style.cssText = "font-family:var(--sans);font-size:11px;font-weight:700;border:1.5px solid var(--ink-faint);border-radius:9px;padding:5px 6px;background:transparent;color:var(--ink);max-width:118px";
+      const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "— aucune —"; sel.appendChild(o0);
+      for (const e of salles) {
+        const o = document.createElement("option");
+        o.value = e.id;
+        const occ = occupants(e.id).length, max = postesMax(e);
+        o.textContent = FONC(e.key).nom + " (" + occ + "/" + max + ")";
+        if (occ >= max && c.room !== e.id) o.disabled = true;
+        if (c.room === e.id) o.selected = true;
+        sel.appendChild(o);
+      }
+      sel.onchange = () => { affecter(c.id, sel.value ? +sel.value : null); panneauColons(); };
+      row.appendChild(sel);
+    }
+    sheetBody.appendChild(row);
+  }
+}
+
+// --- dehors ----------------------------------------------------------------
+function panneauDehors() {
+  tabOuvert = "dehors";
+  const t = TAILLES.find((x) => x.cle === S.village.taille);
+  ouvrirSheet("Dehors", S.village.nom + " · " + t.nom + " · " + S.village.pop + " hab.");
+  sheetBody.textContent = "";
+  aide(sheetBody, t.d);
+
+  titre(sheetBody, "La façade");
+  aide(sheetBody, FACADES[S.facade].d);
+  const curIdx = FACADE_ORDRE.indexOf(S.facade);
+  for (const k of FACADE_ORDRE) {
+    if (k === "aucune") continue;
+    const f = FACADES[k], actif = S.facade === k, idx = FACADE_ORDRE.indexOf(k);
+    ligne(sheetBody, {
+      nom: f.nom,
+      tags: [{ t: "+" + f.tol + " toléré", k: "good" }, { t: "+" + f.cash + " €/min" }],
+      desc: f.d + "<br>entretien <b>" + f.upkeep + " €/min</b>",
+      btn: actif ? "en place" : f.cout + " matos",
+      dis: actif || S.res.matos < f.cout || idx < curIdx, off: actif || idx < curIdx,
+      onBtn: () => poserFacade(k),
+    });
+  }
+
+  if (S.facade !== "aucune") {
+    titre(sheetBody, "Acheter à " + S.village.nom);
+    aide(sheetBody, "Propre, immédiat, cher — et ça se remarque un peu (+1,5 soupçon la livraison).");
+    for (const [k, base, qte] of [["vivres", 14, 30], ["eau", 10, 30], ["matos", 20, 25]]) {
+      const prix = Math.round(base / t.marche);
+      ligne(sheetBody, { nom: "+" + qte + " " + k, ico: k === "matos" ? "matos" : k,
+        desc: "livraison au bas du chemin", btn: prix + " €",
+        dis: S.res.cash < prix, off: S.res.cash < prix, onBtn: () => { acheter(k); panneauDehors(); } });
+    }
+  }
+
+  titre(sheetBody, "Sortir");
+  aide(sheetBody, "Équipes : <b>" + S.ops.length + "/" + S.opsSlots + "</b>. Le trafic compte dans la " +
+    "signature tant qu'ils sont dehors.");
+  for (const k of Object.keys(OPS)) {
+    const o = OPS[k], enCours = S.ops.find((x) => x.key === k);
+    ligne(sheetBody, {
+      nom: o.nom,
+      tags: [{ t: o.equipe + " colon" + (o.equipe > 1 ? "s" : "") },
+             { t: o.sig > 0 ? "+" + o.sig + " signature" : "discret", k: o.sig > 6 ? "sig" : "" },
+             { t: Math.round(o.risque * 100) + " % de casse", k: o.risque > .1 ? "sig" : "" }],
+      desc: o.d + "<br>rapporte <b>" + o.gain + "</b> en " + o.sec + " s",
+      btn: enCours ? Math.ceil(enCours.reste) + " s" : "envoyer",
+      dis: !!enCours || S.ops.length >= S.opsSlots || librables().length <= o.equipe, off: !!enCours,
+      onBtn: () => lancerOp(k),
+    });
+  }
+
+  titre(sheetBody, "Le cahier");
+  const jl = S.jalons.map((k) => JALONS.find((j) => j.cle === k));
+  aide(sheetBody, (jl.length ? "<b>Jalons :</b> " + jl.map((j) => j.t).join(" · ") + "<br><br>" : "") +
+    S.log.slice(0, 16).map((x) => "· " + x).join("<br>"));
+}
+
+/* =====================================================================
+   12. CARTES D'ÉVÈNEMENT
+   ===================================================================== */
+
+const modal = document.getElementById("modal");
+const cardEl = document.getElementById("card");
+let modalOuverte = false;
+let vitesseAvant = 1;
+
+function carte(kicker, titre, texte, options) {
+  modalOuverte = true;
+  vitesseAvant = S.speed || 1;
+  S.speed = 0; majVitesse();
+  cardEl.textContent = "";
+  const k = document.createElement("div"); k.className = "kicker"; k.textContent = kicker;
+  const h = document.createElement("h2"); h.textContent = titre;
+  const p = document.createElement("p"); p.textContent = texte;
+  const o = document.createElement("div"); o.className = "opts";
+  cardEl.append(k, h, p, o);
+  for (const opt of options) {
+    const b = document.createElement("button"); b.className = "opt";
+    const dis = opt.ok && !opt.ok();
+    b.disabled = !!dis;
+    const n1 = document.createElement("div"); n1.className = "o1"; n1.textContent = opt.n;
+    const n2 = document.createElement("div"); n2.className = "o2"; n2.textContent = opt.d || "";
+    b.append(n1, n2);
+    b.onclick = () => { sfx("tap"); const f = opt.f; fermerCarte(); if (f) f(); dirty = true; majTout(); };
+    o.appendChild(b);
+  }
+  modal.classList.add("show");
+}
+
+function fermerCarte() {
+  modal.classList.remove("show");
+  modalOuverte = false;
+  if (!S.gameover) { S.speed = vitesseAvant || 1; majVitesse(); }
+}
+
+/* =====================================================================
+   13. INTERACTIONS — dont le creusement au doigt
+   ===================================================================== */
+
+const DOCK = [
+  { tab: "creuser", ico: "creuser", nom: "Creuser" },
+  { tab: "colons", ico: "colon", nom: "Colons" },
+  { tab: "dehors", ico: "dehors", nom: "Dehors" },
+  { tab: "silence", ico: "silence", nom: "Silence" },
+];
+
+let modeCreuse = false;
+const digbar = document.getElementById("digbar");
+
+function construireDock() {
+  const d = document.getElementById("dock");
+  d.textContent = "";
+  for (const b of DOCK) {
+    const btn = document.createElement("button");
+    btn.dataset.tab = b.tab;
+    btn.appendChild(icon(b.ico, 20));
+    const s = document.createElement("span"); s.textContent = b.nom;
+    btn.appendChild(s);
+    btn.onclick = () => {
+      ac();
+      if (b.tab === "silence") { basculerSilence(); return; }
+      if (b.tab === "creuser") { basculerCreuse(); return; }
+      if (tabOuvert === b.tab) { fermerSheet(); return; }
+      for (const x of d.querySelectorAll("button")) if (x.dataset.tab !== "creuser") x.classList.remove("on");
+      btn.classList.add("on");
+      if (b.tab === "colons") panneauColons();
+      if (b.tab === "dehors") panneauDehors();
+      sfx("tap");
+    };
+    d.appendChild(btn);
+  }
+}
+
+function basculerCreuse() {
+  modeCreuse = !modeCreuse;
+  fermerSheet();
+  stage.classList.toggle("creuse", modeCreuse);
+  digbar.classList.toggle("show", modeCreuse);
+  if (modeCreuse) majDigbar(null);
+  sfx("tap");
+  majHud();
+}
+
+// --- coordonnées écran -> cellule ------------------------------------------
+function cellDe(ev) {
+  const r = scene.getBoundingClientRect();
+  const k = W / r.width;
+  const ux = (ev.clientX - r.left) * k, uy = (ev.clientY - r.top) * k;
+  return [Math.floor(ux / CELL), Math.floor(uy / CELL)];
+}
+
+let drag = null;
+
+function majDigbar(a, rect) {
+  if (!a) {
+    digbar.innerHTML = "<div class='dt'>Trace une salle au doigt dans la terre.<br>" +
+      "<span class='ds'>Elle doit toucher ce qui est déjà creusé. " + BAL.portee + " cellules de large au maximum.</span></div>" +
+      "<button class='btn sm' id='digend'>Terminé</button>";
+    document.getElementById("digend").onclick = () => basculerCreuse();
+    return;
+  }
+  const co = COUCHE(TERRE[key(rect.c, rect.r)] || 0);
+  digbar.innerHTML = "<div class='dt'>" +
+    (a.ok
+      ? "<b>" + rect.w + "×" + rect.h + "</b> dans " + co.nom.toLowerCase() +
+        " · <b>" + a.matos + "</b> matos · <b>" + a.sec + " s</b> · <b>" + a.deblais + " m³</b> à sortir" +
+        "<br><span class='ds'>" + Math.round(a.couv) + " de roche au-dessus → exposition ×" + fmt(EXPO(a.couv)) +
+        (a.nappe ? " · <b>de l'eau</b>" : "") + (a.filon ? " · <b>de la ferraille</b>" : "") + "</span>"
+      : "<span class='no'>" + a.raison + "</span>") +
+    "</div>";
+}
+
+function apercuRect(rect, ok) {
+  const g = document.getElementById("apercu");
+  if (!g) return;
+  g.textContent = "";
+  if (!rect) return;
+  const x = rect.c * CELL, y = rect.r * CELL, w = rect.w * CELL, h = rect.h * CELL;
+  el("rect", { x, y, width: w, height: h,
+    fill: ok ? "rgba(51,64,154,.16)" : "rgba(180,69,60,.18)" }, g);
+  penRect(g, x, y, w, h, { seed: 4242, w: 2, amp: 1.6, col: ok ? "#33409a" : "#b4453c" });
+}
+
+scene.addEventListener("pointerdown", (ev) => {
+  ac();
+  if (!modeCreuse) return;
+  const [c, r] = cellDe(ev);
+  if (!dansGrille(c, r)) return;
+  drag = { c0: c, r0: r, c, r };
+  scene.setPointerCapture(ev.pointerId);
+  majDrag();
+  ev.preventDefault();
+});
+
+scene.addEventListener("pointermove", (ev) => {
+  if (!drag) return;
+  const [c, r] = cellDe(ev);
+  drag.c = clamp(c, 0, GW - 1); drag.r = clamp(r, 0, GH - 1);
+  majDrag();
+  // pour atteindre le fond sans sortir du mode : la coupe suit le doigt
+  const b = stage.getBoundingClientRect();
+  if (ev.clientY > b.bottom - 70) stage.scrollTop += 7;
+  else if (ev.clientY < b.top + 70) stage.scrollTop -= 7;
+  ev.preventDefault();
+});
+
+function rectDrag() {
+  const c = Math.min(drag.c0, drag.c), r = Math.min(drag.r0, drag.r);
+  return { c, r, w: Math.abs(drag.c - drag.c0) + 1, h: Math.abs(drag.r - drag.r0) + 1 };
+}
+function majDrag() {
+  const rc = rectDrag();
+  const a = apercuCreuse(rc.c, rc.r, rc.w, rc.h);
+  apercuRect(rc, a.ok);
+  majDigbar(a, rc);
+}
+
+scene.addEventListener("pointerup", (ev) => {
+  if (!drag) return;
+  const rc = rectDrag();
+  drag = null;
+  apercuRect(null);
+  const fait = creuser(rc.c, rc.r, rc.w, rc.h);
+  majDigbar(null);
+  if (fait) { _creuse = null; _ouvert = null; _revele = null; }
+  ev.preventDefault();
+});
+scene.addEventListener("pointercancel", () => { drag = null; apercuRect(null); majDigbar(null); });
+
+scene.addEventListener("click", (ev) => {
+  if (modeCreuse) return;
+  ac();
+  const room = ev.target.closest(".room");
+  if (room) { const e = excById(+room.dataset.id); if (e) { panneauSalle(e); sfx("tap"); } }
+});
+
+document.getElementById("sheetclose").onclick = fermerSheet;
+document.getElementById("heatbar").onclick = () => {
+  ac();
+  if (tabOuvert === "soupcon") { fermerSheet(); return; }
+  for (const x of document.querySelectorAll("#dock button")) if (x.dataset.tab !== "creuser") x.classList.remove("on");
+  panneauSoupcon(); sfx("tap");
+};
+
+for (const b of document.querySelectorAll("#speed button")) {
+  b.onclick = () => { ac(); S.speed = +b.dataset.sp; majVitesse(); };
+}
+function majVitesse() {
+  for (const b of document.querySelectorAll("#speed button")) b.classList.toggle("on", +b.dataset.sp === S.speed);
+}
+
+function toast(txt, kind) {
+  const t = document.createElement("div");
+  t.className = "toast " + (kind || "");
+  t.textContent = txt;
+  const box = document.getElementById("toasts");
+  box.appendChild(t);
+  setTimeout(() => { t.style.transition = "opacity .4s"; t.style.opacity = "0"; }, 2600);
+  setTimeout(() => t.remove(), 3100);
+  while (box.children.length > 3) box.firstChild.remove();
+}
+
+function majTout() {
+  if (dirty) { const y = stage.scrollTop; _creuse = null; _ouvert = null; _revele = null;
+    renderScene(); stage.scrollTop = y; }
+  majHud();
+}
+
+/* =====================================================================
+   14. BOUCLE
+   ===================================================================== */
+
+let last = performance.now(), acc = 0, saveCd = 0, hudCd = 0;
+function boucle(now) {
+  const real = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  if (!modalOuverte && S.speed > 0 && !S.gameover) {
+    acc += real * S.speed;
+    while (acc >= 0.1) { step(0.1); acc -= 0.1; }
+    saveCd -= real;
+    if (saveCd <= 0) { sauver(); saveCd = 5; }
+  }
+  animerColons(real);                 // les bonshommes, eux, bougent à chaque image
+  hudCd -= real;
+  if (dirty || hudCd <= 0) { majTout(); hudCd = 0.14; }
+  requestAnimationFrame(boucle);
+}
+
+/* =====================================================================
+   15. DÉMARRAGE
+   ===================================================================== */
+
+S = charger() || nouvellePartie();
+construireHud();
+construireDock();
+majVitesse();
+renderScene();
+majHud();
+
+// on cadre sur l'entrée : c'est là que tout commence
+if (S.exc[0]) {
+  requestAnimationFrame(() => {
+    const k = stage.clientWidth / W;
+    stage.scrollTop = Math.max(0, (S.exc[0].r * CELL - 205) * k);
+  });
+}
+
+document.addEventListener("visibilitychange", () => { if (document.hidden) sauver(); });
+window.addEventListener("pagehide", sauver);
+
+if (S.t === 0 && !S.log.length) {
+  const t = TAILLES.find((x) => x.cle === S.village.taille);
+  journal("On ouvre la colline au-dessus de " + S.village.nom + ".");
+  carte("Sous la colline", "Personne ne sait que vous êtes là",
+    "Trois personnes, un puits, et " + S.village.nom + " en bas — un " + t.nom + " de " +
+    S.village.pop + " habitants.\n\n" +
+    "Ici, rien n'est prévu : vous tracez vos salles au doigt, où vous voulez, dans la roche que " +
+    "vous trouverez. Plus vous descendez, moins on vous entend — mais plus c'est long et cher, " +
+    "et toute la terre que vous sortez finit en tas derrière la grange.\n\n" +
+    "Il n'y a pas de partie à gagner. Il y a une colline, et ce que vous en ferez.",
+    [{ n: "Prendre la pioche", d: "Touche « Creuser », puis trace un rectangle au doigt.", f: () => {} }]);
+}
+
+if (location.search.includes("debug")) {
+  window.CC = {
+    etat: () => S, reset: recommencer, step, creuser, amenager, affecter, lancerOp, lancerEvac,
+    poserFacade, acheter, basculerSilence, ajouterColon, reboucher,
+    signature, signatureDetail, tolerance, bilanEnergie, bilanAir, prodNette, placesLits,
+    capacites, excById, occupants, postesEff, postesMax, couvertureExc, apercuCreuse, aire,
+    EXPO, creuse: () => creuse(), surNappe, cavitesLibres, paliers, majJalons,
+    FONCTIONS, BAL, OPS, TALENTS, TRAITS, TAILLES, COUCHES, EVACUATIONS, FACADE_ORDRE, JALONS,
+    GW, GH, CELL, SOL: () => SOL, TERRE: () => TERRE, ACC: () => ACC,
+    repondreCarte: () => {
+      const b = [...document.querySelectorAll("#card .opt")].find((x) => !x.disabled);
+      if (b) { b.click(); return true; }
+      return false;
+    },
+    modaleOuverte: () => modalOuverte,
+  };
+}
+
+requestAnimationFrame(boucle);
+</script>
+</body>
+</html>

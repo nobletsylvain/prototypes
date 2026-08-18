@@ -37,6 +37,13 @@ fichier `index.html` (HTML + CSS + un module JS), Three.js chargé via import-ma
 - Hash Slicer : persistance via `localStorage` (`hash_*`). La clé `hash_ver`
   force un reset propre : **bumper `SAVE_VERSION`** dans
   `hash-slicer/index.html` après un gros rééquilibrage.
+- **Équilibrer par la mesure, pas à l'intuition** : quand un proto a une
+  économie (stocks, production, jauges), exposer le moteur derrière un
+  paramètre d'URL (`?debug` → `window.CC = { etat, step, actions… }`) et
+  écrire un script `tools/sim-<slug>.mjs` qui joue N minutes en headless avec
+  2-4 stratégies contrastées. La Colline Creuse a sorti trois défauts
+  structurels dès la première exécution (spirale de la mort, blocage de
+  partie, asphyxie initiale) — voir `NOTES.md` du 2026-08-17.
 
 ## Notes & règles vivantes
 

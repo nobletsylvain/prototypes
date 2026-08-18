@@ -116,6 +116,113 @@ Prototypes de vérification du fun pour **Airliner** (tycoon aérien "Football M
 
 > Desktop d'abord (colonnes 60/40, repli une colonne < ~860 px). RNG seedé — « Rejouer même seed » pour itérer à l'identique.
 
+## ⛰️ La Colline Creuse (core loop)
+
+Colonie souterraine **en coupe verticale**, dessinée **au stylo bille sur du
+papier** — tout le rendu est du SVG généré avec un bruit seedé (même partie =
+même tremblement de main). HTML/CSS/JS vanilla, **zéro dépendance, zéro
+requête réseau**. Mobile-first portrait.
+
+Inspirations assumées : **Fallout Shelter** (salles en coupe, colons affectés
+aux postes, ressources, incidents) et **Evil Genius** (repaire caché, façade
+de surface, jauge de chaleur).
+
+**Le pitch :** vous creusez sous une colline une colonie que le monde extérieur
+ne doit pas soupçonner. Tout ce qui fait vivre la colonie finit par se voir de
+dehors — et plus vous grandissez, plus vous êtes détectable.
+
+**Les quatre tensions, emboîtées :**
+
+1. **La survie** — ⚡ énergie, 🌬️ air, 💧 eau, 🍲 vivres, 🔩 matos. Quand le
+   courant manque, il n'est pas rationné : il **descend dans l'ordre et
+   s'arrête là où il n'y en a plus**. La pompe et la ventilation passent avant
+   l'atelier et la salle commune.
+2. **Le secret** — chaque salle allumée émet une *signature*. Le monde en
+   tolère une certaine dose ; au-delà, le **soupçon** monte. La barre de
+   soupçon est **tapable** : elle ouvre le détail poste par poste (« Groupe
+   électrogène +6,4 · rangée 2 ×1,2 »), pour qu'un raid soit toujours
+   explicable en une phrase.
+3. **La façade** — rucher, scierie, chantier de fouilles : elle augmente ce que
+   le monde tolère, rapporte du liquide, ouvre l'achat légal au village… et
+   peut être contrôlée.
+4. **La puissance sur l'extérieur** — sorties d'équipe (ferraille, dépôt,
+   recrutement, brouiller les pistes). C'est le seul robinet de matos au
+   départ : **rester terré ne suffit pas**.
+
+**Les décisions qui comptent :**
+
+- **Où creuser.** L'exposition est écrite sur le bouton *avant* l'achat :
+  rangée 1 ×1,45, rangée 8 ×0,45. La même salle est trois fois plus visible
+  sous la pelouse qu'à quarante mètres — mais creuser profond coûte plus cher.
+- **Le régime de chaque salle** (éteinte / au ralenti / normal / poussée) :
+  produire plus, c'est se voir plus, et user les gens.
+- **Le silence radio.** Quand un appareil approche, un compte à rebours
+  s'affiche : tout couper, ou parier. Rater le survol fait **entourer au stylo
+  rouge** la salle repérée — elle reste 60 % plus visible jusqu'à ce qu'on la
+  rebouche.
+- **Nourrir la colonie** : acheter au village (propre, cher, il faut une
+  façade), marauder (gratuit, gros volume, ça se voit), ou cultiver (serre :
+  énergie + eau, et ça chauffe).
+
+**Objectif de session :** l'autonomie — 10 colons, tous les bilans positifs
+tenus une minute, sans que la colline ait été trouvée. **Défaite :** la
+descente (soupçon à 100) ou la colonie vidée.
+
+Persistance `localStorage` préfixée `colline_` (`SAVE_VERSION`).
+Sons WebAudio synthétisés, aucun fichier.
+
+### Jouer
+
+- En ligne : **https://nobletsylvain.github.io/prototypes/colline-creuse/**
+- En local : ouvrir `colline-creuse/index.html` — aucune connexion requise.
+
+### Outils
+
+```bash
+cd tools && npm install
+node shots-colline.mjs --full   # captures
+node test-colline.mjs           # persistance · objectif · délestage · tenue
+node sim-colline.mjs            # équilibrage : 4 stratégies jouées 15 min
+```
+
+### ⛏️ La Colline Creuse v2 (fork bac à sable)
+
+`colline-creuse-v2/` reprend la v1 et la retourne en **bac à sable façon RimWorld** :
+la colline n'est plus une grille d'emplacements, c'est **une colline générée** qu'on
+creuse au doigt. Trois changements de nature :
+
+- **Le sous-sol est procédural et se lit.** Une graine génère le profil du terrain et
+  six couches (terre, limon, argile, calcaire, marne, granite), chacune avec sa dureté,
+  son motif de hachures et son coût. Puis des accidents : **nappe phréatique**,
+  **cavités**, **ancienne carrière**, **décharges enfouies**, **blocs erratiques**.
+  Les couches se voient de loin (c'est de la géologie) ; **les accidents ne se
+  découvrent qu'à la pioche**, dans un rayon de deux cellules autour de ce qu'on a
+  creusé. Même graine = même colline, à la cellule près.
+- **On trace ses salles au doigt.** Mode « Creuser », puis un drag trace un rectangle.
+  Sous le doigt s'affiche en direct ce que ça coûte : `4×2 dans argile · 7 matos ·
+  11,8 s · 8 m³ à sortir · 101 de roche au-dessus → exposition ×1`. L'union de tout ce
+  qui est creusé est dessinée **d'un seul trait de stylo continu** (contour suivi par
+  chaînage d'arêtes). Deux verbes : **creuser** un espace brut, puis **l'aménager** —
+  et c'est **la taille de l'espace qui décide de la capacité** (un poste par tranche
+  de 4 cellules).
+- **Les déblais.** Chaque mètre cube sorti de la colline finit quelque part. Le tas
+  derrière la grange **grossit à l'écran** et pèse directement dans la signature :
+  c'est historiquement ce qui fait repérer les souterrains. Quatre façons de s'en
+  débarrasser (le laisser, reboucher une cavité, épandre de nuit, le vendre comme
+  remblai au village), chacune avec son coût en temps, en gens et en discrétion.
+
+Le reste suit : **exposition continue** (l'épaisseur de roche au-dessus de chaque salle,
+pas un numéro de rangée), **village procédural** en surface (hameau → petite ville : ce
+qui change le marché, le recrutement, la fréquence des évènements et ce que le monde
+tolère), **colons à traits** (Taupe, Claustrophobe, Bavard, Recherché, Ancien mineur…)
+qui pèsent sur le jeu *et* sur les histoires, et **pas de condition de victoire** — des
+**jalons** qui se posent dans le cahier (L'eau, Le fond, Muet, Rien qui dépasse, L'oubli).
+
+```bash
+cd tools && node test-colline2.mjs   # graine · persistance · creusement · déblais · tenue
+cd tools && node dig-colline2.mjs    # simule de vrais drags au doigt et capture
+```
+
 ## 🟫 Hash Slicer (core loop)
 
 Mini-jeu mobile en **3D** (HTML + [Three.js](https://threejs.org/) chargé via CDN, un seul fichier `index.html`). Reskin humoristique d'un jeu de découpe/revente : chaîne de production en 3 niveaux, du gros au détail.

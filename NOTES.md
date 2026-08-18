@@ -9,6 +9,127 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-08-17 — La Colline Creuse v2 : bac à sable, sous-sol généré, creusement au doigt
+
+Retour de Sylvain sur la v1 : « en mode sandbox à la RimWorld, avec génération
+procédurale, et l'intérêt du joueur venant à construire leur propre histoire.
+Pourquoi pas tracer les salles au doigt ? Possibilité de commencer via un
+village ou une ville ? » Les trois idées se tiennent, donc fork `colline-creuse-v2/`
+(convention du dépôt : `green-front-v2`, `hash-slicer-v2`) — la v1 reste jouable
+comme point de comparaison, c'est elle le jeu « serré », la v2 est le bac à sable.
+
+- **Le creusement au doigt marche, et c'est le bon geste.** Drag = rectangle
+  snappé sur une grille de 13 unités, avec le coût en direct sous le doigt.
+  Le mode « Creuser » met `touch-action:none` sur la coupe (sinon le drag se
+  bat avec le défilement) et la coupe suit le doigt quand il approche du bas :
+  on peut descendre en creusant sans sortir du mode.
+- **Le contour d'un seul trait** est ce qui fait le rendu : on collecte les
+  arêtes entre creusé et non-creusé (orientées, donc elles forment des boucles
+  fermées), on les chaîne, et chaque boucle devient UN chemin tremblé. 34
+  espaces = 229 tracés, aucune image ratée. Les trous internes sont gérés
+  gratuitement par l'algorithme.
+- **Deux verbes valent mieux qu'un** : creuser un espace brut, puis l'aménager.
+  Ça rend la TAILLE du trou décisive (un poste par tranche de 4 cellules) et ça
+  laisse le joueur creuser en avance sans savoir encore ce qu'il y mettra.
+- **Les déblais sont la trouvaille.** Ils n'existaient pas en v1 parce que la
+  grille fixe ne connaissait pas le volume. Là, tout ce qu'on sort finit en tas
+  DESSINÉ en surface, qui grossit, en rouge, avec son cube — et qui compte dans
+  la signature. C'est le lien direct entre « je creuse » et « on va me trouver ».
+- **Bugs trouvés par les tests, pas par l'œil** : (1) on ne pouvait pas
+  enchaîner deux creusements, parce que l'accroche testait les cellules
+  *terminées* et pas le front de taille en cours — deux ensembles distincts
+  maintenant (`creuse()` pour le vide dessiné, `ouvert()` pour l'accroche) ;
+  (2) le bruit des limites de couches était tiré indépendamment par colonne →
+  dents de scie de 300 px ; il faut le lisser (4 passes de moyenne glissante)
+  pour obtenir de la géologie plutôt que des montagnes.
+- **Piège de tooling** : mon utilitaire de remplacement de sections calculait
+  les bornes UNE fois pour tout le fichier ; au deuxième remplacement les
+  offsets étaient périmés et coupaient le code en plein milieu. Recalculer à
+  chaque appel. (Le `node --check` l'a attrapé tout de suite.)
+- **Piège de test** : `localStorage.clear()` puis `reload()` ne donne pas une
+  partie neuve — le handler `pagehide` re-sauvegarde l'état juste avant de
+  décharger. Passer par `CC.reset(graine)` à la place.
+
+Ce qui reste à faire (la spec de conception v2 tournait encore quand on a livré) :
+narrateur qui pèse vraiment l'état, relations entre colons, habitants nommés du
+village, partie qui commence DEPUIS le village. Et il faut le tester au pouce :
+tout le reste est de la conjecture tant que ça n'a pas été joué sur un vrai
+téléphone.
+
+## 2026-08-17 — La Colline Creuse : nouveau core loop (colonie souterraine)
+
+Nouveau proto `colline-creuse/`, à partir d'un dessin d'enfance de Sylvain
+(bases souterraines sous une colline, cachées du monde extérieur). Colonie
+sim / city builder en **coupe verticale**, inspirations assumées **Fallout
+Shelter** + **Evil Genius**. Cadrage validé avec lui avant de coder :
+rendu **stylo bille**, **les quatre axes de tension** (survie, secret, façade,
+puissance sur l'extérieur), **temps réel avec pauses**.
+
+Les quatre axes sont emboîtés, pas juxtaposés : la survie est le sol, le
+secret la colonne vertébrale, la façade le levier qui l'atténue, les
+opérations extérieures ce qu'on achète avec son secret (et le seul robinet de
+matos au départ — rester terré ne suffit pas).
+
+- **Rendu** : SVG généré, aucun asset, aucun CDN. Traits tremblés par bruit
+  seedé (`mulberry32`) → la colline a toujours le même tracé. Le grain de
+  papier est une tuile `feTurbulence` en `background-image`, posée PAR-DESSUS
+  toute l'interface (en `multiply`) pour que le HUD et la coupe soient sur la
+  même feuille — en couche de fond, le HUD ressortait plus clair que la coupe.
+- **Un bonhomme = 3 poses de membres superposées** (pas gauche / pas droit /
+  repos), on change laquelle est visible. La marche ne redessine jamais un
+  trait — seule la position est mise à jour par image.
+- **Piège SVG** : `var(--hand)` dans un attribut `font-family` ne résout pas.
+  Le texte de la coupe est stylé par CSS (`#scene .rlbl`), pas par attributs.
+
+### Ce que la simulation a trouvé (et que l'intuition n'avait pas vu)
+
+`tools/sim-colline.mjs` joue 4 stratégies (naïf / prudent / pillard /
+équilibré) en headless via une sonde `?debug` qui expose le moteur. Trois
+défauts structurels sortis dès la première exécution, tous corrigés :
+
+- **Spirale de la mort par l'énergie.** Le manque de courant bridait *tout* au
+  prorata, y compris la pompe à eau → plus d'eau → moral à zéro → départs →
+  encore moins de production. Remplacé par un **délestage par priorité** (façon
+  Fallout Shelter) : le courant descend dans un ordre fixe et s'arrête là où il
+  n'y en a plus. On coupe l'atelier, jamais la pompe. Lisible *et* non spiralant.
+- **La panne pouvait bloquer une partie.** L'option « laisser tourner » coupait
+  le groupe électrogène définitivement, sans issue visible si on n'avait plus
+  de matos. Elle le met maintenant **en panne** (moitié de production, 1,7× de
+  signature), réparable depuis la salle — ce que le texte de l'évènement
+  promettait déjà.
+- **Asphyxie dès la minute 0.** L'air manquait avant qu'une ventilation soit
+  payable. Ajout d'un tirage naturel par le puits (`airTrappe`), qui suffit
+  tant qu'on reste haut et peu nombreux : l'air devient un problème quand on
+  descend, pas à l'ouverture.
+
+### Reprises de la passe de conception (plugins gamedev)
+
+- **L'exposition par rangée** est une table écrite sur le bouton *avant*
+  l'achat (×1,45 en haut → ×0,45 en bas), pas une formule invisible.
+- **La barre de soupçon est tapable** → décomposition poste par poste. Un raid
+  doit toujours être explicable en une phrase ; c'est le test à faire au
+  téléphone.
+- **Salle repérée** : un survol raté entoure la salle au stylo rouge, +60 % de
+  signature définitivement, seul le rebouchage l'efface.
+- **Régime de travail par salle** (éteinte / ralenti / normal / poussée) : le
+  dilemme secret-vs-production posé salle par salle, et de la texture pendant
+  les temps de latence.
+- Rejeté : les paliers indexés sur le matos cumulé dépensé (deadlock d'amorçage
+  démontré par les critiques), et la contrainte « zéro scroll / 5 rangées » —
+  la coupe scrolle, comme Fallout Shelter, et c'est ce qui donne le vertige de
+  la profondeur.
+
+### Reste ouvert
+
+- Personne n'a encore gagné en simulation : le bot d'équilibrage plafonne à
+  ~9 colons sur les 10 requis (il sur-construit les puits et ne staffe pas ses
+  ventilations). `test-colline.mjs` prouve qu'un état autonome **déclenche**
+  bien la victoire ; reste à vérifier au doigt qu'un humain y arrive en
+  20-30 min. **C'est la question du premier playtest.**
+- Polices manuscrites : Bradley Hand / Noteworthy existent sur iOS, rien
+  d'équivalent garanti sur Android ou en headless (repli sans-serif). À voir
+  sur le téléphone de Sylvain.
+
 ## 2026-08-01 — `la-plaza/` : le PvP économique, testé et **invalidé**
 
 Après El Patrón, Sylvain a ouvert une autre exploration : mobile F2P multijoueur,
