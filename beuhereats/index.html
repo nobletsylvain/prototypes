@@ -192,6 +192,19 @@ const prodList = Object.entries(PRODUCTS).map(([id,p]) => ({ id, ...p }));
 // En embed, UN SEUL produit circule (celui du Bigo) ; les autres sont masqués.
 const activeProds = EMBED ? prodList.filter(p => p.id === EMBED_PROD) : prodList;
 
+/* --- Référentiel BUS.md (le-bigo/BUS.md « Économie partagée ») ----------- */
+// EMBED seulement. Une seule courbe de valeur : street(q) = 4 + 0.09 × q (€/g),
+// q = qualité 0-100 du stock fini partagé (dernier bigo-state du parent).
+// Canal 🛵 BeuherEats livraison = ×0.85 (canal volume, frais de course en sus) ;
+// le premium du point de deal (0.9-1.35) s'applique par-dessus, comme en standalone.
+const STREET_BASE_EURG  = 4;      // street(q) = STREET_BASE_EURG + STREET_QUAL_K × q
+const STREET_QUAL_K     = 0.09;   //   (q50→8.5, q65→9.9, q80→11.2 €/g)
+const CANAL_LIVRAISON_X = 0.85;   // canal volume BeuherEats (BUS.md)
+const EMBED_QUAL_DEFAUT = 50;     // q avant réception du 1er bigo-state
+let embedQ = EMBED_QUAL_DEFAUT;   // q du stock fini partagé, resync à chaque bigo-state
+// prix de base €/g d'une commande en embed — référentiel BUS.md
+const embedBaseEurG = () => (STREET_BASE_EURG + STREET_QUAL_K * embedQ) * CANAL_LIVRAISON_X;
+
 /* --- Points de deal (tes "restos" sur la plateforme) ------------------- */
 // premium = multiplie le prix payé par le client ; expo = sensibilité heat de la zone.
 const DEALPOINTS = [
@@ -235,8 +248,13 @@ const ORDER_POOL = [
 /* =========================== Fonctions déterministes ==================== */
 const surge       = h => 1 + SURGE_K * (h / HEAT_CAP);
 const eta         = (c,d) => Math.round(c.eta * (0.5 + d.dist / 12));
-const orderEurG   = o => Math.round(PRODUCTS[o.prod].retail * dealById(o.deal).premium);
-const orderPay    = o => o.qty * orderEurG(o);
+// €/g d'une commande : en embed, référentiel BUS.md (street(q) × canal livraison),
+// jamais le retail standalone ; le premium du point s'applique dans les deux modes.
+const orderEurG   = o => EMBED
+  ? embedBaseEurG() * dealById(o.deal).premium
+  : Math.round(PRODUCTS[o.prod].retail * dealById(o.deal).premium);
+const orderPay    = o => Math.round(o.qty * orderEurG(o));
+const fmtEurG     = o => EMBED ? orderEurG(o).toFixed(2) : orderEurG(o);   // affichage
 // risque d'une TOURNÉE : volume cumulé absolu × exposition × manque de fiabilité.
 const runRisk     = (c, totalG) => c.expo * (1 - c.fiab) * (totalG / SEUIL_DISCRET_G);
 const runBusted   = (c, totalG) => totalG > 0 && runRisk(c, totalG) >= SEUIL_BUST;
@@ -461,7 +479,7 @@ function renderOrders() {
           <span class="cust">@${o.cust}</span>
           <span class="pay">${orderPay(o)} €</span>
         </div>
-        <div class="det"><span class="prodtag">${p.emoji} ${o.qty} g ${p.nm}</span> · ${d.emoji} ${d.nm} · fenêtre ${o.fen} min · ${orderEurG(o)} €/g</div>
+        <div class="det"><span class="prodtag">${p.emoji} ${o.qty} g ${p.nm}</span> · ${d.emoji} ${d.nm} · fenêtre ${o.fen} min · ${fmtEurG(o)} €/g</div>
         ${noStock ? `<div class="nostock">Stock ${p.nm} insuffisant (${S.stock[o.prod]} g en entrepôt) — passe par l'Entrepôt.</div>` : `
         <div class="couriers">
           ${COURIERS.map(cc => {
@@ -688,6 +706,8 @@ if (EMBED) {
     if (typeof d.cash === 'number') S.cash = Math.round(d.cash);
     if (typeof d.heat === 'number') S.heat = Math.max(0, Math.min(HEAT_CAP, Math.round(d.heat)));
     if (d.fini && typeof d.fini.g === 'number') S.stock[EMBED_PROD] = Math.max(0, Math.round(d.fini.g));
+    // qualité du stock partagé → pilote le prix des commandes (référentiel BUS.md)
+    if (d.fini && typeof d.fini.q === 'number') embedQ = Math.max(0, Math.min(100, d.fini.q));
     save();
     if (S.tab === 'track') renderHud();   // ne pas relancer l'animation de suivi
     else render();
