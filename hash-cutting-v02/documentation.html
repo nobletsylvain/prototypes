@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f5efdf">
+  <meta name="description" content="Mode d’emploi et documentation de Sous la lame V02 : geste de coupe, matière, miettes et son. Étude interactive hors Unity.">
+  <title>Sous la lame · Documentation V02</title>
+  <style>
+    :root{color-scheme:light;--paper:#f5efdf;--card:#fffaf0;--ink:#35291f;--muted:#6e5b48;--line:#d9ccb7;--brown:#67472e;--accent:#a05d36;--soft:#eae0cb}
+    *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:6rem}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.65 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--brown);text-underline-offset:.2em}a:focus-visible{outline:3px solid var(--accent);outline-offset:5px}p{margin:.8rem 0 1rem}h1,h2,h3{line-height:1.15;text-wrap:balance}h1{font-size:clamp(2.7rem,9vw,5.1rem);letter-spacing:-.055em;margin:.65rem 0 1.1rem;font-weight:750}h2{font-size:clamp(1.7rem,4vw,2.35rem);letter-spacing:-.035em;margin:.5rem 0 1.3rem}h3{font-size:1.12rem;margin:0 0 .5rem}strong{font-weight:700}img{display:block;max-width:100%;height:auto}button,a{-webkit-tap-highlight-color:transparent}
+    .skip{position:fixed;top:-5rem;left:1rem;padding:.6rem 1rem;background:var(--ink);color:#fff;z-index:4}.skip:focus{top:1rem}.wrap{width:min(100% - 2.4rem,1040px);margin-inline:auto}.top{position:sticky;top:0;z-index:2;background:rgba(245,239,223,.97);border-bottom:1px solid var(--line)}.top nav{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:78px}.brand{text-decoration:none;font-weight:750;letter-spacing:-.025em;color:var(--ink)}.brand span{display:block;font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;font-weight:550;color:var(--muted)}.button{display:inline-flex;justify-content:center;align-items:center;gap:.65rem;min-height:48px;padding:.65rem 1.15rem;background:var(--brown);color:#fffaf0;border-radius:5px;text-decoration:none;font-size:.9rem;font-weight:650;line-height:1.2}.button:hover{background:#4d3423}.button .arrow{font-size:1.25rem}.hero{position:relative;padding:4.4rem 0 3rem;overflow:hidden}.hero::after{content:"";position:absolute;right:-2rem;top:2rem;width:230px;height:200px;background:#e6d9ba;clip-path:polygon(15% 0,100% 30%,82% 100%,0 62%);opacity:.5;z-index:-1}.eyebrow,.number{font-size:.72rem;letter-spacing:.15em;text-transform:uppercase;font-weight:750;color:var(--accent)}.lead{font-size:clamp(1.12rem,2.5vw,1.35rem);line-height:1.55;max-width:720px}.intro{max-width:760px}.status{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1.5rem}.pill{padding:.28rem .65rem;border:1px solid var(--line);border-radius:3px;color:var(--muted);font-size:.77rem;background:var(--card)}section.content{padding:2.7rem 0;border-top:1px solid var(--line)}.text{max-width:800px}.hint{border-left:3px solid var(--accent);padding:.75rem 1.1rem;background:var(--soft);margin:1.4rem 0;font-size:.94rem}.steps{padding:0;list-style:none;counter-reset:step;display:grid;gap:.8rem}.steps li{counter-increment:step;position:relative;padding:1rem 1.1rem 1rem 3.7rem;background:var(--card);border:1px solid var(--line);border-radius:5px}.steps li::before{content:counter(step,decimal-leading-zero);position:absolute;left:1rem;top:1.1rem;color:var(--accent);font-size:.8rem;font-weight:750}.steps strong{display:block}.sequence{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:1.5rem 0}.sequence article{padding:1.15rem;background:var(--card);border-top:3px solid var(--line)}.sequence p{font-size:.92rem;margin:.5rem 0 0}.sequence .small{font-size:.72rem;font-weight:750;letter-spacing:.1em;color:var(--accent);display:block;margin-bottom:.7rem}figure{margin:1.8rem 0 0;background:#e9e1d0;border:1px solid var(--line);border-radius:5px;overflow:hidden}figure img{width:100%;aspect-ratio:1060/740;object-fit:contain}figcaption{padding:1rem 1.15rem;background:var(--card);font-size:.87rem;line-height:1.55;color:var(--muted)}figcaption strong{display:block;color:var(--ink);margin-bottom:.25rem}.profiles{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:1.5rem 0}.profile{padding:1.25rem;border:1px solid var(--line);background:var(--card);border-radius:5px}.profile.featured{border-color:var(--brown);box-shadow:inset 0 3px var(--brown)}.profile p{font-size:.94rem;margin:.6rem 0 0}.profile .default{display:block;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:.6rem}.equation{font-size:clamp(1.08rem,3.5vw,1.55rem);font-weight:700;line-height:1.45;text-align:center;padding:1.5rem 1rem;margin:1.5rem 0;background:var(--soft);border:1px solid var(--line);border-radius:5px}.equation span{white-space:nowrap}.checks{display:grid;grid-template-columns:repeat(5,1fr);margin:1.2rem 0 1.5rem;border:1px solid var(--line);border-radius:5px;overflow:hidden;background:var(--card)}.checks div{padding:.85rem .6rem;text-align:center;border-right:1px solid var(--line)}.checks div:last-child{border:0}.checks dt{font-size:.77rem;color:var(--muted)}.checks dd{margin:0;font-size:1.5rem;font-weight:750;line-height:1.3}.foot{padding:2.5rem 0 3rem;border-top:1px solid var(--line)}.foot p{font-size:.85rem;color:var(--muted)}.foot .button{margin:.5rem 0 1rem}
+    @media(min-width:760px){.steps{grid-template-columns:1fr 1fr}.steps li:last-child{grid-column:1/-1}.hero{padding-top:5rem}.hero::after{width:340px;height:300px;right:0}}
+    @media(max-width:600px){body{font-size:16px}.wrap{width:calc(100% - 2rem)}.top nav{min-height:72px;gap:.5rem}.button{padding:.65rem .85rem;font-size:.82rem}.hero{padding:2.7rem 0 2.2rem}.hero::after{right:-5rem}.sequence{grid-template-columns:1fr;gap:.6rem}.sequence article{padding:1rem}.profiles{grid-template-columns:1fr;gap:.65rem}.checks{grid-template-columns:repeat(3,1fr)}.checks div{border-bottom:1px solid var(--line)}.checks div:nth-child(3){border-right:0}.checks div:nth-child(n+4){border-bottom:0}.checks div:last-child{border-right:1px solid var(--line)}section.content{padding:2.2rem 0}.hint{padding:.7rem .9rem}.brand{font-size:.93rem}.brand span{font-size:.6rem}figure{margin-top:1.3rem}figcaption{padding:.9rem 1rem}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+    @media print{.top{position:static}.button,.skip{display:none}body{font-size:11pt}.hero{padding:1rem 0}section.content{padding:1rem 0}figure,.profile,.sequence article{break-inside:avoid}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#documentation">Aller à la documentation</a>
+  <header class="top">
+    <nav class="wrap" aria-label="Navigation principale">
+      <a class="brand" href="index.html">Sous la lame<span>Documentation · V02</span></a>
+      <a class="button" href="index.html">Essayer la démo <span class="arrow" aria-hidden="true">↗</span></a>
+    </nav>
+  </header>
+  <main id="documentation" class="wrap">
+    <div class="hero">
+      <div class="eyebrow">Étude de coupe · 5 novembre 2026</div>
+      <h1>Sous la lame.</h1>
+      <p class="lead">Sentir le contact, l’effort puis la cession. Une proposition pour travailler le geste de coupe, les réactions de la matière et le son.</p>
+      <p class="intro">La V02 répond au retour sur la première version : « Le mouvement du couteau est assez basique », avec une demande de davantage d’effets visuels, de sons, de miettes et de petits détails. Ce retour guide la révision ; il ne vaut pas acceptation de cette nouvelle version.</p>
+      <div class="status" aria-label="Statut de l’étude"><span class="pill">V02 à essayer</span><span class="pill">Hors Unity</span><span class="pill">V01 conservée</span></div>
+    </div>
+
+    <section class="content" aria-labelledby="essayer">
+      <div class="number">01 · Prise en main</div><h2 id="essayer">Sur téléphone, commence ici.</h2>
+      <ol class="steps">
+        <li><strong>Active les sons.</strong>Ils sont coupés au départ. Touche « Activer les sons », puis ajuste le volume, réglé initialement à 65 %.</li>
+        <li><strong>Maintiens le bouton de coupe.</strong>Garde le doigt sur « Maintenir pour couper », puis relâche entre deux portions. Sur ordinateur, la touche C fonctionne aussi.</li>
+        <li><strong>Commence en Dense.</strong>Compare ensuite Franche et Souple en gardant la même matière. Essaie aussi « Comparer sans retours ».</li>
+        <li><strong>Observe au ralenti.</strong>Le bouton ralentit la démonstration à 40 % pour examiner le contact, le tirage et le retour de la lame.</li>
+        <li><strong>Pousse, balaie et range.</strong>Fais glisser sur la planche pour déplacer les portions et les miettes reposées. « Ranger les morceaux » libère la planche tout en conservant les identités et les masses.</li>
+      </ol>
+      <p class="hint">Une coupe demande <strong>0,65 seconde simulée</strong>. Un maintien produit une seule portion. Relâcher avant validation annule sans retirer de matière.</p>
+    </section>
+
+    <section class="content" aria-labelledby="geste">
+      <div class="number">02 · Le mouvement</div><h2 id="geste">Un geste en plusieurs temps.</h2>
+      <div class="sequence">
+        <article><span class="small">01 / Approche &amp; contact</span><h3>La lame rencontre la surface.</h3><p>Lame inclinée, manche et rivets bougent ensemble. Le petit contact et la poussière localisée commencent au toucher réel, sans frottement préalable.</p></article>
+        <article><span class="small">02 / Effort &amp; cession</span><h3>La matière retient, puis cède.</h3><p>Le mouvement tire et bascule sous charge. La compression reste proche de la coupe, avec un sillon, une friction granulaire, puis des microcraquements et des éclats.</p></article>
+        <article><span class="small">03 / Pose &amp; retour</span><h3>Le morceau retombe.</h3><p>La vraie tranche se sépare et bascule sur la planche. Son arrivée possède un son distinct. La lame remonte avec un recul amorti ; des grains se détachent de son bas.</p></article>
+      </div>
+      <figure><img src="images/dense-load.png" width="1060" height="740" alt="Vue low poly du pain sur une planche, avec le couteau incliné et engagé sur son bord droit." loading="lazy" decoding="async"><figcaption><strong>Effort sous la lame.</strong>Inclinaison et tirage pendant le maintien. Image calculée à partir des commandes de dessin, puis rasterisée ; ce n’est pas une capture de navigateur.</figcaption></figure>
+    </section>
+
+    <section class="content" aria-labelledby="details">
+      <div class="number">03 · Les petits détails</div><h2 id="details">Des miettes qui restent, un son qui suit.</h2>
+      <div class="text">
+        <p>Les miettes ont plusieurs tailles : elles rebondissent, roulent et restent <strong>35 à 50 secondes simulées</strong>, dans une limite de <strong>230 particules</strong>. La poussière disparaît plus vite. Leurs appuis suivent le pain et les barrettes ; si un appui disparaît, elles reprennent leur chute. Le balayage à la lame déplace celles qui reposent sur une surface.</p>
+        <p>La face fraîche, le sillon et les traces de lame sont des propositions visuelles désactivables séparément. La caméra reste stable par défaut. Les miettes sont décoratives : elles n’ajoutent aucune perte de grammes.</p>
+        <p>Une friction continue accompagne l’effort. Six événements complètent le son : <strong>contact, cession, retombée, miettes, raclement de poussée ou rangement, interruption</strong>. La cession mêle deux ou trois microcraquements à un choc très court sur la planche. Le niveau est réglable, comprimé et limité ; les sons varient par geste et les voix sont nettoyées après lecture.</p>
+        <p class="hint"><strong>Le son reste une proposition de synthèse à écouter.</strong> Il n’a pas reçu de validation d’écoute humaine et ne constitue pas les assets audio définitifs.</p>
+      </div>
+      <figure><img src="images/crumbs-resting.png" width="1060" height="740" alt="Une portion séparée du pain et de petites miettes réparties dans l’espace laissé par la coupe, avec la lame relevée." loading="lazy" decoding="async"><figcaption><strong>Une portion et ses miettes reposées.</strong>Les détails restent entre les gestes. Image calculée à partir des commandes de dessin, puis rasterisée ; ce n’est pas une capture de navigateur.</figcaption></figure>
+    </section>
+
+    <section class="content" aria-labelledby="profils">
+      <div class="number">04 · Comparer</div><h2 id="profils">Trois propositions de résistance.</h2>
+      <div class="profiles">
+        <article class="profile"><h3>Franche</h3><p>Retenue courte, coupe nette, craquement plus clair et davantage de petits éclats.</p></article>
+        <article class="profile featured"><span class="default">Sélection initiale</span><h3>Dense</h3><p>Charge marquée, cession mate et barrette qui retombe avec du poids.</p></article>
+        <article class="profile"><h3>Souple</h3><p>Coupe tirée plus progressive, relâchement amorti et son plus sourd.</p></article>
+      </div>
+      <p class="text">Aucun profil n’est déclaré validé. Les six matières A–F restent indépendantes de la résistance : leur couleur ne détermine aucune variété, puissance ou propriété réelle. Pour comparer, garde la même matière et change un réglage à la fois.</p>
+    </section>
+
+    <section class="content" aria-labelledby="matiere">
+      <div class="number">05 · Ce qui est conservé</div><h2 id="matiere">Chaque morceau garde sa matière.</h2>
+      <p class="text">Choisis une source de <strong>100 ou 250 g</strong> et des portions de <strong>4 ou 8 g</strong>. Chaque morceau conserve son identité, sa masse et ses paramètres de coupe. La planche accepte 50 portions préparées ; le rangement permet de poursuivre. Choisir une nouvelle source démarre explicitement un nouvel essai.</p>
+      <div class="equation" aria-label="Brut plus préparé plus rangé égale quantité initiale"><span>Brut + préparé + rangé</span><br>= quantité initiale</div>
+      <p class="text">Une source de 250 g découpée en portions de 8 g conserve <strong>31 barrettes, soit 248 g, et un reliquat de 2 g</strong>. Les masses restent des métadonnées du jeu, sans densité déduite du volume. Les effets et le ralenti ne changent pas ce registre.</p>
+      <p class="text">Les deux sources GLB réelles, à <strong>310 triangles chacune</strong>, sont inchangées. La coupe utilise leurs triangles et ferme les sections. Les textures 2K ne sont pas embarquées dans cette étude légère ; les familles de matières sont traduites en couleurs et en facettes. Le registre, la géométrie et les sources sont identiques à la V01.</p>
+      <figure><img src="images/dense4cuts.png" width="1060" height="740" alt="Quatre barrettes distinctes alignées à droite du pain restant, avec des miettes visibles sur la planche et les portions." loading="lazy" decoding="async"><figcaption><strong>Quatre coupes, quatre portions distinctes.</strong>Les détails s’accumulent sur la planche. Image calculée à partir des commandes de dessin, puis rasterisée ; ce n’est pas une capture de navigateur.</figcaption></figure>
+    </section>
+
+    <section class="content" aria-labelledby="verification">
+      <div class="number">06 · Vérification &amp; réception</div><h2 id="verification">64 contrôles réussis. Le ressenti reste à essayer.</h2>
+      <dl class="checks" aria-label="Répartition des 64 contrôles réussis"><div><dt>Registre</dt><dd>17</dd></div><div><dt>Géométrie</dt><dd>9</dd></div><div><dt>Mouvement</dt><dd>7</dd></div><div><dt>Audio</dt><dd>11</dd></div><div><dt>Parcours / dessin</dt><dd>20</dd></div></dl>
+      <div class="text">
+        <p><strong>0 échec.</strong> Les contrôles couvrent notamment la conservation, les refus sans mutation, les identités, les sections fermées, les poses finies et le nettoyage des voix. Les tests audio vérifient les échantillons et un graphe Web Audio simulé ; ils ne remplacent pas l’écoute. Sept vues calculées ont été examinées, l’archive relue et les empreintes vérifiées.</p>
+        <p>La relecture a fait corriger les miettes suspendues après perte d’appui, le contact sonore trop précoce, le rangement immédiat figeant une portion debout et le mauvais raccord sonore du profil Souple. Ces corrections ont été contrôlées à nouveau.</p>
+        <p class="hint"><strong>Validation interactive encore à faire.</strong> L’outil de navigateur a refusé l’accès aux fichiers locaux selon sa politique ; ce refus n’a pas été contourné. Les contrôles présentés ne valident donc ni l’exécution dans un navigateur réel, ni la fluidité, ni l’écoute humaine.</p>
+        <p>Les contacts sont simplifiés : ce n’est ni PhysX ni une simulation de matière déformable. Aucun code ou build Unity n’a été modifié, et aucun essai humain de V02 n’est revendiqué. Le rangement et le choix d’une nouvelle source sont des commandes de démonstration ; les règles de production du jeu restent inchangées.</p>
+        <p>Pour le prochain retour, regarde surtout le moment où la matière cède, le poids de la pose, la lisibilité des miettes et le confort du son après plusieurs coupes. La conservation se vérifie exactement ; le plaisir dépend de cet essai.</p>
+      </div>
+    </section>
+  </main>
+  <footer class="foot"><div class="wrap"><a class="button" href="index.html">Essayer la démo <span class="arrow" aria-hidden="true">↗</span></a><p>Sous la lame · V02 · Étude interactive hors Unity<br>Documentation adaptée de la note de projet du 5 novembre 2026. La V01 reste conservée.</p></div></footer>
+</body>
+</html>
