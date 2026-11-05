@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f5efdf">
+  <meta name="description" content="Mode d’emploi et documentation de Sous la lame V03 : vue FPS réglable, grand couteau, geste de coupe, matière, miettes et son. Étude interactive hors Unity.">
+  <title>Sous la lame · Documentation V03</title>
+  <style>
+    :root{color-scheme:light;--paper:#f5efdf;--card:#fffaf0;--ink:#35291f;--muted:#6e5b48;--line:#d9ccb7;--brown:#67472e;--accent:#a05d36;--soft:#eae0cb}
+    *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:6rem}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.65 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--brown);text-underline-offset:.2em}a:focus-visible{outline:3px solid var(--accent);outline-offset:5px}p{margin:.8rem 0 1rem}h1,h2,h3{line-height:1.15;text-wrap:balance}h1{font-size:clamp(2.7rem,9vw,5.1rem);letter-spacing:-.055em;margin:.65rem 0 1.1rem;font-weight:750}h2{font-size:clamp(1.7rem,4vw,2.35rem);letter-spacing:-.035em;margin:.5rem 0 1.3rem}h3{font-size:1.12rem;margin:0 0 .5rem}strong{font-weight:700}img{display:block;max-width:100%;height:auto}button,a{-webkit-tap-highlight-color:transparent}
+    .skip{position:fixed;top:-5rem;left:1rem;padding:.6rem 1rem;background:var(--ink);color:#fff;z-index:4}.skip:focus{top:1rem}.wrap{width:min(100% - 2.4rem,1040px);margin-inline:auto}.top{position:sticky;top:0;z-index:2;background:rgba(245,239,223,.97);border-bottom:1px solid var(--line)}.top nav{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:78px}.brand{text-decoration:none;font-weight:750;letter-spacing:-.025em;color:var(--ink)}.brand span{display:block;font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;font-weight:550;color:var(--muted)}.button{display:inline-flex;justify-content:center;align-items:center;gap:.65rem;min-height:48px;padding:.65rem 1.15rem;background:var(--brown);color:#fffaf0;border-radius:5px;text-decoration:none;font-size:.9rem;font-weight:650;line-height:1.2}.button:hover{background:#4d3423}.button .arrow{font-size:1.25rem}.hero{position:relative;padding:4.4rem 0 3rem;overflow:hidden}.hero::after{content:"";position:absolute;right:-2rem;top:2rem;width:230px;height:200px;background:#e6d9ba;clip-path:polygon(15% 0,100% 30%,82% 100%,0 62%);opacity:.5;z-index:-1}.eyebrow,.number{font-size:.72rem;letter-spacing:.15em;text-transform:uppercase;font-weight:750;color:var(--accent)}.lead{font-size:clamp(1.12rem,2.5vw,1.35rem);line-height:1.55;max-width:720px}.intro{max-width:760px}.status{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1.5rem}.pill{padding:.28rem .65rem;border:1px solid var(--line);border-radius:3px;color:var(--muted);font-size:.77rem;background:var(--card)}section.content{padding:2.7rem 0;border-top:1px solid var(--line)}.text{max-width:800px}.hint{border-left:3px solid var(--accent);padding:.75rem 1.1rem;background:var(--soft);margin:1.4rem 0;font-size:.94rem}.steps{padding:0;list-style:none;counter-reset:step;display:grid;gap:.8rem}.steps li{counter-increment:step;position:relative;padding:1rem 1.1rem 1rem 3.7rem;background:var(--card);border:1px solid var(--line);border-radius:5px}.steps li::before{content:counter(step,decimal-leading-zero);position:absolute;left:1rem;top:1.1rem;color:var(--accent);font-size:.8rem;font-weight:750}.steps strong{display:block}.sequence{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:1.5rem 0}.sequence article{padding:1.15rem;background:var(--card);border-top:3px solid var(--line)}.sequence p{font-size:.92rem;margin:.5rem 0 0}.sequence .small{font-size:.72rem;font-weight:750;letter-spacing:.1em;color:var(--accent);display:block;margin-bottom:.7rem}figure{margin:1.8rem 0 0;background:#e9e1d0;border:1px solid var(--line);border-radius:5px;overflow:hidden}figure img{width:100%;aspect-ratio:1060/740;object-fit:contain}figcaption{padding:1rem 1.15rem;background:var(--card);font-size:.87rem;line-height:1.55;color:var(--muted)}figcaption strong{display:block;color:var(--ink);margin-bottom:.25rem}.profiles{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:1.5rem 0}.profile{padding:1.25rem;border:1px solid var(--line);background:var(--card);border-radius:5px}.profile.featured{border-color:var(--brown);box-shadow:inset 0 3px var(--brown)}.profile p{font-size:.94rem;margin:.6rem 0 0}.profile .default{display:block;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:.6rem}.equation{font-size:clamp(1.08rem,3.5vw,1.55rem);font-weight:700;line-height:1.45;text-align:center;padding:1.5rem 1rem;margin:1.5rem 0;background:var(--soft);border:1px solid var(--line);border-radius:5px}.equation span{white-space:nowrap}.checks{display:grid;grid-template-columns:repeat(5,1fr);margin:1.2rem 0 1.5rem;border:1px solid var(--line);border-radius:5px;overflow:hidden;background:var(--card)}.checks div{padding:.85rem .6rem;text-align:center;border-right:1px solid var(--line)}.checks div:last-child{border:0}.checks dt{font-size:.77rem;color:var(--muted)}.checks dd{margin:0;font-size:1.5rem;font-weight:750;line-height:1.3}.foot{padding:2.5rem 0 3rem;border-top:1px solid var(--line)}.foot p{font-size:.85rem;color:var(--muted)}.foot .button{margin:.5rem 0 1rem}
+    @media(min-width:760px){.steps{grid-template-columns:1fr 1fr}.steps li:last-child{grid-column:1/-1}.hero{padding-top:5rem}.hero::after{width:340px;height:300px;right:0}}
+    @media(max-width:600px){body{font-size:16px}.wrap{width:calc(100% - 2rem)}.top nav{min-height:72px;gap:.5rem}.button{padding:.65rem .85rem;font-size:.82rem}.hero{padding:2.7rem 0 2.2rem}.hero::after{right:-5rem}.sequence{grid-template-columns:1fr;gap:.6rem}.sequence article{padding:1rem}.profiles{grid-template-columns:1fr;gap:.65rem}.checks{grid-template-columns:repeat(3,1fr)}.checks div{border-bottom:1px solid var(--line)}.checks div:nth-child(3){border-right:0}.checks div:nth-child(n+4){border-bottom:0}.checks div:last-child{border-right:1px solid var(--line)}section.content{padding:2.2rem 0}.hint{padding:.7rem .9rem}.brand{font-size:.93rem}.brand span{font-size:.6rem}figure{margin-top:1.3rem}figcaption{padding:.9rem 1rem}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+    @media print{.top{position:static}.button,.skip{display:none}body{font-size:11pt}.hero{padding:1rem 0}section.content{padding:1rem 0}figure,.profile,.sequence article{break-inside:avoid}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#documentation">Aller à la documentation</a>
+  <header class="top">
+    <nav class="wrap" aria-label="Navigation principale">
+      <a class="brand" href="index.html">Sous la lame<span>Documentation · V03</span></a>
+      <a class="button" href="index.html">Essayer la démo <span class="arrow" aria-hidden="true">↗</span></a>
+    </nav>
+  </header>
+  <main id="documentation" class="wrap">
+    <div class="hero">
+      <div class="eyebrow">Étude de coupe · Vue FPS · 5 novembre 2026</div>
+      <h1>Sous la lame.</h1>
+      <p class="lead">Un grand couteau de poche et une vue depuis le joueur, réglable pour observer la coupe.</p>
+      <p class="intro">La V03 propose un couteau low poly à manche de bois arrondi, virole métallique et lame courbe, inspiré d’un grand Opinel. La vue FPS en perspective devient le point de départ ; l’ancienne vue Atelier reste accessible. Les gestes, effets, sons et miettes développés en V02 sont conservés.</p>
+      <div class="status" aria-label="Statut de l’étude"><span class="pill">V03 à essayer</span><span class="pill">Hors Unity</span><span class="pill">V01 et V02 conservées</span></div>
+    </div>
+
+    <section class="content" aria-labelledby="camera">
+      <div class="number">01 · Voir depuis le joueur</div><h2 id="camera">Choisir sa vue, puis manipuler.</h2>
+      <div class="profiles">
+        <article class="profile featured"><span class="default">Vue par défaut</span><h3>Vue FPS</h3><p>Une perspective depuis la place du joueur devant la planche. Les objets proches prennent davantage de place dans l’image.</p></article>
+        <article class="profile"><h3>Atelier · V02</h3><p>La vue orthographique de V02, conservée pour comparer le geste et retrouver le cadrage précédent.</p></article>
+        <article class="profile"><h3>Vue libre</h3><p>Une vue réglable pour examiner la lame, le pain et les portions depuis un autre angle.</p></article>
+      </div>
+      <p class="text">Dans le menu de caméra, choisis <strong>Vue FPS / Atelier · V02 / Vue libre</strong>. Les curseurs <strong>Orientation</strong> et <strong>Inclinaison</strong>, ainsi que les boutons <strong>− / + de proximité</strong>, permettent d’adapter le cadrage.</p>
+      <p class="hint"><strong>Regarder</strong> réserve le glissement du doigt ou du pointeur à la caméra et empêche de couper pendant la navigation. Reviens à <strong>Manipuler</strong> pour couper, pousser et balayer. L’icône <strong>Recadrer</strong> rétablit la caméra sans recommencer la matière ni les portions.</p>
+    </section>
+
+    <section class="content" aria-labelledby="essayer">
+      <div class="number">02 · Prise en main</div><h2 id="essayer">Sur téléphone, commence ici.</h2>
+      <ol class="steps">
+        <li><strong>Cadre la planche.</strong>Commence en Vue FPS. Ajuste le regard si nécessaire, puis sélectionne Manipuler avant de couper.</li>
+        <li><strong>Active les sons.</strong>Ils sont coupés au départ. Touche « Activer les sons », puis ajuste le volume, réglé initialement à 65 %.</li>
+        <li><strong>Maintiens le bouton de coupe.</strong>Garde le doigt sur « Maintenir pour couper », puis relâche entre deux portions. Sur ordinateur, la touche C fonctionne aussi en mode Manipuler.</li>
+        <li><strong>Compare les réactions.</strong>Commence en Dense, puis compare Franche et Souple avec la même matière. « Comparer sans retours » permet d’isoler l’apport des effets.</li>
+        <li><strong>Observe, pousse et range.</strong>Le ralenti passe à 40 % de la vitesse normale. En mode Manipuler, fais glisser sur la planche pour pousser les portions et balayer les miettes reposées. Le rangement conserve identités et masses.</li>
+      </ol>
+      <p class="hint">Une coupe demande <strong>0,65 seconde simulée</strong>. Un maintien produit une seule portion. Relâcher avant validation annule sans retirer de matière. Le ralenti change la vitesse d’observation, pas la quantité coupée.</p>
+    </section>
+
+    <section class="content" aria-labelledby="couteau">
+      <div class="number">03 · Le couteau &amp; le mouvement</div><h2 id="couteau">Du bois arrondi, une virole et une lame courbe.</h2>
+      <p class="text">Le modèle de la démo propose une <strong>lame d’environ 12 cm</strong>. Son encombrement ouvert est mesuré à <strong>27 cm de longueur et 3,2 cm de largeur</strong>. Le bois arrondi, la virole métallique et la lame courbe sont traités en facettes low poly. Ces proportions sont stylisées librement ; elles ne constituent pas une reproduction exacte du produit réel.</p>
+      <p class="text">L’inspiration est le N°12 : sa fiche décrit une lame de 12 cm au profil Yatagan, un manche en hêtre et une bague métallique de sécurité. <a href="https://www.opinel.com/en-eu/pocket-knives/stainless-steel/n12-stainless-steel" rel="noopener noreferrer">Source officielle : Opinel N°12 inox</a>, consultée le 5 novembre 2026. Les dimensions du manche du modèle de la démo restent un choix de présentation.</p>
+      <figure><img src="images/fps-knife.png" width="1060" height="740" alt="Vue FPS calculée V03 : grand couteau low poly à manche de bois arrondi, virole métallique et lame courbe au-dessus de la planche et du pain." loading="lazy" decoding="async"><figcaption><strong>V03 — le nouveau couteau en vue FPS.</strong>Bois arrondi, virole et lame courbe dans la perspective depuis le joueur. Image calculée à partir des commandes de dessin, puis rasterisée ; ce n’est pas une capture de navigateur.</figcaption></figure>
+      <div class="sequence">
+        <article><span class="small">01 / Approche &amp; contact</span><h3>La lame rencontre la surface.</h3><p>Lame, manche et virole bougent ensemble. Le petit contact et la poussière localisée commencent au toucher réel, sans frottement préalable.</p></article>
+        <article><span class="small">02 / Effort &amp; cession</span><h3>La matière retient, puis cède.</h3><p>Le mouvement tire et bascule sous charge. La compression reste proche de la coupe, avec un sillon, une friction granulaire, puis des microcraquements et des éclats.</p></article>
+        <article><span class="small">03 / Pose &amp; retour</span><h3>Le morceau retombe.</h3><p>La vraie tranche se sépare et bascule sur la planche. Son arrivée possède un son distinct. La lame remonte avec un recul amorti ; des grains se détachent de son bas.</p></article>
+      </div>
+      <figure><img src="images/dense-load.png" width="1060" height="740" alt="Illustration historique V02 : ancien couteau incliné et engagé sur le bord droit du pain, en vue Atelier." loading="lazy" decoding="async"><figcaption><strong>Historique V02 — effort sous l’ancien couteau.</strong>Cette illustration montre l’ancienne lame et la vue Atelier, pas le couteau ni la perspective FPS de V03. Image calculée depuis les commandes de dessin puis rasterisée, pas une capture de navigateur.</figcaption></figure>
+    </section>
+
+    <section class="content" aria-labelledby="details">
+      <div class="number">04 · Les petits détails conservés</div><h2 id="details">Des miettes qui restent, un son qui suit.</h2>
+      <div class="text">
+        <p>Les miettes ont plusieurs tailles : elles rebondissent, roulent et restent <strong>35 à 50 secondes simulées</strong>, dans une limite de <strong>230 particules</strong>. La poussière disparaît plus vite. Leurs appuis suivent le pain et les barrettes ; si un appui disparaît, elles reprennent leur chute. Le balayage à la lame déplace celles qui reposent sur une surface.</p>
+        <p>La face fraîche, le sillon et les traces de lame sont des propositions visuelles désactivables séparément. Le micro-mouvement de caméra reste désactivé par défaut. Les miettes sont décoratives : elles n’ajoutent aucune perte de grammes.</p>
+        <p>Une friction continue accompagne l’effort. Six événements complètent le son : <strong>contact, cession, retombée, miettes, raclement de poussée ou rangement, interruption</strong>. La cession mêle deux ou trois microcraquements à un choc très court sur la planche. Le niveau est réglable, comprimé et limité ; les sons varient par geste et les voix sont nettoyées après lecture.</p>
+        <p class="hint"><strong>Le son reste une proposition de synthèse à écouter.</strong> Il n’a pas reçu de validation d’écoute humaine et ne constitue pas les assets audio définitifs.</p>
+      </div>
+      <figure><img src="images/crumbs-resting.png" width="1060" height="740" alt="Illustration historique V02 : portion séparée, miettes reposées et ancien couteau relevé en vue Atelier." loading="lazy" decoding="async"><figcaption><strong>Historique V02 — une portion et ses miettes reposées.</strong>L’ancien couteau est visible ; cette image n’illustre pas le nouveau modèle V03. Image calculée depuis les commandes de dessin puis rasterisée, pas une capture de navigateur.</figcaption></figure>
+    </section>
+
+    <section class="content" aria-labelledby="profils">
+      <div class="number">05 · Comparer</div><h2 id="profils">Trois propositions de résistance.</h2>
+      <div class="profiles">
+        <article class="profile"><h3>Franche</h3><p>Retenue courte, coupe nette, craquement plus clair et davantage de petits éclats.</p></article>
+        <article class="profile featured"><span class="default">Sélection initiale</span><h3>Dense</h3><p>Charge marquée, cession mate et barrette qui retombe avec du poids.</p></article>
+        <article class="profile"><h3>Souple</h3><p>Coupe tirée plus progressive, relâchement amorti et son plus sourd.</p></article>
+      </div>
+      <p class="text">Aucun profil n’est déclaré validé. Les six matières A–F restent indépendantes de la résistance : leur couleur ne détermine aucune variété, puissance ou propriété réelle. Pour comparer, garde la même matière et change un réglage à la fois.</p>
+    </section>
+
+    <section class="content" aria-labelledby="matiere">
+      <div class="number">06 · Ce qui est conservé</div><h2 id="matiere">Chaque morceau garde sa matière.</h2>
+      <p class="text">Choisis une source de <strong>100 ou 250 g</strong> et des portions de <strong>4 ou 8 g</strong>. Chaque morceau conserve son identité, sa masse et ses paramètres de coupe. La planche accepte 50 portions préparées ; le rangement permet de poursuivre. Choisir une nouvelle source démarre explicitement un nouvel essai ; réinitialiser la caméra ne le fait pas.</p>
+      <div class="equation" aria-label="Brut plus préparé plus rangé égale quantité initiale"><span>Brut + préparé + rangé</span><br>= quantité initiale</div>
+      <p class="text">Une source de 250 g découpée en portions de 8 g conserve <strong>31 barrettes, soit 248 g, et un reliquat de 2 g</strong>. Les masses restent des métadonnées du jeu, sans densité déduite du volume. Les effets, le son et le changement de caméra ne pilotent pas le registre.</p>
+      <p class="text">Les deux sources GLB réelles, à <strong>310 triangles chacune</strong>, restent les modèles de matière utilisés. La coupe utilise leurs triangles et ferme les sections. Les textures 2K ne sont pas embarquées dans cette étude légère ; les familles de matières sont traduites en couleurs et en facettes. Les sources publiées de matière et les cinq modules JavaScript de base sont vérifiés identiques. La V03 porte sur la présentation et la caméra, pas sur une nouvelle génération des sources.</p>
+      <figure><img src="images/dense4cuts.png" width="1060" height="740" alt="Illustration historique V02 : quatre barrettes, pain restant et ancien couteau en vue Atelier." loading="lazy" decoding="async"><figcaption><strong>Historique V02 — quatre coupes et quatre portions.</strong>Cette vue de contrôle conserve l’ancien couteau ; elle ne représente pas la vue FPS de V03. Image calculée depuis les commandes de dessin puis rasterisée, pas une capture de navigateur.</figcaption></figure>
+    </section>
+
+    <section class="content" aria-labelledby="verification">
+      <div class="number">07 · Vérification &amp; réception</div><h2 id="verification">Contrôles V03 réussis. Le ressenti reste à essayer.</h2>
+      <p class="hint"><strong>V03 : 44 contrôles de base et 26 contrôles de parcours/dessin réussis.</strong> Les 26 comprennent les 20 parcours précédents réexécutés et six nouveaux contrôles de caméra. Ces vérifications sont automatisées hors navigateur.</p>
+      <dl class="checks" aria-label="V03 : 44 contrôles de base et 26 contrôles de parcours et dessin réussis"><div><dt>Registre</dt><dd>17</dd></div><div><dt>Géométrie</dt><dd>9</dd></div><div><dt>Mouvement</dt><dd>7</dd></div><div><dt>Audio</dt><dd>11</dd></div><div><dt>Parcours / dessin</dt><dd>26</dd></div></dl>
+      <div class="text">
+        <p>Les contrôles caméra passent également <strong>867 cas de projection, projection inverse et découpage à la limite du champ</strong>. Le couteau comporte <strong>766 triangles, neuf pièces et sept composants fermés</strong> ; le fil a été contrôlé sur <strong>41 échantillons</strong>. Ces mesures décrivent le modèle et ses contrôles, sans validation de confort ou de ressenti.</p>
+        <h3>Historique V02 : 64 contrôles réussis, 0 échec.</h3>
+        <p>Ces contrôles V02 couvrent notamment conservation, refus sans mutation, identités, sections fermées, poses finies et nettoyage des voix. Sept vues calculées ont été examinées, l’archive relue et les empreintes vérifiées. Le registre, la géométrie et les sources de V02 étaient identiques à la V01.</p>
+        <p>La relecture V02 a fait corriger les miettes suspendues après perte d’appui, le contact sonore trop précoce, le rangement immédiat figeant une portion debout et le mauvais raccord sonore du profil Souple. Les corrections ont été contrôlées à nouveau.</p>
+        <p><strong>Un parcours automatisé dans un navigateur a ensuite effectué une coupe sur V02.</strong> Ce contrôle porte sur la version publiée précédente. Il ne constitue ni un essai humain, ni une validation du ressenti, ni un résultat pour V03.</p>
+        <p><strong>Les contrôles chiffrés ci-dessus sont exécutés hors navigateur.</strong> Ils ne constituent pas une validation tactile humaine. Les tests audio vérifient les échantillons et un graphe Web Audio simulé ; ils ne remplacent pas l’écoute humaine. La fluidité sur téléphone et le confort sonore de V03 restent à éprouver. Les contacts sont simplifiés : ce n’est ni PhysX ni une simulation de matière déformable.</p>
+        <p>Aucun code ou build Unity n’est modifié par cette étude. Le rangement et le choix d’une nouvelle source restent des commandes de démonstration. Le plaisir du geste, le confort de la vue FPS et l’adéquation du couteau restent à juger par l’essai.</p>
+      </div>
+    </section>
+  </main>
+  <footer class="foot"><div class="wrap"><a class="button" href="index.html">Essayer la démo <span class="arrow" aria-hidden="true">↗</span></a><p>Sous la lame · V03 à essayer · Étude interactive hors Unity<br>Documentation préparée le 5 novembre 2026. V01 et V02 conservées ; illustrations historiques V02.</p></div></footer>
+</body>
+</html>
