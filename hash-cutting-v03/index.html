@@ -10,7 +10,7 @@
 .camera-top{display:flex;gap:14px;align-items:end;flex-wrap:wrap}.camera-top .field{flex:1;min-width:130px}.camera-top button{min-width:112px;min-height:44px}
 .camera-controls p{font-size:12px;margin:8px 0 0;line-height:1.5}.camera-controls details{margin-top:10px}.camera-controls summary{cursor:pointer;min-height:32px;padding:5px 0}
 .camera-controls label{display:flex;justify-content:space-between;font-size:13px}.camera-controls input{display:block;width:100%;min-height:36px;accent-color:#896337}
-@media(max-width:820px){.stage canvas{height:400px!important;min-height:320px!important}.camera-controls{padding:10px 12px}.camera-controls select{font-size:16px}}
+@media(max-width:820px){.camera-controls{padding:10px 12px}.camera-controls select{font-size:16px}}
 
 :root {
   color-scheme: light;
@@ -194,6 +194,8 @@ footer .documentation-link { border-color: transparent; background: transparent;
   .stage-heading { max-width: calc(100% - 168px); }
 }
 
+@media(max-width:820px), (max-height:520px) and (pointer:coarse){:root{--scene-height:clamp(350px,calc(100svh - 270px),560px)}}
+@media(max-height:520px) and (orientation:landscape) and (pointer:coarse){:root{--scene-height:max(270px,calc(100svh - 160px))}}
 </style>
 </head>
 <body>
