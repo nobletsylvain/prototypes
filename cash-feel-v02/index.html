@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#172c2b">
+  <title>Papier & liasses · Poignées · V02</title>
+  <meta name="description" content="Prenez une poignée de billets, déplacez-la et déposez-la dans la machine. Deux machines ou une combinée, à essayer au doigt.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="scene" aria-label="Atelier en vue à la première personne"></canvas>
+  <header>
+    <div class="brand"><span class="eyebrow" data-i18n="eyebrow">AU FOUR, MON AMOUR · ESSAI 02</span><h1 data-i18n="title">Papier & liasses</h1></div>
+    <div class="balance"><span data-i18n="total">VALEUR CONSERVÉE</span><strong id="total">2 200 €</strong><small id="integrity">120 billets · identités conservées</small></div>
+  </header>
+
+  <nav class="circuits">
+    <button id="separate" class="active" aria-pressed="true" data-i18n="separate">Deux machines</button>
+    <button id="combined" aria-pressed="false" data-i18n="combinedCircuit">Combinée</button>
+  </nav>
+  <nav class="toolbar">
+    <button id="look" data-i18n="look">Regarder</button>
+    <button id="reframe" aria-label="Recadrer la vue FPS">⌖ <span data-i18n="reframe">Recadrer</span></button>
+    <button id="settings" aria-label="Réglages de comparaison">☷</button>
+    <button id="language">EN</button>
+    <a href="documentation.html" aria-label="Documentation et passation">?</a>
+  </nav>
+  <div id="crosshair" aria-hidden="true">+</div>
+  <div id="hint" data-i18n="canvasHint">Prenez une poignée dans le tas, puis glissez vers l’entrée.</div>
+
+  <div class="machine-targets">
+    <button id="target-sorter" class="machine-target" hidden><strong data-i18n="sorter">Trieuse</strong><small data-i18n="inlet">Déposer ici</small></button>
+    <button id="target-counter" class="machine-target" hidden><strong data-i18n="counter">Compteuse</strong><small data-i18n="inlet">Déposer ici</small></button>
+    <button id="target-combined" class="machine-target" hidden><strong data-i18n="combinedMachine">Trieuse + compteuse</strong><small data-i18n="inlet">Déposer ici</small></button>
+  </div>
+  <div class="machine-readouts">
+    <aside id="sorter-readout" class="sorter-status"><div><span class="eyebrow" data-i18n="sorter">Trieuse</span><strong id="sorter-count">000</strong></div><small id="sorter-state" data-i18n="sorterReady">Prête à trier</small></aside>
+    <aside class="machine-status"><div><span class="eyebrow" data-i18n="machine">COMPTEUSE</span><strong id="machine-count">000</strong></div><div class="machine-line"><i id="machine-light"></i><span id="machine-state">Prête</span></div><div class="progress"><i id="progress"></i></div></aside>
+  </div>
+
+  <aside id="comparison" hidden>
+    <h2 data-i18n="compare">Comparer le ressenti</h2>
+    <label><span data-i18n="pace">Cadence</span><select id="pace"><option value="18" data-i18n="rhythm">Rythmée</option><option value="26" data-i18n="lively">Plus vive</option></select></label>
+    <label><span data-i18n="volume">Volume</span><input id="volume" type="range" min="0" max="1" step="0.05" value="0.55"></label>
+    <label class="check"><input type="checkbox" id="effects" checked><span data-i18n="enhanced">Retours renforcés · F7</span></label>
+    <button id="mute" data-i18n="mute">Couper le son</button>
+    <p data-i18n="settingsNote">Les billets et leur valeur restent identiques.</p>
+    <div class="new-lot"><span class="eyebrow" data-i18n="restartAction">Rejouer ce lot</span><div class="lot"><button id="small" class="active" data-i18n="small">Petit lot</button><button id="large" data-i18n="large">Gros lot</button><button id="reset" aria-label="Recommencer ce lot">↻</button></div><p data-i18n="modeChangeNote">Changer de circuit ou de lot recommence l’essai.</p></div>
+  </aside>
+
+  <aside id="storage-panel" class="storage" hidden>
+    <div class="storage-title"><span data-i18n="storage">RANGEMENT</span><small data-i18n="slotHint">Touchez une case</small></div>
+    <div id="slots"></div>
+    <div id="slot-actions" hidden><button id="store" data-i18n="store">Ranger</button><button id="withdraw" data-i18n="withdraw">Reprendre</button><button id="clear" data-i18n="clear">Effacer</button></div>
+  </aside>
+
+  <footer class="dock">
+    <div class="hand-line"><span id="hand">Main vide</span><div class="tools"><button id="storage-toggle" aria-expanded="false" aria-controls="storage-panel" data-i18n="storageToggle">Rangement</button><button id="assist" aria-expanded="false" aria-controls="assist-panel" data-i18n="assist">Aide aux gestes</button></div></div>
+    <div id="gesture-hint" role="status" aria-live="polite" data-i18n="gesturePick">Maintenez le tas pour saisir une poignée. Glissez-la vers l’entrée.</div>
+    <div id="assist-panel">
+      <div class="instruction"><span class="step" id="step">01</span><div><strong id="instruction-title">Une poignée pour commencer.</strong><p id="instruction-detail">Videz la pochette sur la table.</p></div></div>
+      <div class="actions"><button id="primary" class="primary">Vider la pochette <kbd>E</kbd></button><button id="drop" data-i18n="drop">Poser · T</button><button id="open" data-i18n="open">Ouvrir la liasse</button></div>
+    </div>
+  </footer>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <div id="welcome" class="welcome">
+    <div class="welcome-card"><span class="eyebrow" data-i18n="welcomeLabel">PRENDRE · DÉPLACER · DÉPOSER</span><h2 data-i18n="welcomeTitle">Une poignée.<br>Un geste.</h2><p data-i18n="welcomeText">Saisissez les billets dans le tas. Glissez la poignée jusqu’à l’entrée, puis relâchez. La machine prend le relais.</p><button class="primary" id="start" data-i18n="start">Prendre le papier ↗</button><small data-i18n="soundNote">Sons activés au premier geste · casque conseillé</small><div class="welcome-bottom"><span data-i18n="fps">VUE FPS</span><span data-i18n="touch">SOURIS OU TACTILE</span><span>V02</span></div></div>
+  </div>
+  <script type="module" src="app.mjs?v=20261109-v2a"></script>
+</body>
+</html>

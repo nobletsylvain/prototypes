@@ -9,6 +9,13 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-11-09 — Papier et liasses V02 : prendre et déposer des poignées
+
+- Le propriétaire précise que le but est de prendre des poignées et de les mettre dans la trieuse et la compteuse. Il demande les deux configurations proposées : deux machines séparées ou une combinée.
+- Nouvelle version indépendante dans `cash-feel-v02/` ; V01 et toutes les démos précédentes conservées. La poignée suit le doigt ou la souris ; son dépôt alimente la machine. Les zones visibles et leurs bords sont recevables.
+- Les deux circuits conservent identités, coupures, valeurs et limites. La compteuse séparée refuse une poignée mélangée sans mutation. Compteuse énergique et compression puis détente de la liasse conservées.
+- 68 contrôles automatiques réussis, zéro échec ; réemploi vérifié de cinq fichiers et syntaxe des cinq modules. Les contrôles simulés restent distincts de la revue navigateur, de l’écoute et de l’essai propriétaire documentés dans le carnet. Aucune intégration Unity.
+
 ## 2026-11-09 — Papier et liasses V01 : publication autonome
 
 - Publication demandée par le propriétaire dans ce dépôt, dans `cash-feel-v01/`, avec lien depuis le hub ; les démos précédentes restent intactes.
