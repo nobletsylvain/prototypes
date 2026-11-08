@@ -668,6 +668,21 @@ test('the two comparison configurations accept the same identities after explici
 test('circuit and lot resets close the previous panels while leaving only the initial dump help open', async () => {
   const harness = await createHarness('separate');
   await harness.start();
+  const assertHelpVisible = visible => {
+    assert.equal(harness.element('assist-panel').hidden, !visible);
+    assert.equal(harness.element('assist').ariaExpanded, String(visible));
+    assert.equal(harness.element('assist').classList.contains('active'), visible);
+  };
+  assertHelpVisible(true);
+  const unopenedPouch = harness.snapshot();
+  for (const control of ['storage-toggle', 'settings']) {
+    await harness.click(control);
+    assertHelpVisible(false);
+    assert.deepEqual(harness.snapshot(), unopenedPouch, 'Opening another panel must not manipulate the unopened lot');
+    await harness.click(control);
+    assertHelpVisible(true);
+    assert.deepEqual(harness.snapshot(), unopenedPouch);
+  }
   harness.touch({ action: 'pouch' });
   for (const [denomination, count, slot] of [[20, 100, 0], [10, 20, 1]]) {
     const ids = harness.at('table').slice(0, count).map(entity => entity.id);
@@ -687,7 +702,7 @@ test('circuit and lot resets close the previous panels while leaving only the in
   await harness.click('combined');
   assert.equal(harness.element('storage-panel').hidden, true);
   assert.equal(harness.element('storage-toggle').ariaExpanded, 'false');
-  assert.equal(harness.element('assist').classList.contains('active'), false);
+  assertHelpVisible(true);
   assert.equal(harness.element('assist-panel').hidden, false, 'The initial pouch action stays visible');
   assert.equal(harness.element('comparison').hidden, true);
   assert.equal(harness.at('pouch').length, 120);
@@ -705,7 +720,7 @@ test('circuit and lot resets close the previous panels while leaving only the in
     await harness.click(resetControl);
     assert.equal(harness.element('storage-panel').hidden, true);
     assert.equal(harness.element('storage-toggle').classList.contains('active'), false);
-    assert.equal(harness.element('assist').classList.contains('active'), false);
+    assertHelpVisible(true);
     assert.equal(harness.element('comparison').hidden, true);
     assert.equal(harness.element('assist-panel').hidden, false);
     assert.equal(harness.at('pouch').length, count);

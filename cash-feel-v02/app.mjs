@@ -132,8 +132,9 @@ function update() {
   $('primary').disabled = scene.look || ['wait', 'sortWait'].includes(phase) || (phase === 'output' && elapsed < bindingUntil);
   $('drop').disabled = scene.look || !hand.length;
   $('open').disabled = scene.look || !hand.some(entity => entity.type === 'bundle');
-  $('assist-panel').hidden = !assistance && phase !== 'dump';
-  $('assist').classList.toggle('active', assistance);
+  const assistanceVisible = assistance || (phase === 'dump' && !storageOpen && $('comparison').hidden);
+  $('assist-panel').hidden = !assistanceVisible;
+  $('assist').classList.toggle('active', assistanceVisible);
   $('storage-panel').hidden = !storageOpen;
   $('storage-toggle').classList.toggle('active', storageOpen);
   $('machine-count').textContent = String(counted).padStart(3, '0');
@@ -146,7 +147,7 @@ function update() {
   $('sorter-readout').hidden = circuit !== 'separate';
   $('separate').ariaPressed = String(circuit === 'separate');
   $('combined').ariaPressed = String(circuit === 'combined');
-  $('assist').ariaExpanded = String(assistance || phase === 'dump');
+  $('assist').ariaExpanded = String(assistanceVisible);
   $('storage-toggle').ariaExpanded = String(storageOpen);
   $('separate').classList.toggle('active', circuit === 'separate');
   $('combined').classList.toggle('active', circuit === 'combined');
