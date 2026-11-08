@@ -1,0 +1,436 @@
+TAP version 13
+# Subtest: first delivery is counted into internal reserves and survives an idle interval
+ok 1 - first delivery is counted into internal reserves and survives an idle interval
+  ---
+  duration_ms: 124.276
+  type: 'test'
+  ...
+# Subtest: specific cash withdrawal leaves reserves and later deliveries continue the same counters
+ok 2 - specific cash withdrawal leaves reserves and later deliveries continue the same counters
+  ---
+  duration_ms: 123.6184
+  type: 'test'
+  ...
+# Subtest: a completed batch remains internal for compression and only ejects after its deadline
+ok 3 - a completed batch remains internal for compression and only ejects after its deadline
+  ---
+  duration_ms: 145.5527
+  type: 'test'
+  ...
+# Subtest: formation can pause while sorting continues and all cash stays available inside
+ok 4 - formation can pause while sorting continues and all cash stays available inside
+  ---
+  duration_ms: 100.5364
+  type: 'test'
+  ...
+# Subtest: changing the target preserves the size and identities of a batch already forming
+ok 5 - changing the target preserves the size and identities of a batch already forming
+  ---
+  duration_ms: 95.6099
+  type: 'test'
+  ...
+# Subtest: reset during formation clears deadlines without reviving old bundles
+ok 6 - reset during formation clears deadlines without reviving old bundles
+  ---
+  duration_ms: 170.7841
+  type: 'test'
+  ...
+# Subtest: hidden pages pause processing and forming time without a catch-up burst
+ok 7 - hidden pages pause processing and forming time without a catch-up burst
+  ---
+  duration_ms: 55.0565
+  type: 'test'
+  ...
+# Subtest: look mode prevents direct withdrawals and feeds while the machine keeps working
+ok 8 - look mode prevents direct withdrawals and feeds while the machine keeps working
+  ---
+  duration_ms: 46.6335
+  type: 'test'
+  ...
+# Subtest: an ejected bundle can be moved, placed, retaken, opened and stored with the original identities
+ok 9 - an ejected bundle can be moved, placed, retaken, opened and stored with the original identities
+  ---
+  duration_ms: 93.9974
+  type: 'test'
+  ...
+# Subtest: failed bundle intake and full-hand withdrawal preserve the monetary state
+ok 10 - failed bundle intake and full-hand withdrawal preserve the monetary state
+  ---
+  duration_ms: 90.8841
+  type: 'test'
+  ...
+# Subtest: language and feel controls do not mutate retained cash or switch machine architecture
+ok 11 - language and feel controls do not mutate retained cash or switch machine architecture
+  ---
+  duration_ms: 53.8998
+  type: 'test'
+  ...
+# Subtest: panels stay exclusive before delivery and reset while retaining the initial help
+ok 12 - panels stay exclusive before delivery and reset while retaining the initial help
+  ---
+  duration_ms: 21.9267
+  type: 'test'
+  ...
+# Subtest: withdrawn cash table drops preserve all identities and the T shortcut still operates
+ok 13 - withdrawn cash table drops preserve all identities and the T shortcut still operates
+  ---
+  duration_ms: 52.523
+  type: 'test'
+  ...
+# Subtest: No audio context or cue starts before the gesture unlock
+ok 14 - No audio context or cue starts before the gesture unlock
+  ---
+  duration_ms: 14.397
+  type: 'test'
+  ...
+# Subtest: Repeated unlock shares one context and one resume
+ok 15 - Repeated unlock shares one context and one resume
+  ---
+  duration_ms: 0.4761
+  type: 'test'
+  ...
+# Subtest: Each real machine tick creates a finite paper and mechanical cue
+ok 16 - Each real machine tick creates a finite paper and mechanical cue
+  ---
+  duration_ms: 1.474
+  type: 'test'
+  ...
+# Subtest: Band closure has a delayed finite snap; dense contact includes body
+ok 17 - Band closure has a delayed finite snap; dense contact includes body
+  ---
+  duration_ms: 1.0095
+  type: 'test'
+  ...
+# Subtest: Mute stops all voices and suppresses new events until enabled
+ok 18 - Mute stops all voices and suppresses new events until enabled
+  ---
+  duration_ms: 1.26
+  type: 'test'
+  ...
+# Subtest: Hidden tabs stop pending cues and cannot schedule further cues
+ok 19 - Hidden tabs stop pending cues and cannot schedule further cues
+  ---
+  duration_ms: 0.4272
+  type: 'test'
+  ...
+# Subtest: Ended sources disconnect and repeated stop is harmless
+ok 20 - Ended sources disconnect and repeated stop is harmless
+  ---
+  duration_ms: 0.1563
+  type: 'test'
+  ...
+# Subtest: Rapid interaction keeps finite voice and buffer budgets
+ok 21 - Rapid interaction keeps finite voice and buffer budgets
+  ---
+  duration_ms: 45.9171
+  type: 'test'
+  ...
+# Subtest: Noise variation is deterministic, bounded and non-silent
+ok 22 - Noise variation is deterministic, bounded and non-silent
+  ---
+  duration_ms: 0.7263
+  type: 'test'
+  ...
+# Subtest: Volume is clamped and a compressor is wired after the master
+ok 23 - Volume is clamped and a compressor is wired after the master
+  ---
+  duration_ms: 0.2247
+  type: 'test'
+  ...
+# Subtest: Unavailable or rejected audio leaves the rest of the demo usable
+ok 24 - Unavailable or rejected audio leaves the rest of the demo usable
+  ---
+  duration_ms: 0.163
+  type: 'test'
+  ...
+# Subtest: integrated circuit is immutable and the default target is 100
+ok 25 - integrated circuit is immutable and the default target is 100
+  ---
+  duration_ms: 6.2306
+  type: 'test'
+  ...
+# Subtest: deliveries release existing balanced batches without generating money
+ok 26 - deliveries release existing balanced batches without generating money
+  ---
+  duration_ms: 2.8831
+  type: 'test'
+  ...
+# Subtest: partial reserves wait inside and idle processing cannot spill loose cash
+ok 27 - partial reserves wait inside and idle processing cannot spill loose cash
+  ---
+  duration_ms: 14.5051
+  type: 'test'
+  ...
+# Subtest: reserve withdrawal chooses a denomination and requested quantity
+ok 28 - reserve withdrawal chooses a denomination and requested quantity
+  ---
+  duration_ms: 12.9827
+  type: 'test'
+  ...
+# Subtest: withdrawing between deliveries delays binding until those exact notes return
+ok 29 - withdrawing between deliveries delays binding until those exact notes return
+  ---
+  duration_ms: 25.1552
+  type: 'test'
+  ...
+# Subtest: binding locks its notes while other cash remains available and target changes preserve its stamp
+ok 30 - binding locks its notes while other cash remains available and target changes preserve its stamp
+  ---
+  duration_ms: 21.0194
+  type: 'test'
+  ...
+# Subtest: target changes are explicit and invalid settings never change cash or bundles
+ok 31 - target changes are explicit and invalid settings never change cash or bundles
+  ---
+  duration_ms: 15.6483
+  type: 'test'
+  ...
+# Subtest: smaller targets form stamped bundles without resizing previously formed bundles
+ok 32 - smaller targets form stamped bundles without resizing previously formed bundles
+  ---
+  duration_ms: 21.6401
+  type: 'test'
+  ...
+# Subtest: output selection takes only the specified completed bundle
+ok 33 - output selection takes only the specified completed bundle
+  ---
+  duration_ms: 13.5555
+  type: 'test'
+  ...
+# Subtest: both chambers may bind while new counted notes stay available in reserve
+ok 34 - both chambers may bind while new counted notes stay available in reserve
+  ---
+  duration_ms: 263.5567
+  type: 'test'
+  ...
+# Subtest: small complete deliveries preserve every note through internal counting, ejection and storage
+ok 35 - small complete deliveries preserve every note through internal counting, ejection and storage
+  ---
+  duration_ms: 16.6773
+  type: 'test'
+  ...
+# Subtest: large complete deliveries preserve every note through internal counting, ejection and storage
+ok 36 - large complete deliveries preserve every note through internal counting, ejection and storage
+  ---
+  duration_ms: 962.8916
+  type: 'test'
+  ...
+# Subtest: a direct grab chooses a real handful, deterministically nearest first
+ok 37 - a direct grab chooses a real handful, deterministically nearest first
+  ---
+  duration_ms: 17.6101
+  type: 'test'
+  ...
+# Subtest: gathering respects remaining capacity and never reaches distant notes
+ok 38 - gathering respects remaining capacity and never reaches distant notes
+  ---
+  duration_ms: 0.1729
+  type: 'test'
+  ...
+# Subtest: reserve windows and outside outputs cannot receive a machine deposit
+ok 39 - reserve windows and outside outputs cannot receive a machine deposit
+  ---
+  duration_ms: 0.1534
+  type: 'test'
+  ...
+# Subtest: empty space and cancelled drops cannot become accidental machine deposits
+ok 40 - empty space and cancelled drops cannot become accidental machine deposits
+  ---
+  duration_ms: 0.081
+  type: 'test'
+  ...
+# Subtest: real pointer handlers carry 24 original notes to the integrated intake in one drag
+ok 41 - real pointer handlers carry 24 original notes to the integrated intake in one drag
+  ---
+  duration_ms: 3.8039
+  type: 'test'
+  ...
+# Subtest: a tap keeps its handful and a following inlet tap deposits it
+ok 42 - a tap keeps its handful and a following inlet tap deposits it
+  ---
+  duration_ms: 2.1206
+  type: 'test'
+  ...
+# Subtest: pointer cancellation and focus loss keep held identities without a deposit
+ok 43 - pointer cancellation and focus loss keep held identities without a deposit
+  ---
+  duration_ms: 1.7412
+  type: 'test'
+  ...
+# Subtest: looking and unrelated fingers cannot move money
+ok 44 - looking and unrelated fingers cannot move money
+  ---
+  duration_ms: 1.4018
+  type: 'test'
+  ...
+# Subtest: a miss remains in hand while a deliberate table drop preserves every note
+ok 45 - a miss remains in hand while a deliberate table drop preserves every note
+  ---
+  duration_ms: 1.3565
+  type: 'test'
+  ...
+# Subtest: a carried handful cannot occlude the slot receiving its drop
+ok 46 - a carried handful cannot occlude the slot receiving its drop
+  ---
+  duration_ms: 1.3871
+  type: 'test'
+  ...
+# Subtest: the measured visible inlet label accepts its top edge and corners outside the inlet disk
+ok 47 - the measured visible inlet label accepts its top edge and corners outside the inlet disk
+  ---
+  duration_ms: 0.1243
+  type: 'test'
+  ...
+# Subtest: a measured label cannot activate hidden or absent circuit targets
+ok 48 - a measured label cannot activate hidden or absent circuit targets
+  ---
+  duration_ms: 0.0787
+  type: 'test'
+  ...
+# Subtest: a real drag released at the visible label corner feeds the intended machine
+ok 49 - a real drag released at the visible label corner feeds the intended machine
+  ---
+  duration_ms: 1.5242
+  type: 'test'
+  ...
+# Subtest: a direct reserve grab uses its denomination and requested quantity
+ok 50 - a direct reserve grab uses its denomination and requested quantity
+  ---
+  duration_ms: 4.9578
+  type: 'test'
+  ...
+# Subtest: reserve overlay rectangles cannot widen the feeding inlet
+ok 51 - reserve overlay rectangles cannot widen the feeding inlet
+  ---
+  duration_ms: 0.3756
+  type: 'test'
+  ...
+# Subtest: binding compresses inside the housing and cannot eject itself or change note identities
+ok 52 - binding compresses inside the housing and cannot eject itself or change note identities
+  ---
+  duration_ms: 16.3736
+  type: 'test'
+  ...
+# Subtest: only an accepted ejection starts the outward fall and the renderer leaves money unchanged
+ok 53 - only an accepted ejection starts the outward fall and the renderer leaves money unchanged
+  ---
+  duration_ms: 22.1313
+  type: 'test'
+  ...
+# Subtest: a bundle still inside the binding chamber is not an outside pickup target
+ok 54 - a bundle still inside the binding chamber is not an outside pickup target
+  ---
+  duration_ms: 14.4352
+  type: 'test'
+  ...
+# Subtest: scenario identities, denominations, totals and all capacities are exact
+ok 55 - scenario identities, denominations, totals and all capacities are exact
+  ---
+  duration_ms: 22.9163
+  type: 'test'
+  ...
+# Subtest: dump moves original notes and repeated dump refuses without changing state
+ok 56 - dump moves original notes and repeated dump refuses without changing state
+  ---
+  duration_ms: 2.1929
+  type: 'test'
+  ...
+# Subtest: pickup is additive, reaches 100 and refuses 101 atomically
+ok 57 - pickup is additive, reaches 100 and refuses 101 atomically
+  ---
+  duration_ms: 3.4345
+  type: 'test'
+  ...
+# Subtest: invalid selections, duplicate ids and stale ids cannot partially move notes
+ok 58 - invalid selections, duplicate ids and stale ids cannot partially move notes
+  ---
+  duration_ms: 5.5351
+  type: 'test'
+  ...
+# Subtest: machine transfers one real note per tick without converting denominations
+ok 59 - machine transfers one real note per tick without converting denominations
+  ---
+  duration_ms: 3.3794
+  type: 'test'
+  ...
+# Subtest: binding requires the target count in the matching internal reserve and remains internal before ejection
+ok 60 - binding requires the target count in the matching internal reserve and remains internal before ejection
+  ---
+  duration_ms: 20.6819
+  type: 'test'
+  ...
+# Subtest: output releases one bundle and opening restores all original notes while the loose remainder stays internal
+ok 61 - output releases one bundle and opening restores all original notes while the loose remainder stays internal
+  ---
+  duration_ms: 21.3782
+  type: 'test'
+  ...
+# Subtest: bundle opening and feed refuse atomically when held contents are incompatible
+ok 62 - bundle opening and feed refuse atomically when held contents are incompatible
+  ---
+  duration_ms: 21.4188
+  type: 'test'
+  ...
+# Subtest: loose slot accepts mixed denominations, fills partially and retains the remainder in hand
+ok 63 - loose slot accepts mixed denominations, fills partially and retains the remainder in hand
+  ---
+  duration_ms: 6.6989
+  type: 'test'
+  ...
+# Subtest: slot assignment survives withdrawal; reassignment requires emptying and explicit clearing
+ok 64 - slot assignment survives withdrawal; reassignment requires emptying and explicit clearing
+  ---
+  duration_ms: 16.9563
+  type: 'test'
+  ...
+# Subtest: large scenario creates twelve real bundles; a bundle slot accepts ten and leaves two held
+ok 65 - large scenario creates twelve real bundles; a bundle slot accepts ten and leaves two held
+  ---
+  duration_ms: 2568.4542
+  type: 'test'
+  ...
+# Subtest: withdrawal takes only available loose capacity and preserves the slot remainder
+ok 66 - withdrawal takes only available loose capacity and preserves the slot remainder
+  ---
+  duration_ms: 1.504
+  type: 'test'
+  ...
+# Subtest: taking loose notes from an internal reserve respects available hand capacity
+ok 67 - taking loose notes from an internal reserve respects available hand capacity
+  ---
+  duration_ms: 13.1252
+  type: 'test'
+  ...
+# Subtest: empty operations and invalid slots refuse without touching identities or associations
+ok 68 - empty operations and invalid slots refuse without touching identities or associations
+  ---
+  duration_ms: 8.6134
+  type: 'test'
+  ...
+# Subtest: repeated sort, bind, take, open and drop never duplicate identities or bundle ids
+ok 69 - repeated sort, bind, take, open and drop never duplicate identities or bundle ids
+  ---
+  duration_ms: 111.9509
+  type: 'test'
+  ...
+# Subtest: snapshots and returned entities cannot mutate the ledger; immutable identities stay intact
+ok 70 - snapshots and returned entities cannot mutate the ledger; immutable identities stay intact
+  ---
+  duration_ms: 12.1996
+  type: 'test'
+  ...
+# Subtest: a fresh scenario is independent of an earlier ledger and its in-flight input
+ok 71 - a fresh scenario is independent of an earlier ledger and its in-flight input
+  ---
+  duration_ms: 115.5722
+  type: 'test'
+  ...
+1..71
+# tests 71
+# suites 0
+# pass 71
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3089.7868

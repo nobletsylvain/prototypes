@@ -9,6 +9,14 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-11-09 — Papier & liasses V03 : garder le liquide dans la trieuse
+
+À la demande du propriétaire, tri et comptage sont intégrés dans la trieuse. Les réserves de 10 et 20 € restent dans la machine, disponibles au retrait et conservées entre deux livraisons. Au seuil souhaité (100 par défaut), une liasse homogène est formée à l’intérieur, comprimée puis relâchée, avant d’être éjectée et de tomber dehors. La V02 à deux circuits reste disponible.
+
+V03 autonome : prise directe des poignées, deux livraisons de 60 billets pour le petit lot, reprise ciblée d’une coupure, seuils de comparaison25/50/100 et commande pour suspendre les nouvelles formations. Ces contrôles de comparaison sont des propositions ; le modèle conserve chaque identité et chaque euro. L’image de référence fournie n’est pas embarquée.
+
+71 contrôles réussis, zéro échec : 17 registre,12 réserves intégrées,13 contrôleur,18 gestes/scène,11 audio. Cinq fichiers réemployés identiques à V02, qui reste inchangée. Revue navigateur après déploiement à consigner dans le carnet ; aucun essai humain, écoute finale, téléphone physique ou résultat Unity annoncé. [Essai](./cash-feel-v03/) · [Carnet et passation](./cash-feel-v03/documentation.html).
+
 ## 2026-11-09 — Papier et liasses V02 : prendre et déposer des poignées
 
 - Le propriétaire précise que le but est de prendre des poignées et de les mettre dans la trieuse et la compteuse. Il demande les deux configurations proposées : deux machines séparées ou une combinée.

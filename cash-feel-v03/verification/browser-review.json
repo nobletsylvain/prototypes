@@ -1,0 +1,10 @@
+{
+  "version": "v03",
+  "status": "pending-publication-preview",
+  "softwareTests": {"passed": 71, "failed": 0},
+  "humanPlaytest": false,
+  "physicalPhone": false,
+  "listeningReview": false,
+  "unityIntegration": false,
+  "note": "V02 browser evidence is not reused as V03 evidence."
+}
