@@ -1,0 +1,35 @@
+{
+  "date": "2026-11-08",
+  "version": "film-packaging-v01",
+  "automated": {
+    "command": "node --test tests/*.test.mjs",
+    "passed": 42,
+    "failed": 0,
+    "suites": {
+      "model": 14,
+      "integration": 6,
+      "presentation": 22
+    },
+    "syntax": "standalone module compiled with node --check",
+    "scope": "Node scene graph and numerical animation checks; no browser rasterization"
+  },
+  "assets": {
+    "sourceHashesUnchanged": true,
+    "triangles": 3402
+  },
+  "browser": {
+    "visuallyInspected": false,
+    "tactileHumanTest": false,
+    "audioHumanListening": false,
+    "reason": "Local network access failed; browser control stopped because current URL could not be determined safely."
+  },
+  "unity": {
+    "modified": false,
+    "build": false,
+    "integration": false
+  },
+  "publishing": {
+    "publicPermission": "Explicit user confirmation in current chat",
+    "target": "https://nobletsylvain.github.io/prototypes/film-packaging-v01/"
+  }
+}
