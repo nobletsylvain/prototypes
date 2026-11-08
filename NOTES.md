@@ -9,6 +9,13 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-11-09 — Papier et liasses V01 : publication autonome
+
+- Publication demandée par le propriétaire dans ce dépôt, dans `cash-feel-v01/`, avec lien depuis le hub ; les démos précédentes restent intactes.
+- Deux choix conservés : compteuse énergique et rythmée ; compression puis petit relâchement de la liasse. Vue FPS, sons provisoires, commandes tactiles, deux lots et comparaison limitée.
+- Identités, coupures, valeur, capacités et refus exacts : 39 contrôles locaux réussis, zéro échec. Les parcours utilisent une présentation simulée ; aucun essai humain ni résultat Unity déduit de ces contrôles.
+- Documentation et passation Unity accompagnent le prototype. La vérification du rendu et du lien vient après le déploiement.
+
 ## 2026-08-17 — La Colline Creuse v2 : bac à sable, sous-sol généré, creusement au doigt
 
 Retour de Sylvain sur la v1 : « en mode sandbox à la RimWorld, avec génération

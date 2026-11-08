@@ -1,0 +1,244 @@
+TAP version 13
+# Subtest: real app handlers complete the small lot as one bundle plus twenty loose notes in separate slots
+ok 1 - real app handlers complete the small lot as one bundle plus twenty loose notes in separate slots
+  ---
+  duration_ms: 70.3302
+  type: 'test'
+  ...
+# Subtest: opening through actual controls preserves identities and slot memory until explicitly cleared
+ok 2 - opening through actual controls preserves identities and slot memory until explicitly cleared
+  ---
+  duration_ms: 56.1416
+  type: 'test'
+  ...
+# Subtest: opening a bundle alongside loose notes refuses without changing the real application state
+ok 3 - opening a bundle alongside loose notes refuses without changing the real application state
+  ---
+  duration_ms: 50.3861
+  type: 'test'
+  ...
+# Subtest: look mode keeps all object controls disabled while actual machine frames continue updating
+ok 4 - look mode keeps all object controls disabled while actual machine frames continue updating
+  ---
+  duration_ms: 11.133
+  type: 'test'
+  ...
+# Subtest: reset during counting replaces the ledger and future real frames cannot revive the old input
+ok 5 - reset during counting replaces the ledger and future real frames cannot revive the old input
+  ---
+  duration_ms: 37.0057
+  type: 'test'
+  ...
+# Subtest: reset during held gathering cancels the timer and preserves every note in the new pouch
+ok 6 - reset during held gathering cancels the timer and preserves every note in the new pouch
+  ---
+  duration_ms: 4.3188
+  type: 'test'
+  ...
+# Subtest: scene-selection callbacks can take, place and retake a bundle with dense contact audio requests
+ok 7 - scene-selection callbacks can take, place and retake a bundle with dense contact audio requests
+  ---
+  duration_ms: 44.3285
+  type: 'test'
+  ...
+# Subtest: the advertised T shortcut works after a desktop button click has focused the primary button
+ok 8 - the advertised T shortcut works after a desktop button click has focused the primary button
+  ---
+  duration_ms: 43.4675
+  type: 'test'
+  ...
+# Subtest: actual frame loop pauses monetary transfers while hidden and resumes without a catch-up burst
+ok 9 - actual frame loop pauses monetary transfers while hidden and resumes without a catch-up burst
+  ---
+  duration_ms: 8.9688
+  type: 'test'
+  ...
+# Subtest: comparison controls and language preserve the exact monetary state
+ok 10 - comparison controls and language preserve the exact monetary state
+  ---
+  duration_ms: 2.9614
+  type: 'test'
+  ...
+# Subtest: large lot uses twelve repeated real control cycles and fills ten bundles plus two with no loss
+ok 11 - large lot uses twelve repeated real control cycles and fills ten bundles plus two with no loss
+  ---
+  duration_ms: 2498.2148
+  type: 'test'
+  ...
+# Subtest: No audio context or cue starts before the gesture unlock
+ok 12 - No audio context or cue starts before the gesture unlock
+  ---
+  duration_ms: 1.4039
+  type: 'test'
+  ...
+# Subtest: Repeated unlock shares one context and one resume
+ok 13 - Repeated unlock shares one context and one resume
+  ---
+  duration_ms: 0.423
+  type: 'test'
+  ...
+# Subtest: Each real machine tick creates a finite paper and mechanical cue
+ok 14 - Each real machine tick creates a finite paper and mechanical cue
+  ---
+  duration_ms: 1.3434
+  type: 'test'
+  ...
+# Subtest: Band closure has a delayed finite snap; dense contact includes body
+ok 15 - Band closure has a delayed finite snap; dense contact includes body
+  ---
+  duration_ms: 0.5384
+  type: 'test'
+  ...
+# Subtest: Mute stops all voices and suppresses new events until enabled
+ok 16 - Mute stops all voices and suppresses new events until enabled
+  ---
+  duration_ms: 0.4891
+  type: 'test'
+  ...
+# Subtest: Hidden tabs stop pending cues and cannot schedule further cues
+ok 17 - Hidden tabs stop pending cues and cannot schedule further cues
+  ---
+  duration_ms: 0.4054
+  type: 'test'
+  ...
+# Subtest: Ended sources disconnect and repeated stop is harmless
+ok 18 - Ended sources disconnect and repeated stop is harmless
+  ---
+  duration_ms: 0.1377
+  type: 'test'
+  ...
+# Subtest: Rapid interaction keeps finite voice and buffer budgets
+ok 19 - Rapid interaction keeps finite voice and buffer budgets
+  ---
+  duration_ms: 35.8314
+  type: 'test'
+  ...
+# Subtest: Noise variation is deterministic, bounded and non-silent
+ok 20 - Noise variation is deterministic, bounded and non-silent
+  ---
+  duration_ms: 0.5722
+  type: 'test'
+  ...
+# Subtest: Volume is clamped and a compressor is wired after the master
+ok 21 - Volume is clamped and a compressor is wired after the master
+  ---
+  duration_ms: 0.2391
+  type: 'test'
+  ...
+# Subtest: Unavailable or rejected audio leaves the rest of the demo usable
+ok 22 - Unavailable or rejected audio leaves the rest of the demo usable
+  ---
+  duration_ms: 0.1625
+  type: 'test'
+  ...
+# Subtest: scenario identities, denominations, totals and all capacities are exact
+ok 23 - scenario identities, denominations, totals and all capacities are exact
+  ---
+  duration_ms: 20.9902
+  type: 'test'
+  ...
+# Subtest: dump moves original notes and repeated dump refuses without changing state
+ok 24 - dump moves original notes and repeated dump refuses without changing state
+  ---
+  duration_ms: 1.5968
+  type: 'test'
+  ...
+# Subtest: pickup is additive, reaches 100 and refuses 101 atomically
+ok 25 - pickup is additive, reaches 100 and refuses 101 atomically
+  ---
+  duration_ms: 3.062
+  type: 'test'
+  ...
+# Subtest: invalid selections, duplicate ids and stale ids cannot partially move notes
+ok 26 - invalid selections, duplicate ids and stale ids cannot partially move notes
+  ---
+  duration_ms: 3.3833
+  type: 'test'
+  ...
+# Subtest: machine transfers one real note per tick without converting denominations
+ok 27 - machine transfers one real note per tick without converting denominations
+  ---
+  duration_ms: 2.7581
+  type: 'test'
+  ...
+# Subtest: binding requires 100 notes of the requested denomination in output
+ok 28 - binding requires 100 notes of the requested denomination in output
+  ---
+  duration_ms: 11.3242
+  type: 'test'
+  ...
+# Subtest: output prioritizes one bundle and an opened bundle restores all original notes in hand
+ok 29 - output prioritizes one bundle and an opened bundle restores all original notes in hand
+  ---
+  duration_ms: 11.3957
+  type: 'test'
+  ...
+# Subtest: bundle opening and feed refuse atomically when held contents are incompatible
+ok 30 - bundle opening and feed refuse atomically when held contents are incompatible
+  ---
+  duration_ms: 10.3015
+  type: 'test'
+  ...
+# Subtest: loose slot accepts mixed denominations, fills partially and retains the remainder in hand
+ok 31 - loose slot accepts mixed denominations, fills partially and retains the remainder in hand
+  ---
+  duration_ms: 3.31
+  type: 'test'
+  ...
+# Subtest: slot assignment survives withdrawal; reassignment requires emptying and explicit clearing
+ok 32 - slot assignment survives withdrawal; reassignment requires emptying and explicit clearing
+  ---
+  duration_ms: 10.7567
+  type: 'test'
+  ...
+# Subtest: large scenario creates twelve real bundles; a bundle slot accepts ten and leaves two held
+ok 33 - large scenario creates twelve real bundles; a bundle slot accepts ten and leaves two held
+  ---
+  duration_ms: 1898.7475
+  type: 'test'
+  ...
+# Subtest: withdrawal takes only available loose capacity and preserves the slot remainder
+ok 34 - withdrawal takes only available loose capacity and preserves the slot remainder
+  ---
+  duration_ms: 1.5995
+  type: 'test'
+  ...
+# Subtest: taking loose output respects available hand capacity
+ok 35 - taking loose output respects available hand capacity
+  ---
+  duration_ms: 8.6842
+  type: 'test'
+  ...
+# Subtest: empty operations and invalid slots refuse without touching identities or associations
+ok 36 - empty operations and invalid slots refuse without touching identities or associations
+  ---
+  duration_ms: 7.4718
+  type: 'test'
+  ...
+# Subtest: repeated sort, bind, take, open and drop never duplicate identities or bundle ids
+ok 37 - repeated sort, bind, take, open and drop never duplicate identities or bundle ids
+  ---
+  duration_ms: 76.8358
+  type: 'test'
+  ...
+# Subtest: snapshots and returned entities cannot mutate the ledger; immutable identities stay intact
+ok 38 - snapshots and returned entities cannot mutate the ledger; immutable identities stay intact
+  ---
+  duration_ms: 8.4551
+  type: 'test'
+  ...
+# Subtest: a fresh scenario is independent of an earlier ledger and its in-flight input
+ok 39 - a fresh scenario is independent of an earlier ledger and its in-flight input
+  ---
+  duration_ms: 90.2875
+  type: 'test'
+  ...
+1..39
+# tests 39
+# suites 0
+# pass 39
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2905.4119
