@@ -1,0 +1,363 @@
+{
+  "date": "2026-11-08",
+  "entries": [
+    {
+      "name": "hash-100g",
+      "source": "art/props/products-lowpoly-full-v01/products/hash-100g/hash-100g.glb",
+      "sourceSha256": "02d6c902206e4c827b334cae33323c67809cc1e1a5875bce042f74ac10cfcc02",
+      "sourceBytes": 52289324,
+      "sourceUnmodified": true,
+      "file": "hash-100g.json",
+      "sha256": "7c8938a54180db2c7d311b3105f752d9c0a59e2fcb71772130c71fe5e8151c7c",
+      "triangles": 310,
+      "dimensionsMeters": [
+        0.10000000149011612,
+        0.017999999225139618,
+        0.18000000715255737
+      ],
+      "sourceNodeTransforms": [
+        {
+          "name": "hash-100g",
+          "matrix": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1
+          ]
+        }
+      ],
+      "uniformScale": 1,
+      "translationBeforeScale": [
+        -0.0,
+        -0.0,
+        -0.0
+      ],
+      "textures": [
+        {
+          "file": "hash-100g-basecolor-0.jpg",
+          "sourceEmbeddedSha256": "9d92e41fd8ad6a8a6762101791e8d08c3d7d597b88885e700701369d8f8df0f6",
+          "sourceDimensions": [
+            2048,
+            2048
+          ],
+          "dimensions": [
+            512,
+            512
+          ],
+          "conversion": "RGB JPEG quality 90, longest side 512; preview only",
+          "sha256": "fb440dade8fe96f9b0fd986bae063d71a3c932de26a88f810edc79efb42bb8bd"
+        }
+      ],
+      "normals": "Recomputed per triangle after authored transforms, unit-length flat normals. UVs preserved per corner.",
+      "license": "Existing project-authored/commissioned source, provenance retained locally; no third-party licence newly granted by this conversion.",
+      "massMeaning": "Gameplay metadata; never inferred from mesh volume.",
+      "limitation": "Preview texture downsampled; source geometry preserved after rigid centering. No Unity import validation."
+    },
+    {
+      "name": "hash-250g",
+      "source": "art/props/products-lowpoly-full-v01/products/hash-250g/hash-250g.glb",
+      "sourceSha256": "b233bc27aa6194c736339364aeb3465b4ad1ef25ae7359adf428c90bcc19895c",
+      "sourceBytes": 48383688,
+      "sourceUnmodified": true,
+      "file": "hash-250g.json",
+      "sha256": "8785feff6086ac3c9250dac96d0860a6c61476cde1f78702e36014f8d286e6cb",
+      "triangles": 310,
+      "dimensionsMeters": [
+        0.10000000149011612,
+        0.044999998062849045,
+        0.18000000715255737
+      ],
+      "sourceNodeTransforms": [
+        {
+          "name": "hash-250g",
+          "matrix": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1
+          ]
+        }
+      ],
+      "uniformScale": 1,
+      "translationBeforeScale": [
+        -0.0,
+        -0.0,
+        -0.0
+      ],
+      "textures": [
+        {
+          "file": "hash-250g-basecolor-0.jpg",
+          "sourceEmbeddedSha256": "57fd92e8da412cf5766cf6f423f36d8e3d1be720590ab6420ba7a662b5ab09e5",
+          "sourceDimensions": [
+            2048,
+            2048
+          ],
+          "dimensions": [
+            512,
+            512
+          ],
+          "conversion": "RGB JPEG quality 90, longest side 512; preview only",
+          "sha256": "4c3c39023897355b9286d5682de09a3c2d8c6ed9ec9794fd2f719e7b8f9a2c22"
+        }
+      ],
+      "normals": "Recomputed per triangle after authored transforms, unit-length flat normals. UVs preserved per corner.",
+      "license": "Existing project-authored/commissioned source, provenance retained locally; no third-party licence newly granted by this conversion.",
+      "massMeaning": "Gameplay metadata; never inferred from mesh volume.",
+      "limitation": "Preview texture downsampled; source geometry preserved after rigid centering. No Unity import validation."
+    },
+    {
+      "name": "bud-5g",
+      "source": "art/props/products-lowpoly-full-v01/products/bud-5g/bud-5g.glb",
+      "sourceSha256": "2cb178e300dd444b732262849b0538a131c9ec277d9d067e165a60371a10b8dc",
+      "sourceBytes": 23473616,
+      "sourceUnmodified": true,
+      "file": "bud-5g.json",
+      "sha256": "867634f97fd199d655da715831e3c83b80bba77de1dbc5e575eb3006eb58c19d",
+      "triangles": 684,
+      "dimensionsMeters": [
+        0.05540170520544052,
+        0.09192830324172974,
+        0.052812788635492325
+      ],
+      "sourceNodeTransforms": [
+        {
+          "name": "bud_5g",
+          "matrix": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1
+          ]
+        }
+      ],
+      "uniformScale": 1,
+      "translationBeforeScale": [
+        -0.0,
+        -0.0,
+        -0.0
+      ],
+      "textures": [
+        {
+          "file": "bud-5g-basecolor-0.jpg",
+          "sourceEmbeddedSha256": "70ce88e1bec3b5a55980e11e5be4515f08e3431f5fa4a30e8b509eda58e94212",
+          "sourceDimensions": [
+            2048,
+            2048
+          ],
+          "dimensions": [
+            512,
+            512
+          ],
+          "conversion": "RGB JPEG quality 90, longest side 512; preview only",
+          "sha256": "d0eb85d5ccc93a07451146b96632ed457ef7a4c7b8a44a33382a9230923d074a"
+        }
+      ],
+      "normals": "Recomputed per triangle after authored transforms, unit-length flat normals. UVs preserved per corner.",
+      "license": "Existing project-authored/commissioned source, provenance retained locally; no third-party licence newly granted by this conversion.",
+      "massMeaning": "Gameplay metadata; never inferred from mesh volume.",
+      "limitation": "Preview texture downsampled; source geometry preserved after rigid centering. No Unity import validation."
+    },
+    {
+      "name": "knife-v02",
+      "source": "outputs/art/folding-knife-v02-20261106/folding-knife.glb",
+      "sourceSha256": "f8e017865d3378bd00f9b38e2e36597e34eae163e421bc137e2313995ca3a991",
+      "sourceBytes": 5027372,
+      "sourceUnmodified": true,
+      "file": "knife-v02.json",
+      "sha256": "fb0755917416b96c6398c4571c9a7af2e4f7402807f4b1a393857d93e5db3ae5",
+      "triangles": 2098,
+      "dimensionsMeters": [
+        0.27,
+        0.03939546910945925,
+        0.03702231864222157
+      ],
+      "sourceNodeTransforms": [
+        {
+          "name": null,
+          "matrix": [
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      ],
+      "uniformScale": 0.32402386741014394,
+      "translationBeforeScale": [
+        -0.06212402880191803,
+        0.05981399863958359,
+        0.002197001129388809
+      ],
+      "textures": [
+        {
+          "file": "knife-v02-basecolor-0.jpg",
+          "sourceEmbeddedSha256": "5ce26563442c6138386b3f7864b93f11baf7e3ea47c035047ce7604a462e6717",
+          "sourceDimensions": [
+            2048,
+            2048
+          ],
+          "dimensions": [
+            512,
+            512
+          ],
+          "conversion": "RGB JPEG quality 90, longest side 512; preview only",
+          "sha256": "6dbc9d521bf9a6c0f18af0d82a4a1ca22e88393d08cf25bee063bf3a987dd49e"
+        }
+      ],
+      "normals": "Recomputed per triangle after authored transforms, unit-length flat normals. UVs preserved per corner.",
+      "license": "Existing project-authored/commissioned source, provenance retained locally; no third-party licence newly granted by this conversion.",
+      "massMeaning": "Gameplay metadata; never inferred from mesh volume.",
+      "limitation": "Knife length 0.27 m is a demo presentation parameter, original units not verified; monobloc with no hinge."
+    },
+    {
+      "name": "banknote20",
+      "source": "art/currency-lowpoly-v02/banknote_20eur_front_back.png",
+      "sourceSha256": "eab02c00cc9a813703683c593aeec20a73c7bef6d6545ed45f5f9b2c1fe56467",
+      "file": "banknote_20eur_front_back.png",
+      "sha256": "eab02c00cc9a813703683c593aeec20a73c7bef6d6545ed45f5f9b2c1fe56467",
+      "sourceUnmodified": true,
+      "dimensionsMeters": [
+        0.14,
+        0.065,
+        0.00018
+      ],
+      "license": "Original project geometric artwork; no scan or real-banknote reproduction. See art/currency-lowpoly-v02/README.md",
+      "uvFront": [
+        0,
+        0.53515625,
+        1,
+        1
+      ],
+      "uvBack": [
+        0,
+        0,
+        1,
+        0.46484375
+      ],
+      "uvNote": "Texture coordinate V=0 at bottom; backside U mirrored, V unchanged.",
+      "limitations": "Illustrative bundle geometry is prepared separately; monetary identity is data, not inferred from texture."
+    },
+    {
+      "name": "three",
+      "source": "work/prototypes-source/tools/vendor/three.module.js",
+      "sourceSha256": "c6eacae1ec5fd832160227ca7441311c8b30dee0419af87954fb9df6d105bf1f",
+      "file": "../vendor/three.module.js",
+      "sha256": "c6eacae1ec5fd832160227ca7441311c8b30dee0419af87954fb9df6d105bf1f",
+      "version": "r160",
+      "license": "MIT, see ../vendor/LICENSE-three.txt"
+    },
+    {
+      "name": "banknote10",
+      "source": "art/currency-lowpoly-v02/banknote_10eur_front_back.png",
+      "sourceSha256": "c0e6d0354bb95e15bfb7d1ec4c5cd908997adcee8032658e2abefeba52771bf3",
+      "file": "banknote_10eur_front_back.png",
+      "sha256": "c0e6d0354bb95e15bfb7d1ec4c5cd908997adcee8032658e2abefeba52771bf3",
+      "sourceUnmodified": true,
+      "dimensionsMeters": [
+        0.14,
+        0.065,
+        0.00018
+      ],
+      "license": "Original project geometric artwork; no scan or real-banknote reproduction. See art/currency-lowpoly-v02/README.md",
+      "uvFront": [
+        0,
+        0.53515625,
+        1,
+        1
+      ],
+      "uvBack": [
+        0,
+        0,
+        1,
+        0.46484375
+      ],
+      "uvNote": "Texture coordinate V=0 at bottom; backside U mirrored, V unchanged.",
+      "limitations": "Illustrative bundle geometry is prepared separately; monetary identity is data, not inferred from texture."
+    },
+    {
+      "name": "banknote50",
+      "source": "art/currency-lowpoly-v02/banknote_50eur_front_back.png",
+      "sourceSha256": "4b7dcc5ff1cbe9e92c5296ff1f144d5182ef6a0ea17a23997e8155a28e21ba5b",
+      "file": "banknote_50eur_front_back.png",
+      "sha256": "4b7dcc5ff1cbe9e92c5296ff1f144d5182ef6a0ea17a23997e8155a28e21ba5b",
+      "sourceUnmodified": true,
+      "dimensionsMeters": [
+        0.14,
+        0.065,
+        0.00018
+      ],
+      "license": "Original project geometric artwork; no scan or real-banknote reproduction. See art/currency-lowpoly-v02/README.md",
+      "uvFront": [
+        0,
+        0.53515625,
+        1,
+        1
+      ],
+      "uvBack": [
+        0,
+        0,
+        1,
+        0.46484375
+      ],
+      "uvNote": "Texture coordinate V=0 at bottom; backside U mirrored, V unchanged.",
+      "limitations": "Illustrative bundle geometry is prepared separately; monetary identity is data, not inferred from texture."
+    }
+  ],
+  "validation": {
+    "allSourceHashesUnchanged": true,
+    "triangles": 3402,
+    "finitePositions": true,
+    "nonZeroTriangleArea": true,
+    "metricBounds": "Authored meters for products; knife uses explicit demo normalization.",
+    "originalVersionsPreserved": true
+  },
+  "scope": "Standalone preview only. No game source, Unity project, source asset, or earlier prototype changed."
+}
