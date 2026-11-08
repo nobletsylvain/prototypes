@@ -1,40 +1,28 @@
 {
   "date": "2026-11-09",
-  "version": "film-packaging-v02",
+  "version": "film-packaging-v02.1",
   "automated": {
     "command": "node --test tests/*.test.mjs",
-    "passed": 57,
-    "failed": 0,
-    "suites": {
-      "model": 14,
-      "integration": 6,
-      "presentation": 22,
-      "stackLayout": 8,
-      "inputCadence": 7
-    }
+    "passed": 71,
+    "failed": 0
   },
   "preservation": {
-    "v01Files": 54,
+    "v02Files": 59,
     "changed": 0,
     "gameSourcesChanged": false
   },
   "changes": {
-    "100gStackSize": 5,
+    "film": "Outer surface follows occupied stacks and their individual heights; folds and seam follow the same surface",
     "defaultWrapSeconds": 0.55,
-    "comparisonSeconds": [
-      0.55,
-      0.75,
-      1.0
-    ],
     "finishedFilmColor": "#333638",
-    "finishedFilmBaseOpacity": 0.23,
-    "movingFilmBaseOpacity": 0.12
+    "finishedFilmBaseOpacity": 0.23
   },
-  "browserAtPackaging": "Visual check pending after publication; local server unreachable from browser",
-  "humanV02Playtest": false,
+  "browserAtPackaging": "Visual check pending after publication",
+  "humanRevisionPlaytest": false,
   "humanAudioListening": false,
   "unityIntegration": false,
   "publishing": {
-    "target": "https://nobletsylvain.github.io/prototypes/film-packaging-v02/"
+    "target": "https://nobletsylvain.github.io/prototypes/film-packaging-v02/",
+    "previous": "archive-v02.html"
   }
 }
