@@ -1,0 +1,30 @@
+{
+  "date": "2026-11-09",
+  "url": "https://nobletsylvain.github.io/prototypes/cash-feel-v02/?v=20261109-v2c",
+  "method": "Actual browser interface, pointer clicks and drags; no application state injected",
+  "viewports": [[1280,720],[390,844],[360,740]],
+  "coreVersion": "d32525e200534cd49e6137ebc204f6bd46618836",
+  "targetedFinalControllerVersion": "5dce11ca24ecd1b3726228eafcc8ef2a12df7a37",
+  "observations": [
+    "First-person view and separate machines selected on entry",
+    "Direct handful drag from the physical pile, without assisted pickup command",
+    "Mixed handful of 24 notes worth EUR400 rejected by separate counter and retained in hand",
+    "Same handful accepted by sorter at the visible intake label corner",
+    "Sorted 20 and 10 denomination piles dragged to the separate counter",
+    "Long press gathered 65 and then 31 remaining notes in the small separate circuit",
+    "Separate small lot: 120 sorted and counted, one 100-note EUR20 bundle stored in slot1 and 20 EUR10 notes in slot5, total EUR2200",
+    "Combined small lot: direct mixed intake, 120 counted and the same bundle/remainder stored, total EUR2200",
+    "Off-table release retained 24 notes worth EUR440 in hand",
+    "Valid table release posed that handful at the selected area; it was picked up there and fed to the combined machine",
+    "Combined large lot loaded 1200 notes worth EUR22000; one handful of 100 worth EUR1840 moved and counted",
+    "French and English interface checked, reinforced effects toggled off and on",
+    "No page overflow at 390x844 or 360x740",
+    "Controller v2b reset panel correction confirmed at360x740",
+    "Controller v2c initial storage/settings mutual exclusion, return of the initial help and both circuit resets confirmed at360x740; loaded script URL checked"
+  ],
+  "consoleErrors": 0,
+  "consoleWarnings": 0,
+  "screenshots": "Viewed in the browser tool; no PNG file saved",
+  "notPerformed": ["Human playtest", "Physical phone test", "Human audio listening", "Unity integration or build", "Complete large-lot browser run"],
+  "largeLotCoverage": "Complete scenarios for both circuits are covered by model tests, independently of browser rendering"
+}
