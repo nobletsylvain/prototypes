@@ -73,17 +73,76 @@ export class WorkshopView {
     });
     return {positions,size:[cols*d[0],(vertical?Math.min(5,ids.length):Math.ceil(ids.length/(cols*rows)))*d[1],rows*d[2]],stackCount};
   }
-  makeContents(ids,state){const g=new THREE.Group();const layout=this.contentLayout(ids,state);ids.forEach((id,i)=>{const m=this.itemMesh(state.items[id]);m.position.set(...layout.positions[i]);m.userData.itemId=id;g.add(m);});g.userData.size=layout.size;g.userData.stackCount=layout.stackCount;return g;}
-  createFilm(size,finished=true){
-    const [w,h,d]=size.map(n=>n+.008);const group=new THREE.Group();group.userData.film=true;
-    group.userData.finished=finished;
-    const shell=new THREE.Mesh(new THREE.BoxGeometry(w,h,d,4,2,4),new THREE.MeshPhysicalMaterial({color:finished?'#333638':'#c5ded7',transparent:true,opacity:(finished?.23:.12)*this.filmPresence,roughness:.13,metalness:.14,clearcoat:1,clearcoatRoughness:.08,envMapIntensity:1.6,depthWrite:false,side:THREE.DoubleSide}));shell.position.y=h/2-.003;group.add(shell);
-    const lines=[];const tris=[];
-    for(const sx of [-1,1])for(const sz of [-1,1]){const x=sx*w/2,z=sz*d/2,y=h-.003;for(let j=0;j<4;j++){const len=.015+j*.013;const ox=x-sx*len,oz=z-sz*len*.8;lines.push(x,y-.006-j*.002,z,ox,y+.0007,oz);tris.push(x,y,z,ox,y+.0015,oz,x-sx*(len+.012),y+.0002,z);lines.push(x,-.002,z,x-sx*len,h*.45,z+sz*.001);}}
-    for(let i=0;i<4;i++){const z=-d*.38+i*d*.23;lines.push(-w*.43,h-.001,z,w*.43,h-.001,z+d*.10);}
-    const lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.Float32BufferAttribute(lines,3));const lm=new THREE.LineBasicMaterial({color:'#f1fff1',transparent:true,opacity:.42*this.filmPresence,depthWrite:false});group.add(new THREE.LineSegments(lg,lm));
-    const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.Float32BufferAttribute(tris,3));tg.computeVertexNormals();group.add(new THREE.Mesh(tg,new THREE.MeshPhysicalMaterial({color:'#effff8',transparent:true,opacity:.22*this.filmPresence,roughness:.06,metalness:.35,side:THREE.DoubleSide,depthWrite:false})));
-    const seam=this.box(.009,h+.001,d+.002,'#effff2',w*.22,h/2-.003,0);seam.material.transparent=true;seam.material.opacity=.10*this.filmPresence;seam.material.depthWrite=false;group.add(seam);group.traverse(o=>{if(o.geometry)this.own(o);});return group;
+  makeContents(ids,state){
+    const g=new THREE.Group(),layout=this.contentLayout(ids,state),columns=new Map();
+    ids.forEach((id,i)=>{
+      const item=state.items[id],m=this.itemMesh(item),d=this.dimensions(item);
+      m.position.set(...layout.positions[i]);m.userData.itemId=id;g.add(m);m.updateMatrixWorld(true);
+      const bounds=new THREE.Box3().setFromObject(m),key=`${m.position.x.toFixed(6)},${m.position.z.toFixed(6)}`;
+      let column=columns.get(key);
+      if(!column){column={x:m.position.x,z:m.position.z,stepX:d[0],stepZ:d[2],minX:Infinity,maxX:-Infinity,minZ:Infinity,maxZ:-Infinity,bottom:Infinity,top:-Infinity};columns.set(key,column);}
+      column.minX=Math.min(column.minX,bounds.min.x);column.maxX=Math.max(column.maxX,bounds.max.x);
+      column.minZ=Math.min(column.minZ,bounds.min.z);column.maxZ=Math.max(column.maxZ,bounds.max.z);
+      column.bottom=Math.min(column.bottom,bounds.min.y);column.top=Math.max(column.top,bounds.max.y);
+    });
+    g.userData.size=layout.size;g.userData.stackCount=layout.stackCount;g.userData.filmColumns=[...columns.values()];return g;
+  }
+  createFilm(size,finished=true,contentColumns=null){
+    const group=new THREE.Group();group.userData.film=true;group.userData.finished=finished;
+    const margin=.0006,detailOffset=.00018;
+    const columns=contentColumns?.length?contentColumns:[{x:0,z:0,stepX:size[0],stepZ:size[2],minX:-size[0]/2,maxX:size[0]/2,minZ:-size[2]/2,maxZ:size[2]/2,bottom:0,top:size[1]}];
+    const bottom=Math.min(...columns.map(c=>c.bottom))-margin;
+    const shellVertices=[],foldLines=[],foldTriangles=[],seamVertices=[];
+    const faces=[];
+    const triangle=(target,a,b,c)=>target.push(...a,...b,...c);
+    const neighbor=(column,dx,dz)=>columns.find(other=>other!==column&&Math.abs(other.x-column.x-dx*column.stepX)<.00001&&Math.abs(other.z-column.z-dz*column.stepZ)<.00001);
+    for(const column of columns){
+      const west=neighbor(column,-1,0),east=neighbor(column,1,0),north=neighbor(column,0,-1),south=neighbor(column,0,1);
+      const x0=west?(west.x+column.x)/2:column.minX-margin,x1=east?(east.x+column.x)/2:column.maxX+margin;
+      const z0=north?(north.z+column.z)/2:column.minZ-margin,z1=south?(south.z+column.z)/2:column.maxZ+margin;
+      const top=column.top+margin;
+      const bevel=Math.min(.003,(x1-x0)*.08,(z1-z0)*.08);
+      const nw=!north&&!west?bevel:0,ne=!north&&!east?bevel:0,se=!south&&!east?bevel:0,sw=!south&&!west?bevel:0;
+      const polygon=[[x0+nw,z0],[x1-ne,z0],[x1,z0+ne],[x1,z1-se],[x1-se,z1],[x0+sw,z1],[x0,z1-sw],[x0,z0+nw]]
+        .filter((point,index,array)=>index===0||point[0]!==array[index-1][0]||point[1]!==array[index-1][1]);
+      if(polygon.length>1&&polygon.at(-1)[0]===polygon[0][0]&&polygon.at(-1)[1]===polygon[0][1])polygon.pop();
+      const center=[(x0+x1)/2,top,(z0+z1)/2],lowerCenter=[center[0],bottom,center[2]];
+      const surfacePoint=(point,inset=0,height=top+detailOffset)=>[point[0]+(center[0]-point[0])*inset,height,point[1]+(center[2]-point[1])*inset];
+      for(let index=0;index<polygon.length;index++){
+        const a=polygon[index],b=polygon[(index+1)%polygon.length];
+        triangle(shellVertices,center,[b[0],top,b[1]],[a[0],top,a[1]]);
+        triangle(shellVertices,lowerCenter,[a[0],bottom,a[1]],[b[0],bottom,b[1]]);
+        let adjacent=null;
+        if(Math.abs(a[0]-x0)<1e-9&&Math.abs(b[0]-x0)<1e-9)adjacent=west;
+        else if(Math.abs(a[0]-x1)<1e-9&&Math.abs(b[0]-x1)<1e-9)adjacent=east;
+        else if(Math.abs(a[1]-z0)<1e-9&&Math.abs(b[1]-z0)<1e-9)adjacent=north;
+        else if(Math.abs(a[1]-z1)<1e-9&&Math.abs(b[1]-z1)<1e-9)adjacent=south;
+        const low=adjacent?Math.max(bottom,adjacent.top+margin):bottom;
+        if(top>low+.000001){
+          const ab=[a[0],low,a[1]],at=[a[0],top,a[1]],bt=[b[0],top,b[1]],bb=[b[0],low,b[1]];
+          triangle(shellVertices,ab,at,bt);triangle(shellVertices,ab,bt,bb);
+          const edgeLength=Math.hypot(b[0]-a[0],b[1]-a[1]),nx=(b[1]-a[1])/edgeLength,nz=-(b[0]-a[0])/edgeLength;
+          if(edgeLength>.012){
+            const u=.18,v=.38;
+            foldLines.push(a[0]+(b[0]-a[0])*u+nx*detailOffset,top-(top-low)*.12,a[1]+(b[1]-a[1])*u+nz*detailOffset,
+              a[0]+(b[0]-a[0])*v+nx*detailOffset,top-(top-low)*.70,a[1]+(b[1]-a[1])*v+nz*detailOffset);
+          }
+          const creaseA=surfacePoint(a,.035),creaseB=surfacePoint(a,.32);
+          foldLines.push(...creaseA,...creaseB);
+          triangle(foldTriangles,creaseA,creaseB,surfacePoint([a[0]+(b[0]-a[0])*.10,a[1]+(b[1]-a[1])*.10],.16));
+        }
+      }
+      const seamX=center[0]+(x1-x0)*.18,seamHalf=Math.min(.002,(x1-x0)*.025),seamZ0=z0+(z1-z0)*.12,seamZ1=z1-(z1-z0)*.12;
+      const sa=[seamX-seamHalf,top+detailOffset,seamZ0],sb=[seamX+seamHalf,top+detailOffset,seamZ0],sc=[seamX+seamHalf,top+detailOffset,seamZ1],sd=[seamX-seamHalf,top+detailOffset,seamZ1];
+      triangle(seamVertices,sa,sc,sb);triangle(seamVertices,sa,sd,sc);
+      faces.push({x:column.x,z:column.z,top,bottom,polygon});
+    }
+    const geometry=vertices=>{const result=new THREE.BufferGeometry();result.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));result.computeVertexNormals();return result;};
+    const shell=new THREE.Mesh(geometry(shellVertices),new THREE.MeshPhysicalMaterial({color:finished?'#333638':'#c5ded7',transparent:true,opacity:(finished?.23:.12)*this.filmPresence,roughness:.13,metalness:.14,clearcoat:1,clearcoatRoughness:.08,envMapIntensity:1.6,depthWrite:false,side:THREE.DoubleSide}));group.add(shell);
+    const lines=new THREE.BufferGeometry();lines.setAttribute('position',new THREE.Float32BufferAttribute(foldLines,3));group.add(new THREE.LineSegments(lines,new THREE.LineBasicMaterial({color:'#f1fff1',transparent:true,opacity:.42*this.filmPresence,depthWrite:false})));
+    group.add(new THREE.Mesh(geometry(foldTriangles),new THREE.MeshPhysicalMaterial({color:'#effff8',transparent:true,opacity:.22*this.filmPresence,roughness:.06,metalness:.35,side:THREE.DoubleSide,depthWrite:false})));
+    group.add(new THREE.Mesh(geometry(seamVertices),new THREE.MeshStandardMaterial({color:'#effff2',transparent:true,opacity:.10*this.filmPresence,roughness:.45,side:THREE.DoubleSide,depthWrite:false})));
+    group.userData.contour={margin,detailOffset,faces};group.traverse(o=>{if(o.geometry)this.own(o);});return group;
   }
   clearDynamic(){const geometries=new Set(),materials=new Set();this.dynamic.traverse(o=>{if(!o.userData.ownsResources)return;if(o.geometry)geometries.add(o.geometry);if(o.material)for(const m of Array.isArray(o.material)?o.material:[o.material])materials.add(m);});for(const g of geometries)g.dispose();for(const m of materials)m.dispose();this.dynamic.clear();this.targets=[];this.held=null;this.packageViews={};}
   updatePlacements(state){
@@ -110,7 +169,7 @@ export class WorkshopView {
   sync(state,slot=0){
     this.state=state;this.slot=slot;this.updatePlacements(state);this.clearDynamic();this.slotMarkers.forEach((m,i)=>{m.material.opacity=i===slot?.32:.10;});
     state.piles.forEach((p,i)=>{if(!p.itemIds.length)return;const g=this.makeContents(p.itemIds,state);const opened=p.label==='openedPackage';const position=opened?this.placements.get(p.id).position:[-.59+(i%2)*.27,.008,-.32+Math.floor(i/2)*.52];g.position.set(...position);g.userData.action={type:'pile',id:p.id};this.dynamic.add(g);this.targets.push(g);if(p.id===state.targetPileId){const size=g.userData.size;const marker=this.box(size[0]+.03,.002,size[2]+.03,'#c7de8e',position[0],position[1]-.002,position[2]);marker.material.transparent=true;marker.material.opacity=.34;marker.userData.transient=true;this.dynamic.add(marker);}});
-    state.packages.forEach(p=>{const g=this.makeContents(p.itemIds,state);const film=this.createFilm(g.userData.size);g.add(film);g.userData.filmObject=film;g.userData.action={type:'package',id:p.id,slot:p.slot};if(p.id===state.heldPackageId){g.position.set(.04,.19,.39);this.held=g;}else g.position.set(...this.placements.get(p.id).position);this.dynamic.add(g);this.targets.push(g);this.packageViews[p.id]=g;});
+    state.packages.forEach(p=>{const g=this.makeContents(p.itemIds,state);const film=this.createFilm(g.userData.size,true,g.userData.filmColumns);g.add(film);g.userData.filmObject=film;g.userData.action={type:'package',id:p.id,slot:p.slot};if(p.id===state.heldPackageId){g.position.set(.04,.19,.39);this.held=g;}else g.position.set(...this.placements.get(p.id).position);this.dynamic.add(g);this.targets.push(g);this.packageViews[p.id]=g;});
     if(state.handIds.length){const g=this.makeContents(state.handIds,state);g.position.set(.04,.19,.39);this.dynamic.add(g);this.held=g;}
   }
   setFilm(v){this.filmPresence=v;if(this.state)this.sync(this.state,this.slot);}
@@ -122,7 +181,7 @@ export class WorkshopView {
   }
   animate(kind,duration,callback,packageId){
     if(this.anim||this.move)return;this.anim={kind,duration,t:0,callback,packageId,base:this.held?.position.clone()};
-    if(kind==='wrap'&&this.held){this.tempFilm=this.createFilm(this.held.userData.size,false);this.tempFilm.scale.set(.02,1.4,1.12);this.held.add(this.tempFilm);}
+    if(kind==='wrap'&&this.held){this.tempFilm=this.createFilm(this.held.userData.size,false,this.held.userData.filmColumns);this.tempFilm.scale.set(.02,1.4,1.12);this.held.add(this.tempFilm);}
     if(kind==='open'){this.knife.visible=true;this.openTarget=this.packageViews[packageId];const packet=this.state.packages.find(p=>p.id===packageId),placement=this.placements.get(packageId);if(packet&&placement)this.pendingOpenPlacement={packageId,itemIds:[...packet.itemIds],slot:packet.slot,placement:{...placement,position:[...placement.position]}};}
   }
   pulse(kind){this.pulseTime=.22;this.pulseKind=kind;}
