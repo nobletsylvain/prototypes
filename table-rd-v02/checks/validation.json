@@ -9,6 +9,7 @@
   "audio": {
     "eventsCheckedWithMockContext": 13,
     "activationAndMute": "passed",
+    "browserEnableControl": "passed",
     "listeningValidated": false
   },
   "projectionWidths": [
@@ -19,7 +20,23 @@
     1000,
     1440
   ],
-  "browserRenderValidated": false,
+  "browser": {
+    "publishedPageOpened": true,
+    "renderInspected": true,
+    "mobileViewport": {
+      "width": 390,
+      "height": 844
+    },
+    "flow": "parents, odds, commit, advance, inspect, common reveal, name, keep, harvest, descendant parent, research hotspot, locked upgrade preview",
+    "nextGenerationOdds": {
+      "common": 63,
+      "rare": 32,
+      "exceptional": 5,
+      "affinity": 0.78
+    },
+    "consoleWarningsOrErrors": 0,
+    "rareRevealAndUpgradePurchase": false
+  },
   "physicalPhoneTest": false,
   "humanPlaytest": false,
   "unityIntegration": false

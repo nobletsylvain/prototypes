@@ -24,10 +24,16 @@ Identité, lot et goûts d’une clientèle restent distincts. Les boutures sont
 
 **Modèle V02 : 27 tests réussis, 0 échec**, couvrant plusieurs générations, les ressources physiques, les seuils de rareté, les points uniques, les exclusions, l’identité et les rechargements. Ce sont des contrôles du modèle ; ils ne valident pas le rendu ou le plaisir.
 
-Les cinq modules du fichier publié passent le contrôle de syntaxe. Les événements sonores ont été contrôlés avec un contexte simulé ; le cadrage des points blancs a été vérifié par projection sur six largeurs de 390 à 1440 px. L’aperçu local était inaccessible dans le navigateur intégré. Aucun rendu navigateur, essai humain, test sur téléphone physique, écoute validée ou intégration Unity n’est revendiqué.
+Les cinq modules du fichier publié passent le contrôle de syntaxe. Les événements sonores ont été contrôlés avec un contexte simulé ; le cadrage des points blancs a été vérifié par projection sur six largeurs de 390 à 1440 px.
+
+Le lien publié a ensuite été vérifié dans un navigateur : choix parental, chances, engagement, loupe avant fiche, découverte ordinaire, nom, conservation, prélèvement et reprise de la descendante comme parent. Les chances rares observées sont passées de 20 % pour les deux fondatrices à 32 % pour la paire de génération suivante, avec une affinité de 78 %. La vue à 390 × 844, les repères blancs et la prévisualisation d’une amélioration verrouillée ont été parcourus ; aucune erreur ou alerte console relevée. Les gains rares et achats effectifs sont couverts par les tests du modèle, pas par ce parcours navigateur.
+
+Aucun essai humain, test sur téléphone physique, écoute validée ou intégration Unity n’est revendiqué.
 
 [Ouvrir la démo V02](https://nobletsylvain.github.io/prototypes/table-rd-v02/) · [V01 conservée](https://nobletsylvain.github.io/prototypes/table-rd-v01/).
 
 Le spécimen utilise un modèle visuel partagé : son éclairage et sa signature varient, pas une nouvelle géométrie par lignée. Les sons sont synthétisés localement. Three.js est fourni sous licence MIT, incluse dans ce dossier.
+
+![Vue de recherche vérifiée dans le navigateur](checks/research-desktop.jpg)
 
 [Passation Unity](handoff/PASSATION_UNITY.md) · [Sons provisoires](handoff/AUDIO.md)
