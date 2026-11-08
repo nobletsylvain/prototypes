@@ -81,7 +81,8 @@ export class CashScene {
     this.paperGeometry=new THREE.BoxGeometry(NOTE_WIDTH,.00055,NOTE_DEPTH,10,1,5);
     const p=this.paperGeometry.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i);p.setY(i,p.getY(i)+Math.sin(x/NOTE_WIDTH*Math.PI)*Math.sin(z/NOTE_DEPTH*Math.PI)*.0016);}this.paperGeometry.computeVertexNormals();
     const normals=this.paperGeometry.attributes.normal, uv=this.paperGeometry.attributes.uv;
-    for(let i=0;i<uv.count;i++){const x=p.getX(i),z=p.getZ(i),ny=normals.getY(i);if(ny>.5)uv.setXY(i,x/NOTE_WIDTH+.5,.53515625+(z/NOTE_DEPTH+.5)*.46484375);else if(ny<-.5)uv.setXY(i,.5-x/NOTE_WIDTH,(z/NOTE_DEPTH+.5)*.46484375);else uv.setXY(i,.5,.5);}
+    // The far -Z edge is the printed top; mirror U only on the reverse face.
+    for(let i=0;i<uv.count;i++){const x=p.getX(i),z=p.getZ(i),ny=normals.getY(i),faceV=.5-z/NOTE_DEPTH;if(ny>.5)uv.setXY(i,x/NOTE_WIDTH+.5,.53515625+faceV*.46484375);else if(ny<-.5)uv.setXY(i,.5-x/NOTE_WIDTH,faceV*.46484375);else uv.setXY(i,.5,.5);}
     this.noteMaterials={};this.noteInstances={};this.instanceIds={};
     const loader=new THREE.TextureLoader();this.assetPromises=[];
     for(const d of [10,20]){const texture=loader.load(`assets/banknote_${d}eur_front_back.png`);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=Math.min(8,this.renderer.capabilities.getMaxAnisotropy());this.noteMaterials[d]=new THREE.MeshStandardMaterial({map:texture,roughness:.92});const mesh=new THREE.InstancedMesh(this.paperGeometry,this.noteMaterials[d],1200);mesh.count=0;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.userData.denomination=d;this.scene.add(mesh);this.noteInstances[d]=mesh;}
