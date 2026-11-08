@@ -6,6 +6,8 @@ Essai autonome du papier, de la compteuse énergique et de la liasse qui se comp
 
 Entrer dans l’atelier, vider la pochette, maintenir Ramasser, alimenter la machine, reprendre puis ranger. Toucher directement le papier permet de compléter la poignée. E agit, F maintenu ramasse, T pose ; F7 compare les retours. Regarder sépare la caméra de la manipulation. Les cases gardent leur forme après vidage ; Effacer libère leur affectation.
 
-39 contrôles logiques passent ; rendu et tactile à vérifier après publication. Les anciens lots sont conservés. Aucune intégration Unity.
+**39 tests réussis, 0 échec**, ainsi que 12 contrôles de fichiers. La publication GitHub Pages initiale a réussi ; le site a été réellement essayé dans le navigateur à 1 280 × 720 et 390 × 844 pixels. Le petit lot a été entièrement compté et rangé, les refus et l’ouverture d’une liasse vérifiés, puis le premier passage du gros lot joué. Console relevée : 0 erreur, 0 avertissement.
+
+La revue a révélé des chiffres retournés verticalement et une consigne de reliquat incorrecte. Les corrections sont fusionnées ; leur nouveau déploiement et leur confirmation visuelle finale sont encore en cours. Aucun essai humain, aucune écoute validée, aucun essai sur un téléphone physique et aucune intégration Unity revendiqués. Les anciens lots sont conservés.
 
 Sources modulaires locales, aucune dépendance CDN. Vérification : `node --test tests/*.test.mjs`. [Passation Unity](HANDOFF.md) · [Provenance](ASSETS.md) · [Journal](SESSION.md).
