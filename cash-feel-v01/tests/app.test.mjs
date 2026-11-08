@@ -138,7 +138,7 @@ async function createHarness() {
   const context = vm.createContext({
     CashLedger, CashAudio: AudioStub, CashScene: SceneStub,
     document, window, Intl, performance: { now: () => now },
-    fetch: async path => { assert.equal(path, 'texts.json'); return { ok: true, json: async () => texts }; },
+    fetch: async path => { assert.equal(path, 'texts.json?v=20261109b'); return { ok: true, json: async () => texts }; },
     setTimeout: (fn, delay) => schedule(fn, delay),
     clearTimeout: id => timers.delete(id),
     setInterval: (fn, delay) => schedule(fn, delay, delay),

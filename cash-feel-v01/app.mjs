@@ -1,9 +1,9 @@
 import { CashLedger } from './ledger.mjs';
 import { CashAudio } from './audio.mjs';
-import { CashScene } from './scene.mjs';
+import { CashScene } from './scene.mjs?v=20261109b';
 
 const $=id=>document.getElementById(id);
-const texts=await fetch('texts.json').then(r=>{if(!r.ok)throw new Error('Text table failed');return r.json();});
+const texts=await fetch('texts.json?v=20261109b').then(r=>{if(!r.ok)throw new Error('Text table failed');return r.json();});
 let language='fr',mode='small',ledger=new CashLedger(mode),audio=new CashAudio(),scene;
 let started=false,muted=false,phase='dump',counted=0,tickClock=0,selectedSlot=0,toastTimer,gatherTimer,gatherStarted=0,lastSweep=0,bindingUntil=0,elapsed=0,skipClick=false,handSorted=false;
 const events=[],errors=[];let operations=0;
