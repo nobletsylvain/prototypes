@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-09",
+  "version": "film-packaging-v02",
+  "automated": {
+    "command": "node --test tests/*.test.mjs",
+    "passed": 57,
+    "failed": 0,
+    "suites": {
+      "model": 14,
+      "integration": 6,
+      "presentation": 22,
+      "stackLayout": 8,
+      "inputCadence": 7
+    }
+  },
+  "preservation": {
+    "v01Files": 54,
+    "changed": 0,
+    "gameSourcesChanged": false
+  },
+  "changes": {
+    "100gStackSize": 5,
+    "defaultWrapSeconds": 0.55,
+    "comparisonSeconds": [
+      0.55,
+      0.75,
+      1.0
+    ],
+    "finishedFilmColor": "#333638",
+    "finishedFilmBaseOpacity": 0.23,
+    "movingFilmBaseOpacity": 0.12
+  },
+  "browserAtPackaging": "Visual check pending after publication; local server unreachable from browser",
+  "humanV02Playtest": false,
+  "humanAudioListening": false,
+  "unityIntegration": false,
+  "publishing": {
+    "target": "https://nobletsylvain.github.io/prototypes/film-packaging-v02/"
+  }
+}
