@@ -222,6 +222,7 @@ function reset(nextMode, nextCircuit = circuit) {
   ledger = new CashLedger(mode, circuit);
   counted = 0; sortedCount = 0; tickClock = 0; sortClock = 0; bindingUntil = 0;
   handSorted = false; lastTakeWasCounter = false; hoverTarget = null;
+  assistance = false; storageOpen = false; $('comparison').hidden = true;
   scene.reset(); scene.setCircuit(circuit); scene.sync(ledger);
   $('small').classList.toggle('active', mode === 'small');
   $('large').classList.toggle('active', mode === 'large');

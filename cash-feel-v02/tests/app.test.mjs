@@ -664,3 +664,53 @@ test('the two comparison configurations accept the same identities after explici
   assert.equal(harness.at('pouch').length, 120);
   assertOriginalMoney(harness);
 });
+
+test('circuit and lot resets close the previous panels while leaving only the initial dump help open', async () => {
+  const harness = await createHarness('separate');
+  await harness.start();
+  harness.touch({ action: 'pouch' });
+  for (const [denomination, count, slot] of [[20, 100, 0], [10, 20, 1]]) {
+    const ids = harness.at('table').slice(0, count).map(entity => entity.id);
+    assert.equal(harness.touch({ action: 'handful', ids }), true);
+    assert.equal(harness.touch({ action: 'sorter' }), true);
+    harness.finishSorter();
+    assert.equal(harness.touch({ action: 'sorted', denomination }), true);
+    assert.equal(harness.touch({ action: 'counter' }), true);
+    harness.finishMachine();
+    assert.equal(harness.touch({ action: 'output' }), true);
+    assert.equal(harness.touch({ action: 'slot', index: slot }), true);
+  }
+  assert.equal(harness.at('slot0').length, 1);
+  assert.equal(harness.at('slot1').length, 20);
+  await harness.click('storage-toggle');
+  assert.equal(harness.element('storage-panel').hidden, false);
+  await harness.click('combined');
+  assert.equal(harness.element('storage-panel').hidden, true);
+  assert.equal(harness.element('storage-toggle').ariaExpanded, 'false');
+  assert.equal(harness.element('assist').classList.contains('active'), false);
+  assert.equal(harness.element('assist-panel').hidden, false, 'The initial pouch action stays visible');
+  assert.equal(harness.element('comparison').hidden, true);
+  assert.equal(harness.at('pouch').length, 120);
+  assert.equal(harness.at('slot0').length + harness.at('slot1').length, 0);
+  assertOriginalMoney(harness);
+  harness.touch({ action: 'pouch' });
+  assert.equal(harness.element('assist-panel').hidden, true, 'Forced initial help closes once the pouch is emptied');
+
+  for (const [panelControl, resetControl, count, value] of [
+    ['assist', 'reset', 120, 2200],
+    ['storage-toggle', 'large', 1200, 22000],
+    ['settings', 'small', 120, 2200],
+  ]) {
+    await harness.click(panelControl);
+    await harness.click(resetControl);
+    assert.equal(harness.element('storage-panel').hidden, true);
+    assert.equal(harness.element('storage-toggle').classList.contains('active'), false);
+    assert.equal(harness.element('assist').classList.contains('active'), false);
+    assert.equal(harness.element('comparison').hidden, true);
+    assert.equal(harness.element('assist-panel').hidden, false);
+    assert.equal(harness.at('pouch').length, count);
+    assertOriginalMoney(harness, value);
+    harness.touch({ action: 'pouch' });
+    assert.equal(harness.element('assist-panel').hidden, true);
+  }
+});
