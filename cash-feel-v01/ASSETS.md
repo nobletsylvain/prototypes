@@ -25,6 +25,9 @@ Chaque billet utilise un format de jeu de **140 × 65 mm**. L’atlas RGB opaque
 | Papier séparateur | 476–547 | U=0–1 ; V=0,46484375–0,53515625 |
 | Verso | 548–1023 | U=0–1 ; V=0–0,46484375 |
 
+Orientation vérifiée le 9 novembre : pour un billet à plat, le bord éloigné −Z correspond au haut imprimé. La coordonnée V utilise `0.5 − z / profondeur` ; le verso conserve son miroir U. Les chiffres retournés verticalement lors de la première revue ont été corrigés sans modifier les atlas.
+
+
 Les deux faces source sont à l’endroit. Au verso du mesh physique, mirer **U**, conserver **V**. La tranche peut échantillonner le centre `(0,5 ; 0,5)`. Référence exacte : `art/currency-lowpoly-v02/uv-rects.json`. Le froissement et les reflets viennent du rendu, pas d’un éclairage peint dans les PNG.
 
 ## Sources considérées et non retenues

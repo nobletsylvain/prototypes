@@ -8,7 +8,7 @@ Démo créée le 8 novembre 2026 ; relevé de publication et de revue actualisé
 
 La publication initiale sur GitHub Pages a réussi : PR #219 fusionnée dans `main`, commit `c4edc484`, exécution de déploiement `42528850253`. Le lien déployé a été ouvert dans un navigateur pour la revue ci-dessous.
 
-Deux défauts constatés pendant cette revue ont été corrigés dans la PR #222, fusionnée au commit `893543b27d4e155f0816ec93db6504e72012da4a` : orientation verticale des UV, qui retournait les chiffres des billets, et consigne incorrecte concernant le reliquat. Le nouveau déploiement et la confirmation visuelle finale de ces corrections sont encore en cours.
+Deux défauts constatés pendant cette revue ont été corrigés dans la PR #222, fusionnée au commit `893543b27d4e155f0816ec93db6504e72012da4a` : orientation verticale des UV, qui retournait les chiffres des billets, et consigne incorrecte concernant le reliquat. Les déploiements des corrections et des ressources versionnées ont réussi (PR #223, commit `dd86e1e4`, exécution `42529649398`). Les chiffres remis à l’endroit et la consigne du reliquat ont ensuite été confirmés visuellement, en français et en anglais.
 
 ## Contenu
 
@@ -22,7 +22,7 @@ Les atlas 10 et 20 € sont identiques aux sources V02. La bibliothèque Three.j
 
 ## Revue dans le navigateur
 
-Le site déployé a réellement été chargé et manipulé dans des fenêtres de **1 280 × 720** et **390 × 844** pixels. Il ne s’agit pas seulement des parcours à présentation simulée des tests.
+Le site déployé a réellement été chargé et manipulé dans des fenêtres de **1 280 × 720**, **390 × 844** et **360 × 740** pixels. Il ne s’agit pas seulement des parcours à présentation simulée des tests.
 
 - Vue FPS chargée ; petit lot de 120 billets, soit 2 200 €, entièrement compté puis rangé : une liasse de 100 billets de 20 € et 20 billets libres de 10 €.
 - Refus du mélange des formes essayé, sans changement du contenu affiché.
@@ -31,7 +31,7 @@ Le site déployé a réellement été chargé et manipulé dans des fenêtres de
 - Gros lot de 1 200 billets, soit 22 000 €, chargé ; premier passage de 100 billets compté. Les douze passages complets de ce lot n’ont pas été exécutés dans le navigateur.
 - Console relevée à ce stade : **0 erreur, 0 avertissement**.
 
-Cette première revue a révélé les deux défauts visuels et de consigne décrits plus haut. **La confirmation visuelle finale après leur correction est encore en cours.** Les dimensions de fenêtre étroite ne constituent pas un essai sur un vrai téléphone.
+Cette première revue a révélé les deux défauts visuels et de consigne décrits plus haut. **La confirmation visuelle finale a été effectuée sur la version déployée `20261109b` : chiffres lisibles et reliquat correctement annoncé en français et en anglais.** Le carnet a aussi été regardé à 390 pixels de large. Le dernier relevé console contient 0 erreur et 0 avertissement. Les dimensions de fenêtre étroite ne constituent pas un essai sur un vrai téléphone.
 
 ## Limites de réception
 
