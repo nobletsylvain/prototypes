@@ -1,0 +1,26 @@
+{
+  "version": "table-rd-v02",
+  "date": "2026-11-09",
+  "modelTests": {
+    "passed": 27,
+    "failed": 0
+  },
+  "moduleSyntax": "passed",
+  "audio": {
+    "eventsCheckedWithMockContext": 13,
+    "activationAndMute": "passed",
+    "listeningValidated": false
+  },
+  "projectionWidths": [
+    390,
+    700,
+    701,
+    800,
+    1000,
+    1440
+  ],
+  "browserRenderValidated": false,
+  "physicalPhoneTest": false,
+  "humanPlaytest": false,
+  "unityIntegration": false
+}
