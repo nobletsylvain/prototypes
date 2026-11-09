@@ -4952,3 +4952,8 @@ tactile de la boucle n'est *pas* le critère de succès.
 ## 2026-11-09 — Téléphone et applications V01
 
 Ajout autonome dans `phone-feel-v01/` : téléphone en main, message, boutique, panier et suivi, commandes souris/tactile, sons et réglages de comparaison. Publication de la démo et de sa courte notice explicitement autorisée avant l’essai par le propriétaire ; notes privées et passation détaillée exclues. 68 contrôles automatisés réussis, aucun échec ; revue de code faite. Aucun essai humain ni écoute validée annoncés. Les démos précédentes sont préservées.
+
+
+## 2026-11-09 — Téléphone et applications V02
+
+Révision après retour sur V01 : ouverture rapprochée et centrée ; Snapshit, Greenthumb et Charbon14 développés en parcours de consultation ; détails produit ; dépôt d’argent distinct pour chaque vendeur dans le panier et le suivi. Données d’essai signalées, aucune transaction ni opération physique simulée. 114 contrôles réussis, 0 échec, ressources conservées et revue indépendante. V01 préservée. Fichiers jouables et courte notice publics ; documents de travail exclus. Vérification du rendu publié à effectuer après déploiement.
