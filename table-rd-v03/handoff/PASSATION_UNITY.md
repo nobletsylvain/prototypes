@@ -1,6 +1,6 @@
-# Table de R&D — Passation Unity V03
+# Table de R&D — Passation Unity, héritage visuel V03
 
-9 novembre 2026. Démonstration web autonome avant intégration au jeu. Ce document décrit les contrats de V03 ; il ne déclare aucun import, composant ou build Unity livré.
+9 novembre 2026. Démonstration web autonome avant intégration au jeu. Cette extension conserve l’URL V03 et passe les données au schéma 4 pour l’héritage visuel. Ses contrôles automatisés sont terminés ; sa revue navigateur reste en attente. Aucun import, composant ou build Unity n’est déclaré livré.
 
 [Démo V03](https://nobletsylvain.github.io/prototypes/table-rd-v03/) · [Mode test](https://nobletsylvain.github.io/prototypes/table-rd-v03/?mode=test) · [V02 conservée](https://nobletsylvain.github.io/prototypes/table-rd-v02/)
 
@@ -14,11 +14,15 @@ Objet avant fiche, gestes assistés, identité et généalogie stables, deux bou
 
 Les cinq traits, leurs chances, les capacités 3/5, les classes de rareté, coûts, budgets et positions des points blancs sont des propositions de démonstration. Ils ne fixent ni les recettes des autres produits, ni les emplacements définitifs de spécialisation, ni l’économie ou la production ordinaire.
 
+La nouvelle demande rend les ressemblances parent/enfant explicites : huit axes visuels fictifs sont transmis par le croisement. Ils complètent les potentiels de jeu sans modifier leur distribution. Le style s’appuie sur les têtes low poly V05 : volumes facettés, formes compactes ou élancées, grappes et palettes harmonisées avec les assets préparés pour Unity. La classification botanique réelle, la puissance et les paramètres de culture ne sont pas simulés.
+
 ## Données à séparer
 
 | Donnée | Contrat |
 |---|---|
 | Variété | `id`, `parents`, `generation`, `potentialIds`, `slotCapacity`, apparence et rareté fixés au croisement ; nom et signature ajoutés à la conservation |
+| Patrimoine visuel | `visual`, version 1, deux allèles par axe et `expressionSeed` ; fixé au croisement, conservé avec l’identité |
+| Phénotype | Description commune calculée depuis `visual`, utilisée par l’objet 3D et le portrait ; aucun tirage supplémentaire au rendu |
 | Configuration active | `research[varietyId].choices`, indexée par `slot-0`, `slot-1`… ; aucun changement du patrimoine hérité |
 | Points | `earned` et `spent` propres à la variété ; une source unique, les descendants rares/exceptionnels révélés |
 | Plante physique | Identité, variété, capacité et prélèvements déjà effectués |
@@ -28,6 +32,35 @@ Les cinq traits, leurs chances, les capacités 3/5, les classes de rareté, coû
 | Présentation | Rotation, zoom, point blanc sélectionné, charge, filtres du journal, volume et retours ; aucune transaction de jeu |
 
 La rareté d’une variété n’est ni l’activation de ses effets ni la qualité de son lot. Une configuration destinée à la qualité future ne modifie pas un lot existant. Le volume visuel du modèle 3D ne définit pas de masse ou de rendement.
+
+## Contrat de l’héritage visuel
+
+`visual-genetics.js` expose `VISUAL_AXES`, `VISUAL_PALETTE`, `founderVisual(id)`, `inheritVisual(parents, seed)`, `validateVisual(visual)` et `getVisualPhenotype(visual)`. Le format persistant est `{version: 1, alleles: {…}, expressionSeed}`. Il contient exactement huit paires :
+
+| Axe | Valeurs et expression |
+|---|---|
+| `shape` | `compact`, `spire`, `cluster` ; une forme parmi les deux allèles est exprimée, de manière déterministe |
+| `elongation` | Élongation du volume |
+| `fullness` | Ampleur du volume |
+| `leafWidth` | Largeur du feuillage |
+| `foliage` | Présence visuelle du feuillage |
+| `pigment` | `olive`, `lime`, `mauve` ; mélange des deux couleurs |
+| `pistil` | Teinte des accents de pistils |
+| `frost` | Touches claires sur les facettes, sans cristaux réalistes ni mesure de composition |
+
+Les six axes numériques sont des entiers de 0 à 100 par allèle. Leur expression est la moyenne ramenée à 0–1 : somme des deux valeurs divisée par 200. Les pigments utilisent olive `#1c4f24`, citron vert `#789629`, mauve `#6e387a` ; leur couleur exprimée est la moyenne RGB arrondie. Ces valeurs sont des réglages artistiques de démonstration.
+
+Chez les fondatrices, forme et pigment ont deux copies identiques : X porte la forme compacte et le pigment olive, Y la forme élancée et le citron vert, Z les grappes et le mauve. Les six axes numériques possèdent chacun deux valeurs, centre moins/plus 15 borné à 0–100 ; les moyennes artistiques initiales sont conservées. Chaque parent transmet ensuite **une de ses deux valeurs pour chaque axe**. Cela permet des variations dès la première génération sans variation ajoutée hors du patrimoine. Aucun allèle absent de ses parents n’est créé. Les formes exprimées peuvent différer entre générations tout en conservant des possibilités parentales non exprimées.
+
+Les parents sont ordonnés par identité pour la transmission : l’allèle 0 vient de l’identité alphabétiquement inférieure, l’allèle 1 de l’autre parent. Cet ordre n’est pas celui du placement des fiches. Les parents persistés et leurs paires permettent de vérifier la provenance. La sélection utilise un sous-flux déterministe séparé, dérivé de la graine de l’essai, des identités parentales et de l’axe, sans dépendre de l’identité de l’essai. Elle ne consomme ni ne déplace le tirage existant des potentiels/capacités/rareté.
+
+`getVisualPhenotype` renvoie forme, six valeurs normalisées, `pigmentBlend`, `color`, `accent` et `signature` FR/EN. Objet, portrait et comparaison doivent lire ce même résultat. Les moteurs de rendu ne redéfinissent ni la transmission ni l’expression et ne recolorent pas le corps selon sa rareté. Les domaines de hachage/version et l’ordre des parents doivent être conservés lors du portage ; le calcul actuel utilise les unités UTF-16 et une arithmétique entière sur 32 bits.
+
+Le rendu commun conserve les pigments parentaux en plages de facettes et leur teinte moyenne. L’emplacement des plages est fixe dans les coordonnées de l’objet. `head-geometry.js` exprime les maîtres V05 ; la scène 3D et le portrait SVG utilisent les mêmes faces et couleurs. Les coefficients de présentation et la provenance des maîtres sont décrits dans [Têtes communes à l’arbre et à la loupe](HEAD_ASSETS.md). Il ne s’agit pas d’une correspondance pixel à pixel avec l’éclairage Unity.
+
+Le résultat visuel est engagé avec le résultat métier à `START`, conservé au rechargement, à la nomination et à la reproduction. Une activation ne le change pas. Deux essais peuvent partager une apparence : aucune unicité mondiale ou différence perceptible garantie n’est promise. Les maîtres de tête donnent une géométrie de référence ; leur déformation n’ajoute aucune matière ou quantité comptable.
+
+Le **cycle n’est pas implémenté** : les objets sont présentés au même stade d’observation, sans nouveau chrono, maturation ou rendement. L’architecture complète d’un plant reste hors de cette première tranche. Les règles sont fictives et personnalisables, sans table de culture réelle. Mauve, silhouette volumineuse et surface claire ne signifient ni puissance, ni rareté, ni qualité du lot.
 
 ## Paramètres exécutés
 
@@ -73,7 +106,7 @@ L’aperçu compare le profil avant/après. Ramification passe `productionBranch
 | Commande | Transaction |
 |---|---|
 | `HARVEST` | Créer une bouture identifiée depuis une plante physique et débiter une unité de son budget |
-| `START` | Vérifier deux parents distincts et leurs boutures ; en consommer deux ; réserver le pot ; calculer et enregistrer graine, chances et résultat en une transaction |
+| `START` | Vérifier deux parents distincts et leurs boutures ; en consommer deux ; réserver le pot ; enregistrer graine, chances, résultat et patrimoine visuel en une transaction |
 | `ADVANCE` | `growing` → `ready` ; libérer le pot, sans restituer les boutures ni recalculer |
 | `INSPECT` | `ready` → `inspected` ; accès à l’objet sous la loupe avant fiche |
 | `REVEAL` | `inspected` → `revealed` ; publier le résultat enregistré ; rare/exceptionnel : un point à chacun des parents |
@@ -87,33 +120,39 @@ Stock initial : trois boutures par fondatrice, neuf au total, un pot. Chaque pla
 
 ## Sauvegarde, gestes et retours
 
-Le schéma 3 conserve un journal de commandes `history` et vérifie l’état par rejeu. Graine, contexte et résultat sont enregistrés dès `START`. Recharger conserve le tirage ; les gestes ne déclenchent aucun nouveau hasard. Persister la transaction avant les sons/VFX.
+Le schéma 4 conserve un journal de commandes `history` et vérifie l’état par rejeu. Graine, contexte, résultat métier et patrimoine visuel sont enregistrés dès `START`. Recharger conserve les deux résultats ; les gestes ne déclenchent aucun nouveau hasard. Persister la transaction avant les sons/VFX.
 
 Les sauvegardes `botanical-table-v03` et `botanical-table-v03-test` sont séparées entre elles et des clés V02. Aucun import de points, essais ou activations n’est prévu. La sauvegarde reste locale au navigateur. Les écritures utilisent un verrou et les autres onglets sont synchronisés ; une erreur de sauvegarde bloque les transactions.
 
-La nouvelle vue graphique du journal ne change ni ce schéma, ni ces clés, ni les règles ou probabilités du modèle. Les URL V03 normal/test restent identiques. Sa géométrie, sa sélection et son zoom sont des données de présentation, sans migration ou transaction métier.
+La migration d’une sauvegarde du schéma 3 commence par sa validation stricte avec le modèle V3 conservé. Son historique est ensuite rejoué au schéma 4 pour initialiser les apparences héréditaires. Identités, noms, signatures d’auteur, parents, résultats de jeu, points, stocks, prélèvements, lots, `history` et `revision` restent identiques ; seuls les champs d’apparence sont initialisés. Aucun événement, point ou ressource n’est accordé par la migration. Un ancien état invalide est refusé, pas réparé en silence.
+
+L’interface annonce cette initialisation d’apparence : l’ancienne silhouette décorative peut changer, sans nouvelle découverte métier. Les clés et les URL V03 normal/test restent identiques, chaque sauvegarde étant traitée séparément. Géométrie du journal, sélection et zoom restent des données de présentation. La migration et ses invariants disposent de tests propres à cette extension, détaillés plus bas.
 
 La révélation utilise une charge de présentation cumulative d’environ 1,5 seconde. Relâcher met en pause sans perte dans la séquence en cours. Clavier et ouverture assistée conduisent à la même commande. Quitter/recharger peut réinitialiser cette présentation, jamais le résultat engagé ni les ressources. La charge reste neutre ; la ponctuation de rareté et le retour de points suivent seulement une révélation acceptée.
+
+**Objet avant fiche :** pendant l’examen, l’objet montre déjà sa vraie forme et ses vraies couleurs, sans étiquettes de caractéristiques ni célébration anticipée. La confidentialité du journal ne doit pas rendre cette observation neutre. Le journal, ses recherches et les portraits restent masqués jusqu’à `REVEAL` ; ils utilisent ensuite le même phénotype que l’objet. Les VFX mauves/dorés de rareté sont des retours de révélation, distincts du pigment héréditaire.
 
 Les points blancs donnent accès aux emplacements de la variété ; Origine et le journal servent la généalogie. Prévoir des boutons équivalents, aucune visée exigeante. Les modes Expressif/Discret, le volume et la réduction des mouvements ne changent aucun état métier. Les replays de test n’appellent aucune transaction.
 
 ## Journal et arbre généalogique
 
-`buildJournalEntries` projette les seules informations publiques. Les fondatrices et tous les essais restent présents. Après révélation, la projection inclut les champs `color` et `accent` déjà enregistrés. Avant révélation, nom de variété, signature, couleur, reflets, potentiel, capacité et rareté restent masqués ; seuls les parents et l’identité de l’essai sont visibles. Son `result` n’est pas consulté par cette projection.
+`buildJournalEntries` projette les seules informations publiques. Les fondatrices et tous les essais restent présents. Après révélation, le portrait et les descriptions utilisent le phénotype issu du patrimoine visuel. Avant révélation, nom de variété, signature, couleur, reflets, forme, potentiel, capacité et rareté restent masqués ; seuls les parents et l’identité de l’essai sont visibles. Son `result` n’est pas consulté par cette projection.
 
-Les filtres se combinent par **ET** : texte nom/identité/signature/reflets connus, potentiel hérité, trait activé, capacité minimale, rareté, parent/ancêtre et statut. Le texte ignore la casse et les accents et peut retrouver « reflets mauves » dans `accent` après révélation. Il ne recherche pas une morphologie supposée. Les statuts séparent fondatrice, conservée, archivée et en attente. Les filtres restent retenus lors des allers-retours arbre/emplacements et séparés par mode normal/test.
+Les filtres se combinent par **ET** : texte nom/identité/signature/descriptions visuelles connues, potentiel hérité, trait activé, capacité minimale, rareté, parent/ancêtre et statut. Le texte ignore la casse et les accents ; il recherche aussi les formes, le feuillage et les couleurs décrits par les huit axes enregistrés, par exemple « reflets mauves », uniquement après révélation. Les statuts séparent fondatrice, conservée, archivée et en attente. Les filtres restent retenus lors des allers-retours arbre/emplacements et séparés par mode normal/test.
 
 La vue principale est un **herbier sombre horizontal** : les portraits sont reliés entre générations. Un filtre ne supprime ni carte ni lien ; il colore les correspondances en doré, accentue leur ascendance et atténue les autres branches. Ce doré de sélection ne constitue pas un palier de rareté. Le nombre de correspondances exclut les ancêtres de contexte. Même sans correspondance, le graphe reste affiché ; ses positions restent stables pendant la recherche.
 
 Le module pur `journal-graph.js` expose `buildJournalGraph(entries, matchIds, filtered)`. Il travaille uniquement sur les entrées publiques et retourne positions, dimensions, cartes, liens et états de surlignage. La disposition ne dépend pas des filtres. Chaque ascendant partagé possède une seule carte ; les liens qui traversent plusieurs générations sont routés sans inventer de parent. Aucune donnée cachée, sauvegarde ou commande de jeu n’intervient dans ce calcul.
 
-Le module pur `journal-portrait.js` expose `renderStrainPortrait(entry, prefix)`. Il produit un SVG à partir de la couleur et des reflets publics enregistrés ; l’identité donne une silhouette décorative déterministe. Les essais inconnus retournent une silhouette neutre commune avant toute lecture de leur apparence. Les portraits ne créent aucun caractère transmissible, ne simulent aucun héritage morphologique et ne modifient ni identité, rareté ou qualité du lot.
+Le module de portrait consomme le même phénotype que l’objet 3D. Il ne génère plus une silhouette indépendante tirée de l’identité. Les essais inconnus retournent une silhouette neutre commune avant lecture de leur apparence. Les représentations 2D/3D peuvent simplifier le détail, mais doivent préserver la famille de forme, les proportions, le feuillage et les teintes pour rendre la parenté reconnaissable.
 
-La classification visuelle évoquée par le propriétaire — plante, feuilles, fleurs, pigmentation, trichomes, cycle — est une **piste de conception personnalisable**. Elle pourrait fournir des catégories artistiques et des étiquettes propres au jeu. Aucune de ces catégories n’est ici un système génétique implémenté, une règle de transmission ou une table réelle de culture. Les variations décoratives du SVG ne doivent pas être converties implicitement en paramètres métier lors du portage.
+Après révélation et depuis Origine, une comparaison présente les deux portraits parentaux et celui du descendant. Les détails des huit axes séparent **Transmis** (deux valeurs avec provenance parentale dans l’ordre canonique) et **Exprimé** (lecture qualitative du phénotype). Ces textes ne deviennent pas disponibles au journal avant la fiche. La signature visuelle calculée ne remplace pas la signature d’auteur.
+
+Les huit axes ci-dessus sont la première réalisation fictive de la grammaire visuelle demandée. Les catégories de plant entier et de cycle restent des pistes. Aucun axe visuel ne devient implicitement un bonus de qualité, une puissance ou une donnée de culture réelle lors du portage.
 
 Le clic sur une fondatrice ou une variété conservée ouvre directement ses emplacements. Les archives, les essais non révélés et les résultats non encore conservés sont consultables seulement, avec les mêmes restrictions de visibilité. Les commandes de zoom +/−, Tout voir et Résultat précédent/suivant facilitent la navigation. Le cadre défile au doigt, aux flèches clavier lorsqu’il a le focus, ou par glissement du fond à la souris ; aucune précision ne change le résultat.
 
-Un volet replié conserve les fiches détaillées et leurs actions : consultation, usage parental lorsque le parcours l’autorise et export. Les ancêtres de contexte restent disponibles dans ces détails. Les archives sont lisibles mais non réutilisables. La fiche exportée porte identité, parents, génération, potentiel, capacité, profil actif, nom, signature et lot ; c’est une présentation, sans import jouable. Les sessions de test sont marquées.
+Un volet replié conserve les fiches détaillées et leurs actions : consultation, usage parental lorsque le parcours l’autorise et export. Les ancêtres de contexte restent disponibles dans ces détails. Les archives sont lisibles mais non réutilisables. La fiche exportée porte identité, parents, génération, potentiel, capacité, profil actif, nom, signature d’auteur, lot, portrait commun et signature visuelle ; c’est une présentation, sans import jouable. Les sessions de test sont marquées.
 
 API web : `renderJournal(host, {state, strains, lang, onResearch, onUse, onDownload, canUse})`. Les callbacks reçoivent une identité de variété, sauf le téléchargement qui reçoit l’identité d’essai. Le portage Unity doit conserver les mêmes règles de visibilité et de séparation entre filtres et transactions.
 
@@ -144,12 +183,14 @@ Ce sont des noms proposés, pas des API Unity existantes. Utiliser le système d
 
 ## Vérifications et limites
 
-**94 tests réussis, 0 échec, également sur les sources distribuées.** Ces contrôles portent sur règles, ressources, préparations, maintien, journal, géométrie et portraits. Ils restent distincts d’une validation visuelle. Les dix modules embarqués, dont `journal-portrait.js`, passent les contrôles de syntaxe et des imports.
+**Sources finales : 120 tests réussis, zéro échec dans neuf fichiers. Les 15 modules publics et leurs versions embarquées hors ligne passent les contrôles de syntaxe et d’imports.** Les contrôles portent sur le modèle, les préparations de test, la génétique visuelle, la géométrie et les présentations communes, le journal et la révélation.
 
-La vue publiée a été inspectée en 1280 × 720 et 390 × 844 après PR 287 : neuf portraits, douze liens conservés, recherche « reflets mauves » (cinq résultats), « heritage » (un résultat, quatre liens ancestraux), B1/cinq slots (deux résultats), accès aux slots et filtre conservé au retour. Zéro correspondance garde les neuf portraits et les douze liens. Tout voir, zoom et navigation entre résultats ont été parcourus. Le dépassement initial de largeur mobile est corrigé : fenêtre de 364,67 px dans une largeur disponible de 375 px, sans débordement de son contenu. Aucune erreur ni avertissement console relevé. Les captures `checks/herbarium-desktop.jpg` et `checks/herbarium-mobile.jpg` ont été regardées ; `checks/validation.json` décrit les observations. Les essais de cette carrière étaient déjà révélés : la confidentialité des portraits cachés est couverte par les tests automatiques. Les preuves des anciennes vues et de V02 restent historiques.
+Dans cette suite, les preuves unitaires de migration couvrent une carrière sur trois générations à chaque phase : identités, noms, historique, révision, points et ressources restent conservés. Les anciennes sauvegardes invalides et les apparences altérées sont refusées. Les issues non visuelles et les chances des fondatrices restent égales à V3. Sur 96 graines de première génération, chaque axe numérique exprime trois moyennes possibles et plus de vingt combinaisons strictement parentales sont obtenues ; ce contrôle ne promet pas une différence visible pour chaque essai.
+
+Les projections SVG des têtes et la planche de trois fondateurs suivis de deux générations ont été calculées puis regardées. Elles documentent la géométrie commune et les plages de pigments ; elles ne prouvent pas le rendu WebGL final. **La revue navigateur de cette extension reste en attente**, notamment pour la comparaison et les détails Transmis/Exprimé. Les contrôles et captures de l’herbier précédent sont historiques et ne la remplacent pas.
 
 Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué. La lisibilité des portraits, la distinction reflet/surlignage et le confort de navigation demanderont leurs propres observations.
 
-Contrôles exacts à préserver : provenance et débits, budgets, refus sans mutation, identité au rechargement, tirage unique et distribution entière, potentiel uniquement parental, capacité admissible, activation uniquement héritée, emplacement exclusif, coût exact, lot inchangé, points uniques aux bons parents, préparation de test traçable, absence de fuite avant révélation et absence d’effet des filtres/gestes/replays.
+Contrôles exacts à préserver : provenance et débits, budgets, refus sans mutation, identité au rechargement, tirage unique et distribution métier inchangée, allèles issus de chaque parent, expression déterministe commune, capacité admissible, activation uniquement héritée, emplacement exclusif, coût exact, lot inchangé, points uniques aux bons parents et préparation de test traçable. Ajouter migration V3 invalide refusée, historique/identités/points/ressources préservés après migration valide, neutralité du journal avant révélation et absence d’effet des filtres/gestes/replays.
 
-Plaisir de découverte, compréhension des potentiels, lisibilité de la généalogie, choix d’activation, écoute et confort tactile demandent l’essai du propriétaire. Le prototype autonome précède ce jugement puis une éventuelle intégration Unity, qui exige ses propres contrôles.
+Comparer visuellement parents et descendants sous la loupe, dans les portraits et en plusieurs générations ; rechercher une ressemblance lisible sans identité trompeuse entre tous les résultats. Ce jugement, le plaisir, l’écoute et le confort tactile demandent l’essai du propriétaire. Le prototype autonome précède une éventuelle intégration Unity, qui exige ses propres contrôles.

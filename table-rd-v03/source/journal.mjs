@@ -1,6 +1,7 @@
 import { TRAITS, getConfiguration } from './model.mjs';
 import { buildJournalGraph } from './journal-graph.mjs';
 import { renderStrainPortrait } from './journal-portrait.mjs';
+import { visualFeatures,visualSearchText,shortVisualName } from './visual-ui.mjs';
 
 // The journal is a projection of public information, never a game transaction.
 export const JOURNAL_STRINGS = {
@@ -11,7 +12,7 @@ export const JOURNAL_STRINGS = {
     zoomIn: 'Agrandir l’arbre', zoomOut: 'Réduire l’arbre', fit: 'Tout voir', previous: 'Résultat précédent', next: 'Résultat suivant',
     resultLegend: 'Résultat', lineageLegend: 'Ascendance du résultat', otherLegend: 'Autres branches', cards: 'Fiches et actions',
     noMatchTree: 'Aucun résultat. Votre arbre reste visible ; modifiez ou effacez les filtres.', allTree: 'L’arbre complet reste visible.', viewEntry: 'Consulter cet essai', compactSlots: '{active}/{capacity} slots activés',
-    search: 'Nom, signature ou reflets', searchHint: 'Un nom, des reflets mauves…', potential: 'Potentiel hérité', active: 'Trait activé',
+    search: 'Nom, forme ou couleur', searchHint: 'Un nom, tête compacte, mauve…', potential: 'Potentiel hérité', active: 'Trait activé',
     slots: 'Emplacements minimum', rarity: 'Rareté', ancestor: 'Descendants de', status: 'Statut', all: 'Tous', any: 'Indifférent',
     reset: 'Effacer les filtres', matches: '{count} résultat(s) sur {total}', contextCount: '{count} ancêtre(s) de contexte',
     matchingResults: 'Résultats correspondants', ancestorDisclosure: 'Ancêtres de contexte ({count})',
@@ -31,7 +32,7 @@ export const JOURNAL_STRINGS = {
     zoomIn: 'Zoom in on the tree', zoomOut: 'Zoom out of the tree', fit: 'Fit tree', previous: 'Previous result', next: 'Next result',
     resultLegend: 'Match', lineageLegend: 'Match ancestry', otherLegend: 'Other branches', cards: 'Records and actions',
     noMatchTree: 'No results. Your tree stays visible; change or clear the filters.', allTree: 'The complete tree stays visible.', viewEntry: 'View this trial', compactSlots: '{active}/{capacity} active slots',
-    search: 'Name, signature or glints', searchHint: 'A name, mauve glints…', potential: 'Inherited potential', active: 'Activated trait',
+    search: 'Name, shape or colour', searchHint: 'A name, compact head, mauve…', potential: 'Inherited potential', active: 'Activated trait',
     slots: 'Minimum slots', rarity: 'Rarity', ancestor: 'Descendants of', status: 'Status', all: 'All', any: 'Any',
     reset: 'Clear filters', matches: '{count} result(s) of {total}', contextCount: '{count} ancestor(s) for context',
     matchingResults: 'Matching results', ancestorDisclosure: 'Ancestors for context ({count})',
@@ -73,6 +74,7 @@ export function buildJournalEntries(state, strains = [], configurationFn = id =>
       signature: typeof strain.signature === 'string' ? strain.signature : '', rarity: strain.rarity ?? null,
       color: typeof strain.color === 'string' && /^#[0-9a-f]{6}$/i.test(strain.color) ? strain.color : '#7d9b76',
       accent: typeof strain.accent === 'string' ? strain.accent : strain.accent && typeof strain.accent === 'object' ? Object.fromEntries(Object.entries(strain.accent).filter(([,value]) => typeof value === 'string')) : null,
+      visual: strain.visual ? structuredClone(strain.visual) : null,
       potentialIds, activeIds, availableIds: potentialIds.filter(id => !activeIds.includes(id)),
       slotCapacity: cleanNumber(strain.slotCapacity),
     };
@@ -95,7 +97,7 @@ export function buildJournalEntries(state, strains = [], configurationFn = id =>
       createdAt: Number.isFinite(trial.createdAt) ? trial.createdAt : 0,
       status: trial.phase === 'kept' ? 'kept' : trial.phase === 'archived' ? 'archived' : 'pending',
       phase: trial.phase, known, configurable: false, reusable: false,
-      strainId: null, name: '', signature: '', rarity: null, color: null, accent: null, potentialIds: [], activeIds: [], availableIds: [], slotCapacity: null,
+      strainId: null, name: '', signature: '', rarity: null, color: null, accent: null, visual: null, potentialIds: [], activeIds: [], availableIds: [], slotCapacity: null,
     };
     if (known) {
       const kept = varieties.find(strain => strain.trialId === trial.id || strain.id === trial.result?.id);
@@ -137,7 +139,7 @@ export function filterJournalEntries(entries, filters = {}) {
   const terms = query.split(/\s+/).filter(Boolean);
   const minSlots = Number(filters.minSlots) || 0;
   const matches = entries.filter(entry => {
-    const haystack = normalize([searchable(entry.name), entry.strainId, entry.trialId, entry.signature, entry.known ? searchable(entry.accent) : ''].join(' '));
+    const haystack = normalize([searchable(entry.name), entry.strainId, entry.trialId, entry.signature, entry.known ? searchable(entry.accent) + ' ' + visualSearchText(entry.visual) : ''].join(' '));
     return terms.every(term => haystack.includes(term))
       && (!filters.potentialId || entry.known && entry.potentialIds.includes(filters.potentialId))
       && (!filters.activeId || entry.known && entry.activeIds.includes(filters.activeId))
@@ -188,6 +190,7 @@ export function journalResultsHTML(result, { lang = 'fr', canUse = false } = {})
       <div class="journal-card-top"><span class="journal-status">${text[entry.status]}</span><span class="journal-match">${context ? text.context : text.match}</span></div>
       ${parents ? `<div class="journal-relatives"><small>${text.parents}</small><div>${parents}</div><span aria-hidden="true">↓</span></div>` : ''}
       <h3>${escape(displayName(entry, lang, text))}</h3><p class="journal-id">${escape(entry.strainId || entry.trialId)}</p>
+      ${entry.visual ? `<p class="journal-visual-brief">${escape(visualFeatures(entry.visual,lang).map(f => f.value).join(' · '))}</p>` : ''}
       ${entry.signature ? `<p class="journal-signature">${text.signature} · ${escape(entry.signature)}</p>` : ''}
       ${entry.known ? `<p class="journal-profile"><span>${escape(text[entry.rarity] || entry.rarity || '')}</span><span>${interpolate(text.slotCount, { active: entry.activeIds.length, capacity: entry.slotCapacity })}</span></p>
       <dl class="journal-traits"><dt>${text.potential}</dt><dd>${traits(entry.potentialIds) || text.noPotentials}</dd><dt>${text.activated}</dt><dd>${traits(entry.activeIds) || text.noneActive}</dd></dl>` : `<p class="journal-hidden">${text.hiddenInfo}</p>`}
@@ -228,9 +231,9 @@ export function journalGraphHTML(graph, { lang = 'fr', filtered = false } = {}) 
     const status = text[entry.status] + (filtered && node.match ? ` · ✦ ${text.resultLegend}` : '');
     const profile = entry.known ? interpolate(text.compactSlots, { active: entry.activeIds.length, capacity: entry.slotCapacity }) : text.hidden;
     const classification = filtered ? node.match ? ' is-match' : node.lineage ? ' is-lineage' : ' is-muted' : '';
-    const accent = entry.known ? local(entry.accent, lang) || text.visualSignature : text.unseen;
+    const accent = entry.known ? [shortVisualName(entry.visual,lang), local(entry.accent, lang)].filter(Boolean).join(' · ') || text.visualSignature : text.unseen;
     const color = entry.known && /^#[0-9a-f]{6}$/i.test(entry.color || '') ? entry.color : '#829080';
-    const glint = entry.known ? entry.rarity === 'exceptional' ? '#e4c579' : entry.rarity === 'rare' ? '#c6a1df' : '#bdcf9a' : '#829080';
+    const glint = entry.known ? entry.visual?.alleles.pigment.includes('mauve') ? '#c6a1df' : '#bdcf9a' : '#829080';
     const slots = entry.known ? `<span class="journal-slot-dots" aria-label="${escape(profile)}">${Array.from({length:Math.min(12,entry.slotCapacity)},(_,i)=>`<i class="${i < entry.activeIds.length ? 'active' : ''}"></i>`).join('')}</span>` : `<span class="journal-sealed">${text.unseen}</span>`;
     return `<button type="button" class="journal-node${classification}" data-entry="${escape(entry.id)}" data-tree-action="${action}" data-strain="${escape(entry.strainId || '')}" data-known="${entry.known}" style="left:${node.x}px;top:${node.y}px;width:${node.width}px;height:${node.height}px;--strain-color:${color};--glint-color:${glint}" aria-label="${escape(`${name} · ${entry.configurable ? text.inspect : text.viewEntry}`)}" title="${escape(`${name} · ${text.visualSignature} · ${accent} · ${profile}`)}"><span class="journal-portrait">${renderStrainPortrait(entry, `portrait-${entry.id}`)}</span><span class="journal-node-status">${escape(status)}</span><strong class="journal-node-name">${escape(name)}</strong><span class="journal-node-accent">${escape(accent)}</span>${slots}</button>`;
   }).join('');

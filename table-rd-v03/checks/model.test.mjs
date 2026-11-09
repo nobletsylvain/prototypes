@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PARENTS, TRAITS, createState, transition, validateState, restoreState, getStrains, getOdds, getConfiguration } from '../source/model.mjs';
+import { getVisualPhenotype } from '../source/visual-genetics.mjs';
 
 const SPACE = 2 ** 32;
 const reload = state => restoreState(JSON.stringify(state));
@@ -33,9 +34,9 @@ function allPotentialChild(state = createState(), parents = ['x', 'z']) {
   return keep(reveal(start(state, parents, outcome => outcome.potentialIds.length === union.size)), 'Inherited specimen');
 }
 
-test('schema 3 fixture has authored potentials, variable slots and physical stock', () => {
+test('schema 4 fixture has authored potentials, variable slots and physical stock', () => {
   const state = createState();
-  assert.equal(state.schema, 3); assert.equal(state.revision, 0);
+  assert.equal(state.schema, 4); assert.equal(state.revision, 0);
   assert.deepEqual(PARENTS.map(({ id, slotCapacity, potentialIds }) => ({ id, slotCapacity, potentialIds })), [
     { id: 'x', slotCapacity: 3, potentialIds: ['citrus', 'floral', 'yield'] },
     { id: 'y', slotCapacity: 5, potentialIds: ['yield', 'quality'] },
@@ -123,9 +124,11 @@ test('rarity is the explicit potential/capacity classification, not lot quality'
   state = harvest(state, state.varieties[0].id);
   state = start(state, [state.varieties[0].id, 'z'], o => o.rarity === 'exceptional');
   const trial = state.trials.at(-1);
-  assert.equal(trial.result.rarity, 'exceptional'); assert.equal(trial.result.accent.en, 'Golden glints');
+  assert.equal(trial.result.rarity, 'exceptional');
+  assert.deepEqual(trial.result.accent, getVisualPhenotype(trial.result.visual).accent);
   assert.deepEqual(trial.batch, { id: 'batch-002', quality: 'demo-standard', quantity: 1, unit: 'specimen' });
-  assert.equal(start().trials[0].result.accent.en, 'Mauve glints');
+  const rare = start().trials[0].result;
+  assert.deepEqual(rare.accent, getVisualPhenotype(rare.visual).accent);
 });
 
 test('parent order is immaterial to the exact inheritance odds', () => {
@@ -173,7 +176,7 @@ test('invalid parent, seed, direct trait choice and unknown commands preserve th
   refused(state, { ...command, parentIds: ['x', 'x'] }, 'distinct-parents-required');
   refused(state, { ...command, parentIds: ['x', 'missing'] }, 'parents-required');
   for (const seed of [-1, SPACE, 1.5, undefined, NaN]) refused(state, { ...command, seed }, 'seed-required');
-  for (const key of ['intent', 'taste', 'effect', 'potentialIds', 'slotCapacity']) refused(state, { ...command, [key]: 'chosen' }, 'direct-trait-selection-removed');
+  for (const key of ['intent', 'taste', 'effect', 'potentialIds', 'slotCapacity', 'visual']) refused(state, { ...command, [key]: 'chosen' }, 'direct-trait-selection-removed');
   refused(state, { type: 'UPGRADE' }, 'unknown-command');
 });
 

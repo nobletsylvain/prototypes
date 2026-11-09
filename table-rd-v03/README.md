@@ -1,6 +1,6 @@
-# Table de R&D — V03, hériter puis activer
+# Table de R&D — V03, héritage visuel
 
-Une démo autonome d’**Au four, mon amour**, préparée le 9 novembre 2026 avant intégration Unity. Les croisements transmettent des possibilités ; les points permettent ensuite de choisir celles que la variété exprime.
+Une démo autonome d’**Au four, mon amour**, préparée le 9 novembre 2026 avant intégration Unity. Les croisements transmettent des possibilités et une apparence familiale ; les points permettent ensuite d’activer les potentiels de jeu hérités.
 
 [Ouvrir V03](https://nobletsylvain.github.io/prototypes/table-rd-v03/) · [Essai rapide V03](https://nobletsylvain.github.io/prototypes/table-rd-v03/?mode=test) · [V02 conservée](https://nobletsylvain.github.io/prototypes/table-rd-v02/)
 
@@ -24,23 +24,37 @@ Ces cinq traits, les capacités de 3/5 emplacements, les chances, le coût d’a
 
 Ramification affiche un aperçu de production à 5 branches au lieu de 3. Qualité potentielle décrit une possibilité de production future. La démo ne simule pas cette culture : aucune bouture, quantité ni qualité de lot supplémentaire n’est créée par l’activation.
 
+## Ressemblance entre parents et descendants
+
+La nouvelle version remplace les variations décoratives indépendantes par huit axes visuels fictifs : forme de tête, élongation, ampleur, largeur et présence du feuillage, pigment, teinte des pistils, touches claires de surface. Chaque parent transmet une de ses deux valeurs par axe. L’expression combine ces valeurs : moyenne des dimensions, mélange des teintes et choix déterministe d’une forme parentale. Aucun caractère visuel extérieur aux parents n’est ajouté.
+
+Les fondatrices possèdent deux valeurs différentes sur chacun des six axes numériques : le centre choisi moins/plus 15, dans les bornes 0–100. Une même paire de parents peut donc produire des variations dès la première génération, uniquement par transmission. Les paires de forme et de pigment restent identiques chez chaque fondatrice pour garder des familles reconnaissables.
+
+Trois formes — compacte, élancée et en grappe — s’appuient sur les maîtres low poly V05. Facettes lisibles, palettes olive/citron vert/mauve et surfaces sobres visent la cohérence avec les assets employés dans Unity. Les hybrides conservent des plages de facettes aux pigments parentaux, accompagnées de leur teinte moyenne. L’objet sous la loupe et son portrait utilisent la même géométrie exprimée. Les dimensions apparentes ne créent ni masse, ni rendement, ni puissance.
+
+Cet héritage fictif est fixé une fois au lancement de l’essai, indépendamment du tirage des potentiels et de la rareté. Un pigment mauve ou des facettes plus claires ne signifient pas « meilleure qualité » ou « plus puissant ». Le cycle n’est pas implémenté : toutes les têtes sont comparées au même stade, sans nouveau délai de production.
+
 ## Commandes et journal
 
 La vue est à la première personne. Poser les parents avec les boutons, puis engager le petit essai. Sous la loupe, glisser pour tourner et utiliser les commandes de rapprochement. Les points blancs donnent accès aux emplacements ; Origine ouvre la généalogie.
 
 Maintenir environ 1,5 seconde pour révéler. Relâcher met en pause sans perdre l’avancement de la séquence en cours. Espace/Entrée et l’ouverture assistée donnent accès au même résultat. Aucune précision, vitesse ou réussite motrice ne change le tirage ou les ressources.
 
-**Arbre & journal** prend la forme d’un herbier sombre horizontal, avec portraits et liens entre générations. Les portraits SVG reprennent les couleurs et reflets déjà enregistrés des découvertes. Leur silhouette déterministe est décorative : elle ne simule pas un héritage morphologique. Avant révélation, une silhouette neutre ne dévoile ni couleur, ni reflets, ni potentiel, capacité ou rareté.
+**L’objet reste premier :** l’examen sous la loupe montre la vraie forme et les vraies couleurs obtenues avant la fiche. Le journal garde encore une silhouette neutre ; ses portraits, textes et filtres ne dévoilent pas le résultat avant sa révélation. Les effets de célébration de rareté restent distincts de la pigmentation héritée.
+
+**Arbre & journal** conserve l’herbier sombre horizontal, ses portraits et ses liens entre générations. Après révélation, la même apparence se retrouve sur l’objet, dans l’arbre et dans la présentation de la variété.
+
+Après révélation, la comparaison montre les deux parents et leur descendant côte à côte ; elle est aussi accessible depuis Origine. Les détails des huit axes distinguent **Transmis**, avec les deux valeurs et leurs parents, d’**Exprimé**, une lecture qualitative du résultat. La signature visuelle reste distincte de la signature choisie par l’auteur.
 
 La recherche et les filtres se combinent sans masquer les autres branches. Les correspondances sont dorées, leur ascendance est accentuée et le reste est atténué. Ce surlignage indique un résultat de recherche, pas la rareté ou la qualité du lot. Les filtres sont gardés lors des allers-retours vers les emplacements, séparément pour chaque mode.
 
-Rechercher un nom, une identité, une signature ou un libellé de reflets connu, par exemple **« reflets mauves »**, puis filtrer par potentiel hérité, trait activé, capacité minimale, rareté, ascendance ou statut. Utiliser **+ / −**, **Tout voir** et **Résultat précédent/suivant** pour parcourir les branches. Faire défiler au doigt ou avec les flèches du clavier lorsque l’arbre a le focus ; sur ordinateur, glisser son fond à la souris. Cliquer une fondatrice ou une variété conservée ouvre ses emplacements. Les autres essais restent en consultation seule.
+Rechercher un nom, une identité, une signature ou une description visuelle connue — forme, feuillage, couleur, par exemple **« reflets mauves »** — puis filtrer par potentiel hérité, trait activé, capacité minimale, rareté, ascendance ou statut. Utiliser **+ / −**, **Tout voir** et **Résultat précédent/suivant** pour parcourir les branches. Faire défiler au doigt ou avec les flèches du clavier lorsque l’arbre a le focus ; sur ordinateur, glisser son fond à la souris. Cliquer une fondatrice ou une variété conservée ouvre ses emplacements. Les autres essais restent en consultation seule.
 
-Les fiches détaillées et leurs actions restent disponibles dans un volet replié sous l’arbre : consultation, réutilisation parentale lorsque le parcours l’autorise et export avec nom, signature et généalogie. Une archive ne devient pas un parent disponible. Les fiches exportées sont des images partageables, sans import jouable.
+Les fiches détaillées et leurs actions restent disponibles dans un volet replié sous l’arbre : consultation, réutilisation parentale lorsque le parcours l’autorise et export avec nom, signature, généalogie, portrait commun et signature visuelle. Une archive ne devient pas un parent disponible. Les fiches exportées sont des images partageables, sans import jouable.
 
 Activer le son à la demande. **Expressif** et **Discret** comparent les retours sur le même état ; le volume est séparé. Les boutons de rejeu du mode test répètent uniquement les sons/VFX, sans gain supplémentaire.
 
-La classification visuelle proposée — plante, feuilles, fleurs, pigmentation, trichomes et cycle — reste une piste personnalisable pour le jeu. Elle n’est ni un système génétique implémenté ni une table réelle de culture. Les portraits actuels n’attribuent aucun de ces caractères au patrimoine des variétés.
+Les huit axes sont des règles d’essai personnalisables pour le jeu, sans prétention de génétique réelle ni tableau de culture. L’architecture d’une plante entière et les variations de cycle restent à concevoir. Les touches claires sont un traitement de facettes, pas une mesure de trichomes ou de composition.
 
 ## Essai rapide séparé
 
@@ -54,12 +68,12 @@ La commande de test propre à une variété cherche un partenaire admissible pou
 
 Identité, potentiel hérité, activation, rareté et qualité réelle du lot sont distincts. Le lot d’essai reste un spécimen de qualité standard. Deux boutures identifiées sont consommées une fois ; le pot est réutilisé. Chaque fondatrice dispose de trois boutures initiales et trois prélèvements supplémentaires. Chaque descendant conservé dispose de huit prélèvements, pour laisser essayer le remplissage de cinq emplacements puis poursuivre la lignée. Ce budget de démonstration ne garantit pas les découvertes rares ; Ramification ne l’augmente pas et ne crée aucune bouture.
 
-V03 utilise un schéma et des sauvegardes séparés de V02, sans migration automatique. L’herbier et ses portraits conservent les règles, chances, ressources, identités, sauvegardes V03 et les mêmes liens normal/test. Leur apparence ne modifie ni la rareté enregistrée ni la qualité du lot. La sauvegarde reste locale au navigateur. Les recettes des autres produits, les emplacements définitifs de spécialisation, l’économie et la production ordinaire restent ouverts.
+Les liens et les deux sauvegardes V03 restent les mêmes ; leur format interne passe au schéma 4. Une sauvegarde du schéma 3 doit d’abord être validée strictement, puis son historique est rejoué pour initialiser l’héritage visuel. L’interface signale cette initialisation : les anciennes apparences décoratives peuvent changer, mais identités, noms, généalogie, points, ressources et résultats de jeu restent conservés. Une sauvegarde invalide n’est pas réinterprétée silencieusement. Le mode test reste séparé du mode normal et de V02.
 
-**94 tests réussis, 0 échec, également sur les sources distribuées.** Les dix modules embarqués passent le contrôle de syntaxe et des imports. L’herbier publié a été inspecté en 1280 × 720 et 390 × 844 : neuf portraits et douze liens, recherche « reflets mauves » (cinq correspondances), « heritage » (une correspondance et quatre liens d’ascendance), filtres B1/cinq slots (deux correspondances), accès aux slots et recherche conservée au retour. Une recherche vide garde toutes les branches. Tout voir, zoom et navigation entre résultats ont été parcourus. La largeur de la fenêtre mobile a été corrigée et vérifiée ; aucun avertissement ou erreur console relevé. Captures regardées et preuves : `checks/herbarium-desktop.jpg`, `checks/herbarium-mobile.jpg`, `checks/validation.json`.
+**Vérifications automatisées : 120 tests réussis, zéro échec dans neuf fichiers ; les 15 modules publics et embarqués hors ligne passent les contrôles de syntaxe et d’imports.** Les tests couvrent notamment la transmission strictement parentale, la variation dès la première génération et la migration validée depuis V3, avec conservation des identités, de l’historique, des points et des ressources. La planche SVG de trois fondateurs et deux générations a été calculée puis regardée ; elle ne prouve pas le rendu WebGL.
 
-Les parcours et captures des précédentes vues V03 sont exclusivement historiques. Ils ne valident ni cette disposition, ni les portraits, ni la recherche par reflets. Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué.
+**La revue navigateur de cette extension reste en attente.** Les parcours et captures précédents sont historiques et ne la remplacent pas. Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué. Les recettes des autres produits, les emplacements définitifs de spécialisation et l’économie restent ouverts.
 
-Le spécimen utilise un modèle visuel partagé ; les sons sont synthétisés localement. Three.js est fourni sous licence MIT, incluse dans ce dossier.
+Les têtes utilisent des formes de référence communes, déclinées par le descripteur hérité ; les sons sont synthétisés localement. Three.js est fourni sous licence MIT, incluse dans ce dossier.
 
 [Passation Unity](handoff/PASSATION_UNITY.md) · [Sons provisoires](handoff/AUDIO.md)
