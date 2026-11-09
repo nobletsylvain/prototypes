@@ -1,6 +1,6 @@
 # Passation de L’Étal — révision d
 
-9 novembre 2026. Correction suivie dans [l’issue 280](https://github.com/nobletsylvain/prototypes/issues/280), cible [révision d](https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109d). Les 90 contrôles automatiques et les sept analyses GLTF ont réussi ; la preuve visuelle navigateur reste à établir. Un paramètre d’URL ne prouve pas son déploiement.
+9 novembre 2026. Correction suivie dans [l’issue 280](https://github.com/nobletsylvain/prototypes/issues/280), cible [révision d](https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109d). Les 90 contrôles automatiques et les sept analyses GLTF ont réussi ; la revue navigateur est effectuée aux trois formats, sans erreur ni avertissement de console. Le déploiement 42611402349 a réussi.
 
 ## Comportement à transmettre
 
@@ -66,7 +66,7 @@ Les timers s’arrêtent lorsque la page est masquée, perd le focus ou affiche 
 
 ## Vérifications de la correction d
 
-La révision d a passé **90 contrôles, aucun échec** : 51 registre, 22 contrôleur avec présentation simulée et 17 audio avec contexte simulé. Les sept modèles utilisés ont passé leur analyse GLTF, sans rendu. La copie autonome a été générée. La revue visuelle navigateur reste en attente. La révision c avait 88 contrôles réussis et une revue navigateur ; ces résultats restent historiques.
+La révision d a passé **90 contrôles, aucun échec** : 51 registre, 22 contrôleur avec présentation simulée et 17 audio avec contexte simulé. Les sept modèles utilisés ont passé leur analyse GLTF, sans rendu. La copie autonome a été générée. La revue navigateur est effectuée aux trois formats, sans erreur ni avertissement de console. La révision c avait 88 contrôles réussis et une revue navigateur ; ces résultats restent historiques.
 
 Points suivis par les contrôles et la revue du candidat final :
 
@@ -84,3 +84,6 @@ Euros, grammes, identités, contenus et refus sans mutation restent exacts. La d
 Une référence et un sachet par demande, seule l’hésitation de prix démontrée. Pas de campagne, substitutions avancées, pourboires du client, séries, pénalités relationnelles ou secours sans monnaie. Les capacités générales de la sacoche et ses débordements restent hors périmètre.
 
 Aucune modification ni compilation Unity dans cette correction. Une intégration future devra suivre sa carte, sa revue indépendante, la régression complète du dernier exécutable et l’essai du propriétaire. Consigner séparément correction locale, publication, revue navigateur, téléphone physique, écoute et essai humain.
+
+
+Revue visuelle d : modèles, grammage unique, retours temporaires sans cadre, vente exacte, trop rendu et main occupée contrôlés. Preuve : verification/models-browser-review.json. Publication : https://github.com/nobletsylvain/prototypes/pull/281.

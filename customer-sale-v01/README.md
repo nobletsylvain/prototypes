@@ -2,7 +2,7 @@
 
 **Révision d du 9 novembre 2026 : reprise des modèles du jeu, grammage sur les sachets et retour de vente temporaire sans cadre.** [Lien de la révision d](https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109d) · [Suivi de la correction, issue 280](https://github.com/nobletsylvain/prototypes/issues/280).
 
-Cette révision a passé 90 contrôles automatiques et le chargement analysé des sept modèles GLTF ; sa revue visuelle navigateur reste à effectuer. Le lien désigne la cible de publication et ne constitue pas une preuve de déploiement.
+Cette révision est publiée et vérifiée : 90 contrôles automatiques réussis, sept modèles GLTF chargés et revue navigateur aux formats 390 × 844, 360 × 740 et 1280 × 720. Aucun essai humain ni téléphone physique.
 
 Le client attend sans montrer son paiement. Quand vous lui parlez, il révèle sa demande et tend ses billets. Glissez le sachet et la monnaie sur le carton, puis confirmez. Le paiement rejoint automatiquement la sacoche, même avec un colis en main. La monnaie insuffisante bloque la vente ; un trop rendu est accepté et apprécié par le client.
 
@@ -38,6 +38,9 @@ Une vente conforme donne un retour positif ; un trop rendu renforce service et f
 
 Une référence et un sachet par demande ; seule l’hésitation de prix est démontrée. Une composition incompatible empêche la confirmation. Pas de substitutions avancées, pourboires du client, séries, pénalités relationnelles, secours sans monnaie ou campagne. Le shader de résine Unity n’est pas porté ; les matières exportées sont conservées. Sons, animations et adaptation des modèles au navigateur restent à éprouver.
 
-La révision d a passé **90 contrôles, aucun échec** : 51 registre, 22 contrôleur avec présentation simulée et 17 audio avec contexte simulé. Les sept modèles utilisés ont aussi passé leur analyse GLTF, sans rendu. La revue visuelle navigateur reste en attente ; aucun essai humain, téléphone physique ou écoute de cette révision n’est validé. La révision c avait 88 contrôles et sa propre revue navigateur, conservés comme historique. Aucune intégration ni compilation Unity n’a lieu dans cette correction.
+La révision d a passé **90 contrôles, aucun échec** : 51 registre, 22 contrôleur avec présentation simulée et 17 audio avec contexte simulé. Les sept modèles utilisés ont aussi passé leur analyse GLTF, sans rendu. La revue navigateur est effectuée aux trois formats, sans erreur ni avertissement de console ; aucun essai humain, téléphone physique ou écoute de cette révision n’est validé. La révision c avait 88 contrôles et sa propre revue navigateur, conservés comme historique. Aucune intégration ni compilation Unity n’a lieu dans cette correction.
 
 [Carnet](documentation.html) · [Passation](HANDOFF.md) · [Ressources](ASSETS.md) · [Relevé daté](verification/summary.json). Lire la révision et les empreintes du relevé avant de lui attribuer une validation.
+
+
+Revue visuelle d : modèles, grammage unique, retours temporaires sans cadre, vente exacte, trop rendu et main occupée contrôlés. Preuve : verification/models-browser-review.json. Publication : https://github.com/nobletsylvain/prototypes/pull/281.
