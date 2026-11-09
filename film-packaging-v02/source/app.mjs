@@ -58,10 +58,9 @@ function repeatHold(){
   if(!holding)return;
   if(!take()){stopHold();return;}
   holdTaken++;
-  const first=model.state.items[model.state.handIds[0]];
-  const stackBoundary=(first?.kind==='cashBundle'||(first?.kind==='slab'&&first.formatMg===100000))&&model.state.handIds.length%5===0;
-  const interval=Math.max(160,210-2*(holdTaken-2));
-  hold=setTimeout(repeatHold,interval+(stackBoundary?110:0));
+  // Keep acceleration tied to the uninterrupted hold, including across stack boundaries.
+  const interval=Math.max(150,210-2*(holdTaken-2));
+  hold=setTimeout(repeatHold,interval);
 }
 function startHold(){if(holding||$('take').disabled)return;holding=true;holdTaken=0;if(take()){holdTaken=1;hold=setTimeout(repeatHold,280);}else stopHold();}
 function stopHold(){clearTimeout(hold);hold=null;holding=false;holdTaken=0;}
