@@ -1,45 +1,43 @@
 # L’Étal — vente face au client
 
-Le client attend sans présenter de billet. Quand le joueur lui parle, il révèle sa demande et tend ses billets. Le joueur glisse le sachet et la monnaie sur le carton. Une confirmation avec la monnaie juste ou un trop rendu collecte automatiquement le paiement dans la sacoche, même lorsque la main est occupée. Une monnaie insuffisante reste bloquée.
+**Révision d du 9 novembre 2026 : reprise des modèles du jeu, grammage sur les sachets et retour de vente temporaire sans cadre.** [Lien de la révision d](https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109d) · [Suivi de la correction, issue 280](https://github.com/nobletsylvain/prototypes/issues/280).
 
-**Révision du retour de vente :** le trop rendu est accepté et apprécié par le client ; le manque reste bloqué. [Ouvrir la démo](https://nobletsylvain.github.io/prototypes/customer-sale-v01/). Les preuves identifient la révision réellement contrôlée ; les 79 contrôles et la revue navigateur précédents appartiennent à la version antérieure.
+Cette révision a passé 90 contrôles automatiques et le chargement analysé des sept modèles GLTF ; sa revue visuelle navigateur reste à effectuer. Le lien désigne la cible de publication et ne constitue pas une preuve de déploiement.
+
+Le client attend sans montrer son paiement. Quand vous lui parlez, il révèle sa demande et tend ses billets. Glissez le sachet et la monnaie sur le carton, puis confirmez. Le paiement rejoint automatiquement la sacoche, même avec un colis en main. La monnaie insuffisante bloque la vente ; un trop rendu est accepté et apprécié par le client.
 
 ## Jouer
 
-Ouvrir `index.html` depuis un serveur HTTP. La copie autonome `Etal-V01.html` contient également les ressources ; sa mise à jour doit suivre la version livrée.
+Servir index.html par HTTP. Le démarrage attend le chargement des modèles ; une erreur de chargement doit être résolue avant de jouer. Une copie autonome Etal-V01.html a également été générée pour cette correction.
 
-- **Souris ou doigt :** glisser sachet ou billet de monnaie vers l’étal ; cliquer sur un objet préparé pour le reprendre. On peut aussi toucher un objet puis l’étal.
-- **E :** parler. **1 à 5 :** sortir un sachet de la case correspondante. **Espace :** confirmer avec le produit conforme et une monnaie juste ou excessive ; aucune étape distincte Proposer. **Échap :** remettre l’objet déplacé.
-- Le paiement rejoint automatiquement la sacoche ; aucune commande de ramassage ou rangement des recettes n’est nécessaire.
-- **? :** aide et commandes accessibles ; sa lecture suspend la simulation.
-- Son et retours renforcés se comparent avec les boutons du haut. Interface en français et anglais.
+- **Souris ou doigt :** glisser un sachet ou un billet vers l’étal ; cliquer sur un objet préparé pour le reprendre. On peut aussi toucher un objet puis l’étal.
+- **E :** parler. **1 à 5 :** sortir un sachet de la case correspondante. **Espace :** confirmer le produit conforme et la monnaie juste ou excessive. **Échap :** remettre l’objet déplacé.
+- Le paiement est encaissé automatiquement ; aucune commande de ramassage ou de rangement des recettes n’est nécessaire.
+- **? :** aide et commandes accessibles. L’aide, la page masquée et la perte de focus suspendent le temps, sans rattrapage au retour.
+- Interface française et anglaise ; boutons pour comparer son et retours renforcés.
 
 ## Trois situations
 
-1. **Vente simple :** sachet 4 g à 25 €, billet présenté 50 €, monnaie 25 €. Préparer les deux objets, confirmer et observer la collecte.
-2. **Hésitation :** sachet 4 g, tarif 25 €, prix accepté 20 €. Le timer de cinq secondes se fige à la première prise. Le joueur ajuste à 20 €, sans contre-offre du client ; rendre 30 € sur les 50 € présentés puis confirmer une seule fois.
-3. **Main occupée :** un colis reste tenu pendant la vente. Le paiement rejoint la sacoche, l’objet tenu est conservé et le suivant avance.
+| Situation | Parcours |
+|---|---|
+| Vente simple | Sachet 4 g à 25 €, billet présenté 50 €, monnaie 25 €. Préparer, confirmer, observer la collecte. |
+| Hésitation | Sachet 4 g, tarif 25 €, prix accepté 20 €. La première prise d’un sachet fige les cinq secondes ; ajuster à 20 €, rendre 30 € sur 50 €, confirmer. |
+| Main occupée | Garder le colis pendant la vente. Le paiement rejoint la sacoche, le colis reste tenu et le suivant avance. |
 
-Chaque situation recommence un lot isolé : cinq cases de huit sachets, trente billets de fonds, huit clients distincts. Les billets révélés dans la main du client après Parler sont ceux transférés à la confirmation. Produits, coupures et identités sont conservés. Les capacités générales d’un autre jeu ne sont pas modifiées.
+Chaque situation recommence un lot isolé : cinq cases de huit sachets, trente billets de fonds et huit clients distincts. Les identités, coupures et quantités restent conservées. Les prix, les arrivées toutes les quatre secondes, la file de cinq et la durée maximale de cinq minutes sont des valeurs provisoires. Le lot de clients peut finir plus tôt.
 
-## Le retour après vente
+## Présentation et retour de vente
 
-Le client est satisfait après une vente, davantage encore si vous rendez trop ; un refus suscite une déception. Le retour visuel distingue **Produit conforme**, **Service** et **Fidélisation** : une hausse qualitative sur une vente normale, renforcée si vous rendez trop. Ces indications ne sont ni des points ni un calcul de prochaines visites.
+Le cadrage et la sacoche validés par le propriétaire sont conservés. Le poids figure sur chaque sachet ; les cases conservent seulement leur repère de raccourci. Les contenus sont les modèles du jeu : têtes HeadsV05 de 2 et 5 g, maître de 2 g également utilisé pour la gamme premium, et barrette HashV02 dont l’épaisseur distingue 4 et 8 g. Film, zip et étiquette restent construits pour cette scène. Les clients réemploient Leah, Moira, Eddie et Martin, quatre modèles originaux historiquement intégrés à CapitalWorld.
 
-Le cadre montre le manque en rouge, le compte exact en vert et le trop rendu en ambre. L’excès est confirmable ; le message indique combien vous avez rendu en plus et votre recette réelle. Exemple : prix 25 €, paiement 50 €, monnaie 30 € → 5 € en plus pour le client, recette réelle 20 €. Tous les billets restent comptés exactement.
+Pendant la préparation, **Présenté / À rendre / Rendu** distingue manque en rouge, compte exact en vert et trop rendu en ambre. Après la vente, un texte sans cadre accompagne la satisfaction et les indications **Produit / Service / Fidélisation**. Il apparaît pendant au plus **2,8 secondes de temps actif**, disparaît plus tôt à l’arrivée du suivant ou lorsque vous lui parlez, et ne reste pas attaché à la nouvelle vente. L’aide le masque et suspend son temps ; la perte de focus ou le masquage de la page suspend aussi sa durée.
+
+Une vente conforme donne un retour positif ; un trop rendu renforce service et fidélisation. Ce sont des indications qualitatives, sans points ni nouvelles visites simulées. Exemple : prix 25 €, paiement 50 €, monnaie 30 € → 5 € en plus pour le client, recette réelle 20 €. Les billets réellement remis financent cet écart.
 
 ## Limites et preuves
 
-Une référence et un sachet par demande ; seule l’hésitation de prix est démontrée. Pas de substitutions avancées, pourboires du client, séries, pénalités de relation, secours sans monnaie ou progression chiffrée de fidélisation. Prix, cadence de quatre secondes et durée maximale de cinq minutes sont provisoires. La séance peut finir après les huit clients.
+Une référence et un sachet par demande ; seule l’hésitation de prix est démontrée. Une composition incompatible empêche la confirmation. Pas de substitutions avancées, pourboires du client, séries, pénalités relationnelles, secours sans monnaie ou campagne. Le shader de résine Unity n’est pas porté ; les matières exportées sont conservées. Sons, animations et adaptation des modèles au navigateur restent à éprouver.
 
-Personnages, carton, sacoche, papier et sons restent des propositions. Le portrait utilise deux rangées de compartiments. Aucun asset final ni intégration Unity n’est livré.
+La révision d a passé **90 contrôles, aucun échec** : 51 registre, 22 contrôleur avec présentation simulée et 17 audio avec contexte simulé. Les sept modèles utilisés ont aussi passé leur analyse GLTF, sans rendu. La revue visuelle navigateur reste en attente ; aucun essai humain, téléphone physique ou écoute de cette révision n’est validé. La révision c avait 88 contrôles et sa propre revue navigateur, conservés comme historique. Aucune intégration ni compilation Unity n’a lieu dans cette correction.
 
-La première version avait 76 contrôles réussis et une revue navigateur aux formats ordinateur et téléphone. La révision précédente a passé 79 contrôles : 45 registre, 17 contrôleur avec présentation simulée et 17 audio avec contexte simulé ; quatre modules valides en syntaxe. Une composition incompatible désactive la confirmation. Les trois situations ont été parcourues en ligne à 390 × 844, avec contrôles d’affichage à 360 × 740 et 1280 × 720 ; aucune erreur ni avertissement de console. Les résultats de la révision courante sont dans le relevé correspondant à ses empreintes. Aucun essai humain, téléphone physique ou écoute de cette révision n’est validé.
-
-Voir [le carnet](documentation.html), [la passation](HANDOFF.md), [la provenance](ASSETS.md), [les preuves datées](verification/summary.json) et [la revue publiée](verification/browser-review.json).
-
-
-Ajustement conservé du 9 novembre : les billets apparaissent uniquement après Parler. Les observations de la révision précédente restent datées ; la vérification de ce déclenchement est consignée dans le suivi de la correction. [Suivi](https://github.com/nobletsylvain/prototypes/issues/257).
-
-
-Le cadrage a été validé par le propriétaire. Les grammages sont renforcés par des repères contrastés, sans ajout de sacoche ni changement de caméra.
+[Carnet](documentation.html) · [Passation](HANDOFF.md) · [Ressources](ASSETS.md) · [Relevé daté](verification/summary.json). Lire la révision et les empreintes du relevé avant de lui attribuer une validation.
