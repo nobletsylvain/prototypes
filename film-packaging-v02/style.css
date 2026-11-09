@@ -5,3 +5,6 @@
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
 
 .stack-summary{font-size:11px;color:#466d4b;margin:0 0 10px;font-variant-numeric:tabular-nums}.stack-summary[hidden]{display:none}
+
+/* Keep floor access available beside camera controls on narrow screens. */
+.view-tools{flex-wrap:wrap}.action-row{flex-wrap:wrap}.action-row button{min-width:68px}@media(max-width:700px){.view-tools{gap:5px;left:14px;right:14px}.view-tools button{padding:5px 6px;font-size:9px}.view-tools #view-label,.view-tools>.live-dot{display:none}.slots{gap:5px}.slots button{padding:8px 7px}.stage-heading{pointer-events:none}}

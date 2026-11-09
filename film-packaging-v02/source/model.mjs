@@ -128,7 +128,7 @@ export class Workshop {
     return null;
   }
 
-  takeOne() {
+  takeOne(preferredItemId = null) {
     const state = this.state;
     if (state.phase !== 'idle') return fail('busy');
     if (state.heldPackageId !== null) return fail('hand-occupied');
@@ -138,8 +138,13 @@ export class Workshop {
     const first = state.items[state.handIds[0]];
     if (first?.kind === 'slab' && state.handIds.length >= 30) return fail('slab-limit');
     if (first?.kind === 'cashBundle' && state.handIds.length >= 30) return fail('cash-limit');
-    const index = pile.itemIds.findIndex(id => !this.#compatibility(state.items[id], first));
+    if (preferredItemId !== null && !pile.itemIds.includes(preferredItemId)) return fail('item-not-in-pile');
+    const index = preferredItemId === null
+      ? pile.itemIds.findIndex(id => !this.#compatibility(state.items[id], first))
+      : pile.itemIds.indexOf(preferredItemId);
     if (index < 0) return fail(this.#compatibility(state.items[pile.itemIds[0]], first));
+    const reason = this.#compatibility(state.items[pile.itemIds[index]], first);
+    if (reason) return fail(reason);
     const itemId = pile.itemIds[index];
     pile.itemIds.splice(index, 1);
     state.handIds.push(itemId);
@@ -180,6 +185,20 @@ export class Workshop {
     this.#pending = freeze({ type: 'wrap', itemIds: [...state.handIds] });
     state.phase = 'wrapping';
     return { ok: true, itemIds: [...state.handIds] };
+  }
+
+  dropSelection() {
+    const state = this.state;
+    if (state.phase !== 'idle') return fail('busy');
+    if (state.heldPackageId !== null) return this.placePackage('ground');
+    if (!state.handIds.length) return fail('empty-selection');
+    const itemIds = [...state.handIds];
+    const id = `pile-released-${String(++this.#pileSequence).padStart(2, '0')}`;
+    state.piles.push({ id, label: 'releasedItems', itemIds, slot: 'ground' });
+    itemIds.forEach(itemId => this.#sources.delete(itemId));
+    state.handIds = [];
+    state.targetPileId = id;
+    return { ok: true, pileId: id, itemIds: [...itemIds], slot: 'ground' };
   }
 
   finishWrap() {
@@ -226,11 +245,12 @@ export class Workshop {
   startOpen(id) {
     const state = this.state;
     if (state.phase !== 'idle') return fail('busy');
-    if (state.handIds.length || state.heldPackageId !== null) return fail('hand-occupied');
+    if (state.handIds.length) return fail('hand-occupied');
     const packet = state.packages.find(entry => entry.id === id);
     if (!packet) return fail('unknown-package');
-    if (packet.held || packet.slot === null) return fail('package-not-placed');
-    this.#pending = freeze({ type: 'open', packageId: id, itemIds: [...packet.itemIds], slot: clone(packet.slot) });
+    if (state.heldPackageId !== null && state.heldPackageId !== id) return fail('hand-occupied');
+    if (packet.held !== (state.heldPackageId === id) || (!packet.held && packet.slot === null)) return fail('package-not-placed');
+    this.#pending = freeze({ type: 'open', packageId: id, itemIds: [...packet.itemIds], slot: clone(packet.slot), held: packet.held });
     state.phase = 'opening';
     return { ok: true, packageId: id, itemIds: [...packet.itemIds], slot: clone(packet.slot) };
   }
@@ -241,16 +261,19 @@ export class Workshop {
     const pending = this.#pending;
     const index = state.packages.findIndex(packet => packet.id === pending.packageId);
     const packet = state.packages[index];
-    if (!packet || !same(packet.itemIds, pending.itemIds) || !same(packet.slot, pending.slot) || packet.held)
+    if (!packet || !same(packet.itemIds, pending.itemIds) || !same(packet.slot, pending.slot) || packet.held !== pending.held
+      || (pending.held && state.heldPackageId !== packet.id))
       return fail('package-changed');
     const id = `pile-opened-${String(++this.#pileSequence).padStart(2, '0')}`;
     const itemIds = [...packet.itemIds];
-    state.piles.push({ id, label: 'openedPackage', itemIds, slot: clone(packet.slot) });
+    const releasedSlot = pending.held ? 'ground' : clone(packet.slot);
+    state.piles.push({ id, label: 'openedPackage', itemIds, slot: releasedSlot });
     state.packages.splice(index, 1);
     state.targetPileId = id;
+    if (pending.held) state.heldPackageId = null;
     state.phase = 'idle';
     this.#pending = null;
-    return { ok: true, packageId: packet.id, pileId: id, itemIds: [...itemIds], slot: clone(packet.slot) };
+    return { ok: true, packageId: packet.id, pileId: id, itemIds: [...itemIds], slot: clone(releasedSlot) };
   }
 
   audit() {
