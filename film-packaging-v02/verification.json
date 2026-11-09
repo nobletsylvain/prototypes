@@ -1,13 +1,13 @@
 {
   "date": "2026-11-09",
-  "version": "film-packaging-v02.3",
+  "version": "film-packaging-v02.4",
   "automated": {
     "command": "node --test tests/*.test.mjs",
-    "passed": 88,
+    "passed": 99,
     "failed": 0
   },
   "preservation": {
-    "v022Files": 57,
+    "v023Files": 56,
     "changed": 0,
     "gameSourcesChanged": false
   },
@@ -18,7 +18,25 @@
     "cashPackageLimit": 30,
     "cashFixtureBundles": 32,
     "cashFixtureBills": 320,
-    "cashFixtureCents": 830000,
+    "cashFixtureCents": 1170000,
+    "cashThirtyCents": 1100000,
+    "pickupFirstRepeatMs": 280,
+    "pickupIntervalMs": [
+      210,
+      160
+    ],
+    "pickupStepMs": 2,
+    "stackPauseMs": 110,
+    "thirtyPickupScheduledMs": 5960,
+    "bandColorsByEuro": {
+      "100": "yellow",
+      "50": "red",
+      "20": "blue",
+      "5": "green",
+      "mixed": "gray-white",
+      "10": "legacy-beige"
+    },
+    "bandMinimumBillCount": 1,
     "cashLimitRefusal": "cash-limit",
     "defaultWrapSeconds": 0.55,
     "finishedFilmColor": "#333638",
@@ -30,6 +48,6 @@
   "unityIntegration": false,
   "publishing": {
     "target": "https://nobletsylvain.github.io/prototypes/film-packaging-v02/",
-    "previous": "archive-v02.2.html"
+    "previous": "archive-v02.3.html"
   }
 }

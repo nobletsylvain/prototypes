@@ -47,11 +47,12 @@ function createScenario(scenario) {
     addPile('pile-a250', 'slabsLarge', Array.from({ length: 4 }, (_, i) => slab('A', 250000, i + 1)), 2);
     addPile('pile-b100', 'slabsOther', Array.from({ length: 3 }, (_, i) => slab('B', 100000, i + 1)), 3);
   } else if (scenario === 'liasses') {
+    const denominationsByStack = [[10000], [5000], [2000], [500], [2000, 5000], [1000]];
     const entries = Array.from({ length: 32 }, (_, index) => {
       const id = `cash-bundle-${String(index + 1).padStart(2, '0')}`;
-      const denomination = [1000, 2000, 5000][index % 3];
+      const denominations = index < 30 ? denominationsByStack[Math.floor(index / 5)] : [index === 30 ? 2000 : 5000];
       const bills = Array.from({ length: 10 }, (_, i) => ({
-        id: `${id}-bill-${String(i + 1).padStart(2, '0')}`, cents: denomination,
+        id: `${id}-bill-${String(i + 1).padStart(2, '0')}`, cents: denominations[i % denominations.length],
       }));
       return {
         id, kind: 'cashBundle', label: 'cashBundle', variety: null, formatMg: null,

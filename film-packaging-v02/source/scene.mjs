@@ -2,6 +2,11 @@ import * as THREE from './vendor/three.module.js';
 
 const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
 const ease = x=>1-Math.pow(1-x,3);
+export function cashBandColor(bills){
+  const denominations=new Set(bills.map(bill=>bill.cents));
+  if(denominations.size>1)return '#d8d9d3';
+  return ({10000:'#e5c84b',5000:'#c74a48',2000:'#477fbf',500:'#609a60'})[[...denominations][0]]??'#b7ad85';
+}
 export class WorkshopView {
   constructor(canvas,onSelect){
     this.canvas=canvas;this.onSelect=onSelect;this.assets={};this.enhanced=true;this.filmPresence=1;this.time=0;this.anim=null;this.move=null;this.look=false;this.yaw=0;this.pitch=0;this.zoom=1;this.targets=[];this.dynamic=new THREE.Group();this.slot=0;this.placements=new Map();this.placementSequence=0;this.pendingOpenPlacement=null;
@@ -18,7 +23,7 @@ export class WorkshopView {
       const mats=await Promise.all(a.materials.map(async m=>{let map=null;if(m.map){map=await new THREE.TextureLoader().loadAsync(`assets/${m.map}`);map.flipY=false;map.colorSpace=THREE.SRGBColorSpace;map.anisotropy=4;}return new THREE.MeshStandardMaterial({color:new THREE.Color(...m.color.slice(0,3)),map,roughness:Math.max(.35,m.roughness??.7),metalness:m.metalness??0});}));
       this.assets[name]={geometry:g,materials:mats,dimensions:a.dimensions};
     }));
-    this.noteMaps={};await Promise.all([10,20,50].map(async value=>{const map=await new THREE.TextureLoader().loadAsync(`assets/banknote_${value}eur_front_back.png`);map.colorSpace=THREE.SRGBColorSpace;map.repeat.set(1,.46484375);map.offset.set(0,.53515625);this.noteMaps[value]=map;}));
+    this.noteMaps={};await Promise.all([5,10,20,50,100].map(async value=>{const map=await new THREE.TextureLoader().loadAsync(`assets/banknote_${value}eur_front_back.png`);map.colorSpace=THREE.SRGBColorSpace;map.repeat.set(1,.46484375);map.offset.set(0,.53515625);this.noteMaps[value]=map;}));
     this.knife=this.asset('knife-v02');this.knife.position.set(.88,.006,.32);this.knife.rotation.y=-.3;this.scene.add(this.knife);
   }
   asset(name){const a=this.assets[name];const m=new THREE.Mesh(a.geometry,a.materials);m.castShadow=true;m.receiveShadow=true;return m;}
@@ -53,7 +58,7 @@ export class WorkshopView {
     if(item.kind==='slab')return this.asset(item.formatMg===250000?'hash-250g':'hash-100g');
     const group=new THREE.Group();
     if(item.kind==='cashBundle'){
-      const body=this.box(.14,.018,.065,'#b3b79e',0,.009,0);group.add(body);for(let i=0;i<9;i++)group.add(this.box(.1405,.0004,.0655,i%2?'#d2d6c0':'#858d78',0,.002+i*.0018,0));const denomination=item.bills[0]?.cents/100;const face=this.own(new THREE.Mesh(new THREE.PlaneGeometry(.14,.065),new THREE.MeshStandardMaterial({map:this.noteMaps[denomination],roughness:.8})));face.rotation.x=-Math.PI/2;face.position.y=.0185;group.add(face);group.add(this.box(.032,.019,.066,'#b7ad85',0,.0095,0));
+      const body=this.box(.14,.018,.065,'#b3b79e',0,.009,0);group.add(body);for(let i=0;i<9;i++)group.add(this.box(.1405,.0004,.0655,i%2?'#d2d6c0':'#858d78',0,.002+i*.0018,0));const denomination=item.bills[0]?.cents/100;const face=this.own(new THREE.Mesh(new THREE.PlaneGeometry(.14,.065),new THREE.MeshStandardMaterial({map:this.noteMaps[denomination]??null,roughness:.8})));face.rotation.x=-Math.PI/2;face.position.y=.0185;group.add(face);const band=this.box(.032,.019,.066,cashBandColor(item.bills),0,.0095,0);band.name='cash-band';group.add(band);
     } else {
       const flower=this.asset('bud-5g');flower.rotation.x=Math.PI/2;flower.position.set(0,.03,-.046);group.add(flower);const bag=this.box(.082,.06,.125,'#d6dfd2',0,.031,0,.15);bag.material.transparent=true;bag.material.opacity=.1;bag.material.depthWrite=false;group.add(bag);group.add(this.box(.081,.003,.004,'#a15239',0,.063,-.057));
     }return group;
