@@ -1,68 +1,45 @@
 {
   "date": "2026-11-09",
-  "version": "film-packaging-v02.6",
+  "version": "film-packaging-v02.7",
   "automated": {
     "command": "node --test tests/*.test.mjs",
-    "passed": 126,
+    "passed": 147,
     "failed": 0
   },
   "preservation": {
-    "v025Files": 59,
+    "v026Files": 74,
     "changed": 0,
     "gameSourcesChanged": false
   },
   "changes": {
-    "openingSeconds": 0.38,
-    "previousOpeningSeconds": 0.72,
-    "physicsEngine": "cannon-es 0.20.0",
-    "physicsStepSeconds": 0.008333333333333333,
-    "floorY": -0.82,
-    "heldCameraRelative": true,
-    "openHeldPackage": true,
-    "releaseContents": true,
-    "cameraHeightMeters": 1.05,
-    "previousCameraHeightMeters": 0.72,
-    "cameraTarget": [
+    "cameraEye": [
       0.05,
-      0.06,
-      -0.02
+      1.05,
+      1.8
     ],
-    "cashColumns": 2,
-    "cashRowsAtThirty": 3,
-    "cashStackSize": 5,
-    "cashPackageLimit": 30,
-    "cashFixtureBundles": 32,
-    "cashFixtureBills": 320,
-    "cashFixtureCents": 1170000,
-    "cashThirtyCents": 1100000,
-    "pickupFirstRepeatMs": 280,
-    "pickupIntervalMs": [
-      210,
-      160
-    ],
-    "pickupStepMs": 2,
-    "stackPauseMs": 110,
-    "thirtyPickupScheduledMs": 5960,
-    "bandColorsByEuro": {
-      "100": "yellow",
-      "50": "red",
-      "20": "blue",
-      "5": "green",
-      "mixed": "gray-white",
-      "10": "legacy-beige"
-    },
-    "bandMinimumBillCount": 1,
-    "cashLimitRefusal": "cash-limit",
+    "cameraFixedWhileLookingAndZooming": true,
+    "heldOrientation": "horizontal with camera yaw",
+    "heldFamilyEnvelopeStable": true,
+    "returnSeconds": 0.22,
+    "guidedReturnDistinctFromRelease": true,
+    "pickupFromTopOfSourceColumn": true,
+    "packageTargetFromPhysicalPose": true,
+    "restartRestoresTableAndManipulation": true,
+    "physicsSolverIterations": 100,
+    "physicsStepSeconds": 0.008333333333333333,
+    "previousSolverIterations": 20,
+    "openingSeconds": 0.38,
     "defaultWrapSeconds": 0.55,
-    "finishedFilmColor": "#333638",
-    "finishedFilmBaseOpacity": 0.23
+    "slabAndCashLimit": 30,
+    "otherProductLimitAdded": false
   },
-  "browserAtPackaging": "Visual check pending after publication",
+  "browser": "See browser-verification.json and the pull request for the separately recorded visual check.",
   "humanRevisionPlaytest": false,
+  "realPhonePerformanceTest": false,
   "humanAudioListening": false,
   "unityIntegration": false,
   "publishing": {
-    "target": "https://nobletsylvain.github.io/prototypes/film-packaging-v02/",
-    "previous": "archive-v02.5.html"
+    "target": "https://nobletsylvain.github.io/prototypes/film-packaging-v02/?v=2.7",
+    "previous": "archive-v02.6.html"
   }
 }
