@@ -4947,3 +4947,8 @@ tactile de la boucle n'est *pas* le critère de succès.
   chaque session) ; les **notes** restent ici, dans `NOTES.md` (journal daté).
 - Aucune règle nouvelle pour l'instant : les conventions existantes du
   `CLAUDE.md` font foi.
+
+
+## 2026-11-09 — Téléphone et applications V01
+
+Ajout autonome dans `phone-feel-v01/` : téléphone en main, message, boutique, panier et suivi, commandes souris/tactile, sons et réglages de comparaison. Publication de la démo et de sa courte notice explicitement autorisée avant l’essai par le propriétaire ; notes privées et passation détaillée exclues. 68 contrôles automatisés réussis, aucun échec ; revue de code faite. Aucun essai humain ni écoute validée annoncés. Les démos précédentes sont préservées.
