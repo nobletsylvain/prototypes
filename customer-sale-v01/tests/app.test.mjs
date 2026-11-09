@@ -59,6 +59,7 @@ export class SaleScene {
   setEnhanced(value) { this.enhanced = value; }
   update() { this.updates++; }
   resize() {}
+  async loadGameModels() { return {loaded: ['products', 'customers'], failed: globalThis.__failLoading ? [{key:'Leah',message:'Missing fixture'}] : []}; }
 }`);
 const audioURL = moduleURL(`
 export class SaleAudio {
@@ -69,7 +70,7 @@ export class SaleAudio {
   setEnhanced(value) { this.enhanced = value; }
 }`);
 
-async function boot(context, scenario = 'normal') {
+async function boot(context, scenario = 'normal', failLoading = false) {
   const elements = new Map();
   const translated = [];
   for (const match of html.matchAll(/<([a-z][\w-]*)\b([^>]*)>/gi)) {
@@ -95,6 +96,7 @@ async function boot(context, scenario = 'normal') {
   const frames = [];
   let now = 0;
   const values = {
+    __failLoading: failLoading,
     document, window, location: { search: '?debug' }, performance: { now: () => now },
     requestAnimationFrame: callback => { frames.push(callback); return frames.length; },
     fetch: async url => { assert.equal(url, './texts.json'); return { ok: true, json: async () => texts }; }
@@ -139,7 +141,7 @@ async function boot(context, scenario = 'normal') {
     snapshot() { return JSON.stringify(window.SALE.state); }
   };
   assert.equal(harness.state.phase, 'approach');
-  assert.equal(elements.get('intro').hidden, true);
+  assert.equal(elements.get('intro').hidden, !failLoading);
   return harness;
 }
 
@@ -148,6 +150,18 @@ function prepare(harness) {
   harness.key('2');
   assert.equal(harness.state.phase, 'request');
 }
+
+test('a missing game model prevents opening the stall and keeps a localized explanation', async context => {
+  context.mock.method(console, 'error', () => {});
+  const app = await boot(context, 'normal', true);
+  assert.equal(app.elements.get('start').disabled, true);
+  assert.equal(app.elements.get('start').textContent, texts.fr.modelsUnavailable);
+  app.click('start');
+  assert.equal(app.elements.get('intro').hidden, false);
+  app.click('language');
+  assert.equal(app.elements.get('start').textContent, texts.en.modelsUnavailable);
+  assert.equal(app.state.sales.length, 0);
+});
 
 function addChangeWithHelper(harness, denominations = [20, 5]) {
   harness.click('helpButton');
@@ -377,12 +391,34 @@ test('confirmed excess change reports its real cost and an extra service and loy
   assert.equal(app.elements.get('loyaltyImpact').textContent, '↑↑');
   assert.equal(app.elements.get('actualRevenue').textContent, 'Recette réelle : 20 €');
   assert.equal(app.scene.pulses.at(-1), 'sale-happy');
+  app.frames(300);
+  assert.equal(app.elements.get('saleFeedback').hidden, false);
   app.frames(4400);
   assert.equal(app.state.currentId, 'customer-2');
-  assert.equal(app.elements.get('saleFeedback').hidden, false);
-  assert.equal(app.elements.get('feedbackTitle').textContent, `Julien · ${texts.fr.veryHappy}`);
+  assert.equal(app.elements.get('saleFeedback').hidden, true);
   app.key('e');
   assert.equal(app.elements.get('saleFeedback').hidden, true);
+});
+
+test('transient sale feedback pauses with help and disappears without another interaction', async context => {
+  const app = await boot(context);
+  prepare(app);
+  addChangeWithHelper(app);
+  app.click('primary');
+  app.frames(200);
+  assert.equal(app.elements.get('saleFeedback').hidden, false);
+  app.click('helpButton');
+  assert.equal(app.elements.get('saleFeedback').hidden, true);
+  app.frames(5000);
+  app.click('closeHelp');
+  assert.equal(app.elements.get('saleFeedback').hidden, false);
+  app.window.emit('blur');
+  app.frames(5000);
+  app.window.emit('focus');
+  assert.equal(app.elements.get('saleFeedback').hidden, false);
+  app.frames(3000);
+  assert.equal(app.elements.get('saleFeedback').hidden, true);
+  assert.equal(app.state.sales.length, 1);
 });
 
 test('the outcome translates without changing its ledger and distinguishes a cash loss', async context => {

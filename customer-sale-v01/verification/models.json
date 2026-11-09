@@ -1,0 +1,107 @@
+{
+  "passed": 7,
+  "failed": 0,
+  "renderer": "Three.js r160 GLTFLoader, geometry parse only; no visual test",
+  "results": [
+    {
+      "file": "bud-2g.glb",
+      "meshes": 5,
+      "dimensions": [
+        0.04745318740606308,
+        0.06096002086997032,
+        0.042871251702308655
+      ]
+    },
+    {
+      "file": "bud-5g.glb",
+      "meshes": 5,
+      "dimensions": [
+        0.06371196359395981,
+        0.08273547142744064,
+        0.06073470786213875
+      ]
+    },
+    {
+      "file": "resin-slice-v02.glb",
+      "meshes": 2,
+      "dimensions": [
+        0.10032670944929123,
+        0.01811126060783863,
+        0.015077004674822092
+      ]
+    },
+    {
+      "file": "characters/Leah.glb",
+      "meshes": 29,
+      "dimensions": [
+        0.6640000343322754,
+        1.7719999849796295,
+        0.42499999701976776
+      ]
+    },
+    {
+      "file": "characters/Moira.glb",
+      "meshes": 27,
+      "dimensions": [
+        0.6640000343322754,
+        1.7719999849796295,
+        0.36800000444054604
+      ]
+    },
+    {
+      "file": "characters/Eddie.glb",
+      "meshes": 28,
+      "dimensions": [
+        0.6640000343322754,
+        1.7780000567436218,
+        0.36800000444054604
+      ]
+    },
+    {
+      "file": "characters/Martin.glb",
+      "meshes": 28,
+      "dimensions": [
+        0.6640000343322754,
+        1.7719999849796295,
+        0.36800000444054604
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "file": "assets/models/bud-2g.glb",
+      "bytes": 23052,
+      "sha256": "287ec110084038eaacbc4f4912d9684f220cbd04cb218ae792377553cf726ce4"
+    },
+    {
+      "file": "assets/models/bud-5g.glb",
+      "bytes": 29304,
+      "sha256": "08199d585ec173c05e059d6cbe9962c11f4e2ee55d6fe517cdde9de1329c8834"
+    },
+    {
+      "file": "assets/models/resin-slice-v02.glb",
+      "bytes": 169652,
+      "sha256": "20988993ac5ac73186e78390a2dc683b4b9a0cf1a519582a2e0d40d386659173"
+    },
+    {
+      "file": "assets/models/characters/Leah.glb",
+      "bytes": 269096,
+      "sha256": "f77effbe3a27851c8d57f6619a2379dfbd982ab36ac6152f87e44a255a4a3046"
+    },
+    {
+      "file": "assets/models/characters/Moira.glb",
+      "bytes": 261064,
+      "sha256": "149f3f4ad6a85166b396212582632bd03566c9c101a570ac93dfbe56a457a80c"
+    },
+    {
+      "file": "assets/models/characters/Eddie.glb",
+      "bytes": 274416,
+      "sha256": "d0be13efaacbcc1243f7dd6add78699377ac3f8d087cc9342896f849abd5a396"
+    },
+    {
+      "file": "assets/models/characters/Martin.glb",
+      "bytes": 265616,
+      "sha256": "85b35d8387629164b4138a46c00be9df4e4fbe75b1e2828ac63c6ed8b1f0a4b3"
+    }
+  ]
+}

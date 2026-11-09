@@ -1,39 +1,41 @@
 {
   "version": "V01",
-  "revision": "conversation-and-satisfaction",
+  "revision": "game-models-transient-feedback",
   "date": "2026-11-09",
   "tests": {
-    "passed": 88,
+    "passed": 90,
     "failed": 0,
     "model": 51,
-    "app": 20,
+    "app": 22,
     "audio": 17
   },
   "assets": {
-    "matched": 7,
-    "failed": 0
+    "originalFilesMatched": 7,
+    "gameModelsLoaded": 7,
+    "failed": 0,
+    "report": "models.json"
   },
   "syntax": {
     "files": 4,
     "failed": 0
   },
   "sourceHashes": {
-    "app.mjs": "99a1f8e8b015b6e537958466e6adfa2570a8f7e535d8f59f00cb8d6e49532d87",
+    "app.mjs": "e4ad9ba147e78fda0ad91717381b26528c1f6bc01585790b223dd5a00c3e9d09",
     "model.mjs": "119173c519cb6da1ec78287f45d6bbb323f97477a4f96101113d675c0619d6cf",
-    "scene.mjs": "30c5becf67879e5c641c4b5c3ce02cff3e7d9271562b66e2a59a21f27bdcf0cb",
+    "scene.mjs": "7cb58af62d56c0d196c891194cdbe05c02549aeb8ce1cf8fc8343414c06393a0",
     "audio.mjs": "02d43bed609511ecf525807ce20c343f27b7a72c129b42fbae59f5794facf9e6",
-    "index.html": "bd7437073b27ba75f31cba7501b0f654c6e4121c5b887fe4da5255b4399866ea",
-    "style.css": "fea6f0fe36d09a61fcff4f3074d17ddb33a12c9bbb9aa79de98149c7b4e220fe",
-    "texts.json": "d0be8f843efa9378b46538289d6f1d452c676dceb6469d9f50ad2acc866217b7"
+    "index.html": "b1e8e0fce0c2bdc5aa58ad914e2158620b3f952468b19abd232cebceab7c641b",
+    "style.css": "befcb16672b28db15b13c94da4812892f854a40b312d8c553ca15786963d0f70",
+    "texts.json": "8edaf6f46cfe088a61021f9a6cd5cec1b54ff1aaf2881049bb94bebf354a67ca"
   },
   "browserReview": {
-    "previousReport": "browser-review.json",
-    "previousRevision": "automatic-payment",
-    "currentReview": "https://github.com/nobletsylvain/prototypes/issues/257"
+    "status": "pending current revision review",
+    "previousReport": "browser-review.json"
   },
   "publication": {
-    "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109c",
-    "trackingIssue": "https://github.com/nobletsylvain/prototypes/issues/257"
+    "status": "prepared",
+    "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109d",
+    "issue": "https://github.com/nobletsylvain/prototypes/issues/280"
   },
   "physicalPhoneTest": false,
   "humanPlaytest": false,
@@ -42,7 +44,10 @@
   "limitations": [
     "One product reference and one sachet per request",
     "Only price hesitation is demonstrated",
-    "Controller presentation and WebAudio context are simulated in automatic checks",
-    "Visual composition and sound are provisional"
+    "Historical original characters reused; no vendor character sources published",
+    "Premium2 shares the current game bud2 mesh",
+    "Pouch film and environment remain procedural",
+    "Controller and audio automatic tests use simulated adapters; separate geometry loading checks use the actual GLTFLoader",
+    "No physical phone or human playtest of this revision"
   ]
 }
