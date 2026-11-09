@@ -1,6 +1,6 @@
 # Table de R&D — Passation Unity, héritage visuel V03
 
-9 novembre 2026. Démonstration web autonome avant intégration au jeu. Cette extension conserve l’URL V03 et passe les données au schéma 4 pour l’héritage visuel. Ses contrôles automatisés sont terminés ; sa revue navigateur reste en attente. Aucun import, composant ou build Unity n’est déclaré livré.
+9 novembre 2026. Démonstration web autonome avant intégration au jeu. Cette extension conserve l’URL V03 et passe les données au schéma 4 pour l’héritage visuel. Contrôles automatisés et parcours navigateur réalisés ; la portée exacte et la correction finale de libellés sont précisées ci-dessous. Aucun import, composant ou build Unity n’est déclaré livré.
 
 [Démo V03](https://nobletsylvain.github.io/prototypes/table-rd-v03/) · [Mode test](https://nobletsylvain.github.io/prototypes/table-rd-v03/?mode=test) · [V02 conservée](https://nobletsylvain.github.io/prototypes/table-rd-v02/)
 
@@ -187,9 +187,16 @@ Ce sont des noms proposés, pas des API Unity existantes. Utiliser le système d
 
 Dans cette suite, les preuves unitaires de migration couvrent une carrière sur trois générations à chaque phase : identités, noms, historique, révision, points et ressources restent conservés. Les anciennes sauvegardes invalides et les apparences altérées sont refusées. Les issues non visuelles et les chances des fondatrices restent égales à V3. Sur 96 graines de première génération, chaque axe numérique exprime trois moyennes possibles et plus de vingt combinaisons strictement parentales sont obtenues ; ce contrôle ne promet pas une différence visible pour chaque essai.
 
-Les projections SVG des têtes et la planche de trois fondateurs suivis de deux générations ont été calculées puis regardées. Elles documentent la géométrie commune et les plages de pigments ; elles ne prouvent pas le rendu WebGL final. **La revue navigateur de cette extension reste en attente**, notamment pour la comparaison et les détails Transmis/Exprimé. Les contrôles et captures de l’herbier précédent sont historiques et ne la remplacent pas.
+Les projections SVG des têtes et la planche de trois fondateurs suivis de deux générations ont été calculées puis regardées. Une revue navigateur distincte a ensuite porté sur la version publique de la PR 292, commit `cc789e6c274e4eebae53244eee4d1fa0a571e811` :
 
-Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué. La lisibilité des portraits, la distinction reflet/surlignage et le confort de navigation demanderont leurs propres observations.
+- Migration schéma 3 annoncée par l’interface ; neuf entrées existantes, noms et emplacements retrouvés. La loupe et les trois portraits de comparaison montrent l’apparence commune. La recherche « mauve » surligne six entrées sur neuf ; ouvrir les emplacements de « Héritage XYZ », puis Origine, conserve le filtre.
+- L’essai 007, « Héritage XYZ » × « Relais YX », montre sa vraie tête sous la loupe avant la fiche ; le journal garde une entrée scellée et six correspondances sur dix. Un maintien de 1 700 ms révèle une rare et donne un point à chacun des deux parents. La création est conservée sous « Écho de lignée · test visuel G3 ».
+- Ce descendant exprime la forme en grappe transmise depuis le grand-parent Z, alors que les deux parents expriment la forme compacte. Après rechargement, le contenu SVG du portrait est strictement identique, soit 23 121 caractères.
+- Au format 390 × 844, largeur de page 375 px ; comparaison 286/286 px et fenêtre de détails 363/363 px en largeur cliente/défilante. Aucun débordement horizontal constaté ; aucun avertissement ni erreur dans la console.
+
+Le paquet parcouru porte le SHA-256 `70bb1d29604c96db6193f88cb8114e56926f889314eb43681b9cc7ff52c1134a`. Le paquet final `6e4285416ad18d51f3b31f57a7fa0ca795b1acf45821af9134161021f12be27f` corrige ensuite uniquement les libellés de pigments olive/citron vert en FR/EN, sans changement de fonctionnement. Ce parcours n’est pas présenté comme une nouvelle exécution complète du paquet final. Les contrôles et captures de l’herbier précédent restent historiques.
+
+Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué. La simulation de format mobile ne mesure pas le confort tactile réel ; la lisibilité et le plaisir restent à juger par le propriétaire.
 
 Contrôles exacts à préserver : provenance et débits, budgets, refus sans mutation, identité au rechargement, tirage unique et distribution métier inchangée, allèles issus de chaque parent, expression déterministe commune, capacité admissible, activation uniquement héritée, emplacement exclusif, coût exact, lot inchangé, points uniques aux bons parents et préparation de test traçable. Ajouter migration V3 invalide refusée, historique/identités/points/ressources préservés après migration valide, neutralité du journal avant révélation et absence d’effet des filtres/gestes/replays.
 
