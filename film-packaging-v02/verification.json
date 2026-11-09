@@ -1,18 +1,23 @@
 {
   "date": "2026-11-09",
-  "version": "film-packaging-v02.1",
+  "version": "film-packaging-v02.2",
   "automated": {
     "command": "node --test tests/*.test.mjs",
-    "passed": 71,
+    "passed": 87,
     "failed": 0
   },
   "preservation": {
-    "v02Files": 59,
+    "v021Files": 54,
     "changed": 0,
     "gameSourcesChanged": false
   },
   "changes": {
-    "film": "Outer surface follows occupied stacks and their individual heights; folds and seam follow the same surface",
+    "cashStackSize": 5,
+    "cashPackageLimit": 30,
+    "cashFixtureBundles": 32,
+    "cashFixtureBills": 320,
+    "cashFixtureCents": 830000,
+    "cashLimitRefusal": "cash-limit",
     "defaultWrapSeconds": 0.55,
     "finishedFilmColor": "#333638",
     "finishedFilmBaseOpacity": 0.23
@@ -23,6 +28,6 @@
   "unityIntegration": false,
   "publishing": {
     "target": "https://nobletsylvain.github.io/prototypes/film-packaging-v02/",
-    "previous": "archive-v02.html"
+    "previous": "archive-v02.1.html"
   }
 }

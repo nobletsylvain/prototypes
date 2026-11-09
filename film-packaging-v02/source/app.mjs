@@ -18,10 +18,10 @@ function sync(){
   $('held-mass').textContent=s.scenario==='liasses'?fmtMoney(held.reduce((n,id)=>n+s.items[id].cents,0)):fmtMass(held.reduce((n,id)=>n+s.items[id].mg,0));
   $('held-state').textContent=t(s.heldPackageId?'wrapped':'loose');
   const firstHeld=s.items[held[0]],stackSummary=$('stack-summary');
-  stackSummary.hidden=!(firstHeld?.kind==='slab'&&firstHeld.formatMg===100000);
+  stackSummary.hidden=!(firstHeld?.kind==='cashBundle'||(firstHeld?.kind==='slab'&&firstHeld.formatMg===100000));
   if(!stackSummary.hidden){const full=Math.floor(held.length/5),partial=held.length%5;stackSummary.textContent=(full?t(full===1?'oneFullStack':'fullStacks').replace('{count}',full):'')+(partial?(full?' + ':'')+t('partialStack').replace('{count}',partial):'');}
 
-  $('rule').textContent=t(s.scenario==='plaquettes'?'ruleSlabs':'ruleDemo');
+  $('rule').textContent=t(s.scenario==='plaquettes'?'ruleSlabs':s.scenario==='liasses'?'ruleCash':'ruleDemo');
   $('pile').replaceChildren(...s.piles.map(p=>{const el=document.createElement('option');el.value=p.id;el.textContent=`${t(p.label)} · ${p.itemIds.length}`;return el;}));$('pile').value=s.targetPileId;
   $('pile').disabled=busy||!!s.heldPackageId;
   $('take').disabled=!ready||busy||!!s.heldPackageId||view?.look;
@@ -46,7 +46,7 @@ function repeatHold(){
   if(!holding)return;
   if(!take()){stopHold();return;}
   const first=model.state.items[model.state.handIds[0]];
-  const stackBoundary=first?.kind==='slab'&&first.formatMg===100000&&model.state.handIds.length%5===0;
+  const stackBoundary=(first?.kind==='cashBundle'||(first?.kind==='slab'&&first.formatMg===100000))&&model.state.handIds.length%5===0;
   hold=setTimeout(repeatHold,stackBoundary?360:220);
 }
 function startHold(){if(holding||$('take').disabled)return;holding=true;if(take())hold=setTimeout(repeatHold,300);else stopHold();}
