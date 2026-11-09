@@ -1,5 +1,5 @@
 import * as THREE from './assets/three.module.js';
-import { CATALOG } from './model.mjs?v=20261109c';
+import { CATALOG } from './model.mjs?v=20261109d';
 
 const TAU = Math.PI * 2;
 const denominations = [5, 10, 20, 50, 100];
@@ -96,6 +96,8 @@ export class SaleScene {
     this.reaction = null;
     this.lastCurrent = null;
     this.objects = new Map();
+    this.productModels = new Map();
+    this.characterModels = new Map();
     this.pickMeshes = [];
     this.dragPoint = new THREE.Vector3(0.25, 1.3, 0.9);
     this.raycaster = new THREE.Raycaster();
@@ -234,7 +236,7 @@ export class SaleScene {
       for (let index = 0; index < 5; index++) {
         const x = -1.04 + index * 0.52;
         if (index) box(this.bag, 0.025, 0.14, depth - 0.02, edge, x - 0.26, 0.55, 0);
-        weightLabel(this.bag, CATALOG[index].grams, index + 1, 0.42, 0.17, x, 0.415, front + 0.012);
+        label(this.bag, String(index + 1), 0.12, 0.08, x, 0.43, front + 0.01, { color: '#d3cdb6', size: 105 });
       }
       this.bagLabel = label(this.bag, this.labels.bag, 0.43, 0.085, 0, 0.28, front + 0.01, { color: '#d5cab1', size: 52 });
       box(this.bag, 2.4, 0.012, 0.01, material('#998c66'), 0, 0.21, front + 0.01);
@@ -245,8 +247,8 @@ export class SaleScene {
     for (let index = 0; index < 5; index++) {
       const x = -1.13 + index * 0.27;
       box(this.bag, 0.025, 0.13, 0.51, edge, x - 0.13, 0.55, -0.01);
-      const weight = weightLabel(this.bag, CATALOG[index].grams, index + 1, 0.23, 0.14, x, 0.425, 0.292);
-      weight.rotation.x = -0.13;
+      const numeral = label(this.bag, String(index + 1), 0.08, 0.065, x, 0.44, 0.29, { color: '#d3cdb6', size: 105 });
+      numeral.rotation.x = -0.13;
     }
     box(this.bag, 0.04, 0.16, 0.53, edge, 0.12, 0.56, 0);
     for (let index = 0; index < 5; index++) {
@@ -263,67 +265,105 @@ export class SaleScene {
 
   makeCustomer(index) {
     const person = new THREE.Group();
-    const skinColors = ['#aa7754', '#bb9272', '#916849', '#c39a7d', '#9c735b', '#c2a180'];
-    const shirtColors = ['#406b76', '#9d6358', '#7b875f', '#686783', '#ac8b55', '#586d73'];
-    const skin = material(skinColors[index % skinColors.length]);
-    const cloth = material(shirtColors[index % shirtColors.length]);
-    const trousers = material('#263a43');
-    cylinder(person, 0.105, 0.69, trousers, -0.12, 0.39, 0, 0.12);
-    cylinder(person, 0.105, 0.69, trousers, 0.12, 0.39, 0, 0.12);
-    box(person, 0.19, 0.1, 0.31, material('#192729'), -0.12, 0.08, 0.07);
-    box(person, 0.19, 0.1, 0.31, material('#192729'), 0.12, 0.08, 0.07);
-    const torso = cylinder(person, 0.26, 0.61, cloth, 0, 1.0, 0, 0.32);
-    torso.scale.z = 0.6;
-    cylinder(person, 0.085, 0.2, skin, 0, 1.38, 0);
-    const head = new THREE.Group();
-    head.position.set(0, 1.65, 0);
-    sphere(head, 0.205, skin, 0, 0, 0, [0.85, 1.1, 0.88]);
-    sphere(head, 0.207, material(index % 2 ? '#332c26' : '#292a28'), 0, 0.08, -0.016, [0.85, 0.7, 0.87]);
-    sphere(head, 0.038, skin, -0.174, -0.01, 0);
-    sphere(head, 0.038, skin, 0.174, -0.01, 0);
-    const eyes = [
-      sphere(head, 0.018, material('#1e2826'), -0.064, 0.008, 0.161, [1, 0.65, 0.35]),
-      sphere(head, 0.018, material('#1e2826'), 0.064, 0.008, 0.161, [1, 0.65, 0.35])
-    ];
-    sphere(head, 0.03, skin, 0, -0.029, 0.178, [0.7, 1, 1]);
-    const featureMaterial = new THREE.MeshBasicMaterial({ color: '#4d302a' });
-    const mouths = {};
-    const shapes = {
-      neutral: [[-0.052, -0.09, 0.174], [0, -0.097, 0.188], [0.052, -0.09, 0.174]],
-      happy: [[-0.073, -0.07, 0.17], [0, -0.124, 0.187], [0.073, -0.07, 0.17]],
-      unhappy: [[-0.062, -0.116, 0.17], [0, -0.065, 0.191], [0.062, -0.116, 0.17]]
-    };
-    for (const [emotion, points] of Object.entries(shapes)) {
-      const curve = new THREE.CatmullRomCurve3(points.map(point => new THREE.Vector3(...point)));
-      const mouth = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, emotion === 'neutral' ? 0.006 : 0.01, 6, false), featureMaterial);
-      mouth.visible = emotion === 'neutral';
-      head.add(mouth);
-      mouths[emotion] = mouth;
-    }
-    const eyebrows = [-1, 1].map(side => {
-      const brow = box(head, 0.072, 0.014, 0.014, featureMaterial, side * 0.065, 0.06, 0.17);
-      brow.rotation.z = side * 0.07;
-      return brow;
-    });
-    person.add(head);
-    const arms = [];
-    let grip = null;
-    for (const side of [-1, 1]) {
-      const arm = new THREE.Group();
-      arm.position.set(side * 0.3, 1.22, 0);
-      cylinder(arm, 0.075, 0.44, cloth, 0, -0.18, 0, 0.105);
-      sphere(arm, 0.075, skin, 0, -0.44, 0.025, [0.8, 1.3, 0.7]);
-      if (side === 1) {
-        grip = new THREE.Object3D();
-        grip.position.set(0, -0.44, 0.025);
-        arm.add(grip);
-      }
-      arm.rotation.z = side * 0.13;
-      arms.push(arm);
-      person.add(arm);
-    }
-    person.userData = { head, arms, torso, grip, index, eyes, eyebrows, mouths, emotion: 'neutral', emotionStart: 0 };
+    this.setCustomerModel(person, index);
     return person;
+  }
+
+  setCustomerModel(person, index) {
+    const names = ['Leah', 'Moira', 'Eddie', 'Martin'];
+    const name = names[Math.max(0, index) % names.length];
+    if (person.userData.modelName === name && person.userData.ready) return;
+    person.userData.mouth?.geometry.dispose();
+    person.clear();
+    person.userData = { modelName: name, index, ready: false, emotion: 'neutral', emotionStart: this.time };
+    const source = this.characterModels.get(name);
+    if (!source) return;
+    const model = source.clone(true);
+    const nodes = [];
+    model.traverse(node => { nodes.push(node); if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
+    const named = prefix => nodes.filter(node => { const name = node.userData.name || node.name; return name === prefix || name.startsWith(prefix + '.'); });
+    const head = named('Head')[0], arms = [named('Arm_L')[0], named('Arm_R')[0]];
+    const torso = named('Shirt torso')[0], mouth = named('Mouth')[0];
+    const eyebrows = named('Eyebrow').sort((a, b) => a.position.x - b.position.x);
+    const eyes = named('Eye white').sort((a, b) => a.position.x - b.position.x);
+    const pupils = named('Pupil').sort((a, b) => a.position.x - b.position.x);
+    if (!head || arms.some(arm => !arm) || !torso || !mouth?.isMesh || eyebrows.length !== 2 || eyes.length !== 2 || pupils.length !== 2) throw new Error(`Character ${name} is missing original animation pivots`);
+    const hand = named('Hand').find(node => node.parent === arms[1]);
+    if (!hand) throw new Error(`Character ${name} is missing the right hand`);
+    const grip = new THREE.Object3D();
+    grip.position.copy(hand.position);
+    arms[1].add(grip);
+    // Subdivide the original mouth surface so its own geometry can smile or frown.
+    const geometry = mouth.geometry.index ? mouth.geometry.toNonIndexed() : mouth.geometry.clone();
+    const original = geometry.attributes.position;
+    const vertices = [];
+    const addTriangle = (a, b, c, depth) => {
+      if (!depth) { vertices.push(...a, ...b, ...c); return; }
+      const mid = (u, v) => u.map((value, axis) => (value + v[axis]) / 2);
+      const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a);
+      addTriangle(a, ab, ca, depth - 1); addTriangle(ab, b, bc, depth - 1);
+      addTriangle(ca, bc, c, depth - 1); addTriangle(ab, bc, ca, depth - 1);
+    };
+    for (let i = 0; i < original.count; i += 3) {
+      const point = index => [original.getX(index), original.getY(index), original.getZ(index)];
+      addTriangle(point(i), point(i + 1), point(i + 2), 1);
+    }
+    geometry.dispose();
+    mouth.geometry = new THREE.BufferGeometry();
+    mouth.geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    mouth.geometry.computeVertexNormals();
+    mouth.geometry.computeBoundingBox();
+    const mouthBase = new Float32Array(vertices);
+    const mouthHalfWidth = Math.max(0.0001, mouth.geometry.boundingBox.getSize(new THREE.Vector3()).x / 2);
+    person.add(model);
+    person.userData = { modelName: name, index, ready: true, head, arms, torso, grip, eyes, pupils, eyebrows, mouth, mouthBase, mouthHalfWidth, emotion: 'neutral', emotionStart: this.time,
+      browY: eyebrows.map(brow => brow.position.y), armY: arms.map(arm => arm.position.y) };
+  }
+
+  async loadGameModels({ loaderUrl = './assets/GLTFLoader.js', urls = {} } = {}) {
+    const report = { loaded: [], failed: [] };
+    let loader;
+    try { const { GLTFLoader } = await import(loaderUrl); loader = new GLTFLoader(); }
+    catch (error) { return { loaded: [], failed: [{ asset: 'loader', message: String(error?.message || error) }] }; }
+    const sources = await Promise.all(['bud2', 'bud5', 'resin', 'Leah', 'Moira', 'Eddie', 'Martin'].map(async name => {
+      try {
+        if (!urls[name]) throw new Error('Missing original game model URL');
+        const gltf = await loader.loadAsync(new URL(urls[name], import.meta.url).href);
+        if (!gltf.scene) throw new Error('Model has no scene');
+        let skinned = false;
+        gltf.scene.traverse(node => { if (node.isSkinnedMesh) skinned = true; });
+        const bounds = new THREE.Box3().setFromObject(gltf.scene);
+        const size = bounds.getSize(new THREE.Vector3());
+        if (skinned || bounds.isEmpty() || size.toArray().some(value => !Number.isFinite(value)) || size.length() < 0.00001) throw new Error('Original model geometry is invalid');
+        return { name, scene: gltf.scene };
+      } catch (error) { report.failed.push({ asset: name, message: String(error?.message || error) }); return null; }
+    }));
+    for (const source of sources.filter(Boolean)) {
+      if (['bud2', 'bud5', 'resin'].includes(source.name)) {
+        const skus = source.name === 'resin' ? ['hash4', 'hash8'] : source.name === 'bud5' ? ['flower5'] : ['flower2', 'premium2'];
+        for (const sku of skus) this.productModels.set(sku, { scene: source.scene, source: urls[source.name] });
+        report.loaded.push(source.name);
+      } else {
+        try {
+          this.characterModels.set(source.name, source.scene);
+          const probe = this.makeCustomer(['Leah', 'Moira', 'Eddie', 'Martin'].indexOf(source.name));
+          if (!probe.userData.ready) throw new Error('Character animation pivots are unavailable');
+          probe.userData.mouth.geometry.dispose();
+          report.loaded.push(source.name);
+        } catch (error) { this.characterModels.delete(source.name); report.failed.push({ asset: source.name, message: String(error?.message || error) }); }
+      }
+    }
+    this.setCustomerModel(this.customer, this.state?.clients.findIndex(client => client.id === this.state.currentId) ?? 0);
+    this.waiting.forEach((person, index) => this.setCustomerModel(person, index + 1));
+    for (const entry of this.objects.values()) if (entry.item.kind === 'product') {
+      const replacement = this.createProductVisual(entry.item);
+      entry.group.remove(entry.productVisual);
+      entry.group.add(replacement);
+      entry.productVisual = replacement;
+      replacement.traverse(node => { if (node.isMesh) node.userData.objectId = entry.item.id; });
+    }
+    this.gameModelReport = report;
+    return report;
   }
 
   makeBillTexture(value) {
@@ -355,34 +395,52 @@ export class SaleScene {
     ctx.font = '12px Arial'; ctx.fillText('THE CAPITAL', w / 2, 462);
   }
 
+  createProductVisual(item) {
+    const visual = new THREE.Group();
+    const asset = this.productModels.get(item.sku);
+    // The game content sits inside one pouch, with one weight label.
+    const foil = material('#d5e7e6', { transparent: true, opacity: 0.24, roughness: 0.2, metalness: 0.18, depthWrite: false });
+    const film = box(visual, 0.22, 0.08, 0.25, foil, 0, 0.045, 0);
+    let labelY = 0.099;
+    box(visual, 0.22, 0.009, 0.018, material('#9b4741', { roughness: 0.4 }), 0, 0.046, -0.108);
+    if (asset) {
+      const model = asset.scene.clone(true);
+      if (item.sku.startsWith('hash')) {
+        const dimensions = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+        model.scale.set(1.5, 1.5, (item.grams === 8 ? 0.0216 : 0.0108) / dimensions.z);
+      } else model.scale.setScalar(1.6);
+      model.rotation.x = -Math.PI / 2;
+      visual.add(model);
+      model.updateMatrixWorld(true);
+      const bounds = new THREE.Box3().setFromObject(model);
+      const center = bounds.getCenter(new THREE.Vector3());
+      model.position.add(new THREE.Vector3(-center.x, 0.012 - bounds.min.y, 0.025 - center.z));
+      const pouchHeight = Math.max(0.08, bounds.max.y - bounds.min.y + 0.018);
+      film.scale.y = pouchHeight / 0.08;
+      film.position.y = 0.005 + pouchHeight / 2;
+      labelY = pouchHeight + 0.019;
+      model.traverse(node => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
+      visual.userData.sourceModel = asset.source;
+    }
+    const tag = weightLabel(visual, item.grams, null, 0.19, 0.075, 0, labelY, -0.0825);
+    tag.rotation.x = -Math.PI / 2;
+    line(visual, [[-0.106, 0.045, -0.09], [-0.096, 0.045, 0.115], [0.103, 0.045, 0.115]], '#edf1dc', 0.7);
+    return visual;
+  }
+
   createObject(item) {
     const group = new THREE.Group();
     group.userData.id = item.id;
     let paper = null;
+    let productVisual = null;
     if (item.kind === 'bill') {
       const geometry = new THREE.PlaneGeometry(0.19, 0.4, 4, 12);
       paper = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ map: this.billTextures[item.denomination], side: THREE.DoubleSide, roughness: 0.84, metalness: 0 }));
       paper.castShadow = true;
       group.add(paper);
     } else if (item.kind === 'product') {
-      const data = CATALOG.find(entry => entry.key === item.sku);
-      const foil = material('#d5e7e6', { transparent: true, opacity: 0.29, roughness: 0.2, metalness: 0.18, depthWrite: false });
-      box(group, 0.22, 0.035, 0.25, foil, 0, 0.023, 0);
-      box(group, 0.22, 0.009, 0.018, material('#b7cbca', { roughness: 0.4 }), 0, 0.046, -0.108);
-      if (item.sku.startsWith('hash')) {
-        const bar = box(group, 0.135, 0.04, item.grams === 8 ? 0.15 : 0.09, material(data.color), 0, 0.027, 0.025);
-        bar.rotation.y = -0.07;
-        line(group, [[-0.06, 0.049, 0.015], [0.06, 0.049, 0.006]], '#745435', 0.6);
-      } else {
-        for (let index = 0; index < 7; index++) {
-          const angle = index * 2.4;
-          const radius = index ? 0.042 : 0;
-          sphere(group, 0.035, material(index % 2 ? data.color : '#597449'), Math.cos(angle) * radius, 0.045, Math.sin(angle) * radius + 0.02, [0.75, 1, 0.8]);
-        }
-      }
-      const tag = weightLabel(group, item.grams, null, 0.19, 0.075, 0, 0.087, -0.0825);
-      tag.rotation.x = -Math.PI / 2;
-      line(group, [[-0.106, 0.045, -0.09], [-0.096, 0.045, 0.115], [0.103, 0.045, 0.115]], '#edf1dc', 0.7);
+      productVisual = this.createProductVisual(item);
+      group.add(productVisual);
     } else {
       box(group, 0.27, 0.16, 0.21, material('#ad9064'));
       box(group, 0.045, 0.165, 0.215, material('#dac398'));
@@ -392,7 +450,7 @@ export class SaleScene {
     this.scene.add(shadow);
     group.traverse(child => { if (child.isMesh) child.userData.objectId = item.id; });
     this.scene.add(group);
-    const entry = { group, paper, shadow, location: null, age: 0, start: new THREE.Vector3(), target: new THREE.Vector3(), targetRotation: new THREE.Euler(), contactPending: false, item };
+    const entry = { group, paper, productVisual, shadow, location: null, age: 0, start: new THREE.Vector3(), target: new THREE.Vector3(), targetRotation: new THREE.Euler(), contactPending: false, item };
     this.objects.set(item.id, entry);
     return entry;
   }
@@ -426,7 +484,8 @@ export class SaleScene {
       if (item.kind === 'bill') { rotation.x = -0.45; rotation.z = -0.22; }
       else rotation.x = 0.1;
     } else if (item.location === `customer:${state.currentId}`) {
-      this.customer.userData.grip.getWorldPosition(position);
+      if (this.customer.userData.grip) this.customer.userData.grip.getWorldPosition(position);
+      else position.set(0.255, 1.1, -0.85);
       position.add(new THREE.Vector3(index * 0.025, 0.17, 0.055 - index * 0.012));
       rotation.x = -0.12;
       rotation.y = this.customer.rotation.y * 0.5;
@@ -445,6 +504,7 @@ export class SaleScene {
     const newlyStarted = this.lastCurrent !== state.currentId;
     if (newlyStarted) {
       this.lastCurrent = state.currentId;
+      this.setCustomerModel(this.customer, state.clients.findIndex(client => client.id === state.currentId));
       this.customer.position.x = 0.55;
       this.customer.rotation.y = -0.3;
       this.reaction = null;
@@ -519,8 +579,9 @@ export class SaleScene {
     for (const [id, entry] of this.objects) if (!ids.has(id)) { entry.group.visible = false; entry.shadow.visible = false; }
     for (let index = 0; index < this.waiting.length; index++) {
       const person = this.waiting[index];
-      person.visible = index < view.queueCount;
-      person.userData.head.rotation.z = Math.sin(this.time * 0.7 + index) * 0.025;
+      if (state.queue[index]) this.setCustomerModel(person, state.clients.findIndex(client => client.id === state.queue[index]));
+      person.visible = person.userData.ready && index < view.queueCount;
+      if (person.userData.head) person.userData.head.rotation.z = Math.sin(this.time * 0.7 + index) * 0.025;
     }
     this.hand.visible = Boolean(state.dragId || view.hand?.length);
     if (this.hand.visible) {
@@ -539,7 +600,8 @@ export class SaleScene {
 
   animateCustomer(state, view, dt) {
     const person = this.customer;
-    person.visible = Boolean(view.current);
+    person.visible = person.userData.ready && Boolean(view.current);
+    if (!person.userData.ready) return;
     const departing = state.phase === 'departing';
     const targetX = departing ? 2.1 : 0;
     person.position.x = damp(person.position.x, targetX, dt, departing ? 2.2 : 5);
@@ -566,10 +628,11 @@ export class SaleScene {
     for (let index = 0; index < 2; index++) {
       const side = index ? 1 : -1;
       const brow = person.userData.eyebrows[index];
-      brow.position.y = damp(brow.position.y, happy ? 0.079 : unhappy ? 0.045 : 0.06, dt);
+      brow.position.y = damp(brow.position.y, person.userData.browY[index] + (happy ? 0.012 : unhappy ? -0.007 : 0), dt);
       brow.rotation.z = damp(brow.rotation.z, side * (unhappy ? 0.32 : happy ? -0.08 : 0.07), dt);
-      person.userData.eyes[index].scale.y = damp(person.userData.eyes[index].scale.y, happy ? 0.45 : 0.65, dt);
-      person.userData.arms[index].position.y = damp(person.userData.arms[index].position.y, unhappy ? 1.19 : 1.22, dt);
+      person.userData.eyes[index].scale.y = damp(person.userData.eyes[index].scale.y, happy ? 0.7 : 1, dt);
+      person.userData.pupils[index].scale.y = person.userData.eyes[index].scale.y;
+      person.userData.arms[index].position.y = damp(person.userData.arms[index].position.y, person.userData.armY[index] - (unhappy ? 0.025 : 0), dt);
     }
     const holdsPayment = state.objects.some(item => item.location === `customer:${state.currentId}`);
     const offering = ['request', 'hesitation', 'payment'].includes(state.phase);
@@ -586,7 +649,16 @@ export class SaleScene {
     if (face.emotion === emotion) return;
     face.emotion = emotion;
     face.emotionStart = this.time;
-    for (const [name, mouth] of Object.entries(face.mouths)) mouth.visible = name === emotion;
+    if (!face.mouth) return;
+    const positions = face.mouth.geometry.attributes.position;
+    const bend = emotion === 'happy' ? 0.012 : emotion === 'unhappy' ? -0.008 : 0;
+    for (let index = 0; index < positions.count; index++) {
+      const x = face.mouthBase[index * 3];
+      positions.setXYZ(index, x, face.mouthBase[index * 3 + 1] + bend * ((x / face.mouthHalfWidth) ** 2 - 0.4), face.mouthBase[index * 3 + 2]);
+    }
+    face.mouth.scale.x = emotion === 'happy' ? 1.45 : 1;
+    positions.needsUpdate = true;
+    face.mouth.geometry.computeVertexNormals();
   }
 
   contactEffect(position) {
@@ -663,6 +735,15 @@ export class SaleScene {
       if (Math.abs(point.x) < 1.5 && point.z > 0.58 && point.z < 1.75) return 'bag';
     }
     return null;
+  }
+
+  feedbackAnchor() {
+    if (!this.customer.visible || !this.customer.userData.head) return null;
+    const point = this.customer.userData.head.getWorldPosition(new THREE.Vector3());
+    point.y += 0.3;
+    point.project(this.camera);
+    const rect = this.canvas.getBoundingClientRect();
+    return { x: rect.left + (point.x + 1) * rect.width / 2, y: rect.top + (1 - point.y) * rect.height / 2 };
   }
 
   projectObject(id) {

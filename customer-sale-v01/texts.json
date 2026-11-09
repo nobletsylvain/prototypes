@@ -79,7 +79,9 @@
     "extraChangeWarning": "Vous allez rendre {amount} en trop.",
     "extraChangeNotice": "Erreur de monnaie : {amount} rendus en trop.",
     "netRevenue": "Recette réelle :",
-    "priceTooHigh": "Le prix dépasse son budget. Ajustez votre proposition."
+    "priceTooHigh": "Le prix dépasse son budget. Ajustez votre proposition.",
+    "loadingModels": "Chargement des modèles…",
+    "modelsUnavailable": "Modèles indisponibles · rechargez la page"
   },
   "en": {
     "subtitle": "THE FEEL OF SELLING · V01",
@@ -161,6 +163,8 @@
     "extraChangeWarning": "You are about to give {amount} too much.",
     "extraChangeNotice": "Change error: {amount} given too much.",
     "netRevenue": "Actual revenue:",
-    "priceTooHigh": "The price exceeds their budget. Adjust your offer."
+    "priceTooHigh": "The price exceeds their budget. Adjust your offer.",
+    "loadingModels": "Loading models…",
+    "modelsUnavailable": "Models unavailable · reload the page"
   }
 }

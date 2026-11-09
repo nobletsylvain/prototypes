@@ -1,12 +1,14 @@
-import { CATALOG, createSession, dispatch, tick, getView, verify } from './model.mjs?v=20261109c';
-import { SaleScene } from './scene.mjs?v=20261109c';
-import { SaleAudio } from './audio.mjs?v=20261109c';
+import { CATALOG, createSession, dispatch, tick, getView, verify } from './model.mjs?v=20261109d';
+import { SaleScene } from './scene.mjs?v=20261109d';
+import { SaleAudio } from './audio.mjs?v=20261109d';
 
 const $ = id => document.getElementById(id);
-const dictionaries = await fetch('./texts.json?v=20261109c').then(response => { if (!response.ok) throw new Error('Text table unavailable'); return response.json(); });
+const dictionaries = await fetch('./texts.json?v=20261109d').then(response => { if (!response.ok) throw new Error('Text table unavailable'); return response.json(); });
 let language = 'fr', enhanced = true, muted = false, running = false;
+let modelsReady = false, modelsFailed = false;
 let focused = document.hasFocus ? document.hasFocus() : true;
-let state = createSession('normal'), toastUntil = 0, lastFrame = performance.now(), pointer = null, controlsStamp = '', lastFeedback = null;
+let state = createSession('normal'), toastUntil = 0, lastFrame = performance.now(), pointer = null, controlsStamp = '', lastFeedback = null, feedbackAge = 0;
+const feedbackSeconds = 2.8;
 const audio = new SaleAudio();
 const scene = new SaleScene($('world'), { onContact: event => audio.play(event.type) });
 const t = key => dictionaries[language][key] || dictionaries[language]['no-action'];
@@ -23,6 +25,7 @@ function act(action, silent = false) {
     if (action.type === 'talk') lastFeedback = null;
     if (action.type === 'confirm') {
       lastFeedback = state.sales.at(-1);
+      feedbackAge = 0;
       showToast(lastFeedback.changeError > 0 ? t('extraChangeNotice').replace('{amount}', money(lastFeedback.changeError)) : `${t('sale')} +${money(lastFeedback.actualRevenue)}`);
     }
     else if (result.event === 'declined') showToast(t('declined'));
@@ -55,11 +58,13 @@ function updateLanguage() {
 }
 
 function render() {
+  $('start').disabled = !modelsReady;
+  if (!modelsReady) $('start').textContent = t(modelsFailed ? 'modelsUnavailable' : 'loadingModels');
   const view = getView(state), edit = ['request', 'hesitation'].includes(state.phase), payment = edit || state.phase === 'payment';
   $('queue').textContent = `${view.queueCount} / 5 ${t('queue')}`;
   const remaining = Math.max(0, Math.ceil(state.config.serviceSeconds - state.elapsed));
   $('clock').textContent = !running || !focused || !$('help').hidden ? t('paused') : `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`;
-  $('bubble').hidden = !view.current || !running;
+  $('bubble').hidden = !view.current || !running || Boolean(lastFeedback && feedbackAge < feedbackSeconds);
   $('name').textContent = view.current?.name || '';
   $('request').textContent = view.request && !['receipt', 'departing'].includes(state.phase) ? t('requestSentence').replace('{items}', view.request.map(line => { const item = CATALOG.find(product => product.key === line.sku); return `${t(item.nameKey)} ${item.grams * line.count} g`; }).join(' + ')) : '';
   $('reaction').textContent = t(state.phase === 'approach' ? 'welcome' : state.phase === 'hesitation' ? 'hesitationReason' : payment ? 'accepted' : state.phase === 'receipt' || state.phase === 'departing' ? (view.current?.status === 'served' ? 'thanks' : 'declined') : 'requestHint');
@@ -73,7 +78,14 @@ function render() {
   $('returned').classList.toggle('extra', view.returned > view.due);
   $('changeNotice').hidden = !payment || view.returned <= view.due;
   $('changeNotice').textContent = t('extraChangeWarning').replace('{amount}', money(Math.max(0, view.returned - view.due)));
-  $('saleFeedback').hidden = !running || !lastFeedback || payment;
+  $('saleFeedback').hidden = !running || !lastFeedback || payment || !$('help').hidden || feedbackAge >= feedbackSeconds;
+  $('saleFeedback').style.opacity = String(Math.min(1, (feedbackSeconds - feedbackAge) / .45));
+  $('saleFeedback').style.transform = `translate(-50%, calc(-100% - ${Math.min(feedbackAge, feedbackSeconds) * 7}px))`;
+  const feedbackAnchor = scene.feedbackAnchor?.();
+  if (feedbackAnchor) {
+    $('saleFeedback').style.left = `${Math.max(165, Math.min(window.innerWidth - 165, feedbackAnchor.x))}px`;
+    $('saleFeedback').style.top = `${Math.max(180, feedbackAnchor.y)}px`;
+  }
   if (lastFeedback) {
     const customer = state.clients.find(client => client.id === lastFeedback.customerId);
     const extra = lastFeedback.changeError > 0;
@@ -123,7 +135,7 @@ $('minus').onclick = () => act({ type: 'adjustPrice', delta: -5 });
 $('plus').onclick = () => act({ type: 'adjustPrice', delta: 5 });
 $('collect').onclick = () => { const item = getView(state).receipts[0]; if (item) act({type:'collect',id:item.id}); };
 $('stow').onclick = () => act({type:'stow'});
-$('start').onclick = async () => { await audio.unlock(); state = createSession($('scenario').value); lastFeedback = null; running = true; $('intro').hidden = true; $('help').hidden = true; pointer = null; lastFrame = performance.now(); scene.pulse('reset'); render(); };
+$('start').onclick = async () => { if (!modelsReady) return; await audio.unlock(); state = createSession($('scenario').value); lastFeedback = null; running = true; $('intro').hidden = true; $('help').hidden = true; pointer = null; lastFrame = performance.now(); scene.pulse('reset'); render(); };
 $('sound').onclick = async () => { await audio.unlock(); muted = !muted; audio.setMuted(muted); $('sound').textContent = muted ? '♪ ×' : '♪'; $('sound').title = t(muted ? 'muted' : 'soundOn'); };
 $('feel').onclick = () => { enhanced = !enhanced; audio.setEnhanced(enhanced); scene.setEnhanced(enhanced); $('feel').textContent = t(enhanced ? 'feel' : 'plain'); };
 $('language').onclick = () => { language = language === 'fr' ? 'en' : 'fr'; updateLanguage(); };
@@ -183,7 +195,13 @@ window.addEventListener('resize', () => scene.resize());
 function frame(now) {
   const dt = Math.min(.1, Math.max(0,(now-lastFrame)/1000)); lastFrame = now;
   const previous = state.phase;
-  if (running && focused && !document.hidden && $('help').hidden && $('intro').hidden) tick(state, dt);
+  if (running && focused && !document.hidden && $('help').hidden && $('intro').hidden) {
+    tick(state, dt);
+    if (lastFeedback) {
+      feedbackAge += dt;
+      if (feedbackAge >= feedbackSeconds || (state.currentId && state.currentId !== lastFeedback.customerId)) lastFeedback = null;
+    }
+  }
   if (previous === 'hesitation' && state.phase === 'departing') { showToast(t('hesitation-expired')); scene.pulse('declined'); }
   scene.update(state,getView(state),dt);
   render();
@@ -191,4 +209,19 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 updateLanguage(); requestAnimationFrame(frame);
+try {
+  $('start').textContent = t('loadingModels');
+  const result = await scene.loadGameModels({ loaderUrl: './assets/GLTFLoader.js', urls: {
+    bud2: './assets/models/bud-2g.glb', bud5: './assets/models/bud-5g.glb', resin: './assets/models/resin-slice-v02.glb',
+    Leah: './assets/models/characters/Leah.glb', Moira: './assets/models/characters/Moira.glb',
+    Eddie: './assets/models/characters/Eddie.glb', Martin: './assets/models/characters/Martin.glb'
+  }});
+  if (result.failed.length) throw new Error(`Model loading failed: ${result.failed.map(item => item.asset || item.key || item.sku || item.name).join(', ')}`);
+  modelsReady = true;
+  updateLanguage();
+} catch (error) {
+  modelsFailed = true;
+  console.error('The game models could not be loaded.', error);
+  $('start').textContent = t('modelsUnavailable');
+}
 if (new URLSearchParams(location.search).has('debug')) window.SALE = { get state(){return state;}, get view(){return getView(state);}, dispatch:act, verify:()=>verify(state), scene };
