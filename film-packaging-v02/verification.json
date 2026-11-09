@@ -1,17 +1,24 @@
 {
   "date": "2026-11-09",
-  "version": "film-packaging-v02.4",
+  "version": "film-packaging-v02.5",
   "automated": {
     "command": "node --test tests/*.test.mjs",
     "passed": 99,
     "failed": 0
   },
   "preservation": {
-    "v023Files": 56,
+    "v024Files": 61,
     "changed": 0,
     "gameSourcesChanged": false
   },
   "changes": {
+    "cameraHeightMeters": 1.05,
+    "previousCameraHeightMeters": 0.72,
+    "cameraTarget": [
+      0.05,
+      0.06,
+      -0.02
+    ],
     "cashColumns": 2,
     "cashRowsAtThirty": 3,
     "cashStackSize": 5,
@@ -48,6 +55,6 @@
   "unityIntegration": false,
   "publishing": {
     "target": "https://nobletsylvain.github.io/prototypes/film-packaging-v02/",
-    "previous": "archive-v02.3.html"
+    "previous": "archive-v02.4.html"
   }
 }
