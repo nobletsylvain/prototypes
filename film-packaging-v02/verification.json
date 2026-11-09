@@ -1,24 +1,25 @@
 {
   "date": "2026-11-09",
-  "version": "film-packaging-v02.8",
+  "version": "film-packaging-v02.9",
   "automated": {
     "command": "node --test tests/*.test.mjs",
-    "passed": 146,
+    "passed": 147,
     "failed": 0
   },
   "preservation": {
-    "v027Files": 78,
+    "v028Files": 75,
     "changed": 0,
     "gameSourcesChanged": false
   },
   "changes": {
-    "firstRepeatMilliseconds": 280,
-    "secondRepeatMilliseconds": 210,
-    "accelerationMillisecondsPerPickup": 2,
-    "minimumIntervalMilliseconds": 150,
+    "firstRepeatMilliseconds": 260,
+    "secondRepeatMilliseconds": 200,
+    "curve": "step = successfulHoldPickups - 2; max(110, round(200 - 1.2 * step - 0.065 * step * step))",
+    "minimumIntervalMilliseconds": 110,
     "stackBoundaryPauseMilliseconds": 0,
-    "lastIntervalBeforeThirtyMilliseconds": 156,
-    "scheduledTimeToThirtyMilliseconds": 5404,
+    "lastIntervalBeforeThirtyMilliseconds": 120,
+    "scheduledTimeToThirtyMilliseconds": 4953,
+    "previousScheduledTimeToThirtyMilliseconds": 5404,
     "releaseCancelsImmediately": true,
     "cameraAndPhysicsChanged": false,
     "slabAndCashLimit": 30,
@@ -30,7 +31,7 @@
   "humanAudioListening": false,
   "unityIntegration": false,
   "publishing": {
-    "target": "https://nobletsylvain.github.io/prototypes/film-packaging-v02/?v=2.8",
-    "previous": "archive-v02.7.html"
+    "target": "https://nobletsylvain.github.io/prototypes/film-packaging-v02/?v=2.9",
+    "previous": "archive-v02.8.html"
   }
 }
