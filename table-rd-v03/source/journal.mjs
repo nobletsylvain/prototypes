@@ -1,9 +1,14 @@
 import { TRAITS, getConfiguration } from './model.mjs';
+import { buildJournalGraph } from './journal-graph.mjs';
 
 // The journal is a projection of public information, never a game transaction.
 export const JOURNAL_STRINGS = {
   fr: {
-    title: 'Journal de bord', intro: 'Retrouvez vos essais et les liens de leur lignée. Les ancêtres restent accessibles pour situer une recherche.',
+    title: 'L’arbre de vos découvertes', intro: 'Suivez les croisements de génération en génération. Touchez une variété conservée pour ouvrir ses slots.',
+    filters: 'Filtres de l’arbre', tree: 'Arbre généalogique', treeHint: 'Faites défiler l’arbre au doigt ou avec les flèches. Sur ordinateur, glissez le fond pour déplacer la vue.',
+    zoomIn: 'Agrandir l’arbre', zoomOut: 'Réduire l’arbre', fit: 'Tout voir', previous: 'Résultat précédent', next: 'Résultat suivant',
+    resultLegend: 'Résultat', lineageLegend: 'Ascendance du résultat', otherLegend: 'Autres branches', cards: 'Fiches et actions',
+    noMatchTree: 'Aucun résultat. Votre arbre reste visible ; modifiez ou effacez les filtres.', allTree: 'L’arbre complet reste visible.', viewEntry: 'Consulter cet essai', compactSlots: '{active}/{capacity} slots activés',
     search: 'Nom, identité ou signature', searchHint: 'Rechercher dans le journal…', potential: 'Potentiel hérité', active: 'Trait activé',
     slots: 'Emplacements minimum', rarity: 'Rareté', ancestor: 'Descendants de', status: 'Statut', all: 'Tous', any: 'Indifférent',
     reset: 'Effacer les filtres', matches: '{count} résultat(s) sur {total}', contextCount: '{count} ancêtre(s) de contexte',
@@ -18,7 +23,11 @@ export const JOURNAL_STRINGS = {
     unknownParent: 'Parent', contextHelp: 'Les cartes de contexte ne satisfont pas nécessairement les filtres.',
   },
   en: {
-    title: 'Research journal', intro: 'Find your trials and their lineage links. Ancestors remain accessible to place each search in context.',
+    title: 'Your discovery tree', intro: 'Follow crosses from one generation to the next. Tap a kept variety to open its slots.',
+    filters: 'Tree filters', tree: 'Genealogy tree', treeHint: 'Scroll the tree with touch or arrow keys. On desktop, drag the background to pan.',
+    zoomIn: 'Zoom in on the tree', zoomOut: 'Zoom out of the tree', fit: 'Fit tree', previous: 'Previous result', next: 'Next result',
+    resultLegend: 'Match', lineageLegend: 'Match ancestry', otherLegend: 'Other branches', cards: 'Records and actions',
+    noMatchTree: 'No results. Your tree stays visible; change or clear the filters.', allTree: 'The complete tree stays visible.', viewEntry: 'View this trial', compactSlots: '{active}/{capacity} active slots',
     search: 'Name, identity or signature', searchHint: 'Search the journal…', potential: 'Inherited potential', active: 'Activated trait',
     slots: 'Minimum slots', rarity: 'Rarity', ancestor: 'Descendants of', status: 'Status', all: 'All', any: 'Any',
     reset: 'Clear filters', matches: '{count} result(s) of {total}', contextCount: '{count} ancestor(s) for context',
@@ -200,6 +209,25 @@ export function focusJournalEntry(target) {
   return true;
 }
 
+/** Render only the safe public graph projection, keeping every branch in place. */
+export function journalGraphHTML(graph, { lang = 'fr', filtered = false } = {}) {
+  const text = JOURNAL_STRINGS[lang] || JOURNAL_STRINGS.fr;
+  const edges = [...graph.edges].sort((a,b)=>Number(a.highlighted)-Number(b.highlighted)).map(edge => `<path class="journal-edge${!filtered || edge.highlighted ? ' is-highlighted' : ''}" data-from="${escape(edge.from)}" data-to="${escape(edge.to)}" d="${escape(edge.path)}" marker-end="url(#journal-arrow)"></path>`).join('');
+  const generations = [...new Set(graph.nodes.map(node => node.entry.generation))].map(generation => {
+    const node = graph.nodes.find(item => item.entry.generation === generation);
+    return `<span class="journal-generation-label" style="left:8px;top:${node.y - 24}px">G${generation}</span>`;
+  }).join('');
+  const nodes = graph.nodes.map(node => {
+    const entry = node.entry, name = displayName(entry, lang, text);
+    const action = entry.configurable ? 'research' : 'inspect';
+    const status = text[entry.status] + (filtered && node.match ? ` · ✦ ${text.resultLegend}` : '');
+    const profile = entry.known ? interpolate(text.compactSlots, { active: entry.activeIds.length, capacity: entry.slotCapacity }) : text.hidden;
+    const classification = filtered ? node.match ? ' is-match' : node.lineage ? ' is-lineage' : ' is-muted' : '';
+    return `<button type="button" class="journal-node${classification}" data-entry="${escape(entry.id)}" data-tree-action="${action}" data-strain="${escape(entry.strainId || '')}" style="left:${node.x}px;top:${node.y}px;width:${node.width}px;height:${node.height}px" aria-label="${escape(`${name} · ${entry.configurable ? text.inspect : text.viewEntry}`)}" title="${escape(name)}"><span class="journal-node-status">${escape(status)}</span><strong class="journal-node-name">${escape(name)}</strong><span class="journal-node-id">${escape(entry.strainId || entry.trialId)}</span><span class="journal-node-profile">${escape(profile)}</span></button>`;
+  }).join('');
+  return `<svg class="journal-edges" width="${graph.width}" height="${graph.height}" viewBox="0 0 ${graph.width} ${graph.height}" aria-hidden="true"><defs><marker id="journal-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8 Z" fill="context-stroke"></path></marker></defs>${edges}</svg>${generations}${nodes}`;
+}
+
 /** Mount inside an existing modal host. Callbacks receive strain IDs, except onDownload(trialId). */
 export function renderJournal(host, { state, strains, lang = 'fr', onResearch, onUse, onDownload, canUse = false, configurationFn } = {}) {
   const text = JOURNAL_STRINGS[lang] || JOURNAL_STRINGS.fr;
@@ -207,40 +235,104 @@ export function renderJournal(host, { state, strains, lang = 'fr', onResearch, o
   const option = (value, label) => `<option value="${escape(value)}">${escape(label)}</option>`;
   const traitOptions = option('', text.all) + traitList().map(trait => option(trait.id, traitName(trait.id, lang))).join('');
   const field = (label, name, options) => `<label>${label}<select name="${name}">${options}</select></label>`;
-  host.innerHTML = `<section class="journal-board"><h2>${text.title}</h2><p>${text.intro}</p><form class="journal-filters" aria-label="${text.title}">
+  host.innerHTML = `<section class="journal-board"><h2>${text.title}</h2><p class="journal-intro">${text.intro}</p><form class="journal-form" aria-label="${text.title}">
     <label class="journal-search">${text.search}<input name="query" type="search" autocomplete="off" placeholder="${text.searchHint}"></label>
+    <details class="journal-filter-toggle"><summary>${text.filters} <span class="journal-filter-count"></span></summary><div class="journal-filters">
     ${field(text.potential, 'potentialId', traitOptions)}${field(text.active, 'activeId', traitOptions)}
     ${field(text.slots, 'minSlots', option('', text.any) + [...new Set(entries.filter(entry => entry.known).map(entry => entry.slotCapacity).filter(value => value > 0))].sort((a, b) => a - b).map(value => option(value, `${value}+`)).join(''))}
     ${field(text.rarity, 'rarity', option('', text.all) + ['common', 'rare', 'exceptional'].map(id => option(id, text[id])).join(''))}
     ${field(text.ancestor, 'ancestorId', option('', text.all) + entries.filter(entry => entry.strainId && entry.childEntryIds.length).map(entry => option(entry.strainId, `${displayName(entry, lang, text)} · ${entry.strainId}`)).join(''))}
     ${field(text.status, 'status', option('', text.all) + ['founder', 'kept', 'archived', 'pending'].map(id => option(id, text[id])).join(''))}
-    <button type="reset" class="journal-reset">${text.reset}</button></form><p class="journal-summary" role="status" aria-live="polite"></p><div class="journal-results"></div></section>`;
-  const form = host.querySelector('.journal-filters'), results = host.querySelector('.journal-results'), summary = host.querySelector('.journal-summary');
+    <button type="reset" class="journal-reset">${text.reset}</button></div></details></form><p class="journal-summary" role="status" aria-live="polite"></p>
+    <div class="journal-tree-toolbar"><button type="button" data-tree-tool="out" aria-label="${text.zoomOut}">−</button><output class="journal-zoom">100%</output><button type="button" data-tree-tool="in" aria-label="${text.zoomIn}">+</button><button type="button" data-tree-tool="fit">${text.fit}</button><span class="journal-toolbar-spacer"></span><button type="button" data-tree-tool="previous" aria-label="${text.previous}">←</button><span class="journal-result-position"></span><button type="button" data-tree-tool="next" aria-label="${text.next}">→</button></div>
+    <div class="journal-legend"><span class="legend-match">✦ ${text.resultLegend}</span><span class="legend-lineage">━ ${text.lineageLegend}</span><span class="legend-other">━ ${text.otherLegend}</span></div>
+    <div class="journal-viewport" role="region" tabindex="0" aria-label="${text.tree}" aria-describedby="journal-tree-hint"><div class="journal-scaled-space"><div class="journal-canvas"></div></div></div>
+    <p class="journal-tree-hint" id="journal-tree-hint">${text.treeHint}</p><div class="journal-selection"></div>
+    <details class="journal-cards-toggle"><summary>${text.cards}</summary><div class="journal-results"></div></details></section>`;
+  const form = host.querySelector('.journal-form'), results = host.querySelector('.journal-results'), summary = host.querySelector('.journal-summary');
+  const viewport = host.querySelector('.journal-viewport'), space = host.querySelector('.journal-scaled-space'), canvas = host.querySelector('.journal-canvas');
+  const selection = host.querySelector('.journal-selection'), position = host.querySelector('.journal-result-position');
+  let graph, result, zoom = 1, resultIndex = -1, drag = null;
   const filters = () => Object.fromEntries(new FormData(form));
+  const setZoom = (value, fitting = false) => {
+    const centerX = (viewport.scrollLeft + viewport.clientWidth / 2) / zoom;
+    const centerY = (viewport.scrollTop + viewport.clientHeight / 2) / zoom;
+    zoom = Math.max(fitting ? Number.EPSILON : .25, Math.min(1.6, value));
+    space.style.width = `${graph.width * zoom}px`; space.style.height = `${graph.height * zoom}px`;
+    canvas.style.width = `${graph.width}px`; canvas.style.height = `${graph.height}px`; canvas.style.transform = `scale(${zoom})`;
+    host.querySelector('.journal-zoom').textContent = `${Math.round(zoom * 100)}%`;
+    viewport.scrollLeft = centerX * zoom - viewport.clientWidth / 2; viewport.scrollTop = centerY * zoom - viewport.clientHeight / 2;
+  };
+  const fit = () => { setZoom(Math.min(1, (viewport.clientWidth - 16) / graph.width, (viewport.clientHeight - 16) / graph.height), true); viewport.scrollLeft = 0; viewport.scrollTop = 0; };
+  const centerNode = (id, focus = false) => {
+    const node = graph.nodes.find(item => item.id === id); if (!node) return;
+    viewport.scrollLeft = (node.x + node.width / 2) * zoom - viewport.clientWidth / 2;
+    viewport.scrollTop = (node.y + node.height / 2) * zoom - viewport.clientHeight / 2;
+    const button = [...canvas.querySelectorAll('.journal-node')].find(item => item.dataset.entry === id);
+    canvas.querySelectorAll('.is-current').forEach(item => item.classList.remove('is-current'));
+    button?.classList.add('is-current'); if (focus) button?.focus({ preventScroll: true });
+  };
   const update = () => {
-    const result = filterJournalEntries(entries, filters());
+    const values = filters(), filtered = Object.values(values).some(value => String(value).trim());
+    result = filterJournalEntries(entries, values); graph = buildJournalGraph(entries, result.matchIds, filtered);
+    canvas.innerHTML = journalGraphHTML(graph, { lang, filtered });
     results.innerHTML = journalResultsHTML(result, { lang, canUse });
-    summary.textContent = interpolate(text.matches, { count: result.totalMatches, total: result.totalEntries }) + (result.contextIds.size ? ` · ${interpolate(text.contextCount, { count: result.contextIds.size })}` : '');
+    summary.textContent = interpolate(text.matches, { count: result.totalMatches, total: result.totalEntries }) + ` · ${result.totalMatches ? text.allTree : text.noMatchTree}`;
+    host.querySelector('.journal-filter-count').textContent = filtered ? `(${Object.values(values).filter(value => String(value).trim()).length})` : '';
+    resultIndex = -1; position.textContent = `${result.totalMatches}`; selection.innerHTML = '';
+    host.querySelectorAll('[data-tree-tool="previous"],[data-tree-tool="next"]').forEach(button => { button.disabled = !result.totalMatches; });
+    setZoom(zoom);
   };
   const reset = event => { event.preventDefault(); for (const control of form.elements) if (control.name) control.value = ''; update(); };
   const click = event => {
     const button = event.target.closest('button');
-    if (button?.dataset.journalResearch) onResearch?.(button.dataset.journalResearch);
+    const tool = button?.dataset.treeTool;
+    if (tool === 'in' || tool === 'out') setZoom(zoom * (tool === 'in' ? 1.2 : 1 / 1.2));
+    else if (tool === 'fit') fit();
+    else if (tool === 'next' || tool === 'previous') {
+      if (!result.matches.length) return;
+      resultIndex = resultIndex < 0 ? (tool === 'next' ? 0 : result.matches.length - 1) : (resultIndex + (tool === 'next' ? 1 : -1) + result.matches.length) % result.matches.length;
+      position.textContent = `${resultIndex + 1}/${result.matches.length}`; centerNode(result.matches[resultIndex].id, true);
+    }
+    else if (button?.dataset.treeAction === 'research') onResearch?.(button.dataset.strain);
+    else if (button?.dataset.treeAction === 'inspect') {
+      const entry = entries.find(item => item.id === button.dataset.entry);
+      if (!entry) return;
+      const note = entry.status === 'archived' ? text.archiveNote : entry.phase === 'revealed' ? text.revealedPending : '';
+      selection.innerHTML = `<strong>${escape(displayName(entry, lang, text))}</strong><p>${entry.known ? `${escape(text[entry.status])} · ${escape(entry.potentialIds.map(id => traitName(id, lang)).join(' · '))}` : text.hiddenInfo}</p>${note ? `<small>${note}</small>` : ''}`;
+    }
+    else if (button?.dataset.journalResearch) onResearch?.(button.dataset.journalResearch);
     else if (button?.dataset.journalUse) onUse?.(button.dataset.journalUse);
     else if (button?.dataset.journalDownload) onDownload?.(button.dataset.journalDownload);
     const anchor = event.target.closest('a.journal-link');
     if (anchor) {
       event.preventDefault();
       const targetId = anchor.getAttribute('href').slice(1);
-      const target = [...results.querySelectorAll('.journal-entry')].find(entry => entry.id === targetId);
-      focusJournalEntry(target);
+      const entry = entries.find(item => anchorId(item.id) === targetId);
+      if (entry) centerNode(entry.id, true);
     }
   };
-  form.addEventListener('input', update); form.addEventListener('change', update); form.addEventListener('reset', reset); form.addEventListener('submit', event => event.preventDefault());
-  results.addEventListener('click', click); update();
+  const keydown = event => {
+    if (event.target !== viewport) return;
+    const directions = { ArrowLeft: [-72,0], ArrowRight: [72,0], ArrowUp: [0,-72], ArrowDown: [0,72] };
+    const direction = directions[event.key]; if (!direction) return;
+    event.preventDefault(); viewport.scrollLeft += direction[0]; viewport.scrollTop += direction[1];
+  };
+  const pointerdown = event => {
+    if (event.pointerType !== 'mouse' || event.button !== 0 || event.target.closest('button')) return;
+    drag = { x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop };
+    viewport.setPointerCapture(event.pointerId); viewport.classList.add('is-dragging'); event.preventDefault();
+  };
+  const pointermove = event => { if (drag) { viewport.scrollLeft = drag.left + drag.x - event.clientX; viewport.scrollTop = drag.top + drag.y - event.clientY; } };
+  const pointerup = () => { drag = null; viewport.classList.remove('is-dragging'); };
+  const submit = event => event.preventDefault();
+  form.addEventListener('input', update); form.addEventListener('change', update); form.addEventListener('reset', reset); form.addEventListener('submit', submit);
+  host.addEventListener('click', click); viewport.addEventListener('keydown', keydown);
+  viewport.addEventListener('pointerdown', pointerdown); viewport.addEventListener('pointermove', pointermove); viewport.addEventListener('pointerup', pointerup); viewport.addEventListener('pointercancel', pointerup);
+  update(); fit();
   return {
     entries, getFilters: filters,
     setFilters(next = {}) { for (const control of form.elements) if (control.name) control.value = next[control.name] ?? ''; update(); },
-    destroy() { form.removeEventListener('input', update); form.removeEventListener('change', update); form.removeEventListener('reset', reset); results.removeEventListener('click', click); },
+    destroy() { form.removeEventListener('input', update); form.removeEventListener('change', update); form.removeEventListener('reset', reset); form.removeEventListener('submit', submit); host.removeEventListener('click', click); viewport.removeEventListener('keydown', keydown); viewport.removeEventListener('pointerdown', pointerdown); viewport.removeEventListener('pointermove', pointermove); viewport.removeEventListener('pointerup', pointerup); viewport.removeEventListener('pointercancel', pointerup); },
   };
 }

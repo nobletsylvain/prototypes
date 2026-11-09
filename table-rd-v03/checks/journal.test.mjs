@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildJournalEntries, filterJournalEntries, journalResultsHTML, focusJournalEntry, JOURNAL_STRINGS } from '../source/journal.mjs';
+import { buildJournalEntries, filterJournalEntries, journalResultsHTML, journalGraphHTML, focusJournalEntry, JOURNAL_STRINGS } from '../source/journal.mjs';
+import { buildJournalGraph } from '../source/journal-graph.mjs';
 
 function fixture() {
   const founders = [
@@ -23,6 +24,34 @@ function fixture() {
 }
 const entriesFor = ({ state, strains, configuration } = fixture()) => buildJournalEntries(state, strains, configuration);
 const matchedIds = (entries, filters) => filterJournalEntries(entries, filters).matches.map(entry => entry.id);
+
+test('visual tree keeps unrelated branches and marks matches separately from their ancestry', () => {
+  const entries = entriesFor(), result = filterJournalEntries(entries, { query: 'eclat' });
+  const html = journalGraphHTML(buildJournalGraph(entries, result.matchIds, true), { filtered: true });
+  assert.equal((html.match(/class="journal-node /g) || []).length, entries.length);
+  assert.equal((html.match(/class="journal-node is-match"/g) || []).length, 1);
+  assert.equal((html.match(/class="journal-node is-lineage"/g) || []).length, 2);
+  assert.equal((html.match(/class="journal-edge is-highlighted"/g) || []).length, 2);
+  assert(html.includes('data-tree-action="research"'));
+  assert(html.includes('data-tree-action="inspect"'));
+});
+
+test('visual tree does not expose hidden traits and escapes strain names in text and attributes', () => {
+  const data = fixture(); data.strains[0].name = '<img src=x onerror="attack">';
+  const entries = entriesFor(data), html = journalGraphHTML(buildJournalGraph(entries));
+  assert(!html.includes('Secret Flower')); assert(!html.includes('secret-variety')); assert(!html.includes('Secret Author'));
+  assert(!html.includes('<img')); assert(html.includes('&lt;img')); assert(html.includes('&quot;attack'));
+  assert.equal((html.match(/data-tree-action="research"/g) || []).length, 3);
+});
+
+test('empty filter highlights no branch while leaving every node and link visible', () => {
+  const entries = entriesFor(), result = filterJournalEntries(entries, { query: 'absent' });
+  const graph = buildJournalGraph(entries, result.matchIds, true);
+  const html = journalGraphHTML(graph, { filtered: true });
+  assert.equal((html.match(/class="journal-node is-muted"/g) || []).length, entries.length);
+  assert(!html.includes('class="journal-edge is-highlighted"'));
+  assert.equal((html.match(/data-from=/g) || []).length, graph.edges.length);
+});
 
 test('journal keeps founders and every trial without duplicating a kept variety', () => {
   const entries = entriesFor();
