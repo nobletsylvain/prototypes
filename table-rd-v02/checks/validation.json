@@ -1,43 +1,24 @@
 {
-  "version": "table-rd-v02",
+  "version": "table-rd-v02.1",
   "date": "2026-11-09",
-  "modelTests": {
-    "passed": 27,
+  "tests": {
+    "normalModel": 27,
+    "testSession": 14,
+    "revealCharge": 6,
+    "passed": 47,
     "failed": 0
   },
+  "normalModelSha256": "76d282ace8d5d828957029550ad51af038946558febc4aaad6222b16e882a259",
+  "normalModelUnchanged": true,
+  "embeddedModules": 7,
   "moduleSyntax": "passed",
-  "audio": {
-    "eventsCheckedWithMockContext": 13,
-    "activationAndMute": "passed",
-    "browserEnableControl": "passed",
-    "listeningValidated": false
+  "audioChargeMockChecks": {
+    "passed": 11,
+    "failed": 0
   },
-  "projectionWidths": [
-    390,
-    700,
-    701,
-    800,
-    1000,
-    1440
-  ],
-  "browser": {
-    "publishedPageOpened": true,
-    "renderInspected": true,
-    "mobileViewport": {
-      "width": 390,
-      "height": 844
-    },
-    "flow": "parents, odds, commit, advance, inspect, common reveal, name, keep, harvest, descendant parent, research hotspot, locked upgrade preview",
-    "nextGenerationOdds": {
-      "common": 63,
-      "rare": 32,
-      "exceptional": 5,
-      "affinity": 0.78
-    },
-    "consoleWarningsOrErrors": 0,
-    "rareRevealAndUpgradePurchase": false
-  },
+  "browserRevision": "Pending verification of the new test mode and hold interaction.",
   "physicalPhoneTest": false,
+  "listeningValidated": false,
   "humanPlaytest": false,
   "unityIntegration": false
 }
