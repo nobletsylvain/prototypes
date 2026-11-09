@@ -1,7 +1,7 @@
 const LABELS = {
   strain: { fr: 'Variété / strain', en: 'Strain' },
   quality: { fr: 'Qualité', en: 'Quality' },
-  effect: { fr: 'Effet', en: 'Effect' },
+  effect: { fr: 'Effets', en: 'Effects' },
   taste: { fr: 'Goût', en: 'Taste' },
   weight: { fr: 'Poids du lot', en: 'Lot weight' },
   use: { fr: 'Utilisation', en: 'Use' },
@@ -9,16 +9,27 @@ const LABELS = {
   requirement: { fr: 'Prérequis dans l’atelier', en: 'Workshop requirement' },
   capacity: { fr: 'Contenance', en: 'Capacity' }
 };
-const unknown = { fr: 'Non renseigné', en: 'Not specified' };
 const field = (id, fr, en) => ({ id, values: { fr, en }, status: 'known' });
-const missing = id => ({ id, values: unknown, status: 'unknown' });
-const cannabis = (grams, premium, buds = false) => ({
+const fictional = (id, fr, en) => ({ id, values: { fr, en }, status: 'fictional' });
+const fixtureNote = {
+  fr: 'Caractéristiques fictives · essai de présentation',
+  en: 'Fictional characteristics · presentation trial'
+};
+const profiles = {
+  mist: { strain: 'Brume des Docks', score: 58, effects: ['Calme · concentration douce', 'Calm · gentle focus'], taste: ['Boisé, noisette grillée, finale terreuse', 'Woody, toasted hazelnut, earthy finish'] },
+  amber: { strain: 'Ambre Noire', score: 92, effects: ['Détente profonde · euphorie · appétit', 'Deep relaxation · euphoria · appetite'], taste: ['Résine, cacao amer et pointe de poivre', 'Resin, dark cocoa and a hint of pepper'] },
+  copper: { strain: 'Cuivre du Soir', score: 64, effects: ['Sociabilité · légèreté', 'Sociability · lightness'], taste: ['Épices douces, caramel et zeste d’orange', 'Mild spices, caramel and orange zest'] },
+  lime: { strain: 'Lime de Minuit', score: 72, effects: ['Énergie légère · créativité · humeur joueuse', 'Light energy · creativity · playful mood'], taste: ['Citron vert, pin frais et touche florale', 'Lime, fresh pine and a floral note'] }
+};
+const cannabis = (grams, premium, profile, buds = false) => ({
+  fixture: true,
   description: buds
     ? { fr: 'Un lot de têtes pour le poste de conditionnement de l’atelier.', en: 'A lot of buds for the workshop packing station.' }
     : { fr: 'Un pain de hash pour le poste de découpe et de conditionnement.', en: 'A block of hash for the cutting and packing station.' },
   fields: [
-    missing('strain'), field('quality', premium ? 'Premium' : 'Ordinaire', premium ? 'Premium' : 'Ordinary'),
-    missing('effect'), missing('taste'), field('weight', `${grams} g`, `${grams} g`),
+    fictional('strain', profile.strain, profile.strain),
+    fictional('quality', `${premium ? 'Premium' : 'Ordinaire'} · ${profile.score} / 100`, `${premium ? 'Premium' : 'Ordinary'} · ${profile.score} / 100`),
+    fictional('effect', ...profile.effects), fictional('taste', ...profile.taste), field('weight', `${grams} g`, `${grams} g`),
     field('packaging', buds ? 'Lot brut de têtes' : 'Pain de hash', buds ? 'Bulk lot of buds' : 'Hash block'),
     field('use', buds ? 'Conditionnement des têtes à l’atelier' : 'Découpe et conditionnement à l’atelier',
       buds ? 'Packing buds at the workshop' : 'Cutting and packing at the workshop')
@@ -33,13 +44,16 @@ const bottle = letter => ({
   ]
 });
 const entries = {
-  hash100: cannabis(100, false),
-  hashPremium100: cannabis(100, true),
-  hash250: cannabis(250, false),
-  buds100: cannabis(100, false, true),
+  hash100: cannabis(100, false, profiles.mist),
+  hashPremium100: cannabis(100, true, profiles.amber),
+  hash250: cannabis(250, false, profiles.copper),
+  buds100: cannabis(100, false, profiles.lime, true),
   powder: {
+    fixture: true,
     description: { fr: 'Un lot de poudre brute pour l’atelier. Article visible, mais verrouillé dans cet essai.', en: 'A bulk powder lot for the workshop. Visible, but locked in this trial.' },
-    fields: [missing('quality'), missing('effect'), missing('taste'), field('weight', '100 g', '100 g'),
+    fields: [fictional('quality', 'Standard · 67 / 100', 'Standard · 67 / 100'),
+      fictional('effect', 'Énergie · assurance · agitation', 'Energy · confidence · restlessness'),
+      fictional('taste', 'Amer, notes minérales, finale sèche', 'Bitter, mineral notes, dry finish'), field('weight', '100 g', '100 g'),
       field('packaging', 'Lot brut', 'Bulk lot'), field('use', 'Préparation et conditionnement à l’atelier', 'Preparation and packing at the workshop')]
   },
   semiBagging: {
@@ -89,6 +103,7 @@ const entries = {
 function localize(entry, language) {
   return Object.freeze({
     description: entry.description[language],
+    fixtureNote: entry.fixture ? fixtureNote[language] : '',
     fields: Object.freeze(entry.fields.map(({ id, values, status }) => Object.freeze({
       id, label: LABELS[id][language], value: values[language], status
     })))
