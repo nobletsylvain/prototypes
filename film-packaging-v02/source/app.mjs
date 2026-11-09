@@ -58,11 +58,12 @@ function repeatHold(){
   if(!holding)return;
   if(!take()){stopHold();return;}
   holdTaken++;
-  // Keep acceleration tied to the uninterrupted hold, including across stack boundaries.
-  const interval=Math.max(150,210-2*(holdTaken-2));
+  // Increase acceleration toward later stacks without resetting at stack boundaries.
+  const step=holdTaken-2;
+  const interval=Math.max(110,Math.round(200-1.2*step-.065*step*step));
   hold=setTimeout(repeatHold,interval);
 }
-function startHold(){if(holding||$('take').disabled)return;holding=true;holdTaken=0;if(take()){holdTaken=1;hold=setTimeout(repeatHold,280);}else stopHold();}
+function startHold(){if(holding||$('take').disabled)return;holding=true;holdTaken=0;if(take()){holdTaken=1;hold=setTimeout(repeatHold,260);}else stopHold();}
 function stopHold(){clearTimeout(hold);hold=null;holding=false;holdTaken=0;}
 function returnItems(ids){if(!ready||moving||view.look)return;stopHold();if(check(model.returnItems(ids))){moving=!!view.prepareReturn(ids,()=>{moving=false;sync();});targetItemId=null;if(!view.physics)audio.play('place');sync();toast('returnFinish');}}
 function wrap(){stopHold();if(!ready||moving||view.look)return;if(!check(model.startWrap()))return;const duration=Number($('speed').value);sync();toast('wrapStart');audio.play('wrapStart',duration*.8);view.animate('wrap',duration,()=>{if(check(model.finishWrap())){audio.play('wrapFinish');sync();toast('wrapFinish');}});}
