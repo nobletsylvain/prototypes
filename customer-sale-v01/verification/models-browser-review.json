@@ -1,0 +1,49 @@
+{
+  "date": "2026-11-09",
+  "revision": "game-models-transient-feedback",
+  "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109d",
+  "codeCommit": "c1ad0e059ea3886aa7b354be059ab5b39fcb2df3",
+  "mergeCommit": "5cbf9d949eeecd0f842af8b4fb83dc11ad3d7b22",
+  "successfulDeployment": 42611402349,
+  "viewports": [
+    [
+      390,
+      844
+    ],
+    [
+      1280,
+      720
+    ],
+    [
+      360,
+      740
+    ]
+  ],
+  "observations": [
+    "Original character models and game product contents loaded; one weight label per sachet, only shortcuts 1-5 on compartments.",
+    "At 390x844, original customer has no visible payment before Talk; Talk reveals the 50 euro note and 4g request.",
+    "Pointer drags selected the 4g pouch and change correctly. Returning 20 for 25 due disables confirmation; returning 30 permits it.",
+    "Excess-change sale shows 5 euro error, actual revenue 20, product up and service/loyalty double up without a frame above the customer.",
+    "Feedback disappears autonomously before the next customer conversation. The next customer arrives without showing payment.",
+    "At 1280x720, an exact 25 euro change sale shows three single up arrows and actual revenue 25 without a frame.",
+    "At 360x740, full-hand scenario retains its parcel, collects payment and advances to the next customer. English transient feedback verified.",
+    "Decline displays the imported customer departing with the refusal reaction.",
+    "French and normal scenario restored in the introduction; viewport override reset."
+  ],
+  "console": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "screenshots": {
+    "viewed": 8,
+    "savedFiles": 0
+  },
+  "humanPlaytest": false,
+  "physicalPhoneTest": false,
+  "listeningValidated": false,
+  "limitations": [
+    "Browser viewport simulation is not a physical-phone test.",
+    "Full-hand parcel and hint occupy part of the small-screen pouch area.",
+    "Premium2 uses the same mesh as ordinary2g; the Unity resin shader is not ported."
+  ]
+}

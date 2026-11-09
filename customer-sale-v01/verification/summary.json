@@ -29,13 +29,17 @@
     "texts.json": "8edaf6f46cfe088a61021f9a6cd5cec1b54ff1aaf2881049bb94bebf354a67ca"
   },
   "browserReview": {
-    "status": "pending current revision review",
+    "status": "completed",
+    "report": "models-browser-review.json",
     "previousReport": "browser-review.json"
   },
   "publication": {
-    "status": "prepared",
+    "status": "published and checked",
     "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109d",
-    "issue": "https://github.com/nobletsylvain/prototypes/issues/280"
+    "issue": "https://github.com/nobletsylvain/prototypes/issues/280",
+    "pullRequest": "https://github.com/nobletsylvain/prototypes/pull/281",
+    "mergeCommit": "5cbf9d949eeecd0f842af8b4fb83dc11ad3d7b22",
+    "successfulDeployment": 42611402349
   },
   "physicalPhoneTest": false,
   "humanPlaytest": false,
