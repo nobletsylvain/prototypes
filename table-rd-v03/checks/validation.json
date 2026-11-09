@@ -11,11 +11,45 @@
   "embeddedModules": 9,
   "moduleSyntax": "passed",
   "namedImports": "passed",
-  "publishedHtmlSha256": "c3043bdfca07f203f88bf973999c98b8bfb956e4e4d62d818e9407dce45aed35",
+  "publishedHtmlSha256": "f9aa5e3d88fa536925e5e76ad8ffdc3c64b234a6dae7020a82e199fe2cf106b3",
   "previousVersionPreserved": true,
-  "browserRevision": "Visual genealogy tree pending browser verification",
+  "browserRevision": "Connected genealogy tree, final framing merge 518bf13ddd11e7736f639fb6fc1b26afd9a32f91",
   "physicalPhoneTest": false,
   "listeningValidated": false,
   "humanPlaytest": false,
-  "unityIntegration": false
+  "unityIntegration": false,
+  "browserReview": "Automated UI interactions and visual inspection of the published page on 2026-11-09",
+  "url": "https://nobletsylvain.github.io/prototypes/table-rd-v03/?mode=test",
+  "observations": [
+    "The existing test career loaded with seven public journal nodes and eight parent-child edges.",
+    "Search heritage matched Heritage XYZ alone, highlighted its four ancestral edges and retained all seven nodes and eight edges.",
+    "DOM positions were identical before and after filtering.",
+    "Inherited B1 plus at least five slots selected the same result; activated B1 also combined with the text query.",
+    "Next result centered and focused the matching variety. Clicking it opened its five-slot configuration with B1 active, one point earned and one spent.",
+    "Returning to the journal retained the active search. A query with no match kept all seven nodes and cleared highlights.",
+    "An archived node opened its public information without a slot activation or plant reuse action.",
+    "Zoom controls, Fit tree, result navigation and keyboard scrolling were exercised.",
+    "Final desktop framing centered the diagram and placed search and advanced filters on the same row. Advanced filters opened, combined and closed correctly.",
+    "At 390 by 844, the diagram scrolled inside its dedicated viewport; neither the document nor dialog had horizontal content overflow. Zoomed result navigation remained usable.",
+    "Two final captures were saved and visually inspected. No browser console error or warning was recorded."
+  ],
+  "viewports": [
+    {
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "captures": [
+    "tree-desktop.jpg",
+    "tree-mobile.jpg"
+  ],
+  "limits": "Mobile viewport simulation is not physical touch-device validation. Unrevealed-data protection is covered by public-projection and graph tests; the existing browser career had only revealed/archived/kept trials. Native touch scrolling and mouse background dragging require owner playtesting. This change does not validate audio, game balance or Unity integration. Previous card-view captures remain historical.",
+  "captureHashes": {
+    "tree-desktop.jpg": "7c60b92c6aa942d754db7d7f635454991a1d10d0ab94fd6d711bbfb822477c40",
+    "tree-mobile.jpg": "3f7919c856d02788f23240441d42d5abe2af3355f0a5c0944d53918ee6108ca2"
+  }
 }
