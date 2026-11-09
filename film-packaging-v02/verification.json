@@ -3,7 +3,7 @@
   "version": "film-packaging-v02.6",
   "automated": {
     "command": "node --test tests/*.test.mjs",
-    "passed": 125,
+    "passed": 126,
     "failed": 0
   },
   "preservation": {
