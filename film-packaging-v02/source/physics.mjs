@@ -33,7 +33,8 @@ export class WorkshopPhysics {
   constructor() {
     this.world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.81, 0), allowSleep: true });
     this.world.broadphase = new CANNON.SAPBroadphase(this.world);
-    this.world.solver.iterations = 20;
+    // Thin stacks require converged contact constraints before they can settle naturally.
+    this.world.solver.iterations = 100;
     this.world.solver.tolerance = 1e-7;
     this.world.defaultContactMaterial.friction = .48;
     this.world.defaultContactMaterial.restitution = .035;

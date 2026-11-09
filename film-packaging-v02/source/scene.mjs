@@ -4,6 +4,9 @@ import { WorkshopPhysics } from './physics.mjs';
 const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
 const ease = x=>1-Math.pow(1-x,3);
 const cameraHeight = 1.05;
+const cameraDistance = 1.8;
+const tableLookAngle = Math.atan2(cameraHeight+.12,cameraDistance-.14);
+const floorLookAngle = Math.atan2(cameraHeight+.66,cameraDistance-1.38);
 export function cashBandColor(bills){
   const denominations=new Set(bills.map(bill=>bill.cents));
   if(denominations.size>1)return '#d8d9d3';
@@ -49,27 +52,33 @@ export class WorkshopView {
     this.roll=new THREE.Group();const outer=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.25,40),new THREE.MeshPhysicalMaterial({color:'#dae6d7',metalness:.15,roughness:.23,clearcoat:1}));outer.rotation.z=Math.PI/2;this.roll.add(outer);const core=new THREE.Mesh(new THREE.CylinderGeometry(.015,.015,.254,32),new THREE.MeshStandardMaterial({color:'#b09a73'}));core.rotation.z=Math.PI/2;this.roll.add(core);this.roll.position.set(-.34,.04,.46);scene.add(this.roll);
     this.slotMarkers=[];for(let i=0;i<3;i++){const m=this.box(.34,.001,.38,'#92a277',.52,.003,-.42+i*.42);m.material.transparent=true;m.material.opacity=.15;m.receiveShadow=false;scene.add(m);this.slotMarkers.push(m);}
   }
-  resize(){const w=Math.max(1,this.canvas.clientWidth),h=Math.max(1,this.canvas.clientHeight);this.renderer.setSize(w,h,false);this.camera.aspect=w/h;this.camera.fov=w<700?58:48;this.camera.updateProjectionMatrix();this.baseDistance=this.fitDistance();this.updateCamera();}
-  fitDistance(){
+  resize(){const w=Math.max(1,this.canvas.clientWidth),h=Math.max(1,this.canvas.clientHeight);this.renderer.setSize(w,h,false);this.camera.aspect=w/h;this.baseFov=this.fitFieldOfView();this.updateCamera();}
+  fitFieldOfView(){
     const probe=this.camera.clone(),points=[];
-    for(const box of [[-.75,-.20,0,.15,-.62,.31],[.35,.70,0,.26,-.62,.62],[-.13,.22,.19,.35,.20,.58]])for(const x of [box[0],box[1]])for(const y of [box[2],box[3]])for(const z of [box[4],box[5]])points.push(new THREE.Vector3(x,y,z));
-    for(let distance=1.7;distance<4;distance+=.025){probe.position.set(.05,cameraHeight,distance);probe.lookAt(.05,.06,-.02);probe.updateMatrixWorld();if(points.every(point=>{const p=point.clone().project(probe);return Math.abs(p.x)<.88&&p.y>-.66&&p.y<.65;}))return distance;}
-    return 4;
+    for(const box of [[-.75,-.20,0,.15,-.62,.31],[.35,.70,0,.26,-.62,.62]])for(const x of [box[0],box[1]])for(const y of [box[2],box[3]])for(const z of [box[4],box[5]])points.push(new THREE.Vector3(x,y,z));
+    probe.position.set(.05,cameraHeight,cameraDistance);probe.rotation.set(-tableLookAngle,0,0,'YXZ');probe.updateMatrixWorld();
+    for(let fov=48;fov<=80;fov+=.5){probe.fov=fov;probe.updateProjectionMatrix();if(points.every(point=>{const p=point.clone().project(probe);return Math.abs(p.x)<.88&&p.y>-.66&&p.y<.65;}))return fov;}
+    return 80;
   }
-  updateCamera(){const dist=(this.baseDistance||1.7)*this.zoom;this.camera.position.set(.05+Math.sin(this.yaw)*dist,cameraHeight+this.pitch,Math.cos(this.yaw)*dist);this.camera.lookAt(.05,this.groundView?-.66:.06,this.groundView?1.38:-.02);this.camera.updateMatrixWorld(true);this.updateHeldTransform();}
+  updateCamera(){this.camera.position.set(.05,cameraHeight,cameraDistance);this.camera.rotation.set(clamp(-(this.groundView?floorLookAngle:tableLookAngle)+this.pitch,-1.42,-.12),this.yaw,0,'YXZ');this.camera.fov=clamp(THREE.MathUtils.radToDeg(2*Math.atan(Math.tan(THREE.MathUtils.degToRad((this.baseFov||58)/2))*this.zoom)),35,85);this.camera.updateProjectionMatrix();this.camera.updateMatrixWorld(true);this.updateHeldTransform();}
   raycastAction(){const hit=this.ray.intersectObjects(this.targets,true)[0];if(!hit)return null;const obstruction=this.ray.intersectObjects(this.occluders||[],true)[0];if(obstruction&&obstruction.distance<hit.distance-.0001)return null;let object=hit.object;while(object&&!object.userData.action)object=object.parent;return object?.userData.action??null;}
-  bindPointer(){let start=null;this.canvas.addEventListener('pointerdown',e=>{start={x:e.clientX,y:e.clientY,yaw:this.yaw,pitch:this.pitch};this.canvas.setPointerCapture(e.pointerId);});this.canvas.addEventListener('pointermove',e=>{if(!start||!this.look)return;this.yaw=clamp(start.yaw-(e.clientX-start.x)*.004,-.75,.75);this.pitch=clamp(start.pitch+(e.clientY-start.y)*.002,-.18,.5);this.updateCamera();});this.canvas.addEventListener('pointerup',e=>{if(start&&!this.look&&Math.hypot(e.clientX-start.x,e.clientY-start.y)<12){const r=this.canvas.getBoundingClientRect();this.ray.setFromCamera(new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1),this.camera);const action=this.raycastAction();if(action)this.onSelect(action);}start=null;});this.canvas.addEventListener('pointercancel',()=>start=null);}
+  bindPointer(){let start=null;this.canvas.addEventListener('pointerdown',e=>{start={x:e.clientX,y:e.clientY,yaw:this.yaw,pitch:this.pitch};this.canvas.setPointerCapture(e.pointerId);});this.canvas.addEventListener('pointermove',e=>{if(!start||!this.look)return;this.yaw=clamp(start.yaw-(e.clientX-start.x)*.003,-.9,.9);this.pitch=clamp(start.pitch-(e.clientY-start.y)*.003,-.5,.45);this.updateCamera();});this.canvas.addEventListener('pointerup',e=>{if(start&&!this.look&&Math.hypot(e.clientX-start.x,e.clientY-start.y)<12){const r=this.canvas.getBoundingClientRect();this.ray.setFromCamera(new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1),this.camera);const action=this.raycastAction();if(action)this.onSelect(action);}start=null;});this.canvas.addEventListener('pointercancel',()=>start=null);}
   reframe(){this.yaw=0;this.pitch=0;this.zoom=1;this.groundView=false;this.updateCamera();}
   toggleGround(){this.groundView=!this.groundView;this.updateCamera();return this.groundView;}
   updateHeldTransform(){
     if(!this.physics||!this.held||this.move?.object===this.held)return;
-    const size=this.held.userData.size,tan=Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2));
-    const down=.07+size[1]*.05,depthOffset=size[2]*.5*Math.cos(.80)+size[1]*Math.sin(.80);
-    const distance=Math.max(.74,depthOffset+size[0]/(2*tan*this.camera.aspect*.78),depthOffset+(down+size[2]*.5*Math.sin(.80))/(tan*.82));
-    const offset=new THREE.Vector3(.015,-down,-distance);
+    const firstId=this.held.children.find(child=>child.userData.itemId)?.userData.itemId,first=this.state?.items[firstId];
+    let size=this.held.userData.size;
+    if(first&&(first.kind==='cashBundle'||(first.kind==='slab'&&first.formatMg===100000))){const d=this.dimensions(first);size=[d[0]*(first.kind==='cashBundle'?2:3),d[1]*5,d[2]*(first.kind==='cashBundle'?3:2)];}
+    const tan=Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2)),aspect=this.camera.aspect;
+    this.held.quaternion.setFromAxisAngle(new THREE.Vector3(0,1,0),this.yaw);
+    const relative=this.camera.quaternion.clone().invert().multiply(this.held.quaternion),corners=[];
+    for(const x of [-size[0]/2,size[0]/2])for(const y of [0,size[1]])for(const z of [-size[2]/2,size[2]/2])corners.push(new THREE.Vector3(x,y,z).applyQuaternion(relative));
+    let distance=.72,offset;
+    for(;distance<2;distance+=.005){offset=new THREE.Vector3(distance*tan*aspect*.10,-distance*tan*.22,-distance);if(corners.every(corner=>{const depth=distance-corner.z,x=(corner.x+offset.x)/(depth*tan*aspect),y=(corner.y+offset.y)/(depth*tan);return depth>.05&&Math.abs(x)<.78&&y>-.59&&y<.30;}))break;}
     if(this.enhanced&&this.pulseTime>0)offset.y+=Math.sin(clamp(this.pulseTime/.22,0,1)*Math.PI)*.008;
     this.held.position.copy(offset.applyQuaternion(this.camera.quaternion).add(this.camera.position));
-    this.held.quaternion.copy(this.camera.quaternion).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),.80));
+    this.held.userData.handDistance=distance;
     this.held.updateMatrixWorld(true);
   }
   itemMesh(item){
@@ -192,15 +201,43 @@ export class WorkshopView {
     if(!this.physics)return;
     for(const [key,object] of this.physicsViews){const body=this.physics.get(key);if(!body)continue;object.position.set(body.position.x,body.position.y,body.position.z);object.quaternion.set(body.quaternion.x,body.quaternion.y,body.quaternion.z,body.quaternion.w);object.updateMatrixWorld(true);}
   }
+  get returning(){return !!(this.pendingReturns?.size||this.returnMoves?.size);}
+  supportHeight(x,z,size,minimum=0){
+    let top=minimum;for(const body of this.physics.bodies.values()){body.updateAABB();const bounds=body.aabb;if(bounds.lowerBound.x<x+size[0]/2&&bounds.upperBound.x>x-size[0]/2&&bounds.lowerBound.z<z+size[2]/2&&bounds.upperBound.z>z-size[2]/2)top=Math.max(top,bounds.upperBound.y);}return top;
+  }
+  pickupItemId(pile){
+    if(!pile?.itemIds.length)return null;
+    if(!this.physics)return pile.itemIds[0];
+    const first=pile.itemIds.find(id=>this.physics.get(`item:${id}`));if(!first)return pile.itemIds[0];
+    const column=this.itemColumns?.get(first),candidates=pile.itemIds.filter(id=>this.itemColumns?.get(id)===column&&this.physics.get(`item:${id}`));
+    return candidates.reduce((highest,id)=>{const body=this.physics.get(`item:${id}`),best=this.physics.get(`item:${highest}`);body.updateAABB();best.updateAABB();return body.aabb.upperBound.y>best.aabb.upperBound.y?id:highest;},first);
+  }
+  prepareReturn(ids,onComplete=()=>{}){
+    if(!this.physics||!ids.length)return false;
+    const current=this.captureViewPoses().items,reserved=[],pending=new Map();
+    for(const id of ids){
+      const from=current.get(id),home=this.returnHomes?.get(id),mesh=this.held?.children.find(child=>child.userData.itemId===id);
+      if(!from||!home||!mesh)continue;
+      const shape=this.collisionShape(mesh),x=home.position[0],z=home.position[2],centerX=x+shape.offset[0],centerZ=z+shape.offset[2];
+      const footprint={minX:centerX-shape.size[0]/2,maxX:centerX+shape.size[0]/2,minZ:centerZ-shape.size[2]/2,maxZ:centerZ+shape.size[2]/2};
+      const floor=home.position[1]<-.1||x<-1.25||x>1.25||z<-.81||z>.89;
+      let top=this.supportHeight(centerX,centerZ,shape.size,floor?-.82:0);
+      for(const reservation of reserved)if(reservation.minX<footprint.maxX&&reservation.maxX>footprint.minX&&reservation.minZ<footprint.maxZ&&reservation.maxZ>footprint.minZ)top=Math.max(top,reservation.top);
+      const y=top-(shape.offset[1]-shape.size[1]/2)+.0015;
+      pending.set(id,{from,to:{position:[x,y,z],quaternion:[0,0,0,1]}});reserved.push({...footprint,top:y+shape.offset[1]+shape.size[1]/2});
+    }
+    if(!pending.size)return false;this.pendingReturns=pending;this.returnCompletion=onComplete;return true;
+  }
   guidedPosition(slot,size){
     const x=typeof slot==='object'&&slot!==null?slot.x:.52,z=typeof slot==='object'&&slot!==null?slot.z:-.42+(typeof slot==='number'?slot:0)*.42;
-    let top=0;for(const body of this.physics.bodies.values()){body.updateAABB();const bounds=body.aabb;if(bounds.lowerBound.x<x+size[0]/2&&bounds.upperBound.x>x-size[0]/2&&bounds.lowerBound.z<z+size[2]/2&&bounds.upperBound.z>z-size[2]/2)top=Math.max(top,bounds.upperBound.y);}
-    return [x,top+.008,z];
+    return [x,this.supportHeight(x,z,size)+.008,z];
   }
   syncPhysics(state,slot){
     const reset=this.physicsItems!==state.items;
     const before=reset?{items:new Map(),packages:new Map()}:this.captureViewPoses();
-    if(reset){this.physics.clear();this.physicsItems=state.items;this.lastHeldIds=new Set();this.pendingItemReleases=null;this.placements.clear();this.placementSequence=0;this.anim=null;this.move=null;this.tempFilm=null;}
+    if(reset){this.physics.clear();this.physicsItems=state.items;this.lastHeldIds=new Set();this.pendingItemReleases=null;this.returnHomes=new Map();this.itemColumns=new Map();this.returnMoves=new Map();this.pendingReturns=null;this.returnCompletion=null;this.placements.clear();this.placementSequence=0;this.anim=null;this.move=null;this.tempFilm=null;}
+    const nextHeldIds=state.heldPackageId?state.packages.find(packet=>packet.id===state.heldPackageId).itemIds:state.handIds;
+    for(const id of nextHeldIds)if(!this.lastHeldIds.has(id)&&before.items.has(id))this.returnHomes.set(id,before.items.get(id));
     this.transitionPackagePoses=before.packages;this.state=state;this.slot=slot;this.updatePlacements(state);this.clearDynamic();this.physicsViews=new Map();
     this.slotMarkers.forEach((marker,index)=>{marker.material.opacity=index===slot?.32:.10;});
     const wanted=new Set();
@@ -212,10 +249,13 @@ export class WorkshopView {
       for(const mesh of group.children){
         const id=mesh.userData.itemId,key=`item:${id}`;wanted.add(key);
         mesh.userData.action={type:'pile',id:pile.id,itemId:id};
+        if(!this.itemColumns.get(id)?.startsWith(`${pile.id}:`))this.itemColumns.set(id,`${pile.id}:${mesh.position.x.toFixed(6)},${mesh.position.z.toFixed(6)}`);
         if(!this.physics.get(key)){
-          const release=this.pendingItemReleases?.get(id)||(this.lastHeldIds.has(id)?before.items.get(id):null);
+          const returning=this.pendingReturns?.get(id);
+          const release=returning?.from||this.pendingItemReleases?.get(id)||(this.lastHeldIds.has(id)?before.items.get(id):null);
           const pose=release||{position:mesh.position.clone().add(source).toArray(),quaternion:[0,0,0,1]};
-          this.physics.add(key,{...pose,shapes:[this.collisionShape(mesh)],mass:this.itemMass(state.items[id])});
+          this.physics.add(key,{...pose,shapes:[this.collisionShape(mesh)],mass:this.itemMass(state.items[id]),kinematic:!!returning});
+          if(returning)this.returnMoves.set(key,{...returning,t:0,duration:.22});
         }
         this.physicsViews.set(key,mesh);
       }
@@ -236,8 +276,8 @@ export class WorkshopView {
       this.physicsViews.set(key,group);
     });
     if(state.handIds.length){this.held=this.makeContents(state.handIds,state);this.dynamic.add(this.held);}
-    for(const key of [...this.physics.bodies.keys()])if(!wanted.has(key))this.physics.remove(key);
-    this.pendingItemReleases=null;
+    for(const key of [...this.physics.bodies.keys()])if(!wanted.has(key)){this.physics.remove(key);this.returnMoves.delete(key);}
+    this.pendingItemReleases=null;this.pendingReturns=null;
     this.lastHeldIds=new Set(state.heldPackageId?state.packages.find(packet=>packet.id===state.heldPackageId).itemIds:state.handIds);
     this.applyPhysicsPoses();this.updateHeldTransform();
   }
@@ -288,6 +328,7 @@ export class WorkshopView {
     if(this.physics){this.physics.step(dt);this.applyPhysicsPoses();}
     if(this.pulseTime>0){this.pulseTime-=dt;if(!this.physics&&this.held&&this.enhanced)this.held.position.y=.19+Math.sin(Math.max(0,this.pulseTime)/.22*Math.PI)*.012;}
     this.updateHeldTransform();
+    if(this.returnMoves?.size){for(const [key,move] of this.returnMoves){move.t+=dt;const progress=clamp(move.t/move.duration,0,1),travel=progress*progress*(3-2*progress);const position=new THREE.Vector3(...move.from.position).lerp(new THREE.Vector3(...move.to.position),travel);position.y+=Math.sin(progress*Math.PI)*.08;const quaternion=new THREE.Quaternion(...move.from.quaternion).slerp(new THREE.Quaternion(...move.to.quaternion),travel);this.physics.setPose(key,position.toArray(),quaternion.toArray());if(progress>=1){this.physics.setKinematic(key,false);this.returnMoves.delete(key);}}this.applyPhysicsPoses();if(!this.returnMoves.size){const complete=this.returnCompletion;this.returnCompletion=null;complete?.();}}
     if(this.move){const move=this.move;move.t+=dt;const progress=clamp(move.t/move.duration,0,1),travel=progress*progress*(3-2*progress);move.object.position.lerpVectors(move.from,move.to,travel);if(this.enhanced)move.object.position.y+=Math.sin(progress*Math.PI)*.018;if(move.fromQuaternion)move.object.quaternion.slerpQuaternions(move.fromQuaternion,move.toQuaternion,travel);if(this.physics?.get(move.physicsKey))this.physics.setPose(move.physicsKey,move.object.position.toArray(),move.object.quaternion.toArray());if(progress>=1){move.object.position.copy(move.to);if(this.physics?.get(move.physicsKey))this.physics.setKinematic(move.physicsKey,false);this.move=null;move.callback();}}
     if(this.anim){const a=this.anim;a.t+=dt;const p=clamp(a.t/a.duration,0,1);
       if(a.kind==='wrap'&&this.held){const s=this.held.userData.size;const q=ease(p);if(this.tempFilm){this.tempFilm.scale.set(Math.max(.025,q),1+(1-q)*.45,1+(1-q)*.17);this.tempFilm.position.x=-(1-q)*s[0]*.5;}if(this.physics){this.held.updateMatrixWorld(true);this.roll.position.copy(this.held.localToWorld(new THREE.Vector3(Math.cos(p*Math.PI*2)*(.10+s[0]*.5),s[1]+.05+Math.sin(p*Math.PI*2)*.03,Math.sin(p*Math.PI*2)*(.07+s[2]*.5))));this.roll.quaternion.copy(this.held.quaternion).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),p*Math.PI*2));}else{this.roll.position.set(.04+Math.cos(p*Math.PI*2)*(.10+s[0]*.5),.19+s[1]+.05+Math.sin(p*Math.PI*2)*.03,.39+Math.sin(p*Math.PI*2)*(.07+s[2]*.5));this.roll.rotation.y=p*Math.PI*2;}}

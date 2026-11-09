@@ -66779,7 +66779,7 @@ class WorkshopView {
     const relative=this.camera.quaternion.clone().invert().multiply(this.held.quaternion),corners=[];
     for(const x of [-size[0]/2,size[0]/2])for(const y of [0,size[1]])for(const z of [-size[2]/2,size[2]/2])corners.push(new THREE.Vector3(x,y,z).applyQuaternion(relative));
     let distance=.72,offset;
-    for(;distance<2;distance+=.005){offset=new THREE.Vector3(distance*tan*aspect*.10,-distance*tan*.40,-distance);if(corners.every(corner=>{const depth=distance-corner.z,x=(corner.x+offset.x)/(depth*tan*aspect),y=(corner.y+offset.y)/(depth*tan);return depth>.05&&Math.abs(x)<.78&&y>-.77&&y<.15;}))break;}
+    for(;distance<2;distance+=.005){offset=new THREE.Vector3(distance*tan*aspect*.10,-distance*tan*.22,-distance);if(corners.every(corner=>{const depth=distance-corner.z,x=(corner.x+offset.x)/(depth*tan*aspect),y=(corner.y+offset.y)/(depth*tan);return depth>.05&&Math.abs(x)<.78&&y>-.59&&y<.30;}))break;}
     if(this.enhanced&&this.pulseTime>0)offset.y+=Math.sin(clamp(this.pulseTime/.22,0,1)*Math.PI)*.008;
     this.held.position.copy(offset.applyQuaternion(this.camera.quaternion).add(this.camera.position));
     this.held.userData.handDistance=distance;
@@ -66918,15 +66918,17 @@ class WorkshopView {
   }
   prepareReturn(ids,onComplete=()=>{}){
     if(!this.physics||!ids.length)return false;
-    const current=this.captureViewPoses().items,reserved=new Map(),pending=new Map();
+    const current=this.captureViewPoses().items,reserved=[],pending=new Map();
     for(const id of ids){
       const from=current.get(id),home=this.returnHomes?.get(id),mesh=this.held?.children.find(child=>child.userData.itemId===id);
       if(!from||!home||!mesh)continue;
-      const shape=this.collisionShape(mesh),x=home.position[0],z=home.position[2],column=`${x.toFixed(4)},${z.toFixed(4)}`;
+      const shape=this.collisionShape(mesh),x=home.position[0],z=home.position[2],centerX=x+shape.offset[0],centerZ=z+shape.offset[2];
+      const footprint={minX:centerX-shape.size[0]/2,maxX:centerX+shape.size[0]/2,minZ:centerZ-shape.size[2]/2,maxZ:centerZ+shape.size[2]/2};
       const floor=home.position[1]<-.1||x<-1.25||x>1.25||z<-.81||z>.89;
-      const top=Math.max(this.supportHeight(x,z,shape.size,floor?-.82:0),reserved.get(column)??-Infinity);
+      let top=this.supportHeight(centerX,centerZ,shape.size,floor?-.82:0);
+      for(const reservation of reserved)if(reservation.minX<footprint.maxX&&reservation.maxX>footprint.minX&&reservation.minZ<footprint.maxZ&&reservation.maxZ>footprint.minZ)top=Math.max(top,reservation.top);
       const y=top-(shape.offset[1]-shape.size[1]/2)+.0015;
-      pending.set(id,{from,to:{position:[x,y,z],quaternion:[0,0,0,1]}});reserved.set(column,y+shape.offset[1]+shape.size[1]/2);
+      pending.set(id,{from,to:{position:[x,y,z],quaternion:[0,0,0,1]}});reserved.push({...footprint,top:y+shape.offset[1]+shape.size[1]/2});
     }
     if(!pending.size)return false;this.pendingReturns=pending;this.returnCompletion=onComplete;return true;
   }
@@ -67129,7 +67131,7 @@ $('reset').onclick=()=>{stopHold();audio.stopAll();model.reset(model.state.scena
 $('sound').onclick=async()=>{try{if(audio.enabled)audio.setEnabled(false);else await audio.enable();$('sound').textContent=t(audio.enabled?'soundOff':'sound');if(audio.enabled)audio.play('pickup');}catch{toast('audioFailed');}};
 $('volume').oninput=()=>audio.setVolume(Number($('volume').value));$('enhanced').onchange=()=>{view.enhanced=$('enhanced').checked;audio.setEnhanced(view.enhanced);view.setFilm(Number($('film').value));};
 $('film').oninput=()=>view.setFilm(Number($('film').value));$('look').onclick=()=>{stopHold();view.look=!view.look;$('look').classList.toggle('active',view.look);$('look').textContent=t(view.look?'manipulate':'look');sync();toast(view.look?'looking':'welcome');};
-$('ground-view').onclick=()=>{stopHold();view.toggleGround();sync();};$('reframe').onclick=()=>{stopHold();resetView();sync();};$('zoom-in').onclick=()=>{view.zoom=Math.max(.68,view.zoom-.12);view.updateCamera();};$('zoom-out').onclick=()=>{view.zoom=Math.min(1.5,view.zoom+.12);view.updateCamera();};
+$('ground-view').onclick=()=>{stopHold();view.toggleGround();sync();};$('reframe').onclick=()=>{stopHold();resetView();sync();toast(model.state.heldPackageId?'pickFinish':model.state.handIds.length?'takeSuccess':'welcome');};$('zoom-in').onclick=()=>{view.zoom=Math.max(.68,view.zoom-.12);view.updateCamera();};$('zoom-out').onclick=()=>{view.zoom=Math.min(1.5,view.zoom+.12);view.updateCamera();};
 window.addEventListener('blur',stopHold);document.addEventListener('visibilitychange',()=>{if(document.hidden){stopHold();audio.stopAll();}});
 window.addEventListener('keydown',e=>{if(['INPUT','SELECT','TEXTAREA','BUTTON'].includes(document.activeElement?.tagName)||e.repeat)return;if(e.code==='Space'){e.preventDefault();startHold();}if(e.code==='KeyF')wrap();if(e.code==='KeyE')model.state.heldPackageId?place():pick();if(e.code==='KeyX')open();});window.addEventListener('keyup',e=>{if(e.code==='Space')stopHold();});
 sync();

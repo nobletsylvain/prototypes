@@ -7,4 +7,6 @@
 .stack-summary{font-size:11px;color:#466d4b;margin:0 0 10px;font-variant-numeric:tabular-nums}.stack-summary[hidden]{display:none}
 
 /* Keep floor access available beside camera controls on narrow screens. */
-.view-tools{flex-wrap:wrap}.action-row{flex-wrap:wrap}.action-row button{min-width:68px}@media(max-width:700px){.view-tools{gap:5px;left:14px;right:14px}.view-tools button{padding:5px 6px;font-size:9px}.view-tools #view-label,.view-tools>.live-dot{display:none}.slots{gap:5px}.slots button{padding:8px 7px}.stage-heading{pointer-events:none}}
+.view-tools{flex-wrap:nowrap;max-width:none;gap:6px;top:18px;right:18px;left:auto}.view-tools button{white-space:nowrap;flex:none}.view-tools #view-label,.view-tools>.live-dot{display:none}.stage-heading{top:20px;left:24px}.stage-heading h1{font-size:32px;letter-spacing:-1px}.stage-heading .eyebrow{display:none}.stage-heading .subtitle{font-size:10px;margin:5px 0 0}.action-row{flex-wrap:wrap}.action-row button{min-width:68px}
+@media(max-width:1100px){.stage-heading{top:63px;left:20px}.stage-heading h1{font-size:26px}.stage-heading .subtitle{display:none}.view-tools{top:14px;left:20px;right:auto}}
+@media(max-width:700px){.stage-heading{top:52px;left:17px}.stage-heading h1{font-size:24px}.view-tools{gap:5px;left:14px;right:auto;top:12px}.view-tools button{padding:5px 7px;font-size:9px}.slots{gap:5px}.slots button{padding:8px 7px}}
