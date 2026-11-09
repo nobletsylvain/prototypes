@@ -1,5 +1,5 @@
 import * as THREE from './assets/three.module.js';
-import { CATALOG } from './model.mjs?v=20261109b';
+import { CATALOG } from './model.mjs?v=20261109c';
 
 const TAU = Math.PI * 2;
 const denominations = [5, 10, 20, 50, 100];
@@ -263,10 +263,30 @@ export class SaleScene {
     sphere(head, 0.207, material(index % 2 ? '#332c26' : '#292a28'), 0, 0.08, -0.016, [0.85, 0.7, 0.87]);
     sphere(head, 0.038, skin, -0.174, -0.01, 0);
     sphere(head, 0.038, skin, 0.174, -0.01, 0);
-    sphere(head, 0.018, material('#1e2826'), -0.064, 0.008, 0.161, [1, 0.65, 0.35]);
-    sphere(head, 0.018, material('#1e2826'), 0.064, 0.008, 0.161, [1, 0.65, 0.35]);
+    const eyes = [
+      sphere(head, 0.018, material('#1e2826'), -0.064, 0.008, 0.161, [1, 0.65, 0.35]),
+      sphere(head, 0.018, material('#1e2826'), 0.064, 0.008, 0.161, [1, 0.65, 0.35])
+    ];
     sphere(head, 0.03, skin, 0, -0.029, 0.178, [0.7, 1, 1]);
-    line(head, [[-0.048, -0.09, 0.161], [0, -0.1, 0.172], [0.048, -0.09, 0.161]], '#654836');
+    const featureMaterial = new THREE.MeshBasicMaterial({ color: '#4d302a' });
+    const mouths = {};
+    const shapes = {
+      neutral: [[-0.052, -0.09, 0.174], [0, -0.097, 0.188], [0.052, -0.09, 0.174]],
+      happy: [[-0.073, -0.07, 0.17], [0, -0.124, 0.187], [0.073, -0.07, 0.17]],
+      unhappy: [[-0.062, -0.116, 0.17], [0, -0.065, 0.191], [0.062, -0.116, 0.17]]
+    };
+    for (const [emotion, points] of Object.entries(shapes)) {
+      const curve = new THREE.CatmullRomCurve3(points.map(point => new THREE.Vector3(...point)));
+      const mouth = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, emotion === 'neutral' ? 0.006 : 0.01, 6, false), featureMaterial);
+      mouth.visible = emotion === 'neutral';
+      head.add(mouth);
+      mouths[emotion] = mouth;
+    }
+    const eyebrows = [-1, 1].map(side => {
+      const brow = box(head, 0.072, 0.014, 0.014, featureMaterial, side * 0.065, 0.06, 0.17);
+      brow.rotation.z = side * 0.07;
+      return brow;
+    });
     person.add(head);
     const arms = [];
     let grip = null;
@@ -284,7 +304,7 @@ export class SaleScene {
       arms.push(arm);
       person.add(arm);
     }
-    person.userData = { head, arms, torso, grip, index };
+    person.userData = { head, arms, torso, grip, index, eyes, eyebrows, mouths, emotion: 'neutral', emotionStart: 0 };
     return person;
   }
 
@@ -409,6 +429,8 @@ export class SaleScene {
       this.lastCurrent = state.currentId;
       this.customer.position.x = 0.55;
       this.customer.rotation.y = -0.3;
+      this.reaction = null;
+      this.setCustomerEmotion('neutral');
     }
     this.animateCustomer(state, view, dt);
     this.customer.updateMatrixWorld(true);
@@ -419,7 +441,7 @@ export class SaleScene {
       const entry = this.objects.get(item.id) || this.createObject(item);
       entry.item = item;
       const customerOwned = item.location.startsWith('customer:');
-      const currentTender = item.location === `customer:${state.currentId}`;
+      const currentTender = item.location === `customer:${state.currentId}` && ['request', 'hesitation', 'payment'].includes(state.phase);
       const hidden = (customerOwned && !currentTender) || item.location.startsWith('client:') || item.location === 'demo-home';
       const next = this.targetFor(item, state);
       const changed = entry.location !== item.location;
@@ -504,21 +526,49 @@ export class SaleScene {
     const targetX = departing ? 2.1 : 0;
     person.position.x = damp(person.position.x, targetX, dt, departing ? 2.2 : 5);
     person.rotation.y = damp(person.rotation.y, departing ? 0.7 : 0, dt, 5);
+    const latestSale = state.sales?.at(-1);
+    if (['receipt', 'departing'].includes(state.phase) && latestSale?.customerId === state.currentId) {
+      const feedbackEmotion = latestSale.feedback?.emotion;
+      if (['happy', 'unhappy'].includes(feedbackEmotion)) this.setCustomerEmotion(feedbackEmotion);
+      else if (person.userData.emotion === 'neutral') this.setCustomerEmotion('happy');
+    } else if (view.current?.status === 'left') this.setCustomerEmotion('unhappy');
     const head = person.userData.head;
     const hesitate = state.phase === 'hesitation';
-    head.rotation.z = damp(head.rotation.z, hesitate ? -0.14 : Math.sin(this.time * 0.9) * 0.02, dt);
-    head.rotation.x = damp(head.rotation.x, hesitate ? 0.04 : 0, dt);
-    person.userData.torso.scale.y = 1 + Math.sin(this.time * 1.6) * 0.008;
+    const emotion = person.userData.emotion;
+    const age = this.time - (this.reaction?.start ?? person.userData.emotionStart);
+    const active = Math.max(0, 1 - age / 1.1);
+    const happy = emotion === 'happy';
+    const unhappy = emotion === 'unhappy';
+    const nod = happy ? Math.sin(age * 12) * 0.19 * active : this.reaction && !unhappy ? Math.sin(age * 10) * 0.07 * active : 0;
+    head.rotation.z = damp(head.rotation.z, unhappy ? -0.07 : hesitate ? -0.14 : Math.sin(this.time * 0.9) * 0.02, dt);
+    head.rotation.x = damp(head.rotation.x, unhappy ? 0.12 : nod + (hesitate ? 0.04 : 0), dt, 20);
+    head.rotation.y = damp(head.rotation.y, unhappy ? Math.sin(age * 11) * 0.22 * active : 0, dt, 20);
+    person.userData.torso.scale.y = (unhappy ? 0.97 : 1) + Math.sin(this.time * 1.6) * 0.008;
+    person.userData.torso.rotation.x = damp(person.userData.torso.rotation.x, unhappy ? 0.06 : 0, dt);
+    for (let index = 0; index < 2; index++) {
+      const side = index ? 1 : -1;
+      const brow = person.userData.eyebrows[index];
+      brow.position.y = damp(brow.position.y, happy ? 0.079 : unhappy ? 0.045 : 0.06, dt);
+      brow.rotation.z = damp(brow.rotation.z, side * (unhappy ? 0.32 : happy ? -0.08 : 0.07), dt);
+      person.userData.eyes[index].scale.y = damp(person.userData.eyes[index].scale.y, happy ? 0.45 : 0.65, dt);
+      person.userData.arms[index].position.y = damp(person.userData.arms[index].position.y, unhappy ? 1.19 : 1.22, dt);
+    }
     const holdsPayment = state.objects.some(item => item.location === `customer:${state.currentId}`);
     const offering = ['request', 'hesitation', 'payment'].includes(state.phase);
-    person.userData.arms[1].rotation.x = damp(person.userData.arms[1].rotation.x, holdsPayment ? (offering ? -1.12 : -0.23) : 0, dt, 10);
-    if (this.reaction) {
-      const age = this.time - this.reaction.start;
-      if (age < 0.85) {
-        head.rotation.x += Math.sin(age * 11) * 0.15 * (1 - age / 0.85);
-        person.userData.arms[0].rotation.x = -0.6 * Math.sin(Math.min(1, age / 0.85) * Math.PI);
-      } else { this.reaction = null; person.userData.arms[0].rotation.x = 0; }
-    }
+    person.userData.arms[1].rotation.x = damp(person.userData.arms[1].rotation.x, holdsPayment && offering ? -1.12 : 0, dt, 10);
+    const gesture = happy ? -0.75 * Math.sin(Math.min(1, age / 1.1) * Math.PI) : unhappy ? -0.12 : -0.25 * Math.sin(Math.min(1, age / 1.1) * Math.PI);
+    person.userData.arms[0].rotation.x = damp(person.userData.arms[0].rotation.x, active ? gesture : 0, dt);
+    person.userData.arms[0].rotation.z = damp(person.userData.arms[0].rotation.z, happy && active ? -0.3 : unhappy ? -0.04 : -0.13, dt);
+    if (this.reaction && age >= 1.1) this.reaction = null;
+  }
+
+  setCustomerEmotion(emotion) {
+    if (!['happy', 'unhappy', 'neutral'].includes(emotion) || !this.customer) return;
+    const face = this.customer.userData;
+    if (face.emotion === emotion) return;
+    face.emotion = emotion;
+    face.emotionStart = this.time;
+    for (const [name, mouth] of Object.entries(face.mouths)) mouth.visible = name === emotion;
   }
 
   contactEffect(position) {
@@ -532,7 +582,13 @@ export class SaleScene {
 
   pulse(event) {
     const type = typeof event === 'string' ? event : event?.type;
-    if (['sale-to-fund', 'sale-to-hand', 'sale-to-tray', 'propose', 'declined', 'talk'].includes(type)) this.reaction = { start: this.time, type };
+    if (type === 'reset') { this.reaction = null; this.setCustomerEmotion('neutral'); return; }
+    if (['sale-unhappy', 'declined'].includes(type)) this.setCustomerEmotion('unhappy');
+    else if (type === 'sale-happy') this.setCustomerEmotion('happy');
+    else if (['sale-to-fund', 'sale-to-hand', 'sale-to-tray'].includes(type)) {
+      this.setCustomerEmotion(this.state?.sales?.at(-1)?.feedback?.emotion === 'unhappy' ? 'unhappy' : 'happy');
+    }
+    if (['sale-happy', 'sale-unhappy', 'sale-to-fund', 'sale-to-hand', 'sale-to-tray', 'propose', 'declined', 'talk'].includes(type)) this.reaction = { start: this.time, type };
   }
 
   setEnhanced(value) { this.enhanced = Boolean(value); }

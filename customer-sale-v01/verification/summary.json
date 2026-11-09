@@ -1,12 +1,12 @@
 {
   "version": "V01",
-  "revision": "automatic-payment",
+  "revision": "conversation-and-satisfaction",
   "date": "2026-11-09",
   "tests": {
-    "passed": 79,
+    "passed": 87,
     "failed": 0,
-    "model": 45,
-    "app": 17,
+    "model": 51,
+    "app": 19,
     "audio": 17
   },
   "assets": {
@@ -18,27 +18,22 @@
     "failed": 0
   },
   "sourceHashes": {
-    "app.mjs": "eeb4d763b1df4f4bad52af1be68e7e2dfe842f6f6a27c7a4a045dd4386fa45ed",
-    "model.mjs": "6a58a0af3653c869c7e32c6939e3fde27ecea3cffbafaef616658c2ac00c4cc2",
-    "scene.mjs": "521c31b859893d229ac6ba20083adb9460b4842e9c83f550a46e32abee1940a5",
+    "app.mjs": "a1e51bac99566bb5fd688ecce5745066bbf36b07d4e8643f64a84db9b31585b4",
+    "model.mjs": "119173c519cb6da1ec78287f45d6bbb323f97477a4f96101113d675c0619d6cf",
+    "scene.mjs": "eacd039c005742ee1d65cf403db11276ab1f958cdb1b916454dfd14d1366daf5",
     "audio.mjs": "02d43bed609511ecf525807ce20c343f27b7a72c129b42fbae59f5794facf9e6",
-    "index.html": "e7fef0bd28266530c22f177be92ff7edba757436794d8ecafc0c82cd99e4842c",
-    "style.css": "e8be27ec66a563d278f2d270553ce5afe6c71cf66fe83cfe21d9e9bcdc6bd962",
-    "texts.json": "5ea27dfc82480556ca9d7e983f6ccb7d5e40cb039ca531c6189da3c302279f3a"
+    "index.html": "bd7437073b27ba75f31cba7501b0f654c6e4121c5b887fe4da5255b4399866ea",
+    "style.css": "fea6f0fe36d09a61fcff4f3074d17ddb33a12c9bbb9aa79de98149c7b4e220fe",
+    "texts.json": "a851516e22b41ab996ea91c439ed5c9fb4b85634dc368571ece7ad69c5f147be"
   },
   "browserReview": {
-    "status": "verified in published browser revision",
-    "report": "browser-review.json",
-    "consoleErrors": 0,
-    "consoleWarnings": 0
+    "previousReport": "browser-review.json",
+    "previousRevision": "automatic-payment",
+    "currentReview": "https://github.com/nobletsylvain/prototypes/issues/257"
   },
   "publication": {
-    "status": "published",
-    "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109b",
-    "commit": "ca650d14bf177b43aef1b6eff16a8ca75d765191",
-    "mergeCommit": "0d9f386e181bd2f109e8da8af9ee96b9135b9ffc",
-    "runId": 42588925963,
-    "conclusion": "success"
+    "trackingIssue": "https://github.com/nobletsylvain/prototypes/issues/257",
+    "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109c"
   },
   "physicalPhoneTest": false,
   "humanPlaytest": false,
