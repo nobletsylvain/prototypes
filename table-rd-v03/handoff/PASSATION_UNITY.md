@@ -91,6 +91,8 @@ Le schéma 3 conserve un journal de commandes `history` et vérifie l’état pa
 
 Les sauvegardes `botanical-table-v03` et `botanical-table-v03-test` sont séparées entre elles et des clés V02. Aucun import de points, essais ou activations n’est prévu. La sauvegarde reste locale au navigateur. Les écritures utilisent un verrou et les autres onglets sont synchronisés ; une erreur de sauvegarde bloque les transactions.
 
+La nouvelle vue graphique du journal ne change ni ce schéma, ni ces clés, ni les règles ou probabilités du modèle. Les URL V03 normal/test restent identiques. Sa géométrie, sa sélection et son zoom sont des données de présentation, sans migration ou transaction métier.
+
 La révélation utilise une charge de présentation cumulative d’environ 1,5 seconde. Relâcher met en pause sans perte dans la séquence en cours. Clavier et ouverture assistée conduisent à la même commande. Quitter/recharger peut réinitialiser cette présentation, jamais le résultat engagé ni les ressources. La charge reste neutre ; la ponctuation de rareté et le retour de points suivent seulement une révélation acceptée.
 
 Les points blancs donnent accès aux emplacements de la variété ; Origine et le journal servent la généalogie. Prévoir des boutons équivalents, aucune visée exigeante. Les modes Expressif/Discret, le volume et la réduction des mouvements ne changent aucun état métier. Les replays de test n’appellent aucune transaction.
@@ -99,13 +101,15 @@ Les points blancs donnent accès aux emplacements de la variété ; Origine et l
 
 `buildJournalEntries` projette les seules informations publiques. Les fondatrices et tous les essais restent présents. Un résultat caché ne fournit ni nom de variété, signature, potentiel, capacité ni rareté ; ses parents et l’identité de son essai restent visibles. Son `result` n’est pas consulté par cette projection.
 
-Les filtres se combinent : texte nom/identité/signature, potentiel hérité, trait activé, capacité minimale, rareté, parent/ancêtre et statut. Le filtre de texte ignore la casse et les accents. Les statuts séparent fondatrice, conservée, archivée et en attente, cette dernière incluant une révélation non encore conservée/archivée.
+Les filtres se combinent par **ET** : texte nom/identité/signature, potentiel hérité, trait activé, capacité minimale, rareté, parent/ancêtre et statut. Le filtre de texte ignore la casse et les accents. Les statuts séparent fondatrice, conservée, archivée et en attente, cette dernière incluant une révélation non encore conservée/archivée. Les filtres sont retenus pendant les allers-retours arbre/emplacements et séparés par mode normal/test.
 
-Les correspondances sont comptées séparément des ancêtres ajoutés comme contexte. En présence de contexte, les cartes correspondantes sont affichées d’abord ; les ancêtres restent regroupés par génération dans un `details` fermé par défaut, avec libellés FR/EN. Un lien vers un ancêtre ouvre cette section avant de déplacer la vue et le focus. Sans contexte ajouté, l’arbre par générations reste complet pour les entrées affichées. Les liens parents/enfants et toutes les données sont conservés.
+La vue principale est désormais un **graphe complet relié**, organisé par générations. Un filtre ne supprime ni carte ni lien : les correspondances sont dorées, leur ascendance et ses liens sont accentués, les autres branches sont atténuées. Le nombre de correspondances exclut les ancêtres présents uniquement comme contexte. Même sans correspondance, le graphe reste affiché et propose de modifier ou réinitialiser les filtres. Les positions restent stables pendant la recherche.
 
-Un filtre sans résultat propose de le modifier ou de le réinitialiser. Le formulaire reste en place pendant la recherche progressive ; sa disposition desktop utilise trois colonnes et une recherche pleine largeur. Les filtres sont retenus pendant les allers-retours arbre/emplacements et séparés par mode normal/test. La correction de présentation décrite ici reste à contrôler dans le navigateur.
+Le module pur `journal-graph.js` expose `buildJournalGraph(entries, matchIds, filtered)`. Il travaille uniquement sur les entrées publiques et retourne positions, dimensions, cartes, liens et états de surlignage. La disposition ne dépend pas des filtres. Chaque ascendant partagé possède une seule carte ; les liens qui traversent plusieurs générations sont routés sans inventer de parent. Aucune donnée cachée, sauvegarde ou commande de jeu n’intervient dans ce calcul.
 
-Les conservées permettent consultation des emplacements, usage parental lorsque le parcours l’autorise, et export. Les archives sont lisibles mais non réutilisables. La fiche exportée porte identité, parents, génération, potentiel, capacité, profil actif, nom, signature et lot ; c’est une présentation, sans import jouable. Les sessions de test sont marquées.
+Le clic sur une fondatrice ou une variété conservée ouvre directement ses emplacements. Les archives, les essais non révélés et les résultats non encore conservés sont consultables seulement, avec les mêmes restrictions de visibilité. Les commandes de zoom +/−, Tout voir et Résultat précédent/suivant facilitent la navigation. Le cadre défile au doigt, aux flèches clavier lorsqu’il a le focus, ou par glissement du fond à la souris ; aucune précision ne change le résultat.
+
+Un volet replié conserve les fiches détaillées et leurs actions : consultation, usage parental lorsque le parcours l’autorise et export. Les ancêtres de contexte restent disponibles dans ces détails. Les archives sont lisibles mais non réutilisables. La fiche exportée porte identité, parents, génération, potentiel, capacité, profil actif, nom, signature et lot ; c’est une présentation, sans import jouable. Les sessions de test sont marquées.
 
 API web : `renderJournal(host, {state, strains, lang, onResearch, onUse, onDownload, canUse})`. Les callbacks reçoivent une identité de variété, sauf le téléchargement qui reçoit l’identité d’essai. Le portage Unity doit conserver les mêmes règles de visibilité et de séparation entre filtres et transactions.
 
@@ -136,9 +140,11 @@ Ce sont des noms proposés, pas des API Unity existantes. Utiliser le système d
 
 ## Vérifications et limites
 
-**64 tests réussis, 0 échec** : 41 pour le modèle et les préparations de test, 6 pour le maintien, 17 pour le journal. Les huit modules embarqués passent le contrôle de syntaxe. Les tests du journal couvrent notamment l’absence de lecture du résultat caché, les filtres, la conservation du contexte, les correspondances avant les ancêtres et l’ouverture de leur section avant navigation.
+**79 tests réussis, 0 échec sur les sources actuelles.** Les contrôles du nouveau module pur couvrent topologie parentale, ascendants partagés, géométrie déterministe indépendante des filtres, chemins sur plusieurs générations, surlignage exact des ascendants et absence de lecture de données cachées. Les contrôles du modèle, des préparations, du maintien et du journal restent distincts de la revue visuelle.
 
-Le parcours suivant a été vérifié dans un navigateur sur V03 :
+Le paquet comprend neuf modules embarqués, avec `journal-graph.js` ajouté ; les neuf passent le contrôle de syntaxe. La revue navigateur de la nouvelle vue reste à effectuer. Les preuves historiques de l’ancien journal ne certifient pas cette nouvelle présentation.
+
+Le parcours suivant est **historique : V03 avant la vue graphique**. Il avait été vérifié dans le navigateur :
 
 | Action observée | Résultat |
 |---|---|
@@ -152,9 +158,9 @@ Le parcours suivant a été vérifié dans un navigateur sur V03 :
 | Rechargement | Profils et activations retrouvés |
 | Retour au mode normal séparé | Neuf boutures et trois fondatrices |
 
-Le parcours a révélé un défaut de présentation : les cartes d’ancêtres précédaient la correspondance filtrée et la repoussaient trop bas. La correction a été revue après publication : correspondances en premier, ascendance repliable, ouverture automatique depuis un lien parental et retour au descendant. Le filtre « heritage » retrouve « Héritage XYZ » et se combine avec B1 activé. Les vues journal et emplacements ont été inspectées à 1280 × 720 et 390 × 844, sans débordement horizontal du contenu. Maintenir, relâcher puis reprendre et ouvrir sans maintenir ont été essayés ; la console n’a signalé ni erreur ni avertissement. Le panneau des emplacements a aussi été vérifié en anglais.
+Ce parcours avait révélé un défaut de présentation dans l’ancienne vue en fiches : les ancêtres repoussaient trop bas la correspondance filtrée. Sa correction avait été revue après publication, avec correspondances en premier et ascendance repliable. Le filtre « heritage » retrouvait « Héritage XYZ » et se combinait avec B1 activé. Les vues journal et emplacements avaient été inspectées à 1280 × 720 et 390 × 844 sans débordement horizontal du contenu. Maintien interrompu/repris et ouverture assistée avaient été essayés, sans erreur ou avertissement console relevé. Le panneau des emplacements avait aussi été vérifié en anglais.
 
-Les captures examinées et `checks/validation.json` documentent ce parcours automatisé et sa revue visuelle. Ils ne remplacent pas un essai humain ou une écoute.
+Les captures et résultats de cette ancienne vue documentent uniquement son parcours automatisé et sa revue visuelle. Ils ne valident pas le nouvel arbre, son zoom, son déplacement ou ses branches surlignées. Ces aspects demandent leurs propres observations navigateur.
 
 Les preuves V02 restent historiques. Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué pour V03.
 
