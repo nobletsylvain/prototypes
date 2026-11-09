@@ -63,7 +63,7 @@ export class WorkshopView {
     if(!ids.length)return {positions:[],size:[0,0,0],stackCount:0};
     const item=state.items[ids[0]],d=this.dimensions(item),vertical=(item.kind==='slab'&&item.formatMg===100000)||item.kind==='cashBundle';
     const stackCount=vertical?Math.ceil(ids.length/5):0;
-    const cols=vertical?Math.min(3,stackCount):ids.length>10?3:ids.length>3?2:1;
+    const cols=vertical?Math.min(item.kind==='cashBundle'?2:3,stackCount):ids.length>10?3:ids.length>3?2:1;
     const rows=vertical?Math.ceil(stackCount/cols):ids.length>6?2:1;
     const positions=ids.map((id,i)=>{
       const stack=vertical?Math.floor(i/5):i;
