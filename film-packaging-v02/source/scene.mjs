@@ -2,6 +2,7 @@ import * as THREE from './vendor/three.module.js';
 
 const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
 const ease = x=>1-Math.pow(1-x,3);
+const cameraHeight = 1.05;
 export function cashBandColor(bills){
   const denominations=new Set(bills.map(bill=>bill.cents));
   if(denominations.size>1)return '#d8d9d3';
@@ -48,10 +49,10 @@ export class WorkshopView {
   fitDistance(){
     const probe=this.camera.clone(),points=[];
     for(const box of [[-.75,-.20,0,.15,-.62,.31],[.35,.70,0,.26,-.62,.62],[-.13,.22,.19,.35,.20,.58]])for(const x of [box[0],box[1]])for(const y of [box[2],box[3]])for(const z of [box[4],box[5]])points.push(new THREE.Vector3(x,y,z));
-    for(let distance=1.7;distance<4;distance+=.025){probe.position.set(.05,.72,distance);probe.lookAt(.05,.06,-.02);probe.updateMatrixWorld();if(points.every(point=>{const p=point.clone().project(probe);return Math.abs(p.x)<.88&&p.y>-.66&&p.y<.65;}))return distance;}
+    for(let distance=1.7;distance<4;distance+=.025){probe.position.set(.05,cameraHeight,distance);probe.lookAt(.05,.06,-.02);probe.updateMatrixWorld();if(points.every(point=>{const p=point.clone().project(probe);return Math.abs(p.x)<.88&&p.y>-.66&&p.y<.65;}))return distance;}
     return 4;
   }
-  updateCamera(){const dist=(this.baseDistance||1.7)*this.zoom;this.camera.position.set(.05+Math.sin(this.yaw)*dist,.72+this.pitch,Math.cos(this.yaw)*dist);this.camera.lookAt(.05,.06,-.02);}
+  updateCamera(){const dist=(this.baseDistance||1.7)*this.zoom;this.camera.position.set(.05+Math.sin(this.yaw)*dist,cameraHeight+this.pitch,Math.cos(this.yaw)*dist);this.camera.lookAt(.05,.06,-.02);}
   bindPointer(){let start=null;this.canvas.addEventListener('pointerdown',e=>{start={x:e.clientX,y:e.clientY,yaw:this.yaw,pitch:this.pitch};this.canvas.setPointerCapture(e.pointerId);});this.canvas.addEventListener('pointermove',e=>{if(!start||!this.look)return;this.yaw=clamp(start.yaw-(e.clientX-start.x)*.004,-.75,.75);this.pitch=clamp(start.pitch+(e.clientY-start.y)*.002,-.18,.5);this.updateCamera();});this.canvas.addEventListener('pointerup',e=>{if(start&&!this.look&&Math.hypot(e.clientX-start.x,e.clientY-start.y)<12){const r=this.canvas.getBoundingClientRect();this.ray.setFromCamera(new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1),this.camera);const hit=this.ray.intersectObjects(this.targets,true)[0];if(hit){let o=hit.object;while(o&&!o.userData.action)o=o.parent;if(o)this.onSelect(o.userData.action);}}start=null;});this.canvas.addEventListener('pointercancel',()=>start=null);}
   reframe(){this.yaw=0;this.pitch=0;this.zoom=1;this.updateCamera();}
   itemMesh(item){
