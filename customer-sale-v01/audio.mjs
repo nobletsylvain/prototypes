@@ -87,8 +87,8 @@ export class SaleAudio {
     if (this.muted || this.context?.state !== 'running' || !this.master) return false;
     const type = typeof event === 'string' ? event : event?.type;
     const pickup = ['take', 'giveBill', 'giveProduct', 'retake', 'collect'].includes(type);
-    const contact = ['paper-contact', 'product-contact', 'stow', 'cancelDrag'].includes(type);
-    const sale = ['sale-to-hand', 'sale-to-tray'].includes(type);
+    const contact = ['paper-contact', 'product-contact', 'fund-contact', 'stow', 'cancelDrag'].includes(type);
+    const sale = ['sale-to-fund', 'sale-to-hand', 'sale-to-tray'].includes(type);
     const voices = pickup ? (this.enhanced ? 2 : 1) : contact ? 2 : sale ? (this.enhanced ? 3 : 1) : 1;
     if (this.sources.size + voices > this.maxVoices) return false;
     const scale = this.enhanced ? 1 : 0.4;
@@ -102,10 +102,10 @@ export class SaleAudio {
       } else if (type === 'product-contact') {
         this.noise(0.07, 0.14 * scale, 2700);
         this.tone(85, 0.08, 0.17 * scale);
-      } else if (['stow', 'cancelDrag'].includes(type)) {
+      } else if (['fund-contact', 'stow', 'cancelDrag'].includes(type)) {
         this.noise(0.19, 0.18 * scale, 1800);
         this.noise(0.055, 0.12 * scale, 750, 0.12);
-      } else if (['sale-to-hand', 'sale-to-tray'].includes(type)) {
+      } else if (['sale-to-fund', 'sale-to-hand', 'sale-to-tray'].includes(type)) {
         this.noise(0.15, 0.18 * scale, 2500);
         if (this.enhanced) { this.tone(520, 0.16, 0.055); this.tone(780, 0.2, 0.05, 0.06); }
       } else if (['declined', 'error', 'refused'].includes(type)) {

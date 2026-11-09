@@ -1,9 +1,9 @@
-import { CATALOG, createSession, dispatch, tick, getView, verify } from './model.mjs';
-import { SaleScene } from './scene.mjs?v=20261109a';
-import { SaleAudio } from './audio.mjs';
+import { CATALOG, createSession, dispatch, tick, getView, verify } from './model.mjs?v=20261109b';
+import { SaleScene } from './scene.mjs?v=20261109b';
+import { SaleAudio } from './audio.mjs?v=20261109b';
 
 const $ = id => document.getElementById(id);
-const dictionaries = await fetch('./texts.json').then(response => { if (!response.ok) throw new Error('Text table unavailable'); return response.json(); });
+const dictionaries = await fetch('./texts.json?v=20261109b').then(response => { if (!response.ok) throw new Error('Text table unavailable'); return response.json(); });
 let language = 'fr', enhanced = true, muted = false, running = false;
 let focused = document.hasFocus ? document.hasFocus() : true;
 let state = createSession('normal'), toastUntil = 0, lastFrame = performance.now(), pointer = null, controlsStamp = '';
@@ -19,7 +19,7 @@ function act(action, silent = false) {
   if (result.ok) {
     verify(state);
     scene.pulse(result.event);
-    if (!['drop', 'giveProduct', 'giveBill'].includes(action.type)) audio.play(result.event);
+    if (!['drop', 'giveProduct', 'giveBill', 'confirm'].includes(action.type)) audio.play(result.event);
     if (action.type === 'confirm') showToast(`${t('sale')} +${money(state.sales.at(-1).price)}`);
     else if (result.event === 'declined') showToast(t('declined'));
     else if (action.type === 'cancel') showToast(t('cancelled'));
@@ -31,8 +31,7 @@ function act(action, silent = false) {
 function primaryAction() {
   if (!running || !$('intro').hidden) return;
   if (state.phase === 'approach') act({ type: 'talk' });
-  else if (['request', 'hesitation'].includes(state.phase)) act({ type: 'propose' });
-  else if (state.phase === 'payment') act({ type: 'confirm' });
+  else if (['request', 'hesitation', 'payment'].includes(state.phase)) act({ type: 'confirm' });
   else if (state.phase === 'closed') { running = false; $('intro').hidden = false; }
 }
 
@@ -47,13 +46,13 @@ function updateLanguage() {
 }
 
 function render() {
-  const view = getView(state), edit = ['request', 'hesitation'].includes(state.phase), payment = state.phase === 'payment';
+  const view = getView(state), edit = ['request', 'hesitation'].includes(state.phase), payment = edit || state.phase === 'payment';
   $('queue').textContent = `${view.queueCount} / 5 ${t('queue')}`;
   const remaining = Math.max(0, Math.ceil(state.config.serviceSeconds - state.elapsed));
   $('clock').textContent = !running || !focused || !$('help').hidden ? t('paused') : `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`;
   $('bubble').hidden = !view.current || !running;
   $('name').textContent = view.current?.name || '';
-  $('request').textContent = view.request && !['receipt', 'departing'].includes(state.phase) ? view.request.map(line => { const item = CATALOG.find(product => product.key === line.sku); return `${t(item.nameKey)} · ${item.grams * line.count} g`; }).join(' + ') : '';
+  $('request').textContent = view.request && !['receipt', 'departing'].includes(state.phase) ? t('requestSentence').replace('{items}', view.request.map(line => { const item = CATALOG.find(product => product.key === line.sku); return `${t(item.nameKey)} ${item.grams * line.count} g`; }).join(' + ')) : '';
   $('reaction').textContent = t(state.phase === 'approach' ? 'welcome' : state.phase === 'hesitation' ? 'hesitationReason' : payment ? 'accepted' : state.phase === 'receipt' || state.phase === 'departing' ? (view.current?.status === 'served' ? 'thanks' : 'declined') : 'requestHint');
   if (state.phase === 'request') $('reaction').textContent = '';
   $('hesitation').hidden = state.phase !== 'hesitation';
@@ -66,14 +65,15 @@ function render() {
   $('priceValue').textContent = money(state.offerPrice);
   $('minus').disabled = state.offerPrice <= 5 || !!state.dragId;
   $('plus').disabled = state.offerPrice >= view.normalPrice || !!state.dragId;
-  $('primary').textContent = t(state.phase === 'approach' ? 'talk' : edit ? 'propose' : payment ? 'confirm' : state.phase === 'closed' ? 'closed' : 'wait');
-  $('primary').disabled = payment ? !view.canConfirm : edit ? !view.tray.length || !!state.dragId : !['approach', 'closed'].includes(state.phase);
+  $('primary').textContent = t(state.phase === 'approach' ? 'talk' : payment ? 'confirm' : state.phase === 'closed' ? 'closed' : 'wait');
+  $('primary').disabled = payment ? !view.canConfirm : !['approach', 'closed'].includes(state.phase);
   $('cancel').hidden = !['request', 'hesitation', 'payment'].includes(state.phase);
   $('hint').textContent = t(state.dragId ? 'dragHint' : state.phase === 'approach' ? 'approachHint' : edit ? 'requestHint' : payment ? 'paymentHint' : state.phase === 'closed' ? 'closedHint' : view.outstandingReceipts.length ? 'receiptHint' : 'waitingHint');
-  $('receiptHint').hidden = !view.hand.length && !view.receipts.length;
-  $('receiptMessage').textContent = t(view.hand.some(item => item.kind === 'prop') ? 'parcelInHand' : view.receipts.length ? (view.handFull ? 'fullHint' : 'cashOnTray') : 'cashInHand');
-  $('collect').hidden = !view.receipts.length; $('collect').disabled = view.handFull;
-  $('stow').hidden = !view.hand.length;
+  const parcelHeld = view.hand.some(item => item.kind === 'prop');
+  $('receiptHint').hidden = !parcelHeld;
+  $('receiptMessage').textContent = t('parcelInHand');
+  $('collect').hidden = true;
+  $('stow').hidden = !parcelHeld;
   if (!$('help').hidden) updateAccessibleControls(view);
 }
 
@@ -86,7 +86,7 @@ function updateAccessibleControls(view) {
   controlsStamp = stamp;
   $('productButtons').replaceChildren(); $('billButtons').replaceChildren(); $('retakeButtons').replaceChildren();
   CATALOG.forEach((item, slot) => makeButton($('productButtons'), `${slot + 1} · ${t(item.nameKey)} ${item.grams} g ×${view.slots[slot].length}`, {type:'giveProduct',slot}, !['request','hesitation','payment'].includes(state.phase) || !view.slots[slot].length || !!state.dragId));
-  [5,10,20,50,100].forEach(denomination => makeButton($('billButtons'), `${denomination} € ×${view.fund.filter(item => item.denomination === denomination).length}`, {type:'giveBill',denomination}, state.phase !== 'payment' || !!state.dragId));
+  [5,10,20,50,100].forEach(denomination => makeButton($('billButtons'), `${denomination} € ×${view.fund.filter(item => item.denomination === denomination).length}`, {type:'giveBill',denomination}, !['request','hesitation','payment'].includes(state.phase) || !!state.dragId));
   [...view.tray, ...view.change].forEach(item => makeButton($('retakeButtons'), `${t('retake')} ${label(item)}`, {type:'retake',id:item.id}));
   view.receipts.forEach(item => makeButton($('retakeButtons'), `${t('collect')} ${label(item)}`, {type:'collect',id:item.id}, view.handFull));
   if (state.dragId) { makeButton($('retakeButtons'), t('layHeld'), {type:'drop',target:'tray'}); makeButton($('retakeButtons'), t('returnHeld'), {type:'cancelDrag'}); }
