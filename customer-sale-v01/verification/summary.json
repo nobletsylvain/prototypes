@@ -27,12 +27,18 @@
     "texts.json": "5ea27dfc82480556ca9d7e983f6ccb7d5e40cb039ca531c6189da3c302279f3a"
   },
   "browserReview": {
-    "status": "pending verification of automatic-payment revision",
-    "report": "browser-review.json"
+    "status": "verified in published browser revision",
+    "report": "browser-review.json",
+    "consoleErrors": 0,
+    "consoleWarnings": 0
   },
   "publication": {
-    "status": "initial version published; automatic-payment revision prepared",
-    "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/"
+    "status": "published",
+    "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109b",
+    "commit": "ca650d14bf177b43aef1b6eff16a8ca75d765191",
+    "mergeCommit": "0d9f386e181bd2f109e8da8af9ee96b9135b9ffc",
+    "runId": 42588925963,
+    "conclusion": "success"
   },
   "physicalPhoneTest": false,
   "humanPlaytest": false,
