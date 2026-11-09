@@ -1,0 +1,46 @@
+{
+  "version": "V01",
+  "date": "2026-11-09",
+  "tests": {
+    "passed": 76,
+    "failed": 0,
+    "model": 44,
+    "controllerWithSimulatedPresentation": 16,
+    "audioWithSimulatedContext": 16
+  },
+  "assets": {
+    "matched": 7,
+    "failed": 0
+  },
+  "syntax": {
+    "files": 4,
+    "failed": 0
+  },
+  "sourceHashes": {
+    "app.mjs": "8bc6f611c727156bc88ae78854db9b486dc543cb5f5a449674b5ac4632fe4dd5",
+    "model.mjs": "b158b3c1e410aaf341ae30c076b4a1d61d21d66866b39e81dd2019e2f47e6a2b",
+    "scene.mjs": "63f201df26cf53baf9b985f802b968d2c3f4bb128bdf124328232a9d8fcbf254",
+    "audio.mjs": "7f10d768a7ddd6e2a71dd8d20f527af42df004da815afd17f65fd76289760dde",
+    "index.html": "df8eee530d51333d24816f833491418d37b74412c0b2331742c21573ac36bc75",
+    "style.css": "e8be27ec66a563d278f2d270553ce5afe6c71cf66fe83cfe21d9e9bcdc6bd962",
+    "texts.json": "e9e95358c2d4e3af526ecd5da586bde3e84b70d0d517f390c3bad9c1047a2e9d"
+  },
+  "browserReview": {
+    "status": "unverified",
+    "reason": "Local HTTP preview is unreachable; file URLs are disallowed by the browser tool.",
+    "screenshotsViewed": 0
+  },
+  "physicalPhoneTest": false,
+  "humanPlaytest": false,
+  "listeningValidated": false,
+  "unityChanges": false,
+  "publication": {
+    "status": "awaiting-explicit-publication-approval"
+  },
+  "limitations": [
+    "One product reference and one sachet per request",
+    "Only price hesitation is demonstrated",
+    "No tipping, streaks, penalties, campaign, or change-shortage alternatives",
+    "Visual composition and sound are provisional"
+  ]
+}
