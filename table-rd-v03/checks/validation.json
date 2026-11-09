@@ -13,10 +13,56 @@
   "embeddedModules": 15,
   "moduleSyntax": "passed",
   "namedImports": "passed",
-  "publishedHtmlSha256": "70bb1d29604c96db6193f88cb8114e56926f889314eb43681b9cc7ff52c1134a",
-  "browserRevision": "Visual inheritance and Unity head masters pending browser review",
+  "publishedHtmlSha256": "6e4285416ad18d51f3b31f57a7fa0ca795b1acf45821af9134161021f12be27f",
+  "browserRevision": "Visual inheritance, Unity head masters and genealogy reviewed on the published page",
   "physicalPhoneTest": false,
   "listeningValidated": false,
   "humanPlaytest": false,
-  "unityIntegration": false
+  "unityIntegration": false,
+  "browserDate": "2026-11-09",
+  "testedMerge": "cc789e6c274e4eebae53244eee4d1fa0a571e811",
+  "testedHtmlSha256": "70bb1d29604c96db6193f88cb8114e56926f889314eb43681b9cc7ff52c1134a",
+  "finalDelta": "Only FR/EN olive and lime labels aligned after the full browser path; no geometry, genetics or gameplay change",
+  "desktopViewport": [
+    1280,
+    720
+  ],
+  "mobileViewport": [
+    390,
+    844
+  ],
+  "mobileBodyWidth": 375,
+  "mobileComparisonClientWidth": 286,
+  "mobileComparisonScrollWidth": 286,
+  "mobileDialogClientWidth": 363,
+  "mobileDialogScrollWidth": 363,
+  "checks": {
+    "legacyAppearanceInitializationNotice": "observed",
+    "existingNamesAndSlotActivations": "retained in the visible migrated career",
+    "sharedLoupeAndPortraitAppearance": "visually reviewed",
+    "searchMauve": "6 matching heads among 9 before the new trial, with ancestry highlighted",
+    "treeToSlotsAndOrigin": "passed; search retained",
+    "newTestTrial": "007, offspring of variety-003 and variety-002",
+    "objectBeforeCard": "inherited head visible under the loupe before reveal",
+    "unrevealedJournal": "one sealed portrait, no shape or colour exposed, 6 matches among 10",
+    "holdReveal": "1700 ms hold completed a rare reveal; one point displayed for each parent",
+    "keptOffspring": "variety-007, Echo de lignee - test visuel, generation 3",
+    "latentGrandparentShape": "branched offspring of two visibly compact parents; inherited branched character traced through variety-003 to Z",
+    "reloadPortrait": "23121-character SVG innerHTML identical before and after reload",
+    "newOffspringSlots": "opened, zero points and zero of five active slots",
+    "consoleWarnings": 0,
+    "consoleErrors": 0
+  },
+  "captures": [
+    "browser-family-g3.jpg",
+    "browser-tree-filter.jpg",
+    "browser-mobile-details.jpg",
+    "browser-mobile-tree.jpg"
+  ],
+  "captureHashes": {
+    "browser-family-g3.jpg": "e40ae006515131d4b0cf4d35f18d65ef9554d0929e5496506790de8e78c93c78",
+    "browser-tree-filter.jpg": "4ea7cac67a164132c75152e6f20f1ecf47817c9143f40f16a27c83bba88fa4a2",
+    "browser-mobile-details.jpg": "2f0eea0e004cd92e62330b0bf5379b5ccf4cce1d6813b6891499cbc172597a71",
+    "browser-mobile-tree.jpg": "b87612b65480596f282815653b3ccf3f23035850ea98b919105776a7a658355c"
+  }
 }
