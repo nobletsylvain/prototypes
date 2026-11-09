@@ -1,5 +1,5 @@
 import { CATALOG, createSession, dispatch, tick, getView, verify } from './model.mjs';
-import { SaleScene } from './scene.mjs';
+import { SaleScene } from './scene.mjs?v=20261109a';
 import { SaleAudio } from './audio.mjs';
 
 const $ = id => document.getElementById(id);

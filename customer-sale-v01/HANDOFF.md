@@ -1,6 +1,6 @@
 # Passation de la démo de vente face au client
 
-Date : 9 novembre 2026. État : première réalisation autonome préparée. Les noms d’événements ci-dessous sont un contrat proposé pour l’intégration ; ils ne prétendent pas décrire une API Unity déjà créée. 76 contrôles automatiques réussissent, sans échec : 44 sur le registre, 16 sur le contrôleur avec présentation simulée et 16 sur l’audio avec contexte simulé. Sept ressources réemployées sont identiques aux sources. La revue navigateur locale est bloquée ; aucun essai humain, écoute ou téléphone physique validé.
+Date : 9 novembre 2026. État : première réalisation autonome préparée. Les noms d’événements ci-dessous sont un contrat proposé pour l’intégration ; ils ne prétendent pas décrire une API Unity déjà créée. 76 contrôles automatiques réussissent, sans échec : 44 sur le registre, 16 sur le contrôleur avec présentation simulée et 16 sur l’audio avec contexte simulé. Sept ressources réemployées sont identiques aux sources. La version publiée a été parcourue à 1280 × 720, 390 × 844, 360 × 740 et 844 × 390 ; les trois situations sont passées dans le navigateur, sans erreur ni avertissement de console. Une recette masquée en portrait a conduit au déplacement de sa zone vers le fond gauche. Voir verification/browser-review.json pour le périmètre exact et la version observée. Aucun essai humain, écoute ou téléphone physique validé.
 
 ## Ce que le prototype doit transmettre
 

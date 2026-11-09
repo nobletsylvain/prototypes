@@ -108,6 +108,7 @@ async function boot(context, scenario = 'normal') {
     }
   });
   const source = (await readFile(appURL, 'utf8'))
+    .replace(/\?v=[a-zA-Z0-9-]+(?=['"])/g, '')
     .replace("from './model.mjs'", `from '${new URL('../model.mjs', import.meta.url).href}'`)
     .replace("from './scene.mjs'", `from '${sceneURL}'`)
     .replace("from './audio.mjs'", `from '${audioURL}'`);

@@ -370,7 +370,7 @@ export class SaleScene {
       position.set(-0.48 + (index % 3) * 0.27, 0.735 + Math.floor(index / 6) * 0.012, -0.4 + (Math.floor(index / 3) % 2) * 0.26);
       rotation.y = -0.12 + (index % 3) * 0.08;
     } else if (item.location === 'change' || item.location === 'receipt') {
-      position.set((item.location === 'change' ? 0.49 : -0.88) + (index % 3) * 0.24, 0.745 + Math.floor(index / 3) * 0.006, item.location === 'change' ? -0.23 : 0.23);
+      position.set((item.location === 'change' ? 0.49 : -0.92) + (index % 3) * 0.24, 0.745 + Math.floor(index / 3) * 0.006, item.location === 'change' ? -0.23 : -0.66);
       rotation.x = -Math.PI / 2;
       rotation.z = Math.PI / 2 + (index % 3 - 1) * 0.08;
     } else if (item.location === 'drag') {

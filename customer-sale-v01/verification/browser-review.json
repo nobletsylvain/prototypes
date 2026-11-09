@@ -1,0 +1,49 @@
+{
+  "date": "2026-11-09",
+  "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/",
+  "observedCommit": "3402d2717993f3495f5744342f0b031a240fbef2",
+  "deployment": {
+    "mergeCommit": "e7424b397b0e6873c9a0395c6637d66f05cd6acd",
+    "runId": 42585834311
+  },
+  "viewports": [
+    {
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "width": 390,
+      "height": 844
+    },
+    {
+      "width": 360,
+      "height": 740
+    },
+    {
+      "width": 844,
+      "height": 390
+    }
+  ],
+  "observed": [
+    "Normal sale: product drag, offer, 10 euro overpayment red, click retake, exact 5 euro green, confirmation, hand receipt, next customer before stowing",
+    "Full-hand sale at 390x844: product and bill drags, payment on stall, next customer, free hand then collect and stow",
+    "Price hesitation at 390x844: timer frozen by first drag, player lowers 25 to20, 30 euro exact change from20+10, confirmation",
+    "French and English visible text, feedback toggle and mute toggle",
+    "Five waiting customers, receipts retained when next customer approaches"
+  ],
+  "console": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "screenshotsViewed": true,
+  "screenshotFilesSaved": 0,
+  "physicalTouchDevice": false,
+  "listeningValidated": false,
+  "humanPlaytest": false,
+  "defect": {
+    "description": "Received notes were partly hidden by upright cash compartment notes in portrait.",
+    "correction": "Receipt area moved to rear left of stall.",
+    "finalVisualRecheck": "pending deployment"
+  },
+  "limit": "Viewport testing and browser input do not constitute a physical phone or human playtest."
+}
