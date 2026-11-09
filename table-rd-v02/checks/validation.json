@@ -16,9 +16,101 @@
     "passed": 11,
     "failed": 0
   },
-  "browserRevision": "Pending verification of the new test mode and hold interaction.",
+  "browserRevision": "Verified on the published V02.1 page",
   "physicalPhoneTest": false,
   "listeningValidated": false,
   "humanPlaytest": false,
-  "unityIntegration": false
+  "unityIntegration": false,
+  "browserVerification": {
+    "date": "2026-11-09",
+    "url": "https://nobletsylvain.github.io/prototypes/table-rd-v02/?mode=test",
+    "normalUrl": "https://nobletsylvain.github.io/prototypes/table-rd-v02/",
+    "publishedCommit": "2564ba8445453b54b127fa89d81dd26b586bf8e9",
+    "pullRequest": 235,
+    "pagesDeployment": "succeeded",
+    "method": "Automated interaction with a real browser; not a human playtest",
+    "observations": {
+      "holdAndResume": {
+        "initialHoldMs": 600,
+        "pausedProgressPercent": 40,
+        "pauseRetention": "Progress retained for several minutes",
+        "resumeHoldMs": 1100,
+        "revealedRarity": "rare",
+        "pointsAwardedPerParent": 1
+      },
+      "exclusiveUpgrade": {
+        "strain": "Aube",
+        "choice": "convergence",
+        "cost": 1,
+        "alternativeExcluded": true
+      },
+      "feedbackReplay": {
+        "actions": [
+          "replay discovery",
+          "replay upgrade"
+        ],
+        "strain": "Aube",
+        "countersUnchanged": true,
+        "available": 0,
+        "earned": 1,
+        "spent": 1
+      },
+      "assistedReveal": {
+        "revealedRarity": "exceptional",
+        "strain": "Aube",
+        "earnedAfterReveal": 2,
+        "spentAfterReveal": 1,
+        "pointsAndUpgradePersistAfterReload": true
+      },
+      "normalModeReturn": {
+        "panelTextExactlyEqualsBaseline": true,
+        "baselineTrial": "002",
+        "baselineTraits": [
+          "floral",
+          "rêverie"
+        ]
+      },
+      "testReset": {
+        "preparedRarity": "rare",
+        "phase": "inspected"
+      },
+      "narrowViewport": {
+        "requestedWidth": 390,
+        "requestedHeight": 844,
+        "layout": "vertical",
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalOverflow": false,
+        "input": "mouse",
+        "holdMs": 550,
+        "pausedProgressPercent": 37,
+        "physicalPhone": false,
+        "touchInputTested": false
+      },
+      "console": {
+        "errors": [],
+        "warnings": []
+      },
+      "finalState": {
+        "testSession": "Paused on the freshly prepared rare discovery",
+        "normalSession": "Preserved",
+        "viewport": "Restored"
+      }
+    },
+    "captures": [
+      {
+        "path": "checks/hold-mobile.jpg",
+        "sha256": "18bb42a3583a537e52d878ab4329de4fb60bd7c5b3200871c660f64dd679ad3f",
+        "viewed": true,
+        "description": "Narrow browser viewport with the test reveal paused at 37 percent"
+      }
+    ],
+    "limitations": [
+      "The narrow browser viewport is not a physical phone or a touch-input test.",
+      "No human playtest or listening assessment took place.",
+      "The keyboard path was not separately exercised in this browser walkthrough.",
+      "The walkthrough is not exhaustive coverage of all application states.",
+      "No Unity integration was performed."
+    ]
+  }
 }

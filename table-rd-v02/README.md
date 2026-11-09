@@ -1,4 +1,4 @@
-# Table de R&D — V02, essai rapide
+# Table de R&D — V02.1, essai rapide
 
 Une démo autonome pour choisir deux parents, obtenir un descendant, l’examiner en 3D puis faire progresser sa lignée. Préparée le 9 novembre 2026 pour **Au four, mon amour**, avant intégration Unity. V01 reste conservée séparément.
 
@@ -36,11 +36,15 @@ Profils, rareté, probabilités, budgets de prélèvement, branches, coûts, dur
 
 Identité, lot et goûts d’une clientèle restent distincts. Les boutures sont physiques et identifiées ; un pot est occupé puis libéré. La sauvegarde locale conserve l’essai dans ce navigateur sans synchronisation entre appareils. Une nouvelle session explicite réinitialise la démo.
 
-Le moteur de règles du mode normal est conservé à l’identique. **47 tests réussis, 0 échec** : 27 contrôles des règles V02, 14 sur la préparation forcée et 6 sur le maintien cumulatif. **11 contrôles audio avec contexte simulé réussissent** séparément. Ils ne constituent ni une revue navigateur ni une écoute validée.
+Le moteur de règles du mode normal est conservé à l’identique, octet pour octet. **47 tests réussis, 0 échec** : 27 contrôles des règles V02, 14 sur la préparation forcée et 6 sur le maintien cumulatif. Les sept modules embarqués passent le contrôle de syntaxe. **11 contrôles audio avec contexte simulé réussissent** séparément, sans constituer une écoute validée.
+
+**V02.1 publiée : parcours vérifié dans le navigateur.** Un maintien de 600 ms a atteint 40 %, conservés après plusieurs minutes de pause ; une reprise de 1100 ms a révélé une rare et crédité un point à chaque parent. Convergence a été acquise pour Aube, avec l’alternative exclue. Rejouer découverte ou amélioration n’a changé aucun compteur. Une exceptionnelle ouverte avec l’assistance a apporté le second point parental ; le gain et l’achat ont persisté au rechargement. Le retour au mode normal a retrouvé exactement le panneau témoin. Le reset du test a préparé une nouvelle rare à examiner.
+
+Dans un format navigateur de 390 × 844, la disposition passe à la verticale sans débordement horizontal mesuré. Un appui souris de 550 ms y a laissé la révélation en pause à 37 %. La capture ci-dessous a été regardée. Aucune erreur ou alerte console n’a été relevée sur le parcours. Ce format simulé ne constitue pas un essai sur téléphone physique.
 
 **Historique V02 avant cet ajout :** les cinq modules du fichier publié ont passé le contrôle de syntaxe. Les événements sonores ont été contrôlés avec un contexte simulé ; le cadrage des points blancs a été vérifié par projection sur six largeurs de 390 à 1440 px.
 
-Ce premier lien V02 a été vérifié dans un navigateur : choix parental, chances, engagement, loupe avant fiche, découverte ordinaire, nom, conservation, prélèvement et reprise de la descendante comme parent. Les chances rares observées sont passées de 20 % pour les deux fondatrices à 32 % pour la paire suivante, avec 78 % d’affinité. La vue à 390 × 844, les points blancs et une amélioration verrouillée ont été parcourus sans erreur ou alerte console relevée. Ce parcours n’a exécuté ni achat effectif ni révélation rare. **Il précède le mode test et le maintien de révélation**, dont la revue navigateur reste à effectuer.
+Ce premier lien V02 a été vérifié dans un navigateur : choix parental, chances, engagement, loupe avant fiche, découverte ordinaire, nom, conservation, prélèvement et reprise de la descendante comme parent. Les chances rares observées sont passées de 20 % pour les deux fondatrices à 32 % pour la paire suivante, avec 78 % d’affinité. La vue à 390 × 844, les points blancs et une amélioration verrouillée ont été parcourus sans erreur ou alerte console relevée. Ce parcours historique précède le mode test et le maintien de révélation ; les vérifications V02.1 sont rapportées séparément ci-dessus.
 
 Aucun essai humain, test sur téléphone physique, écoute validée ou intégration Unity n’est revendiqué.
 
@@ -48,6 +52,8 @@ Aucun essai humain, test sur téléphone physique, écoute validée ou intégrat
 
 Le spécimen utilise un modèle visuel partagé : son éclairage et sa signature varient, pas une nouvelle géométrie par lignée. Les sons sont synthétisés localement. Three.js est fourni sous licence MIT, incluse dans ce dossier.
 
-![Vue de recherche V02 avant le mode test et le maintien](checks/research-desktop.jpg)
+![V02.1 au format téléphone simulé : maintien en pause à 37 %](checks/hold-mobile.jpg)
+
+![Vue de recherche V02 avant le mode test et le maintien — capture historique](checks/research-desktop.jpg)
 
 [Passation Unity](handoff/PASSATION_UNITY.md) · [Sons provisoires](handoff/AUDIO.md)

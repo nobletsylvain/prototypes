@@ -1,4 +1,4 @@
-# Table de R&D — Passation V02 et mode test
+# Table de R&D — Passation V02.1 et mode test
 
 9 novembre 2026. Démonstration web autonome, avant toute intégration Unity. V01 reste conservée séparément. Cette passation décrit les contrats à préserver ; elle ne déclare aucun composant, import ou build Unity livré.
 
@@ -147,12 +147,30 @@ Recettes des autres produits, emplacements définitifs, économie complète, pri
 
 Contrôles exacts à reprendre : provenance des boutures, budget physique, débit unique, refus sans mutation, pot réutilisable, résultat fixe au rechargement, contexte de départ immuable, points uniques aux bons parents, achat exclusif atomique, gènes/lots inchangés, descendant conservé réutilisable, fiche après examen et export de présentation seulement.
 
-Le fichier du modèle normal est identique à celui de V02, vérifié par SHA-256 : `76d282ace8d5d828957029550ad51af038946558febc4aaad6222b16e882a259`. **47 tests réussis, 0 échec** : 27 pour le modèle conservé, 14 pour l’assistant de test et 6 pour le maintien. Les contrôles de l’assistant vérifient graines rares/exceptionnelles, préparation sans révélation, conservation des points/choix, refus sans mutation et budgets finis. Les contrôles du maintien vérifient pause/reprise, appuis répétés, conclusion unique, assistance équivalente aux reprises, reset et deltas invalides. Ces contrôles isolés ne valident pas encore l’intégration dans le navigateur.
+Le fichier du modèle normal est identique à celui de V02, octet pour octet, vérifié par SHA-256 : `76d282ace8d5d828957029550ad51af038946558febc4aaad6222b16e882a259`. **47 tests réussis, 0 échec** : 27 pour le modèle conservé, 14 pour l’assistant de test et 6 pour le maintien. Les contrôles de l’assistant vérifient graines rares/exceptionnelles, préparation sans révélation, conservation des points/choix, refus sans mutation et budgets finis. Les contrôles du maintien vérifient pause/reprise, appuis répétés, conclusion unique, assistance équivalente aux reprises, reset et deltas invalides. Les observations navigateur ci-dessous complètent ces contrôles isolés.
 
-**11 contrôles audio avec contexte simulé réussissent** séparément pour le cycle des voix et les ponctuations. Ils ne remplacent pas une écoute ou un contrôle du navigateur final. Le paquet autonome comprend désormais sept modules embarqués : modèle, traductions, audio, maintien, assistant de test, scène et application.
+**11 contrôles audio avec contexte simulé réussissent** séparément pour le cycle des voix et les ponctuations. Ils ne remplacent pas une écoute. Le paquet autonome comprend désormais sept modules embarqués : modèle, traductions, audio, maintien, assistant de test, scène et application ; tous passent le contrôle de syntaxe.
 
-Contrôles d’intégration encore attendus dans le navigateur : séparation des clés et absence d’import, préparation sans point, gain unique après maintien, pause/reprise, clavier/assistance, arrêt des sons de charge, répétition sans gain, archivage automatique et reset du seul bac à sable. Les résultats ne sont annoncés qu’après exécution.
+La V02.1 a été publiée sur GitHub Pages après fusion de la modification dédiée. Le parcours suivant a été exécuté dans un navigateur sur la version publiée :
 
-Avant cet ajout, le lien GitHub Pages V02 avait été ouvert après déploiement. Un parcours navigateur avait vérifié sélection, chances, engagement, examen avant fiche, révélation ordinaire, nom, conservation, prélèvement et réutilisation. La paire suivante affichait 32 % rare et 5 % exceptionnel avec 78 % d’affinité, contre 20 % et 5 % pour les fondatrices. Les points blancs et une voie verrouillée avaient été vérifiés à 390 × 844 et sur grand écran, sans erreur ou alerte console. Ce parcours ne comprenait ni achat ni révélation rare. Il reste une preuve de la version précédente, pas du nouvel essai rapide ou du maintien ; leur revue navigateur reste à effectuer.
+| Contrôle observé | Résultat |
+|---|---|
+| Maintien et pause | Appui de 600 ms : 40 % ; plusieurs minutes de pause sans perte ; reprise de 1100 ms : révélation rare |
+| Points de la rare | Un point pour chacun des deux parents |
+| Achat exclusif | Aube acquiert Convergence pour un point ; l’autre voie devient exclue |
+| Rejeu de découverte et d’amélioration | Compteurs Aube inchangés : 0 disponible, 1 gagné, 1 dépensé |
+| Assistance et exceptionnelle | Ouverture assistée d’une exceptionnelle ; Aube passe à 2 gagnés, 1 dépensé |
+| Persistance | Gain et amélioration encore présents après rechargement |
+| Retour au mode normal | Texte du panneau strictement égal au témoin initial : essai 002, floral/rêverie |
+| Reset du test | Nouvelle rare préparée sous la loupe, à examiner |
+| Format étroit | Réagencement vertical à 390 × 844 ; `scrollWidth = clientWidth = 375`, aucun débordement horizontal mesuré |
+| Maintien au format étroit | Interaction à la souris pendant 550 ms ; pause affichée à 37 %, capture enregistrée et regardée |
+| Console du parcours V02.1 | Aucune erreur et aucun avertissement relevés |
+
+La [capture de maintien au format étroit](../checks/hold-mobile.jpg) et le [relevé de validation](../checks/validation.json) documentent ce parcours. La session de test a été laissée en pause sur la nouvelle rare ; le viewport a été restauré et la session normale préservée.
+
+Ce parcours atteste les actions décrites, sans remplacer une revue exhaustive de tous les états. Il ne certifie pas à lui seul la commande clavier ni l’écoute et les interruptions sonores. Le format étroit est une simulation navigateur avec interaction souris, pas un téléphone physique ni un essai tactile.
+
+Avant cet ajout, le lien GitHub Pages V02 avait été ouvert après déploiement. Un parcours navigateur avait vérifié sélection, chances, engagement, examen avant fiche, révélation ordinaire, nom, conservation, prélèvement et réutilisation. La paire suivante affichait 32 % rare et 5 % exceptionnel avec 78 % d’affinité, contre 20 % et 5 % pour les fondatrices. Les points blancs et une voie verrouillée avaient été vérifiés à 390 × 844 et sur grand écran, sans erreur ou alerte console. Ce parcours reste une preuve historique distincte des vérifications V02.1 ci-dessus.
 
 Ces contrôles ne valident pas plaisir, écoute, confort tactile physique ou reconnaissance. Aucun essai humain, test sur téléphone physique ou intégration Unity n’est revendiqué ici. Le portage demande ses propres contrôles sur l’exécutable et son essai humain.
