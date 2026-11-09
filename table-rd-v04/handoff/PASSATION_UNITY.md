@@ -1,8 +1,8 @@
 # Table de R&D — Passation V04, qualité génétique et COA
 
-10 novembre 2026. Prototype web autonome **aux sources finalisées et contrôlées**, avant intégration au jeu ; revue navigateur à venir. Nouvelle URL et nouvelle carrière V04 ; V03 reste intacte. Aucun nouveau composant, import ou build Unity n’est déclaré livré.
+10 novembre 2026. Prototype web autonome **publié, parcouru dans le navigateur et contrôlé au format mobile**, avant intégration au jeu. Nouvelle URL et nouvelle carrière V04 ; V03 reste intacte. Aucun nouveau composant, import ou build Unity n’est déclaré livré.
 
-[Adresse V04 prévue](https://nobletsylvain.github.io/prototypes/table-rd-v04/) · [Mode test prévu](https://nobletsylvain.github.io/prototypes/table-rd-v04/?mode=test) · [V03 conservée](https://nobletsylvain.github.io/prototypes/table-rd-v03/)
+[Démo V04](https://nobletsylvain.github.io/prototypes/table-rd-v04/) · [Mode test](https://nobletsylvain.github.io/prototypes/table-rd-v04/?mode=test) · [V03 conservée](https://nobletsylvain.github.io/prototypes/table-rd-v03/)
 
 ## Décisions et réglages d’essai
 
@@ -105,10 +105,20 @@ Ce sont des contrats de portage proposés, pas des API Unity déjà livrées. Si
 
 Schéma 5, carrière neuve : les états V03 sont refusés, sans migration ou réinterprétation. Clés `botanical-table-v04` et `botanical-table-v04-test` séparées entre elles et des clés V03. La V03 publiée reste préservée. Historique de commandes et validation par rejeu ; persister avant les retours, refuser les données incohérentes et empêcher tout gain/débit partiel en cas d’erreur de sauvegarde.
 
-`createTestDiscovery(tier,previousState,rewardParentId)` prépare une issue admissible par les commandes ordinaires. Les exemples de qualité sont 19/39/54/69/80 pour les cinq premiers paliers. Legendary prépare un relais Y × Z de qualité 89, réellement révélé et conservé, puis son enfant avec Z de qualité 100, arrêté à `inspected`. `setupTrialIds/setupLabels` exposent les étapes préparées ; les points du relais proviennent de sa vraie révélation, le résultat final n’a encore attribué aucun point. Aucune modification des chances normales ou injection gratuite de points. Le parcours final du helper reste à vérifier dans l’interface.
+`createTestDiscovery(tier,previousState,rewardParentId)` prépare une issue admissible par les commandes ordinaires. Dans une carrière neuve, les exemples de qualité sont 19/39/54/69/80 pour les cinq premiers paliers ; une session poursuivie peut utiliser des descendants conservés et obtenir une autre qualité du même palier. Legendary prépare un relais Y × Z de qualité 89, réellement révélé et conservé, puis son enfant avec Z de qualité 100, arrêté à `inspected`. `setupTrialIds/setupLabels` exposent les étapes préparées ; les points du relais proviennent de sa vraie révélation, le résultat final n’a encore attribué aucun point. Aucune modification des chances normales ou injection gratuite de points. Les six paliers ont été parcourus dans l’interface publiée.
 
 ## Vérification et limites
 
-**Preuves finales des sources V04 : 146 tests réussis, zéro échec, puis 146/146 sur les sources exportées.** Cela comprend les contrôles du modèle, de la qualité, des préparations, de l’héritage visuel, des retours, du journal et du COA. Les 19 modules du paquet passent les contrôles de syntaxe et d’imports. La relecture indépendante ne relève aucun blocage. La revue navigateur reste à faire après publication ; les captures V03 restent historiques. Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est déclaré.
+**Preuves des sources V04 : 146 tests réussis, zéro échec, puis 146/146 sur les sources exportées.** Modèle, qualité, préparations, héritage visuel, retours, journal et COA contrôlés ; syntaxe et imports des 19 modules vérifiés. La relecture indépendante ne relève aucun blocage.
+
+La revue navigateur a porté sur la [PR 294](https://github.com/nobletsylvain/prototypes/pull/294), commit `f7bdc5ffd17a00d7beb4c38f0e602d660fba9b3f`, paquet SHA-256 `4862706fb9c52469a21e1afacdd4eefe2ef97c5fd2677c151286ec8f49eaa63f` :
+
+- Six paliers vus à 19/39/47/69/80/100 dans une session test continue ; le 47 emploie un descendant conservé, sans remplacer le 54 de l’exemple neuf.
+- Rare : 750 ms de maintien, pause conservée à 36 %, puis reprise de 1 550 ms et révélation à 69. Legendary : pause à 88 % après 1 840 ms, indice Épique et halo observés, puis conclusion Légendaire à 100.
+- COA ouvert et export SVG téléchargé. Arbre de dix entrées : recherche « légendaire » puis filtre de palier donnent chacun une correspondance sur dix et surlignent les ancêtres. Le clic sur Y ouvre ses emplacements ; activer Ramification fait passer le point disponible de 1 à 0, avec un emplacement occupé sur cinq.
+- Le mode normal conserve neuf boutures après les essais test. Un résultat normal de qualité 58 reste identique après rechargement avant et après révélation ; le journal non révélé garde ses données cachées.
+- Au format 390 × 844 : largeur cliente/défilante de page 375/375 px, COA 326/326 px ; aucun débordement horizontal mesuré. Console : zéro avertissement et zéro erreur.
+
+La correction CSS des parents du COA mobile est publiée par la [PR 295](https://github.com/nobletsylvain/prototypes/pull/295), commit `019b78682770c38b6e04f212109da5f35e66f8b6`, paquet SHA-256 `d50af268ed9c7be36c81a1edc6c16ce10379576e0d6f208a03fa261dd150e9dc`. Sa relecture ciblée confirme une colonne de parents, largeurs cliente/défilante 249/249 px et console sans erreur ni avertissement. Elle complète le parcours initial sans prétendre le répéter intégralement ; aucun changement du modèle de jeu. Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est déclaré ; les captures V03 restent historiques.
 
 Contrôles exacts : six seuils, allocation entière, exclusion sans écrêtage, graines indépendantes, qualité stable, aucune fuite avant fiche, +1 unique aux bons parents à partir de 60, activation exacte, provenance/débits, refus sans mutation, patrimoine et lot inchangés, carrières séparées. Le COA doit distinguer génétique/lot et patrimoine/activation. Le plaisir et la lisibilité des six révélations restent à juger par le propriétaire.

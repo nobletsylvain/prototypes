@@ -60,6 +60,8 @@ Le mode test et le mode normal restent séparés. Les replays d’une révélati
 
 Préparer Legendary peut créer un relais Y × Z de qualité 89, réellement révélé/conservé, puis le croiser avec Z pour préparer une qualité 100. Ses ressources et points sont tracés dans le carnet ; la cible finale attend sa révélation. Ce montage annoncé ne représente pas une fréquence naturelle.
 
-**Contrôles finaux des sources V04 : 146 tests réussis, zéro échec, puis 146/146 sur les sources exportées ; syntaxe et imports des 19 modules du paquet vérifiés.** Ce total ne constitue pas une écoute ou une preuve de ressenti sonore. La revue navigateur V04 reste à faire après publication ; portage Unity et anciennes preuves V03 sont distincts.
+**Contrôles des sources V04 : 146 tests réussis, zéro échec, puis 146/146 sur les sources exportées ; syntaxe et imports des 19 modules du paquet vérifiés.** Ce total ne constitue pas une écoute ou une preuve de ressenti sonore.
+
+Le parcours navigateur public a montré les six paliers et la pause/reprise : Rare à 36 % puis conclusion à 69, Legendary à 88 % avec indice Épique et halo puis conclusion à 100. Le COA, l’arbre et l’activation ont été parcourus ; la console reste sans erreur ni avertissement. La disposition corrigée des parents du COA mobile a également été relue après publication. **Les sons n’ont pas été écoutés.** Aucun confort tactile réel, téléphone physique ou portage Unity n’est validé par cette revue.
 
 À éprouver : distinction des six conclusions, clarté du passage des indices à la découverte, audibilité des gestes, arrêt lors des interruptions, répétition et fatigue. Comparer le même état en Expressif/Discret, avec réduction des mouvements et sans son. Aucun téléphone physique ni essai humain déclaré. Une future banque devra conserver licence, originaux, variantes et verdict d’écoute. Le portage utilise les interfaces publiques du système de retours du projet, sans modifier les sources fournisseur.
