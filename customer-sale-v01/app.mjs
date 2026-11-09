@@ -1,12 +1,12 @@
-import { CATALOG, createSession, dispatch, tick, getView, verify } from './model.mjs?v=20261109b';
-import { SaleScene } from './scene.mjs?v=20261109b';
-import { SaleAudio } from './audio.mjs?v=20261109b';
+import { CATALOG, createSession, dispatch, tick, getView, verify } from './model.mjs?v=20261109c';
+import { SaleScene } from './scene.mjs?v=20261109c';
+import { SaleAudio } from './audio.mjs?v=20261109c';
 
 const $ = id => document.getElementById(id);
-const dictionaries = await fetch('./texts.json?v=20261109b').then(response => { if (!response.ok) throw new Error('Text table unavailable'); return response.json(); });
+const dictionaries = await fetch('./texts.json?v=20261109c').then(response => { if (!response.ok) throw new Error('Text table unavailable'); return response.json(); });
 let language = 'fr', enhanced = true, muted = false, running = false;
 let focused = document.hasFocus ? document.hasFocus() : true;
-let state = createSession('normal'), toastUntil = 0, lastFrame = performance.now(), pointer = null, controlsStamp = '';
+let state = createSession('normal'), toastUntil = 0, lastFrame = performance.now(), pointer = null, controlsStamp = '', lastFeedback = null;
 const audio = new SaleAudio();
 const scene = new SaleScene($('world'), { onContact: event => audio.play(event.type) });
 const t = key => dictionaries[language][key] || dictionaries[language]['no-action'];
@@ -18,12 +18,21 @@ function act(action, silent = false) {
   const result = dispatch(state, action);
   if (result.ok) {
     verify(state);
-    scene.pulse(result.event);
+    scene.pulse(action.type === 'cancel' || action.type === 'refuse' ? 'declined' : result.event);
     if (!['drop', 'giveProduct', 'giveBill', 'confirm'].includes(action.type)) audio.play(result.event);
-    if (action.type === 'confirm') showToast(`${t('sale')} +${money(state.sales.at(-1).price)}`);
+    if (action.type === 'talk') lastFeedback = null;
+    if (action.type === 'confirm') {
+      lastFeedback = state.sales.at(-1);
+      showToast(lastFeedback.changeError > 0 ? t('extraChangeNotice').replace('{amount}', money(lastFeedback.changeError)) : `${t('sale')} +${money(lastFeedback.actualRevenue)}`);
+    }
     else if (result.event === 'declined') showToast(t('declined'));
     else if (action.type === 'cancel') showToast(t('cancelled'));
-  } else if (!silent) { const aliases = {'payment-not-exact':'wrong-change','hand-occupied':'hand-full','price-out-of-range':'invalid-price'}; showToast(t(aliases[result.reason] || result.reason)); audio.play('error'); }
+  } else if (!silent) {
+    const aliases = {'payment-not-exact':'wrong-change','hand-occupied':'hand-full','price-out-of-range':'invalid-price'};
+    const view = getView(state);
+    const reason = action.type === 'confirm' && !view.matches ? 'wrong-products' : action.type === 'confirm' && !view.budgetAccepted ? 'priceTooHigh' : aliases[result.reason] || result.reason;
+    showToast(t(reason)); audio.play('error');
+  }
   render();
   return result;
 }
@@ -61,6 +70,22 @@ function render() {
   $('payment').hidden = !payment;
   $('received').textContent = money(view.received); $('due').textContent = money(view.due); $('returned').textContent = money(view.returned);
   $('returned').classList.toggle('exact', view.exact);
+  $('returned').classList.toggle('extra', view.returned > view.due);
+  $('changeNotice').hidden = !payment || view.returned <= view.due;
+  $('changeNotice').textContent = t('extraChangeWarning').replace('{amount}', money(Math.max(0, view.returned - view.due)));
+  $('saleFeedback').hidden = !running || !lastFeedback || payment;
+  if (lastFeedback) {
+    const customer = state.clients.find(client => client.id === lastFeedback.customerId);
+    const extra = lastFeedback.changeError > 0;
+    $('feedbackTitle').textContent = `${customer?.name || ''} · ${t(extra ? 'veryHappy' : 'happy')}`;
+    $('productImpact').textContent = '↑';
+    $('serviceImpact').textContent = extra ? '↑↑' : '↑';
+    $('loyaltyImpact').textContent = extra ? '↑↑' : '↑';
+    $('feedbackReason').textContent = t(extra ? 'generousService' : 'goodService');
+    $('feedbackError').hidden = !extra;
+    $('feedbackError').textContent = t('extraChangeNotice').replace('{amount}', money(lastFeedback.changeError));
+    $('actualRevenue').textContent = `${t('netRevenue')} ${money(lastFeedback.actualRevenue)}`;
+  }
   $('price').hidden = !edit || !view.tray.length;
   $('priceValue').textContent = money(state.offerPrice);
   $('minus').disabled = state.offerPrice <= 5 || !!state.dragId;
@@ -98,7 +123,7 @@ $('minus').onclick = () => act({ type: 'adjustPrice', delta: -5 });
 $('plus').onclick = () => act({ type: 'adjustPrice', delta: 5 });
 $('collect').onclick = () => { const item = getView(state).receipts[0]; if (item) act({type:'collect',id:item.id}); };
 $('stow').onclick = () => act({type:'stow'});
-$('start').onclick = async () => { await audio.unlock(); state = createSession($('scenario').value); running = true; $('intro').hidden = true; $('help').hidden = true; pointer = null; lastFrame = performance.now(); scene.pulse('reset'); render(); };
+$('start').onclick = async () => { await audio.unlock(); state = createSession($('scenario').value); lastFeedback = null; running = true; $('intro').hidden = true; $('help').hidden = true; pointer = null; lastFrame = performance.now(); scene.pulse('reset'); render(); };
 $('sound').onclick = async () => { await audio.unlock(); muted = !muted; audio.setMuted(muted); $('sound').textContent = muted ? '♪ ×' : '♪'; $('sound').title = t(muted ? 'muted' : 'soundOn'); };
 $('feel').onclick = () => { enhanced = !enhanced; audio.setEnhanced(enhanced); scene.setEnhanced(enhanced); $('feel').textContent = t(enhanced ? 'feel' : 'plain'); };
 $('language').onclick = () => { language = language === 'fr' ? 'en' : 'fr'; updateLanguage(); };

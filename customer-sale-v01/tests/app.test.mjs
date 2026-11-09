@@ -344,7 +344,7 @@ test('hand and price refusal aliases provide their specific explanations', async
   assert.equal(app.audio.events.at(-1), 'error');
 });
 
-test('a normal overpayment stays red and is recoverable through a real click handler', async context => {
+test('excess change is marked as extra and can still be taken back before confirmation', async context => {
   const app = await boot(context);
   prepare(app);
   app.click('helpButton');
@@ -352,12 +352,51 @@ test('a normal overpayment stays red and is recoverable through a real click han
   app.click('closeHelp');
   assert.equal(app.view.returned, 50);
   assert.equal(app.elements.get('returned').classList.contains('exact'), false);
-  assert.equal(app.elements.get('primary').disabled, true);
+  assert.equal(app.elements.get('primary').disabled, false);
+  assert.equal(app.elements.get('returned').classList.contains('extra'), true);
+  assert.equal(app.elements.get('changeNotice').textContent, 'Vous allez rendre 25 € en trop.');
   const bill = app.view.change[0];
   app.pointer('pointerdown', { ...bill });
   app.pointer('pointerup');
   assert.equal(app.view.returned, 0);
   assert.equal(bill.location, 'fund');
+});
+
+test('confirmed excess change reports its real cost and an extra service and loyalty benefit', async context => {
+  const app = await boot(context);
+  prepare(app);
+  addChangeWithHelper(app, [20, 10]);
+  app.click('primary');
+  assert.equal(app.state.sales[0].agreedPrice, 25);
+  assert.equal(app.state.sales[0].actualRevenue, 20);
+  assert.equal(app.elements.get('toast').textContent, 'Erreur de monnaie : 5 € rendus en trop.');
+  assert.equal(app.elements.get('saleFeedback').hidden, false);
+  assert.equal(app.elements.get('feedbackTitle').textContent, `Julien · ${texts.fr.veryHappy}`);
+  assert.equal(app.elements.get('productImpact').textContent, '↑');
+  assert.equal(app.elements.get('serviceImpact').textContent, '↑↑');
+  assert.equal(app.elements.get('loyaltyImpact').textContent, '↑↑');
+  assert.equal(app.elements.get('actualRevenue').textContent, 'Recette réelle : 20 €');
+  assert.equal(app.scene.pulses.at(-1), 'sale-happy');
+  app.frames(4400);
+  assert.equal(app.state.currentId, 'customer-2');
+  assert.equal(app.elements.get('saleFeedback').hidden, false);
+  assert.equal(app.elements.get('feedbackTitle').textContent, `Julien · ${texts.fr.veryHappy}`);
+  app.key('e');
+  assert.equal(app.elements.get('saleFeedback').hidden, true);
+});
+
+test('the outcome translates without changing its ledger and distinguishes a cash loss', async context => {
+  const app = await boot(context);
+  prepare(app);
+  addChangeWithHelper(app, [100]);
+  app.click('primary');
+  assert.equal(app.elements.get('actualRevenue').textContent, 'Recette réelle : -50 €');
+  const before = app.snapshot();
+  app.click('language');
+  assert.equal(app.snapshot(), before);
+  assert.equal(app.elements.get('feedbackTitle').textContent, `Julien · ${texts.en.veryHappy}`);
+  assert.equal(app.elements.get('feedbackError').textContent, 'Change error: 75 € given too much.');
+  assert.equal(app.elements.get('actualRevenue').textContent, 'Actual revenue: -50 €');
 });
 
 test('the request reveals presented money and permits change before the product', async context => {
@@ -375,6 +414,18 @@ test('the request reveals presented money and permits change before the product'
   app.click('primary');
   assert.equal(app.state.sales.length, 1);
   assert.equal(app.state.objects.find(item => item.id === 'payment-1').location, 'fund');
+});
+
+test('a mismatched product reports the product problem without claiming missing change', async context => {
+  const app = await boot(context);
+  app.key('e');
+  app.key('1');
+  addChangeWithHelper(app, [5]);
+  assert.equal(app.view.returned, app.view.due);
+  const before = app.snapshot();
+  app.key(' ');
+  assert.equal(app.snapshot(), before);
+  assert.equal(app.elements.get('toast').textContent, texts.fr['wrong-products']);
 });
 
 test('language and feedback controls do not change any owned object or sale', async context => {

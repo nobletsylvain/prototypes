@@ -65,8 +65,8 @@ test('one direct confirmation exchanges exact sachet and note identities without
   change(state);
   const changeIds = getView(state).change.map(bill => bill.id);
   assert.equal(getView(state).canConfirm, true);
-  assert.equal(accepted(state, 'confirm').event, 'sale-to-fund');
-  assert.deepEqual(state.sales[0], { customerId: 'customer-1', price: 25, productIds: [productId], paymentIds: ['payment-1'], changeIds });
+  assert.equal(accepted(state, 'confirm').event, 'sale-happy');
+  assert.deepEqual(state.sales[0], { customerId: 'customer-1', price: 25, agreedPrice: 25, actualRevenue: 25, received: 50, returned: 25, changeError: 0, feedback: { emotion: 'happy', product: 'positive', service: 'positive', loyalty: 'up' }, productIds: [productId], paymentIds: ['payment-1'], changeIds });
   assert.equal(state.objects.find(item => item.id === 'payment-1').location, 'fund');
   assert.equal(state.objects.find(item => item.id === productId).location, 'client:customer-1');
   assert.ok(changeIds.every(id => state.objects.find(item => item.id === id).location === 'client:customer-1'));
@@ -105,14 +105,87 @@ test('underpayment is rejected without changing any transaction field', () => {
   unchanged(state, 'confirm');
 });
 
-test('overpayment is incorrect and a click returns the exact note', () => {
+test('overpayment remains visibly inexact but confirmable, and a click can still return the note', () => {
   const state = prepare();
   accepted(state, 'giveBill', { denomination: 50 });
   const bill = getView(state).change[0];
   assert.equal(getView(state).exact, false);
-  unchanged(state, 'confirm');
+  assert.equal(getView(state).canConfirm, true);
   accepted(state, 'retake', { id: bill.id });
   assert.equal(bill.location, 'fund');
+  assert.equal(getView(state).canConfirm, false);
+});
+
+test('five euros of extra change lower real revenue and produce a qualitative client bonus', () => {
+  const state = prepare();
+  accepted(state, 'giveBill', { denomination: 20 });
+  accepted(state, 'giveBill', { denomination: 10 });
+  assert.equal(getView(state).due, 25);
+  assert.equal(getView(state).returned, 30);
+  assert.equal(getView(state).changeError, 5);
+  assert.equal(getView(state).canConfirm, true);
+  const beforeIds = state.objects.map(item => item.id);
+  assert.equal(accepted(state, 'confirm').event, 'sale-happy');
+  const sale = state.sales[0];
+  assert.deepEqual([sale.agreedPrice, sale.received, sale.returned, sale.changeError, sale.actualRevenue, sale.price], [25, 50, 30, 5, 20, 20]);
+  assert.deepEqual(sale.feedback, { emotion: 'happy', product: 'positive', service: 'very-positive', loyalty: 'up-extra' });
+  assert.deepEqual(getView(state).feedback, sale.feedback);
+  assert.equal(getView(state).lastSale, sale);
+  assert.equal(sumFund(state), 1130);
+  assert.deepEqual(state.objects.map(item => item.id), beforeIds);
+  assert.equal(verify(state).money, 1510);
+});
+
+test('very large extra change is accounted as negative revenue without creating or deleting money', () => {
+  const state = prepare(createSession('full-hand'));
+  accepted(state, 'giveBill', { denomination: 100 });
+  const outgoingId = getView(state).change[0].id;
+  accepted(state, 'confirm');
+  assert.deepEqual([state.sales[0].agreedPrice, state.sales[0].actualRevenue, state.sales[0].changeError], [25, -50, 75]);
+  assert.equal(state.objects.find(item => item.id === outgoingId).location, 'client:customer-1');
+  assert.equal(state.objects.find(item => item.id === 'payment-1').location, 'fund');
+  assert.equal(state.objects.find(item => item.id === 'demo-parcel').location, 'hand');
+  assert.equal(sumFund(state), 1060);
+  assert.deepEqual(verify(state), { ok: true, objects: 79, money: 1510, grams: 168, sales: 1 });
+});
+
+test('overpayment confirmation and its feedback happen once even under repeated activation', () => {
+  const state = prepare(); accepted(state, 'giveBill', { denomination: 50 }); accepted(state, 'confirm');
+  const before = snapshot(state);
+  unchanged(state, 'confirm');
+  assert.equal(snapshot(state), before);
+  assert.equal(state.sales.length, 1);
+  assert.equal(state.sales[0].actualRevenue, 0);
+  assert.equal(state.clients[0].feedback.loyalty, 'up-extra');
+});
+
+test('extra money never authorizes a wrong product or an unaffordable price', () => {
+  const wrong = request();
+  accepted(wrong, 'giveProduct', { slot: 0 }); accepted(wrong, 'giveBill', { denomination: 100 });
+  unchanged(wrong, 'confirm');
+  const expensive = request(createSession('hesitation'));
+  accepted(expensive, 'giveProduct', { slot: 1 }); accepted(expensive, 'giveBill', { denomination: 100 });
+  unchanged(expensive, 'confirm');
+  assert.equal(wrong.sales.length, 0);
+  assert.equal(expensive.sales.length, 0);
+});
+
+test('normal sales retain positive feedback without an extra-change bonus', () => {
+  const state = prepare(); sell(state);
+  assert.deepEqual(getView(state).feedback, { emotion: 'happy', product: 'positive', service: 'positive', loyalty: 'up' });
+  assert.equal(state.sales[0].changeError, 0);
+  advance(state);
+  assert.equal(getView(state).feedback, null);
+  assert.equal(state.clients[0].feedback.loyalty, 'up');
+  assert.equal(state.clients[0].status, 'served');
+});
+
+test('sale verification detects a false nominal price, cash revenue or feedback', () => {
+  for (const corrupt of [sale => sale.agreedPrice++, sale => sale.actualRevenue++, sale => sale.changeError++, sale => sale.received++, sale => sale.returned++, sale => { sale.feedback.loyalty = 'up'; }]) {
+    const state = prepare(); accepted(state, 'giveBill', { denomination: 50 }); accepted(state, 'confirm');
+    corrupt(state.sales[0]);
+    assert.throws(() => verify(state));
+  }
 });
 
 test('double confirmation cannot duplicate the automatic deposit', () => {
@@ -126,7 +199,7 @@ test('double confirmation cannot duplicate the automatic deposit', () => {
 
 test('an occupied hand does not block automatic cash storage or displace the held prop', () => {
   const state = prepare(createSession('full-hand'));
-  assert.equal(sell(state).event, 'sale-to-fund');
+  assert.equal(sell(state).event, 'sale-happy');
   assert.equal(state.objects.find(item => item.id === 'payment-1').location, 'fund');
   assert.equal(state.objects.find(item => item.id === 'demo-parcel').location, 'hand');
   assert.equal(getView(state).receipts.length, 0);
@@ -281,7 +354,7 @@ test('a player can solve the budget concern and directly confirm the new price',
   assert.equal(state.offerPrice, 20);
   assert.equal(getView(state).due, 30);
   assert.equal(state.agreement, null);
-  assert.equal(sell(state).event, 'sale-to-fund');
+  assert.equal(sell(state).event, 'sale-happy');
   assert.equal(state.sales[0].price, 20);
   assert.equal(sumFund(state), 1130);
 });
@@ -311,7 +384,7 @@ test('optional proposal agreement moves no money or products', () => {
   accepted(state, 'propose');
   assert.equal(state.phase, 'payment');
   assert.deepEqual(state.objects.map(item => [item.id, item.location]), before);
-  assert.equal(accepted(state, 'confirm').event, 'sale-to-fund');
+  assert.equal(accepted(state, 'confirm').event, 'sale-happy');
 });
 
 test('changing an optional agreement price preserves money and requires the new correct change', () => {

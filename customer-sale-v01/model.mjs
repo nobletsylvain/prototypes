@@ -63,16 +63,19 @@ export function getView(state) {
   const returned = sum(located(state, 'change'));
   const outstandingReceipts = state.objects.filter(item => item.kind === 'bill' && ['hand', 'receipt'].includes(item.location));
   const exact = editablePhases.has(state.phase) && due >= 0 && returned === due;
+  const changeAllowed = editablePhases.has(state.phase) && due >= 0 && returned >= due;
   const matches = !!current && matchesRequest(tray, current.request);
   const budgetAccepted = !!current && effectivePrice > 0 && effectivePrice <= current.budget;
   const paymentAvailable = !!paymentBills.length && paymentBills.every(bill => bill.location === `customer:${current.id}`);
   return {
     current, request: state.phase === 'approach' ? null : current?.request || null,
-    normalPrice, requestPrice, effectivePrice, paymentBills, received, due, returned, exact, matches, budgetAccepted,
+    normalPrice, requestPrice, effectivePrice, paymentBills, received, due, returned, exact, changeError: returned - due, matches, budgetAccepted,
+    feedback: current?.feedback || null,
+    lastSale: state.sales.at(-1) || null,
     handFull: located(state, 'hand').length > 0,
     queueCount: state.queue.length,
     outstandingReceipts,
-    canConfirm: exact && matches && budgetAccepted && effectivePrice <= normalPrice && !state.dragId && paymentAvailable && current.status === 'active',
+    canConfirm: changeAllowed && matches && budgetAccepted && effectivePrice <= normalPrice && !state.dragId && paymentAvailable && current.status === 'active',
     slots: CATALOG.map(item => located(state, `slot:${item.key}`)),
     fund: located(state, 'fund'), tray, change: located(state, 'change'),
     hand: located(state, 'hand'), receipts: located(state, 'receipt'),
@@ -243,11 +246,17 @@ export function dispatch(state, action) {
       for (const product of located(state, 'tray')) product.location = `client:${current.id}`;
       for (const bill of change) bill.location = `client:${current.id}`;
       for (const bill of incoming) bill.location = 'fund';
-      state.sales.push({ customerId: current.id, price: state.agreement.price, productIds, paymentIds: [...current.paymentIds], changeIds: change.map(bill => bill.id) });
+      const agreedPrice = state.agreement.price;
+      const received = sum(incoming), returned = sum(change);
+      const actualRevenue = received - returned;
+      const changeError = returned - (received - agreedPrice);
+      const feedback = { emotion: 'happy', product: 'positive', service: changeError > 0 ? 'very-positive' : 'positive', loyalty: changeError > 0 ? 'up-extra' : 'up' };
+      state.sales.push({ customerId: current.id, price: actualRevenue, agreedPrice, actualRevenue, received, returned, changeError, feedback, productIds, paymentIds: [...current.paymentIds], changeIds: change.map(bill => bill.id) });
+      current.feedback = { ...feedback };
       current.status = 'served';
       state.phase = 'receipt';
       state.receiptAge = 0;
-      event = 'sale-to-fund';
+      event = 'sale-happy';
       break;
     }
     case 'collect':
@@ -330,8 +339,14 @@ export function verify(state) {
     if (!allowed.includes(item.location) && !clientLocation && !paymentLocation) throw new Error('Invalid object location');
   }
   for (const sale of state.sales) {
-    const price = sum(state.objects.filter(item => sale.paymentIds.includes(item.id))) - sum(state.objects.filter(item => sale.changeIds.includes(item.id)));
-    if (price !== sale.price) throw new Error('Sale value mismatch');
+    const received = sum(state.objects.filter(item => sale.paymentIds.includes(item.id)));
+    const returned = sum(state.objects.filter(item => sale.changeIds.includes(item.id)));
+    if (received !== sale.received || returned !== sale.returned) throw new Error('Sale note totals mismatch');
+    if (received - returned !== sale.actualRevenue || sale.price !== sale.actualRevenue) throw new Error('Actual sale revenue mismatch');
+    if (sale.changeError !== returned - (received - sale.agreedPrice) || sale.agreedPrice - sale.changeError !== sale.actualRevenue) throw new Error('Agreed price and change discrepancy mismatch');
+    if (sale.changeError < 0) throw new Error('Missing change cannot be confirmed');
+    const expectedFeedback = { emotion: 'happy', product: 'positive', service: sale.changeError > 0 ? 'very-positive' : 'positive', loyalty: sale.changeError > 0 ? 'up-extra' : 'up' };
+    if (JSON.stringify(sale.feedback) !== JSON.stringify(expectedFeedback)) throw new Error('Sale feedback does not match the delivered change');
     if (sale.productIds.some(id => !state.objects.some(item => item.id === id && item.location === `client:${sale.customerId}`))) throw new Error('Sold product moved');
   }
   return { ok: true, objects: state.objects.length, money: state.initialMoney, grams: state.initialGrams, sales: state.sales.length };
