@@ -1,0 +1,22 @@
+{
+  "version": "table-rd-v04",
+  "schema": 5,
+  "visualVersion": 1,
+  "date": "2026-11-10",
+  "tests": {
+    "total": 146,
+    "passed": 146,
+    "failed": 0,
+    "skipped": 0,
+    "command": "node --test tests/*.test.mjs"
+  },
+  "embeddedModules": 19,
+  "moduleSyntax": "passed",
+  "namedImports": "passed",
+  "publishedHtmlSha256": "4862706fb9c52469a21e1afacdd4eefe2ef97c5fd2677c151286ec8f49eaa63f",
+  "browserRevision": "Genetic quality tiers and held reveal pending browser review",
+  "physicalPhoneTest": false,
+  "listeningValidated": false,
+  "humanPlaytest": false,
+  "unityIntegration": false
+}
