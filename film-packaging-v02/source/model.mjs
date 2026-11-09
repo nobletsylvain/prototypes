@@ -47,7 +47,7 @@ function createScenario(scenario) {
     addPile('pile-a250', 'slabsLarge', Array.from({ length: 4 }, (_, i) => slab('A', 250000, i + 1)), 2);
     addPile('pile-b100', 'slabsOther', Array.from({ length: 3 }, (_, i) => slab('B', 100000, i + 1)), 3);
   } else if (scenario === 'liasses') {
-    const entries = Array.from({ length: 6 }, (_, index) => {
+    const entries = Array.from({ length: 32 }, (_, index) => {
       const id = `cash-bundle-${String(index + 1).padStart(2, '0')}`;
       const denomination = [1000, 2000, 5000][index % 3];
       const bills = Array.from({ length: 10 }, (_, i) => ({
@@ -136,6 +136,7 @@ export class Workshop {
     if (!pile.itemIds.length) return fail('empty-pile');
     const first = state.items[state.handIds[0]];
     if (first?.kind === 'slab' && state.handIds.length >= 30) return fail('slab-limit');
+    if (first?.kind === 'cashBundle' && state.handIds.length >= 30) return fail('cash-limit');
     const index = pile.itemIds.findIndex(id => !this.#compatibility(state.items[id], first));
     if (index < 0) return fail(this.#compatibility(state.items[pile.itemIds[0]], first));
     const itemId = pile.itemIds[index];
@@ -170,6 +171,7 @@ export class Workshop {
     if (!state.handIds.length) return fail('empty-selection');
     const first = state.items[state.handIds[0]];
     if (first.kind === 'slab' && state.handIds.length > 30) return fail('slab-limit');
+    if (first.kind === 'cashBundle' && state.handIds.length > 30) return fail('cash-limit');
     for (const id of state.handIds) {
       const reason = this.#compatibility(state.items[id], first);
       if (reason) return fail(reason);

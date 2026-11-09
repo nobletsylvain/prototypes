@@ -61,7 +61,7 @@ export class WorkshopView {
   dimensions(item){return item.kind==='slab'?[.102,item.formatMg===250000?.046:.019,.182]:item.kind==='cashBundle'?[.143,.02,.069]:[.085,.066,.13];}
   contentLayout(ids,state){
     if(!ids.length)return {positions:[],size:[0,0,0],stackCount:0};
-    const item=state.items[ids[0]],d=this.dimensions(item),vertical=item.kind==='slab'&&item.formatMg===100000;
+    const item=state.items[ids[0]],d=this.dimensions(item),vertical=(item.kind==='slab'&&item.formatMg===100000)||item.kind==='cashBundle';
     const stackCount=vertical?Math.ceil(ids.length/5):0;
     const cols=vertical?Math.min(3,stackCount):ids.length>10?3:ids.length>3?2:1;
     const rows=vertical?Math.ceil(stackCount/cols):ids.length>6?2:1;
@@ -80,7 +80,7 @@ export class WorkshopView {
       m.position.set(...layout.positions[i]);m.userData.itemId=id;g.add(m);m.updateMatrixWorld(true);
       const bounds=new THREE.Box3().setFromObject(m),key=`${m.position.x.toFixed(6)},${m.position.z.toFixed(6)}`;
       let column=columns.get(key);
-      if(!column){column={x:m.position.x,z:m.position.z,stepX:d[0],stepZ:d[2],minX:Infinity,maxX:-Infinity,minZ:Infinity,maxZ:-Infinity,bottom:Infinity,top:-Infinity};columns.set(key,column);}
+      if(!column){column={x:m.position.x,z:m.position.z,stepX:d[0],stepZ:d[2],maxBevel:item.kind==='cashBundle'?.001:.003,minX:Infinity,maxX:-Infinity,minZ:Infinity,maxZ:-Infinity,bottom:Infinity,top:-Infinity};columns.set(key,column);}
       column.minX=Math.min(column.minX,bounds.min.x);column.maxX=Math.max(column.maxX,bounds.max.x);
       column.minZ=Math.min(column.minZ,bounds.min.z);column.maxZ=Math.max(column.maxZ,bounds.max.z);
       column.bottom=Math.min(column.bottom,bounds.min.y);column.top=Math.max(column.top,bounds.max.y);
@@ -101,7 +101,7 @@ export class WorkshopView {
       const x0=west?(west.x+column.x)/2:column.minX-margin,x1=east?(east.x+column.x)/2:column.maxX+margin;
       const z0=north?(north.z+column.z)/2:column.minZ-margin,z1=south?(south.z+column.z)/2:column.maxZ+margin;
       const top=column.top+margin;
-      const bevel=Math.min(.003,(x1-x0)*.08,(z1-z0)*.08);
+      const bevel=Math.min(column.maxBevel??.003,(x1-x0)*.08,(z1-z0)*.08);
       const nw=!north&&!west?bevel:0,ne=!north&&!east?bevel:0,se=!south&&!east?bevel:0,sw=!south&&!west?bevel:0;
       const polygon=[[x0+nw,z0],[x1-ne,z0],[x1,z0+ne],[x1,z1-se],[x1-se,z1],[x0+sw,z1],[x0,z1-sw],[x0,z0+nw]]
         .filter((point,index,array)=>index===0||point[0]!==array[index-1][0]||point[1]!==array[index-1][1]);
