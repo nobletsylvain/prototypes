@@ -27,7 +27,12 @@ function act(action, silent = false) {
     }
     else if (result.event === 'declined') showToast(t('declined'));
     else if (action.type === 'cancel') showToast(t('cancelled'));
-  } else if (!silent) { const aliases = {'payment-not-exact':'wrong-change','hand-occupied':'hand-full','price-out-of-range':'invalid-price'}; showToast(t(aliases[result.reason] || result.reason)); audio.play('error'); }
+  } else if (!silent) {
+    const aliases = {'payment-not-exact':'wrong-change','hand-occupied':'hand-full','price-out-of-range':'invalid-price'};
+    const view = getView(state);
+    const reason = action.type === 'confirm' && !view.matches ? 'wrong-products' : action.type === 'confirm' && !view.budgetAccepted ? 'priceTooHigh' : aliases[result.reason] || result.reason;
+    showToast(t(reason)); audio.play('error');
+  }
   render();
   return result;
 }

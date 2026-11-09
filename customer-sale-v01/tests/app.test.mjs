@@ -371,7 +371,7 @@ test('confirmed excess change reports its real cost and an extra service and loy
   assert.equal(app.state.sales[0].actualRevenue, 20);
   assert.equal(app.elements.get('toast').textContent, 'Erreur de monnaie : 5 € rendus en trop.');
   assert.equal(app.elements.get('saleFeedback').hidden, false);
-  assert.equal(app.elements.get('feedbackTitle').textContent, 'Julien · Ravi');
+  assert.equal(app.elements.get('feedbackTitle').textContent, `Julien · ${texts.fr.veryHappy}`);
   assert.equal(app.elements.get('productImpact').textContent, '↑');
   assert.equal(app.elements.get('serviceImpact').textContent, '↑↑');
   assert.equal(app.elements.get('loyaltyImpact').textContent, '↑↑');
@@ -380,7 +380,7 @@ test('confirmed excess change reports its real cost and an extra service and loy
   app.frames(4400);
   assert.equal(app.state.currentId, 'customer-2');
   assert.equal(app.elements.get('saleFeedback').hidden, false);
-  assert.equal(app.elements.get('feedbackTitle').textContent, 'Julien · Ravi');
+  assert.equal(app.elements.get('feedbackTitle').textContent, `Julien · ${texts.fr.veryHappy}`);
   app.key('e');
   assert.equal(app.elements.get('saleFeedback').hidden, true);
 });
@@ -394,7 +394,7 @@ test('the outcome translates without changing its ledger and distinguishes a cas
   const before = app.snapshot();
   app.click('language');
   assert.equal(app.snapshot(), before);
-  assert.equal(app.elements.get('feedbackTitle').textContent, 'Julien · Delighted');
+  assert.equal(app.elements.get('feedbackTitle').textContent, `Julien · ${texts.en.veryHappy}`);
   assert.equal(app.elements.get('feedbackError').textContent, 'Change error: 75 € given too much.');
   assert.equal(app.elements.get('actualRevenue').textContent, 'Actual revenue: -50 €');
 });
@@ -414,6 +414,18 @@ test('the request reveals presented money and permits change before the product'
   app.click('primary');
   assert.equal(app.state.sales.length, 1);
   assert.equal(app.state.objects.find(item => item.id === 'payment-1').location, 'fund');
+});
+
+test('a mismatched product reports the product problem without claiming missing change', async context => {
+  const app = await boot(context);
+  app.key('e');
+  app.key('1');
+  addChangeWithHelper(app, [5]);
+  assert.equal(app.view.returned, app.view.due);
+  const before = app.snapshot();
+  app.key(' ');
+  assert.equal(app.snapshot(), before);
+  assert.equal(app.elements.get('toast').textContent, texts.fr['wrong-products']);
 });
 
 test('language and feedback controls do not change any owned object or sale', async context => {

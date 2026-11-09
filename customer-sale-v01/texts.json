@@ -72,13 +72,14 @@
     "feedbackProduct": "Produit",
     "feedbackService": "Service",
     "feedbackLoyalty": "Fidélisation",
-    "happy": "Satisfait",
-    "veryHappy": "Ravi",
+    "happy": "Satisfaction",
+    "veryHappy": "Grande satisfaction",
     "goodService": "Produit conforme, service apprécié.",
-    "generousService": "Produit conforme. Votre générosité renforce son envie de revenir.",
+    "generousService": "Produit conforme, service généreux.",
     "extraChangeWarning": "Vous allez rendre {amount} en trop.",
     "extraChangeNotice": "Erreur de monnaie : {amount} rendus en trop.",
-    "netRevenue": "Recette réelle :"
+    "netRevenue": "Recette réelle :",
+    "priceTooHigh": "Le prix dépasse son budget. Ajustez votre proposition."
   },
   "en": {
     "subtitle": "THE FEEL OF SELLING · V01",
@@ -153,12 +154,13 @@
     "feedbackProduct": "Product",
     "feedbackService": "Service",
     "feedbackLoyalty": "Loyalty",
-    "happy": "Satisfied",
-    "veryHappy": "Delighted",
+    "happy": "Satisfied customer",
+    "veryHappy": "Delighted customer",
     "goodService": "Right product, good service.",
-    "generousService": "Right product. Your generosity strengthens their wish to return.",
+    "generousService": "Right product, generous service.",
     "extraChangeWarning": "You are about to give {amount} too much.",
     "extraChangeNotice": "Change error: {amount} given too much.",
-    "netRevenue": "Actual revenue:"
+    "netRevenue": "Actual revenue:",
+    "priceTooHigh": "The price exceeds their budget. Adjust your offer."
   }
 }

@@ -3,10 +3,10 @@
   "revision": "conversation-and-satisfaction",
   "date": "2026-11-09",
   "tests": {
-    "passed": 87,
+    "passed": 88,
     "failed": 0,
     "model": 51,
-    "app": 19,
+    "app": 20,
     "audio": 17
   },
   "assets": {
@@ -18,13 +18,13 @@
     "failed": 0
   },
   "sourceHashes": {
-    "app.mjs": "a1e51bac99566bb5fd688ecce5745066bbf36b07d4e8643f64a84db9b31585b4",
+    "app.mjs": "99a1f8e8b015b6e537958466e6adfa2570a8f7e535d8f59f00cb8d6e49532d87",
     "model.mjs": "119173c519cb6da1ec78287f45d6bbb323f97477a4f96101113d675c0619d6cf",
-    "scene.mjs": "eacd039c005742ee1d65cf403db11276ab1f958cdb1b916454dfd14d1366daf5",
+    "scene.mjs": "30c5becf67879e5c641c4b5c3ce02cff3e7d9271562b66e2a59a21f27bdcf0cb",
     "audio.mjs": "02d43bed609511ecf525807ce20c343f27b7a72c129b42fbae59f5794facf9e6",
     "index.html": "bd7437073b27ba75f31cba7501b0f654c6e4121c5b887fe4da5255b4399866ea",
     "style.css": "fea6f0fe36d09a61fcff4f3074d17ddb33a12c9bbb9aa79de98149c7b4e220fe",
-    "texts.json": "a851516e22b41ab996ea91c439ed5c9fb4b85634dc368571ece7ad69c5f147be"
+    "texts.json": "d0be8f843efa9378b46538289d6f1d452c676dceb6469d9f50ad2acc866217b7"
   },
   "browserReview": {
     "previousReport": "browser-review.json",
@@ -32,8 +32,8 @@
     "currentReview": "https://github.com/nobletsylvain/prototypes/issues/257"
   },
   "publication": {
-    "trackingIssue": "https://github.com/nobletsylvain/prototypes/issues/257",
-    "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109c"
+    "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109c",
+    "trackingIssue": "https://github.com/nobletsylvain/prototypes/issues/257"
   },
   "physicalPhoneTest": false,
   "humanPlaytest": false,

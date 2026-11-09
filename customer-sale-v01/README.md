@@ -40,3 +40,6 @@ Voir [le carnet](documentation.html), [la passation](HANDOFF.md), [la provenance
 
 
 Ajustement conservé du 9 novembre : les billets apparaissent uniquement après Parler. Les observations de la révision précédente restent datées ; la vérification de ce déclenchement est consignée dans le suivi de la correction. [Suivi](https://github.com/nobletsylvain/prototypes/issues/257).
+
+
+Le cadrage a été validé par le propriétaire. Les grammages sont renforcés par des repères contrastés, sans ajout de sacoche ni changement de caméra.

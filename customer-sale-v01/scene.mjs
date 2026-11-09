@@ -61,6 +61,24 @@ function label(parent, text, width, height, x, y, z, options = {}) {
   return mesh;
 }
 
+function weightLabel(parent, grams, shortcut, width, height, x, y, z) {
+  const texture = canvasTexture(256, 128, (ctx, w, h) => {
+    ctx.fillStyle = '#f1ead5'; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#b6ad91'; ctx.lineWidth = 4; ctx.strokeRect(3, 3, w - 6, h - 6);
+    ctx.fillStyle = '#193738'; ctx.font = '800 100px Arial, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`${grams} g`, w / 2, shortcut ? 58 : 64);
+    if (shortcut) {
+      ctx.fillStyle = '#626c61'; ctx.font = '600 24px Arial, sans-serif';
+      ctx.fillText(String(shortcut), w - 20, h - 17);
+    }
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }));
+  mesh.position.set(x, y, z);
+  parent.add(mesh);
+  return mesh;
+}
+
 function line(parent, points, color, opacity = 1) {
   const geometry = new THREE.BufferGeometry().setFromPoints(points.map(point => new THREE.Vector3(...point)));
   const mesh = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color, transparent: opacity < 1, opacity }));
@@ -216,7 +234,7 @@ export class SaleScene {
       for (let index = 0; index < 5; index++) {
         const x = -1.04 + index * 0.52;
         if (index) box(this.bag, 0.025, 0.14, depth - 0.02, edge, x - 0.26, 0.55, 0);
-        label(this.bag, String(index + 1), 0.12, 0.08, x, 0.43, front + 0.01, { color: '#d3cdb6', size: 105 });
+        weightLabel(this.bag, CATALOG[index].grams, index + 1, 0.42, 0.17, x, 0.415, front + 0.012);
       }
       this.bagLabel = label(this.bag, this.labels.bag, 0.43, 0.085, 0, 0.28, front + 0.01, { color: '#d5cab1', size: 52 });
       box(this.bag, 2.4, 0.012, 0.01, material('#998c66'), 0, 0.21, front + 0.01);
@@ -227,8 +245,8 @@ export class SaleScene {
     for (let index = 0; index < 5; index++) {
       const x = -1.13 + index * 0.27;
       box(this.bag, 0.025, 0.13, 0.51, edge, x - 0.13, 0.55, -0.01);
-      const numeral = label(this.bag, String(index + 1), 0.08, 0.065, x, 0.44, 0.29, { color: '#d3cdb6', size: 105 });
-      numeral.rotation.x = -0.13;
+      const weight = weightLabel(this.bag, CATALOG[index].grams, index + 1, 0.23, 0.14, x, 0.425, 0.292);
+      weight.rotation.x = -0.13;
     }
     box(this.bag, 0.04, 0.16, 0.53, edge, 0.12, 0.56, 0);
     for (let index = 0; index < 5; index++) {
@@ -362,7 +380,7 @@ export class SaleScene {
           sphere(group, 0.035, material(index % 2 ? data.color : '#597449'), Math.cos(angle) * radius, 0.045, Math.sin(angle) * radius + 0.02, [0.75, 1, 0.8]);
         }
       }
-      const tag = label(group, `${item.grams} g`, 0.11, 0.042, 0, 0.058, -0.07, { background: '#e9e4cf', color: '#284447', size: 94, weight: 800 });
+      const tag = weightLabel(group, item.grams, null, 0.19, 0.075, 0, 0.087, -0.0825);
       tag.rotation.x = -Math.PI / 2;
       line(group, [[-0.106, 0.045, -0.09], [-0.096, 0.045, 0.115], [0.103, 0.045, 0.115]], '#edf1dc', 0.7);
     } else {

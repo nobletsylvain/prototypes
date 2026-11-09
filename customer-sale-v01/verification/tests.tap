@@ -2,531 +2,537 @@ TAP version 13
 # Subtest: keyboard and helper controls complete a real sale and store its original note
 ok 1 - keyboard and helper controls complete a real sale and store its original note
   ---
-  duration_ms: 21.2935
+  duration_ms: 33.959
   type: 'test'
   ...
 # Subtest: repeated keys and rapid double confirmation cannot produce duplicate receipts
 ok 2 - repeated keys and rapid double confirmation cannot produce duplicate receipts
   ---
-  duration_ms: 7.3184
+  duration_ms: 9.7013
   type: 'test'
   ...
 # Subtest: input fields and selectors consume typing without running game shortcuts
 ok 3 - input fields and selectors consume typing without running game shortcuts
   ---
-  duration_ms: 3.7292
+  duration_ms: 3.7749
   type: 'test'
   ...
 # Subtest: pointer cancellation returns the exact selected product and freezes hesitation at selection
 ok 4 - pointer cancellation returns the exact selected product and freezes hesitation at selection
   ---
-  duration_ms: 15.2881
+  duration_ms: 16.5292
   type: 'test'
   ...
 # Subtest: a drag released outside any target restores the original banknote
 ok 5 - a drag released outside any target restores the original banknote
   ---
-  duration_ms: 6.1834
+  duration_ms: 5.5888
   type: 'test'
   ...
 # Subtest: tap then tap can extract and place one banknote without copying it
 ok 6 - tap then tap can extract and place one banknote without copying it
   ---
-  duration_ms: 4.54
+  duration_ms: 5.7719
   type: 'test'
   ...
 # Subtest: helper buttons retain their identity between frames and rebuild after a genuine change
 ok 7 - helper buttons retain their identity between frames and rebuild after a genuine change
   ---
-  duration_ms: 6.5159
+  duration_ms: 9.8197
   type: 'test'
   ...
 # Subtest: help and background visibility pause the real hesitation and service clocks
 ok 8 - help and background visibility pause the real hesitation and service clocks
   ---
-  duration_ms: 13.5327
+  duration_ms: 16.7542
   type: 'test'
   ...
 # Subtest: an occupied hand permits automatic collection and the next customer advances without a stow action
 ok 9 - an occupied hand permits automatic collection and the next customer advances without a stow action
   ---
-  duration_ms: 23.9086
+  duration_ms: 37.1124
   type: 'test'
   ...
 # Subtest: wrong change maps to its specific explanation and error audio without changing the ledger
 ok 10 - wrong change maps to its specific explanation and error audio without changing the ledger
   ---
-  duration_ms: 3.8931
+  duration_ms: 6.2035
   type: 'test'
   ...
 # Subtest: hand and price refusal aliases provide their specific explanations
 ok 11 - hand and price refusal aliases provide their specific explanations
   ---
-  duration_ms: 3.3698
+  duration_ms: 5.495
   type: 'test'
   ...
 # Subtest: excess change is marked as extra and can still be taken back before confirmation
 ok 12 - excess change is marked as extra and can still be taken back before confirmation
   ---
-  duration_ms: 3.3309
+  duration_ms: 8.028
   type: 'test'
   ...
 # Subtest: confirmed excess change reports its real cost and an extra service and loyalty benefit
 ok 13 - confirmed excess change reports its real cost and an extra service and loyalty benefit
   ---
-  duration_ms: 25.8392
+  duration_ms: 30.6212
   type: 'test'
   ...
 # Subtest: the outcome translates without changing its ledger and distinguishes a cash loss
 ok 14 - the outcome translates without changing its ledger and distinguishes a cash loss
   ---
-  duration_ms: 4.0847
+  duration_ms: 6.1348
   type: 'test'
   ...
 # Subtest: the request reveals presented money and permits change before the product
 ok 15 - the request reveals presented money and permits change before the product
   ---
-  duration_ms: 5.6284
+  duration_ms: 8.6831
+  type: 'test'
+  ...
+# Subtest: a mismatched product reports the product problem without claiming missing change
+ok 16 - a mismatched product reports the product problem without claiming missing change
+  ---
+  duration_ms: 4.7607
   type: 'test'
   ...
 # Subtest: language and feedback controls do not change any owned object or sale
-ok 16 - language and feedback controls do not change any owned object or sale
+ok 17 - language and feedback controls do not change any owned object or sale
   ---
-  duration_ms: 3.0269
+  duration_ms: 3.847
   type: 'test'
   ...
 # Subtest: hiding the document cancels an active extraction without losing the object
-ok 17 - hiding the document cancels an active extraction without losing the object
+ok 18 - hiding the document cancels an active extraction without losing the object
   ---
-  duration_ms: 2.8688
+  duration_ms: 8.6765
   type: 'test'
   ...
 # Subtest: a visible window without focus pauses clocks and resumes without a time jump
-ok 18 - a visible window without focus pauses clocks and resumes without a time jump
+ok 19 - a visible window without focus pauses clocks and resumes without a time jump
   ---
-  duration_ms: 9.5628
+  duration_ms: 11.4988
   type: 'test'
   ...
 # Subtest: returning from a hidden document permits a fresh pointer gesture
-ok 19 - returning from a hidden document permits a fresh pointer gesture
+ok 20 - returning from a hidden document permits a fresh pointer gesture
   ---
-  duration_ms: 3.3839
+  duration_ms: 5.4986
   type: 'test'
   ...
 # Subtest: no cue starts before the user unlocks audio
-ok 20 - no cue starts before the user unlocks audio
+ok 21 - no cue starts before the user unlocks audio
   ---
-  duration_ms: 1.3897
+  duration_ms: 1.2946
   type: 'test'
   ...
 # Subtest: unlock resumes one context and preserves one output chain
-ok 21 - unlock resumes one context and preserves one output chain
+ok 22 - unlock resumes one context and preserves one output chain
   ---
-  duration_ms: 0.5498
+  duration_ms: 0.2977
   type: 'test'
   ...
 # Subtest: missing audio support leaves visual interaction usable
-ok 22 - missing audio support leaves visual interaction usable
+ok 23 - missing audio support leaves visual interaction usable
   ---
-  duration_ms: 1.1265
+  duration_ms: 2.0028
   type: 'test'
   ...
 # Subtest: a rejected resume is reported and a later user gesture can recover
-ok 23 - a rejected resume is reported and a later user gesture can recover
+ok 24 - a rejected resume is reported and a later user gesture can recover
   ---
-  duration_ms: 1.3015
+  duration_ms: 1.6696
   type: 'test'
   ...
 # Subtest: a constructor failure is contained
-ok 24 - a constructor failure is contained
+ok 25 - a constructor failure is contained
   ---
-  duration_ms: 0.2932
+  duration_ms: 4.6964
   type: 'test'
   ...
 # Subtest: output construction can recover after a temporary failure
-ok 25 - output construction can recover after a temporary failure
+ok 26 - output construction can recover after a temporary failure
   ---
-  duration_ms: 1.5636
+  duration_ms: 1.0804
   type: 'test'
   ...
 # Subtest: mute before unlock and mute after unlock suppress new sources
-ok 26 - mute before unlock and mute after unlock suppress new sources
+ok 27 - mute before unlock and mute after unlock suppress new sources
   ---
-  duration_ms: 1.6941
+  duration_ms: 0.5027
   type: 'test'
   ...
 # Subtest: a suspended background context accepts no cues
-ok 27 - a suspended background context accepts no cues
+ok 28 - a suspended background context accepts no cues
   ---
-  duration_ms: 0.1785
+  duration_ms: 0.1723
   type: 'test'
   ...
 # Subtest: refusal is a quiet cue and unknown events create no sources
-ok 28 - refusal is a quiet cue and unknown events create no sources
+ok 29 - refusal is a quiet cue and unknown events create no sources
   ---
-  duration_ms: 0.2286
+  duration_ms: 0.2529
   type: 'test'
   ...
 # Subtest: contact callback drives paper and product cues, while a drop alone is silent
-ok 29 - contact callback drives paper and product cues, while a drop alone is silent
+ok 30 - contact callback drives paper and product cues, while a drop alone is silent
   ---
-  duration_ms: 0.5894
+  duration_ms: 0.9036
   type: 'test'
   ...
 # Subtest: the physical fund contact plays the automatic storage cue
-ok 30 - the physical fund contact plays the automatic storage cue
+ok 31 - the physical fund contact plays the automatic storage cue
   ---
-  duration_ms: 0.9257
+  duration_ms: 0.8427
   type: 'test'
   ...
 # Subtest: rapid cues never exceed 24 simultaneous sources
-ok 31 - rapid cues never exceed 24 simultaneous sources
+ok 32 - rapid cues never exceed 24 simultaneous sources
   ---
-  duration_ms: 3.3372
+  duration_ms: 4.2726
   type: 'test'
   ...
 # Subtest: ended sources release their voice slot and disconnect
-ok 32 - ended sources release their voice slot and disconnect
+ok 33 - ended sources release their voice slot and disconnect
   ---
-  duration_ms: 0.3511
+  duration_ms: 0.2066
   type: 'test'
   ...
 # Subtest: plain feedback reduces cue layers without disabling useful contact sound
-ok 33 - plain feedback reduces cue layers without disabling useful contact sound
+ok 34 - plain feedback reduces cue layers without disabling useful contact sound
   ---
-  duration_ms: 0.288
+  duration_ms: 0.2588
   type: 'test'
   ...
 # Subtest: synthesis failure is counted without escaping into the controller
-ok 34 - synthesis failure is counted without escaping into the controller
+ok 35 - synthesis failure is counted without escaping into the controller
   ---
-  duration_ms: 0.2523
+  duration_ms: 0.2342
   type: 'test'
   ...
 # Subtest: generated noise samples and automation values stay finite
-ok 35 - generated noise samples and automation values stay finite
+ok 36 - generated noise samples and automation values stay finite
   ---
-  duration_ms: 1.2285
+  duration_ms: 1.4208
   type: 'test'
   ...
 # Subtest: close stops voices, closes the context and supports a fresh later session
-ok 36 - close stops voices, closes the context and supports a fresh later session
+ok 37 - close stops voices, closes the context and supports a fresh later session
   ---
-  duration_ms: 0.2814
+  duration_ms: 0.2642
   type: 'test'
   ...
 # Subtest: initial money, material and object identities are deterministic
-ok 37 - initial money, material and object identities are deterministic
+ok 38 - initial money, material and object identities are deterministic
   ---
-  duration_ms: 6.0837
+  duration_ms: 4.8904
   type: 'test'
   ...
 # Subtest: the client owns the presented payment on arrival but reveals their request only on talk
-ok 38 - the client owns the presented payment on arrival but reveals their request only on talk
+ok 39 - the client owns the presented payment on arrival but reveals their request only on talk
   ---
-  duration_ms: 1.6806
+  duration_ms: 1.4205
   type: 'test'
   ...
 # Subtest: one direct confirmation exchanges exact sachet and note identities without proposing first
-ok 39 - one direct confirmation exchanges exact sachet and note identities without proposing first
+ok 40 - one direct confirmation exchanges exact sachet and note identities without proposing first
   ---
-  duration_ms: 2.1776
+  duration_ms: 1.7443
   type: 'test'
   ...
 # Subtest: change can be prepared before the sachet without an intermediate agreement
-ok 40 - change can be prepared before the sachet without an intermediate agreement
+ok 41 - change can be prepared before the sachet without an intermediate agreement
   ---
-  duration_ms: 1.4246
+  duration_ms: 3.5243
   type: 'test'
   ...
 # Subtest: notes can be extracted and dropped during request and hesitation
-ok 41 - notes can be extracted and dropped during request and hesitation
+ok 42 - notes can be extracted and dropped during request and hesitation
   ---
-  duration_ms: 1.5645
+  duration_ms: 1.3192
   type: 'test'
   ...
 # Subtest: underpayment is rejected without changing any transaction field
-ok 42 - underpayment is rejected without changing any transaction field
+ok 43 - underpayment is rejected without changing any transaction field
   ---
-  duration_ms: 0.7019
+  duration_ms: 0.6808
   type: 'test'
   ...
 # Subtest: overpayment remains visibly inexact but confirmable, and a click can still return the note
-ok 43 - overpayment remains visibly inexact but confirmable, and a click can still return the note
+ok 44 - overpayment remains visibly inexact but confirmable, and a click can still return the note
   ---
-  duration_ms: 0.8525
+  duration_ms: 0.792
   type: 'test'
   ...
 # Subtest: five euros of extra change lower real revenue and produce a qualitative client bonus
-ok 44 - five euros of extra change lower real revenue and produce a qualitative client bonus
+ok 45 - five euros of extra change lower real revenue and produce a qualitative client bonus
   ---
-  duration_ms: 1.47
+  duration_ms: 1.4857
   type: 'test'
   ...
 # Subtest: very large extra change is accounted as negative revenue without creating or deleting money
-ok 45 - very large extra change is accounted as negative revenue without creating or deleting money
+ok 46 - very large extra change is accounted as negative revenue without creating or deleting money
   ---
-  duration_ms: 1.2466
+  duration_ms: 1.1551
   type: 'test'
   ...
 # Subtest: overpayment confirmation and its feedback happen once even under repeated activation
-ok 46 - overpayment confirmation and its feedback happen once even under repeated activation
+ok 47 - overpayment confirmation and its feedback happen once even under repeated activation
   ---
-  duration_ms: 1.2253
+  duration_ms: 0.9717
   type: 'test'
   ...
 # Subtest: extra money never authorizes a wrong product or an unaffordable price
-ok 47 - extra money never authorizes a wrong product or an unaffordable price
+ok 48 - extra money never authorizes a wrong product or an unaffordable price
   ---
-  duration_ms: 1.5
+  duration_ms: 1.0598
   type: 'test'
   ...
 # Subtest: normal sales retain positive feedback without an extra-change bonus
-ok 48 - normal sales retain positive feedback without an extra-change bonus
+ok 49 - normal sales retain positive feedback without an extra-change bonus
   ---
-  duration_ms: 1.0924
+  duration_ms: 1.0641
   type: 'test'
   ...
 # Subtest: sale verification detects a false nominal price, cash revenue or feedback
-ok 49 - sale verification detects a false nominal price, cash revenue or feedback
+ok 50 - sale verification detects a false nominal price, cash revenue or feedback
   ---
-  duration_ms: 4.5732
+  duration_ms: 4.292
   type: 'test'
   ...
 # Subtest: double confirmation cannot duplicate the automatic deposit
-ok 50 - double confirmation cannot duplicate the automatic deposit
+ok 51 - double confirmation cannot duplicate the automatic deposit
   ---
-  duration_ms: 0.9308
+  duration_ms: 1.1189
   type: 'test'
   ...
 # Subtest: an occupied hand does not block automatic cash storage or displace the held prop
-ok 51 - an occupied hand does not block automatic cash storage or displace the held prop
+ok 52 - an occupied hand does not block automatic cash storage or displace the held prop
   ---
-  duration_ms: 0.8559
+  duration_ms: 0.8149
   type: 'test'
   ...
 # Subtest: the next customer advances without R or collection even while the hand stays full
-ok 52 - the next customer advances without R or collection even while the hand stays full
+ok 53 - the next customer advances without R or collection even while the hand stays full
   ---
-  duration_ms: 1.0227
+  duration_ms: 1.1783
   type: 'test'
   ...
 # Subtest: the legacy wait option cannot create a storage barrier after automatic payment
-ok 53 - the legacy wait option cannot create a storage barrier after automatic payment
+ok 54 - the legacy wait option cannot create a storage barrier after automatic payment
   ---
-  duration_ms: 0.8126
+  duration_ms: 0.8719
   type: 'test'
   ...
 # Subtest: another client payment cannot be taken, collected or returned
-ok 54 - another client payment cannot be taken, collected or returned
+ok 55 - another client payment cannot be taken, collected or returned
   ---
-  duration_ms: 0.6233
+  duration_ms: 0.6577
   type: 'test'
   ...
 # Subtest: successive sales retain distinct payments and store both automatically
-ok 55 - successive sales retain distinct payments and store both automatically
+ok 56 - successive sales retain distinct payments and store both automatically
   ---
-  duration_ms: 1.075
+  duration_ms: 1.4466
   type: 'test'
   ...
 # Subtest: refusing a later client cannot undo an earlier automatic deposit
-ok 56 - refusing a later client cannot undo an earlier automatic deposit
+ok 57 - refusing a later client cannot undo an earlier automatic deposit
   ---
-  duration_ms: 0.9652
+  duration_ms: 1.2088
   type: 'test'
   ...
 # Subtest: note extraction has one owner and blocks confirmation until release
-ok 57 - note extraction has one owner and blocks confirmation until release
+ok 58 - note extraction has one owner and blocks confirmation until release
   ---
-  duration_ms: 1.3636
+  duration_ms: 0.5841
   type: 'test'
   ...
 # Subtest: cancelled note dragging restores its exact source
-ok 58 - cancelled note dragging restores its exact source
+ok 59 - cancelled note dragging restores its exact source
   ---
-  duration_ms: 1.0188
+  duration_ms: 0.62
   type: 'test'
   ...
 # Subtest: product drag back to its slot preserves stock and prepared money
-ok 59 - product drag back to its slot preserves stock and prepared money
+ok 60 - product drag back to its slot preserves stock and prepared money
   ---
-  duration_ms: 0.7601
+  duration_ms: 0.5804
   type: 'test'
   ...
 # Subtest: retaking a product invalidates an optional agreement but leaves prepared notes on the stall
-ok 60 - retaking a product invalidates an optional agreement but leaves prepared notes on the stall
+ok 61 - retaking a product invalidates an optional agreement but leaves prepared notes on the stall
   ---
-  duration_ms: 1.1599
+  duration_ms: 1.0647
   type: 'test'
   ...
 # Subtest: changing products updates the price without removing prepared change
-ok 61 - changing products updates the price without removing prepared change
+ok 62 - changing products updates the price without removing prepared change
   ---
-  duration_ms: 0.904
+  duration_ms: 1.027
   type: 'test'
   ...
 # Subtest: cancellation restores products and money without receiving payment
-ok 62 - cancellation restores products and money without receiving payment
+ok 63 - cancellation restores products and money without receiving payment
   ---
-  duration_ms: 0.6678
+  duration_ms: 0.6613
   type: 'test'
   ...
 # Subtest: cancellation also restores a note currently being extracted
-ok 63 - cancellation also restores a note currently being extracted
+ok 64 - cancellation also restores a note currently being extracted
   ---
-  duration_ms: 0.5259
+  duration_ms: 0.41
   type: 'test'
   ...
 # Subtest: cancellation after a completed sale cannot undo objects
-ok 64 - cancellation after a completed sale cannot undo objects
+ok 65 - cancellation after a completed sale cannot undo objects
   ---
-  duration_ms: 1.0722
+  duration_ms: 0.8156
   type: 'test'
   ...
 # Subtest: hesitation begins on talk and preparing money alone does not freeze it
-ok 65 - hesitation begins on talk and preparing money alone does not freeze it
+ok 66 - hesitation begins on talk and preparing money alone does not freeze it
   ---
-  duration_ms: 0.5596
+  duration_ms: 0.4813
   type: 'test'
   ...
 # Subtest: first product extraction freezes hesitation before release
-ok 66 - first product extraction freezes hesitation before release
+ok 67 - first product extraction freezes hesitation before release
   ---
-  duration_ms: 0.5916
+  duration_ms: 0.5461
   type: 'test'
   ...
 # Subtest: keyboard preparation freezes hesitation too
-ok 67 - keyboard preparation freezes hesitation too
+ok 68 - keyboard preparation freezes hesitation too
   ---
-  duration_ms: 0.4368
+  duration_ms: 0.4343
   type: 'test'
   ...
 # Subtest: hesitation timeout returns money prepared before any product
-ok 68 - hesitation timeout returns money prepared before any product
+ok 69 - hesitation timeout returns money prepared before any product
   ---
-  duration_ms: 1.0256
+  duration_ms: 0.6206
   type: 'test'
   ...
 # Subtest: a player can solve the budget concern and directly confirm the new price
-ok 69 - a player can solve the budget concern and directly confirm the new price
+ok 70 - a player can solve the budget concern and directly confirm the new price
   ---
-  duration_ms: 0.9772
+  duration_ms: 1.053
   type: 'test'
   ...
 # Subtest: exact change does not authorize a price exceeding the client budget
-ok 70 - exact change does not authorize a price exceeding the client budget
+ok 71 - exact change does not authorize a price exceeding the client budget
   ---
-  duration_ms: 0.7144
+  duration_ms: 1.0231
   type: 'test'
   ...
 # Subtest: price changes preserve placed notes and immediately recalculate change
-ok 71 - price changes preserve placed notes and immediately recalculate change
+ok 72 - price changes preserve placed notes and immediately recalculate change
   ---
-  duration_ms: 0.847
+  duration_ms: 0.845
   type: 'test'
   ...
 # Subtest: optional proposal agreement moves no money or products
-ok 72 - optional proposal agreement moves no money or products
+ok 73 - optional proposal agreement moves no money or products
   ---
-  duration_ms: 0.5294
+  duration_ms: 1.0061
   type: 'test'
   ...
 # Subtest: changing an optional agreement price preserves money and requires the new correct change
-ok 73 - changing an optional agreement price preserves money and requires the new correct change
+ok 74 - changing an optional agreement price preserves money and requires the new correct change
   ---
-  duration_ms: 0.577
+  duration_ms: 2.7628
   type: 'test'
   ...
 # Subtest: a legacy proposal above budget restores products and notes when declined
-ok 74 - a legacy proposal above budget restores products and notes when declined
+ok 75 - a legacy proposal above budget restores products and notes when declined
   ---
-  duration_ms: 0.7326
+  duration_ms: 0.7383
   type: 'test'
   ...
 # Subtest: wrong legacy proposals restore all objects and let the client leave
-ok 75 - wrong legacy proposals restore all objects and let the client leave
+ok 76 - wrong legacy proposals restore all objects and let the client leave
   ---
-  duration_ms: 1.0017
+  duration_ms: 1.1206
   type: 'test'
   ...
 # Subtest: empty or unfinished proposals cannot exchange objects
-ok 76 - empty or unfinished proposals cannot exchange objects
+ok 77 - empty or unfinished proposals cannot exchange objects
   ---
-  duration_ms: 0.4107
+  duration_ms: 0.6401
   type: 'test'
   ...
 # Subtest: price adjustments stay in five-euro steps below the normal price
-ok 77 - price adjustments stay in five-euro steps below the normal price
+ok 78 - price adjustments stay in five-euro steps below the normal price
   ---
-  duration_ms: 0.8905
+  duration_ms: 1.0594
   type: 'test'
   ...
 # Subtest: stock or cash exhaustion cannot manufacture replacement objects
-ok 78 - stock or cash exhaustion cannot manufacture replacement objects
+ok 79 - stock or cash exhaustion cannot manufacture replacement objects
   ---
-  duration_ms: 1.035
+  duration_ms: 1.5032
   type: 'test'
   ...
 # Subtest: the queue fills to five unique clients at the demo cadence
-ok 79 - the queue fills to five unique clients at the demo cadence
+ok 80 - the queue fills to five unique clients at the demo cadence
   ---
-  duration_ms: 0.7272
+  duration_ms: 0.3745
   type: 'test'
   ...
 # Subtest: closing clears the queue while the current direct exchange may finish
-ok 80 - closing clears the queue while the current direct exchange may finish
+ok 81 - closing clears the queue while the current direct exchange may finish
   ---
-  duration_ms: 0.8297
+  duration_ms: 1.1051
   type: 'test'
   ...
 # Subtest: closing never starts another client after a refusal
-ok 81 - closing never starts another client after a refusal
+ok 82 - closing never starts another client after a refusal
   ---
-  duration_ms: 0.5281
+  duration_ms: 0.4941
   type: 'test'
   ...
 # Subtest: eight direct sales conserve every object and deposit all revenue without R
-ok 82 - eight direct sales conserve every object and deposit all revenue without R
+ok 83 - eight direct sales conserve every object and deposit all revenue without R
   ---
-  duration_ms: 6.4346
+  duration_ms: 7.1115
   type: 'test'
   ...
 # Subtest: a full-hand service needs neither collection nor clearing the occupied hand
-ok 83 - a full-hand service needs neither collection nor clearing the occupied hand
+ok 84 - a full-hand service needs neither collection nor clearing the occupied hand
   ---
-  duration_ms: 3.8473
+  duration_ms: 5.1235
   type: 'test'
   ...
 # Subtest: invalid actions and time leave every state field unchanged
-ok 84 - invalid actions and time leave every state field unchanged
+ok 85 - invalid actions and time leave every state field unchanged
   ---
-  duration_ms: 0.619
+  duration_ms: 0.9344
   type: 'test'
   ...
 # Subtest: invariants detect denomination, material, identity and count corruption
-ok 85 - invariants detect denomination, material, identity and count corruption
+ok 86 - invariants detect denomination, material, identity and count corruption
   ---
-  duration_ms: 0.7586
+  duration_ms: 0.962
   type: 'test'
   ...
 # Subtest: mixed deterministic actions preserve objects and reject errors atomically
-ok 86 - mixed deterministic actions preserve objects and reject errors atomically
+ok 87 - mixed deterministic actions preserve objects and reject errors atomically
   ---
-  duration_ms: 74.6938
+  duration_ms: 109.4641
   type: 'test'
   ...
 # Subtest: creation rejects unsupported scenarios and invalid durations
-ok 87 - creation rejects unsupported scenarios and invalid durations
+ok 88 - creation rejects unsupported scenarios and invalid durations
   ---
-  duration_ms: 0.1863
+  duration_ms: 0.1449
   type: 'test'
   ...
-1..87
-# tests 87
+1..88
+# tests 88
 # suites 0
-# pass 87
+# pass 88
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 286.2281
+# duration_ms 446.9663
