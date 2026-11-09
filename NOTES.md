@@ -9,6 +9,15 @@ Les entrées les plus récentes en haut.
 
 ---
 
+## 2026-11-09 — L’Étal V01 : vente face au client
+
+- Nouveau prototype autonome `customer-sale-v01/`, trois situations : vente simple, hésitation de prix, main pleine. Le suivant avance pendant le rangement, les anciennes recettes restent récupérables.
+- 76 contrôles réussis, zéro échec : 44 registre, 16 contrôleur avec présentation simulée, 16 audio avec contexte simulé ; sept ressources vérifiées identiques.
+- Un défaut de pointeur après masquage a été corrigé, puis le même test passe. Pause hors premier plan et conservation des clics de l’aide vérifiées.
+- Revue visuelle en ligne à compléter : aperçu local inaccessible. Aucun essai humain, écoute ou téléphone physique validés ; aucune intégration Unity.
+- Publication publique de cette démo et de ses ressources expressément autorisée. Les sources internes restent privées. Les autres prototypes sont préservés.
+
+
 ## 2026-11-09 — Papier et liasses V02 : prendre et déposer des poignées
 
 - Le propriétaire précise que le but est de prendre des poignées et de les mettre dans la trieuse et la compteuse. Il demande les deux configurations proposées : deux machines séparées ou une combinée.
