@@ -29,8 +29,8 @@ export function createScene(canvas, { onContact = () => {} } = {}) {
     grain: new THREE.MeshStandardMaterial({ color: '#bd9954', roughness: 0.94, flatShading: true }),
     plant: new THREE.MeshStandardMaterial({ color: '#76764a', roughness: 1, flatShading: true }),
     glass: new THREE.MeshPhysicalMaterial({ color: '#dde3ce', transparent: true, opacity: 0.21, roughness: 0.16, metalness: 0.08, depthWrite: false }),
-    film: new THREE.MeshPhysicalMaterial({ color: '#e8f4e8', transparent: true, opacity: 0.2, roughness: 0.06, metalness: 0.12, clearcoat: 1, clearcoatRoughness: 0.08, depthWrite: false, side: THREE.DoubleSide }),
-    filmLine: new THREE.LineBasicMaterial({ color: '#eefbfa', transparent: true, opacity: 0.65 }),
+    film: new THREE.MeshPhysicalMaterial({ color: '#25332d', transparent: true, opacity: 0.23, roughness: 0.09, metalness: 0.08, clearcoat: 1, clearcoatRoughness: 0.08, depthWrite: false, side: THREE.DoubleSide }),
+    filmLine: new THREE.LineBasicMaterial({ color: '#c2d2c6', transparent: true, opacity: 0.2 }),
   };
   const allocatedGeometries = new Set(), allocatedMaterials = new Set(Object.values(materials)), allocatedTextures = new Set();
   function mesh(geometry, material, parent = scene, x = 0, y = 0, z = 0) { allocatedGeometries.add(geometry); const object = new THREE.Mesh(geometry, material); object.position.set(x, y, z); object.castShadow = true; object.receiveShadow = true; parent.add(object); return object; }
@@ -174,16 +174,21 @@ export function createScene(canvas, { onContact = () => {} } = {}) {
     const markerMaterial = new THREE.MeshStandardMaterial({ color: item.color || '#d0a85b', roughness: 0.7 }); allocatedMaterials.add(markerMaterial); box(0.028, 0.04, 0.009, markerMaterial, group, 0.032, 0.13, 0.091);
     const object = { group, fill }; potObjects.set(item.id, object); return object;
   }
+  function stackLayout(count, width, height, depth) {
+    const groups = Math.ceil(count / 5), columns = Math.min(3, groups), rows = Math.ceil(groups / columns);
+    return { width: columns * width + Math.max(0, columns - 1) * 0.012, height: Math.min(count, 5) * height, depth: rows * depth + Math.max(0, rows - 1) * 0.012,
+      position(index) { const group = Math.floor(index / 5); return new THREE.Vector3((group % columns - (columns - 1) / 2) * (width + 0.012), height / 2 + (index % 5) * height, (Math.floor(group / columns) - (rows - 1) / 2) * (depth + 0.012)); } };
+  }
   function packageVisual(item, count, format) {
     const group = new THREE.Group(); scene.add(group);
-    const large = Number(format) === 250, halfWidth = 0.175, halfDepth = 0.105;
-    const height = Math.max(0.04, count * (large ? 0.08 : 0.032)), geometry = new THREE.BoxGeometry(halfWidth * 2, height + 0.025, halfDepth * 2); allocatedGeometries.add(geometry);
+    const layout = stackLayout(count, 0.32, Number(format) === 250 ? 0.08 : 0.032, 0.178), halfWidth = layout.width / 2 + 0.015, halfDepth = layout.depth / 2 + 0.016;
+    const height = Math.max(0.04, layout.height), geometry = new THREE.BoxGeometry(halfWidth * 2, height + 0.025, halfDepth * 2); allocatedGeometries.add(geometry);
     const wrap = mesh(geometry, materials.film, group, 0, height / 2, 0);
     const points = [];
     for (let i = 0; i < 7; i++) { const y = (height / 7) * i; points.push(new THREE.Vector3(-halfWidth, y, halfDepth), new THREE.Vector3(halfWidth, Math.min(height, y + 0.018), halfDepth)); points.push(new THREE.Vector3(halfWidth, Math.min(height, y + 0.018), halfDepth), new THREE.Vector3(halfWidth, y + 0.007, -halfDepth)); }
     points.push(new THREE.Vector3(-halfWidth, height + 0.01, -halfDepth), new THREE.Vector3(halfWidth, height + 0.012, halfDepth), new THREE.Vector3(-halfWidth, height + 0.014, halfDepth), new THREE.Vector3(halfWidth * 0.6, height + 0.016, -halfDepth));
     const lines = new THREE.BufferGeometry().setFromPoints(points); allocatedGeometries.add(lines); group.add(new THREE.LineSegments(lines, materials.filmLine));
-    const result = { group, wrap, count, height, bornAt: elapsed, location: null, position: null }; packageObjects.set(item.id, result); return result;
+    const result = { group, wrap, count, height, width: layout.width + 0.03, layout, bornAt: elapsed, location: null, position: null }; packageObjects.set(item.id, result); return result;
   }
   const raycaster = new THREE.Raycaster(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.012);
   const pickOccluders = [];
@@ -237,14 +242,17 @@ export function createScene(canvas, { onContact = () => {} } = {}) {
       object.location = held ? 'held' : 'floor';
       const age = elapsed - object.bornAt; object.group.scale.setScalar(1 + Math.max(0, 0.035 - age * 0.07));
     });
+    const heldList = plateList.filter(item => selected.has(item.id) || ['held', 'hand'].includes(item.location));
+    const heldLayout = stackLayout(Math.max(1, heldList.length), 0.32, Number(heldList[0]?.format) === 250 ? 0.08 : 0.032, 0.178);
     let heldIndex = 0;
     plateList.forEach(item => {
       const body = plateObjects.get(item.id) || makeBody(item, elapsed > 0.15), packaged = packageByPlate.get(item.id), held = selected.has(item.id) || ['held', 'hand'].includes(item.location);
       if (packaged) {
         const parent = packageObjects.get(packaged.item.id)?.group; if (parent && body.group.parent !== parent) parent.add(body.group);
-        body.group.position.set(0, body.height / 2 + packaged.index * body.height, 0); body.group.rotation.set(0, 0, 0); body.location = 'package'; return;
+        const layout = packageObjects.get(packaged.item.id)?.layout;
+        body.group.position.copy(layout ? layout.position(packaged.index) : new THREE.Vector3(0, body.height / 2, 0)); body.group.rotation.set(0, 0, 0); body.location = 'package'; return;
       }
-      if (held) { if (body.group.parent !== handGroup) handGroup.add(body.group); body.group.position.set((heldIndex % 3) * 0.002, heldIndex * body.height, 0); body.group.rotation.set(0, (heldIndex % 2) * 0.015, 0); body.location = 'held'; heldIndex++; return; }
+      if (held) { if (body.group.parent !== handGroup) handGroup.add(body.group); body.group.position.copy(heldLayout.position(heldIndex)); body.group.rotation.set(0, (heldIndex % 2) * 0.015, 0); body.location = 'held'; heldIndex++; return; }
       if (body.location !== 'floor') {
         const drop = getPlacement(); scene.add(body.group);
         if (body.lastPackagePosition) { body.group.position.copy(body.lastPackagePosition); body.group.quaternion.copy(body.lastPackageRotation); delete body.lastPackagePosition; delete body.lastPackageRotation; }
@@ -267,8 +275,11 @@ export function createScene(canvas, { onContact = () => {} } = {}) {
       opening.group.scale.set(1 + progress * 0.4, 1 - progress * 0.9, 1 + progress * 0.4); opening.group.rotation.z = -progress * 0.35;
       if (progress >= 1) { opening.group.removeFromParent(); openingPackages.splice(index, 1); }
     }
-    const heldHeight = Math.max(heldIndex * 0.032, ...packages.filter(item => ['held', 'hand'].includes(item.location)).map(item => packageObjects.get(item.id)?.height || 0));
-    handGroup.scale.setScalar(Math.min(1, 0.54 / Math.max(0.54, heldHeight)));
+    const heldPackages = packages.filter(item => ['held', 'hand'].includes(item.location)).map(item => packageObjects.get(item.id));
+    const heldHeight = Math.max(heldIndex ? heldLayout.height : 0, ...heldPackages.map(item => item?.height || 0));
+    const heldWidth = Math.max(heldIndex ? heldLayout.width : 0, ...heldPackages.map(item => item?.width || 0));
+    const widthLimit = camera.aspect < 1 ? 0.18 : 0.36, heightLimit = camera.aspect < 1 ? 0.2 : 0.3;
+    handGroup.scale.setScalar(Math.min(1, widthLimit / Math.max(widthLimit, heldWidth), heightLimit / Math.max(heightLimit, heldHeight)));
     const bodies = [...plateObjects.values()].filter(body => body.location === 'floor'); measurements.activeBodies = bodies.filter(body => !body.settled).length;
     const steps = Math.max(1, Math.ceil(dt / 0.012)), step = dt / steps;
     for (let iteration = 0; iteration < steps; iteration++) for (const body of bodies) {
@@ -351,10 +362,16 @@ export function createScene(canvas, { onContact = () => {} } = {}) {
     currentCompression = smooth(currentCompression, targetCompression, dt, pressing ? 11 : 4); piston.position.y = 1.48 - currentCompression * 0.37; lever.rotation.z = -0.4 - currentCompression * 1.1;
     lastCompression = view.compression || 0;
     updateBodies(dt, view); updatePots(view); updateParticles(dt, view);
-    const pose = poses[station]; targetPosition.set(...pose[0]); if (camera.aspect < 1) targetPosition.z += (1 - camera.aspect) * (station === 'overview' ? 8 : 2.7);
-    targetPosition.add(navigationOffset); lookTarget.set(...pose[1]).add(navigationOffset);
+    const pose = poses[station]; targetPosition.set(...pose[0]); lookTarget.set(...pose[1]);
+    if (camera.aspect < 1) {
+      targetPosition.z += (1 - camera.aspect) * (station === 'overview' ? 8 : 2.7);
+      if (station === 'drum') { targetPosition.z += 1; lookTarget.x = -2.05; }
+      if (station === 'press') { targetPosition.z += 1.4; lookTarget.x = 1.16; }
+    }
+    targetPosition.add(navigationOffset); lookTarget.add(navigationOffset);
     camera.position.lerp(targetPosition, 1 - Math.exp(-dt * 4.5)); camera.lookAt(lookTarget); cameraEuler.setFromQuaternion(camera.quaternion, 'YXZ'); cameraEuler.y += yawOffset; cameraEuler.x += pitchOffset; camera.quaternion.setFromEuler(cameraEuler);
-    handGroup.position.y = -0.5 + Math.sin(elapsed * 1.7) * 0.003; handGroup.rotation.z = 0.08 + Math.sin(elapsed * 1.1) * 0.003;
+    handGroup.position.x = camera.aspect < 1 ? 0.095 : 0.32;
+    handGroup.position.y = (camera.aspect < 1 ? -0.135 : -0.12) + Math.sin(elapsed * 1.7) * 0.003; handGroup.rotation.z = 0.08 + Math.sin(elapsed * 1.1) * 0.003;
     renderer.render(scene, camera);
   }
   function dispose() { disposed = true; for (const geometry of allocatedGeometries) geometry.dispose(); for (const material of allocatedMaterials) material.dispose(); for (const texture of allocatedTextures) texture.dispose(); renderer.dispose(); }
