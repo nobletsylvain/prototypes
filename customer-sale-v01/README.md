@@ -2,7 +2,7 @@
 
 Le client arrive avec ses billets en main, puis les tend en formulant sa demande. Le joueur glisse le sachet et la monnaie sur le carton. Une confirmation juste collecte automatiquement le paiement dans la sacoche, même lorsque la main est occupée.
 
-**Correction en cours :** ce guide décrit le nouveau geste. [La démo a déjà un lien publié](https://nobletsylvain.github.io/prototypes/customer-sale-v01/), la correction passe 79 contrôles automatiques, sans échec ; sa revue navigateur et sa publication restent à consigner. Les preuves de la première version concernent son ancien rangement manuel.
+**Correction publiée et vérifiée.** [Essayer la démo corrigée](https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109b). Les 79 contrôles automatiques passent, sans échec. Les trois situations ont été parcourues en navigateur ; les preuves distinguent cette correction de la première version.
 
 ## Jouer
 
@@ -28,6 +28,6 @@ Une référence et un sachet par demande ; seule l’hésitation de prix est dé
 
 Personnages, carton, sacoche, papier et sons restent des propositions. Le portrait utilise deux rangées de compartiments. Aucun asset final ni intégration Unity n’est livré.
 
-La première version avait 76 contrôles réussis et une revue navigateur aux formats ordinateur et téléphone. La correction passe 79 contrôles : 45 registre, 17 contrôleur avec présentation simulée et 17 audio avec contexte simulé ; quatre modules valides en syntaxe. Une composition incompatible désactive la confirmation. La nouvelle revue navigateur reste à faire. Aucun essai humain, téléphone physique ou écoute de cette correction n’est validé.
+La première version avait 76 contrôles réussis et une revue navigateur aux formats ordinateur et téléphone. La correction passe 79 contrôles : 45 registre, 17 contrôleur avec présentation simulée et 17 audio avec contexte simulé ; quatre modules valides en syntaxe. Une composition incompatible désactive la confirmation. Les trois situations ont été parcourues en ligne à 390 × 844, avec contrôles d’affichage à 360 × 740 et 1280 × 720 ; aucune erreur ni avertissement de console. Aucun essai humain, téléphone physique ou écoute de cette correction n’est validé.
 
-Voir [le carnet](documentation.html), [la passation](HANDOFF.md), [la provenance](ASSETS.md), [les preuves datées](verification/summary.json) et [la revue antérieure](verification/browser-review.json).
+Voir [le carnet](documentation.html), [la passation](HANDOFF.md), [la provenance](ASSETS.md), [les preuves datées](verification/summary.json) et [la revue publiée](verification/browser-review.json).

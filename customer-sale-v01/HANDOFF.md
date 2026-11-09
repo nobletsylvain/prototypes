@@ -1,6 +1,6 @@
 # Passation de la démo de vente face au client
 
-9 novembre 2026. **Correction en cours : billets présentés et paiement automatiquement collecté en sacoche.** [La première version est publiée](https://nobletsylvain.github.io/prototypes/customer-sale-v01/). Le nouveau geste passe 79 contrôles automatiques, sans échec : 45 registre, 17 contrôleur avec présentation simulée et 17 audio avec contexte simulé ; quatre modules valides en syntaxe. Sa revue navigateur reste à compléter. Les 76 contrôles et les observations de `verification/browser-review.json` concernent la version précédente.
+9 novembre 2026. **Correction publiée et vérifiée : billets présentés et paiement automatiquement collecté en sacoche.** [La première version est publiée](https://nobletsylvain.github.io/prototypes/customer-sale-v01/). Le nouveau geste passe 79 contrôles automatiques, sans échec : 45 registre, 17 contrôleur avec présentation simulée et 17 audio avec contexte simulé ; quatre modules valides en syntaxe. Les trois situations ont été parcourues en ligne, sans erreur ni avertissement de console. `verification/browser-review.json` consigne la correction et conserve séparément la revue précédente.
 
 Les noms d’événements et d’états sont un contrat proposé, pas une API Unity livrée. Aucun essai humain, écoute ou téléphone physique n’est validé pour la correction.
 
@@ -8,7 +8,7 @@ Les noms d’événements et d’états sont un contrat proposé, pas une API Un
 
 Le client arrive avec ses billets en main. Sa demande reste inconnue jusqu’à l’interaction ; il tend alors ces mêmes billets. Le joueur prépare sachet et monnaie sur le carton bas, reprend librement et confirme une fois. Produits et monnaie passent au client, paiement original dans la sacoche. Le client réagit brièvement puis le suivant avance.
 
-Cinq cases de produits et les billets debout dans leurs compartiments entourent L’ÉTAL. Le cadre reste Reçu / À rendre / Rendu, sans pictogrammes répétant le billet présenté. Rouge signifie trop ou pas assez ; vert signifie juste.
+Cinq cases de produits et les billets debout dans leurs compartiments entourent L’ÉTAL. Le cadre reste Présenté / À rendre / Rendu, sans pictogrammes répétant le billet présenté. Rouge signifie trop ou pas assez ; vert signifie juste.
 
 ## Registre exact et billet présenté
 

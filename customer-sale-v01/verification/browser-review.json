@@ -1,16 +1,16 @@
 {
   "date": "2026-11-09",
-  "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/",
-  "observedCommit": "3402d2717993f3495f5744342f0b031a240fbef2",
+  "revision": "automatic-payment",
+  "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/?v=20261109b",
+  "observedCommit": "ca650d14bf177b43aef1b6eff16a8ca75d765191",
+  "codeCommit": "3c9e54ce34095cf9ba5c3efc9f13c8559d3b5ee5",
   "deployment": {
-    "mergeCommit": "e7424b397b0e6873c9a0395c6637d66f05cd6acd",
-    "runId": 42585834311
+    "mergeCommit": "0d9f386e181bd2f109e8da8af9ee96b9135b9ffc",
+    "runId": 42588925963,
+    "status": "completed",
+    "conclusion": "success"
   },
   "viewports": [
-    {
-      "width": 1280,
-      "height": 720
-    },
     {
       "width": 390,
       "height": 844
@@ -20,30 +20,78 @@
       "height": 740
     },
     {
-      "width": 844,
-      "height": 390
+      "width": 1280,
+      "height": 720
     }
   ],
   "observed": [
-    "Normal sale: product drag, offer, 10 euro overpayment red, click retake, exact 5 euro green, confirmation, hand receipt, next customer before stowing",
-    "Full-hand sale at 390x844: product and bill drags, payment on stall, next customer, free hand then collect and stow",
-    "Price hesitation at 390x844: timer frozen by first drag, player lowers 25 to20, 30 euro exact change from20+10, confirmation",
-    "French and English visible text, feedback toggle and mute toggle",
-    "Five waiting customers, receipts retained when next customer approaches"
+    "50 euro note visible on arrival and presented with the spoken request for hashish 4 g",
+    "Normal sale at 390x844: drag 20+5 euro change before product, confirm disabled until product placed; returned 25 green, direct confirmation",
+    "Automatic payment flight from customer into bag; help inventory shows seven 50 euro notes and five 20/five 5 euro notes; next customer Ines arrives without any stow action",
+    "Full-hand sale: drag product then 20+5 change, confirm; next customer approaches while parcel remains held, observed at 360x740",
+    "Hesitation: first product freezes countdown, lower price to20, prepare20+10, confirm sale20; automatic collection",
+    "English request and presented/change/returned display at1280x720; restored French and normal intro for delivery"
   ],
   "console": {
     "errors": 0,
     "warnings": 0
   },
-  "screenshotsViewed": true,
+  "screenshotsViewed": 6,
   "screenshotFilesSaved": 0,
   "physicalTouchDevice": false,
   "listeningValidated": false,
   "humanPlaytest": false,
-  "defect": {
-    "description": "Received notes were partly hidden by upright cash compartment notes in portrait.",
-    "correction": "Receipt area moved to rear left of stall.",
-    "finalVisualRecheck": "pending deployment"
-  },
-  "limit": "Viewport testing and browser input do not constitute a physical phone or human playtest."
+  "limitations": [
+    "Browser viewport and pointer operations do not constitute a physical phone or owner playtest",
+    "Audio synthesis was tested with a simulated context; listening quality is unvalidated"
+  ],
+  "previousRevision": {
+    "date": "2026-11-09",
+    "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/",
+    "observedCommit": "3402d2717993f3495f5744342f0b031a240fbef2",
+    "deployment": {
+      "mergeCommit": "e7424b397b0e6873c9a0395c6637d66f05cd6acd",
+      "runId": 42585834311
+    },
+    "viewports": [
+      {
+        "width": 1280,
+        "height": 720
+      },
+      {
+        "width": 390,
+        "height": 844
+      },
+      {
+        "width": 360,
+        "height": 740
+      },
+      {
+        "width": 844,
+        "height": 390
+      }
+    ],
+    "observed": [
+      "Normal sale: product drag, offer, 10 euro overpayment red, click retake, exact 5 euro green, confirmation, hand receipt, next customer before stowing",
+      "Full-hand sale at 390x844: product and bill drags, payment on stall, next customer, free hand then collect and stow",
+      "Price hesitation at 390x844: timer frozen by first drag, player lowers 25 to20, 30 euro exact change from20+10, confirmation",
+      "French and English visible text, feedback toggle and mute toggle",
+      "Five waiting customers, receipts retained when next customer approaches"
+    ],
+    "console": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "screenshotsViewed": true,
+    "screenshotFilesSaved": 0,
+    "physicalTouchDevice": false,
+    "listeningValidated": false,
+    "humanPlaytest": false,
+    "defect": {
+      "description": "Received notes were partly hidden by upright cash compartment notes in portrait.",
+      "correction": "Receipt area moved to rear left of stall.",
+      "finalVisualRecheck": "pending deployment"
+    },
+    "limit": "Viewport testing and browser input do not constitute a physical phone or human playtest."
+  }
 }
