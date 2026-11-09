@@ -1,0 +1,48 @@
+{
+  "verified": 7,
+  "failed": 0,
+  "assets": [
+    {
+      "file": "banknote_5eur_front_back.png",
+      "bytes": 63162,
+      "sha256": "237c7da686071d946576952e008776807affd71521e70a24e57fe8b4654036e6",
+      "matchesSource": true
+    },
+    {
+      "file": "banknote_10eur_front_back.png",
+      "bytes": 68014,
+      "sha256": "c0e6d0354bb95e15bfb7d1ec4c5cd908997adcee8032658e2abefeba52771bf3",
+      "matchesSource": true
+    },
+    {
+      "file": "banknote_20eur_front_back.png",
+      "bytes": 72942,
+      "sha256": "eab02c00cc9a813703683c593aeec20a73c7bef6d6545ed45f5f9b2c1fe56467",
+      "matchesSource": true
+    },
+    {
+      "file": "banknote_50eur_front_back.png",
+      "bytes": 68987,
+      "sha256": "4b7dcc5ff1cbe9e92c5296ff1f144d5182ef6a0ea17a23997e8155a28e21ba5b",
+      "matchesSource": true
+    },
+    {
+      "file": "banknote_100eur_front_back.png",
+      "bytes": 69734,
+      "sha256": "7baaaf6f3972244a969d53f5cc3b8e8201f2c1476cece8487fac2812bcee59cc",
+      "matchesSource": true
+    },
+    {
+      "file": "three.module.js",
+      "bytes": 1272972,
+      "sha256": "76dea8151bc9352aef3528b4262e249b2604f62543828328db978d060d61a495",
+      "matchesSource": true
+    },
+    {
+      "file": "THREE-LICENSE.txt",
+      "bytes": 1081,
+      "sha256": "852e0e8699169bf9f6fdc6bda3e682d078dcbc738b5d33e74df594721bff271d",
+      "matchesSource": true
+    }
+  ]
+}
