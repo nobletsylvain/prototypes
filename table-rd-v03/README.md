@@ -30,7 +30,7 @@ La vue est à la première personne. Poser les parents avec les boutons, puis en
 
 Maintenir environ 1,5 seconde pour révéler. Relâcher met en pause sans perdre l’avancement de la séquence en cours. Espace/Entrée et l’ouverture assistée donnent accès au même résultat. Aucune précision, vitesse ou réussite motrice ne change le tirage ou les ressources.
 
-**Arbre & journal** conserve fondatrices et essais, y compris les archives et les essais en attente. Rechercher un nom, une identité ou une signature, puis combiner potentiel hérité, trait activé, capacité minimale, rareté, ascendance et statut. Les résultats sont regroupés par génération avec liens parents/enfants. Les ancêtres de contexte restent visibles et sont distingués des correspondances. Les filtres sont gardés pendant les allers-retours entre arbre et emplacements, séparément pour chaque mode. Un essai non révélé conserve ses parents visibles, mais pas son potentiel, ses emplacements ou sa rareté.
+**Arbre & journal** conserve fondatrices et essais, y compris les archives et les essais en attente. Rechercher un nom, une identité ou une signature, puis combiner potentiel hérité, trait activé, capacité minimale, rareté, ascendance et statut. En recherche filtrée, les correspondances passent en premier ; les ancêtres de contexte sont regroupés dans une section repliable, ouverte automatiquement par leurs liens. Sans contexte ajouté, l’arbre reste organisé par générations. Les filtres sont gardés pendant les allers-retours entre arbre et emplacements, séparément pour chaque mode. Un essai non révélé conserve ses parents visibles, mais pas son potentiel, ses emplacements ou sa rareté.
 
 Une variété conservée peut être consultée, réutilisée et exportée en fiche avec nom, signature et généalogie. Une archive reste consultable sans devenir un parent disponible. Les fiches sont des images partageables, sans import jouable.
 
@@ -50,7 +50,11 @@ Identité, potentiel hérité, activation, rareté et qualité réelle du lot so
 
 V03 utilise un nouveau schéma et des sauvegardes séparées de V02, sans migration automatique. La sauvegarde reste locale au navigateur. Les recettes des autres produits, les emplacements définitifs de spécialisation, l’économie et la production ordinaire restent ouverts.
 
-Les résultats de validation V03 seront ajoutés après les contrôles de la version finale. Les preuves navigateur V02 ne sont pas des preuves V03. Aucun parcours navigateur V03, essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué ici à ce stade.
+**64 tests réussis, 0 échec ; les huit modules embarqués passent le contrôle de syntaxe.** Le parcours navigateur V03 a vérifié une rare X × Z, l’activation de Citronné sur X pour un point avec exclusion des autres choix sur l’emplacement, puis une exceptionnelle préparée via le relais Y × X. Le filtre B1 + cinq emplacements n’a pas dévoilé le résultat caché. La variété XYZ à cinq emplacements a été nommée et conservée ; révéler son propre descendant rare lui a donné un point, ensuite dépensé pour activer B1. Le rejeu n’a pas ajouté de gain et le rechargement a retrouvé les profils. Le mode normal séparé gardait neuf boutures et trois fondatrices.
+
+Ce parcours a aussi montré que les ancêtres repoussaient trop bas la correspondance filtrée. La correction a été vérifiée après publication : correspondances en premier, ascendance repliable ouverte par les liens parentaux, puis retour vers le descendant. La recherche « heritage » retrouve « Héritage XYZ » et se combine avec le filtre B1 activé. Les vues journal et emplacements ont été inspectées à 1280 × 720 et 390 × 844, sans débordement de contenu horizontal. Maintien interrompu puis repris et ouverture assistée ont été essayés ; la console n’a signalé ni erreur ni avertissement. Les captures examinées et le compte rendu sont dans `checks/`.
+
+Il s’agit d’un parcours automatisé dans le navigateur et d’une vérification visuelle. Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué.
 
 Le spécimen utilise un modèle visuel partagé ; les sons sont synthétisés localement. Three.js est fourni sous licence MIT, incluse dans ce dossier.
 
