@@ -1,4 +1,4 @@
-# Table de R&D V02 — Charge de révélation et sons provisoires
+# Table de R&D V02.1 — Charge de révélation et sons provisoires
 
 9 novembre 2026. Synthèses de travail pour une démo web autonome. Les retours sont renforcés à la demande du propriétaire ; écoute, niveau et fatigue en répétition restent à juger. Aucune prise finale ni intégration Unity n’est déclarée.
 
@@ -13,6 +13,8 @@ Pause, volume nul, son désactivé, révélation ou destruction du système arr�
 Le mode test permet de forcer un palier pour comparer rapidement ces retours. Une réussite forcée est signalée comme test et ne mesure pas sa fréquence normale. Les points de cette séance restent dans son bac à sable séparé.
 
 Après découverte ou achat, les boutons de rejeu du test répètent uniquement leurs sons/VFX. Ils ne relancent pas une transaction et ne donnent aucun point. Ce sont des commandes de comparaison du ressenti.
+
+Sur la V02.1 publiée, les commandes de rejeu de découverte et d’amélioration ont été actionnées dans le navigateur : les compteurs sont restés à 0 point disponible, 1 gagné, 1 dépensé après l’achat de Convergence pour Aube. Une révélation rare par maintien et une exceptionnelle par assistance ont aussi été parcourues. Ces observations valident leur raccordement au parcours et l’absence de gain par rejeu, sans constituer une écoute humaine ou une appréciation du mixage.
 
 ## Événements à distinguer
 
