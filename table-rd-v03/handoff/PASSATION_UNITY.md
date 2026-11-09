@@ -99,13 +99,17 @@ Les points blancs donnent accès aux emplacements de la variété ; Origine et l
 
 ## Journal et arbre généalogique
 
-`buildJournalEntries` projette les seules informations publiques. Les fondatrices et tous les essais restent présents. Un résultat caché ne fournit ni nom de variété, signature, potentiel, capacité ni rareté ; ses parents et l’identité de son essai restent visibles. Son `result` n’est pas consulté par cette projection.
+`buildJournalEntries` projette les seules informations publiques. Les fondatrices et tous les essais restent présents. Après révélation, la projection inclut les champs `color` et `accent` déjà enregistrés. Avant révélation, nom de variété, signature, couleur, reflets, potentiel, capacité et rareté restent masqués ; seuls les parents et l’identité de l’essai sont visibles. Son `result` n’est pas consulté par cette projection.
 
-Les filtres se combinent par **ET** : texte nom/identité/signature, potentiel hérité, trait activé, capacité minimale, rareté, parent/ancêtre et statut. Le filtre de texte ignore la casse et les accents. Les statuts séparent fondatrice, conservée, archivée et en attente, cette dernière incluant une révélation non encore conservée/archivée. Les filtres sont retenus pendant les allers-retours arbre/emplacements et séparés par mode normal/test.
+Les filtres se combinent par **ET** : texte nom/identité/signature/reflets connus, potentiel hérité, trait activé, capacité minimale, rareté, parent/ancêtre et statut. Le texte ignore la casse et les accents et peut retrouver « reflets mauves » dans `accent` après révélation. Il ne recherche pas une morphologie supposée. Les statuts séparent fondatrice, conservée, archivée et en attente. Les filtres restent retenus lors des allers-retours arbre/emplacements et séparés par mode normal/test.
 
-La vue principale est désormais un **graphe complet relié**, organisé par générations. Un filtre ne supprime ni carte ni lien : les correspondances sont dorées, leur ascendance et ses liens sont accentués, les autres branches sont atténuées. Le nombre de correspondances exclut les ancêtres présents uniquement comme contexte. Même sans correspondance, le graphe reste affiché et propose de modifier ou réinitialiser les filtres. Les positions restent stables pendant la recherche.
+La vue principale est un **herbier sombre horizontal** : les portraits sont reliés entre générations. Un filtre ne supprime ni carte ni lien ; il colore les correspondances en doré, accentue leur ascendance et atténue les autres branches. Ce doré de sélection ne constitue pas un palier de rareté. Le nombre de correspondances exclut les ancêtres de contexte. Même sans correspondance, le graphe reste affiché ; ses positions restent stables pendant la recherche.
 
 Le module pur `journal-graph.js` expose `buildJournalGraph(entries, matchIds, filtered)`. Il travaille uniquement sur les entrées publiques et retourne positions, dimensions, cartes, liens et états de surlignage. La disposition ne dépend pas des filtres. Chaque ascendant partagé possède une seule carte ; les liens qui traversent plusieurs générations sont routés sans inventer de parent. Aucune donnée cachée, sauvegarde ou commande de jeu n’intervient dans ce calcul.
+
+Le module pur `journal-portrait.js` expose `renderStrainPortrait(entry, prefix)`. Il produit un SVG à partir de la couleur et des reflets publics enregistrés ; l’identité donne une silhouette décorative déterministe. Les essais inconnus retournent une silhouette neutre commune avant toute lecture de leur apparence. Les portraits ne créent aucun caractère transmissible, ne simulent aucun héritage morphologique et ne modifient ni identité, rareté ou qualité du lot.
+
+La classification visuelle évoquée par le propriétaire — plante, feuilles, fleurs, pigmentation, trichomes, cycle — est une **piste de conception personnalisable**. Elle pourrait fournir des catégories artistiques et des étiquettes propres au jeu. Aucune de ces catégories n’est ici un système génétique implémenté, une règle de transmission ou une table réelle de culture. Les variations décoratives du SVG ne doivent pas être converties implicitement en paramètres métier lors du portage.
 
 Le clic sur une fondatrice ou une variété conservée ouvre directement ses emplacements. Les archives, les essais non révélés et les résultats non encore conservés sont consultables seulement, avec les mêmes restrictions de visibilité. Les commandes de zoom +/−, Tout voir et Résultat précédent/suivant facilitent la navigation. Le cadre défile au doigt, aux flèches clavier lorsqu’il a le focus, ou par glissement du fond à la souris ; aucune précision ne change le résultat.
 
@@ -140,29 +144,11 @@ Ce sont des noms proposés, pas des API Unity existantes. Utiliser le système d
 
 ## Vérifications et limites
 
-**79 tests réussis, 0 échec sur les sources actuelles.** Les contrôles du nouveau module pur couvrent topologie parentale, ascendants partagés, géométrie déterministe indépendante des filtres, chemins sur plusieurs générations, surlignage exact des ascendants et absence de lecture de données cachées. Les contrôles du modèle, des préparations, du maintien et du journal restent distincts de la revue visuelle.
+**94 tests réussis, 0 échec, également sur les sources distribuées.** Ces contrôles portent sur règles, ressources, préparations, maintien, journal, géométrie et portraits. Ils restent distincts d’une validation visuelle. Les dix modules embarqués, dont `journal-portrait.js`, passent les contrôles de syntaxe et des imports.
 
-Le paquet comprend neuf modules embarqués, avec `journal-graph.js` ajouté ; les neuf passent le contrôle de syntaxe. La revue navigateur de l’arbre publié a confirmé sept nœuds/huit liens conservés, positions stables sous filtre, un résultat et quatre liens d’ascendance pour « heritage », combinaisons B1 hérité/cinq slots et B1 activé, clic vers les slots, retour conservant la recherche, consultation d’archive et arbre intact sans résultat. Zoom, vue complète, résultat suivant et défilement clavier ont été parcourus. Les dispositions 1280 × 720 et 390 × 844 ont été inspectées sans débordement horizontal du document ou du dialogue, et sans erreur/avertissement console. Le graphe utilise sa propre zone de défilement. Les preuves sont `checks/tree-desktop.jpg`, `checks/tree-mobile.jpg` et `checks/validation.json`. La protection des essais encore cachés est vérifiée par les tests de projection/graphe ; la carrière utilisée dans ce parcours navigateur ne contenait que des résultats déjà révélés.
+La revue navigateur du nouvel herbier sombre horizontal, des portraits et de la recherche par reflets est **en attente**. Les parcours et captures antérieurs V03 documentent uniquement les anciennes vues : ils ne prouvent ni la lisibilité, ni les interactions, ni la protection visuelle de cette nouvelle présentation. Les preuves V02 sont également historiques.
 
-Le parcours suivant est **historique : V03 avant la vue graphique**. Il avait été vérifié dans le navigateur :
-
-| Action observée | Résultat |
-|---|---|
-| Découverte X × Z | Rare révélée |
-| Activation sur X | Citronné acquis pour un point ; les autres choix de cet emplacement sont exclus |
-| Préparation exceptionnelle | Relais Y × X, puis descendant exceptionnel |
-| Filtre B1 + capacité minimale 5 avant révélation | Aucun potentiel ou capacité du résultat caché dévoilé |
-| Conservation | Variété XYZ à cinq emplacements nommée et conservée |
-| Descendant rare de cette variété | Un point propre gagné à sa révélation, puis dépensé pour activer B1 |
-| Rejeu | Aucun gain ajouté |
-| Rechargement | Profils et activations retrouvés |
-| Retour au mode normal séparé | Neuf boutures et trois fondatrices |
-
-Ce parcours avait révélé un défaut de présentation dans l’ancienne vue en fiches : les ancêtres repoussaient trop bas la correspondance filtrée. Sa correction avait été revue après publication, avec correspondances en premier et ascendance repliable. Le filtre « heritage » retrouvait « Héritage XYZ » et se combinait avec B1 activé. Les vues journal et emplacements avaient été inspectées à 1280 × 720 et 390 × 844 sans débordement horizontal du contenu. Maintien interrompu/repris et ouverture assistée avaient été essayés, sans erreur ou avertissement console relevé. Le panneau des emplacements avait aussi été vérifié en anglais.
-
-Les captures et résultats de cette ancienne vue documentent uniquement son parcours automatisé et sa revue visuelle. Les nouvelles observations de l’arbre sont consignées séparément ci-dessus. Le confort tactile et le glissement du fond à la souris restent à apprécier par le propriétaire ; aucune séance humaine ou validation sur téléphone physique n’est revendiquée.
-
-Les preuves V02 restent historiques. Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué pour V03.
+Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué. La lisibilité des portraits, la distinction reflet/surlignage et le confort de navigation demanderont leurs propres observations.
 
 Contrôles exacts à préserver : provenance et débits, budgets, refus sans mutation, identité au rechargement, tirage unique et distribution entière, potentiel uniquement parental, capacité admissible, activation uniquement héritée, emplacement exclusif, coût exact, lot inchangé, points uniques aux bons parents, préparation de test traçable, absence de fuite avant révélation et absence d’effet des filtres/gestes/replays.
 
