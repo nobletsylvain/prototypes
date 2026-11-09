@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildJournalEntries, filterJournalEntries, journalResultsHTML, JOURNAL_STRINGS } from '../source/journal.mjs';
+import { buildJournalEntries, filterJournalEntries, journalResultsHTML, focusJournalEntry, JOURNAL_STRINGS } from '../source/journal.mjs';
 
 function fixture() {
   const founders = [
@@ -116,6 +116,47 @@ test('filtered results retain ancestors as context, never siblings or extra matc
   assert(html.includes('Ancêtre · contexte'));
   assert(html.includes('Descendants directs'));
   assert(html.includes('href="#journal-trial%3Atrial-002"'));
+});
+
+test('matching cards precede a closed ancestor disclosure without losing context or links', () => {
+  const result = filterJournalEntries(entriesFor(), { potentialId: 'b1', minSlots: 3 });
+  assert.equal(result.totalMatches, 1);
+  assert.equal(result.contextIds.size, 3);
+  const html = journalResultsHTML(result);
+  const disclosureIndex = html.indexOf('<details class="journal-ancestors">');
+  assert(disclosureIndex > html.indexOf('<article id="journal-trial%3Atrial-002"'));
+  assert(!html.slice(disclosureIndex, html.indexOf('>', disclosureIndex)).includes(' open'));
+  assert(html.includes('Ancêtres de contexte (3)'));
+  for (const id of result.contextIds) {
+    const anchor = `journal-${encodeURIComponent(id)}`;
+    assert(html.indexOf(`<article id="${anchor}"`) > disclosureIndex);
+    assert.equal(html.split(`<article id="${anchor}"`).length - 1, 1);
+    assert(html.includes(`href="#${anchor}"`));
+  }
+  assert(journalResultsHTML(result, { lang: 'en' }).includes('Ancestors for context (3)'));
+});
+
+test('unfiltered journal keeps the complete generation tree without a disclosure', () => {
+  const entries = entriesFor();
+  const result = filterJournalEntries(entries);
+  const html = journalResultsHTML(result);
+  assert.equal(result.contextIds.size, 0);
+  assert(!html.includes('<details'));
+  assert.equal((html.match(/<article /g) || []).length, entries.length);
+  assert(html.indexOf('<h3>Génération 0</h3>') < html.indexOf('<h3>Génération 1</h3>'));
+  assert(html.indexOf('<h3>Génération 1</h3>') < html.indexOf('<h3>Génération 2</h3>'));
+});
+
+test('following an ancestor link opens its disclosure before scrolling and focusing', () => {
+  const disclosure = { open: false }, calls = [];
+  const target = {
+    closest(selector) { assert.equal(selector, '.journal-ancestors'); return disclosure; },
+    scrollIntoView(options) { assert(disclosure.open); assert.equal(options.block, 'nearest'); calls.push('scroll'); },
+    focus(options) { assert(disclosure.open); assert.equal(options.preventScroll, true); calls.push('focus'); },
+  };
+  assert.equal(focusJournalEntry(target), true);
+  assert.deepEqual(calls, ['scroll', 'focus']);
+  assert.equal(focusJournalEntry(null), false);
 });
 
 test('archived entries are readable but have no reuse, research or export action', () => {

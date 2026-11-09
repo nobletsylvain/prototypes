@@ -2,8 +2,8 @@
   "version": "table-rd-v03",
   "date": "2026-11-09",
   "tests": {
-    "total": 61,
-    "passed": 61,
+    "total": 64,
+    "passed": 64,
     "failed": 0,
     "files": 4,
     "exitCode": 0
@@ -11,7 +11,7 @@
   "embeddedModules": 8,
   "moduleSyntax": "passed",
   "namedImports": "passed",
-  "publishedHtmlSha256": "067d6b09f225ed197daa712125179ea55d01bc46aa54ccd5e37c71020e1e7ea8",
+  "publishedHtmlSha256": "160d52214a8a251b93e883a99862ec86a1e10306c56334aea26be50efe000888",
   "previousVersionPreserved": true,
   "browserRevision": "Pending V03 browser verification",
   "physicalPhoneTest": false,
