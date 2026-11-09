@@ -1,4 +1,6 @@
 // Fictional demonstration parameters. They do not define final game rules.
+import { founderVisual, inheritVisual, getVisualPhenotype, validateVisual } from './visual-genetics.mjs';
+import { validateState as validateLegacyState } from './model-v3.mjs';
 const clone = value => structuredClone(value);
 const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
 const UINT32_SPACE = 4294967296;
@@ -28,22 +30,21 @@ function classify(potentialIds, slotCapacity) {
   if (potentialIds.includes('b1') || (slotCapacity === 5 && aromatic)) return 'rare';
   return 'common';
 }
-function accentFor(rarity) {
-  return rarity === 'exceptional' ? { fr: 'Reflets dorés', en: 'Golden glints' } : rarity === 'rare' ? { fr: 'Reflets mauves', en: 'Mauve glints' } : { fr: 'Reflets doux', en: 'Soft glints' };
-}
-
 export const PARENTS = freeze([
-  { id: 'x', name: { fr: 'X · Aromatique', en: 'X · Aromatic' }, slotCapacity: 3, potentialIds: ['citrus', 'floral', 'yield'], color: '#b5bf68' },
-  { id: 'y', name: { fr: 'Y · Réserve', en: 'Y · Reserve' }, slotCapacity: 5, potentialIds: ['yield', 'quality'], color: '#6a9b79' },
-  { id: 'z', name: { fr: 'Z · B1', en: 'Z · B1' }, slotCapacity: 3, potentialIds: ['b1', 'quality'], color: '#aa8fbb' },
-].map(parent => ({ ...parent, taste: summarizePotentials(parent.potentialIds, 'taste'), effect: summarizePotentials(parent.potentialIds, 'effect'), rarity: classify(parent.potentialIds, parent.slotCapacity), accent: accentFor(classify(parent.potentialIds, parent.slotCapacity)), generation: 0, parents: [] })));
+  { id: 'x', name: { fr: 'X · Aromatique', en: 'X · Aromatic' }, slotCapacity: 3, potentialIds: ['citrus', 'floral', 'yield'] },
+  { id: 'y', name: { fr: 'Y · Réserve', en: 'Y · Reserve' }, slotCapacity: 5, potentialIds: ['yield', 'quality'] },
+  { id: 'z', name: { fr: 'Z · B1', en: 'Z · B1' }, slotCapacity: 3, potentialIds: ['b1', 'quality'] },
+].map(parent => {
+  const visual = founderVisual(parent.id), phenotype = getVisualPhenotype(visual);
+  return { ...parent, visual, color: phenotype.color, accent: phenotype.accent, taste: summarizePotentials(parent.potentialIds, 'taste'), effect: summarizePotentials(parent.potentialIds, 'effect'), rarity: classify(parent.potentialIds, parent.slotCapacity), generation: 0, parents: [] };
+}));
 
 const initialCuttings = () => PARENTS.flatMap(parent => Array.from({ length: 3 }, (_, index) => ({ id: `cutting-${parent.id}-${index + 1}`, varietyId: parent.id, sourcePlantId: `plant-${parent.id}-demo` })));
 const emptyResearch = () => ({ earned: 0, spent: 0, choices: {} });
 
 export function createState() {
   return {
-    schema: 3, revision: 0, inventory: initialCuttings(),
+    schema: 4, revision: 0, inventory: initialCuttings(),
     plants: PARENTS.map(parent => ({ id: `plant-${parent.id}-demo`, varietyId: parent.id, capacity: 3, harvested: 0, createdByTrialId: null })),
     harvests: [], pot: { id: 'pot-demo-01', trialId: null }, trials: [], varieties: [],
     research: Object.fromEntries(PARENTS.map(parent => [parent.id, emptyResearch()])),
@@ -115,15 +116,16 @@ export function getOdds(state, parentIds) {
   return { ...percentages, affinity: potentials.length ? shared / potentials.length : 0, generation: Math.max(...parents.map(parent => parent.generation)) + 1, potentialOdds, capacityOdds, outcomes, counts, sampleSpace: UINT32_SPACE, exactPercent: { ...percentages } };
 }
 
-function createResult(parentIds, odds, seed, index) {
+function createResult(parents, odds, seed, index) {
   const outcome = odds.outcomes.find(outcome => seed >= outcome.seedStart && seed < outcome.seedEnd);
   requireCondition(outcome, 'seed has no inheritance outcome');
   const potentialIds = [...outcome.potentialIds];
+  const visual = inheritVisual(parents, seed), phenotype = getVisualPhenotype(visual);
   return {
     id: `variety-${serial(index)}`, potentialIds, slotCapacity: outcome.slotCapacity,
     taste: summarizePotentials(potentialIds, 'taste'), effect: summarizePotentials(potentialIds, 'effect'),
-    accent: accentFor(outcome.rarity), color: potentialIds.includes('citrus') ? '#b5bf68' : potentialIds.includes('b1') || potentialIds.includes('floral') ? '#aa8fbb' : '#6a9b79',
-    parents: [...parentIds], rarity: outcome.rarity, generation: odds.generation,
+    visual, accent: phenotype.accent, color: phenotype.color,
+    parents: parents.map(parent => parent.id), rarity: outcome.rarity, generation: odds.generation,
   };
 }
 
@@ -140,12 +142,12 @@ function applyCommand(state, command, now) {
     if (Array.isArray(command.parentIds) && command.parentIds.length === 2 && command.parentIds[0] === command.parentIds[1]) return refuse('distinct-parents-required');
     const parents = resolvePair(state, command.parentIds);
     if (!parents) return refuse('parents-required');
-    if ('intent' in command || 'taste' in command || 'effect' in command || 'potentialIds' in command || 'slotCapacity' in command) return refuse('direct-trait-selection-removed');
+    if ('intent' in command || 'taste' in command || 'effect' in command || 'potentialIds' in command || 'slotCapacity' in command || 'visual' in command) return refuse('direct-trait-selection-removed');
     if (!isSeed(command.seed)) return refuse('seed-required');
     const cuttings = command.parentIds.map(id => state.inventory.find(cutting => cutting.varietyId === id));
     if (cuttings.some(cutting => !cutting)) return refuse('insufficient-cuttings');
     const odds = getOdds(state, command.parentIds), next = clone(state), index = next.trials.length + 1;
-    const trial = { id: `trial-${serial(index)}`, requestId: command.requestId, parentIds: [...command.parentIds], cuttingIds: cuttings.map(cutting => cutting.id), seed: command.seed, odds, result: createResult(command.parentIds, odds, command.seed, index), batch: { id: `batch-${serial(index)}`, quality: 'demo-standard', quantity: 1, unit: 'specimen' }, phase: 'growing', createdAt: now, pointsAwarded: false };
+    const trial = { id: `trial-${serial(index)}`, requestId: command.requestId, parentIds: [...command.parentIds], cuttingIds: cuttings.map(cutting => cutting.id), seed: command.seed, odds, result: createResult(parents, odds, command.seed, index), batch: { id: `batch-${serial(index)}`, quality: 'demo-standard', quantity: 1, unit: 'specimen' }, phase: 'growing', createdAt: now, pointsAwarded: false };
     next.inventory = next.inventory.filter(cutting => !trial.cuttingIds.includes(cutting.id));
     next.trials.push(trial); next.pot.trialId = trial.id; next.activeTrialId = trial.id;
     return commit(next, { type: 'START', parentIds: [...command.parentIds], seed: command.seed, requestId: command.requestId }, 'trial-started');
@@ -200,9 +202,12 @@ function canonical(value) {
 }
 function snapshot(value) { return JSON.stringify(canonical(value)); }
 export function validateState(state) {
-  requireCondition(isRecord(state) && state.schema === 3, 'unsupported schema');
+  requireCondition(isRecord(state) && state.schema === 4, 'unsupported schema');
   requireCondition(Array.isArray(state.history), 'missing command history');
   requireCondition(Number.isSafeInteger(state.revision) && state.revision === state.history.length, 'revision');
+  requireCondition(Array.isArray(state.trials) && Array.isArray(state.varieties), 'missing identity collections');
+  state.trials.forEach(trial => validateVisual(trial.result?.visual));
+  state.varieties.forEach(variety => validateVisual(variety.visual));
   let replay = createState();
   for (const entry of state.history) {
     requireCondition(isRecord(entry) && isRecord(entry.command) && Number.isFinite(entry.at) && entry.at >= 0, 'history entry');
@@ -213,7 +218,26 @@ export function validateState(state) {
   for (const trial of state.trials) requireCondition(trial.pointsAwarded === (KNOWN_PHASES.includes(trial.phase) && trial.result.rarity !== 'common'), 'point award phase');
   return state;
 }
-export function restoreState(json) { return validateState(typeof json === 'string' ? JSON.parse(json) : clone(json)); }
+function withoutAppearance(state) {
+  const comparable = clone(state); comparable.schema = 3;
+  for (const identity of [...comparable.trials.map(trial => trial.result), ...comparable.varieties]) {
+    delete identity.visual; delete identity.color; delete identity.accent;
+  }
+  return comparable;
+}
+export function restoreState(json) {
+  const state = typeof json === 'string' ? JSON.parse(json) : clone(json);
+  if (state?.schema !== 3) return validateState(state);
+  // Old appearance was illustrative. Validate it exactly before initializing inherited visual data.
+  validateLegacyState(state);
+  let migrated = createState();
+  for (const entry of state.history) {
+    const result = applyCommand(migrated, entry.command, entry.at);
+    requireCondition(result.ok && result.state !== migrated, 'legacy replay refused'); migrated = result.state;
+  }
+  requireCondition(snapshot(withoutAppearance(migrated)) === snapshot(withoutAppearance(state)), 'legacy replay changed nonvisual state');
+  return validateState(migrated);
+}
 export function transition(state, command, now = Date.now()) {
   validateState(state); const result = applyCommand(state, command, now);
   if (result.ok && result.state !== state) validateState(result.state);

@@ -1,69 +1,22 @@
 {
   "version": "table-rd-v03",
+  "schema": 4,
+  "visualVersion": 1,
   "date": "2026-11-09",
   "tests": {
-    "total": 94,
-    "passed": 94,
+    "total": 120,
+    "passed": 120,
     "failed": 0,
-    "files": 6,
+    "files": 9,
     "exitCode": 0
   },
-  "embeddedModules": 10,
+  "embeddedModules": 15,
   "moduleSyntax": "passed",
   "namedImports": "passed",
-  "publishedHtmlSha256": "bb105df5f7f3e8689b74fd2077cce06123ae664186f3aa36d2bd08e323306b2b",
-  "previousVersionPreserved": true,
-  "browserRevision": "Illustrated herbarium verified on the published page after PR 287",
+  "publishedHtmlSha256": "70bb1d29604c96db6193f88cb8114e56926f889314eb43681b9cc7ff52c1134a",
+  "browserRevision": "Visual inheritance and Unity head masters pending browser review",
   "physicalPhoneTest": false,
   "listeningValidated": false,
   "humanPlaytest": false,
-  "unityIntegration": false,
-  "browserDate": "2026-11-09",
-  "verifiedCodeCommit": "315b17094a47df34dc042ec8da5ce63809a6841c",
-  "browserViewports": [
-    [
-      1280,
-      720
-    ],
-    [
-      390,
-      844
-    ]
-  ],
-  "browserObservations": {
-    "portraits": 9,
-    "parentChildLinks": 12,
-    "mauveGlintSearchMatches": 5,
-    "heritageSearchMatches": 1,
-    "heritageHighlightedAncestralLinks": 4,
-    "b1AndFiveSlotsMatches": 2,
-    "zeroMatchesPreservesNodesAndLinks": true,
-    "zeroMatchesDisablesResultNavigation": true,
-    "clickOpensExistingSlots": true,
-    "returnPreservesSearch": true,
-    "fitAndResultNavigation": "Fit at 36 percent shows all nodes without internal overflow; next result restores at least 80 percent",
-    "mobileDocumentClientAndScrollWidth": [
-      375,
-      375
-    ],
-    "mobileDialogClientAndScrollWidth": [
-      363,
-      363
-    ],
-    "mobileTreeClientSize": [
-      330,
-      499
-    ],
-    "consoleWarnings": 0,
-    "consoleErrors": 0
-  },
-  "captures": [
-    "herbarium-desktop.jpg",
-    "herbarium-mobile.jpg"
-  ],
-  "limits": "Browser viewport testing is not a physical-phone or human comfort test. Hidden portrait protection is covered by automated fixtures; the inspected browser career contained already revealed trials.",
-  "captureHashes": {
-    "herbarium-desktop.jpg": "715804bda7ac41edb08cc7ac0e6fd4af071b990e376fae0f16bd9b48f09b70a5",
-    "herbarium-mobile.jpg": "409c17edeee45a238c97561bef6da44dc0e64a5c1a9383d1256181ad46afe44c"
-  }
+  "unityIntegration": false
 }
