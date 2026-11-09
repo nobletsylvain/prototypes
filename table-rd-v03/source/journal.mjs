@@ -3,10 +3,11 @@ import { TRAITS, getConfiguration } from './model.mjs';
 // The journal is a projection of public information, never a game transaction.
 export const JOURNAL_STRINGS = {
   fr: {
-    title: 'Journal de bord', intro: 'Retrouvez vos essais et les liens de leur lignée. Les ancêtres restent visibles pour situer une recherche.',
+    title: 'Journal de bord', intro: 'Retrouvez vos essais et les liens de leur lignée. Les ancêtres restent accessibles pour situer une recherche.',
     search: 'Nom, identité ou signature', searchHint: 'Rechercher dans le journal…', potential: 'Potentiel hérité', active: 'Trait activé',
     slots: 'Emplacements minimum', rarity: 'Rareté', ancestor: 'Descendants de', status: 'Statut', all: 'Tous', any: 'Indifférent',
     reset: 'Effacer les filtres', matches: '{count} résultat(s) sur {total}', contextCount: '{count} ancêtre(s) de contexte',
+    matchingResults: 'Résultats correspondants', ancestorDisclosure: 'Ancêtres de contexte ({count})',
     empty: 'Aucun résultat pour ces filtres. Les essais restent dans le journal ; modifiez ou effacez les filtres.',
     generation: 'Génération', parents: 'Parents', children: 'Descendants directs', founder: 'Fondatrice', kept: 'Conservée', archived: 'Archivée', pending: 'En attente',
     hidden: 'Essai non révélé', unnamed: 'Découverte sans nom', hiddenInfo: 'Potentiel, rareté et emplacements restent cachés jusqu’à la révélation.',
@@ -17,10 +18,11 @@ export const JOURNAL_STRINGS = {
     unknownParent: 'Parent', contextHelp: 'Les cartes de contexte ne satisfont pas nécessairement les filtres.',
   },
   en: {
-    title: 'Research journal', intro: 'Find your trials and their lineage links. Ancestors remain visible to place each search in context.',
+    title: 'Research journal', intro: 'Find your trials and their lineage links. Ancestors remain accessible to place each search in context.',
     search: 'Name, identity or signature', searchHint: 'Search the journal…', potential: 'Inherited potential', active: 'Activated trait',
     slots: 'Minimum slots', rarity: 'Rarity', ancestor: 'Descendants of', status: 'Status', all: 'All', any: 'Any',
     reset: 'Clear filters', matches: '{count} result(s) of {total}', contextCount: '{count} ancestor(s) for context',
+    matchingResults: 'Matching results', ancestorDisclosure: 'Ancestors for context ({count})',
     empty: 'No results match these filters. Trials remain in the journal; change or clear the filters.',
     generation: 'Generation', parents: 'Parents', children: 'Direct descendants', founder: 'Founder', kept: 'Kept', archived: 'Archived', pending: 'Pending',
     hidden: 'Unrevealed trial', unnamed: 'Unnamed discovery', hiddenInfo: 'Potential, rarity and slots stay hidden until the reveal.',
@@ -181,8 +183,21 @@ export function journalResultsHTML(result, { lang = 'fr', canUse = false } = {})
       ${children.length ? `<div class="journal-children"><small>${text.children} ↓</small><div>${children.map(link).join(' ')}</div></div>` : ''}
     </article>`;
   };
-  const generations = [...new Set(result.entries.map(entry => entry.generation))];
-  return generations.map(generation => `<section class="journal-generation"><h3>${text.generation} ${generation}</h3><div class="journal-generation-cards">${result.entries.filter(entry => entry.generation === generation).map(cards).join('')}</div></section>`).join('');
+  const generationsHTML = entries => [...new Set(entries.map(entry => entry.generation))].map(generation => `<section class="journal-generation"><h3>${text.generation} ${generation}</h3><div class="journal-generation-cards">${entries.filter(entry => entry.generation === generation).map(cards).join('')}</div></section>`).join('');
+  if (!result.contextIds.size) return generationsHTML(result.entries);
+  const matches = result.entries.filter(entry => !result.contextIds.has(entry.id));
+  const ancestors = result.entries.filter(entry => result.contextIds.has(entry.id));
+  return `<section class="journal-matches" aria-label="${text.matchingResults}">${generationsHTML(matches)}</section><details class="journal-ancestors"><summary>${interpolate(text.ancestorDisclosure, { count: ancestors.length })}</summary><p class="journal-context-help">${text.contextHelp}</p>${generationsHTML(ancestors)}</details>`;
+}
+
+/** Make a linked ancestor visible before moving the viewport or keyboard focus. */
+export function focusJournalEntry(target) {
+  if (!target) return false;
+  const disclosure = target.closest('.journal-ancestors');
+  if (disclosure) disclosure.open = true;
+  target.scrollIntoView({ block: 'nearest' });
+  target.focus({ preventScroll: true });
+  return true;
 }
 
 /** Mount inside an existing modal host. Callbacks receive strain IDs, except onDownload(trialId). */
@@ -199,7 +214,7 @@ export function renderJournal(host, { state, strains, lang = 'fr', onResearch, o
     ${field(text.rarity, 'rarity', option('', text.all) + ['common', 'rare', 'exceptional'].map(id => option(id, text[id])).join(''))}
     ${field(text.ancestor, 'ancestorId', option('', text.all) + entries.filter(entry => entry.strainId && entry.childEntryIds.length).map(entry => option(entry.strainId, `${displayName(entry, lang, text)} · ${entry.strainId}`)).join(''))}
     ${field(text.status, 'status', option('', text.all) + ['founder', 'kept', 'archived', 'pending'].map(id => option(id, text[id])).join(''))}
-    <button type="reset" class="journal-reset">${text.reset}</button></form><p class="journal-summary" role="status" aria-live="polite"></p><p class="journal-context-help">${text.contextHelp}</p><div class="journal-results"></div></section>`;
+    <button type="reset" class="journal-reset">${text.reset}</button></form><p class="journal-summary" role="status" aria-live="polite"></p><div class="journal-results"></div></section>`;
   const form = host.querySelector('.journal-filters'), results = host.querySelector('.journal-results'), summary = host.querySelector('.journal-summary');
   const filters = () => Object.fromEntries(new FormData(form));
   const update = () => {
@@ -218,7 +233,7 @@ export function renderJournal(host, { state, strains, lang = 'fr', onResearch, o
       event.preventDefault();
       const targetId = anchor.getAttribute('href').slice(1);
       const target = [...results.querySelectorAll('.journal-entry')].find(entry => entry.id === targetId);
-      target?.scrollIntoView({ block: 'nearest' }); target?.focus({ preventScroll: true });
+      focusJournalEntry(target);
     }
   };
   form.addEventListener('input', update); form.addEventListener('change', update); form.addEventListener('reset', reset); form.addEventListener('submit', event => event.preventDefault());
