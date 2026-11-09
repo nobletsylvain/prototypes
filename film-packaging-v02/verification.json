@@ -1,35 +1,26 @@
 {
   "date": "2026-11-09",
-  "version": "film-packaging-v02.7",
+  "version": "film-packaging-v02.8",
   "automated": {
     "command": "node --test tests/*.test.mjs",
-    "passed": 147,
+    "passed": 146,
     "failed": 0
   },
   "preservation": {
-    "v026Files": 74,
+    "v027Files": 78,
     "changed": 0,
     "gameSourcesChanged": false
   },
   "changes": {
-    "cameraEye": [
-      0.05,
-      1.05,
-      1.8
-    ],
-    "cameraFixedWhileLookingAndZooming": true,
-    "heldOrientation": "horizontal with camera yaw",
-    "heldFamilyEnvelopeStable": true,
-    "returnSeconds": 0.22,
-    "guidedReturnDistinctFromRelease": true,
-    "pickupFromTopOfSourceColumn": true,
-    "packageTargetFromPhysicalPose": true,
-    "restartRestoresTableAndManipulation": true,
-    "physicsSolverIterations": 100,
-    "physicsStepSeconds": 0.008333333333333333,
-    "previousSolverIterations": 20,
-    "openingSeconds": 0.38,
-    "defaultWrapSeconds": 0.55,
+    "firstRepeatMilliseconds": 280,
+    "secondRepeatMilliseconds": 210,
+    "accelerationMillisecondsPerPickup": 2,
+    "minimumIntervalMilliseconds": 150,
+    "stackBoundaryPauseMilliseconds": 0,
+    "lastIntervalBeforeThirtyMilliseconds": 156,
+    "scheduledTimeToThirtyMilliseconds": 5404,
+    "releaseCancelsImmediately": true,
+    "cameraAndPhysicsChanged": false,
     "slabAndCashLimit": 30,
     "otherProductLimitAdded": false
   },
@@ -39,7 +30,7 @@
   "humanAudioListening": false,
   "unityIntegration": false,
   "publishing": {
-    "target": "https://nobletsylvain.github.io/prototypes/film-packaging-v02/?v=2.7",
-    "previous": "archive-v02.6.html"
+    "target": "https://nobletsylvain.github.io/prototypes/film-packaging-v02/?v=2.8",
+    "previous": "archive-v02.7.html"
   }
 }
