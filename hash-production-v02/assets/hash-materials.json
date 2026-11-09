@@ -1,0 +1,186 @@
+{
+  "hash-100g": {
+    "A": {
+      "color": "#B99A67",
+      "roughness": 0.85,
+      "metalness": 0,
+      "sourceParameters": {
+        "bump_m": 2.5e-05,
+        "color": "B99A67",
+        "contrast": 0.08,
+        "grain_per_m": 2600.0,
+        "roughness": 0.85
+      },
+      "map": "hash-100g-A-base_color.jpg",
+      "normalMap": "hash-100g-A-normal.jpg",
+      "roughnessMap": "hash-100g-A-roughness.jpg"
+    },
+    "B": {
+      "color": "#AE792D",
+      "roughness": 0.9,
+      "metalness": 0,
+      "sourceParameters": {
+        "bump_m": 0.00016,
+        "color": "AE792D",
+        "contrast": 0.27,
+        "grain_per_m": 900.0,
+        "roughness": 0.9
+      },
+      "map": "hash-100g-B-base_color.jpg",
+      "normalMap": "hash-100g-B-normal.jpg",
+      "roughnessMap": "hash-100g-B-roughness.jpg"
+    },
+    "C": {
+      "color": "#966039",
+      "roughness": 0.45,
+      "metalness": 0,
+      "sourceParameters": {
+        "bump_m": 8e-06,
+        "color": "966039",
+        "contrast": 0.04,
+        "grain_per_m": 3000.0,
+        "roughness": 0.45
+      },
+      "map": "hash-100g-C-base_color.jpg",
+      "normalMap": "hash-100g-C-normal.jpg",
+      "roughnessMap": "hash-100g-C-roughness.jpg"
+    },
+    "D": {
+      "color": "#764421",
+      "roughness": 0.9,
+      "metalness": 0,
+      "sourceParameters": {
+        "bump_m": 0.00013,
+        "color": "764421",
+        "contrast": 0.24,
+        "grain_per_m": 1100.0,
+        "roughness": 0.9
+      },
+      "map": "hash-100g-D-base_color.jpg",
+      "normalMap": "hash-100g-D-normal.jpg",
+      "roughnessMap": "hash-100g-D-roughness.jpg"
+    },
+    "E": {
+      "color": "#49301F",
+      "roughness": 0.8,
+      "metalness": 0,
+      "sourceParameters": {
+        "bump_m": 6e-06,
+        "color": "49301F",
+        "contrast": 0.035,
+        "grain_per_m": 3000.0,
+        "roughness": 0.8
+      },
+      "map": "hash-100g-E-base_color.jpg",
+      "normalMap": "hash-100g-E-normal.jpg",
+      "roughnessMap": "hash-100g-E-roughness.jpg"
+    },
+    "F": {
+      "color": "#2C211A",
+      "roughness": 0.25,
+      "metalness": 0,
+      "sourceParameters": {
+        "bump_m": 5e-06,
+        "color": "2C211A",
+        "contrast": 0.025,
+        "grain_per_m": 3400.0,
+        "roughness": 0.25
+      },
+      "map": "hash-100g-F-base_color.jpg",
+      "normalMap": "hash-100g-F-normal.jpg",
+      "roughnessMap": "hash-100g-F-roughness.jpg"
+    }
+  },
+  "hash-250g": {
+    "A": {
+      "color": "#B99A67",
+      "roughness": 0.85,
+      "metalness": 0,
+      "sourceParameters": {
+        "bump_m": 2.5e-05,
+        "color": "B99A67",
+        "contrast": 0.08,
+        "grain_per_m": 2600.0,
+        "roughness": 0.85
+      },
+      "map": "hash-250g-A-base_color.jpg",
+      "normalMap": "hash-250g-A-normal.jpg",
+      "roughnessMap": "hash-250g-A-roughness.jpg"
+    },
+    "B": {
+      "color": "#AE792D",
+      "roughness": 0.9,
+      "metalness": 0,
+      "sourceParameters": {
+        "bump_m": 0.00016,
+        "color": "AE792D",
+        "contrast": 0.27,
+        "grain_per_m": 900.0,
+        "roughness": 0.9
+      },
+      "map": "hash-250g-B-base_color.jpg",
+      "normalMap": "hash-250g-B-normal.jpg",
+      "roughnessMap": "hash-250g-B-roughness.jpg"
+    },
+    "C": {
+      "color": "#966039",
+      "roughness": 0.45,
+      "metalness": 0,
+      "sourceParameters": {
+        "bump_m": 8e-06,
+        "color": "966039",
+        "contrast": 0.04,
+        "grain_per_m": 3000.0,
+        "roughness": 0.45
+      },
+      "map": "hash-250g-C-base_color.jpg",
+      "normalMap": "hash-250g-C-normal.jpg",
+      "roughnessMap": "hash-250g-C-roughness.jpg"
+    },
+    "D": {
+      "color": "#764421",
+      "roughness": 0.9,
+      "metalness": 0,
+      "sourceParameters": {
+        "bump_m": 0.00013,
+        "color": "764421",
+        "contrast": 0.24,
+        "grain_per_m": 1100.0,
+        "roughness": 0.9
+      },
+      "map": "hash-250g-D-base_color.jpg",
+      "normalMap": "hash-250g-D-normal.jpg",
+      "roughnessMap": "hash-250g-D-roughness.jpg"
+    },
+    "E": {
+      "color": "#49301F",
+      "roughness": 0.8,
+      "metalness": 0,
+      "sourceParameters": {
+        "bump_m": 6e-06,
+        "color": "49301F",
+        "contrast": 0.035,
+        "grain_per_m": 3000.0,
+        "roughness": 0.8
+      },
+      "map": "hash-250g-E-base_color.jpg",
+      "normalMap": "hash-250g-E-normal.jpg",
+      "roughnessMap": "hash-250g-E-roughness.jpg"
+    },
+    "F": {
+      "color": "#2C211A",
+      "roughness": 0.25,
+      "metalness": 0,
+      "sourceParameters": {
+        "bump_m": 5e-06,
+        "color": "2C211A",
+        "contrast": 0.025,
+        "grain_per_m": 3400.0,
+        "roughness": 0.25
+      },
+      "map": "hash-250g-F-base_color.jpg",
+      "normalMap": "hash-250g-F-normal.jpg",
+      "roughnessMap": "hash-250g-F-roughness.jpg"
+    }
+  }
+}
