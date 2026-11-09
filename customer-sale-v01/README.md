@@ -1,28 +1,33 @@
 # L’Étal — vente face au client
 
-Une démo autonome en vue subjective, avec des données fictives et finies. Le client découvre sa demande après interaction ; le joueur prépare depuis la sacoche, propose puis rend la monnaie. Les recettes restent récupérables pendant que le suivant avance.
+Le client arrive avec ses billets en main, puis les tend en formulant sa demande. Le joueur glisse le sachet et la monnaie sur le carton. Une confirmation juste collecte automatiquement le paiement dans la sacoche, même lorsque la main est occupée.
+
+**Correction en cours :** ce guide décrit le nouveau geste. [La démo a déjà un lien publié](https://nobletsylvain.github.io/prototypes/customer-sale-v01/), la correction passe 79 contrôles automatiques, sans échec ; sa revue navigateur et sa publication restent à consigner. Les preuves de la première version concernent son ancien rangement manuel.
 
 ## Jouer
 
-Ouvrir `index.html` depuis un serveur HTTP. La copie autonome `Etal-V01.html` livrée à côté du dossier `dist` contient aussi toutes les ressources et peut s’ouvrir directement dans un navigateur compatible avec les modules et import maps.
+Ouvrir `index.html` depuis un serveur HTTP. La copie autonome `Etal-V01.html` contient également les ressources ; sa mise à jour doit suivre la version livrée.
 
-- **Souris ou doigt :** glisser un sachet ou billet vers l’étal ; cliquer sur un objet posé pour le reprendre. On peut aussi toucher un objet puis l’étal.
-- **E :** parler. **1 à 5 :** sortir un sachet de la case correspondante. **Espace :** proposer, puis confirmer le paiement exact. **R :** ranger la main. **Échap :** remettre l’objet en cours de déplacement.
-- **? :** aide et commandes accessibles pour chaque objet ; la simulation est en pause pendant la lecture.
-- Le son et les retours renforcés se comparent depuis les boutons du haut. Les textes d’interface sont disponibles en français et en anglais.
+- **Souris ou doigt :** glisser sachet ou billet de monnaie vers l’étal ; cliquer sur un objet préparé pour le reprendre. On peut aussi toucher un objet puis l’étal.
+- **E :** parler. **1 à 5 :** sortir un sachet de la case correspondante. **Espace :** confirmer la vente exacte ; aucune étape distincte Proposer. **Échap :** remettre l’objet déplacé.
+- Le paiement rejoint automatiquement la sacoche ; aucune commande de ramassage ou rangement des recettes n’est nécessaire.
+- **? :** aide et commandes accessibles ; sa lecture suspend la simulation.
+- Son et retours renforcés se comparent avec les boutons du haut. Interface en français et anglais.
 
 ## Trois situations
 
-1. **Vente simple :** premier sachet, tarif 45 €, paiement 50 €, monnaie 5 €.
-2. **Hésitation :** deuxième sachet, tarif 25 €, budget 20 €. Le timer de cinq secondes se fige à la première prise. Le joueur peut proposer 20 € ; le client ne fait aucune contre-offre.
-3. **Main pleine :** un colis de démonstration occupe la main. Après vente, le client laisse ses billets sur l’étal. Ranger le colis, ramasser puis ranger les billets. Le suivant avance pendant ce temps.
+1. **Vente simple :** sachet 4 g à 25 €, billet présenté 50 €, monnaie 25 €. Préparer les deux objets, confirmer et observer la collecte.
+2. **Hésitation :** sachet 4 g, tarif 25 €, prix accepté 20 €. Le timer de cinq secondes se fige à la première prise. Le joueur ajuste à 20 €, sans contre-offre du client ; rendre 30 € sur les 50 € présentés puis confirmer une seule fois.
+3. **Main occupée :** un colis reste tenu pendant la vente. Le paiement rejoint la sacoche, l’objet tenu est conservé et le suivant avance.
 
-Chaque situation recommence un lot isolé : cinq cases de huit sachets, trente billets dans le fonds, huit clients distincts. Les produits, coupures et identités sont conservés à chaque transfert. Les capacités générales d’un autre jeu ne sont pas simulées.
+Chaque situation recommence un lot isolé : cinq cases de huit sachets, trente billets de fonds, huit clients distincts. Les billets visibles dans la main du client sont ceux transférés à la confirmation. Produits, coupures et identités sont conservés. Les capacités générales d’un autre jeu ne sont pas modifiées.
 
-## Limites
+## Limites et preuves
 
-Une seule référence et un sachet par demande ; seul le motif d’hésitation « prix » est démontré. Les substitutions, pourboires, séries, pénalités, solutions de secours sans monnaie et progression ne sont pas reconstruits. Les quantités, prix, cadence de quatre secondes et durée maximale de cinq minutes sont des données de démonstration. La séance peut aussi finir après les huit clients.
+Une référence et un sachet par demande ; seule l’hésitation de prix est démontrée. Pas de substitutions avancées, pourboires, séries, pénalités, secours sans monnaie ou progression. Prix, cadence de quatre secondes et durée maximale de cinq minutes sont provisoires. La séance peut finir après les huit clients.
 
-Personnages, carton, sacoche, mouvements, papier et sons sont des propositions d’essai. Le portrait emploie deux rangées de compartiments dans la même sacoche. Il ne s’agit pas d’assets finaux ni d’une intégration Unity.
+Personnages, carton, sacoche, papier et sons restent des propositions. Le portrait utilise deux rangées de compartiments. Aucun asset final ni intégration Unity n’est livré.
 
-Voir [le carnet](documentation.html), [la passation](HANDOFF.md), [la provenance](ASSETS.md) et [les preuves](verification/summary.json). Les tests automatiques ne constituent ni une écoute ni un essai humain.
+La première version avait 76 contrôles réussis et une revue navigateur aux formats ordinateur et téléphone. La correction passe 79 contrôles : 45 registre, 17 contrôleur avec présentation simulée et 17 audio avec contexte simulé ; quatre modules valides en syntaxe. Une composition incompatible désactive la confirmation. La nouvelle revue navigateur reste à faire. Aucun essai humain, téléphone physique ou écoute de cette correction n’est validé.
+
+Voir [le carnet](documentation.html), [la passation](HANDOFF.md), [la provenance](ASSETS.md), [les preuves datées](verification/summary.json) et [la revue antérieure](verification/browser-review.json).

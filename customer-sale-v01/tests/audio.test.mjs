@@ -161,6 +161,18 @@ test('contact callback drives paper and product cues, while a drop alone is sile
   }
 });
 
+test('the physical fund contact plays the automatic storage cue', async () => {
+  const { context, audio } = await unlocked();
+  const contact = event => audio.play(event.type);
+  assert.equal(audio.play('confirm'), false);
+  assert.equal(context.sources.length, 0);
+  assert.equal(contact({ type: 'fund-contact', id: 'payment-1' }), true);
+  assert.equal(audio.metrics.played, 1);
+  assert.equal(context.sources.length, 2);
+  assert.ok(context.sources.every(source => source.kind === 'noise'));
+  assert.ok(context.sources[1].starts[0] > context.sources[0].starts[0]);
+});
+
 test('rapid cues never exceed 24 simultaneous sources', async () => {
   const { audio, context } = await unlocked();
   for (let index = 0; index < 8; index++) assert.equal(audio.play('sale-to-tray'), true);

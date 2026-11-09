@@ -22,7 +22,7 @@ export function createSession(scenario = 'normal', options = {}) {
   for (const key of ['arrivalSeconds', 'serviceSeconds', 'departureSeconds', 'receiptSeconds']) {
     if (!Number.isFinite(config[key]) || config[key] <= 0) throw new Error(`Invalid ${key}`);
   }
-  const orders = ['hash8', 'hash4', 'flower2', 'flower5', 'premium2', 'hash8', 'hash4', 'flower2'];
+  const orders = ['hash4', 'hash4', 'flower2', 'flower5', 'premium2', 'hash8', 'hash4', 'flower2'];
   if (scenario === 'hesitation') orders[0] = 'hash4';
   const names = ['Julien', 'Inès', 'Sofiane', 'Camille', 'Nora', 'Malik', 'Léa', 'Yann'];
   const clients = orders.map((sku, index) => ({
@@ -55,18 +55,24 @@ export function getView(state) {
   const current = state.clients.find(client => client.id === state.currentId) || null;
   const tray = located(state, 'tray');
   const normalPrice = tray.reduce((total, item) => total + catalog[item.sku].price, 0);
-  const received = current ? sum(state.objects.filter(item => current.paymentIds.includes(item.id))) : 0;
-  const due = state.agreement ? received - state.agreement.price : 0;
+  const paymentBills = current ? state.objects.filter(item => current.paymentIds.includes(item.id)) : [];
+  const received = sum(paymentBills);
+  const requestPrice = current ? current.request.reduce((total, line) => total + catalog[line.sku].price * line.count, 0) : 0;
+  const effectivePrice = tray.length ? state.offerPrice : requestPrice;
+  const due = current ? received - effectivePrice : 0;
   const returned = sum(located(state, 'change'));
   const outstandingReceipts = state.objects.filter(item => item.kind === 'bill' && ['hand', 'receipt'].includes(item.location));
-  const exact = state.phase === 'payment' && due >= 0 && returned === due;
+  const exact = editablePhases.has(state.phase) && due >= 0 && returned === due;
+  const matches = !!current && matchesRequest(tray, current.request);
+  const budgetAccepted = !!current && effectivePrice > 0 && effectivePrice <= current.budget;
+  const paymentAvailable = !!paymentBills.length && paymentBills.every(bill => bill.location === `customer:${current.id}`);
   return {
     current, request: state.phase === 'approach' ? null : current?.request || null,
-    normalPrice, received, due, returned, exact,
+    normalPrice, requestPrice, effectivePrice, paymentBills, received, due, returned, exact, matches, budgetAccepted,
     handFull: located(state, 'hand').length > 0,
     queueCount: state.queue.length,
     outstandingReceipts,
-    canConfirm: exact && !state.dragId && !!state.agreement,
+    canConfirm: exact && matches && budgetAccepted && effectivePrice <= normalPrice && !state.dragId && paymentAvailable && current.status === 'active',
     slots: CATALOG.map(item => located(state, `slot:${item.key}`)),
     fund: located(state, 'fund'), tray, change: located(state, 'change'),
     hand: located(state, 'hand'), receipts: located(state, 'receipt'),
@@ -74,9 +80,13 @@ export function getView(state) {
   };
 }
 
+function matchesRequest(tray, request) {
+  return request.every(line => tray.filter(product => product.sku === line.sku).length === line.count)
+    && tray.length === request.reduce((total, line) => total + line.count, 0);
+}
+
 function prepare(state) {
   if (state.phase === 'payment') {
-    for (const bill of located(state, 'change')) bill.location = 'fund';
     state.agreement = null;
     state.phase = state.clients.find(client => client.id === state.currentId).concern ? 'hesitation' : 'request';
   }
@@ -139,7 +149,7 @@ export function dispatch(state, action) {
     case 'take': {
       if (!item || state.dragId || !editablePhases.has(state.phase)) return fail('cannot-take');
       const isProduct = item.kind === 'product' && [`slot:${item.sku}`, 'tray'].includes(item.location);
-      const isBill = item.kind === 'bill' && ['fund', 'change'].includes(item.location) && state.phase === 'payment';
+      const isBill = item.kind === 'bill' && ['fund', 'change'].includes(item.location);
       if (!isProduct && !isBill) return fail('cannot-take');
       if (isProduct) {
         prepare(state);
@@ -154,7 +164,7 @@ export function dispatch(state, action) {
     case 'drop': {
       const held = state.objects.find(candidate => candidate.id === state.dragId);
       if (!held || !['tray', 'bag'].includes(action.target)) return fail('invalid-drop');
-      if (action.target === 'tray' && held.kind === 'bill' && state.phase !== 'payment') return fail('not-payment');
+      if (action.target === 'tray' && !editablePhases.has(state.phase)) return fail('not-payment');
       held.location = action.target === 'bag' ? (held.kind === 'product' ? `slot:${held.sku}` : 'fund') : (held.kind === 'product' ? 'tray' : 'change');
       state.dragId = null;
       state.dragOrigin = null;
@@ -182,7 +192,7 @@ export function dispatch(state, action) {
     }
     case 'giveBill': {
       const bill = state.objects.find(candidate => candidate.kind === 'bill' && candidate.location === 'fund' && candidate.denomination === action.denomination);
-      if (!bill || state.dragId || state.phase !== 'payment') return fail('cannot-give-change');
+      if (!bill || state.dragId || !editablePhases.has(state.phase)) return fail('cannot-give-change');
       bill.location = 'change';
       break;
     }
@@ -195,9 +205,10 @@ export function dispatch(state, action) {
       } else item.location = 'fund';
       break;
     case 'adjustPrice': {
-      if (!['request', 'hesitation'].includes(state.phase) || state.dragId || ![-5, 5].includes(action.delta)) return fail('cannot-adjust-price');
+      if (!editablePhases.has(state.phase) || state.dragId || ![-5, 5].includes(action.delta)) return fail('cannot-adjust-price');
       const next = state.offerPrice + action.delta;
       if (next < 5 || next > getView(state).normalPrice) return fail('price-out-of-range');
+      prepare(state);
       state.offerPrice = next;
       break;
     }
@@ -205,8 +216,7 @@ export function dispatch(state, action) {
       if (!['request', 'hesitation'].includes(state.phase) || state.dragId || !current) return fail('cannot-propose');
       const tray = located(state, 'tray');
       if (!tray.length || state.offerPrice < 5) return fail('empty-proposal');
-      const matches = current.request.every(line => tray.filter(product => product.sku === line.sku).length === line.count)
-        && tray.length === current.request.reduce((total, line) => total + line.count, 0);
+      const matches = matchesRequest(tray, current.request);
       if (!matches) {
         leave(state, 'wrong-products');
         event = 'declined';
@@ -225,19 +235,19 @@ export function dispatch(state, action) {
       const view = getView(state);
       if (!view.canConfirm || !current || current.status !== 'active') return fail('payment-not-exact');
       const productIds = located(state, 'tray').map(product => product.id);
-      if (JSON.stringify(productIds) !== JSON.stringify(state.agreement.productIds)) return fail('agreement-changed');
+      if (state.agreement && (JSON.stringify(productIds) !== JSON.stringify(state.agreement.productIds) || state.agreement.price !== view.effectivePrice)) return fail('agreement-changed');
       const change = located(state, 'change');
       const incoming = state.objects.filter(candidate => current.paymentIds.includes(candidate.id));
       if (!incoming.length || incoming.some(bill => bill.location !== `customer:${current.id}`)) return fail('payment-already-received');
-      const receiptLocation = view.handFull ? 'receipt' : 'hand';
+      state.agreement = { price: view.effectivePrice, productIds: [...productIds], customerId: current.id };
       for (const product of located(state, 'tray')) product.location = `client:${current.id}`;
       for (const bill of change) bill.location = `client:${current.id}`;
-      for (const bill of incoming) bill.location = receiptLocation;
+      for (const bill of incoming) bill.location = 'fund';
       state.sales.push({ customerId: current.id, price: state.agreement.price, productIds, paymentIds: [...current.paymentIds], changeIds: change.map(bill => bill.id) });
       current.status = 'served';
       state.phase = 'receipt';
       state.receiptAge = 0;
-      event = receiptLocation === 'receipt' ? 'sale-to-tray' : 'sale-to-hand';
+      event = 'sale-to-fund';
       break;
     }
     case 'collect':

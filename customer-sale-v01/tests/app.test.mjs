@@ -145,16 +145,17 @@ async function boot(context, scenario = 'normal') {
 
 function prepare(harness) {
   harness.key('e');
-  harness.key('1');
-  harness.key(' ');
-  assert.equal(harness.state.phase, 'payment');
+  harness.key('2');
+  assert.equal(harness.state.phase, 'request');
 }
 
-function addFiveWithHelper(harness) {
+function addChangeWithHelper(harness, denominations = [20, 5]) {
   harness.click('helpButton');
-  const button = harness.elements.get('billButtons').children[0];
-  assert.equal(button.disabled, false);
-  button.click();
+  for (const denomination of denominations) {
+    const button = harness.elements.get('billButtons').children[[5,10,20,50,100].indexOf(denomination)];
+    assert.equal(button.disabled, false);
+    button.click();
+  }
   harness.click('closeHelp');
 }
 
@@ -163,35 +164,36 @@ test('keyboard and helper controls complete a real sale and store its original n
   assert.equal(app.elements.get('request').textContent, '');
   prepare(app);
   assert.equal(app.elements.get('received').textContent, '50 €');
-  assert.equal(app.elements.get('due').textContent, '5 €');
+  assert.equal(app.elements.get('due').textContent, '25 €');
   assert.equal(app.elements.get('primary').disabled, true);
-  addFiveWithHelper(app);
+  addChangeWithHelper(app);
   assert.equal(app.elements.get('returned').classList.contains('exact'), true);
   app.key(' ');
   assert.equal(app.state.sales.length, 1);
-  assert.equal(app.elements.get('toast').textContent, 'Vente +45 €');
+  assert.equal(app.elements.get('toast').textContent, 'Vente +25 €');
   assert.equal(app.elements.get('reaction').textContent, texts.fr.thanks);
-  app.key('r');
   assert.equal(app.state.objects.find(item => item.id === 'payment-1').location, 'fund');
+  assert.equal(app.view.hand.length, 0);
+  assert.equal(app.view.receipts.length, 0);
   assert.equal(app.elements.get('receiptHint').hidden, true);
 });
 
 test('repeated keys and rapid double confirmation cannot produce duplicate receipts', async context => {
   const app = await boot(context);
   app.key('e');
-  app.key('1');
-  const stock = app.view.slots[0].length;
-  app.key('1', new Element('body'), { repeat: true });
-  assert.equal(app.view.slots[0].length, stock);
-  app.key(' ');
-  addFiveWithHelper(app);
+  app.key('2');
+  const stock = app.view.slots[1].length;
+  app.key('2', new Element('body'), { repeat: true });
+  assert.equal(app.view.slots[1].length, stock);
+  addChangeWithHelper(app);
   app.click('primary');
   const before = app.snapshot();
   app.click('primary');
   app.key(' ');
   assert.equal(app.snapshot(), before);
   assert.equal(app.state.sales.length, 1);
-  assert.equal(app.view.hand.length, 1);
+  assert.equal(app.view.hand.length, 0);
+  assert.equal(app.state.objects.find(item => item.id === 'payment-1').location, 'fund');
 });
 
 test('input fields and selectors consume typing without running game shortcuts', async context => {
@@ -249,7 +251,7 @@ test('tap then tap can extract and place one banknote without copying it', async
   assert.equal(bill.location, 'change');
   assert.equal(app.view.returned, 5);
   assert.equal(app.state.objects.filter(item => item.id === bill.id).length, 1);
-  assert.equal(app.elements.get('primary').disabled, false);
+  assert.equal(app.elements.get('primary').disabled, true);
 });
 
 test('helper buttons retain their identity between frames and rebuild after a genuine change', async context => {
@@ -288,28 +290,29 @@ test('help and background visibility pause the real hesitation and service clock
   assert.equal(app.state.phase, 'hesitation');
 });
 
-test('collect and stow remain usable while the next customer is already being served', async context => {
+test('an occupied hand permits automatic collection and the next customer advances without a stow action', async context => {
   const app = await boot(context, 'full-hand');
   prepare(app);
-  addFiveWithHelper(app);
+  addChangeWithHelper(app);
   app.key(' ');
-  assert.equal(app.elements.get('collect').disabled, true);
+  assert.equal(app.state.objects.find(item => item.id === 'payment-1').location, 'fund');
+  assert.equal(app.state.objects.find(item => item.id === 'demo-parcel').location, 'hand');
+  assert.equal(app.elements.get('collect').hidden, true);
+  assert.equal(app.view.receipts.length, 0);
   app.frames(4400);
   assert.equal(app.state.currentId, 'customer-2');
   assert.equal(app.state.phase, 'approach');
   app.key('e');
   app.key('2');
-  app.key(' ');
-  assert.equal(app.state.phase, 'payment');
+  assert.equal(app.state.phase, 'request');
   assert.equal(app.view.due, 25);
-  app.click('stow');
-  assert.equal(app.elements.get('collect').disabled, false);
-  app.click('collect');
-  assert.equal(app.state.objects.find(item => item.id === 'payment-1').location, 'hand');
-  assert.equal(app.state.phase, 'payment');
+  addChangeWithHelper(app);
+  app.key(' ');
+  assert.equal(app.state.sales.length, 2);
+  assert.equal(app.state.objects.find(item => item.id === 'payment-2').location, 'fund');
+  assert.equal(app.state.objects.find(item => item.id === 'demo-parcel').location, 'hand');
   app.click('stow');
   assert.equal(app.state.objects.find(item => item.id === 'payment-1').location, 'fund');
-  assert.equal(app.view.due, 25);
   assert.equal(app.elements.get('receiptHint').hidden, true);
 });
 
@@ -327,13 +330,12 @@ test('wrong change maps to its specific explanation and error audio without chan
 test('hand and price refusal aliases provide their specific explanations', async context => {
   const app = await boot(context, 'full-hand');
   app.key('e');
-  app.key('1');
+  app.key('2');
   const beforePrice = app.snapshot();
   app.action({ type: 'adjustPrice', delta: 5 });
   assert.equal(app.snapshot(), beforePrice);
   assert.equal(app.elements.get('toast').textContent, texts.fr['invalid-price']);
-  app.key(' ');
-  addFiveWithHelper(app);
+  addChangeWithHelper(app);
   app.key(' ');
   const beforeCollect = app.snapshot();
   app.action({ type: 'collect', id: 'payment-1' });
@@ -346,9 +348,9 @@ test('a normal overpayment stays red and is recoverable through a real click han
   const app = await boot(context);
   prepare(app);
   app.click('helpButton');
-  app.elements.get('billButtons').children[1].click();
+  app.elements.get('billButtons').children[3].click();
   app.click('closeHelp');
-  assert.equal(app.view.returned, 10);
+  assert.equal(app.view.returned, 50);
   assert.equal(app.elements.get('returned').classList.contains('exact'), false);
   assert.equal(app.elements.get('primary').disabled, true);
   const bill = app.view.change[0];
@@ -356,6 +358,23 @@ test('a normal overpayment stays red and is recoverable through a real click han
   app.pointer('pointerup');
   assert.equal(app.view.returned, 0);
   assert.equal(bill.location, 'fund');
+});
+
+test('the request reveals presented money and permits change before the product', async context => {
+  const app = await boot(context);
+  assert.equal(app.elements.get('payment').hidden, true);
+  app.key('e');
+  assert.equal(app.elements.get('payment').hidden, false);
+  assert.equal(app.elements.get('request').textContent, 'Bonjour, HASHISH 4 g, s’il vous plaît.');
+  assert.equal(app.elements.get('due').textContent, '25 €');
+  addChangeWithHelper(app);
+  assert.equal(app.elements.get('primary').disabled, true);
+  app.key('2');
+  assert.equal(app.view.returned, 25);
+  assert.equal(app.elements.get('primary').disabled, false);
+  app.click('primary');
+  assert.equal(app.state.sales.length, 1);
+  assert.equal(app.state.objects.find(item => item.id === 'payment-1').location, 'fund');
 });
 
 test('language and feedback controls do not change any owned object or sale', async context => {

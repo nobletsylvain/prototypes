@@ -1,5 +1,5 @@
 import * as THREE from './assets/three.module.js';
-import { CATALOG } from './model.mjs';
+import { CATALOG } from './model.mjs?v=20261109b';
 
 const TAU = Math.PI * 2;
 const denominations = [5, 10, 20, 50, 100];
@@ -269,16 +269,22 @@ export class SaleScene {
     line(head, [[-0.048, -0.09, 0.161], [0, -0.1, 0.172], [0.048, -0.09, 0.161]], '#654836');
     person.add(head);
     const arms = [];
+    let grip = null;
     for (const side of [-1, 1]) {
       const arm = new THREE.Group();
       arm.position.set(side * 0.3, 1.22, 0);
       cylinder(arm, 0.075, 0.44, cloth, 0, -0.18, 0, 0.105);
       sphere(arm, 0.075, skin, 0, -0.44, 0.025, [0.8, 1.3, 0.7]);
+      if (side === 1) {
+        grip = new THREE.Object3D();
+        grip.position.set(0, -0.44, 0.025);
+        arm.add(grip);
+      }
       arm.rotation.z = side * 0.13;
       arms.push(arm);
       person.add(arm);
     }
-    person.userData = { head, arms, torso, index };
+    person.userData = { head, arms, torso, grip, index };
     return person;
   }
 
@@ -381,6 +387,12 @@ export class SaleScene {
       position.set((this.portrait ? 0.73 : 0.9) + index * 0.025, 0.94, 1.36 - index * 0.012);
       if (item.kind === 'bill') { rotation.x = -0.45; rotation.z = -0.22; }
       else rotation.x = 0.1;
+    } else if (item.location === `customer:${state.currentId}`) {
+      this.customer.userData.grip.getWorldPosition(position);
+      position.add(new THREE.Vector3(index * 0.025, 0.17, 0.055 - index * 0.012));
+      rotation.x = -0.12;
+      rotation.y = this.customer.rotation.y * 0.5;
+      rotation.z = -0.04 + index * 0.04;
     } else {
       position.set(0, 1.05, -1.45);
     }
@@ -398,42 +410,48 @@ export class SaleScene {
       this.customer.position.x = 0.55;
       this.customer.rotation.y = -0.3;
     }
+    this.animateCustomer(state, view, dt);
+    this.customer.updateMatrixWorld(true);
     this.pickMeshes.length = 0;
     const ids = new Set();
     for (const item of state.objects) {
       ids.add(item.id);
       const entry = this.objects.get(item.id) || this.createObject(item);
       entry.item = item;
-      const hidden = item.location.startsWith('customer:') || item.location.startsWith('client:') || item.location === 'demo-home';
+      const customerOwned = item.location.startsWith('customer:');
+      const currentTender = item.location === `customer:${state.currentId}`;
+      const hidden = (customerOwned && !currentTender) || item.location.startsWith('client:') || item.location === 'demo-home';
       const next = this.targetFor(item, state);
       const changed = entry.location !== item.location;
       if (changed) {
         const initial = entry.location === null;
         entry.handingOver = hidden && !initial && ['tray', 'change'].includes(entry.location);
+        entry.transferToFund = !initial && item.location === 'fund' && entry.location.startsWith('customer:');
         entry.start.copy(initial ? next.position : entry.group.position);
         entry.age = initial ? 1 : 0;
         entry.location = item.location;
-        entry.contactPending = !initial && ['tray', 'change', 'receipt'].includes(item.location);
+        entry.contactPending = !initial && (['tray', 'change', 'receipt'].includes(item.location) || entry.transferToFund);
         if (initial) { entry.group.position.copy(next.position); entry.group.rotation.copy(next.rotation); }
       }
       const slotItems = item.location.startsWith('slot:') ? state.objects.filter(other => other.location === item.location) : [];
       const buried = slotItems.length > 2 && slotItems.findIndex(other => other.id === item.id) < slotItems.length - 2;
       entry.group.visible = (!hidden || (entry.handingOver && entry.age < 0.22)) && !buried;
-      entry.group.scale.setScalar(this.portrait && ['fund', 'drag', 'hand'].includes(item.location) && item.kind === 'bill' ? 1.28 : this.portrait && item.location.startsWith('slot:') ? 1.25 : 1);
+      entry.group.scale.setScalar(currentTender ? (this.portrait ? 1.5 : 1.35) : this.portrait && ['fund', 'drag', 'hand'].includes(item.location) && item.kind === 'bill' ? 1.28 : this.portrait && item.location.startsWith('slot:') ? 1.25 : 1);
       entry.age += dt;
       entry.target.copy(next.position);
       entry.targetRotation.copy(next.rotation);
       if (item.location === 'drag') {
         entry.group.position.lerp(next.position, 1 - Math.exp(-24 * dt));
       } else {
-        const t = Math.min(1, entry.age / (this.enhanced ? 0.2 : 0.12));
+        const duration = entry.transferToFund ? (this.enhanced ? 0.5 : 0.3) : (this.enhanced ? 0.2 : 0.12);
+        const t = Math.min(1, entry.age / duration);
         const ease = 1 - Math.pow(1 - t, 3);
         entry.group.position.lerpVectors(entry.start, next.position, ease);
         if (this.enhanced && t < 1 && !hidden) entry.group.position.y += Math.sin(t * Math.PI) * 0.16;
         if (entry.contactPending && t === 1) {
           entry.contactPending = false;
-          this.onContact?.({ type: item.kind === 'bill' ? 'paper-contact' : 'product-contact', id: item.id });
-          if (this.enhanced) this.contactEffect(next.position);
+          this.onContact?.({ type: entry.transferToFund ? 'fund-contact' : item.kind === 'bill' ? 'paper-contact' : 'product-contact', id: item.id });
+          if (this.enhanced && !entry.transferToFund) this.contactEffect(next.position);
         }
         if (this.enhanced && ['tray', 'change', 'receipt'].includes(item.location) && entry.age > 0.2 && entry.age < 0.48) {
           entry.group.position.y += Math.max(0, Math.sin((entry.age - 0.2) * 28)) * 0.012 * (1 - (entry.age - 0.2) / 0.28);
@@ -444,7 +462,7 @@ export class SaleScene {
       entry.group.rotation.z = damp(entry.group.rotation.z, next.rotation.z, dt);
       if (entry.paper) {
         const positions = entry.paper.geometry.attributes.position;
-        const motion = item.location === 'drag' || entry.age < 0.5;
+        const motion = item.location === 'drag' || (entry.transferToFund ? entry.age < 0.8 : entry.age < 0.5);
         const amplitude = this.enhanced && motion ? 0.019 : 0.004;
         for (let index = 0; index < positions.count; index++) {
           const y = positions.getY(index);
@@ -456,10 +474,9 @@ export class SaleScene {
       entry.shadow.visible = !hidden && ['tray', 'change', 'receipt', 'drag'].includes(item.location);
       entry.shadow.position.set(entry.group.position.x, 0.727, entry.group.position.z);
       entry.shadow.material.opacity = item.location === 'drag' ? 0.1 : 0.18;
-      if (!hidden && !buried) entry.group.traverse(child => { if (child.isMesh) this.pickMeshes.push(child); });
+      if (!hidden && !buried && !customerOwned) entry.group.traverse(child => { if (child.isMesh) this.pickMeshes.push(child); });
     }
     for (const [id, entry] of this.objects) if (!ids.has(id)) { entry.group.visible = false; entry.shadow.visible = false; }
-    this.animateCustomer(state, view, dt);
     for (let index = 0; index < this.waiting.length; index++) {
       const person = this.waiting[index];
       person.visible = index < view.queueCount;
@@ -492,12 +509,15 @@ export class SaleScene {
     head.rotation.z = damp(head.rotation.z, hesitate ? -0.14 : Math.sin(this.time * 0.9) * 0.02, dt);
     head.rotation.x = damp(head.rotation.x, hesitate ? 0.04 : 0, dt);
     person.userData.torso.scale.y = 1 + Math.sin(this.time * 1.6) * 0.008;
+    const holdsPayment = state.objects.some(item => item.location === `customer:${state.currentId}`);
+    const offering = ['request', 'hesitation', 'payment'].includes(state.phase);
+    person.userData.arms[1].rotation.x = damp(person.userData.arms[1].rotation.x, holdsPayment ? (offering ? -1.12 : -0.23) : 0, dt, 10);
     if (this.reaction) {
       const age = this.time - this.reaction.start;
       if (age < 0.85) {
         head.rotation.x += Math.sin(age * 11) * 0.15 * (1 - age / 0.85);
-        person.userData.arms[1].rotation.x = -0.6 * Math.sin(Math.min(1, age / 0.85) * Math.PI);
-      } else { this.reaction = null; person.userData.arms[1].rotation.x = 0; }
+        person.userData.arms[0].rotation.x = -0.6 * Math.sin(Math.min(1, age / 0.85) * Math.PI);
+      } else { this.reaction = null; person.userData.arms[0].rotation.x = 0; }
     }
   }
 
@@ -512,7 +532,7 @@ export class SaleScene {
 
   pulse(event) {
     const type = typeof event === 'string' ? event : event?.type;
-    if (['sale-to-hand', 'sale-to-tray', 'propose', 'declined', 'talk'].includes(type)) this.reaction = { start: this.time, type };
+    if (['sale-to-fund', 'sale-to-hand', 'sale-to-tray', 'propose', 'declined', 'talk'].includes(type)) this.reaction = { start: this.time, type };
   }
 
   setEnhanced(value) { this.enhanced = Boolean(value); }

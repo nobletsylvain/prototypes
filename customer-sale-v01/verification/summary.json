@@ -1,12 +1,13 @@
 {
   "version": "V01",
+  "revision": "automatic-payment",
   "date": "2026-11-09",
   "tests": {
-    "passed": 76,
+    "passed": 79,
     "failed": 0,
-    "model": 44,
-    "controllerWithSimulatedPresentation": 16,
-    "audioWithSimulatedContext": 16
+    "model": 45,
+    "app": 17,
+    "audio": 17
   },
   "assets": {
     "matched": 7,
@@ -17,33 +18,30 @@
     "failed": 0
   },
   "sourceHashes": {
-    "app.mjs": "385cdbcefb150ddf03161de66b1b414762b9d36abf80411d59d9b259433a238d",
-    "model.mjs": "b158b3c1e410aaf341ae30c076b4a1d61d21d66866b39e81dd2019e2f47e6a2b",
-    "scene.mjs": "67e0036ee8bcb38a01d11202af75c8309a41137e3c3e527ab4586ab12dfb8622",
-    "audio.mjs": "7f10d768a7ddd6e2a71dd8d20f527af42df004da815afd17f65fd76289760dde",
-    "index.html": "44578d8a5ae52a62cf666e386c98708e21576a7cef166815d4e8be6e9f9d7b54",
+    "app.mjs": "eeb4d763b1df4f4bad52af1be68e7e2dfe842f6f6a27c7a4a045dd4386fa45ed",
+    "model.mjs": "6a58a0af3653c869c7e32c6939e3fde27ecea3cffbafaef616658c2ac00c4cc2",
+    "scene.mjs": "521c31b859893d229ac6ba20083adb9460b4842e9c83f550a46e32abee1940a5",
+    "audio.mjs": "02d43bed609511ecf525807ce20c343f27b7a72c129b42fbae59f5794facf9e6",
+    "index.html": "e7fef0bd28266530c22f177be92ff7edba757436794d8ecafc0c82cd99e4842c",
     "style.css": "e8be27ec66a563d278f2d270553ce5afe6c71cf66fe83cfe21d9e9bcdc6bd962",
-    "texts.json": "e9e95358c2d4e3af526ecd5da586bde3e84b70d0d517f390c3bad9c1047a2e9d"
+    "texts.json": "5ea27dfc82480556ca9d7e983f6ccb7d5e40cb039ca531c6189da3c302279f3a"
   },
   "browserReview": {
-    "status": "initial published version reviewed; receipt visibility correction prepared",
-    "report": "browser-review.json",
-    "consoleErrors": 0,
-    "consoleWarnings": 0
+    "status": "pending verification of automatic-payment revision",
+    "report": "browser-review.json"
+  },
+  "publication": {
+    "status": "initial version published; automatic-payment revision prepared",
+    "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/"
   },
   "physicalPhoneTest": false,
   "humanPlaytest": false,
   "listeningValidated": false,
   "unityChanges": false,
-  "publication": {
-    "status": "published",
-    "url": "https://nobletsylvain.github.io/prototypes/customer-sale-v01/",
-    "firstMergeCommit": "e7424b397b0e6873c9a0395c6637d66f05cd6acd"
-  },
   "limitations": [
     "One product reference and one sachet per request",
     "Only price hesitation is demonstrated",
-    "No tipping, streaks, penalties, campaign, or change-shortage alternatives",
+    "Controller presentation and WebAudio context are simulated in automatic checks",
     "Visual composition and sound are provisional"
   ]
 }
