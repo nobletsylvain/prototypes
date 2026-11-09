@@ -13,7 +13,7 @@
   "namedImports": "passed",
   "publishedHtmlSha256": "160d52214a8a251b93e883a99862ec86a1e10306c56334aea26be50efe000888",
   "previousVersionPreserved": true,
-  "browserRevision": "Pending V03 browser verification",
+  "browserRevision": "V03 journal layout correction, merge 86f1e644f527927d10f52b5a2ccf803006d0742f",
   "physicalPhoneTest": false,
   "listeningValidated": false,
   "humanPlaytest": false,
@@ -595,5 +595,45 @@
         ]
       }
     ]
+  },
+  "browserReview": "Automated UI interactions and visual inspection on the published page, 2026-11-09",
+  "url": "https://nobletsylvain.github.io/prototypes/table-rd-v03/?mode=test",
+  "observations": [
+    "Rare X/Z discovery gave one point to each parent; X activated Citrus for one point, excluding other choices in the occupied slot.",
+    "Exceptional fixture created a real kept Y/X bridge then an inspected bridge/Z trial.",
+    "B1 inherited plus minimum five slots returned zero while the exceptional result was hidden.",
+    "Keeping Heritage XYZ preserved five slots, all five inherited potentials and an initially empty active profile.",
+    "A targeted rare descendant granted Heritage XYZ one point; activating B1 spent it and occupied one of five slots.",
+    "A 450 ms hold paused on release; a later 1300 ms hold completed the same reveal. Assisted opening was also exercised.",
+    "Feedback replay did not change displayed point balances or slot configuration.",
+    "Normal mode remained separate with three founders and nine cuttings. Reload restored test results and active profiles.",
+    "Corrected journal showed the one matching five-slot B1 variety before four collapsed ancestors. Parent links opened the ancestry, descendant links returned to the match.",
+    "Accent-insensitive heritage search combined with activated B1 found Heritage XYZ.",
+    "Desktop and mobile-size journal and slot views were visually inspected; no document or dialog horizontal content overflow was found.",
+    "English slot panel displayed translated controls and descriptions. French restored afterward.",
+    "No console errors or warnings were recorded during the observed session."
+  ],
+  "viewports": [
+    {
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "captures": [
+    "journal-desktop.jpg",
+    "journal-mobile.jpg",
+    "slots-desktop.jpg",
+    "slots-mobile.jpg"
+  ],
+  "limits": "SFX code and activation controls were exercised, but audio quality was not auditioned. Viewport simulation is not physical-device validation. This is an autonomous web prototype, not a Unity build.",
+  "captureHashes": {
+    "journal-desktop.jpg": "c40e5e1edf6b01838df7e9de7dc09d58b2b50d61b9a4de94b53d6bc127c0dfdb",
+    "journal-mobile.jpg": "719cb68cf079c9a132cf761eeee6e7b04fdc449354357b61572e8b27484dc4c5",
+    "slots-desktop.jpg": "f5205b69d7bff4ad7456675eea0e0b20ffec521fa6c4385961ef40c88f7cb2aa",
+    "slots-mobile.jpg": "d837830283d122688a6fd28a56d81eaadbb3e1ee7053d8e218768f5697d57b3c"
   }
 }

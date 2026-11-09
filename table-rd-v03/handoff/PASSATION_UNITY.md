@@ -101,7 +101,9 @@ Les points blancs donnent accès aux emplacements de la variété ; Origine et l
 
 Les filtres se combinent : texte nom/identité/signature, potentiel hérité, trait activé, capacité minimale, rareté, parent/ancêtre et statut. Le filtre de texte ignore la casse et les accents. Les statuts séparent fondatrice, conservée, archivée et en attente, cette dernière incluant une révélation non encore conservée/archivée.
 
-Les correspondances sont comptées séparément des ancêtres ajoutés comme contexte. Les entrées sont regroupées par génération et reliées par leurs parents/enfants ; les filtres n’effacent aucune donnée. Un filtre sans résultat propose de le modifier ou de le réinitialiser. Le formulaire reste en place pendant la recherche progressive. Les filtres sont retenus pendant les allers-retours arbre/emplacements et séparés par mode normal/test.
+Les correspondances sont comptées séparément des ancêtres ajoutés comme contexte. En présence de contexte, les cartes correspondantes sont affichées d’abord ; les ancêtres restent regroupés par génération dans un `details` fermé par défaut, avec libellés FR/EN. Un lien vers un ancêtre ouvre cette section avant de déplacer la vue et le focus. Sans contexte ajouté, l’arbre par générations reste complet pour les entrées affichées. Les liens parents/enfants et toutes les données sont conservés.
+
+Un filtre sans résultat propose de le modifier ou de le réinitialiser. Le formulaire reste en place pendant la recherche progressive ; sa disposition desktop utilise trois colonnes et une recherche pleine largeur. Les filtres sont retenus pendant les allers-retours arbre/emplacements et séparés par mode normal/test. La correction de présentation décrite ici reste à contrôler dans le navigateur.
 
 Les conservées permettent consultation des emplacements, usage parental lorsque le parcours l’autorise, et export. Les archives sont lisibles mais non réutilisables. La fiche exportée porte identité, parents, génération, potentiel, capacité, profil actif, nom, signature et lot ; c’est une présentation, sans import jouable. Les sessions de test sont marquées.
 
@@ -134,7 +136,27 @@ Ce sont des noms proposés, pas des API Unity existantes. Utiliser le système d
 
 ## Vérifications et limites
 
-Les comptes définitifs de tests V03 seront ajoutés après exécution sur les sources finales. Les preuves V02 sont historiques et ne valident pas V03. À ce stade, aucune revue navigateur V03, écoute validée, interaction sur téléphone physique, séance humaine ou intégration Unity n’est revendiquée.
+**64 tests réussis, 0 échec** : 41 pour le modèle et les préparations de test, 6 pour le maintien, 17 pour le journal. Les huit modules embarqués passent le contrôle de syntaxe. Les tests du journal couvrent notamment l’absence de lecture du résultat caché, les filtres, la conservation du contexte, les correspondances avant les ancêtres et l’ouverture de leur section avant navigation.
+
+Le parcours suivant a été vérifié dans un navigateur sur V03 :
+
+| Action observée | Résultat |
+|---|---|
+| Découverte X × Z | Rare révélée |
+| Activation sur X | Citronné acquis pour un point ; les autres choix de cet emplacement sont exclus |
+| Préparation exceptionnelle | Relais Y × X, puis descendant exceptionnel |
+| Filtre B1 + capacité minimale 5 avant révélation | Aucun potentiel ou capacité du résultat caché dévoilé |
+| Conservation | Variété XYZ à cinq emplacements nommée et conservée |
+| Descendant rare de cette variété | Un point propre gagné à sa révélation, puis dépensé pour activer B1 |
+| Rejeu | Aucun gain ajouté |
+| Rechargement | Profils et activations retrouvés |
+| Retour au mode normal séparé | Neuf boutures et trois fondatrices |
+
+Le parcours a révélé un défaut de présentation : les cartes d’ancêtres précédaient la correspondance filtrée et la repoussaient trop bas. La correction a été revue après publication : correspondances en premier, ascendance repliable, ouverture automatique depuis un lien parental et retour au descendant. Le filtre « heritage » retrouve « Héritage XYZ » et se combine avec B1 activé. Les vues journal et emplacements ont été inspectées à 1280 × 720 et 390 × 844, sans débordement horizontal du contenu. Maintenir, relâcher puis reprendre et ouvrir sans maintenir ont été essayés ; la console n’a signalé ni erreur ni avertissement. Le panneau des emplacements a aussi été vérifié en anglais.
+
+Les captures examinées et `checks/validation.json` documentent ce parcours automatisé et sa revue visuelle. Ils ne remplacent pas un essai humain ou une écoute.
+
+Les preuves V02 restent historiques. Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué pour V03.
 
 Contrôles exacts à préserver : provenance et débits, budgets, refus sans mutation, identité au rechargement, tirage unique et distribution entière, potentiel uniquement parental, capacité admissible, activation uniquement héritée, emplacement exclusif, coût exact, lot inchangé, points uniques aux bons parents, préparation de test traçable, absence de fuite avant révélation et absence d’effet des filtres/gestes/replays.
 
