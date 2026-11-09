@@ -13,10 +13,75 @@
   "embeddedModules": 19,
   "moduleSyntax": "passed",
   "namedImports": "passed",
-  "publishedHtmlSha256": "4862706fb9c52469a21e1afacdd4eefe2ef97c5fd2677c151286ec8f49eaa63f",
-  "browserRevision": "Genetic quality tiers and held reveal pending browser review",
+  "publishedHtmlSha256": "c47c3b1bf8a275fb1ec6423bebece901d4e070bd1b93f283b03d159f136e1098",
+  "browserRevision": "Six tiers, continuous held reveal, certificates, genealogy, activation and normal/test isolation reviewed publicly; phone parent layout verified after PR295",
   "physicalPhoneTest": false,
   "listeningValidated": false,
   "humanPlaytest": false,
-  "unityIntegration": false
+  "unityIntegration": false,
+  "browserReviewedHtmlSha256": "4862706fb9c52469a21e1afacdd4eefe2ef97c5fd2677c151286ec8f49eaa63f",
+  "publicUrl": "https://nobletsylvain.github.io/prototypes/table-rd-v04/",
+  "testTiersObserved": {
+    "poor": 19,
+    "common": 39,
+    "uncommon": 47,
+    "rare": 69,
+    "epic": 80,
+    "legendary": 100
+  },
+  "continuousTestSession": true,
+  "heldReveal": {
+    "rarePausePercent": 36,
+    "rareResult": 69,
+    "legendaryPausePercent": 88,
+    "intermediateStage": "epic",
+    "finalResult": 100,
+    "releasePauses": true
+  },
+  "certificateOpened": true,
+  "certificateSvgDownloaded": true,
+  "genealogy": {
+    "nodes": 10,
+    "legendarySearchResults": 1,
+    "legendaryFilterResults": 1,
+    "ancestorHighlightObserved": true,
+    "nodeOpensSlots": true
+  },
+  "activation": {
+    "parent": "y",
+    "trait": "yield",
+    "availablePointsBefore": 1,
+    "availablePointsAfter": 0,
+    "occupiedSlotsAfter": 1,
+    "capacity": 5
+  },
+  "normalTestIsolation": {
+    "normalInitialCuttingsAfterTest": 9,
+    "normalResultBeforeReload": 58,
+    "normalResultAfterReload": 58,
+    "unrevealedJournalHidesResult": true
+  },
+  "responsiveViewport": {
+    "width": 390,
+    "height": 844,
+    "clientWidth": 375,
+    "scrollWidth": 375,
+    "certificateClientWidth": 326,
+    "certificateScrollWidth": 326,
+    "parentColumns": 1,
+    "parentClientWidth": 249,
+    "parentScrollWidth": 249
+  },
+  "consoleErrors": 0,
+  "consoleWarnings": 0,
+  "captures": [
+    "held-reveal-desktop.png",
+    "tree-tiers-desktop.png"
+  ],
+  "phoneLayoutReviewedHtmlSha256": "d50af268ed9c7be36c81a1edc6c16ce10379576e0d6f208a03fa261dd150e9dc",
+  "englishCertificateReviewed": true,
+  "captureHashes": {
+    "held-reveal-desktop.png": "a2f2effb93472149415803fa0fa71bfa6ff36480e7296270fe4cb24b5fe48624",
+    "tree-tiers-desktop.png": "d0d50615bf899edd5f7ac4309cd8d3091efd52ffd87dacfa7a789fc1f67005fb"
+  }
 }

@@ -1,8 +1,8 @@
 # Table de R&D — V04, qualité génétique et COA
 
-Démo autonome préparée le 10 novembre 2026 : **sources finalisées, revue navigateur à venir**. Le croisement transmet une qualité génétique propre à la variété, avec variation, en plus de ses potentiels, emplacements et apparence. Cette qualité n’est pas un score calculé à partir des goûts ou du nombre d’emplacements.
+Démo autonome publiée le 10 novembre 2026 : **parcours navigateur et disposition mobile du COA vérifiés**. Le croisement transmet une qualité génétique propre à la variété, avec variation, en plus de ses potentiels, emplacements et apparence. Cette qualité n’est pas un score calculé à partir des goûts ou du nombre d’emplacements.
 
-[Adresse V04 prévue](https://nobletsylvain.github.io/prototypes/table-rd-v04/) · [Mode test prévu](https://nobletsylvain.github.io/prototypes/table-rd-v04/?mode=test) · [V03 conservée](https://nobletsylvain.github.io/prototypes/table-rd-v03/)
+[Ouvrir V04](https://nobletsylvain.github.io/prototypes/table-rd-v04/) · [Mode test](https://nobletsylvain.github.io/prototypes/table-rd-v04/?mode=test) · [V03 conservée](https://nobletsylvain.github.io/prototypes/table-rd-v03/)
 
 ## Six paliers
 
@@ -61,6 +61,8 @@ V04 commence une **nouvelle carrière**, avec des sauvegardes normale/test sépa
 
 ## Vérification et limites
 
-**Vérifications finales V04 : 146 tests réussis, zéro échec sur les sources, puis 146/146 sur les sources exportées.** Les 19 modules du paquet passent les contrôles de syntaxe et d’imports. La revue navigateur reste à faire après publication. Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué. Les 120 tests et parcours V03 restent historiques. Les recettes des autres produits, leurs emplacements de spécialisation et l’équilibrage définitif restent ouverts.
+**Vérifications V04 : 146 tests réussis, zéro échec sur les sources, puis 146/146 sur les sources exportées.** Syntaxe et imports des 19 modules vérifiés. Le navigateur public a montré les six paliers, la pause/reprise du maintien, un indice Épique avant la conclusion Légendaire, le COA ouvert puis téléchargé et les filtres de l’arbre. Une activation a débité exactement un point ; les essais du mode test ont laissé les neuf boutures de départ du mode normal intactes. Un résultat normal de qualité 58 est resté stable au rechargement, avant et après révélation.
+
+Au format 390 × 844, page et COA sans débordement horizontal mesuré ; console sans erreur ni avertissement. Les parents du COA sont désormais empilés sur mobile, vérifiés après publication de la correction. Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué. Les preuves V03 restent historiques. Recettes des autres produits, spécialisations et équilibrage définitifs restent ouverts.
 
 [Passation Unity](handoff/PASSATION_UNITY.md) · [Têtes et provenance](handoff/HEAD_ASSETS.md) · [Sons provisoires](handoff/AUDIO.md)
