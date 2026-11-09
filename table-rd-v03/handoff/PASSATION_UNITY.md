@@ -142,7 +142,7 @@ Ce sont des noms proposés, pas des API Unity existantes. Utiliser le système d
 
 **79 tests réussis, 0 échec sur les sources actuelles.** Les contrôles du nouveau module pur couvrent topologie parentale, ascendants partagés, géométrie déterministe indépendante des filtres, chemins sur plusieurs générations, surlignage exact des ascendants et absence de lecture de données cachées. Les contrôles du modèle, des préparations, du maintien et du journal restent distincts de la revue visuelle.
 
-Le paquet comprend neuf modules embarqués, avec `journal-graph.js` ajouté ; les neuf passent le contrôle de syntaxe. La revue navigateur de la nouvelle vue reste à effectuer. Les preuves historiques de l’ancien journal ne certifient pas cette nouvelle présentation.
+Le paquet comprend neuf modules embarqués, avec `journal-graph.js` ajouté ; les neuf passent le contrôle de syntaxe. La revue navigateur de l’arbre publié a confirmé sept nœuds/huit liens conservés, positions stables sous filtre, un résultat et quatre liens d’ascendance pour « heritage », combinaisons B1 hérité/cinq slots et B1 activé, clic vers les slots, retour conservant la recherche, consultation d’archive et arbre intact sans résultat. Zoom, vue complète, résultat suivant et défilement clavier ont été parcourus. Les dispositions 1280 × 720 et 390 × 844 ont été inspectées sans débordement horizontal du document ou du dialogue, et sans erreur/avertissement console. Le graphe utilise sa propre zone de défilement. Les preuves sont `checks/tree-desktop.jpg`, `checks/tree-mobile.jpg` et `checks/validation.json`. La protection des essais encore cachés est vérifiée par les tests de projection/graphe ; la carrière utilisée dans ce parcours navigateur ne contenait que des résultats déjà révélés.
 
 Le parcours suivant est **historique : V03 avant la vue graphique**. Il avait été vérifié dans le navigateur :
 
@@ -160,7 +160,7 @@ Le parcours suivant est **historique : V03 avant la vue graphique**. Il avait é
 
 Ce parcours avait révélé un défaut de présentation dans l’ancienne vue en fiches : les ancêtres repoussaient trop bas la correspondance filtrée. Sa correction avait été revue après publication, avec correspondances en premier et ascendance repliable. Le filtre « heritage » retrouvait « Héritage XYZ » et se combinait avec B1 activé. Les vues journal et emplacements avaient été inspectées à 1280 × 720 et 390 × 844 sans débordement horizontal du contenu. Maintien interrompu/repris et ouverture assistée avaient été essayés, sans erreur ou avertissement console relevé. Le panneau des emplacements avait aussi été vérifié en anglais.
 
-Les captures et résultats de cette ancienne vue documentent uniquement son parcours automatisé et sa revue visuelle. Ils ne valident pas le nouvel arbre, son zoom, son déplacement ou ses branches surlignées. Ces aspects demandent leurs propres observations navigateur.
+Les captures et résultats de cette ancienne vue documentent uniquement son parcours automatisé et sa revue visuelle. Les nouvelles observations de l’arbre sont consignées séparément ci-dessus. Le confort tactile et le glissement du fond à la souris restent à apprécier par le propriétaire ; aucune séance humaine ou validation sur téléphone physique n’est revendiquée.
 
 Les preuves V02 restent historiques. Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué pour V03.
 
