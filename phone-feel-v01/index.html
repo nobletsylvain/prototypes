@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#182724">
+  <meta name="description" content="Téléphone et applications — un prototype de ressenti autonome pour TheCapital.">
+  <title>Le téléphone · TheCapital</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="world" aria-hidden="true"></canvas>
+  <div class="vignette" aria-hidden="true"></div>
+  <header class="masthead"><a href="documentation.html" id="brand">THE CAPITAL <span>ÉTUDE DE GESTE / 04</span></a><div class="top-actions"><button id="language" aria-label="English">EN</button><button id="settings-toggle" aria-label="Réglages">☷</button></div></header>
+  <aside class="intro"><div class="eyebrow" id="eyebrow">L’ATELIER · 21:08</div><h1 id="headline">Un monde<br>dans la poche.</h1><p id="intro-copy">Un message. Une commande.<br>Et retour à ce que tu faisais.</p><div class="objective"><span class="step-no" id="step-no">01</span><div><small id="step-label">POUR COMMENCER</small><p id="objective-copy">Sors ton téléphone.</p></div></div><a href="documentation.html" id="about-link">À propos de cet essai ↗</a></aside>
+  <div id="notification" class="world-notification" hidden></div>
+  <main id="stage" aria-label="Téléphone en main">
+    <div id="rig" class="phone-rig stowed" aria-hidden="true" inert>
+      <svg class="hand" viewBox="0 0 520 900" aria-hidden="true"><defs><linearGradient id="skin" x1="0" x2="1"><stop stop-color="#754a36"/><stop offset=".45" stop-color="#c5926d"/><stop offset="1" stop-color="#d7a781"/></linearGradient><linearGradient id="sleeve"><stop stop-color="#18201e"/><stop offset=".6" stop-color="#36413a"/><stop offset="1" stop-color="#111a18"/></linearGradient></defs><path d="M111 332 Q67 362 74 446 L98 612 Q101 672 161 724 L195 898 H383 L351 704 Q437 633 436 526 L423 324 Q418 299 398 311 L373 442 309 554 215 531 165 402 Q145 328 111 332Z" fill="url(#skin)" stroke="#603e2f" stroke-width="3"/><path d="M390 331 Q447 310 449 355 L444 434 Q438 455 423 448 L412 385Z" fill="url(#skin)"/><path d="M400 438 Q456 413 458 457 L451 510 Q448 533 430 525 L415 481Z" fill="url(#skin)"/><path d="M412 522 Q455 506 453 548 L443 586 Q438 601 424 590Z" fill="url(#skin)"/><path d="M160 690 Q259 731 356 690 L407 900 H173Z" fill="url(#sleeve)"/><path d="M166 716 Q253 752 364 715" fill="none" stroke="#535c4d" stroke-width="14"/><path d="M112 389 Q133 423 145 459" fill="none" stroke="#e1b28a" stroke-opacity=".4" stroke-width="5"/></svg>
+      <div class="device"><div class="side-key"></div><div class="screen"><div class="status-bar"><b>21:08</b><span class="camera"></span><span aria-hidden="true">▂▄▆ &nbsp; ◒</span></div><div id="screen-content"></div><nav class="system-nav"><button id="back" aria-label="Retour">‹</button><button id="home" aria-label="Applications"><span></span></button><button id="stow-screen" aria-label="Ranger">⌄</button></nav><div id="toast" role="status" aria-live="polite"></div></div><div class="device-mark">MISTRAL</div></div>
+      <button id="focus-hit" class="focus-hit" aria-label="Rapprocher le téléphone"></button>
+    </div>
+  </main>
+  <footer class="controls"><div class="controls-buttons"><button id="phone-toggle" class="primary"><kbd>F</kbd><span>Sortir</span></button><button id="focus-toggle"><kbd>E</kbd><span>Rapprocher</span></button><button id="sound-toggle" aria-pressed="true">♪ <span>Son</span></button></div><p id="controls-hint">F · sortir / ranger &nbsp; E · rapprocher &nbsp; Échap · retour</p></footer>
+  <div id="settings" class="settings" hidden><div class="settings-head"><h2 id="settings-title">Ton essai</h2><button id="settings-close" aria-label="Fermer">×</button></div><label><span id="volume-label">Volume</span><input id="volume" type="range" min="0" max="1" step="0.05" value="0.35"></label><label><span id="effects-label">Retours renforcés</span><input id="enhanced" type="checkbox" checked></label><label><span id="reopen-label">À la réouverture</span><select id="reopen"><option value="last">Dernière page</option><option value="home">Applications</option></select></label><p id="settings-note">Réglages d’essai, sans décision sur la campagne.</p><button id="reset" class="reset">Recommencer l’essai</button><a href="documentation.html" id="settings-doc">Commandes et passation Unity ↗</a></div>
+  <noscript>Cette démo nécessite JavaScript.</noscript><script type="module" src="app.mjs"></script>
+</body>
+</html>
