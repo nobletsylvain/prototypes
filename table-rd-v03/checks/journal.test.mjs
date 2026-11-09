@@ -25,6 +25,25 @@ function fixture() {
 const entriesFor = ({ state, strains, configuration } = fixture()) => buildJournalEntries(state, strains, configuration);
 const matchedIds = (entries, filters) => filterJournalEntries(entries, filters).matches.map(entry => entry.id);
 
+test('documented colour and visual signature are projected only for revealed strains and can be searched', () => {
+  const data = fixture(); data.strains[0].color = '#aabbcc'; data.strains[0].accent = {fr:'Reflets mauves',en:'Mauve glints'};
+  Object.defineProperty(data.state.trials[2], 'result', {get(){throw Error('Hidden appearance accessed');}});
+  const entries = entriesFor(data), founder = entries.find(entry => entry.strainId === 'aube'), hidden = entries.find(entry => !entry.known);
+  assert.equal(founder.color, '#aabbcc'); assert.equal(founder.accent.fr, 'Reflets mauves');
+  assert.equal(hidden.color, null); assert.equal(hidden.accent, null);
+  assert.deepEqual(matchedIds(entries, {query:'reflets mauves'}), ['strain:aube']);
+  assert.deepEqual(matchedIds(entries, {query:'mauve glints'}), ['strain:aube']);
+  const html = journalGraphHTML(buildJournalGraph(entries));
+  assert(html.includes('Reflets mauves')); assert(html.includes('journal-portrait')); assert(!html.includes('secret-variety'));
+});
+
+test('unsafe colour is replaced and visual signature remains escaped', () => {
+  const data=fixture(); data.strains[0].color='red;position:fixed'; data.strains[0].accent={fr:'<img onerror="bad">'};
+  const entries=entriesFor(data), html=journalGraphHTML(buildJournalGraph(entries));
+  assert.equal(entries.find(entry=>entry.strainId==='aube').color,'#7d9b76');
+  assert(!html.includes('position:fixed')); assert(!html.includes('<img')); assert(html.includes('&lt;img'));
+});
+
 test('visual tree keeps unrelated branches and marks matches separately from their ancestry', () => {
   const entries = entriesFor(), result = filterJournalEntries(entries, { query: 'eclat' });
   const html = journalGraphHTML(buildJournalGraph(entries, result.matchIds, true), { filtered: true });

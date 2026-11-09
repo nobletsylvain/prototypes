@@ -17,14 +17,19 @@ const geometry = graph => ({
   edges: graph.edges.map(({ id, from, to, path }) => ({ id, from, to, path })),
 });
 const edgePairs = edges => edges.map(edge => `${edge.from}>${edge.to}`).sort();
-function points(path) {
-  const tokens = path.match(/-?\d+(?:\.\d+)?/g).map(Number);
-  return Array.from({ length: tokens.length / 2 }, (_, index) => ({ x: tokens[index * 2], y: tokens[index * 2 + 1] }));
+function sample(segment, t) {
+  const inverse = 1 - t;
+  const axis = key => segment.type === 'C'
+    ? inverse ** 3 * segment.from[key] + 3 * inverse ** 2 * t * segment.control1[key] + 3 * inverse * t ** 2 * segment.control2[key] + t ** 3 * segment.to[key]
+    : segment.type === 'Q' ? inverse ** 2 * segment.from[key] + 2 * inverse * t * segment.control[key] + t ** 2 * segment.to[key]
+      : inverse * segment.from[key] + t * segment.to[key];
+  return { x: axis('x'), y: axis('y') };
 }
-function intersectsInterior(a, b, node) {
-  if (a.x === b.x) return a.x > node.x && a.x < node.x + node.width && Math.max(a.y, b.y) > node.y && Math.min(a.y, b.y) < node.y + node.height;
-  assert.equal(a.y, b.y, 'Routes remain orthogonal');
-  return a.y > node.y && a.y < node.y + node.height && Math.max(a.x, b.x) > node.x && Math.min(a.x, b.x) < node.x + node.width;
+function hullTouchesInterior(segment, node) {
+  const points = [segment.from, segment.to, segment.control, segment.control1, segment.control2].filter(Boolean);
+  const minX = Math.min(...points.map(p => p.x)), maxX = Math.max(...points.map(p => p.x));
+  const minY = Math.min(...points.map(p => p.y)), maxY = Math.max(...points.map(p => p.y));
+  return maxX > node.x && minX < node.x + node.width && maxY > node.y && minY < node.y + node.height;
 }
 function deepFreeze(value) {
   Object.values(value).forEach(child => { if (child && typeof child === 'object') deepFreeze(child); });
@@ -72,23 +77,23 @@ test('zero matches dim the complete graph and empty input returns finite dimensi
   const graph = buildJournalGraph(family(), new Set(), true);
   assert(graph.nodes.every(n => !n.match && !n.lineage)); assert(graph.edges.every(e => !e.highlighted));
   assert.equal(graph.nodes.length, 7); assert.equal(graph.edges.length, 8);
-  assert.deepEqual(buildJournalGraph([]), { nodes: [], edges: [], width: 92, height: 64 });
+  assert.deepEqual(buildJournalGraph([]), { nodes: [], edges: [], width: 96, height: 96 });
 });
 
-test('cards have fixed dimensions, no overlap, generation rows and enough interior margin', () => {
+test('portrait cards have fixed dimensions, no overlap, generation columns and enough interior margin', () => {
   const graph = buildJournalGraph(family());
   for (const node of graph.nodes) {
-    assert.equal(node.width, 196); assert.equal(node.height, 118);
-    assert.equal(node.y, 32 + node.entry.generation * (118 + 96));
-    assert(node.x >= 32 && node.x + node.width <= graph.width - 32);
-    assert(node.y >= 32 && node.y + node.height <= graph.height - 32);
+    assert.equal(node.width, 208); assert.equal(node.height, 228);
+    assert.equal(node.x, 48 + node.entry.generation * (208 + 110));
+    assert(node.x >= 48 && node.x + node.width <= graph.width - 48);
+    assert(node.y >= 48 && node.y + node.height <= graph.height - 48);
     for (const other of graph.nodes) {
       if (node.id === other.id) continue;
       assert(node.x + node.width <= other.x || other.x + other.width <= node.x || node.y + node.height <= other.y || other.y + other.height <= node.y);
     }
   }
-  const row = graph.nodes.filter(n => n.entry.generation === 0).sort((a, b) => a.x - b.x);
-  assert.equal(row[1].x - row[0].x - row[0].width, GRAPH_LAYOUT.gapX);
+  const column = graph.nodes.filter(n => n.entry.generation === 0).sort((a, b) => a.y - b.y);
+  assert.equal(column[1].y - column[0].y - column[0].height, GRAPH_LAYOUT.gapY);
 });
 
 test('long-generation routes stay outside every intermediate card and inside the graph', () => {
@@ -99,15 +104,24 @@ test('long-generation routes stay outside every intermediate card and inside the
     entries.push(entry(`c${generation}`, generation, [`a${generation - 1}`]));
   }
   const graph = buildJournalGraph(entries);
-  assert(graph.edges.some(e => points(e.path).length === 6));
+  assert(graph.edges.some(e => e.route.kind === 'outer'));
   for (const edge of graph.edges) {
-    const route = points(edge.path), from = graph.nodes.find(n => n.id === edge.from), to = graph.nodes.find(n => n.id === edge.to);
-    assert.deepEqual(route[0], { x: from.x + from.width / 2, y: from.y + from.height });
-    assert.deepEqual(route.at(-1), { x: to.x + to.width / 2, y: to.y });
-    assert(route.every(p => p.x >= 0 && p.y >= 0 && p.x <= graph.width && p.y <= graph.height));
-    for (let index = 1; index < route.length; index++) {
-      for (const node of graph.nodes) assert.equal(intersectsInterior(route[index - 1], route[index], node), false, `${edge.from}>${edge.to} intersects ${node.id}`);
+    const segments = edge.route.segments, from = graph.nodes.find(n => n.id === edge.from), to = graph.nodes.find(n => n.id === edge.to);
+    assert.equal(segments[0].from.x, from.x + from.width);
+    assert.equal(segments.at(-1).to.x, to.x);
+    assert(segments[0].from.y > from.y && segments[0].from.y < from.y + from.height);
+    assert(segments.at(-1).to.y > to.y && segments.at(-1).to.y < to.y + to.height);
+    for (let index = 0; index < segments.length; index++) {
+      const segment = segments[index];
+      if (index) assert.deepEqual(segment.from, segments[index - 1].to);
+      // A Bezier stays inside its control hull: disjoint bounding hulls prove card avoidance.
+      for (const node of graph.nodes) assert.equal(hullTouchesInterior(segment, node), false, `${edge.from}>${edge.to} control hull intersects ${node.id}`);
+      for (let tick = 0; tick <= 40; tick++) {
+        const p = sample(segment, tick / 40);
+        assert(p.x >= 0 && p.y >= 0 && p.x <= graph.width && p.y <= graph.height);
+      }
     }
+    assert(edge.path.includes(edge.route.kind === 'outer' ? ' Q ' : ' C '));
   }
 });
 
@@ -148,4 +162,40 @@ test('real public journal projection retains an unrevealed trial without exposin
   assert.equal(graph.nodes.find(node => node.id === target.id).entry, target);
   assert(graph.edges.every(edge => edge.highlighted));
   assert.equal(buildJournalGraph(buildJournalEntries(createState(), getStrains(createState()))).nodes.length, 3);
+});
+
+
+test('adjacent relations use independent cubic curves and separate card ports without a common bus', () => {
+  const graph = buildJournalGraph(family());
+  const adjacent = graph.edges.filter(edge => edge.route.kind === 'adjacent');
+  assert(adjacent.length > 1);
+  for (const edge of adjacent) {
+    assert.equal(edge.route.segments.length, 1); assert.equal(edge.route.segments[0].type, 'C');
+    assert(!edge.path.includes(' L ')); assert(!edge.path.includes(' Q '));
+  }
+  assert.equal(new Set(adjacent.map(edge => edge.path)).size, adjacent.length);
+  for (const node of graph.nodes) {
+    const outgoing = graph.edges.filter(edge => edge.from === node.id).map(edge => edge.route.segments[0].from.y);
+    const incoming = graph.edges.filter(edge => edge.to === node.id).map(edge => edge.route.segments.at(-1).to.y);
+    assert.equal(new Set(outgoing).size, outgoing.length);
+    assert.equal(new Set(incoming).size, incoming.length);
+  }
+});
+
+test('unrelated long relations never merge into shared vertical corridor segments', () => {
+  const entries = [entry('x', 0), entry('y', 0), entry('z', 0), entry('a', 1, ['x', 'y']), entry('b', 2, ['a', 'x']), entry('c', 2, ['a', 'y']), entry('d', 3, ['b', 'x']), entry('e', 3, ['c', 'z'])];
+  const graph = buildJournalGraph(entries);
+  const verticals = graph.edges.flatMap(edge => edge.route.segments.filter(s => s.type === 'L' && s.from.x === s.to.x).map(segment => ({ edge, segment })));
+  for (let a = 0; a < verticals.length; a++) {
+    for (let b = a + 1; b < verticals.length; b++) {
+      const first = verticals[a], second = verticals[b];
+      if (first.edge.id === second.edge.id) continue;
+      assert.notEqual(first.segment.from.x, second.segment.from.x, 'Every long link owns its corridor lane');
+    }
+  }
+});
+
+test('sibling ordering follows parent positions independently of input name order', () => {
+  const graph = buildJournalGraph([entry('x', 0), entry('y', 0), entry('z', 0), entry('a-bottom', 1, ['y', 'z']), entry('z-top', 1, ['x', 'y'])]);
+  assert(graph.nodes.find(n => n.id === 'z-top').y < graph.nodes.find(n => n.id === 'a-bottom').y);
 });
