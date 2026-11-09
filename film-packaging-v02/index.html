@@ -66985,7 +66985,7 @@ class WorkshopView {
     if(kind==='open'){this.knife.visible=true;this.openTarget=this.packageViews[packageId];const packet=this.state.packages.find(p=>p.id===packageId),placement=this.placements.get(packageId);if(!this.physics&&packet&&placement)this.pendingOpenPlacement={packageId,itemIds:[...packet.itemIds],slot:packet.slot,placement:{...placement,position:[...placement.position]}};}
   }
   pulse(kind){this.pulseTime=.22;this.pulseKind=kind;}
-  frame(now){const dt=Math.min((now-this.last)/1000,.04);this.last=now;this.time+=dt;
+  frame(now){const dt=Math.max(0,Math.min((now-this.last)/1000,.04));this.last=now;this.time+=dt;
     if(this.physics){this.physics.step(dt);this.applyPhysicsPoses();}
     if(this.pulseTime>0){this.pulseTime-=dt;if(!this.physics&&this.held&&this.enhanced)this.held.position.y=.19+Math.sin(Math.max(0,this.pulseTime)/.22*Math.PI)*.012;}
     this.updateHeldTransform();
