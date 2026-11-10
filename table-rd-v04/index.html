@@ -561,6 +561,34 @@ dialog:has(#genealogyHost) .modal-top button{color:#dce6cc;background:transparen
 .journal-board[data-layout='family'] .journal-node.is-current .journal-node-name {
   color: #f1dda3;
 }
+.journal-board[data-layout='family'] .journal-node .journal-node-name {
+  display: block;
+  flex: 0 0 22px;
+  height: 22px;
+  max-height: 22px;
+  margin: 5px 0 2px;
+  padding: 0;
+  line-height: 22px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.journal-board[data-layout='family'] .journal-node .journal-node-accent {
+  display: -webkit-box;
+  flex: 0 0 26px;
+  height: 26px;
+  min-height: 26px;
+  max-height: 26px;
+  line-height: 13px;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.journal-board[data-layout='family'] .journal-node .journal-slot-dots {
+  flex: 0 0 10px;
+  margin-top: 4px;
+}
 
 .journal-layout-guide {
   position: absolute;
