@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { QUALITY_TIERS, QUALITY_VERSION, tierForScore, getQualityOdds, drawGeneticQuality } from '../source/genetic-quality.mjs';
+import {createHash} from 'node:crypto';
+import { QUALITY_TIERS, QUALITY_VERSION, QUALITY_PARAMETERS, tierForScore, getQualityOdds, drawGeneticQuality } from '../source/genetic-quality.mjs';
 import { PARENTS, createState, getOdds, transition, restoreState, validateState } from '../source/model.mjs';
 
 const SPACE = 2 ** 32;
@@ -13,7 +14,7 @@ const qualitySeed = (parents, score) => getQualityOdds(parents).outcomes.find(it
 const start = (score, seed = 1704791872, parents = ['x', 'z']) => step(createState(), 'START', { parentIds: parents, seed, qualitySeed: qualitySeed(parents.map(id => PARENTS.find(p => p.id === id)), score), requestId: 'same' });
 
 test('six tiers cover every integer exactly and preserve the specified boundary colours', () => {
-  assert.equal(QUALITY_VERSION, 1);
+  assert.equal(QUALITY_VERSION, 2);
   assert.deepEqual(QUALITY_TIERS.map(({id,min,max,color}) => ({id,min,max,color})), [
     {id:'poor',min:0,max:19,color:'#7b8589'}, {id:'common',min:20,max:39,color:'#3f9765'},
     {id:'uncommon',min:40,max:59,color:'#408ed5'}, {id:'rare',min:60,max:79,color:'#db6257'},
@@ -29,7 +30,7 @@ test('six tiers cover every integer exactly and preserve the specified boundary 
 
 test('triangular quality distribution partitions all uint32 seeds without clamping extra mass at the limits', () => {
   for (const values of [[0,0],[0,1],[0,100],[24,54],[24,84],[54,84],[89,84],[99,100],[100,100]]) {
-    const odds = getQualityOdds(pair(...values)), center = Math.round((values[0] + values[1]) / 2);
+    const odds = getQualityOdds(pair(...values), 1), center = Math.round((values[0] + values[1]) / 2);
     assert.equal(odds.center, center); assert.equal(odds.sampleSpace, SPACE);
     assert.equal(odds.outcomes[0].score, Math.max(0,center-20)); assert.equal(odds.outcomes.at(-1).score,Math.min(100,center+20));
     assert.equal(odds.outcomes[0].seedStart,0); assert.equal(odds.outcomes.at(-1).seedEnd,SPACE);
@@ -48,7 +49,7 @@ test('triangular quality distribution partitions all uint32 seeds without clampi
       assert.equal(odds.counts[tier.id],odds.outcomes.filter(o=>o.tier===tier.id).reduce((sum,o)=>sum+o.count,0));
       assert.equal(odds[tier.id],odds.counts[tier.id]*100/SPACE); assert.equal(odds[tier.id],odds.exactPercent[tier.id]);
     }
-    assert.deepEqual(odds,getQualityOdds(pair(...values.reverse())));
+    assert.deepEqual(odds,getQualityOdds(pair(...values.reverse()), 1));
   }
 });
 
@@ -58,7 +59,7 @@ test('quality odds use only parental quality and never random, appearance, slots
   const random=Math.random; Math.random=()=>{throw Error('Random consulted');};
   try{assert.deepEqual(getQualityOdds(parents),getQualityOdds(pair(24,84)));}finally{Math.random=random;}
   assert.deepEqual(PARENTS.map(p=>[p.id,p.geneticQuality,p.rarity]),[['x',24,'common'],['y',54,'uncommon'],['z',84,'epic']]);
-  for(const pairIds of [['x','y'],['x','z'],['y','z']])assert.equal(getOdds(createState(),pairIds).legendary,0);
+  for(const pairIds of [['x','y'],['x','z'],['y','z']]){assert(getOdds(createState(),pairIds).legendary>0);assert.equal(getOdds(createState(),pairIds,1).legendary,0);}
   assert(getQualityOdds(pair(89,84)).legendary>0);
 });
 
@@ -109,4 +110,49 @@ test('schema 5 starts a separate career and rejects old archives rather than mig
     assert.equal(result.ok,false);assert.equal(result.error,'quality-seed-required');assert.equal(result.state,state);
   }
   for(const invalid of [-1,SPACE,.1,undefined])assert.throws(()=>drawGeneticQuality(getQualityOdds(pair(24,84)),invalid),/Invalid genetic quality/);
+});
+
+
+test('universal version 2 mixes exact normalized parental weights and uniform tier surprise for all 101 centres',()=>{
+  assert.deepEqual(QUALITY_PARAMETERS,{parentalPercent:90,surprisePercent:10,offsetRadius:20,globalTierWeights:{poor:10,common:20,uncommon:25,rare:25,epic:15,legendary:5},globalTierFloorsPercent:{poor:1,common:2,uncommon:2.5,rare:2.5,epic:1.5,legendary:.5}});
+  assert(Object.isFrozen(QUALITY_PARAMETERS.globalTierWeights));
+  for(let center=0;center<=100;center++){
+    const odds=getQualityOdds(pair(center,center));assert.equal(odds.version,2);assert.equal(odds.center,center);assert.equal(odds.outcomes.length,101);
+    assert.equal(odds.outcomes[0].seedStart,0);assert.equal(odds.outcomes.at(-1).seedEnd,SPACE);assert.equal(Object.values(odds.counts).reduce((a,b)=>a+b,0),SPACE);
+    const parentWeight=score=>Math.max(0,21-Math.abs(score-center));
+    const parentTotal=odds.outcomes.reduce((sum,item)=>sum+parentWeight(item.score),0);
+    odds.outcomes.forEach((item,index)=>{
+      assert.equal(item.score,index);assert(item.count>0);assert.equal(item.count,item.seedEnd-item.seedStart);
+      if(index)assert.equal(item.seedStart,odds.outcomes[index-1].seedEnd);
+      const tier=tierForScore(item.score),width=tier.max-tier.min+1;
+      const ideal=.9*parentWeight(item.score)/parentTotal+.1*QUALITY_PARAMETERS.globalTierWeights[tier.id]/100/width;
+      assert(Math.abs(item.count/SPACE-ideal)<1/SPACE);
+      assert.equal(drawGeneticQuality(odds,item.seedStart),item.score);assert.equal(drawGeneticQuality(odds,item.seedEnd-1),item.score);
+    });
+    for(const tier of QUALITY_TIERS){
+      assert(odds[tier.id]>0);assert.equal(odds[tier.id],odds.counts[tier.id]*100/SPACE);
+      // Largest-remainder quantization changes each score by less than one uint32 count.
+      const tolerance=(tier.max-tier.min+1)*100/SPACE;
+      assert(odds[tier.id]>=QUALITY_PARAMETERS.globalTierFloorsPercent[tier.id]-tolerance);
+    }
+  }
+});
+
+test('parental improvement still raises expected quality while every tier remains possible',()=>{
+  let previousMean=-1,previousTails=null;
+  for(let center=0;center<=100;center++){
+    const odds=getQualityOdds(pair(center,center)),mean=odds.outcomes.reduce((sum,item)=>sum+item.score*item.count/SPACE,0);
+    assert(mean>previousMean);previousMean=mean;
+    const tails=[20,40,60,80,100].map(min=>odds.outcomes.filter(o=>o.score>=min).reduce((sum,o)=>sum+o.count,0));
+    if(previousTails)tails.forEach((count,index)=>assert(count>=previousTails[index]-202));
+    previousTails=tails;
+  }
+  const lower=getQualityOdds(pair(24,54)),higher=getQualityOdds(pair(84,100));
+  assert(higher.legendary>lower.legendary);assert(higher.epic+higher.legendary>lower.epic+lower.legendary);
+});
+
+test('all version-1 tables remain byte-identical to the captured pre-change distribution',()=>{
+  const tables=Array.from({length:101},(_,center)=>getQualityOdds(pair(center,center),1));
+  assert.equal(createHash('sha256').update(JSON.stringify(tables)).digest('hex'),'585eec8cff3e003ea5504c22b8d9ba37f4af5e28b9ae2602c52d8dcf6e892179');
+  for(const version of [0,3,-1,1.5,'2',null])assert.throws(()=>getQualityOdds(pair(24,54),version),/unsupported quality version/);
 });

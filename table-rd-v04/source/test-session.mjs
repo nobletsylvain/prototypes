@@ -3,10 +3,6 @@ import { createState, getOdds, getStrains, transition, validateState, QUALITY_TI
 export const NORMAL_SAVE_KEY = 'botanical-table-v04';
 export const TEST_SAVE_KEY = 'botanical-table-v04-test';
 const TIERS = QUALITY_TIERS.map(tier => tier.id);
-const FIXTURE_LABELS = {
-  bridge: { fr: 'Relais de qualité · test', en: 'Quality bridge · test' },
-  signature: { fr: 'Préparation de test', en: 'Test preparation' },
-};
 const midpoint = outcome => outcome.seedStart + Math.floor(outcome.count / 2);
 
 // This seed selects the separate quality draw, never the inheritance draw.
@@ -60,17 +56,7 @@ export function createTestDiscovery(tier = 'rare', previousState = null, rewardP
   };
   try {
     if (rewardParentId !== null && !getStrains(working).some(strain => strain.id === rewardParentId)) return refuse('test-parent-unavailable');
-    let options = matching(rewardParentId);
-    if (!options.length && rewardParentId === null && tier === 'legendary') {
-      const bridges = candidates(null).filter(pair => pair.usable).sort((a, b) => b.odds.qualityOdds.outcomes.at(-1).score - a.odds.qualityOdds.outcomes.at(-1).score);
-      const bridge = bridges[0], outcome = bridge?.odds.qualityOdds.outcomes.at(-1);
-      if (!outcome || outcome.score < 80) return refuse('test-tier-unavailable');
-      if (!prepare(bridge.parentIds, midpoint(outcome), 'quality-bridge')) return refuse('test-cuttings-exhausted');
-      const trialId = working.activeTrialId, name = `${FIXTURE_LABELS.bridge.fr} ${working.trials.length}`;
-      if (!apply({ type: 'REVEAL', trialId }) || !apply({ type: 'KEEP', trialId, name, signature: FIXTURE_LABELS.signature.fr })) return refuse('test-preparation-failed');
-      setupTrialIds.push(trialId); setupLabels.push(name);
-      options = matching(null);
-    }
+    const options = matching(rewardParentId);
     if (!options.length) return refuse('test-tier-unavailable');
     const chosen = options.find(pair => pair.usable);
     if (!chosen) return refuse('test-cuttings-exhausted');

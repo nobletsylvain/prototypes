@@ -15,32 +15,39 @@ test('normal and test V04 keys are distinct from all prior careers',()=>{
   assert.equal(NORMAL_SAVE_KEY,'botanical-table-v04');assert.equal(TEST_SAVE_KEY,'botanical-table-v04-test');assert.notEqual(NORMAL_SAVE_KEY,TEST_SAVE_KEY);
 });
 
-test('every requested quality tier is reachable through the normal model and ends inspected',()=>{
-  const expected={poor:19,common:39,uncommon:54,rare:69,epic:80,legendary:100};
+test('all six tiers are reachable in one fresh normal-model trial ending inspected',()=>{
   for(const {id:tier} of QUALITY_TIERS){
     const result=discover(tier),state=result.state,trial=state.trials.at(-1);
-    assert.equal(trial.phase,'inspected');assert.equal(trial.result.rarity,tier);assert.equal(trial.result.geneticQuality,expected[tier]);
+    assert.equal(state.trials.length,1);assert.equal(state.varieties.length,0);
+    assert.deepEqual(result.setupTrialIds,[]);assert.deepEqual(result.setupLabels,[]);
+    assert.equal(trial.phase,'inspected');assert.equal(trial.result.rarity,tier);
     assert.equal(trial.pointsAwarded,false);assert.equal(tierForScore(trial.result.geneticQuality).id,tier);
+    assert(Object.values(state.research).every(research=>research.earned===0&&research.spent===0));
     assert.equal(state.pot.trialId,null);assert.equal(validateState(state),state);assert.deepEqual(reload(state),state);
-    assert.equal(state.inventory.length+state.trials.length*2,9+state.harvests.length);
-    assert(trial.qualitySeed>=trial.odds.qualityOdds.outcomes.find(o=>o.score===expected[tier]).seedStart);
+    assert.equal(state.inventory.length,7);assert.equal(state.harvests.length,0);
+    assert.deepEqual(state.history.map(item=>item.command.type),['START','ADVANCE','INSPECT']);
+    const outcome=trial.odds.qualityOdds.outcomes.find(item=>trial.qualitySeed>=item.seedStart&&trial.qualitySeed<item.seedEnd);
+    assert.equal(outcome.score,trial.result.geneticQuality);assert.equal(outcome.tier,tier);
+    assert.deepEqual(state.trials.map(item=>item.result),reload(state).trials.map(item=>item.result));
   }
 });
 
-test('quality fixture seeds select existing tier intervals, with null for unavailable or obsolete tiers',()=>{
+test('fixture seeds select positive intervals for every tier and founder pair',()=>{
   for(const parents of [['x','y'],['x','z'],['y','z']]){
     const odds=getOdds(createState(),parents);
     for(const {id:tier}of QUALITY_TIERS){
       const seed=getTestSeed(odds,tier);assert.equal(seed,getTestSeed(odds.qualityOdds,tier));
-      if(odds[tier]===0)assert.equal(seed,null);
-      else{assert(Number.isInteger(seed));const outcome=odds.qualityOdds.outcomes.find(o=>seed>=o.seedStart&&seed<o.seedEnd);assert.equal(outcome.tier,tier);}
+      assert(odds[tier]>0);assert(Number.isInteger(seed));
+      const outcome=odds.qualityOdds.outcomes.find(item=>seed>=item.seedStart&&seed<item.seedEnd);
+      assert.equal(outcome.tier,tier);assert(outcome.count>0);
     }
     assert.equal(getTestSeed(odds,'exceptional'),null);assert.equal(getTestSeed(null,'rare'),null);
+    assert.equal(getTestSeed({outcomes:[]},'rare'),null);
   }
 });
 
 test('single-step fixtures award no early points and final revelation uses the normal threshold once',()=>{
-  for(const tier of ['poor','common','uncommon','rare','epic']){
+  for(const {id:tier} of QUALITY_TIERS){
     let state=discover(tier).state;assert(Object.values(state.research).every(r=>r.earned===0));
     const parents=state.trials.at(-1).parentIds,expected=state.trials.at(-1).result.geneticQuality>=60?1:0;
     state=step(state,'REVEAL');for(const parent of parents)assert.equal(state.research[parent].earned,expected);
@@ -48,24 +55,26 @@ test('single-step fixtures award no early points and final revelation uses the n
   }
 });
 
-test('Legendary setup transparently retains an ordinary-command genetic bridge and its earned rewards',()=>{
-  const result=discover('legendary'),state=result.state,[bridge,child]=state.trials;
-  assert.deepEqual(result.setupTrialIds,[bridge.id]);assert.equal(result.setupLabels.length,1);
-  assert.deepEqual(bridge.parentIds,['y','z']);assert.equal(bridge.result.geneticQuality,89);assert.equal(bridge.phase,'kept');
-  assert.equal(state.varieties[0].geneticQuality,89);assert.equal(state.varieties[0].slotCapacity,5);
-  assert(child.parentIds.includes(state.varieties[0].id));assert(child.parentIds.includes('z'));
-  assert.equal(child.result.geneticQuality,100);assert(child.odds.legendary>0);assert.equal(child.pointsAwarded,false);
-  assert.equal(state.research.y.earned,1);assert.equal(state.research.z.earned,1);assert.equal(state.research[bridge.result.id].earned,0);
-  assert.equal(state.history.filter(h=>h.command.type==='REVEAL').length,1);
-  const revealed=step(state,'REVEAL');assert.equal(revealed.research.z.earned,2);assert.equal(revealed.research[bridge.result.id].earned,1);
-  assert.equal(revealed.trials.at(-1).batch.quality,'demo-standard');
+test('Legendary uses fresh X and Y directly and awards one point per parent only on revelation',()=>{
+  const result=discover('legendary'),state=result.state,[child]=state.trials;
+  assert.deepEqual(result.setupTrialIds,[]);assert.deepEqual(result.setupLabels,[]);
+  assert.equal(state.trials.length,1);assert.equal(state.varieties.length,0);
+  assert.deepEqual(child.parentIds,['x','y']);assert.equal(child.result.geneticQuality,100);
+  assert(child.odds.legendary>0);assert.equal(child.pointsAwarded,false);
+  assert.equal(state.research.x.earned,0);assert.equal(state.research.y.earned,0);assert.equal(state.research.z.earned,0);
+  assert.equal(state.history.filter(item=>item.command.type==='REVEAL').length,0);
+  const revealed=step(reload(state),'REVEAL');
+  assert.equal(revealed.research.x.earned,1);assert.equal(revealed.research.y.earned,1);assert.equal(revealed.research.z.earned,0);
+  assert.equal(revealed.trials[0].pointsAwarded,true);assert.equal(revealed.trials[0].batch.quality,'demo-standard');
+  assert.deepEqual(revealed.inventory,state.inventory);assert.deepEqual(revealed.plants,state.plants);
+  const replay=reload(revealed),duplicate=transition(replay,{type:'REVEAL',trialId:child.id});
+  assert.equal(duplicate.ok,false);assert.equal(duplicate.state,replay);
 });
 
 test('in-progress and invalid requests refuse atomically with the original reference',()=>{
   const state=discover().state;
   refused(state,'rare',null,'test-trial-in-progress');refused(state,'exceptional',null,'invalid-test-tier');
   const terminal=finish(state);refused(terminal,'rare','missing','test-parent-unavailable');
-  refused(terminal,'legendary','x','test-tier-unavailable');
   const invalid={...terminal,schema:4};refused(invalid,'rare',null,'invalid-test-state');
 });
 
@@ -78,9 +87,9 @@ test('repeating fixtures preserves research and activation choices instead of ad
   const occupied=transition(state,{type:'ACTIVATE',varietyId:'x',slotIndex:0,traitId:'floral'});assert.equal(occupied.ok,false);assert.equal(occupied.state,state);
 });
 
-test('a retained five-slot bridge can earn five real descendant points within its finite eight-cutting budget',()=>{
-  let state=finish(discover('legendary').state),parent=state.varieties[0];
-  assert.equal(parent.slotCapacity,5);assert.equal(state.research[parent.id].earned,1);
+test('a retained five-slot discovery earns five real descendant points within its finite eight-cutting budget',()=>{
+  let state=finish(discover('legendary').state,true),parent=state.varieties[0];
+  assert.equal(parent.slotCapacity,5);assert.equal(state.research[parent.id].earned,0);
   const baseline=state.research[parent.id].earned;
   for(let index=0;index<5;index++){
     const prepared=discover('rare',state,parent.id);assert.equal(prepared.setupTrialIds.length,0);
@@ -88,8 +97,22 @@ test('a retained five-slot bridge can earn five real descendant points within it
     state=finish(prepared.state);
   }
   assert.equal(state.research[parent.id].earned,baseline+5);
-  const plant=state.plants.find(p=>p.varietyId===parent.id);assert.equal(plant.capacity,8);assert.equal(plant.harvested,6);
+  const plant=state.plants.find(p=>p.varietyId===parent.id);assert.equal(plant.capacity,8);assert.equal(plant.harvested,5);
   assert.deepEqual(getStrains(state).find(p=>p.id===parent.id),parent);
+});
+
+test('preparation chooses a stocked pair when the preferred pair is exhausted and debits both real harvests',()=>{
+  let state=createState();
+  for(let index=0;index<3;index++)state=finish(discover('poor',state,'x').state);
+  for(let index=0;index<3;index++)state=finish(discover('rare',state,'y').state);
+  const before=structuredClone(state),prepared=discover('rare',state).state,trial=prepared.trials.at(-1);
+  assert.deepEqual(trial.parentIds,['x','z']);assert.equal(prepared.trials.length,state.trials.length+1);
+  assert.equal(prepared.harvests.length,state.harvests.length+2);
+  assert.deepEqual(prepared.history.slice(state.history.length).map(item=>item.command.type),['HARVEST','HARVEST','START','ADVANCE','INSPECT']);
+  assert.deepEqual(prepared.research,state.research);assert.deepEqual(state,before);
+  assert.equal(prepared.inventory.length+prepared.trials.length*2,9+prepared.harvests.length);
+  assert.equal(validateState(prepared),prepared);
+  refused(state,'legendary','y','test-cuttings-exhausted');
 });
 
 test('finite fixture resources eventually refuse without refund, partial harvest or hidden setup commit',()=>{

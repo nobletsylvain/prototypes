@@ -20,6 +20,10 @@ function currentCareer() {
   let state=action(model,prepared.state,'REVEAL');state=action(model,state,'KEEP',{name:'Saved legendary',signature:'Original signature'});
   const child=state.varieties.at(-1);
   prepared=createTestDiscovery('rare',state,child.id);assert(prepared.ok,prepared.error);
+  state=action(model,prepared.state,'REVEAL');state=action(model,state,'KEEP',{name:'Saved descendant',signature:'Descendant signature'});
+  const descendant=state.varieties.at(-1);assert.equal(state.research[descendant.id].earned,0);
+  prepared=createTestDiscovery('rare',state,descendant.id);assert(prepared.ok,prepared.error);
+  assert.equal(prepared.state.research[descendant.id].earned,0);
   state=action(model,prepared.state,'REVEAL');return action(model,state,'ARCHIVE');
 }
 
@@ -199,8 +203,13 @@ test('duplicate requests after reload do not redraw appearance, consume stock or
 test('activating traits and harvesting preserve every saved visual identity', () => {
   const migrated = currentCareer();
   const visuals = migrated.trials.map(t => structuredClone(t.result.visual));
-  let state = action(model, migrated, 'ACTIVATE', { varietyId: 'variety-002', slotIndex: 0, traitId: migrated.varieties.find(v=>v.id==='variety-002').potentialIds[0] });
-  state = action(model, state, 'HARVEST', { varietyId: 'variety-001' });
+  assert.equal(migrated.varieties.length,2);assert.equal(migrated.trials.length,3);
+  const descendant=migrated.varieties.at(-1),source=migrated.varieties[0];
+  assert.equal(migrated.research[descendant.id].earned,1);assert(descendant.potentialIds.length>0);
+  let state = action(model, migrated, 'ACTIVATE', { varietyId: descendant.id, slotIndex: 0, traitId: descendant.potentialIds[0] });
+  state = action(model, state, 'HARVEST', { varietyId: source.id });
+  assert.equal(state.research[descendant.id].spent,migrated.research[descendant.id].spent+1);
+  assert.equal(state.harvests.length,migrated.harvests.length+1);
   assert.deepEqual(state.trials.map(t => t.result.visual), visuals);
   assert.deepEqual(state.varieties.map(v => v.visual), migrated.varieties.map(v => v.visual));
 });
