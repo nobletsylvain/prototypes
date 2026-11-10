@@ -1,6 +1,6 @@
 # Table de R&D V04 — Sons et retours provisoires
 
-10 novembre 2026. Les retours accompagnent les six paliers de qualité génétique, puis l’activation choisie et la conservation. L’évolution des probabilités rend tous les paliers accessibles sans changer les sons, les couleurs ou le maintien. Elle est implémentée et contrôlée, publication en préparation ; aucune écoute humaine validée n’est déclarée.
+10 novembre 2026. Les retours accompagnent les six paliers de qualité génétique, puis l’activation choisie et la conservation. L’évolution des probabilités rend tous les paliers accessibles sans changer les sons, les couleurs ou le maintien. Elle est publiée et vérifiée dans le navigateur ; aucune écoute humaine validée n’est déclarée.
 
 ## Ce que les retours confirment
 
@@ -60,7 +60,7 @@ Le mode test et le mode normal restent séparés. Les replays d’une révélati
 
 Legendary se prépare désormais directement, sans relais, car toute paire admissible possède une chance en version 2. Les anciens relais restent dans le carnet ; aucun point n’est ajouté pour les convertir. La cible finale attend sa révélation. Les préparations et replays ne représentent pas une fréquence naturelle et n’améliorent pas les chances.
 
-**Évolution des probabilités : 154 tests réussis, zéro échec**, dont conservation des sauvegardes version 1 et nouveaux essais version 2. Publication en préparation, puis revue navigateur à effectuer ; aucune écoute n’en est déduite. Les 146 tests et contrôles de 19 modules de la V04 précédente restent des preuves historiques.
+**Évolution des probabilités : 154 tests réussis, zéro échec sur les sources et sur les sources exportées ; 19 modules vérifiés.** Le navigateur public de la PR 297 a conservé les anciens résultats et montré un Legendary préparé directement depuis X 24 × Y 54, sans relais, avec lot standard. Le stock normal reste inchangé après les essais test ; aucun avertissement ou erreur de console. Le format 390 × 844 ne montre pas de débordement horizontal. **Aucun son n’a été écouté et aucun téléphone physique n’a été utilisé.** Les preuves antérieures restent historiques.
 
 Le parcours navigateur de cette version précédente avait montré les six paliers et la pause/reprise : Rare à 36 % puis conclusion à 69, Legendary à 88 % avec indice Épique et halo puis conclusion à 100. COA, arbre, activation et disposition mobile avaient été parcourus sans erreur de console. **Les sons n’ont pas été écoutés.** Aucun confort tactile réel, téléphone physique ou portage Unity n’est validé par cette revue historique.
 
