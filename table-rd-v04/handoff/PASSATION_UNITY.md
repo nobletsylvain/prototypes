@@ -1,6 +1,6 @@
 # Table de R&D — Passation V04, qualité génétique et COA
 
-10 novembre 2026. Évolution du prototype autonome V04 **implémentée et contrôlée, publication en préparation**, avant intégration au jeu : tous les paliers deviennent possibles pour chaque nouveau croisement. Même URL, mêmes carrières V04 ; V03 reste intacte. Aucun nouveau composant, import ou build Unity n’est déclaré livré.
+10 novembre 2026. Évolution du prototype autonome V04 **publiée et vérifiée dans le navigateur**, avant intégration au jeu : tous les paliers deviennent possibles pour chaque nouveau croisement. Même URL, mêmes carrières V04 ; V03 reste intacte. Aucun nouveau composant, import ou build Unity n’est déclaré livré.
 
 [Démo V04](https://nobletsylvain.github.io/prototypes/table-rd-v04/) · [Mode test](https://nobletsylvain.github.io/prototypes/table-rd-v04/?mode=test) · [V03 conservée](https://nobletsylvain.github.io/prototypes/table-rd-v03/)
 
@@ -105,11 +105,20 @@ Ce sont des contrats de portage proposés, pas des API Unity déjà livrées. Si
 
 Schéma 5 et clés `botanical-table-v04` / `botanical-table-v04-test` conservés. Cette évolution poursuit les carrières V04 existantes ; elle ne déclenche ni reset ni nouvelle migration. La version de probabilités appartient à chaque essai : chances, score, identité, provenance, points, historique et ressources des essais de version 1 restent exactement conservés. Les états V03 restent refusés ; fichiers et sauvegardes V03 sont intacts. Persister avant les retours, refuser les données incohérentes et empêcher tout gain/débit partiel.
 
-`createTestDiscovery(tier,previousState,rewardParentId)` prépare directement un palier admissible par les commandes ordinaires et s’arrête à `inspected`. Legendary n’exige plus de relais : toute paire disponible possède une chance en version 2. Les relais des anciens essais restent dans leur historique, sans suppression ou crédit nouveau. Le résultat final attend sa vraie révélation ; aucune injection de points ni modification des chances du mode normal. Le parcours de ce helper simplifié reste à vérifier.
+`createTestDiscovery(tier,previousState,rewardParentId)` prépare directement un palier admissible par les commandes ordinaires et s’arrête à `inspected`. Legendary n’exige plus de relais : toute paire disponible possède une chance en version 2. Les relais des anciens essais restent dans leur historique, sans suppression ou crédit nouveau. Le résultat final attend sa vraie révélation ; aucune injection de points ni modification des chances du mode normal. La préparation directe avec X × Y a été parcourue dans le navigateur publié.
 
 ## Vérification et limites
 
-**Extension de probabilités version 2 : 154 tests réussis, zéro échec.** Les sauvegardes de version 1 capturées avec essai en attente et essai conservé restent strictement identiques ; les nouveaux essais utilisent la version 2. Le refus d’un nouveau `START` explicite en version 1 conserve l’état. Publication en préparation, puis revue navigateur à effectuer. Aucun compte historique n’est réutilisé comme validation de cette évolution.
+**Extension de probabilités version 2 : 154 tests réussis, zéro échec sur les sources, puis 154/154 sur les sources exportées.** Syntaxe et imports des 19 modules vérifiés. Les sauvegardes de version 1 capturées avec essai en attente et essai conservé restent strictement identiques ; les nouveaux essais utilisent la version 2. Le refus d’un nouveau `START` explicite en version 1 conserve l’état.
+
+La [PR 297](https://github.com/nobletsylvain/prototypes/pull/297), commit `4ee23c03330784a64ab596d58f86a01ec0ce7238`, a été déployée puis parcourue dans le navigateur ; paquet SHA-256 `d15fa5c120014cff2f271544e195bb67e37695ba8fd71c0e7ba9f7072b3f7ba1`.
+
+- Anciennes sessions chargées normalement : résultat normal 58 conservé ; ancien essai test 009 révélé à 69 sans nouveau tirage, avec bandeau de version historique visible. L’ancien affichage 15 % devient 14,97 % par passage à deux décimales uniquement ; les tables exactes restent identiques, ce que couvrent les tests.
+- Pour X 24 × Y 54, les chances affichées Poor/Common/Uncommon/Rare/Epic/Legendary sont 1,2 / 48,94 / 45,36 / 2,5 / 1,5 / 0,5 %.
+- Après remise à zéro du seul mode test, une préparation Legendary directe X × Y donne 100, centre parental 39, écart +61, génération 1 et aucun relais. Le COA garde le lot standard et ne crée aucune activation gratuite ; il s’agit d’un résultat préparé, pas d’une mesure de fréquence naturelle.
+- Le stock normal reste à sept boutures avant/après le parcours test. Au format 390 × 844 : largeur cliente/défilante 375/375 px, capture lisible ; console sans erreur ni avertissement.
+
+Captures de ce parcours : `universal-odds-desktop.png`, `legendary-modest-parents.png`, `universal-odds-phone.png`. Aucun téléphone physique, essai humain, écoute validée ou intégration Unity n’est déduit de ces contrôles.
 
 ### Historique — V04 avec probabilités version 1
 

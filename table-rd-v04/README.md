@@ -1,6 +1,6 @@
 # Table de R&D — V04, qualité génétique et COA
 
-Évolution V04 du 10 novembre 2026, **implémentée et contrôlée, publication en préparation** : chaque nouveau croisement peut atteindre tous les paliers, même avec des parents de faible qualité. Les parents continuent d’orienter l’essentiel du tirage. La qualité génétique reste distincte des goûts, emplacements, potentiels et apparence.
+Évolution V04 du 10 novembre 2026, **publiée et vérifiée dans le navigateur** : chaque nouveau croisement peut atteindre tous les paliers, même avec des parents de faible qualité. Les parents continuent d’orienter l’essentiel du tirage. La qualité génétique reste distincte des goûts, emplacements, potentiels et apparence.
 
 [Ouvrir V04](https://nobletsylvain.github.io/prototypes/table-rd-v04/) · [Mode test](https://nobletsylvain.github.io/prototypes/table-rd-v04/?mode=test) · [V03 conservée](https://nobletsylvain.github.io/prototypes/table-rd-v03/)
 
@@ -72,7 +72,9 @@ Cette évolution continue les **mêmes carrières V04**, avec les mêmes sauvega
 
 ## Vérification et limites
 
-**154 tests réussis, zéro échec.** Les sauvegardes de version 1, avec essai en attente ou conservé, sont reprises strictement à l’identique ; les nouveaux essais utilisent la version 2. Un nouveau lancement demandant explicitement la version 1 est refusé sans mutation. Publication en préparation, puis revue navigateur à effectuer. Les 146 tests et le parcours de la V04 précédente restent historiques.
+**154 tests réussis, zéro échec sur les sources et sur les sources exportées ; 19 modules vérifiés.** La [PR 297](https://github.com/nobletsylvain/prototypes/pull/297) est déployée. Le navigateur a retrouvé le résultat normal 58 et révélé l’ancien essai test à 69 sans nouveau tirage. Avec X de qualité 24 et Y de qualité 54, les chances affichées incluent 1,5 % Epic et 0,5 % Legendary. Une préparation test directe a produit un Legendary 100 en première génération, sans relais ; ce résultat forcé ne mesure pas sa fréquence naturelle.
+
+Les sept boutures du mode normal sont restées intactes pendant le parcours test. Au format 390 × 844, largeur cliente/défilante 375/375 px ; console sans erreur ni avertissement. Les anciennes tables de chances restent exactes : un affichage passé de 15 % à 14,97 % vient seulement de la précision d’affichage. Les 146 tests et le parcours de la V04 précédente restent historiques.
 
 Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué. Les gestes, COA, patrimoine, emplacements, lot et retours restent indépendants du changement de probabilités. Recettes des autres produits, spécialisations et équilibrage définitifs restent ouverts.
 
