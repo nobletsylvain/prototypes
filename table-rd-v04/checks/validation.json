@@ -14,9 +14,56 @@
   "moduleSyntax": "passed",
   "namedImports": "passed",
   "publishedHtmlSha256": "65bf4f3bbfc080007f5958c9fd6ba60aa547049053e52fc9c3a99be832ffd0ff",
-  "browserRevision": "Three genealogy views pending public browser review",
+  "browserRevision": "Public PR304 verified: three genealogy views and unclipped family names",
   "physicalPhoneTest": false,
   "listeningValidated": false,
   "humanPlaytest": false,
-  "unityIntegration": false
+  "unityIntegration": false,
+  "browserUrl": "https://nobletsylvain.github.io/prototypes/table-rd-v04/?mode=test&views=3",
+  "publicCodeCommit": "d9b97e54d58dab206f6119f5def8dec3edad595f",
+  "testSessionEntries": 25,
+  "familyVisibleEntries": 3,
+  "familyNameClientAndScrollHeight": [
+    22,
+    22
+  ],
+  "familyNamePadding": "0px",
+  "familySignatureLines": 2,
+  "phoneViewport": [
+    390,
+    844
+  ],
+  "phoneDocumentClientAndScrollWidth": [
+    375,
+    375
+  ],
+  "consoleErrors": 0,
+  "consoleWarnings": 0,
+  "verifiedFlows": [
+    "Restored existing 25-entry test session without reset",
+    "Family shows Tilleul clair and Velours mauve linked to Couronne ambree",
+    "Circle and generations contain all 25 entries",
+    "Mauve search gives five matches and highlights ancestry",
+    "Portrait opens slots; return retains layout and filter",
+    "Next result focuses matching family",
+    "All three family names have clientHeight equal to scrollHeight on desktop and phone viewport"
+  ],
+  "limitations": [
+    "Full circle overview uses small labels; zoom or family view required for reading",
+    "Long generation links may cross portraits; targeted links reduce clutter",
+    "After viewport reset, automation pointer clicks did not toggle view; keyboard activation worked. Pointer navigation had worked in earlier public checks.",
+    "No physical phone test, human playtest, validated listening or Unity integration"
+  ],
+  "captures": [
+    "family-text-fixed.jpg",
+    "family-phone-fixed.jpg",
+    "circle-25.jpg",
+    "generations-25.jpg"
+  ],
+  "captureHashes": {
+    "family-text-fixed.jpg": "6d485fc8860bfd8b7dc9b44986c39609bb3c065eecb59ae1bdf858c29bdf2b22",
+    "family-phone-fixed.jpg": "d668a6eaa09ccd4ba117b84517d7556bf0c5e789d47801c203aa2ec966ada4e9",
+    "circle-25.jpg": "65387c7c74ef89702894b8eefa9a8aeb02f49658dc49ee24f7cc36231a26c6c8",
+    "generations-25.jpg": "17da331318db225fd00b01f085705094b415a38dd25a581dd4e12f7f3b2fc4ef"
+  }
 }
