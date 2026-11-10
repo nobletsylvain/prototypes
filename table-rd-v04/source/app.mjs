@@ -18,6 +18,7 @@ let requestId=crypto.randomUUID(),researchId=null,activeHotspot='slot-0',selecte
 let draftTrialKey=null,draftName='',draftSignature='';
 const modeDrafts=new Map();
 const journalFilters=new Map();
+const journalViews=new Map();
 let journalController=null,journalControllerKey=null;
 let chargeStage=null;
 const revealCharge=createRevealCharge(2100);
@@ -47,7 +48,7 @@ function notify(message){clearTimeout(toastTimer);$('notice').textContent=messag
 function read(key=KEY){const raw=localStorage.getItem(key);if(!raw)return createState();return restoreState(JSON.parse(raw));}
 function phase(){return composing?'compose':current()?.phase||'compose';}
 function pulse(kind){audio.play(kind);scene?.pulse(kind);}
-function modal(label,html){pauseReveal();if(journalController){journalFilters.set(journalControllerKey,journalController.getFilters());journalController.destroy();journalController=null;}$('modalLabel').textContent=testMode?`${t('testBadge')} · ${label}`:label;$('modalBody').innerHTML=html;if(!$('modal').open)$('modal').showModal();}
+function modal(label,html){pauseReveal();if(journalController){journalFilters.set(journalControllerKey,journalController.getFilters());journalViews.set(journalControllerKey,journalController.getViewState());journalController.destroy();journalController=null;}$('modalLabel').textContent=testMode?`${t('testBadge')} · ${label}`:label;$('modalBody').innerHTML=html;if(!$('modal').open)$('modal').showModal();}
 function updateChargeView(){
  const value=revealCharge.state,button=$('holdReveal');
  if(button){button.style.setProperty('--charge',`${value.progress*360}deg`);button.classList.toggle('charging',value.active);button.setAttribute('aria-label',t(value.progress?'holdContinue':'holdReveal'));}
@@ -264,6 +265,7 @@ function showJournal(){
  modal(t('journal'),'<div id="genealogyHost"></div>');
  journalController=renderJournal($('genealogyHost'),{state,strains:strains(),lang,onResearch:openResearch,onUse:newTrial,onDownload:downloadCard,canUse:['compose','kept','archived'].includes(phase())});
  journalControllerKey=KEY;journalController.setFilters(journalFilters.get(KEY)||{});
+ if(journalViews.has(KEY))journalController.setViewState(journalViews.get(KEY));
 }
 function showSettings(){
  modal(t('demo'),`<h2>${t('settingsTitle')}</h2><p>${t('soundHelp')}</p><div class="setting-row"><span>${t('feel')}<small>${t('feelNote')}</small></span></div><div class="intents"><button id="feelOn" class="${enhanced?'selected':''}" aria-pressed="${enhanced}">${t('sensitive')}</button><button id="feelOff" class="${enhanced?'':'selected'}" aria-pressed="${!enhanced}">${t('discreet')}</button></div><p class="fine">${t('sessionNote')}</p><div class="setting-row"><span>${t('volume')}</span><span id="volumeValue">${Math.round(volume*100)} %</span></div><input aria-label="${esc(t('volume'))}" id="volume" type="range" min="0" max="100" value="${volume*100}"><p class="fine">${reducedMotion?t('reduced'):''}</p><div class="rule"></div><h3>${t('rulesTitle')}</h3><p>${t('rules')}</p>${qualityLegend(lang)}<p class="fine">${t('geneticNotBatch')}</p><h3>${t('paramsTitle')}</h3><p>${t('params')}</p><p>${t('openRules')}</p><p class="fine">${t('saving')}</p><a class="download-link" href="../table-rd-v03/">${t('previousVersion')} ↗</a><a class="download-link" href="handoff/PASSATION_UNITY.md" target="_blank" rel="noopener">${t('help')} ↗</a><div class="rule"></div><button id="resetDemo">${t('reset')}</button>`);

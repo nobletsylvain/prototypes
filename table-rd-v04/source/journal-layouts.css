@@ -1,0 +1,242 @@
+/* Comparison views share the same portraits, identities and journal actions. */
+.journal-view-switch {
+  display: flex;
+  flex: none;
+  align-self: flex-start;
+  align-items: stretch;
+  gap: 4px;
+  max-width: 100%;
+  margin: 0 0 4px;
+  padding: 4px;
+  border: 1px solid #91a57236;
+  border-radius: 12px;
+  background: #10221bb0;
+}
+.journal-board .journal-view-switch button[data-layout] {
+  min-width: 116px;
+  min-height: 40px;
+  padding: 8px 15px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #adc09d;
+  font: 500 12px/1.35 system-ui, sans-serif;
+  letter-spacing: .015em;
+  transition: background-color .15s, color .15s;
+}
+.journal-board .journal-view-switch button[data-layout]:hover {
+  background: #34503a;
+  color: #eff3dd;
+  transform: none;
+}
+.journal-board .journal-view-switch button[data-layout][aria-pressed='true'] {
+  border-color: #b1c98c70;
+  background: linear-gradient(145deg, #526c44, #385139);
+  color: #f3f3dc;
+  box-shadow: 0 2px 8px #07160d44, inset 0 1px #d4e4ac19;
+}
+.journal-board .journal-view-switch button[data-layout]:focus-visible,
+.journal-focus-controls select:focus-visible,
+.journal-focus-controls button:focus-visible {
+  outline: 2px solid #e6d79a;
+  outline-offset: 2px;
+}
+.journal-view-description {
+  flex: none;
+  margin: 2px 1px 8px;
+  color: #bdcbb0;
+  font: 11px/1.5 system-ui, sans-serif;
+}
+.journal-view-description p { margin: 0; }
+.journal-focus-controls {
+  display: flex;
+  flex: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid #9bbd6d36;
+  border-radius: 10px;
+  background: #32483255;
+}
+.journal-focus-controls[hidden] { display: none !important; }
+.journal-focus-controls label {
+  display: flex;
+  flex: 1 1 250px;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  color: #bfcea9;
+  font: 11px/1.35 system-ui, sans-serif;
+}
+.journal-focus-controls select {
+  flex: 1;
+  min-width: 0;
+  max-width: 440px;
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 30px 8px 11px;
+  border: 1px solid #9bad6e66;
+  border-radius: 7px;
+  background: #13271e;
+  color: #e8edd5;
+  font: 12px/1.4 system-ui, sans-serif;
+  text-overflow: ellipsis;
+}
+.journal-focus-controls button,
+.journal-board button[data-tree-tool='focus-current'] {
+  min-height: 40px;
+  max-width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #8da66b55;
+  border-radius: 8px;
+  background: #3a5237;
+  color: #e4ecd1;
+  font: 11px/1.35 system-ui, sans-serif;
+}
+.journal-focus-controls button:hover:not(:disabled),
+.journal-board button[data-tree-tool='focus-current']:hover:not(:disabled) {
+  background: #526c44;
+  border-color: #b4c9918c;
+}
+.journal-focus-controls button:disabled { opacity: .5; }
+.journal-link-switch { display: flex; gap: 4px; }
+.journal-link-switch[hidden] { display: none; }
+.journal-link-switch button[aria-pressed='false'] { background: transparent; color: #adbd9e; }
+.journal-link-switch button[aria-pressed='true'] { border-color: #cfdb9e; background: #526c44; }
+.journal-board .journal-tree-toolbar button { min-height: 40px; min-width: 40px; }
+
+/* Compact portraits leave names and quality readable without full record cards. */
+.journal-board:is([data-layout='generations'], [data-layout='circle']) .journal-node {
+  min-width: 150px;
+  max-width: 150px;
+  min-height: 168px;
+  max-height: 168px;
+  padding: 0 3px 3px;
+  border-radius: 20px;
+}
+.journal-board:is([data-layout='generations'], [data-layout='circle']) .journal-portrait,
+.journal-board:is([data-layout='generations'], [data-layout='circle']) .journal-portrait svg {
+  width: 126px;
+  height: 108px;
+}
+.journal-board:is([data-layout='generations'], [data-layout='circle']) .journal-portrait::before {
+  inset: 9px 10px 0;
+  filter: blur(9px);
+}
+.journal-board:is([data-layout='generations'], [data-layout='circle']) .journal-portrait::after {
+  inset: 6px 8px 0;
+}
+.journal-board:is([data-layout='generations'], [data-layout='circle']) .journal-node .journal-quality-badge {
+  top: 96px;
+  max-width: 144px;
+  padding: 2px 5px;
+  font: 9px/1.35 system-ui, sans-serif;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.journal-board:is([data-layout='generations'], [data-layout='circle']) .journal-node .journal-node-name {
+  width: auto;
+  max-width: 144px;
+  height: 20px;
+  max-height: 20px;
+  margin: 12px 0 2px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #13271ec9;
+  font: 400 14px/20px Georgia, serif;
+  text-shadow: 0 1px 3px #07140c;
+}
+.journal-board:is([data-layout='generations'], [data-layout='circle']) .journal-node-accent {
+  max-width: 142px;
+  padding: 0 3px;
+  background: #13271e99;
+  border-radius: 3px;
+  font: 9px/13px system-ui, sans-serif;
+}
+.journal-board:is([data-layout='generations'], [data-layout='circle']) .journal-node-status,
+.journal-board:is([data-layout='generations'], [data-layout='circle']) .journal-slot-dots {
+  display: none;
+}
+.journal-board:is([data-layout='generations'], [data-layout='circle']) .journal-sealed {
+  margin-top: 2px;
+  font-size: 9px;
+}
+.journal-board[data-layout='family'] .journal-node.is-current .journal-portrait::after {
+  opacity: 1;
+  border: 2px solid #f0dda2;
+  box-shadow: 0 0 28px #d6bc6b45;
+}
+.journal-board[data-layout='family'] .journal-node.is-current .journal-node-name {
+  color: #f1dda3;
+}
+
+.journal-layout-guide {
+  position: absolute;
+  z-index: 1;
+  min-width: 100px;
+  max-width: 208px;
+  padding: 5px 8px;
+  border: 1px solid #93ad6b25;
+  border-radius: 20px;
+  background: #12251de6;
+  color: #bdd09e;
+  font: 500 11px/1.4 system-ui, sans-serif;
+  letter-spacing: .12em;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.journal-ring {
+  fill: none;
+  stroke: #9caf7830;
+  stroke-width: 1;
+  stroke-dasharray: 3 7;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.journal-ring-label {
+  fill: #b6c997;
+  font: 500 11px/1.4 system-ui, sans-serif;
+  letter-spacing: .1em;
+  paint-order: stroke;
+  stroke: #12251d;
+  stroke-width: 5px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.journal-board[data-layout='circle'] .journal-edge:not(.is-highlighted) { opacity: .25; }
+.journal-board[data-layout='family'] .journal-edge { stroke-width: 1.8; }
+.journal-board[data-layout='family'] .journal-edge.is-highlighted { stroke-width: 2.4; }
+
+@media (max-width: 700px) {
+  .journal-view-switch { align-self: stretch; gap: 3px; padding: 3px; border-radius: 10px; }
+  .journal-board .journal-view-switch button[data-layout] { flex: 1; min-width: 0; min-height: 42px; padding: 7px 4px; font-size: 11px; }
+  .journal-view-description { margin: 2px 0 6px; font-size: 10px; line-height: 1.35; }
+  .journal-focus-controls { gap: 5px; margin-bottom: 5px; padding: 5px; }
+  .journal-focus-controls label { flex: 1 1 180px; gap: 6px; font-size: 10px; }
+  .journal-focus-controls select { min-height: 40px; padding: 7px 24px 7px 8px; font-size: 11px; }
+  .journal-focus-controls button { padding: 7px 9px; font-size: 10px; }
+  .journal-board button[data-tree-tool='focus-current'] { font-size: 10px; padding: 7px 8px; }
+  .journal-board .journal-tree-toolbar { flex-wrap: wrap; justify-content: flex-start; gap: 3px; }
+  .journal-board .journal-tree-toolbar button { min-width: 40px; min-height: 40px; }
+  .journal-board .journal-summary { padding: 3px 0; }
+  .journal-board .journal-legend { gap: 7px; margin-bottom: 5px; }
+}
+@media (max-height: 650px) and (max-width: 700px) {
+  .journal-heading { margin-bottom: 5px; }
+  .journal-heading small { display: none; }
+  .journal-view-description { display: none; }
+  .journal-board .journal-viewport { min-height: 130px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .journal-view-switch button[data-layout] { transition: none; }
+}
+@media (forced-colors: active) {
+  .journal-view-switch, .journal-focus-controls, .journal-layout-guide { border-color: CanvasText; background: Canvas; color: CanvasText; }
+  .journal-board .journal-view-switch button[data-layout][aria-pressed='true'] { border-color: Highlight; color: HighlightText; background: Highlight; }
+  .journal-ring { stroke: GrayText; }
+}

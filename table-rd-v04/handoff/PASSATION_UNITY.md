@@ -1,5 +1,14 @@
 # Table de R&D — Passation V04, qualité génétique et COA
 
+
+## Comparer la généalogie — 10 novembre 2026
+
+Après le retour du propriétaire sur l’illisibilité à 25 variétés, trois vues partagent les mêmes entrées : **Générations**, **Cercle** et **Famille**. Famille s’ouvre par défaut sur la dernière variété conservée et montre ses parents et enfants directs. Le sélecteur de point de départ et les flèches de résultats permettent de parcourir les autres branches. Les deux vues globales proposent **Liens ciblés** ou **Tous les liens** ; une recherche surligne l’ascendance complète de ses résultats. **Lire les noms** rapproche le point de départ. Les portraits ouvrent toujours les emplacements.
+
+Le format, le point de départ, les filtres et le cadrage sont conservés en mémoire pendant les allers-retours aux slots, séparément pour les modes normal et test. Les données de jeu, ressources, tirages et sauvegardes restent inchangés. Ces formats sont des propositions à comparer ; aucun n’est adopté comme interface finale. Le cercle reste une vue d’ensemble et exige du zoom à plusieurs générations. Les liens longs peuvent traverser d’autres zones de la vue compacte ; le mode ciblé et la vue Famille servent à les isoler.
+
+Validation de cette évolution : **176 tests réussis, zéro échec**, dont géométrie et filiations exactes sur 25 et 60 entrées, sans chevauchement de portraits. Revue de code indépendante effectuée. L’aperçu local est indisponible dans cet environnement ; revue navigateur publique à effectuer après déploiement. Les preuves de l’évolution précédente ci-dessous restent historiques.
+
 10 novembre 2026. Évolution du prototype autonome V04 **publiée et vérifiée dans le navigateur**, avant intégration au jeu : tous les paliers deviennent possibles pour chaque nouveau croisement. Même URL, mêmes carrières V04 ; V03 reste intacte. Aucun nouveau composant, import ou build Unity n’est déclaré livré.
 
 [Démo V04](https://nobletsylvain.github.io/prototypes/table-rd-v04/) · [Mode test](https://nobletsylvain.github.io/prototypes/table-rd-v04/?mode=test) · [V03 conservée](https://nobletsylvain.github.io/prototypes/table-rd-v03/)
