@@ -295,7 +295,7 @@ export function renderJournal(host, { state, strains, lang = 'fr', onResearch, o
   const viewport = host.querySelector('.journal-viewport'), space = host.querySelector('.journal-scaled-space'), canvas = host.querySelector('.journal-canvas');
   const selection = host.querySelector('.journal-selection'), position = host.querySelector('.journal-result-position');
   let graph, result, zoom = 1, resultIndex = -1, drag = null, layout = 'family', links = 'focus';
-  let focusId = [...entries].reverse().find(entry=>entry.status==='kept')?.id || entries[0]?.id || null;
+  let focusId = [...entries].filter(entry=>entry.status==='kept').sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))[0]?.id || entries[0]?.id || null;
   const board = host.querySelector('.journal-board'), focusSelect = host.querySelector('.journal-focus-select');
   const filters = () => Object.fromEntries(new FormData(form));
   const setZoom = (value, fitting = false) => {
@@ -316,6 +316,7 @@ export function renderJournal(host, { state, strains, lang = 'fr', onResearch, o
     canvas.querySelectorAll('.is-current').forEach(item => item.classList.remove('is-current'));
     button?.classList.add('is-current'); if (focus) button?.focus({ preventScroll: true });
   };
+  const frameView = () => {fit();if(layout==='family' && zoom<.75){setZoom(.75);centerNode(focusId);}};
   const update = (resetPosition = true) => {
     const values = filters(), filtered = Object.values(values).some(value => String(value).trim());
     result = filterJournalEntries(entries, values); graph = buildJournalLayout(entries, result.matchIds, filtered, {layout,focusId});
@@ -337,9 +338,9 @@ export function renderJournal(host, { state, strains, lang = 'fr', onResearch, o
   const click = event => {
     const button = event.target.closest('button');
     const tool = button?.dataset.treeTool;
-    if(button?.dataset.layout){layout=button.dataset.layout;update(false);fit();}
+    if(button?.dataset.layout){layout=button.dataset.layout;update(false);frameView();}
     else if(button?.dataset.links){links=button.dataset.links;update(false);}
-    else if(tool==='focus-current'){layout='family';update(false);fit();if(viewport.clientWidth<700){setZoom(.85);centerNode(focusId);}}
+    else if(tool==='focus-current'){layout='family';update(false);frameView();}
     else if(tool==='readable'){setZoom(1);centerNode(focusId);}
     else if (tool === 'in' || tool === 'out') setZoom(zoom * (tool === 'in' ? 1.2 : 1 / 1.2));
     else if (tool === 'fit') fit();
@@ -383,11 +384,11 @@ export function renderJournal(host, { state, strains, lang = 'fr', onResearch, o
   const pointerup = () => { drag = null; viewport.classList.remove('is-dragging'); };
   const submit = event => event.preventDefault();
   const filterChanged = () => {const previousFocus=focusId,next=filterJournalEntries(entries,filters());if(layout==='family' && next.matches.length && !next.matchIds.has(focusId))focusId=next.matches[0].id;update();if(focusId!==previousFocus)centerNode(focusId);};
-  const focusChanged = () => {focusId=focusSelect.value;update(false);if(layout==='family')fit();else centerNode(focusId);};
+  const focusChanged = () => {focusId=focusSelect.value;update(false);if(layout==='family')frameView();else centerNode(focusId);};
   form.addEventListener('input', filterChanged); form.addEventListener('change', filterChanged); form.addEventListener('reset', reset); form.addEventListener('submit', submit);focusSelect.addEventListener('change',focusChanged);
   host.addEventListener('click', click); viewport.addEventListener('keydown', keydown);
   viewport.addEventListener('pointerdown', pointerdown); viewport.addEventListener('pointermove', pointermove); viewport.addEventListener('pointerup', pointerup); viewport.addEventListener('pointercancel', pointerup);
-  update();fit();if(viewport.clientWidth<700){setZoom(.85);centerNode(focusId);}
+  update();frameView();
   return {
     entries, getFilters: filters,
     getViewState(){return {layout,links,focusId,zoom,scrollLeft:viewport.scrollLeft,scrollTop:viewport.scrollTop,resultIndex};},

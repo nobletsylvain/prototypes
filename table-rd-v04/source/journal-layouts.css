@@ -48,6 +48,11 @@
   font: 11px/1.5 system-ui, sans-serif;
 }
 .journal-view-description p { margin: 0; }
+@media (min-width: 900px) {
+  .journal-heading { min-height: 48px; margin-bottom: 5px; }
+  .journal-heading .journal-intro { display: none; }
+  .journal-view-switch { align-self: flex-end; margin-top: -52px; margin-bottom: 10px; }
+}
 .journal-focus-controls {
   display: flex;
   flex: none;
