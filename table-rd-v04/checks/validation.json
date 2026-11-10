@@ -5,92 +5,18 @@
   "visualVersion": 1,
   "date": "2026-11-10",
   "tests": {
-    "total": 154,
-    "passed": 154,
+    "passed": 176,
     "failed": 0,
-    "skipped": 0,
-    "command": "node --test tests/*.test.mjs"
+    "source": "dist",
+    "date": "2026-11-10"
   },
-  "embeddedModules": 19,
+  "embeddedModules": 20,
   "moduleSyntax": "passed",
   "namedImports": "passed",
-  "publishedHtmlSha256": "d15fa5c120014cff2f271544e195bb67e37695ba8fd71c0e7ba9f7072b3f7ba1",
-  "browserRevision": "Universal probabilities verified on the published page, desktop and 390x844 viewport",
+  "publishedHtmlSha256": "df6b2bcbf86c4084bec5021dde47aa828c61ee9845974308cc5f3e3becb756c5",
+  "browserRevision": "Three genealogy views pending public browser review",
   "physicalPhoneTest": false,
   "listeningValidated": false,
   "humanPlaytest": false,
-  "unityIntegration": false,
-  "browserReviewedHtmlSha256": "d15fa5c120014cff2f271544e195bb67e37695ba8fd71c0e7ba9f7072b3f7ba1",
-  "publicUrl": "https://nobletsylvain.github.io/prototypes/table-rd-v04/",
-  "normalParentPair": {
-    "ids": [
-      "x",
-      "y"
-    ],
-    "quality": [
-      24,
-      54
-    ],
-    "tiers": [
-      "common",
-      "uncommon"
-    ]
-  },
-  "displayedPercent": {
-    "poor": 1.2,
-    "common": 48.94,
-    "uncommon": 45.36,
-    "rare": 2.5,
-    "epic": 1.5,
-    "legendary": 0.5
-  },
-  "legacyNormalResult": {
-    "before": 58,
-    "after": 58,
-    "oldProbabilityDisplay": 15,
-    "newProbabilityDisplay": 14.97,
-    "formattingOnly": true
-  },
-  "legacyPendingTest": {
-    "trial": "trial-009",
-    "noticeVisible": true,
-    "revealedScore": 69
-  },
-  "forcedLegendaryTest": {
-    "parents": [
-      "x",
-      "y"
-    ],
-    "parentScores": [
-      24,
-      54
-    ],
-    "result": 100,
-    "generation": 1,
-    "parentalCenter": 39,
-    "delta": 61,
-    "intermediateTrials": 0,
-    "batchQuality": "demo-standard",
-    "activeTraits": 0
-  },
-  "normalCuttingsBeforeTest": 7,
-  "normalCuttingsAfterTest": 7,
-  "responsiveViewport": {
-    "width": 390,
-    "height": 844,
-    "clientWidth": 375,
-    "scrollWidth": 375
-  },
-  "consoleErrors": 0,
-  "consoleWarnings": 0,
-  "captures": [
-    "universal-odds-desktop.png",
-    "legendary-modest-parents.png",
-    "universal-odds-phone.png"
-  ],
-  "captureHashes": {
-    "universal-odds-desktop.png": "1bd566c58dfff59cfaec3d71eff4146b7ac7ec5636f963bd54bf03b20a3e9822",
-    "legendary-modest-parents.png": "dcbbf7f93a432f6daa10c1625e9536869aa43cc011a07df7ac07e739cba556b6",
-    "universal-odds-phone.png": "04f4f69a51b23cb6f28375e14bf9b6d32101885c72c4538636f5b848aa0be949"
-  }
+  "unityIntegration": false
 }

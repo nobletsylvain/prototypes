@@ -1,11 +1,20 @@
 import { TRAITS, getConfiguration, QUALITY_TIERS, tierForScore } from './model.mjs';
 import { buildJournalGraph } from './journal-graph.mjs';
+import { buildJournalLayout } from './journal-layouts.mjs';
 import { renderStrainPortrait } from './journal-portrait.mjs';
 import { visualFeatures,visualSearchText,shortVisualName } from './visual-ui.mjs';
 
 // The journal is a projection of public information, never a game transaction.
 export const JOURNAL_STRINGS = {
   fr: {
+    views: 'Comparer les vues', generations: 'Générations', circle: 'Cercle', family: 'Famille',
+    generationsHint: 'De gauche à droite, chaque colonne réunit une génération. Les portraits restent à leur place pendant la recherche.',
+    circleHint: 'Du centre vers l’extérieur, les générations se succèdent en anneaux. Une vue d’ensemble à explorer au zoom.',
+    familyHint: 'Une variété, ses parents et ses enfants directs. Changez de point de départ pour parcourir toute la famille.',
+    focus: 'Point de départ', focusStrain: 'Variété observée', links: 'Liens affichés', allLinks: 'Tous les liens', focusLinks: 'Liens ciblés',
+    focusLinksHint: 'Liens ciblés : parents et enfants du point de départ. Une recherche montre l’ascendance de tous ses résultats.',
+    familyScope: '{visible} variétés visibles sur {total} · famille directe uniquement', focusCurrent: 'Voir sa famille',
+    readable: 'Lire les noms', selected: 'Point de départ',
     title: 'L’arbre de vos découvertes', intro: 'Suivez les croisements de génération en génération. Touchez une variété conservée pour ouvrir ses slots.',
     visualSignature: 'Signature visuelle', unseen: 'À découvrir', collection: 'Votre herbier', portraitHint: 'Couleurs, reflets, filiations. Chaque découverte laisse sa trace.',
     filters: 'Filtres de l’arbre', tree: 'Arbre généalogique', treeHint: 'Faites défiler l’arbre au doigt ou avec les flèches. Sur ordinateur, glissez le fond pour déplacer la vue.',
@@ -26,6 +35,14 @@ export const JOURNAL_STRINGS = {
     unknownParent: 'Parent', contextHelp: 'Les cartes de contexte ne satisfont pas nécessairement les filtres.',
   },
   en: {
+    views: 'Compare views', generations: 'Generations', circle: 'Circle', family: 'Family',
+    generationsHint: 'Left to right, each column groups a generation. Portraits stay in place while searching.',
+    circleHint: 'From the centre outward, generations form rings. An overview to explore with zoom.',
+    familyHint: 'One variety, its parents and direct children. Change the starting point to explore the whole family.',
+    focus: 'Starting point', focusStrain: 'Observed variety', links: 'Visible links', allLinks: 'All links', focusLinks: 'Focused links',
+    focusLinksHint: 'Focused links show parents and children of the starting point. Search shows the ancestry of all matches.',
+    familyScope: '{visible} of {total} varieties visible · direct family only', focusCurrent: 'View its family',
+    readable: 'Read names', selected: 'Starting point',
     title: 'Your discovery tree', intro: 'Follow crosses from one generation to the next. Tap a kept variety to open its slots.',
     visualSignature: 'Visual signature', unseen: 'Yet to discover', collection: 'Your herbarium', portraitHint: 'Colour, glints, lineage. Each discovery leaves a trace.',
     filters: 'Tree filters', tree: 'Genealogy tree', treeHint: 'Scroll the tree with touch or arrow keys. On desktop, drag the background to pan.',
@@ -225,26 +242,29 @@ export function focusJournalEntry(target) {
 }
 
 /** Render only the safe public graph projection, keeping every branch in place. */
-export function journalGraphHTML(graph, { lang = 'fr', filtered = false } = {}) {
+export function journalGraphHTML(graph, { lang = 'fr', filtered = false, focusId = null, links = 'all' } = {}) {
   const text = JOURNAL_STRINGS[lang] || JOURNAL_STRINGS.fr;
-  const edges = [...graph.edges].sort((a,b)=>Number(a.highlighted)-Number(b.highlighted)).map(edge => `<path class="journal-edge${!filtered || edge.highlighted ? ' is-highlighted' : ''}" data-from="${escape(edge.from)}" data-to="${escape(edge.to)}" d="${escape(edge.path)}" marker-end="url(#journal-arrow)"></path>`).join('');
-  const generations = [...new Set(graph.nodes.map(node => node.entry.generation))].map(generation => {
+  const visibleEdges = links === 'focus' && graph.layout !== 'family' ? graph.edges.filter(edge => filtered ? edge.highlighted : edge.from === focusId || edge.to === focusId) : graph.edges;
+  const edges = [...visibleEdges].sort((a,b)=>Number(a.highlighted)-Number(b.highlighted)).map(edge => `<path class="journal-edge${!filtered || edge.highlighted ? ' is-highlighted' : ''}" data-from="${escape(edge.from)}" data-to="${escape(edge.to)}" d="${escape(edge.path)}" marker-end="url(#journal-arrow)"></path>`).join('');
+  const guideLabel = label => label === 'focus' ? text.focusStrain : text[label] || label;
+  const generations = graph.guides ? graph.guides.map(guide => `<span class="journal-layout-guide" style="left:${guide.x}px;top:${guide.y}px">${escape(guideLabel(guide.label))}</span>`).join('') : [...new Set(graph.nodes.map(node => node.entry.generation))].map(generation => {
     const node = graph.nodes.find(item => item.entry.generation === generation);
     return `<span class="journal-generation-label" style="left:${node.x}px;top:12px">${text.generation} ${generation}</span>`;
   }).join('');
+  const rings = (graph.rings || []).map(ring => `<circle class="journal-ring" cx="${ring.cx}" cy="${ring.cy}" r="${ring.r}"></circle><text class="journal-ring-label" x="${ring.cx+ring.r*.707}" y="${ring.cy-ring.r*.707-8}">${escape(ring.label)}</text>`).join('');
   const nodes = graph.nodes.map(node => {
     const entry = node.entry, name = displayName(entry, lang, text);
     const action = entry.configurable ? 'research' : 'inspect';
     const status = text[entry.status] + (filtered && node.match ? ` · ✦ ${text.resultLegend}` : '');
     const profile = entry.known ? interpolate(text.compactSlots, { active: entry.activeIds.length, capacity: entry.slotCapacity }) : text.hidden;
-    const classification = filtered ? node.match ? ' is-match' : node.lineage ? ' is-lineage' : ' is-muted' : '';
+    const classification = (filtered ? node.match ? ' is-match' : node.lineage ? ' is-lineage' : ' is-muted' : '') + (node.id === focusId ? ' is-current' : '');
     const accent = entry.known ? [shortVisualName(entry.visual,lang), local(entry.accent, lang)].filter(Boolean).join(' · ') || text.visualSignature : text.unseen;
     const color = entry.known && /^#[0-9a-f]{6}$/i.test(entry.color || '') ? entry.color : '#829080';
     const glint = entry.known ? entry.visual?.alleles.pigment.includes('mauve') ? '#c6a1df' : '#bdcf9a' : '#829080';
     const slots = entry.known ? `<span class="journal-slot-dots" aria-label="${escape(profile)}">${Array.from({length:Math.min(12,entry.slotCapacity)},(_,i)=>`<i class="${i < entry.activeIds.length ? 'active' : ''}"></i>`).join('')}</span>` : `<span class="journal-sealed">${text.unseen}</span>`;
     return `<button type="button" class="journal-node${classification}" data-entry="${escape(entry.id)}" data-tree-action="${action}" data-strain="${escape(entry.strainId || '')}" data-known="${entry.known}" style="left:${node.x}px;top:${node.y}px;width:${node.width}px;height:${node.height}px;--strain-color:${color};--glint-color:${glint}" aria-label="${escape(`${name} · ${entry.configurable ? text.inspect : text.viewEntry}`)}" title="${escape(`${name} · ${qualityLabel(entry, lang)} · ${text.visualSignature} · ${accent} · ${profile}`)}"><span class="journal-portrait">${renderStrainPortrait(entry, `portrait-${entry.id}`)}</span>${qualityBadge(entry, lang, text)}<span class="journal-node-status">${escape(status)}</span><strong class="journal-node-name">${escape(name)}</strong><span class="journal-node-accent">${escape(accent)}</span>${slots}</button>`;
   }).join('');
-  return `<svg class="journal-edges" width="${graph.width}" height="${graph.height}" viewBox="0 0 ${graph.width} ${graph.height}" aria-hidden="true"><defs><marker id="journal-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8 Z" fill="context-stroke"></path></marker></defs>${edges}</svg>${generations}${nodes}`;
+  return `<svg class="journal-edges" width="${graph.width}" height="${graph.height}" viewBox="0 0 ${graph.width} ${graph.height}" aria-hidden="true"><defs><marker id="journal-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8 Z" fill="context-stroke"></path></marker></defs>${rings}${edges}</svg>${generations}${nodes}`;
 }
 
 /** Mount inside an existing modal host. Callbacks receive strain IDs, except onDownload(trialId). */
@@ -254,7 +274,10 @@ export function renderJournal(host, { state, strains, lang = 'fr', onResearch, o
   const option = (value, label) => `<option value="${escape(value)}">${escape(label)}</option>`;
   const traitOptions = option('', text.all) + traitList().map(trait => option(trait.id, traitName(trait.id, lang))).join('');
   const field = (label, name, options) => `<label>${label}<select name="${name}">${options}</select></label>`;
-  host.innerHTML = `<section class="journal-board"><header class="journal-heading"><div><small>${text.collection}</small><h2>${text.title}</h2></div><p class="journal-intro">${text.portraitHint}<br><small>${text.qualityNote}</small></p></header><form class="journal-form" aria-label="${text.title}">
+  host.innerHTML = `<section class="journal-board" data-layout="family"><header class="journal-heading"><div><small>${text.collection}</small><h2>${text.title}</h2></div><p class="journal-intro">${text.portraitHint}<br><small>${text.qualityNote}</small></p></header>
+    <div class="journal-view-switch" role="group" aria-label="${text.views}">${['generations','circle','family'].map(id=>`<button type="button" data-layout="${id}" aria-pressed="${id==='family'}">${text[id]}</button>`).join('')}</div>
+    <p class="journal-view-description"></p><div class="journal-focus-controls"><label>${text.focus}<select class="journal-focus-select">${entries.map(entry=>option(entry.id,`${displayName(entry,lang,text)} · G${entry.generation}`)).join('')}</select></label><button type="button" data-tree-tool="focus-current">${text.focusCurrent}</button><div class="journal-link-switch" role="group" aria-label="${text.links}"><button type="button" data-links="focus" aria-pressed="true">${text.focusLinks}</button><button type="button" data-links="all" aria-pressed="false">${text.allLinks}</button></div></div>
+    <form class="journal-form" aria-label="${text.title}">
     <label class="journal-search">${text.search}<input name="query" type="search" autocomplete="off" placeholder="${text.searchHint}"></label>
     <details class="journal-filter-toggle"><summary>${text.filters} <span class="journal-filter-count"></span></summary><div class="journal-filters">
     ${field(text.potential, 'potentialId', traitOptions)}${field(text.active, 'activeId', traitOptions)}
@@ -263,7 +286,7 @@ export function renderJournal(host, { state, strains, lang = 'fr', onResearch, o
     ${field(text.ancestor, 'ancestorId', option('', text.all) + entries.filter(entry => entry.strainId && entry.childEntryIds.length).map(entry => option(entry.strainId, `${displayName(entry, lang, text)} · ${entry.strainId}`)).join(''))}
     ${field(text.status, 'status', option('', text.all) + ['founder', 'kept', 'archived', 'pending'].map(id => option(id, text[id])).join(''))}
     <button type="reset" class="journal-reset">${text.reset}</button></div></details></form><div class="journal-navigation"><p class="journal-summary" role="status" aria-live="polite"></p>
-    <div class="journal-tree-toolbar"><button type="button" data-tree-tool="out" aria-label="${text.zoomOut}">−</button><output class="journal-zoom">100%</output><button type="button" data-tree-tool="in" aria-label="${text.zoomIn}">+</button><button type="button" data-tree-tool="fit">${text.fit}</button><span class="journal-toolbar-spacer"></span><button type="button" data-tree-tool="previous" aria-label="${text.previous}">←</button><span class="journal-result-position"></span><button type="button" data-tree-tool="next" aria-label="${text.next}">→</button></div>
+    <div class="journal-tree-toolbar"><button type="button" data-tree-tool="out" aria-label="${text.zoomOut}">−</button><output class="journal-zoom">100%</output><button type="button" data-tree-tool="in" aria-label="${text.zoomIn}">+</button><button type="button" data-tree-tool="fit">${text.fit}</button><button type="button" data-tree-tool="readable">${text.readable}</button><span class="journal-toolbar-spacer"></span><button type="button" data-tree-tool="previous" aria-label="${text.previous}">←</button><span class="journal-result-position"></span><button type="button" data-tree-tool="next" aria-label="${text.next}">→</button></div>
     </div><div class="journal-legend"><span class="legend-match">✦ ${text.resultLegend}</span><span class="legend-lineage">━ ${text.lineageLegend}</span><span class="legend-other">━ ${text.otherLegend}</span></div>
     <div class="journal-viewport" role="region" tabindex="0" aria-label="${text.tree}" aria-describedby="journal-tree-hint"><div class="journal-scaled-space"><div class="journal-canvas"></div></div></div>
     <p class="journal-tree-hint" id="journal-tree-hint">${text.treeHint}</p><div class="journal-selection"></div>
@@ -271,7 +294,9 @@ export function renderJournal(host, { state, strains, lang = 'fr', onResearch, o
   const form = host.querySelector('.journal-form'), results = host.querySelector('.journal-results'), summary = host.querySelector('.journal-summary');
   const viewport = host.querySelector('.journal-viewport'), space = host.querySelector('.journal-scaled-space'), canvas = host.querySelector('.journal-canvas');
   const selection = host.querySelector('.journal-selection'), position = host.querySelector('.journal-result-position');
-  let graph, result, zoom = 1, resultIndex = -1, drag = null;
+  let graph, result, zoom = 1, resultIndex = -1, drag = null, layout = 'family', links = 'focus';
+  let focusId = [...entries].reverse().find(entry=>entry.status==='kept')?.id || entries[0]?.id || null;
+  const board = host.querySelector('.journal-board'), focusSelect = host.querySelector('.journal-focus-select');
   const filters = () => Object.fromEntries(new FormData(form));
   const setZoom = (value, fitting = false) => {
     const centerX = (viewport.scrollLeft + viewport.clientWidth / 2) / zoom;
@@ -291,14 +316,20 @@ export function renderJournal(host, { state, strains, lang = 'fr', onResearch, o
     canvas.querySelectorAll('.is-current').forEach(item => item.classList.remove('is-current'));
     button?.classList.add('is-current'); if (focus) button?.focus({ preventScroll: true });
   };
-  const update = () => {
+  const update = (resetPosition = true) => {
     const values = filters(), filtered = Object.values(values).some(value => String(value).trim());
-    result = filterJournalEntries(entries, values); graph = buildJournalGraph(entries, result.matchIds, filtered);
-    canvas.innerHTML = journalGraphHTML(graph, { lang, filtered });
+    result = filterJournalEntries(entries, values); graph = buildJournalLayout(entries, result.matchIds, filtered, {layout,focusId});
+    focusId = graph.focusId; focusSelect.value = focusId || ''; board.dataset.layout = layout;
+    canvas.innerHTML = journalGraphHTML(graph, { lang, filtered, focusId, links });
+    host.querySelectorAll('[data-layout]').forEach(button=>{if(button.tagName==='BUTTON')button.setAttribute('aria-pressed',String(button.dataset.layout===layout));});
+    host.querySelectorAll('[data-links]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.links===links)));
+    host.querySelector('.journal-link-switch').hidden = layout === 'family';
+    host.querySelector('.journal-view-description').textContent = text[layout+'Hint'] + (layout!=='family' && links==='focus' ? ' '+text.focusLinksHint : '');
     results.innerHTML = journalResultsHTML(result, { lang, canUse });
-    summary.textContent = interpolate(text.matches, { count: result.totalMatches, total: result.totalEntries }) + ` · ${result.totalMatches ? text.allTree : text.noMatchTree}`;
+    summary.textContent = interpolate(text.matches, { count: result.totalMatches, total: result.totalEntries }) + ` · ${layout==='family' ? interpolate(text.familyScope,{visible:graph.nodes.length,total:entries.length}) : result.totalMatches ? text.allTree : text.noMatchTree}`;
     host.querySelector('.journal-filter-count').textContent = filtered ? `(${Object.values(values).filter(value => String(value).trim()).length})` : '';
-    resultIndex = -1; position.textContent = `${result.totalMatches}`; selection.innerHTML = '';
+    if(resetPosition) resultIndex = -1;
+    position.textContent = resultIndex < 0 ? `${result.totalMatches}` : `${resultIndex+1}/${result.totalMatches}`; selection.innerHTML = '';
     host.querySelectorAll('[data-tree-tool="previous"],[data-tree-tool="next"]').forEach(button => { button.disabled = !result.totalMatches; });
     setZoom(zoom);
   };
@@ -306,17 +337,23 @@ export function renderJournal(host, { state, strains, lang = 'fr', onResearch, o
   const click = event => {
     const button = event.target.closest('button');
     const tool = button?.dataset.treeTool;
-    if (tool === 'in' || tool === 'out') setZoom(zoom * (tool === 'in' ? 1.2 : 1 / 1.2));
+    if(button?.dataset.layout){layout=button.dataset.layout;update(false);fit();}
+    else if(button?.dataset.links){links=button.dataset.links;update(false);}
+    else if(tool==='focus-current'){layout='family';update(false);fit();if(viewport.clientWidth<700){setZoom(.85);centerNode(focusId);}}
+    else if(tool==='readable'){setZoom(1);centerNode(focusId);}
+    else if (tool === 'in' || tool === 'out') setZoom(zoom * (tool === 'in' ? 1.2 : 1 / 1.2));
     else if (tool === 'fit') fit();
     else if (tool === 'next' || tool === 'previous') {
       if (!result.matches.length) return;
       resultIndex = resultIndex < 0 ? (tool === 'next' ? 0 : result.matches.length - 1) : (resultIndex + (tool === 'next' ? 1 : -1) + result.matches.length) % result.matches.length;
+      focusId = result.matches[resultIndex].id; update(false);
       position.textContent = `${resultIndex + 1}/${result.matches.length}`; if (zoom < .8) setZoom(.8); centerNode(result.matches[resultIndex].id, true);
     }
-    else if (button?.dataset.treeAction === 'research') onResearch?.(button.dataset.strain);
+    else if (button?.dataset.treeAction === 'research') {focusId=button.dataset.entry;onResearch?.(button.dataset.strain);}
     else if (button?.dataset.treeAction === 'inspect') {
       const entry = entries.find(item => item.id === button.dataset.entry);
       if (!entry) return;
+      focusId = entry.id; update(false);
       const note = entry.status === 'archived' ? text.archiveNote : entry.phase === 'revealed' ? text.revealedPending : '';
       selection.innerHTML = `<strong>${escape(displayName(entry, lang, text))}</strong><p>${entry.known ? `${escape(text[entry.status])} · ${escape(entry.potentialIds.map(id => traitName(id, lang)).join(' · '))}` : text.hiddenInfo}</p>${note ? `<small>${note}</small>` : ''}${qualityBadge(entry, lang, text)}${downloadAction(entry, text)}`;
     }
@@ -328,7 +365,7 @@ export function renderJournal(host, { state, strains, lang = 'fr', onResearch, o
       event.preventDefault();
       const targetId = anchor.getAttribute('href').slice(1);
       const entry = entries.find(item => anchorId(item.id) === targetId);
-      if (entry) { host.querySelector('.journal-cards-toggle').open = false; centerNode(entry.id, true); }
+      if (entry) { focusId=entry.id;update(false);host.querySelector('.journal-cards-toggle').open = false;setZoom(1);centerNode(entry.id, true); }
     }
   };
   const keydown = event => {
@@ -345,13 +382,17 @@ export function renderJournal(host, { state, strains, lang = 'fr', onResearch, o
   const pointermove = event => { if (drag) { viewport.scrollLeft = drag.left + drag.x - event.clientX; viewport.scrollTop = drag.top + drag.y - event.clientY; } };
   const pointerup = () => { drag = null; viewport.classList.remove('is-dragging'); };
   const submit = event => event.preventDefault();
-  form.addEventListener('input', update); form.addEventListener('change', update); form.addEventListener('reset', reset); form.addEventListener('submit', submit);
+  const filterChanged = () => {const previousFocus=focusId,next=filterJournalEntries(entries,filters());if(layout==='family' && next.matches.length && !next.matchIds.has(focusId))focusId=next.matches[0].id;update();if(focusId!==previousFocus)centerNode(focusId);};
+  const focusChanged = () => {focusId=focusSelect.value;update(false);if(layout==='family')fit();else centerNode(focusId);};
+  form.addEventListener('input', filterChanged); form.addEventListener('change', filterChanged); form.addEventListener('reset', reset); form.addEventListener('submit', submit);focusSelect.addEventListener('change',focusChanged);
   host.addEventListener('click', click); viewport.addEventListener('keydown', keydown);
   viewport.addEventListener('pointerdown', pointerdown); viewport.addEventListener('pointermove', pointermove); viewport.addEventListener('pointerup', pointerup); viewport.addEventListener('pointercancel', pointerup);
-  update(); setZoom(.85); centerNode([...entries].reverse().find(entry => entry.status === 'kept')?.id || entries[0]?.id);
+  update();fit();if(viewport.clientWidth<700){setZoom(.85);centerNode(focusId);}
   return {
     entries, getFilters: filters,
+    getViewState(){return {layout,links,focusId,zoom,scrollLeft:viewport.scrollLeft,scrollTop:viewport.scrollTop,resultIndex};},
+    setViewState(next={}){if(['generations','circle','family'].includes(next.layout))layout=next.layout;if(['focus','all'].includes(next.links))links=next.links;if(entries.some(entry=>entry.id===next.focusId))focusId=next.focusId;update();if(Number.isInteger(next.resultIndex)&&next.resultIndex>=0&&next.resultIndex<result.matches.length)resultIndex=next.resultIndex;update(false);if(Number.isFinite(next.zoom)&&next.zoom>0)setZoom(next.zoom,true);else fit();if(Number.isFinite(next.scrollLeft))viewport.scrollLeft=next.scrollLeft;if(Number.isFinite(next.scrollTop))viewport.scrollTop=next.scrollTop;},
     setFilters(next = {}) { for (const control of form.elements) if (control.name) control.value = next[control.name] ?? ''; update(); },
-    destroy() { form.removeEventListener('input', update); form.removeEventListener('change', update); form.removeEventListener('reset', reset); form.removeEventListener('submit', submit); host.removeEventListener('click', click); viewport.removeEventListener('keydown', keydown); viewport.removeEventListener('pointerdown', pointerdown); viewport.removeEventListener('pointermove', pointermove); viewport.removeEventListener('pointerup', pointerup); viewport.removeEventListener('pointercancel', pointerup); },
+    destroy() { form.removeEventListener('input', filterChanged); form.removeEventListener('change', filterChanged); form.removeEventListener('reset', reset); form.removeEventListener('submit', submit);focusSelect.removeEventListener('change',focusChanged); host.removeEventListener('click', click); viewport.removeEventListener('keydown', keydown); viewport.removeEventListener('pointerdown', pointerdown); viewport.removeEventListener('pointermove', pointermove); viewport.removeEventListener('pointerup', pointerup); viewport.removeEventListener('pointercancel', pointerup); },
   };
 }
