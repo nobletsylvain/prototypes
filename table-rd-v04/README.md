@@ -1,6 +1,6 @@
 # Table de R&D — V04, qualité génétique et COA
 
-Démo autonome publiée le 10 novembre 2026 : **parcours navigateur et disposition mobile du COA vérifiés**. Le croisement transmet une qualité génétique propre à la variété, avec variation, en plus de ses potentiels, emplacements et apparence. Cette qualité n’est pas un score calculé à partir des goûts ou du nombre d’emplacements.
+Évolution V04 du 10 novembre 2026, **implémentée et contrôlée, publication en préparation** : chaque nouveau croisement peut atteindre tous les paliers, même avec des parents de faible qualité. Les parents continuent d’orienter l’essentiel du tirage. La qualité génétique reste distincte des goûts, emplacements, potentiels et apparence.
 
 [Ouvrir V04](https://nobletsylvain.github.io/prototypes/table-rd-v04/) · [Mode test](https://nobletsylvain.github.io/prototypes/table-rd-v04/?mode=test) · [V03 conservée](https://nobletsylvain.github.io/prototypes/table-rd-v03/)
 
@@ -19,7 +19,18 @@ La référence fournie le 10 novembre associe une qualité entière aux paliers 
 
 **Qualité génétique, potentiel activable de qualité future et qualité réelle du lot restent distincts.** Le lot d’essai reste un spécimen de qualité standard. Un palier ne réécrit pas ce lot, ne mesure aucune puissance réelle et ne constitue pas une analyse chimique.
 
-Pour l’essai, le centre du tirage est la moyenne arrondie des qualités parentales. Une variation de −20 à +20 favorise les résultats proches du centre ; les valeurs hors de 0–100 sont exclues, sans être rabattues sur les limites. Les qualités fondatrices 24/54/84, cette distribution et les gains de points sont des **paramètres de démonstration**, pas des règles finales.
+**Tous les paliers sont accessibles ; aucun plafond n’est imposé par les parents.** Le réglage d’essai mélange 90 % de la distribution héritée autour de la moyenne parentale et 10 % de surprise sur toute l’échelle. La partie héritée garde sa variation pondérée de −20 à +20 ; la surprise permet notamment Epic et Legendary à toute paire admissible.
+
+| Palier | Contribution minimale nominale de la surprise |
+|---|---:|
+| Poor | 1 % |
+| Common | 2 % |
+| Uncommon | 2,5 % |
+| Rare | 2,5 % |
+| Epic | 1,5 % |
+| Legendary | 0,5 % |
+
+La partie héritée peut ajouter des chances à ces contributions ; les probabilités exactes de la paire sont affichées. La direction « tous accessibles » est confirmée. Le mélange 90/10, ces taux, les qualités fondatrices 24/54/84 et les gains de points restent des **paramètres proposés pour la démonstration**, pas un équilibrage final adopté.
 
 ## La boucle et le certificat
 
@@ -53,16 +64,16 @@ Les vidéos fournies [Opening Starr Drops](https://www.youtube.com/watch?v=G-sX1
 
 ## Mode test et ressources
 
-Le mode test prépare une issue admissible de chacun des six paliers avec des graines choisies ; il ne représente pas leurs chances naturelles. Legendary peut préparer un relais Y × Z, réellement révélé et conservé, avant le descendant final. Les ressources et points de ce relais sont annoncés dans le journal ; le résultat final attend sa vraie révélation avant de récompenser ses parents. Aucun point n’est injecté directement.
+Le mode test prépare directement l’un des six paliers avec des graines choisies ; il ne représente pas leurs chances naturelles. Legendary ne nécessite plus de parent relais : toute paire admissible possède une chance. Les anciens relais restent conservés dans le journal. Le résultat final attend sa vraie révélation avant de récompenser ses parents ; aucun point n’est injecté directement.
 
 Deux boutures identifiées sont consommées une fois par essai ; le pot est réutilisé. Chaque fondatrice dispose de trois boutures initiales et trois prélèvements supplémentaires ; chaque descendant conservé dispose de huit prélèvements, sans bouture gratuite avant prélèvement. Ces budgets ne garantissent aucun palier et Ramification ne les augmente pas.
 
-V04 commence une **nouvelle carrière**, avec des sauvegardes normale/test séparées. Elle ne reprend ni ne migre les carrières V03. L’adresse V03, ses fichiers, sauvegardes et preuves restent conservés. Recharger V04 ne change ni résultat ni débit.
+Cette évolution continue les **mêmes carrières V04**, avec les mêmes sauvegardes normale/test séparées. Seuls les nouveaux essais utilisent les probabilités de version 2. Un essai déjà engagé conserve sa version 1, ses chances, son résultat, ses points et ses débits, même après rechargement. Aucune migration des carrières V03 : leur adresse, fichiers et preuves restent conservés.
 
 ## Vérification et limites
 
-**Vérifications V04 : 146 tests réussis, zéro échec sur les sources, puis 146/146 sur les sources exportées.** Syntaxe et imports des 19 modules vérifiés. Le navigateur public a montré les six paliers, la pause/reprise du maintien, un indice Épique avant la conclusion Légendaire, le COA ouvert puis téléchargé et les filtres de l’arbre. Une activation a débité exactement un point ; les essais du mode test ont laissé les neuf boutures de départ du mode normal intactes. Un résultat normal de qualité 58 est resté stable au rechargement, avant et après révélation.
+**154 tests réussis, zéro échec.** Les sauvegardes de version 1, avec essai en attente ou conservé, sont reprises strictement à l’identique ; les nouveaux essais utilisent la version 2. Un nouveau lancement demandant explicitement la version 1 est refusé sans mutation. Publication en préparation, puis revue navigateur à effectuer. Les 146 tests et le parcours de la V04 précédente restent historiques.
 
-Au format 390 × 844, page et COA sans débordement horizontal mesuré ; console sans erreur ni avertissement. Les parents du COA sont désormais empilés sur mobile, vérifiés après publication de la correction. Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué. Les preuves V03 restent historiques. Recettes des autres produits, spécialisations et équilibrage définitifs restent ouverts.
+Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est revendiqué. Les gestes, COA, patrimoine, emplacements, lot et retours restent indépendants du changement de probabilités. Recettes des autres produits, spécialisations et équilibrage définitifs restent ouverts.
 
 [Passation Unity](handoff/PASSATION_UNITY.md) · [Têtes et provenance](handoff/HEAD_ASSETS.md) · [Sons provisoires](handoff/AUDIO.md)

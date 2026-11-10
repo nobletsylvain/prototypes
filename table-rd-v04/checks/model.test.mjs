@@ -17,7 +17,8 @@ function seedFor(state, parents, predicate) {
 }
 function start(state = createState(), parents = ['x', 'z'], predicate = outcome => outcome.rarity === 'rare', extra = {}) {
   const quality = getOdds(state, parents).qualityOdds;
-  const target = quality.outcomes.find(item => item.score === 60) || quality.outcomes.find(item => item.score === quality.center);
+  const targetScore = quality.center - 20 <= 60 && quality.center + 20 >= 60 ? 60 : quality.center;
+  const target = quality.outcomes.find(item => item.score === targetScore);
   return step(state, 'START', { qualitySeed: target.seedStart, parentIds: parents, seed: seedFor(state, parents, predicate), requestId: `request-${state.trials.length + 1}`, ...extra });
 }
 const reveal = state => ['ADVANCE', 'INSPECT', 'REVEAL'].reduce((current, type) => step(current, type), state);

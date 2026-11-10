@@ -1,6 +1,6 @@
 // Fictional demonstration parameters. They do not define final game rules.
 import { founderVisual, inheritVisual, getVisualPhenotype, validateVisual } from './visual-genetics.mjs';
-import { QUALITY_TIERS, tierForScore, getQualityOdds, drawGeneticQuality } from './genetic-quality.mjs';
+import { QUALITY_TIERS, QUALITY_VERSION, tierForScore, getQualityOdds, drawGeneticQuality } from './genetic-quality.mjs';
 export { QUALITY_TIERS, tierForScore, getQualityOdds } from './genetic-quality.mjs';
 const clone = value => structuredClone(value);
 const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
@@ -69,7 +69,7 @@ function resolvePair(state, parentIds) {
   return parents.every(Boolean) ? parents : null;
 }
 
-export function getOdds(state, parentIds) {
+export function getOdds(state, parentIds, qualityVersion = QUALITY_VERSION) {
   const parents = resolvePair(state, parentIds);
   if (!parents) return null;
   const potentials = TRAITS.filter(trait => parents.some(parent => parent.potentialIds.includes(trait.id)));
@@ -114,7 +114,7 @@ export function getOdds(state, parentIds) {
     return { capacity, percent: count * 100 / UINT32_SPACE, count, nominalPercent: capacityWeight };
   });
   const shared = potentials.filter(trait => parents.every(parent => parent.potentialIds.includes(trait.id))).length;
-  const qualityOdds = getQualityOdds(parents);
+  const qualityOdds = getQualityOdds(parents, qualityVersion);
   return { ...qualityOdds.exactPercent, qualityOdds, inheritanceCounts: counts, affinity: potentials.length ? shared / potentials.length : 0, generation: Math.max(...parents.map(parent => parent.generation)) + 1, potentialOdds, capacityOdds, outcomes, counts: qualityOdds.counts, sampleSpace: UINT32_SPACE, exactPercent: { ...qualityOdds.exactPercent } };
 }
 
@@ -132,13 +132,17 @@ function createResult(parents, odds, seed, qualitySeed, index) {
   };
 }
 
-function applyCommand(state, command, now) {
+function applyCommand(state, command, now, replaying = false) {
   const refuse = error => ({ state, ok: false, error });
   if (!isRecord(command) || typeof command.type !== 'string') return refuse('invalid-command');
   if (!Number.isFinite(now) || now < 0) return refuse('invalid-time');
   const commit = (next, recorded, event) => { next.revision++; next.history.push({ command: recorded, at: now }); return { state: next, ok: true, event }; };
   if (command.type === 'START') {
     if (typeof command.requestId !== 'string' || !command.requestId.trim() || command.requestId.length > 128) return refuse('request-id-required');
+    const hasQualityVersion = Object.hasOwn(command, 'qualityVersion');
+    const qualityVersion = hasQualityVersion ? command.qualityVersion : replaying ? 1 : QUALITY_VERSION;
+    if ((qualityVersion !== 1 && qualityVersion !== 2) || (!replaying && qualityVersion !== QUALITY_VERSION)) return refuse('unsupported-quality-version');
+    const versionFields = replaying && !hasQualityVersion ? {} : { qualityVersion };
     if (state.trials.some(trial => trial.requestId === command.requestId)) return { state, ok: true, event: 'request-already-committed' };
     const current = state.trials.find(trial => trial.id === state.activeTrialId);
     if (current && !TERMINAL_PHASES.includes(current.phase)) return refuse('trial-in-progress');
@@ -150,11 +154,11 @@ function applyCommand(state, command, now) {
     if (!isSeed(command.qualitySeed)) return refuse('quality-seed-required');
     const cuttings = command.parentIds.map(id => state.inventory.find(cutting => cutting.varietyId === id));
     if (cuttings.some(cutting => !cutting)) return refuse('insufficient-cuttings');
-    const odds = getOdds(state, command.parentIds), next = clone(state), index = next.trials.length + 1;
-    const trial = { id: `trial-${serial(index)}`, requestId: command.requestId, parentIds: [...command.parentIds], cuttingIds: cuttings.map(cutting => cutting.id), seed: command.seed, qualitySeed: command.qualitySeed, odds, result: createResult(parents, odds, command.seed, command.qualitySeed, index), batch: { id: `batch-${serial(index)}`, quality: 'demo-standard', quantity: 1, unit: 'specimen' }, phase: 'growing', createdAt: now, pointsAwarded: false };
+    const odds = getOdds(state, command.parentIds, qualityVersion), next = clone(state), index = next.trials.length + 1;
+    const trial = { id: `trial-${serial(index)}`, requestId: command.requestId, parentIds: [...command.parentIds], cuttingIds: cuttings.map(cutting => cutting.id), seed: command.seed, qualitySeed: command.qualitySeed, ...versionFields, odds, result: createResult(parents, odds, command.seed, command.qualitySeed, index), batch: { id: `batch-${serial(index)}`, quality: 'demo-standard', quantity: 1, unit: 'specimen' }, phase: 'growing', createdAt: now, pointsAwarded: false };
     next.inventory = next.inventory.filter(cutting => !trial.cuttingIds.includes(cutting.id));
     next.trials.push(trial); next.pot.trialId = trial.id; next.activeTrialId = trial.id;
-    return commit(next, { type: 'START', parentIds: [...command.parentIds], seed: command.seed, qualitySeed: command.qualitySeed, requestId: command.requestId }, 'trial-started');
+    return commit(next, { type: 'START', parentIds: [...command.parentIds], seed: command.seed, qualitySeed: command.qualitySeed, ...versionFields, requestId: command.requestId }, 'trial-started');
   }
   if (command.type === 'HARVEST') {
     const plant = state.plants.find(plant => plant.varietyId === command.varietyId);
@@ -215,7 +219,7 @@ export function validateState(state) {
   let replay = createState();
   for (const entry of state.history) {
     requireCondition(isRecord(entry) && isRecord(entry.command) && Number.isFinite(entry.at) && entry.at >= 0, 'history entry');
-    const next = applyCommand(replay, entry.command, entry.at);
+    const next = applyCommand(replay, entry.command, entry.at, true);
     requireCondition(next.ok && next.state !== replay, `history command ${entry.command.type} refused`); replay = next.state;
   }
   requireCondition(snapshot(replay) === snapshot(state), 'history does not match saved resources, outcomes or research');

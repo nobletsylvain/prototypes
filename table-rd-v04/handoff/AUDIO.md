@@ -1,6 +1,6 @@
 # Table de R&D V04 — Sons et retours provisoires
 
-10 novembre 2026. Les retours accompagnent les six paliers de qualité génétique, puis l’activation choisie et la conservation. Les synthèses et paramètres restent des essais de ressenti avant intégration Unity ; aucune écoute humaine validée n’est déclarée.
+10 novembre 2026. Les retours accompagnent les six paliers de qualité génétique, puis l’activation choisie et la conservation. L’évolution des probabilités rend tous les paliers accessibles sans changer les sons, les couleurs ou le maintien. Elle est implémentée et contrôlée, publication en préparation ; aucune écoute humaine validée n’est déclarée.
 
 ## Ce que les retours confirment
 
@@ -56,12 +56,12 @@ Références fournies : [Opening Starr Drops — Chicotinha](https://www.youtube
 
 ## Mode test, rejeux et validation
 
-Le mode test et le mode normal restent séparés. Les replays d’une révélation acquise ou d’une activation acquise répètent uniquement les retours, sans commande métier, nouveau tirage ou gain. Le mode normal garde ses distributions.
+Le mode test et le mode normal restent séparés. Les replays d’une révélation acquise ou d’une activation acquise répètent uniquement les retours, sans commande métier, nouveau tirage ou gain. Chaque essai garde sa distribution versionnée : les nouveaux essais utilisent la version 2, les anciens restent fixés à la version 1.
 
-Préparer Legendary peut créer un relais Y × Z de qualité 89, réellement révélé/conservé, puis le croiser avec Z pour préparer une qualité 100. Ses ressources et points sont tracés dans le carnet ; la cible finale attend sa révélation. Ce montage annoncé ne représente pas une fréquence naturelle.
+Legendary se prépare désormais directement, sans relais, car toute paire admissible possède une chance en version 2. Les anciens relais restent dans le carnet ; aucun point n’est ajouté pour les convertir. La cible finale attend sa révélation. Les préparations et replays ne représentent pas une fréquence naturelle et n’améliorent pas les chances.
 
-**Contrôles des sources V04 : 146 tests réussis, zéro échec, puis 146/146 sur les sources exportées ; syntaxe et imports des 19 modules du paquet vérifiés.** Ce total ne constitue pas une écoute ou une preuve de ressenti sonore.
+**Évolution des probabilités : 154 tests réussis, zéro échec**, dont conservation des sauvegardes version 1 et nouveaux essais version 2. Publication en préparation, puis revue navigateur à effectuer ; aucune écoute n’en est déduite. Les 146 tests et contrôles de 19 modules de la V04 précédente restent des preuves historiques.
 
-Le parcours navigateur public a montré les six paliers et la pause/reprise : Rare à 36 % puis conclusion à 69, Legendary à 88 % avec indice Épique et halo puis conclusion à 100. Le COA, l’arbre et l’activation ont été parcourus ; la console reste sans erreur ni avertissement. La disposition corrigée des parents du COA mobile a également été relue après publication. **Les sons n’ont pas été écoutés.** Aucun confort tactile réel, téléphone physique ou portage Unity n’est validé par cette revue.
+Le parcours navigateur de cette version précédente avait montré les six paliers et la pause/reprise : Rare à 36 % puis conclusion à 69, Legendary à 88 % avec indice Épique et halo puis conclusion à 100. COA, arbre, activation et disposition mobile avaient été parcourus sans erreur de console. **Les sons n’ont pas été écoutés.** Aucun confort tactile réel, téléphone physique ou portage Unity n’est validé par cette revue historique.
 
 À éprouver : distinction des six conclusions, clarté du passage des indices à la découverte, audibilité des gestes, arrêt lors des interruptions, répétition et fatigue. Comparer le même état en Expressif/Discret, avec réduction des mouvements et sans son. Aucun téléphone physique ni essai humain déclaré. Une future banque devra conserver licence, originaux, variantes et verdict d’écoute. Le portage utilise les interfaces publiques du système de retours du projet, sans modifier les sources fournisseur.

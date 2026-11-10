@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildJournalGraph, GRAPH_LAYOUT } from '../source/journal-graph.mjs';
-import { buildJournalEntries } from '../source/journal.mjs';
-import { createState, getStrains } from '../source/model.mjs';
+import { buildJournalEntries, filterJournalEntries } from '../source/journal.mjs';
+import { createState, getStrains, QUALITY_TIERS } from '../source/model.mjs';
 import { createTestDiscovery } from '../source/test-session.mjs';
 
 const entry = (id, generation, parentEntryIds = [], extra = {}) => ({ id, generation, parentEntryIds, createdAt: 0, ...extra });
@@ -154,11 +154,24 @@ test('missing parents are not invented and duplicate parent IDs do not duplicate
 
 test('real public journal projection retains an unrevealed trial without exposing its outcome', () => {
   const state = createTestDiscovery('legendary').state;
+  assert.equal(state.trials.length,1);assert.equal(state.varieties.length,0);
+  const trial=state.trials[0];
+  for(const tier of QUALITY_TIERS)assert(trial.odds[tier.id]>0);
+  Object.defineProperty(trial,'result',{get(){throw Error('Unrevealed outcome read');}});
   const entries = buildJournalEntries(state, getStrains(state));
   const target = entries.find(item => item.trialId === state.activeTrialId);
   assert.equal(target.known, false); assert.equal(target.rarity, null); assert.equal(target.geneticQuality, null); assert.deepEqual(target.potentialIds, []);
+  for(const field of ['strainId','color','accent','visual','slotCapacity'])assert.equal(target[field],null);
+  for(const field of ['name','signature'])assert.equal(target[field],'');
+  for(const field of ['activeIds','availableIds'])assert.deepEqual(target[field],[]);
+  assert.equal(target.configurable,false);assert.equal(target.reusable,false);
+  for(const tier of QUALITY_TIERS){
+    assert(!filterJournalEntries(entries,{rarity:tier.id}).matchIds.has(target.id));
+    for(const query of [tier.id,tier.name.fr,tier.name.en])assert(!filterJournalEntries(entries,{query}).matchIds.has(target.id));
+  }
   const graph = buildJournalGraph(entries, new Set([target.id]), true);
-  assert.equal(graph.nodes.length, 5); assert.equal(graph.edges.length, 4);
+  assert.equal(graph.nodes.length, 4); assert.equal(graph.edges.length, 2);
+  assert.deepEqual(edgePairs(graph.edges),[`strain:x>${target.id}`,`strain:y>${target.id}`]);
   assert.equal(graph.nodes.find(node => node.id === target.id).entry, target);
   assert(graph.edges.every(edge => edge.highlighted));
   assert.equal(buildJournalGraph(buildJournalEntries(createState(), getStrains(createState()))).nodes.length, 3);

@@ -1,6 +1,6 @@
 # Table de R&D — Passation V04, qualité génétique et COA
 
-10 novembre 2026. Prototype web autonome **publié, parcouru dans le navigateur et contrôlé au format mobile**, avant intégration au jeu. Nouvelle URL et nouvelle carrière V04 ; V03 reste intacte. Aucun nouveau composant, import ou build Unity n’est déclaré livré.
+10 novembre 2026. Évolution du prototype autonome V04 **implémentée et contrôlée, publication en préparation**, avant intégration au jeu : tous les paliers deviennent possibles pour chaque nouveau croisement. Même URL, mêmes carrières V04 ; V03 reste intacte. Aucun nouveau composant, import ou build Unity n’est déclaré livré.
 
 [Démo V04](https://nobletsylvain.github.io/prototypes/table-rd-v04/) · [Mode test](https://nobletsylvain.github.io/prototypes/table-rd-v04/?mode=test) · [V03 conservée](https://nobletsylvain.github.io/prototypes/table-rd-v03/)
 
@@ -17,7 +17,7 @@ La photo du 10 novembre fournit six paliers de qualité et leurs couleurs. Le pr
 | 80–99 | `epic` | Epic | Violet |
 | 100 | `legendary` | Legendary | Jaune |
 
-Moyenne arrondie, amplitude −20/+20, poids triangulaires, scores fondateurs 24/54/84 et gain unique à partir de 60 sont des **propositions de démonstration**. Les seuils/couleurs viennent de la référence ; cette provenance n’adopte pas les formules comme règles finales. Aucun classement scientifique, puissance réelle ou procédé de culture n’est simulé.
+Le propriétaire demande désormais que chaque croisement puisse obtenir tous les paliers, y compris Epic et Legendary avec des parents faibles. Les parents orientent toujours la distribution héritée, sans plafond imposé au résultat. Le mélange 90 % hérité / 10 % surprise globale, ses taux, la moyenne arrondie, l’amplitude −20/+20, les scores fondateurs 24/54/84 et le gain unique à partir de 60 sont des **propositions de démonstration**. La direction est confirmée ; les taux ne sont pas un équilibrage final adopté. Aucun classement scientifique, puissance réelle ou procédé de culture n’est simulé.
 
 Les cinq potentiels, leurs poids, capacités 3/5, coûts, budgets physiques et positions des points blancs restent des réglages d’essai. Le prototype ne fixe pas les recettes des autres produits, leurs spécialisations ou l’économie définitive.
 
@@ -40,19 +40,19 @@ Le potentiel activable `quality` n’est pas `geneticQuality`. Il prépare une p
 
 ## Tirage et API de qualité
 
-`genetic-quality.js` expose `QUALITY_VERSION=1`, `QUALITY_TIERS`, `tierForScore(score)`, `getQualityOdds(parents)` et `drawGeneticQuality(odds, qualitySeed)`. Le modèle réexporte `QUALITY_TIERS`, `tierForScore` et `getQualityOdds`. `tierForScore` retourne `{id,min,max,color,name:{fr,en}}` et refuse un score non entier ou hors bornes.
+`genetic-quality.js` expose `QUALITY_VERSION=2`, `QUALITY_PARAMETERS`, `QUALITY_TIERS`, `tierForScore`, `getQualityOdds(parents,version=2)` et `drawGeneticQuality`. Le modèle expose `getOdds(state,parentIds,qualityVersion=2)`. Chaque nouvelle commande `START` enregistrée et son essai portent `qualityVersion:2`. Les anciens champs absents restent absents au rejeu strict de version 1 ; l’historique n’est pas réécrit. `tierForScore(score)` conserve les six seuils et refuse un score non entier ou hors bornes.
 
-1. Centre : `Math.round((parentA.geneticQuality + parentB.geneticQuality) / 2)`.
-2. Décalages entiers de −20 à +20, poids `21 - Math.abs(offset)`.
-3. Exclure les scores hors de 0–100 avant normalisation, sans écrêtage ni report sur une borne.
-4. Allouer exactement `2³²` graines par quotients entiers et plus grands restes ; départage par score croissant.
-5. Enregistrer les intervalles de scores `[seedStart, seedEnd)` et agréger leurs comptes par palier.
+La composante héritée conserve le calcul précédent : centre `Math.round((parentA.geneticQuality + parentB.geneticQuality) / 2)`, décalages entiers de −20 à +20 avec poids `21 - Math.abs(offset)`, scores hors de 0–100 exclus avant normalisation, sans écrêtage ou report sur une borne. Elle représente 90 % de la nouvelle distribution.
+
+Les 10 % de surprise couvrent toute l’échelle selon les poids de paliers `[10,20,25,25,15,5]` pour Poor/Common/Uncommon/Rare/Epic/Legendary. Cette part est uniforme entre les vingt scores de chaque palier, et concentrée sur 100 pour Legendary. Contributions minimales nominales dans le tirage complet : **1 / 2 / 2,5 / 2,5 / 1,5 / 0,5 %**. La composante héritée peut s’y ajouter. Cette surprise ne crée pas de nouveau potentiel, emplacement ou allèle visuel ; elle concerne uniquement la qualité génétique.
+
+`QUALITY_PARAMETERS` fournit `parentalPercent:90`, `surprisePercent:10`, `offsetRadius:20`, `globalTierWeights` et `globalTierFloorsPercent`. Le mélange est calculé en rationnels `BigInt`, puis alloué sur exactement `2³²` graines par plus grands restes, avec intervalles `[seedStart,seedEnd)` et comptes par palier. Les pourcentages affichés proviennent de ces comptes, et non d’une fréquence du mode test. Les planchers sont nominaux : par exemple 2,5 % peut correspondre à 2,499999944 % après allocation ; les comptes exacts font foi.
 
 Près des bornes, l’exclusion modifie la moyenne effective de la distribution : elle n’est pas promise exactement égale à celle des parents.
 
 `getQualityOdds(parents)` retourne les six pourcentages, `version`, `center`, `counts`, `outcomes[{score,tier,count,seedStart,seedEnd,percent}]`, `exactPercent` et `sampleSpace`. `getOdds(state,parentIds)` ajoute `qualityOdds` ; ses pourcentages et `counts` publics décrivent la qualité. `inheritanceCounts` et les anciennes étiquettes de `outcomes.rarity` décrivent seulement la classification interne du patrimoine V03 : **aucune autorité de palier**. L’interface et le COA ne doivent pas les utiliser comme score ou rareté.
 
-`START` exige deux uint32 : `seed` pour potentiels/capacité et sous-flux visuel, `qualitySeed` indépendante pour la qualité. Graines, chances et résultat sont persistés ensemble dans l’essai et l’historique. Aucun rendu, maintien, rechargement ou COA ne tire à nouveau.
+`START` exige deux uint32 : `seed` pour potentiels/capacité et sous-flux visuel, `qualitySeed` indépendante pour la qualité. Version de probabilités, graines, chances et résultat sont persistés ensemble dans l’essai et l’historique. Aucun rendu, maintien, rechargement ou COA ne tire à nouveau. Un lancement accepte une version absente, résolue à 2, ou explicitement 2 ; une demande explicite de version 1 est refusée sans mutation, même lors d’un retry. La version 1 est réservée au rejeu des anciennes commandes, sans réécrire les essais déjà engagés.
 
 ## Potentiels, emplacements et ressources
 
@@ -103,13 +103,17 @@ Ce sont des contrats de portage proposés, pas des API Unity déjà livrées. Si
 
 ## Carrières et mode test
 
-Schéma 5, carrière neuve : les états V03 sont refusés, sans migration ou réinterprétation. Clés `botanical-table-v04` et `botanical-table-v04-test` séparées entre elles et des clés V03. La V03 publiée reste préservée. Historique de commandes et validation par rejeu ; persister avant les retours, refuser les données incohérentes et empêcher tout gain/débit partiel en cas d’erreur de sauvegarde.
+Schéma 5 et clés `botanical-table-v04` / `botanical-table-v04-test` conservés. Cette évolution poursuit les carrières V04 existantes ; elle ne déclenche ni reset ni nouvelle migration. La version de probabilités appartient à chaque essai : chances, score, identité, provenance, points, historique et ressources des essais de version 1 restent exactement conservés. Les états V03 restent refusés ; fichiers et sauvegardes V03 sont intacts. Persister avant les retours, refuser les données incohérentes et empêcher tout gain/débit partiel.
 
-`createTestDiscovery(tier,previousState,rewardParentId)` prépare une issue admissible par les commandes ordinaires. Dans une carrière neuve, les exemples de qualité sont 19/39/54/69/80 pour les cinq premiers paliers ; une session poursuivie peut utiliser des descendants conservés et obtenir une autre qualité du même palier. Legendary prépare un relais Y × Z de qualité 89, réellement révélé et conservé, puis son enfant avec Z de qualité 100, arrêté à `inspected`. `setupTrialIds/setupLabels` exposent les étapes préparées ; les points du relais proviennent de sa vraie révélation, le résultat final n’a encore attribué aucun point. Aucune modification des chances normales ou injection gratuite de points. Les six paliers ont été parcourus dans l’interface publiée.
+`createTestDiscovery(tier,previousState,rewardParentId)` prépare directement un palier admissible par les commandes ordinaires et s’arrête à `inspected`. Legendary n’exige plus de relais : toute paire disponible possède une chance en version 2. Les relais des anciens essais restent dans leur historique, sans suppression ou crédit nouveau. Le résultat final attend sa vraie révélation ; aucune injection de points ni modification des chances du mode normal. Le parcours de ce helper simplifié reste à vérifier.
 
 ## Vérification et limites
 
-**Preuves des sources V04 : 146 tests réussis, zéro échec, puis 146/146 sur les sources exportées.** Modèle, qualité, préparations, héritage visuel, retours, journal et COA contrôlés ; syntaxe et imports des 19 modules vérifiés. La relecture indépendante ne relève aucun blocage.
+**Extension de probabilités version 2 : 154 tests réussis, zéro échec.** Les sauvegardes de version 1 capturées avec essai en attente et essai conservé restent strictement identiques ; les nouveaux essais utilisent la version 2. Le refus d’un nouveau `START` explicite en version 1 conserve l’état. Publication en préparation, puis revue navigateur à effectuer. Aucun compte historique n’est réutilisé comme validation de cette évolution.
+
+### Historique — V04 avec probabilités version 1
+
+La version précédente avait **146 tests réussis, zéro échec, puis 146/146 sur les sources exportées**, avec syntaxe et imports des 19 modules vérifiés. Les observations suivantes concernent cette distribution antérieure.
 
 La revue navigateur a porté sur la [PR 294](https://github.com/nobletsylvain/prototypes/pull/294), commit `f7bdc5ffd17a00d7beb4c38f0e602d660fba9b3f`, paquet SHA-256 `4862706fb9c52469a21e1afacdd4eefe2ef97c5fd2677c151286ec8f49eaa63f` :
 
@@ -121,4 +125,4 @@ La revue navigateur a porté sur la [PR 294](https://github.com/nobletsylvain/pr
 
 La correction CSS des parents du COA mobile est publiée par la [PR 295](https://github.com/nobletsylvain/prototypes/pull/295), commit `019b78682770c38b6e04f212109da5f35e66f8b6`, paquet SHA-256 `d50af268ed9c7be36c81a1edc6c16ce10379576e0d6f208a03fa261dd150e9dc`. Sa relecture ciblée confirme une colonne de parents, largeurs cliente/défilante 249/249 px et console sans erreur ni avertissement. Elle complète le parcours initial sans prétendre le répéter intégralement ; aucun changement du modèle de jeu. Aucun essai humain, téléphone physique, écoute validée ou intégration Unity n’est déclaré ; les captures V03 restent historiques.
 
-Contrôles exacts : six seuils, allocation entière, exclusion sans écrêtage, graines indépendantes, qualité stable, aucune fuite avant fiche, +1 unique aux bons parents à partir de 60, activation exacte, provenance/débits, refus sans mutation, patrimoine et lot inchangés, carrières séparées. Le COA doit distinguer génétique/lot et patrimoine/activation. Le plaisir et la lisibilité des six révélations restent à juger par le propriétaire.
+Contrôles exacts de l’évolution : six paliers accessibles à toutes les paires, part héritée conservée, allocation entière et quantification explicitée, rejeu version 1 strictement identique, seuls les nouveaux `START` en version 2, graines indépendantes, qualité stable, aucune fuite avant fiche, +1 unique aux bons parents à partir de 60, activation exacte, provenance/débits, refus sans mutation, patrimoine et lot inchangés. Le COA distingue génétique/lot et patrimoine/activation ; le plaisir reste à juger par le propriétaire.
